@@ -11075,6 +11075,35 @@ fn runtime_join_meet_bound_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_dual_indexed_comparison_guard_exit_canary_runs() {
+    // Two runtime-indexed array elements compared in one transition guard
+    // (`transition self.arr[self.lo] < self.arr[self.hi]`): the operand-hoist lifts EACH into its
+    // own temp. arr[4]=20 < arr[2]=70 is true -> exit 70. A regression to the element-0 read would
+    // flip the arm and diverge from the interpreter.
+    let canary = pass_canary("collections/runtime_dual_indexed_comparison_guard_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-dual-idx-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dual-indexed comparison guard canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dual-indexed comparison guard canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a guard comparing two runtime-indexed elements to read the right ones (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_array_min_max_builtin_exit_canary_runs() {
     // The min/max builtins used in a reduction over an array: `self.mx = max(self.mx, self.v)` /
     // `self.mn = min(self.mn, self.v)`, folding each element read from a runtime index. arr =
@@ -17282,6 +17311,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_array_max_and_sum_exit",
     "collections/runtime_indexed_guard_subject_exit",
     "collections/runtime_array_min_max_builtin_exit",
+    "collections/runtime_dual_indexed_comparison_guard_exit",
     "core/array_core_surface",
     "core/fixed_vec_core_surface",
     "core/region_core_surface",

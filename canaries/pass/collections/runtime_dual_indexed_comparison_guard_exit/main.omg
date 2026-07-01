@@ -1,0 +1,23 @@
+// Compare TWO runtime-indexed array elements directly in one transition guard:
+// `transition self.arr[self.lo] < self.arr[self.hi]`. Both operands are runtime-indexed reads --
+// the frontend operand-hoist lifts EACH into its own `let __hoist = ..;` temp, so the guard
+// compares two plain locals with correct offsets. This is the building block for sorting / searching
+// / partitioning (`arr[j] < arr[min]`). Before the guard-subject hoist fix, a runtime-indexed guard
+// operand silently read element 0; a regression to that would make this compare arr[0] with itself
+// (40 < 40 = false) and take the WRONG arm, diverging from the interpreter. arr[4]=20 < arr[2]=70 is
+// true -> exit 70. Differential (native must match the interpreter -- the discriminator here).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    arr: [i32 in Wrapping; 5];
+    lo: i32 in Wrapping;
+    hi: i32 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.arr[0] = 40; self.arr[1] = 10; self.arr[2] = 70; self.arr[3] = 30; self.arr[4] = 20;
+    self.lo = 4;
+    self.hi = 2;
+    transition self.arr[self.lo] < self.arr[self.hi] { true -> ok() _ -> bad() }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
