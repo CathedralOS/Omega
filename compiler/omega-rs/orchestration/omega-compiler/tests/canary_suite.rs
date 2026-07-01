@@ -11017,6 +11017,36 @@ fn runtime_join_meet_bound_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_write_first_loop_index_exit_canary_runs() {
+    // Write-first loop `arr[i]=..; i=i+1; transition i<N { true -> loop }`: the bound guard is on
+    // the back edge, so the head is a join with no dominating guard. The loop-invariant pass now
+    // carries `i < N` (from the back-edge guard) at the head's entry for a monotone-increasing
+    // counter, so the write proves. Fills [0..4], sums to 10, self-checks -> exit 70.
+    let canary = pass_canary("collections/runtime_write_first_loop_index_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-write-first-loop-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("write-first loop canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("write-first loop canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a write-first increasing loop to prove its index bound and fill correctly (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_array_indexed_loop_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_array_indexed_loop_exit");
     let main_path = canary.join("main.omg");
@@ -16924,6 +16954,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/std_option_storage_write",
     "collections/std_option_surface",
     "collections/runtime_fixed_vec_round_trip_exit",
+    "collections/runtime_write_first_loop_index_exit",
     "core/array_core_surface",
     "core/fixed_vec_core_surface",
     "core/region_core_surface",
@@ -17350,6 +17381,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/terminal_return_type_mismatch_rejected",
     "calls/shared_value_call_slot_rejected",
+    "collections/write_first_loop_bound_exceeds_capacity",
     "capabilities/duplicate_provider_declaration",
     "capabilities/effect_ceiling_exceeded",
     "capabilities/effect_outside_trait_requirement",

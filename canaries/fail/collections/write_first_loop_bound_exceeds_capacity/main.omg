@@ -1,0 +1,17 @@
+// SOUNDNESS BOUNDARY for the write-first loop-invariant upper bound: the back-edge guard
+// `self.i < 10` bounds the index at 10, but the array holds only 5. `i` reaches 9 -> writing
+// `hp[9]` is out of bounds. The loop-invariant seeds `i < 10`, which does NOT prove `i < 5`,
+// so the index check must REJECT (never accept a bound looser than the capacity).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; hp: [i32 in Wrapping; 5]; i: i32 in Wrapping; sum: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.i = 0;
+    transition { _ -> fill() }
+    state fill(&mut self) {
+        self.hp[self.i] = self.i;
+        self.i = self.i + 1;
+        transition self.i < 10 { true -> fill() _ -> tally() }
+    }
+    state tally(&mut self) { self.sum = self.hp[0]; transition { _ -> done() } }
+    state done(&mut self) { self.console.exit_process(self.sum); }
+}

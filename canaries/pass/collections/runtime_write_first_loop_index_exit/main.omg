@@ -1,0 +1,22 @@
+// Write-FIRST loop: `arr[i] = ..; i = i + 1; transition i < N { true -> loop }`. The bound guard
+// sits on the back edge (after the increment), so the loop head is a JOIN with no dominating
+// guard -- previously "cannot prove index". A monotone-increasing counter whose back edge is
+// guarded by `i < N` now carries `i < N` at the head's entry (loop-invariant pass), so the
+// write proves. Fills [0,1,2,3,4], sums to 10, self-checks. Differential: native == interp.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; hp: [i32 in Wrapping; 5]; i: i32 in Wrapping; sum: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.i = 0;
+    transition { _ -> fill() }
+    state fill(&mut self) {
+        self.hp[self.i] = self.i;
+        self.i = self.i + 1;
+        transition self.i < 5 { true -> fill() _ -> tally() }
+    }
+    state tally(&mut self) {
+        self.sum = self.hp[0] + self.hp[1] + self.hp[2] + self.hp[3] + self.hp[4];
+        transition self.sum == 10 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

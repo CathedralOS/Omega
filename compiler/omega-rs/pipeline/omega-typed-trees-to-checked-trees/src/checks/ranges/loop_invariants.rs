@@ -3,7 +3,8 @@ use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, Expression
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
-    StatementNode, TableAssignment, TransitionTargetHandle, TransitionTargetNode,
+    StatementNode, TableAssignment, TransitionGuardNode, TransitionTargetHandle,
+    TransitionTargetNode,
 };
 
 use super::facts::RangeFacts;
@@ -171,6 +172,32 @@ pub(super) fn collect_loop_invariant_facts(
                     state: state_symbol,
                     index_name: index_name.clone(),
                     kind,
+                });
+            }
+
+            // An INCREASING counter's guard sits on the back edge (after the increment), so a
+            // write-first loop head -- a JOIN of the entry edge and the back edge -- gets no
+            // dominating upper bound (the single-guard walk bails at the join, and the meet
+            // drops the loop bound there). But when EVERY back edge into the head reaches it via
+            // `counter < B` and every entry starts the counter below B, `i < B` holds at the
+            // head's ENTRY: each back edge carries it (the guard ran just before, on the same i),
+            // and the entry init is < B. Seed it at the HEAD ONLY. Soundness for a use that
+            // follows the in-loop increment (where i may reach B) is preserved by the checker's
+            // forget-on-reassign: `self.i = self.i + c` drops this bound before that use.
+            if matches!(direction, Direction::Increasing)
+                && let Some(bound) = back_edge_counter_upper_bound(
+                    program,
+                    states,
+                    &back_sources,
+                    head.symbol,
+                    counter,
+                )
+                && max_init < bound
+            {
+                invariants.push(LoopInvariant {
+                    state: head.symbol,
+                    index_name: index_name.clone(),
+                    kind: InvariantKind::UpperBound(bound),
                 });
             }
         }
@@ -350,6 +377,137 @@ fn classify_counter_write(
             }
         }
         _ => CounterWrite::Other,
+    }
+}
+
+/// The weakest exclusive upper bound on the counter that holds at `head`'s entry across all its
+/// back edges, or `None` if any back edge reaches `head` unguarded, via a guard that is not a
+/// `counter < B` comparison to a constant, or via a convergent/continuation arm we do not bound.
+/// Each back edge guarantees only its own `i < B_edge`, so the MAX over edges is the bound that
+/// holds on every incoming loop path.
+fn back_edge_counter_upper_bound(
+    program: &omega_typed_trees::TypedTrees,
+    states: &[State],
+    back_sources: &[SymbolHandle],
+    head: SymbolHandle,
+    counter: SymbolHandle,
+) -> Option<i64> {
+    let mut bound: Option<i64> = None;
+    for &source in back_sources {
+        let state = find_state(states, source)?;
+        let edge_bound = source_arm_to_head_upper_bound(program, state, head, counter)?;
+        bound = Some(bound.map_or(edge_bound, |current| current.max(edge_bound)));
+    }
+    bound
+}
+
+/// The counter upper bound carried by `source`'s arm to `head`. `None` if `source` reaches
+/// `head` unguarded, via a non-`counter < B` guard, via both arms of one transition (an
+/// unconditional convergence), via the continuation (`_`) arm (a negated guard gives no upper
+/// bound), or via more than one transition (ambiguous).
+fn source_arm_to_head_upper_bound(
+    program: &omega_typed_trees::TypedTrees,
+    source: &State,
+    head: SymbolHandle,
+    counter: SymbolHandle,
+) -> Option<i64> {
+    let mut found: Option<i64> = None;
+    for statement in program.statement_table.statements(source.statement_nodes) {
+        let StatementNode::Transition(transition) = statement else {
+            continue;
+        };
+        let target_is_head = transition_target_symbol(program, transition.target) == Some(head);
+        let continuation_is_head =
+            transition_target_symbol(program, transition.continuation) == Some(head);
+        if !target_is_head && !continuation_is_head {
+            continue;
+        }
+        // Both arms to head, or via the continuation arm, or unguarded: no positive bound.
+        if continuation_is_head {
+            return None;
+        }
+        let TransitionGuardNode::When(guard) = transition.guard else {
+            return None;
+        };
+        let edge_bound = parse_counter_upper_bound(program, guard, counter)?;
+        if found.is_some() {
+            return None; // more than one arm to head
+        }
+        found = Some(edge_bound);
+    }
+    found
+}
+
+/// The exclusive upper bound `B` a comparison guard puts on `counter`: `counter < L` -> `L`;
+/// `counter <= L` -> `L + 1`; and the reversed `L > counter` / `L >= counter`. A `{ true -> .. }`
+/// transition arm wraps its subject as `subject == true`, so an outer boolean equality is
+/// unwrapped first (matching `seed_boolean_equality_guard_facts`). `None` otherwise.
+fn parse_counter_upper_bound(
+    program: &omega_typed_trees::TypedTrees,
+    guard: ExpressionHandle,
+    counter: SymbolHandle,
+) -> Option<i64> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(guard) else {
+        return None;
+    };
+    if binary.operator == BinaryOperator::Equal {
+        // `subject == true` -> parse the subject; `== false` is a negation (no upper bound).
+        let inner = boolean_equality_inner(program, binary.left, binary.right)?;
+        return parse_counter_upper_bound(program, inner, counter);
+    }
+    let left_is_counter = expression_is_counter_member(program, binary.left, counter);
+    let right_is_counter = expression_is_counter_member(program, binary.right, counter);
+    match binary.operator {
+        BinaryOperator::Less if left_is_counter => integer_literal(program, binary.right),
+        BinaryOperator::LessOrEqual if left_is_counter => {
+            integer_literal(program, binary.right).and_then(|literal| literal.checked_add(1))
+        }
+        BinaryOperator::Greater if right_is_counter => integer_literal(program, binary.left),
+        BinaryOperator::GreaterOrEqual if right_is_counter => {
+            integer_literal(program, binary.left).and_then(|literal| literal.checked_add(1))
+        }
+        _ => None,
+    }
+}
+
+/// For an `Equal` whose one side is `Boolean(true)`, the other (the real subject). `None` if
+/// neither side is `Boolean(true)` (a `== false` negation, or a non-boolean equality).
+fn boolean_equality_inner(
+    program: &omega_typed_trees::TypedTrees,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let is_true =
+        |handle| matches!(program.expression_table.expression(handle), ExpressionNode::Boolean(true));
+    if is_true(left) {
+        Some(right)
+    } else if is_true(right) {
+        Some(left)
+    } else {
+        None
+    }
+}
+
+fn integer_literal(
+    program: &omega_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<i64> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Integer(value) => Some(*value),
+        _ => None,
+    }
+}
+
+fn transition_target_symbol(
+    program: &omega_typed_trees::TypedTrees,
+    target: TransitionTargetHandle,
+) -> Option<SymbolHandle> {
+    if !target.is_valid() {
+        return None;
+    }
+    match program.statement_table.transition_target(target) {
+        TransitionTargetNode::Named { path, .. } => Some(path.symbol),
+        _ => None,
     }
 }
 
