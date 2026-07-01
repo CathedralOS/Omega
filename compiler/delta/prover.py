@@ -582,6 +582,7 @@ LEMMA_PROPS = [
     ("all", ("all", ("all", ("=", ("m", ("p", ("v", 2), ("v", 1)), ("v", 0)),
                                    ("p", ("m", ("v", 2), ("v", 0)), ("m", ("v", 1), ("v", 0))))))),  # 5: (x+y)*a = x*a+y*a
 ]
+_COMM = 2   # add-commutes' index in LEMMA_PROPS -- used by the additive two-bound (interval) composition
 _ASSOC = 3  # add-assoc's index in LEMMA_PROPS -- used by the directed sum-chain (transitivity) rule
 _SUCCL = 4  # add-succ-left ((s x)+y = s(x+y), refl-provable) -- lets the STRICT (<) chain peel the `s` slot
 _RDIST = 5  # right-distributivity ((x+y)*a = x*a+y*a) -- the mult lemma that closes the mult-assoc natind step
@@ -943,6 +944,16 @@ def _rules(sat, goal):
                 for K in Ks:                                      # Y*c = (X+(s K))*c = X*c + (s K)*c, and (s K)*c
                     for P in Ps:                                  # = c + K*c = (s P) + K*c = s(P + K*c) since c=s P.
                         wits.append((("p", P, ("m", K, c2)), (_RDIST,)))
+            if A[0] == "p":                                        # ADDITIVE two-bound (interval)  X<CL & Y<CR ⊢
+                X2, Y2, cn = A[1], A[2], nf(C)                     # X+Y < CL+CR : goal ∃w.(p (p X Y)(s w))=C where
+                xf = [(f[1][2][1], f[2]) for f, _ in sat          # C is CL+CR (a symbolic sum OR a concrete numeral).
+                      if f[0] == "=" and f[1][0] == "p" and f[1][1] == X2 and f[1][2][0] == "s"]  # (K, CL) from X<CL
+                yf = [(f[1][2][1], f[2]) for f, _ in sat
+                      if f[0] == "=" and f[1][0] == "p" and f[1][1] == Y2 and f[1][2][0] == "s"]  # (J, CR) from Y<CR
+                for K, CL in xf:                                   # witness w = K + (s J): (X+Y)+s(K+s J) = X+Y+(s K)+
+                    for J, CR in yf:                              # (s J) = CL+CR (add-assoc + add-comm; then CL+CR
+                        if nf(("p", CL, CR)) == cn:                # reduces to C when concrete). "sum of bounded is bounded."
+                            wits.append((("p", K, ("s", J)), (_ASSOC, _COMM)))
         else:
             wits = []
         for w, lemma_ids in wits:
