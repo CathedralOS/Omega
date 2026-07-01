@@ -23,7 +23,11 @@
 ; stdout: write_byte(e)/write_line("s") accumulate LAST list slot `out` (cons-front): write_byte -> `(Cons e
 ; out)`; write_line -> cons the string bytes + a trailing '\n'. In OUTPUT mode the entry terminal returns
 ; `(rev out Nil)` (the whole stdout) not the exit code; interp prints that list. `rev` prepended if outputs.
-; Slot order (sig/call/init): locals, fields, arrays, inp, out.
+; SELF-METHODS: `machine Main::m(&mut self, params)` shares the caller's `self`. The self-state {fields,
+; arrays, inp, out} is UNIFIED (union over the entry + all methods) and threaded as extra params after each
+; machine's locals. A void method returns its self-state BUNDLE: "0" / the sole slot / right-nested Pairs.
+; A call `self.m(a);` -> `(let nss <call> rest)` (1 slot) or `(match <call> ((Pair a0 r0) ..((Pair .. ) rest)))`
+; (N slots), rebinding the self-slots to fresh names. Slot order everywhere: locals, fields, arrays, inp, out.
 ;
 ; Emission (matching gamma_emit.rs slices 3-5): EVERY machine becomes mutually-recursive gamma defs
 ; `(def m{mi}_me (SIG) <entry>) (def m{mi}_s{k} (SIG) <state k>) ...`, SIG = its locals l0.. (++ the
@@ -597,6 +601,146 @@ proc emit_exit_om() {
     state omexit { emit("(rev ")  print_outname()  emit(" Nil)")  return 0 }
 }
 
+; ---- self-methods: the program-wide UNIFIED self-state {fields, arrays, inp, out} threaded as a tuple ----
+
+; the number of unified self-slots (shared by every &mut self machine).
+proc self_slot_count() {
+    return word[6000024] + word[6000040] + word[6000048] + word[6000056]   ; FIELD + ARRAY + HAS_INPUT + HAS_OUTPUT
+}
+
+; print the current gamma name of self-slot i (order: fields, arrays, inp, out).
+proc print_self_slot(i) {
+    let nf = word[6000024]
+    let na = word[6000040]
+    state d {
+        to fld when (i < nf)
+        to arr when (i < nf + na)
+        to inq when (i < nf + na + word[6000048])
+        to ouq
+    }
+    state fld { print_fcurname(i)  return 0 }
+    state arr { print_acurname(i - nf)  return 0 }
+    state inq { print_inpname()  return 0 }
+    state ouq { print_outname()  return 0 }
+}
+
+; rebind self-slot i's current name to t{fv}.
+proc set_self_slot(i, fv) {
+    let nf = word[6000024]
+    let na = word[6000040]
+    state d {
+        to fld when (i < nf)
+        to arr when (i < nf + na)
+        to inq when (i < nf + na + word[6000048])
+        to ouq
+    }
+    state fld { word[6420000 + i * 8] = 1  word[6430000 + i * 8] = fv  return 0 }
+    state arr { word[6440000 + (i - nf) * 8] = 1  word[6450000 + (i - nf) * 8] = fv  return 0 }
+    state inq { word[6460000] = 1  word[6470000] = fv  return 0 }
+    state ouq { word[6480000] = 1  word[6490000] = fv  return 0 }
+}
+
+; emit the current self-slots space-prefixed (the self-state passed into a call / tail-call).
+proc emit_self_args() {
+    let n = self_slot_count()
+    let i = 0
+    state loop {
+        to done when (i == n)
+        write_byte(' ')
+        print_self_slot(i)
+        i = i + 1
+        to loop
+    }
+    state done { return 0 }
+}
+
+; `(m{callee}_me <args> <body-local zeros> <current self slots>)`.
+proc emit_call_expr(callee, ch) {
+    emit("(m")  emit_dec(callee)  emit("_me")
+    print_args(ch)
+    emit_zeros(word[6010800 + callee * 8] - word[6010600 + callee * 8])   ; LCNT - PCNT
+    emit_self_args()
+    write_byte(')')
+    return 0
+}
+
+; a method's return value = its self-state bundle: "0" (empty), the sole slot (1), or right-nested Pairs.
+proc emit_bundle() {
+    let n = self_slot_count()
+    state d {
+        to zero when (n == 0)
+        to one when (n == 1)
+        to many
+    }
+    state zero { emit("0")  return 0 }
+    state one { print_self_slot(0)  return 0 }
+    state many { let i = 0  to oloop }
+    state oloop {
+        to lastp when (i == n - 1)
+        emit("(Pair ")  print_self_slot(i)  write_byte(' ')
+        i = i + 1
+        to oloop
+    }
+    state lastp {
+        print_self_slot(n - 1)
+        let j = 0
+        to cl
+    }
+    state cl { to cldone when (j == n - 1)  write_byte(')')  j = j + 1  to cl }
+    state cldone { return 0 }
+}
+
+; self.m(args); (a void method call for effect) -> call + unbundle the returned self-state, rebinding the
+; self-slots to fresh names. Returns the number of `let`/`match` groups opened (closed by the block).
+;   1 slot:  (let nss0 <call> <rest>)                                        -> 1
+;   N slots: (match <call> ((Pair a0 r0) (match r0 (...((Pair a_{n-2} a_{n-1}) <rest>)...))))  -> 2(N-1)
+proc emit_scall(callee) {
+    adv()                              ; consume '('
+    let ch = parse_args()
+    skip_ws()
+    adv()                              ; consume ')'
+    state tsemi { to eatsemi when (cbyte() == ';')  adv()  to tsemi }
+    state eatsemi {
+        adv()                          ; consume ';'
+        let ns = self_slot_count()
+        to smany when (ns > 1)
+        to sone
+    }
+    state sone {
+        let f0 = word[6000016]
+        word[6000016] = word[6000016] + 1
+        emit("(let t")  emit_dec(f0)  write_byte(' ')
+        emit_call_expr(callee, ch)
+        write_byte(' ')
+        set_self_slot(0, f0)
+        return 1
+    }
+    state smany {                      ; `ns` is the single declaration from `eatsemi` (reused, not re-let)
+        let abase = word[6000016]
+        word[6000016] = word[6000016] + ns
+        let rbase = word[6000016]
+        word[6000016] = word[6000016] + ns - 2
+        emit("(match ")
+        emit_call_expr(callee, ch)
+        write_byte(' ')
+        let i = 0
+        to marm
+    }
+    state marm {
+        to mlast when (i == ns - 2)
+        emit("((Pair t")  emit_dec(abase + i)  emit(" t")  emit_dec(rbase + i)  emit(") (match t")  emit_dec(rbase + i)  write_byte(' ')
+        set_self_slot(i, abase + i)
+        i = i + 1
+        to marm
+    }
+    state mlast {
+        emit("((Pair t")  emit_dec(abase + ns - 2)  emit(" t")  emit_dec(abase + ns - 1)  emit(") ")
+        set_self_slot(ns - 2, abase + ns - 2)
+        set_self_slot(ns - 1, abase + ns - 1)
+        return 2 * ns - 2
+    }
+}
+
 proc emit_zeros(n) {
     let k = 0
     state loop { to done when (k == n)  emit(" 0")  k = k + 1  to loop }
@@ -681,7 +825,7 @@ proc emit_call_state(tgt) {
         to lloop
     }
     state fields {
-        to dofields when (mi == word[6000008])             ; entry -> append fields + arrays
+        to dofields when (word[6010200 + mi * 8] != 1)     ; has_self -> append fields + arrays + inp + out
         to done
     }
     state dofields { let g = 0  to floop }
@@ -727,7 +871,7 @@ proc reset_curname(mi) {
         to loop
     }
     state fields {
-        to dofields when (mi == word[6000008])
+        to dofields when (word[6010200 + mi * 8] != 1)     ; has_self -> reset self-slots too
         return 0
     }
     state dofields { let g = 0  to floop }
@@ -885,6 +1029,7 @@ proc translate_block(mi, off) {
     let depth = 0
     state loop {
         skip_ws()
+        to t_end when (cbyte() == '}')                  ; block ends with no terminal -> a void method
         to t_let when (is_let() == 1)
         to t_trans when (is_transition() == 1)
         to t_return when (is_return() == 1)
@@ -894,6 +1039,11 @@ proc translate_block(mi, off) {
         depth = depth + do_assign()
         to loop
     }
+    state t_end {                      ; a &mut self METHOD falls off the end -> return its self-bundle
+        to t_endm when (word[6010200 + word[6000032] * 8] == 2)   ; M_KIND[CUR_MI] == 2 (method)
+        to close
+    }
+    state t_endm { emit_bundle()  to close }
     state t_let { depth = depth + do_let()  to loop }
     state t_trans { emit_transition()  to close }
     state t_bwbyte { depth = depth + emit_write_byte()  to loop }
@@ -913,8 +1063,10 @@ proc translate_block(mi, off) {
         skip_ws()
         to t_awrite when (cbyte() == '[')
         to t_fstore when (cbyte() == '=')
+        to t_scall when (cbyte() == '(')   ; self.METHOD(args) -> a self-method call
         to t_method                    ; self.console.METHOD(...)
     }
+    state t_scall { depth = depth + emit_scall(lookup_machine(foff))  to loop }
     state t_method {
         adv()                          ; consume '.'
         to t_wbyte when (is_write_byte() == 1)
@@ -938,20 +1090,43 @@ proc parse_machine_header() {
     skip_ident()                       ; past "machine"
     skip_ws()
     let mc = word[6000000]
-    word[6010000 + mc * 8] = word[2097144]     ; M_NAME = name start
+    word[6010000 + mc * 8] = word[2097144]     ; M_NAME = first name segment (updated on '::')
     word[6010600 + mc * 8] = 0                 ; M_PCNT = 0
+    skip_ident()                       ; first name segment
+    state colon {                      ; a qualified name `Main::method` -> M_NAME is the LAST segment
+        to hascolon when (cbyte() == ':')
+        to toparen
+    }
+    state hascolon {
+        adv()  adv()                   ; consume '::'
+        word[6010000 + mc * 8] = word[2097144]     ; M_NAME = segment after '::'
+        skip_ident()
+        to colon
+    }
     state toparen { to atparen when (cbyte() == '(')  adv()  to toparen }
     state atparen {
         adv()                          ; consume '('
         skip_ws()
-        to entry when (cbyte() == '&')
+        to hasself when (cbyte() == '&')
         to freeparams
+    }
+    state hasself {                    ; `&mut self` -> the entry (name is "main") or a method
+        to entry when (name_is_main(word[6010000 + mc * 8]) == 1)
+        word[6010200 + mc * 8] = 2     ; M_KIND = method
+        to methodself
     }
     state entry {
         word[6010200 + mc * 8] = 0     ; M_KIND = entry
         word[6000008] = mc             ; ENTRY_IDX = mc
         to toclose
     }
+    state methodself {                 ; skip `&mut self`; params (if any) follow a ','
+        to methodparm when (cbyte() == ',')
+        to toclose when (cbyte() == ')')
+        adv()
+        to methodself
+    }
+    state methodparm { adv()  to parmloop }        ; consume ',', parse the method's value params
     state freeparams {
         word[6010200 + mc * 8] = 1     ; M_KIND = free
         to parmloop
@@ -1083,31 +1258,60 @@ proc scan_states(mi) {
     state eof { return 0 }
 }
 
-; the entry's scalar self-fields: scan its body for `self.NAME` (NAME not followed by '.') -> slot g{i}.
-proc collect_fields() {
-    word[6000024] = 0                  ; FIELD_CNT
-    word[2097144] = word[6010400 + word[6000008] * 8]   ; CUR = M_BODY[ENTRY_IDX]
+proc name_is_main(off) {               ; does the name at `off` spell "main"?
+    state c1 { to c2 when (byte[2097152 + off] == 'm')  return 0 }
+    state c2 { to c3 when (byte[2097152 + off + 1] == 'a')  return 0 }
+    state c3 { to c4 when (byte[2097152 + off + 2] == 'i')  return 0 }
+    state c4 { to c5 when (byte[2097152 + off + 3] == 'n')  return 0 }
+    state c5 { to yes when (is_idchar(byte[2097152 + off + 4]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+; scan one &mut self machine's body (brace-bounded) for the UNIFIED self-state: distinct scalar fields
+; (add_field), plus HAS_INPUT (read_byte) / HAS_OUTPUT (write_byte/write_line). Called for each has_self
+; machine so the shared self-state is the union over the entry and all its methods. self.NAME followed by
+; `.` (boundary) / `[` (array) / `(` (self-method call) is NOT a scalar field.
+proc collect_self(mi) {
+    word[2097144] = word[6010400 + mi * 8]              ; CUR = M_BODY[mi]
+    let depth = 0
     state loop {
         skip_ws()
-        to done when (cbyte() == 0)
-        to is_s when (is_self() == 1)
-        to skiptok when (is_idchar(cbyte()) == 1)
+        let c = cbyte()
+        to done when (c == 0)
+        to closeb when (c == '}')
+        to openb when (c == '{')
+        to c_rb when (is_read_byte() == 1)
+        to c_wb when (is_write_byte() == 1)
+        to c_wl when (is_write_line() == 1)
+        to c_self when (is_self() == 1)
+        to c_skip when (is_idchar(c) == 1)
         adv()
         to loop
     }
-    state skiptok { skip_ident()  to loop }
-    state is_s {
-        skip_ident()                   ; past "self"
-        adv()                          ; past '.'
+    state closeb {
+        to done when (depth == 0)      ; machine close
+        depth = depth - 1
+        adv()
+        to loop
+    }
+    state openb { depth = depth + 1  adv()  to loop }
+    state c_skip { skip_ident()  to loop }
+    state c_rb { word[6000048] = 1  skip_ident()  to loop }   ; HAS_INPUT
+    state c_wb { word[6000056] = 1  skip_ident()  to loop }   ; HAS_OUTPUT
+    state c_wl { word[6000056] = 1  skip_ident()  to loop }
+    state c_self {
+        skip_ident()                   ; self
+        adv()                          ; .
         let foff = word[2097144]
-        skip_ident()                   ; past NAME
+        skip_ident()                   ; NAME
         skip_ws()
-        to skipb when (cbyte() == '.')  ; self.console. -> boundary, not a field
-        to skipb when (cbyte() == '[')  ; self.arr[..] -> an array, not a scalar field
+        to c_sk when (cbyte() == '.')  ; self.console. -> boundary
+        to c_sk when (cbyte() == '[')  ; self.arr[ -> array
+        to c_sk when (cbyte() == '(')  ; self.m( -> a self-method call
         add_field(foff)
         to loop
     }
-    state skipb { to loop }
+    state c_sk { to loop }
     state done { return 0 }
 }
 
@@ -1190,41 +1394,6 @@ proc do_array_write(arr) {
     state esemi { adv()  return 0 }
 }
 
-; does the entry read stdin? scan its body for a `read_byte` token -> HAS_INPUT.
-proc collect_input() {
-    word[6000048] = 0                  ; HAS_INPUT
-    word[2097144] = word[6010400 + word[6000008] * 8]   ; CUR = M_BODY[ENTRY_IDX]
-    state loop {
-        skip_ws()
-        to done when (cbyte() == 0)
-        to found when (is_read_byte() == 1)
-        to skip when (is_idchar(cbyte()) == 1)
-        adv()
-        to loop
-    }
-    state skip { skip_ident()  to loop }
-    state found { word[6000048] = 1  return 0 }
-    state done { return 0 }
-}
-
-; does the entry write stdout? scan its body for write_byte / write_line -> HAS_OUTPUT.
-proc collect_output() {
-    word[6000056] = 0                  ; HAS_OUTPUT
-    word[2097144] = word[6010400 + word[6000008] * 8]   ; CUR = M_BODY[ENTRY_IDX]
-    state loop {
-        skip_ws()
-        to done when (cbyte() == 0)
-        to found when (is_write_byte() == 1)
-        to found when (is_write_line() == 1)
-        to skip when (is_idchar(cbyte()) == 1)
-        adv()
-        to loop
-    }
-    state skip { skip_ident()  to loop }
-    state found { word[6000056] = 1  return 0 }
-    state done { return 0 }
-}
-
 proc add_field(off) {
     let g = 0
     state loop {
@@ -1249,7 +1418,7 @@ proc emit_sig(mi) {
     let ni = 0
     let no = 0
     state chkf {
-        to withf when (mi == word[6000008])
+        to withf when (word[6010200 + mi * 8] != 1)     ; has_self (entry or method) -> self-slots in sig
         to go
     }
     state withf { nf = word[6000024]  na = word[6000040]  ni = word[6000048]  no = word[6000056]  to go }
@@ -1373,11 +1542,22 @@ proc main() {
         mi = mi + 1
         to ploop
     }
-    state pdone {
-        collect_fields()
+    state pdone {                      ; the UNIFIED self-state: union of fields/input/output over ALL
+        word[6000024] = 0              ; &mut self machines (entry + methods), plus arrays from the decl.
+        word[6000048] = 0
+        word[6000056] = 0
+        let mj = 0
+        to sloop
+    }
+    state sloop {
+        to sdone when (mj == word[6000000])
+        to do_cs when (word[6010200 + mj * 8] != 1)   ; has_self -> fold into the unified self-state
+        mj = mj + 1
+        to sloop
+    }
+    state do_cs { collect_self(mj)  mj = mj + 1  to sloop }
+    state sdone {
         collect_arrays()
-        collect_input()
-        collect_output()
         render()
         return 0
     }
