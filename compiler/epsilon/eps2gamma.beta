@@ -919,18 +919,39 @@ proc print_expr(node) {
     state c_ne { emit("(- 1 (eq ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  emit("))")  return 0 }
 }
 
-; a tail-call to state `tgt` of the current machine, passing every slot's current name.
-proc emit_call_state(tgt) {
+; does transition arm `arm` pass an argument for local slot `i` of target state `tgt`? -> the arg's
+; AST node, or 0. (State params are machine locals; arm args map to them positionally via M_SPOFF.)
+proc arm_arg_for(tgt, arm, i) {
+    let mi = word[6000032]
+    let si = mi * 16 + tgt
+    let j = 0
+    state loop {
+        to none when (j == word[6630000 + arm * 8])        ; ARM_ARGC
+        to none when (j == word[6850000 + si * 8])         ; M_SPCNT
+        to hit when (lookup_local(word[6860000 + (si * 4 + j) * 8]) == i)
+        j = j + 1
+        to loop
+    }
+    state hit { return word[6620000 + (arm * 4 + j) * 8] } ; ARM_ARG[arm][j]
+    state none { return 0 }
+}
+
+; a tail-call to state `tgt` of the current machine from transition arm `arm`: every slot's current
+; name, except slots that are the target's params with an arm argument — those get the arg expression.
+proc emit_call_state(tgt, arm) {
     let mi = word[6000032]
     emit("(m")  emit_dec(mi)  emit("_s")  emit_dec(tgt)
     let i = 0
     state lloop {
         to fields when (i == word[6010800 + mi * 8])       ; M_LCNT[mi]
         write_byte(' ')
+        let an = arm_arg_for(tgt, arm, i)
+        to isarg when (an != 0)
         print_curname(i)
         i = i + 1
         to lloop
     }
+    state isarg { print_expr(an)  i = i + 1  to lloop }
     state fields {
         to dofields when (word[6010200 + mi * 8] != 1)     ; has_self -> append fields + arrays + inp + out
         to done
@@ -1091,13 +1112,13 @@ proc emit_ifchain(subj, ac) {
         write_byte(' ')
         emit_dec(word[6600000 + j * 8])
         emit(") ")
-        emit_call_state(word[6610000 + j * 8])
+        emit_call_state(word[6610000 + j * 8], j)
         write_byte(' ')
         j = j + 1
         to loop
     }
     state tail {
-        emit_call_state(word[6610000 + last * 8])
+        emit_call_state(word[6610000 + last * 8], last)
         let k = 0
         to closed
     }
@@ -1127,8 +1148,23 @@ proc emit_transition() {
         let toff = word[2097144]
         skip_ident()
         word[6610000 + ac * 8] = lookup_state(toff)
+        word[6630000 + ac * 8] = 0     ; ARM_ARGC = 0
         skip_ws()
-        adv()  adv()                   ; consume '()'
+        adv()                          ; consume '('
+        skip_ws()
+        to armnoargs when (cbyte() == ')')
+        to armargs
+    }
+    state armargs {                    ; `target(e0, e1, ...)` — parse each arg expression
+        word[6620000 + (ac * 4 + word[6630000 + ac * 8]) * 8] = parse_cmp()   ; ARM_ARG[ac][k]
+        word[6630000 + ac * 8] = word[6630000 + ac * 8] + 1                   ; ARM_ARGC++
+        skip_ws()
+        to armargnext when (cbyte() == ',')
+        to armnoargs                   ; at ')'
+    }
+    state armargnext { adv()  skip_ws()  to armargs }
+    state armnoargs {
+        adv()                          ; consume ')'
         ac = ac + 1
         to armloop
     }
@@ -1428,7 +1464,40 @@ proc scan_states(mi) {
         skip_ident()                   ; past state name
         to hdclose
     }
-    state hdclose { to hdbrace when (cbyte() == ')')  adv()  to hdclose }   ; skip `( ... )` — `()` or `(&mut self)`
+    ; the state header `( [&mut self][, NAME: TYPE]* )` — value params register as machine locals
+    ; (zero-init slots; a transition arm's args write them) and in the state's M_SP tables.
+    state hdclose {
+        skip_ws()
+        let si = mi * 16 + word[6011000 + mi * 8]        ; this state's table index
+        word[6850000 + si * 8] = 0                       ; M_SPCNT = 0
+        adv()                                            ; consume '('
+        to hdparm
+    }
+    state hdparm {
+        skip_ws()
+        to hdbrace when (cbyte() == ')')
+        to hdself when (cbyte() == '&')                  ; `&mut self`
+        to hdcomma when (cbyte() == ',')
+        word[6860000 + (si * 4 + word[6850000 + si * 8]) * 8] = word[2097144]   ; M_SPOFF[si][k] = name
+        word[6850000 + si * 8] = word[6850000 + si * 8] + 1                     ; M_SPCNT++
+        add_local(mi, word[2097144])                     ; the param is a machine local slot
+        skip_ident()
+        to hdtype
+    }
+    state hdself { adv()  to hdselfskip }                ; skip `&mut self` to ',' or ')'
+    state hdselfskip {
+        to hdbrace when (cbyte() == ')')
+        to hdcomma when (cbyte() == ',')
+        adv()
+        to hdselfskip
+    }
+    state hdcomma { adv()  to hdparm }
+    state hdtype {                                       ; skip `: TYPE` to ',' or ')'
+        to hdbrace when (cbyte() == ')')
+        to hdcomma when (cbyte() == ',')
+        adv()
+        to hdtype
+    }
     state hdbrace { adv()  to hdopen }
     state hdopen { to hdin when (cbyte() == '{')  adv()  to hdopen }
     state hdin {
