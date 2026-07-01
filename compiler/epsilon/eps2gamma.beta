@@ -1,9 +1,14 @@
-; eps2gamma.beta — the epsilon->gamma MEANING translator, written in Beta (Rust-FREE).
+; eps2gamma.beta — the epsilon/omega -> gamma MEANING translator, written in Beta (Rust-FREE).
 ;
 ; Rust-free counterpart to epsilon-rs/src/gamma_emit.rs. rungs/epsilon.md: epsilon's meaning is defined
 ; by the reference interpreter, not the native backend. gamma_emit.rs pins that meaning but is RUST; this
 ; removes it — reads epsilon SOURCE on stdin, prints a gamma s-expr on stdout, which the Rust-free
 ; reference interpreter (gamma/interp.beta) runs. Both halves of the meaning route are now Rust-free.
+; It ALSO understands the shared OMEGA machine surface (epsilon is omega's on-ramp): dotted field paths
+; `self.state.n` (each path = one threaded slot), subjectless `transition { _ -> x() }` (subject := 0),
+; `state name(&mut self)` headers, state-body lets (collected machine-wide, deduped), `use` decls, data
+; attributes, and `in Domain` annotations (tolerated; domains are semantic no-ops while values stay in
+; range) — so real Omega samples run down this route too (see omega/omega-meaning.sh).
 ;
 ; SUPPORTED SUBSET — an entry machine `Main::main(&mut self)` (i32 locals, scalar i32 self-fields, i32
 ; self-arrays) plus zero or more value-returning FREE machines `machine name(p: i32, ...) -> i32 { ... }`
@@ -161,6 +166,42 @@ proc name_eq2(o1, o2) {
     state mism { return 0 }
 }
 
+; a field-PATH character: an identifier char or the '.' of a nested path (omega: self.state.n).
+proc is_pathchar(c) {
+    state c1 { to yes when (is_idchar(c) == 1)  to c2 }
+    state c2 { to yes when (c == '.')  return 0 }
+    state yes { return 1 }
+}
+
+; do the dotted field paths at SRC offsets o1 and o2 match? (name_eq2 over path chars)
+proc name_eq_path(o1, o2) {
+    let i = 0
+    state loop {
+        let c1 = byte[2097152 + o1 + i]
+        let c2 = byte[2097152 + o2 + i]
+        to c1end when (is_pathchar(c1) == 0)
+        to mism when (is_pathchar(c2) == 0)
+        to mism when (c1 != c2)
+        i = i + 1
+        to loop
+    }
+    state c1end { to mism when (is_pathchar(c2) == 1)  return 1 }
+    state mism { return 0 }
+}
+
+; advance CUR past a dotted path (idchars and '.'), returning the offset of its LAST segment.
+proc skip_path() {
+    let seg = word[2097144]
+    state loop {
+        let c = cbyte()
+        to isdot when (c == '.')
+        to body when (is_idchar(c) == 1)
+        return seg
+    }
+    state isdot { adv()  seg = word[2097144]  to loop }
+    state body { adv()  to loop }
+}
+
 ; ---- lookups (locals/states are per-machine, indexed by CUR_MI) ----
 
 proc lookup_local(off) {
@@ -193,7 +234,7 @@ proc field_lookup(off) {
     let k = 0
     state loop {
         to nomatch when (k == word[6000024])                ; FIELD_CNT
-        to hit when (name_eq2(off, word[6800000 + k * 8]) == 1)
+        to hit when (name_eq_path(off, word[6800000 + k * 8]) == 1)   ; fields key on the DOTTED path
         k = k + 1
         to loop
     }
@@ -264,11 +305,11 @@ proc parse_term() {
         adv()                          ; consume ')'
         return alloc(4, lookup_machine(off), ch, 0)
     }
-    state selffield {                  ; self.NAME -> a field read, or self.arr[ix] -> an array read
+    state selffield {                  ; self.PATH -> a field read (dotted paths ok), or self.arr[ix]
         skip_ident()                   ; past "self"
         adv()                          ; past '.'
         let foff = word[2097144]
-        skip_ident()
+        skip_path()                    ; past the dotted path
         skip_ws()
         to arrread when (cbyte() == '[')
         return alloc(3, field_lookup(foff), 0, 0)
@@ -1067,10 +1108,15 @@ proc emit_ifchain(subj, ac) {
 proc emit_transition() {
     skip_ident()                       ; past "transition"
     skip_ws()
-    let subj = parse_cmp()
-    skip_ws()
-    adv()                              ; consume '{'
+    let subj = 0
     let ac = 0
+    state chksubj {
+        to nosubj when (cbyte() == '{')    ; omega: a subjectless `transition { _ -> x() }`
+        subj = parse_cmp()
+        to atbrace
+    }
+    state nosubj { subj = alloc(0, 0, 0, 0)  to atbrace }   ; subject := the literal 0
+    state atbrace { skip_ws()  adv()  to armloop }          ; consume '{'
     state armloop {
         skip_ws()
         to armend when (cbyte() == '}')
@@ -1151,25 +1197,25 @@ proc translate_block(mi, off) {
         write_byte(')')
         to close
     }
-    state t_self {                     ; entry: array write, field store, or a self.console.METHOD
+    state t_self {                     ; self.PATH... — dispatch on the path's terminator:
         skip_ident()                   ; past "self"
         adv()                          ; past '.'
         let foff = word[2097144]
-        skip_ident()                   ; past NAME
+        let segoff = skip_path()       ; past the dotted path; segoff = its LAST segment
         skip_ws()
-        to t_awrite when (cbyte() == '[')
-        to t_fstore when (cbyte() == '=')
-        to t_scall when (cbyte() == '(')   ; self.METHOD(args) -> a self-method call
-        to t_method                    ; self.console.METHOD(...)
+        to t_awrite when (cbyte() == '[')   ; self.arr[ix] = ... (single-segment arrays)
+        to t_fstore when (cbyte() == '=')   ; self.PATH = ...    (dotted scalar field)
+        to t_call                           ; self.PATH(...)     (a call)
     }
-    state t_scall { depth = depth + emit_scall(lookup_machine(foff))  to loop }
-    state t_method {
-        adv()                          ; consume '.'
+    state t_call {
+        to t_scall when (segoff == foff)    ; single segment -> a self-METHOD call self.m(args)
+        word[2097144] = segoff              ; dotted -> a boundary call; dispatch from the last segment
         to t_wbyte when (is_write_byte() == 1)
         to t_wline when (is_write_line() == 1)
-        emit_exit_om()                 ; else exit_process (-> `(rev out Nil)` in output mode)
+        emit_exit_om()                      ; else exit_process (-> `(rev out Nil)` in output mode)
         to close
     }
+    state t_scall { depth = depth + emit_scall(lookup_machine(foff))  to loop }   ; CUR is at '('
     state t_wbyte { depth = depth + emit_write_byte()  to loop }
     state t_wline { depth = depth + emit_write_line()  to loop }
     state t_awrite { do_array_write(array_lookup(foff))  depth = depth + 1  to loop }
@@ -1289,22 +1335,57 @@ proc find_machines() {
 }
 
 ; collect machine mi's `let`-declared body locals (appended after its params).
+; register local `off` for machine mi if not already present (dedup by name — a `let` in two states
+; shares one slot; SSA-per-block keeps them independent).
+proc add_local(mi, off) {
+    let k = 0
+    state loop {
+        to add when (k == word[6010800 + mi * 8])       ; M_LCNT
+        to dup when (name_eq2(off, word[6100000 + (mi * 16 + k) * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state add {
+        word[6100000 + (mi * 16 + word[6010800 + mi * 8]) * 8] = off
+        word[6010800 + mi * 8] = word[6010800 + mi * 8] + 1
+        return 0
+    }
+    state dup { return 0 }
+}
+
+; collect machine mi's `let`-declared locals from its WHOLE body (entry prefix AND state bodies — omega
+; puts lets inside states), appended after its params, deduplicated by name. A brace-depth walk bounded
+; by the machine's closing '}'.
 proc collect_locals(mi) {
     word[6010800 + mi * 8] = word[6010600 + mi * 8]     ; M_LCNT = M_PCNT
     word[2097144] = word[6010400 + mi * 8]              ; CUR = M_BODY
     let depth = 0
     state loop {
         skip_ws()
-        to done when (is_let() == 0)
+        let c = cbyte()
+        to done when (c == 0)
+        to closeb when (c == '}')
+        to openb when (c == '{')
+        to islet when (is_let() == 1)
+        to skiptok when (is_idchar(c) == 1)
+        adv()
+        to loop
+    }
+    state closeb {
+        to done when (depth == 0)      ; the machine's own close
+        depth = depth - 1
+        adv()
+        to loop
+    }
+    state openb { depth = depth + 1  adv()  to loop }
+    state skiptok { skip_ident()  to loop }
+    state islet {
         adv()  adv()  adv()            ; past "let"
         skip_ws()
-        word[6100000 + (mi * 16 + word[6010800 + mi * 8]) * 8] = word[2097144]   ; M_LNAME[mi][LCNT]
-        word[6010800 + mi * 8] = word[6010800 + mi * 8] + 1                      ; M_LCNT++
+        add_local(mi, word[2097144])
         skip_ident()
-        to semi
+        to loop
     }
-    state semi { to eat when (cbyte() == ';')  adv()  to semi }
-    state eat { adv()  to loop }
     state done { return 0 }
 }
 
@@ -1345,7 +1426,13 @@ proc scan_states(mi) {
         skip_ws()
         word[6300000 + (mi * 16 + word[6011000 + mi * 8]) * 8] = word[2097144]   ; M_SNAME
         skip_ident()                   ; past state name
-        skip_ws()  adv()  skip_ws()  adv()  skip_ws()  adv()                    ; ( ) {
+        to hdclose
+    }
+    state hdclose { to hdbrace when (cbyte() == ')')  adv()  to hdclose }   ; skip `( ... )` — `()` or `(&mut self)`
+    state hdbrace { adv()  to hdopen }
+    state hdopen { to hdin when (cbyte() == '{')  adv()  to hdopen }
+    state hdin {
+        adv()                          ; consume '{'
         depth = depth + 1
         word[6500000 + (mi * 16 + word[6011000 + mi * 8]) * 8] = word[2097144]   ; M_SBODY (after '{')
         word[6011000 + mi * 8] = word[6011000 + mi * 8] + 1                      ; M_SCNT++
@@ -1399,14 +1486,14 @@ proc collect_self(mi) {
         skip_ident()                   ; self
         adv()                          ; .
         let foff = word[2097144]
-        skip_ident()                   ; NAME
+        let soff = skip_path()         ; the DOTTED path (self.state.n -> "state.n"); soff = last segment
         skip_ws()
-        to c_sk when (cbyte() == '.')  ; self.console. -> boundary
         to c_sk when (cbyte() == '[')  ; self.arr[ -> array
-        to c_sk when (cbyte() == '(')  ; self.m( -> a self-method call
-        add_field(foff)
+        to c_redo when (cbyte() == '(')  ; a call -> re-scan from the LAST segment so that
+        add_field(foff)                ;   write_byte / write_line boundary tokens are still seen
         to loop
     }
+    state c_redo { word[2097144] = soff  to loop }
     state c_sk { to loop }
     state done { return 0 }
 }
@@ -1494,7 +1581,7 @@ proc add_field(off) {
     let g = 0
     state loop {
         to add when (g == word[6000024])
-        to dup when (name_eq2(off, word[6800000 + g * 8]) == 1)
+        to dup when (name_eq_path(off, word[6800000 + g * 8]) == 1)
         g = g + 1
         to loop
     }
