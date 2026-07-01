@@ -291,6 +291,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("control_flow/runtime_straight_line_terminal_local_exit", 70),
     ("control_flow/runtime_tuple_transition_exit", 22),
     ("data/case_membership_union_guard_exit", 70),
+    ("data/runtime_struct_value_copy_exit", 70),
     ("data/case_membership_value_exit", 70),
     ("data/runtime_case_membership_mixed_shape_exit", 70),
     ("data/match_exhaustive_by_case_union_domain", 70),
