@@ -4803,6 +4803,34 @@ fn runtime_float_nan_comparison_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_saturating_domain_exit_canary_runs() {
+    // Saturating arithmetic clamps at the type bounds (the core arithmetic-safety domain): u8
+    // add/sub/mul over- and under-flow -> 255/0/255, i8 signed positive overflow -> 127, i8 signed
+    // negative underflow -> -128 (checked as +128 == 0). All self-checked -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_saturating_domain_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-saturating-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating domain canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating domain canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Saturating arithmetic to clamp at type bounds in all four directions (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_i64_signed_arithmetic_exit_canary_runs() {
     // i64 signed arithmetic beyond i32: multiply past 2^32, signed div/mod with a negative dividend
     // (sign follows dividend), and a 64-bit shift (1<<40). All chained -> exit 70.
@@ -16947,6 +16975,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_indexed_array_write_exit",
     "arithmetic/runtime_modulo_value",
     "arithmetic/runtime_modulo_div_narrowing_exit",
+    "arithmetic/runtime_saturating_domain_exit",
     "arithmetic/runtime_min_max_clamp_narrowing_exit",
     "arithmetic/runtime_transition_arg_guard_narrowing_exit",
     "arithmetic/runtime_transition_arg_false_arm_narrowing_exit",
