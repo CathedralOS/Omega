@@ -56,6 +56,13 @@ refbad() {
   if [ "$v" = "reject" ]; then PASS=$((PASS+1)); else
     FAIL=$((FAIL+1)); echo "  FAIL $1 (mutated) : expected reject, got [$v]"; fi
 }
+# refnot SAMPLE "ascii" : the program's output must NOT be an accepted proof (e.g. it refused with a
+# diagnostic instead of a certificate — the checker must not accept whatever came out).
+refnot() {
+  v=$(_emit "$1" "$2" | "$T/check.exe")
+  if [ "$v" = "accept" ]; then FAIL=$((FAIL+1)); echo "  FAIL $1 (unsafe input) : checker ACCEPTED [$v]"; else
+    PASS=$((PASS+1)); fi
+}
 
 # diverse cert kinds, each COMPUTED by the Rust-free reference interpreter and ACCEPTED by the trust anchor:
 ref certify-add     "2 3"      accept   # equality / refl (a+b)
@@ -72,6 +79,13 @@ ref    certify-accesses "2 5 3 4  1 3 0 2" accept   # a CONJUNCTION: every acces
 ref    certify-safety   "b 2 5 3 4  d 7"   accept   # MIXED: array-bounds AND division-by-zero in one proof
 refbad certify-lt       "2 5"              's/(s (s (s (s (s z)))))/(s (s (s (s z))))/g'
 refbad certify-safety   "b 2 5 3 4  d 7"   's/(s (s (s (s (s (s z))))))/(s (s (s (s (s z)))))/'
+
+# THE CERTIFYING COMPILER FRONTEND — source in, safety proof out, zero Rust. certify-source reads a tiny
+# SOURCE language (arr/get/div/band), recognises keywords (value-returning self-methods), resolves each
+# access against the declared array, GENERATES the VCs, and emits one conjunction certificate. Unsafe
+# source gets no proof (it prints an "unsafe" diagnostic, which the checker naturally rejects).
+ref    certify-source "arr 4 5  get 2 3  div 7  get 1 0" accept
+refnot certify-source "arr 2 3  get 5 5"                          # out-of-bounds source -> no accepted proof
 
 echo "reference-route convergence, RUST-FREE (eps2gamma.beta -> interp.beta; cert checked by check.beta): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
