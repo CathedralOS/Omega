@@ -62,7 +62,12 @@ Rust-free translator one at a time).
   stdin→stdout filter, it emits a `STDIN` placeholder for the stream's initial value (the genuine external
   input, exactly like the Rust route's `EPS_GAMMA_INPUT`); the diamond substitutes the `(Cons … Nil)` byte
   list, feeding the *same* bytes to native stdin.
-- **Next** — stdout (`write_byte`/`write_line`) + self-method calls (the certifier capstone).
+- **Slice 7** — **stdout**: `self.console.write_byte(<expr>)` / `write_line("…")`. Output accumulates a
+  list slot `out` (cons-front); `write_line` appends a trailing `\n`. In output mode the entry's terminal
+  returns `(rev out Nil)` (the accumulated stdout) instead of the exit code — interp already prints the
+  list, so the diamond compares native stdout bytes to the printed ints. The `rev` helper is prepended
+  when the entry writes.
+- **Next** — self-method calls (`self.m(args)` threading unified self-state) — the certifier capstone.
 
 ## The long game
 

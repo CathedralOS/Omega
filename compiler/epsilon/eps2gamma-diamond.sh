@@ -93,6 +93,22 @@ diar() {
   if [ "$nat" = "$mine" ] && [ "$nat" = "$4" ] && [ "$nat" = "$rgi" ]; then PASS=$((PASS+1)); else
     FAIL=$((FAIL+1)); echo "  FAIL $1 : native=$nat eps2gamma=$mine rustgamma=$rgi expect=$4"; fi
 }
+# diao DESC FULLSRC "in-bytes" "out-bytes" : STDOUT programs. Compares the native process's raw stdout bytes
+# to the gamma route's OUTPUT list (the program returns `(rev out Nil)`; interp prints it; decode the ints).
+# FULLSRC is the entire program (varied data decls / arrays), like diac.
+decode_list() { printf '%s\n' "$1" | "$T/interp.exe" 2>/dev/null | grep -oE '[0-9]+' | tr '\n' ' ' | sed 's/ *$//'; }
+diao() {
+  printf '%s\n' "$2" > "$T/p.alp"
+  EPS_ARCH=aarch64 "$BE" "$T/p.alp" "$T/p" >/dev/null 2>&1 || { FAIL=$((FAIL+1)); echo "  FAIL $1 : native compile"; return; }
+  chmod +x "$T/p"
+  raw=""; for b in $3; do raw="$raw$(printf '\\%03o' "$b")"; done
+  nout=$(printf "$raw" | "$T/p" | od -An -tu1 | tr ' ' '\n' | grep -vE '^$' | tr '\n' ' '); nout=${nout% }
+  rev=""; for b in $3; do rev="$b $rev"; done; list="Nil"; for b in $rev; do list="(Cons $b $list)"; done
+  mout=$(decode_list "$("$T/e2g.exe" < "$T/p.alp" 2>/dev/null | sed "s/STDIN/$list/")")
+  rout=$(decode_list "$(EPS_GAMMA_INPUT="$3" EPS_EMIT=gamma "$BE" "$T/p.alp" 2>/dev/null)")
+  if [ "$nout" = "$mout" ] && [ "$nout" = "$4" ] && [ "$nout" = "$rout" ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : native=[$nout] eps2gamma=[$mout] rustgamma=[$rout] want=[$4]"; fi
+}
 
 dia "literal"            '    self.console.exit_process(42)' 42
 dia "add"                '    self.console.exit_process(40 + 2)' 42
@@ -212,6 +228,15 @@ diar "count bytes to EOF" '    transition 0 { _ -> rd() }
     state rd() { self.c = read_byte(); transition self.c < 0 { true -> dn()  false -> ac() } }
     state ac() { self.s = self.s + 1; transition 0 { _ -> rd() } }
     state dn() { self.console.exit_process(self.s); }' "5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5" 42
+
+# slice 7 — stdout (write_byte/write_line accumulate an output list; the program returns `(rev out Nil)`).
+W='boundary trait Console { machine exit_process(return_code: i32); machine read_byte() -> i32; machine write_byte(b: i32); machine write_line(text: &[u8]); } data Main { console: Console; c: i32; }'
+diao "count-up output" "$W machine Main::main(&mut self) { transition 0 { _ -> lp() } state lp() { transition self.c < 3 { true -> em()  false -> dn() } } state em() { self.console.write_byte(self.c + 65); self.c = self.c + 1; transition 0 { _ -> lp() } } state dn() { self.console.exit_process(0); } }" "" "65 66 67"
+diao "write_line + byte" "$W machine Main::main(&mut self) { write_line(\"Hi\"); self.console.write_byte(33); self.console.exit_process(0); }" "" "72 105 10 33"
+diao "echo +1 filter" "$W machine Main::main(&mut self) { transition 0 { _ -> rd() } state rd() { self.c = read_byte(); transition self.c < 0 { true -> dn()  false -> ec() } } state ec() { self.console.write_byte(self.c + 1); transition 0 { _ -> rd() } } state dn() { self.console.exit_process(0); } }" "65 66 67" "66 67 68"
+I='boundary trait Console { machine exit_process(return_code: i32); machine read_byte() -> i32; machine write_byte(b: i32); } data Main { console: Console; buf: [i32; 16]; n: i32; i: i32; c: i32; }'
+diao "reverse filter (in+out+array)" "$I machine Main::main(&mut self) { transition 0 { _ -> rd() } state rd() { self.c = read_byte(); transition self.c < 0 { true -> su()  false -> st() } } state st() { self.buf[self.n] = self.c; self.n = self.n + 1; transition 0 { _ -> rd() } } state su() { self.i = self.n - 1; transition 0 { _ -> em() } } state em() { transition self.i < 0 { true -> dn()  false -> wr() } } state wr() { self.console.write_byte(self.buf[self.i]); self.i = self.i - 1; transition 0 { _ -> em() } } state dn() { self.console.exit_process(0); } }" "65 66 67 68" "68 67 66 65"
+diao "doubled filter (out+call)" "$I machine inc2(x: i32) -> i32 { return x + x; } machine Main::main(&mut self) { transition 0 { _ -> rd() } state rd() { self.c = read_byte(); transition self.c < 0 { true -> dn()  false -> ed() } } state ed() { self.console.write_byte(inc2(self.c)); transition 0 { _ -> rd() } } state dn() { self.console.exit_process(0); } }" "10 20 30" "20 40 60"
 
 echo "eps2gamma diamond (native == Rust-free eps2gamma->interp == Rust gamma_emit): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
