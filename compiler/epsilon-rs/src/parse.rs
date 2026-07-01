@@ -708,16 +708,32 @@ impl<'a> Parser<'a> {
         }
         self.expect(TokenKind::RParen)?;
 
+        // RANGE-REFINED RETURN `-> i32 in lo..hi` (Omega's BoundedStateReturn / output contract): every
+        // `return e` owes `e in [lo, hi)`, discharged statically. Captured here, turned into obligations once
+        // the return-value nodes are collected below.
+        let mut return_range: Option<(i32, i32)> = None;
         if self.current_kind() == TokenKind::Arrow {
             self.bump();
             while self.current_kind() != TokenKind::LBrace
                 && !(self.current_kind() == TokenKind::Ident
-                    && (self.current_text() == b"requires" || self.current_text() == b"ensures"))
+                    && (self.current_text() == b"requires"
+                        || self.current_text() == b"ensures"
+                        || self.current_text() == b"in"))
             {
                 if self.current_kind() == TokenKind::Eof {
                     return Err("alpha-onramp: parse error: unterminated return type".into());
                 }
                 self.bump(); // skip the return type
+            }
+            if self.current_kind() == TokenKind::Ident && self.current_text() == b"in" {
+                self.bump(); // in
+                if self.current_kind() == TokenKind::Int {
+                    let lo = self.parse_int_token()?;
+                    self.expect(TokenKind::Dot)?;
+                    self.expect(TokenKind::Dot)?; // ..
+                    let hi = self.parse_int_token()?;
+                    return_range = Some((lo, hi));
+                }
             }
         }
 
@@ -774,6 +790,14 @@ impl<'a> Parser<'a> {
         Self::collect_return_exprs(&entry, &mut return_exprs);
         for block in &states {
             Self::collect_return_exprs(block, &mut return_exprs);
+        }
+        // A range-refined return type `-> i32 in lo..hi` turns each returned value into a bounded-value
+        // obligation `value in [lo, hi)` -- the output contract, discharged by the same machinery as a
+        // bounded store (literal -> ground, range-typed param -> weaken). Reuses `store_obligations`.
+        if let Some((lo, hi)) = return_range {
+            for &ret in &return_exprs {
+                self.store_obligations.push((ret, lo, hi));
+            }
         }
         // Retain the preconditions for static call-site discharge before they are consumed.
         let preconditions_kept = preconditions.clone();
