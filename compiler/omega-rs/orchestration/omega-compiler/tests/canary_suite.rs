@@ -11075,6 +11075,34 @@ fn runtime_join_meet_bound_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_indexed_guard_subject_exit_canary_runs() {
+    // A DIRECT runtime-indexed read as a transition guard subject (`transition self.arr[self.i] > 5`,
+    // no local bind) -- the form that used to silently read element 0. Fixed by the frontend
+    // operand-hoist now covering comparison guards. arr = [3,8,1,9,4,6]; 3 exceed 5 -> exit 70.
+    let canary = pass_canary("collections/runtime_indexed_guard_subject_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-guard-subj-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime-indexed guard-subject canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime-indexed guard-subject canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a direct runtime-indexed guard subject to compare the right element (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_array_max_and_sum_exit_canary_runs() {
     // Find the max and the sum of an array in one pass: an indexed read bound to a local, a
     // reduction (`total += v`), and an element comparison via the sound local-bind pattern
@@ -17224,6 +17252,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_indexed_rmw_loop_exit",
     "collections/runtime_indexed_reduction_loop_exit",
     "collections/runtime_array_max_and_sum_exit",
+    "collections/runtime_indexed_guard_subject_exit",
     "core/array_core_surface",
     "core/fixed_vec_core_surface",
     "core/region_core_surface",

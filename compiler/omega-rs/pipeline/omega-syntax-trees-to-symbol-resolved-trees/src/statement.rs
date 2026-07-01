@@ -96,19 +96,37 @@ fn lower_statement_node(
             lower_statement_expression(lowerer, syntax_trees, relax.target)?,
         )]),
         syntax::statement::StatementNode::Transition(transition) => {
-            Ok(vec![Statement::Transition(Transition {
-                target: lower_transition_target_node(lowerer, syntax_trees, transition.target)?,
-                continuation: if transition.continuation.is_valid() {
-                    Some(lower_transition_target_node(
-                        lowerer,
-                        syntax_trees,
-                        transition.continuation,
-                    )?)
-                } else {
-                    None
-                },
-                guard: lower_transition_guard_node(lowerer, syntax_trees, transition.guard)?,
-            })])
+            let target = lower_transition_target_node(lowerer, syntax_trees, transition.target)?;
+            let continuation = if transition.continuation.is_valid() {
+                Some(lower_transition_target_node(
+                    lowerer,
+                    syntax_trees,
+                    transition.continuation,
+                )?)
+            } else {
+                None
+            };
+            let guard = lower_transition_guard_node(lowerer, syntax_trees, transition.guard)?;
+            // Hoist runtime-indexed reads out of the guard's OPERAND positions, exactly as for
+            // assignment values and let initializers above, so `transition self.arr[i] > 5`
+            // becomes `let __hoist = self.arr[i]; transition __hoist > 5`. Without this the guard
+            // subject keeps a raw runtime-indexed read that has no valid static byte offset, and
+            // the compare silently reads element 0. Binding to a local first is the sound idiom;
+            // this makes it automatic. A bare match subject (`transition self.arr[i] { .. }`) is
+            // the guard ROOT, which `hoist_operand_indexed_reads` leaves whole -- so match
+            // exhaustiveness (which needs a single shared subject across arms) is unaffected.
+            let mut hoisted = Vec::new();
+            if let TransitionGuard::When(expression) = guard
+                && guard_hoists_operands(lowerer, expression)
+            {
+                hoist_operand_indexed_reads(lowerer, expression, &mut hoisted);
+            }
+            hoisted.push(Statement::Transition(Transition {
+                target,
+                continuation,
+                guard,
+            }));
+            Ok(hoisted)
         }
     }
 }
@@ -389,6 +407,24 @@ fn lower_statement_expressions(
     }
 
     Ok(span)
+}
+
+/// Whether a `When` guard is a COMPARISON/boolean guard whose runtime-indexed operands should be
+/// hoisted. A match arm lowers to a `When(subject is Variant)` -- an `ExpressionNode::Membership`
+/// root -- and hoisting each arm's subject into a distinct temp would break match exhaustiveness
+/// (all arms of one match must share a single subject). Only a `Binary` root (`arr[i] > 5`,
+/// `arr[i] == 66`, `a && b`) is hoisted; membership/pattern guards are left for the separate
+/// shared-subject match rewrite.
+fn guard_hoists_operands(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
+    matches!(
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .bodies
+            .expressions
+            .expression(expression),
+        ExpressionNode::Binary(_)
+    )
 }
 
 fn lower_transition_guard_node(
