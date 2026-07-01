@@ -37,7 +37,13 @@ Rust-free translator one at a time).
 - **Slice 1** — `<expr>` also = comparisons `< > <= >= == !=` (lowest precedence, below `+ -`),
   rendered faithfully from interp's only two comparison primitives `eq`/`lt`
   (`a<=b` ⇒ `(+ (lt a b) (eq a b))`, `a!=b` ⇒ `(- 1 (eq a b))`, etc).
-- **Next** — state machines (`transition`/`state`), self data fields, cross-machine calls.
+- **Slice 2** — **state machines**: `state name() { … }` + `transition <subj> { <pat> -> <state>() … }`
+  and local assignment `x = <expr>;`. The machine becomes mutually-recursive gamma defs sharing the
+  full-locals signature — `(def m0_me (l0 …) …) (def m0_s{k} (l0 …) …) (m0_me 0 …)`. Mutation is
+  SSA-threaded (each write ⇒ a fresh `(let t{n} …)`, tracked per-block); a transition ⇒ a nested
+  `(if (eq subj pat) (target <current names>) else)`, last arm the default. Patterns: int / `true` /
+  `false` / `_`.
+- **Next** — self data fields, cross-machine calls, arrays, read_byte.
 
 ## The long game
 
