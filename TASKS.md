@@ -64,20 +64,31 @@ Linux `clock_gettime` as a follow-up. (b) existing stdout. Then a real sample
 animation" cheaply and de-risks host extensibility.
 
 ### Tier 2 — windowed software renderer (the native-FFI ladder)
-The host layer is a CLOSED catalog of 4 hardcoded kernel32 ops (GetStdHandle,
-ReadFile, WriteFile, ExitProcess), each a bespoke x86_64 emitter. Reaching a
-window needs a general native-call capability. Prioritized (sizes from the
-survey):
-1. **[LARGE — the gate; NEEDS DESIGN: the `extern` call surface]** general Win64
-   native call — marshal an arbitrary arg list into rcx/rdx/r8/r9 then stack +
-   shadow space, return in rax. De-risk by re-expressing the existing 4 kernel32
-   ops through it (no behavior change).
+> **DESIGN SETTLED 2026-07-01** — see
+> [wiki/design_briefs/extern_boundary_and_format_domains.md](wiki/design_briefs/extern_boundary_and_format_domains.md).
+> No `extern` keyword: the foreign surface is `boundary trait`; the DLL is named
+> only in a target's `provides` mapping (`present -> gdi32::StretchDIBits`, path
+> form beside `-> syscall N`); OS structs are wire data serialized through FORMAT
+> DOMAINS (encoding facts on byte carriers, chosen at the use site — `Utf8`
+> generalized); NO c_layout/repr — Omega's layout stays sovereign; domain entry =
+> mints only (no `is`/`as`; `when` dies); target blocks lose `host:` + the flag
+> dialect (a target = the boundary packages it trusts; absence = denial).
+
+The host layer is a CLOSED catalog of 5 hardcoded kernel32 ops (GetStdHandle,
+ReadFile, WriteFile, ExitProcess, Sleep), each a bespoke x86_64 emitter. The
+engineering ladder (sizes from the survey):
+1. [LARGE — the gate] general Win64 native call — marshal an arbitrary arg list
+   into rcx/rdx/r8/r9 then stack + shadow space, return in rax. De-risk by
+   re-expressing the existing 5 kernel32 ops through it (no behavior change).
 2. [MEDIUM] multi-DLL imports (user32/gdi32/winmm) — PE import table is hardcoded
-   to a single KERNEL32.dll descriptor (`omega-image-pe/src/imports.rs`).
-3. [MEDIUM] struct-by-pointer marshalling + C-layout struct declare/init
-   (BITMAPINFO / WNDCLASSEXW / MSG).
-4. [MEDIUM] raw framebuffer pointer usable as an LPVOID arg.
-5. [SMALL] clock op (shared with Tier 1) + `Sleep` for frame pacing.
+   to a single KERNEL32.dll descriptor (`omega-image-pe/src/imports.rs`), plus the
+   `provides` path-mapping parse (`machine -> dll::Symbol`).
+3. [MEDIUM] wire-data format codecs (win32_x64 first): derived encode/validate
+   mints for fixed-offset schemas (BITMAPINFO / WNDCLASSEXW / MSG); identity-encode
+   borrowed view for structurally-identical carriers (the framebuffer hot path).
+4. [MEDIUM] raw framebuffer pointer usable as an LPVOID arg (structural
+   `Win32Dib` domain over `[u32; W*H]`).
+5. [SMALL] value-returning import (`GetTickCount64` — the rax-return path).
 6. [SMALL] input — `GetAsyncKeyState` (1 arg).
 7. [SMALL] PE Subsystem GUI(2) toggle (hardcoded to console(3) in
    `omega-image-pe/src/headers.rs`).
@@ -88,6 +99,17 @@ survey):
 The proof/effect system already RESERVES the authority (`clock_read`, `device_io`,
 `memory_map`, `dynamic_link` in `omega-effects`) — it does not block this. #1 is
 the gate; 2–7 are incremental after it.
+
+Settled-design MIGRATIONS (mechanical, can precede the ladder):
+- delete `when` (1 parser site `parser/domain.rs:83` + ~200 vestigial
+  `domain ...::Utf8 when valid_utf8(self)` headers → invariants as domain members);
+- delete the `host: { abi/stdout/filesystem=... }` blob + flag dialect from
+  ~180 `build.omg` files + `parser/target.rs` (a target block = `boundary` package
+  lines only);
+- retire the stale May-era `omega/host/**` sketch packages
+  (`capability X { entry ... }` / `String` / `Slice<u8>` spellings).
+Open spellings tracked in the brief §10 (generic domains `Protobuf<Level>` is the
+big one; encode/decode surface; field-peek accessors; streaming/append).
 
 ### Language ergonomics surfaced (mostly engineering; one research)
 - **[NEEDS DESIGN — Zach]** loop syntax (`for`/`while`) that desugars to the
