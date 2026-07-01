@@ -7927,6 +7927,33 @@ fn equatable_string_equality_guard_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_deep_nested_field_exit_canary_runs() {
+    // A 5-level nested field chain (self.l1.l2.l3.l4.v) written and read back; offsets must compose
+    // through every level. v + w = 30 + 40 = 70 (a sibling `tag` decoy discriminates the offsets).
+    let canary = pass_canary("data/runtime_deep_nested_field_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-deep-nested-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("deep nested field canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("deep nested field canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected 5-level nested field access to resolve correctly (30+40 == 70, exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_struct_value_copy_exit_canary_runs() {
     // Struct assignment is a value copy, not an alias: copy a->b, mutate a, b stays unchanged;
     // same between array-of-structs elements. Both sums stay 14 -> exit 70.
