@@ -74,6 +74,25 @@ diaa() {
   printf 'boundary trait Console { machine exit_process(return_code: i32); }\ndata Main { console: Console; i: i32; s: i32; buf: [i32; 5]; }\nmachine Main::main(&mut self) {\n%s\n}\n' "$2" > "$T/p.alp"
   _check "$1" "$3"
 }
+# diar DESC BODY "b0 b1 .." EXPECT : the read_byte slice. Console also exposes read_byte(); the SAME bytes
+# feed native stdin AND both gamma routes (Rust via EPS_GAMMA_INPUT; Rust-free by substituting eps2gamma's
+# STDIN placeholder with the (Cons b0 .. Nil) list). Main has scalar fields c, s.
+diar() {
+  printf 'boundary trait Console { machine exit_process(return_code: i32); machine read_byte() -> i32; }\ndata Main { console: Console; c: i32; s: i32; }\nmachine Main::main(&mut self) {\n%s\n}\n' "$2" > "$T/p.alp"
+  EPS_ARCH=aarch64 "$BE" "$T/p.alp" "$T/p" >/dev/null 2>&1 || { FAIL=$((FAIL+1)); echo "  FAIL $1 : native compile"; return; }
+  chmod +x "$T/p"
+  raw=""; for b in $3; do raw="$raw$(printf '\\%03o' "$b")"; done
+  set +e; printf "$raw" | "$T/p"; nat=$?; set -e
+  # build the gamma byte list (first byte outermost): reverse, then cons
+  rev=""; for b in $3; do rev="$b $rev"; done
+  list="Nil"; for b in $rev; do list="(Cons $b $list)"; done
+  g=$("$T/e2g.exe" < "$T/p.alp" 2>/dev/null | sed "s/STDIN/$list/")
+  if [ -z "$g" ]; then FAIL=$((FAIL+1)); echo "  FAIL $1 : eps2gamma emitted nothing"; return; fi
+  set +e; printf '%s\n' "$g" | "$T/interp.exe" >/dev/null; mine=$?; set -e
+  rg=$(EPS_GAMMA_INPUT="$3" EPS_EMIT=gamma "$BE" "$T/p.alp" 2>/dev/null); set +e; printf '%s\n' "$rg" | "$T/interp.exe" >/dev/null; rgi=$?; set -e
+  if [ "$nat" = "$mine" ] && [ "$nat" = "$4" ] && [ "$nat" = "$rgi" ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : native=$nat eps2gamma=$mine rustgamma=$rgi expect=$4"; fi
+}
 
 dia "literal"            '    self.console.exit_process(42)' 42
 dia "add"                '    self.console.exit_process(40 + 2)' 42
@@ -180,6 +199,19 @@ diaa "array index pick" '    transition 0 { _ -> fl() }
     state fl() { transition self.i < 4 { true -> wr()  false -> dn() } }
     state wr() { self.buf[self.i] = self.i + 1; self.i = self.i + 1; transition 0 { _ -> fl() } }
     state dn() { self.console.exit_process(self.buf[0] * 10 + self.buf[3] + 28); }' 42
+
+# slice 6 — read_byte (stdin threaded as a gamma list; -1 at EOF). Same bytes drive native + both gamma routes.
+diar "sum input bytes" '    transition 0 { _ -> rd() }
+    state rd() { self.c = read_byte(); transition self.c < 0 { true -> dn()  false -> ac() } }
+    state ac() { self.s = self.s + self.c; transition 0 { _ -> rd() } }
+    state dn() { self.console.exit_process(self.s); }' "10 20 12" 42
+diar "echo first byte (unsigned)" '    transition 0 { _ -> rd() }
+    state rd() { self.c = read_byte(); transition 0 { _ -> dn() } }
+    state dn() { self.console.exit_process(self.c); }' "200" 200
+diar "count bytes to EOF" '    transition 0 { _ -> rd() }
+    state rd() { self.c = read_byte(); transition self.c < 0 { true -> dn()  false -> ac() } }
+    state ac() { self.s = self.s + 1; transition 0 { _ -> rd() } }
+    state dn() { self.console.exit_process(self.s); }' "5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5 5" 42
 
 echo "eps2gamma diamond (native == Rust-free eps2gamma->interp == Rust gamma_emit): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
