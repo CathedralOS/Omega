@@ -23,7 +23,7 @@
 ; transitions back to itself.
 ;
 ; Memory:  2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR  2097120 NFUNC
-;          2097112 ENVN 2097104 FRAMEBASE   3145728 ARENA   4194304 FUNCS   5242880 ENV
+;          2097112 ENVN 2097104 FRAMEBASE   16777216 ARENA (~48 MB)   4194304 FUNCS   5242880 ENV
 ; AST/value nodes are 4 words [tag,f0,f1,f2] (32-byte stride). Func entries 3 words
 ; [name_off, paramlist, body]. Env entries 2 words [name_off, value]; -1 = unnamed arg.
 ;
@@ -48,7 +48,11 @@ proc slurp() {
     state done {
         word[2097136] = n        ; LEN
         word[2097144] = 0        ; CUR
-        word[2097128] = 3145728  ; APTR
+        word[2097128] = 16777216 ; APTR — arena base at 16 MB: ~48 MB of node space up to the VM's 64 MB.
+                                 ;   (The old base 3145728 gave only 1 MB before FUNCS at 4194304; a big
+                                 ;   eval — e.g. a whole certifier run — silently overflowed into the
+                                 ;   function table and corrupted the result. There is no arena free/GC,
+                                 ;   so capacity IS the ceiling. ENV at 5242880 keeps ~11 MB of headroom.)
         word[2097120] = 0        ; NFUNC
         word[2097112] = 0        ; ENVN
         word[2097104] = 0        ; FRAMEBASE
@@ -688,7 +692,9 @@ proc main() {
     }
     state defbody { parse_def()  skip_ws()  to defloop }
     state run {
-        let result = eval(parse_expr(), 1000000)
+        let result = eval(parse_expr(), 50000000)   ; fuel: an upper BOUND on calls, not a cost — programs
+                                                    ; that terminate sooner are unaffected. 1M starved real
+                                                    ; certifier runs (each list index is an O(i) nth chain).
         print_value(result)          ; render the value (int or constructor tree)
         write_byte(10)
         return get_int(result)       ; and deliver an int result as the exit code
