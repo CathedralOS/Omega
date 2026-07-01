@@ -176,6 +176,7 @@ ok "(All (All (-> (= (p (v 1) (v 0)) z) (= (v 0) z))))"        # a+b=0 -> b=0   
 ok "(All (-> (= (s (v 0)) z) (bot)))"                          # s a = 0 -> bot (Peano's 3rd axiom, explicit)
 ok "(All (Lt z (s (v 0))))"                                   # 0 < s a        (every successor is positive)
 ok "(All (-> (Lt (s (v 0)) (v 0)) (bot)))"                    # s a < a -> bot (nothing is below its predecessor)
+ok "(All (All (-> (= (p (v 1) (s (v 0))) (v 1)) (bot))))"     # a + (s m) = a -> bot (adding a successor is never a no-op; the un-quantified a<a). NB the EQUALITY sibling a+m=a -> m=0 is a natind-search gap (see memory)
 ok "(All (All (-> (Le (v 1) (v 0)) (Le (s (v 1)) (s (v 0))))))" # a<=b -> s a <= s b (successor MONOTONE; forward dual of succ-<=-cancel)
 # STRICT-ORDER ASYMMETRY (a<b & b<a -> bot) -- the first FORWARD order reasoning: a strict cycle in context is
 # refuted by chaining it into (Lt A A) (sum-witness) and applying the banked irreflexivity. See the order-cycle
