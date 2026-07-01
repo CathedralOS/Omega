@@ -16,11 +16,14 @@
 ; Self-arrays thread as gamma LIST slots a{i} (after locals+fields), zero-init `(Cons 0 .. Nil)` of the
 ; length in `data Main { arr: [i32; N]; }`; reads -> `(nth a{i} ix)`, writes -> `(setl a{i} ix v)`; the
 ; nth/setl helper defs are prepended when the entry uses arrays.
-; read_byte: stdin threads as a LAST list slot `inp` (present iff the entry reads); `x = read_byte()` ->
-; two lets: x=head `(match inp (Nil (- 0 1)) ((Cons h t) h))`, inp=tail `(match inp (Nil Nil) ((Cons h t) t))`.
-; The stream's INITIAL value in the entry call is a `STDIN` placeholder (eps2gamma is a pure stdin->stdout
-; filter with no env access); the runner/diamond substitutes the `(Cons b0 .. Nil)` byte list — the direct
-; analog of the Rust route's EPS_GAMMA_INPUT.
+; read_byte: stdin threads as list slot `inp`; `x = read_byte()` -> two lets: x=head `(match inp (Nil
+; (- 0 1)) ((Cons h t) h))`, inp=tail `(match inp (Nil Nil) ((Cons h t) t))`. The stream's INITIAL value in
+; the entry call is a `STDIN` placeholder (eps2gamma is a pure stdin->stdout filter, no env access); the
+; runner/diamond substitutes the `(Cons b0 .. Nil)` byte list — the analog of the Rust route's EPS_GAMMA_INPUT.
+; stdout: write_byte(e)/write_line("s") accumulate LAST list slot `out` (cons-front): write_byte -> `(Cons e
+; out)`; write_line -> cons the string bytes + a trailing '\n'. In OUTPUT mode the entry terminal returns
+; `(rev out Nil)` (the whole stdout) not the exit code; interp prints that list. `rev` prepended if outputs.
+; Slot order (sig/call/init): locals, fields, arrays, inp, out.
 ;
 ; Emission (matching gamma_emit.rs slices 3-5): EVERY machine becomes mutually-recursive gamma defs
 ; `(def m{mi}_me (SIG) <entry>) (def m{mi}_s{k} (SIG) <state k>) ...`, SIG = its locals l0.. (++ the
@@ -451,6 +454,38 @@ proc is_read_byte() {                  ; the boundary call `read_byte` (9 chars)
     state yes { return 1 }
 }
 
+proc is_write_byte() {                 ; the boundary call `write_byte` (10 chars)
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 'w')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'r')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 'i')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 't')  return 0 }
+    state c5 { to c6 when (byte[2097152 + o + 4] == 'e')  return 0 }
+    state c6 { to c7 when (byte[2097152 + o + 5] == '_')  return 0 }
+    state c7 { to c8 when (byte[2097152 + o + 6] == 'b')  return 0 }
+    state c8 { to c9 when (byte[2097152 + o + 7] == 'y')  return 0 }
+    state c9 { to c10 when (byte[2097152 + o + 8] == 't')  return 0 }
+    state c10 { to c11 when (byte[2097152 + o + 9] == 'e')  return 0 }
+    state c11 { to yes when (is_idchar(byte[2097152 + o + 10]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_write_line() {                 ; the boundary call `write_line` (10 chars)
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 'w')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'r')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 'i')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 't')  return 0 }
+    state c5 { to c6 when (byte[2097152 + o + 4] == 'e')  return 0 }
+    state c6 { to c7 when (byte[2097152 + o + 5] == '_')  return 0 }
+    state c7 { to c8 when (byte[2097152 + o + 6] == 'l')  return 0 }
+    state c8 { to c9 when (byte[2097152 + o + 7] == 'i')  return 0 }
+    state c9 { to c10 when (byte[2097152 + o + 8] == 'n')  return 0 }
+    state c10 { to c11 when (byte[2097152 + o + 9] == 'e')  return 0 }
+    state c11 { to yes when (is_idchar(byte[2097152 + o + 10]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
 ; ---- printing ----
 
 proc emit_dec(n) {
@@ -484,6 +519,82 @@ proc print_inpname() {
     state k { to isI when (word[6460000] == 0)  to isT }         ; INP_KIND
     state isI { emit("inp")  return 0 }
     state isT { write_byte('t')  emit_dec(word[6470000])  return 0 }   ; INP_VAL
+}
+
+; the stdout accumulator slot's current gamma name: `out` until a write rebinds it to t{val}.
+proc print_outname() {
+    state k { to isO when (word[6480000] == 0)  to isT }         ; OUT_KIND
+    state isO { emit("out")  return 0 }
+    state isT { write_byte('t')  emit_dec(word[6490000])  return 0 }   ; OUT_VAL
+}
+
+; write_byte(<expr>) -> `(let t{f} (Cons <expr> <out>) `; rebind out. CUR at the `write_byte` token. -> 1 let.
+proc emit_write_byte() {
+    skip_ident()                       ; past "write_byte"
+    skip_ws()  adv()                   ; consume '('
+    skip_ws()
+    let e = parse_cmp()
+    emit("(let t")  emit_dec(word[6000016])  emit(" (Cons ")  print_expr(e)  write_byte(' ')  print_outname()  emit(") ")
+    word[6480000] = 1                  ; OUT_KIND = t
+    word[6490000] = word[6000016]      ; out = t{fresh}
+    word[6000016] = word[6000016] + 1
+    state tcl { to eatcl when (cbyte() == ')')  adv()  to tcl }
+    state eatcl { adv()  to tsemi }    ; consume ')'
+    state tsemi { to eatsemi when (cbyte() == ';')  adv()  to tsemi }
+    state eatsemi { adv()  return 1 }
+}
+
+; write_line("STR") -> cons STR's bytes + a trailing '\n' onto out (last byte outermost). CUR at the token.
+proc emit_write_line() {
+    skip_ident()                       ; past "write_line"
+    skip_ws()  adv()                   ; consume '('
+    skip_ws()  adv()                   ; consume opening '"'
+    let n = 0
+    state rd {
+        to enddq when (cbyte() == '"')
+        byte[6900000 + n] = cbyte()
+        n = n + 1
+        adv()
+        to rd
+    }
+    state enddq {
+        adv()                          ; consume closing '"'
+        byte[6900000 + n] = 10         ; write_line appends a newline
+        n = n + 1
+        emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
+        let k = n
+        to consloop
+    }
+    state consloop {                   ; emit (Cons b{n-1} (Cons b{n-2} ... — last byte outermost
+        to consend when (k == 0)
+        k = k - 1
+        emit("(Cons ")  emit_dec(byte[6900000 + k])  write_byte(' ')
+        to consloop
+    }
+    state consend {
+        print_outname()
+        let j = 0
+        to closes
+    }
+    state closes { to closed when (j == n)  write_byte(')')  j = j + 1  to closes }
+    state closed {
+        write_byte(' ')
+        word[6480000] = 1              ; OUT_KIND = t
+        word[6490000] = word[6000016]
+        word[6000016] = word[6000016] + 1
+        to tcl
+    }
+    state tcl { to eatcl when (cbyte() == ')')  adv()  to tcl }
+    state eatcl { adv()  to tsemi }
+    state tsemi { to eatsemi when (cbyte() == ';')  adv()  to tsemi }
+    state eatsemi { adv()  return 1 }
+}
+
+; the entry's terminal: in output mode, RETURN the accumulated stdout `(rev out Nil)`; else the exit value.
+proc emit_exit_om() {
+    state d { to omexit when (word[6000056] == 1)  to normal }   ; HAS_OUTPUT
+    state normal { emit_exit()  return 0 }
+    state omexit { emit("(rev ")  print_outname()  emit(" Nil)")  return 0 }
 }
 
 proc emit_zeros(n) {
@@ -590,9 +701,15 @@ proc emit_call_state(tgt) {
         to aloop
     }
     state inpslot {
-        to done when (word[6000048] == 0)                  ; HAS_INPUT
+        to outslot when (word[6000048] == 0)               ; HAS_INPUT
         write_byte(' ')
         print_inpname()
+        to outslot
+    }
+    state outslot {
+        to done when (word[6000056] == 0)                  ; HAS_OUTPUT
+        write_byte(' ')
+        print_outname()
         to done
     }
     state done { write_byte(')')  return 0 }
@@ -629,7 +746,7 @@ proc reset_curname(mi) {
         ai = ai + 1
         to aloop
     }
-    state inp { word[6460000] = 0  return 0 }              ; INP_KIND = param `inp`
+    state inp { word[6460000] = 0  word[6480000] = 0  return 0 }   ; INP_KIND, OUT_KIND = params
 }
 
 ; emit `(let t{fresh} <rhs-under-current-names> ` and rebind slot idx (in the kind/val arrays at kindb/
@@ -772,11 +889,15 @@ proc translate_block(mi, off) {
         to t_trans when (is_transition() == 1)
         to t_return when (is_return() == 1)
         to t_self when (is_self() == 1)
+        to t_bwbyte when (is_write_byte() == 1)         ; bare write_byte(...)
+        to t_bwline when (is_write_line() == 1)         ; bare write_line("...")
         depth = depth + do_assign()
         to loop
     }
     state t_let { depth = depth + do_let()  to loop }
     state t_trans { emit_transition()  to close }
+    state t_bwbyte { depth = depth + emit_write_byte()  to loop }
+    state t_bwline { depth = depth + emit_write_line()  to loop }
     state t_return {                   ; free machine: `return <expr>;` -> the value
         skip_ident()                   ; past "return"
         skip_ws()
@@ -784,7 +905,7 @@ proc translate_block(mi, off) {
         print_expr(e)
         to close
     }
-    state t_self {                     ; entry: array write, field store, or the console exit
+    state t_self {                     ; entry: array write, field store, or a self.console.METHOD
         skip_ident()                   ; past "self"
         adv()                          ; past '.'
         let foff = word[2097144]
@@ -792,9 +913,17 @@ proc translate_block(mi, off) {
         skip_ws()
         to t_awrite when (cbyte() == '[')
         to t_fstore when (cbyte() == '=')
-        emit_exit()
+        to t_method                    ; self.console.METHOD(...)
+    }
+    state t_method {
+        adv()                          ; consume '.'
+        to t_wbyte when (is_write_byte() == 1)
+        to t_wline when (is_write_line() == 1)
+        emit_exit_om()                 ; else exit_process (-> `(rev out Nil)` in output mode)
         to close
     }
+    state t_wbyte { depth = depth + emit_write_byte()  to loop }
+    state t_wline { depth = depth + emit_write_line()  to loop }
     state t_awrite { do_array_write(array_lookup(foff))  depth = depth + 1  to loop }
     state t_fstore { depth = depth + do_write_slot(6420000, 6430000, field_lookup(foff))  to loop }
     state close { let j = 0  to closed }
@@ -1078,6 +1207,24 @@ proc collect_input() {
     state done { return 0 }
 }
 
+; does the entry write stdout? scan its body for write_byte / write_line -> HAS_OUTPUT.
+proc collect_output() {
+    word[6000056] = 0                  ; HAS_OUTPUT
+    word[2097144] = word[6010400 + word[6000008] * 8]   ; CUR = M_BODY[ENTRY_IDX]
+    state loop {
+        skip_ws()
+        to done when (cbyte() == 0)
+        to found when (is_write_byte() == 1)
+        to found when (is_write_line() == 1)
+        to skip when (is_idchar(cbyte()) == 1)
+        adv()
+        to loop
+    }
+    state skip { skip_ident()  to loop }
+    state found { word[6000056] = 1  return 0 }
+    state done { return 0 }
+}
+
 proc add_field(off) {
     let g = 0
     state loop {
@@ -1100,12 +1247,13 @@ proc emit_sig(mi) {
     let nf = 0
     let na = 0
     let ni = 0
+    let no = 0
     state chkf {
         to withf when (mi == word[6000008])
         to go
     }
-    state withf { nf = word[6000024]  na = word[6000040]  ni = word[6000048]  to go }   ; ni = HAS_INPUT
-    state go { let tot = nl + nf + na + ni  let x = 0  to loop }
+    state withf { nf = word[6000024]  na = word[6000040]  ni = word[6000048]  no = word[6000056]  to go }
+    state go { let tot = nl + nf + na + ni + no  let x = 0  to loop }
     state loop {
         to done when (x == tot)
         to sep when (x > 0)
@@ -1124,7 +1272,11 @@ proc emit_sig(mi) {
         to inp when (x >= nl + nf + na)
         write_byte('a')  emit_dec(x - nl - nf)  to next
     }
-    state inp { emit("inp")  to next }     ; the last slot (present iff HAS_INPUT) is the stdin stream
+    state inp {
+        to outp when (x >= nl + nf + na + ni)
+        emit("inp")  to next            ; the stdin stream slot (present iff HAS_INPUT)
+    }
+    state outp { emit("out")  to next }  ; the stdout accumulator slot (present iff HAS_OUTPUT)
     state next { x = x + 1  to loop }
     state done { return 0 }
 }
@@ -1161,12 +1313,20 @@ proc emit_array_zeros(count) {
 
 proc render() {
     state h {
-        to helpers when (word[6000040] > 0)             ; entry uses arrays -> prepend nth/setl
-        to machines
+        to arrhelp when (word[6000040] > 0)             ; entry uses arrays -> prepend nth/setl
+        to outhelp
     }
-    state helpers {
+    state arrhelp {
         emit("(def nth (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nth t (- k 1)))))) ")
         emit("(def setl (xs k v) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) (Cons v t) (Cons h (setl t (- k 1) v)))))) ")
+        to outhelp
+    }
+    state outhelp {
+        to revhelp when (word[6000056] == 1)            ; entry writes stdout -> prepend rev
+        to machines
+    }
+    state revhelp {
+        emit("(def rev (xs acc) (match xs (Nil acc) ((Cons h t) (rev t (Cons h acc))))) ")
         to machines
     }
     state machines { let mi = 0  to mloop }
@@ -1190,9 +1350,14 @@ proc render() {
     }
     state adone {
         to inpinit when (word[6000048] == 1)            ; HAS_INPUT -> the runner injects the stream here
+        to outinit
+    }
+    state inpinit { emit(" STDIN")  to outinit }        ; placeholder; the diamond harness substitutes the bytes
+    state outinit {
+        to fin when (word[6000056] == 0)                ; HAS_OUTPUT -> stdout accumulator starts empty
+        emit(" Nil")
         to fin
     }
-    state inpinit { emit(" STDIN")  to fin }            ; placeholder; the diamond harness substitutes the bytes
     state fin { write_byte(')')  write_byte(10)  return 0 }
 }
 
@@ -1212,6 +1377,7 @@ proc main() {
         collect_fields()
         collect_arrays()
         collect_input()
+        collect_output()
         render()
         return 0
     }
