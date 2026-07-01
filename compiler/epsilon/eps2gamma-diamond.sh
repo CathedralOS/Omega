@@ -94,5 +94,34 @@ dia "cmp under arith"    '    let a: i32 = 10;
     let b: i32 = (a > 5) * 30 + (a < 5) * 7 + 12;
     self.console.exit_process(b)' 42
 
+# slice 2 — state machines (mutually-recursive gamma defs, SSA-threaded locals, guarded transitions).
+dia "loop sum 1..4"      '    let i: i32 = 0;
+    let s: i32 = 0;
+    transition 0 { _ -> lp() }
+    state lp() { transition i < 4 { true -> bd()  false -> dn() } }
+    state bd() { i = i + 1; s = s + i; transition 0 { _ -> lp() } }
+    state dn() { self.console.exit_process(s + 32); }' 42
+dia "factorial-ish"      '    let i: i32 = 1;
+    let a: i32 = 1;
+    transition 0 { _ -> lp() }
+    state lp() { transition i <= 5 { true -> bd()  false -> dn() } }
+    state bd() { a = a * i; i = i + 1; transition 0 { _ -> lp() } }
+    state dn() { self.console.exit_process(a - 78); }' 42
+dia "gcd then offset"    '    let a: i32 = 90;
+    let b: i32 = 48;
+    let t: i32 = 0;
+    transition 0 { _ -> lp() }
+    state lp() { transition b == 0 { true -> dn()  false -> st() } }
+    state st() { t = a % b; a = b; b = t; transition 0 { _ -> lp() } }
+    state dn() { self.console.exit_process(a + 36); }' 42
+dia "int-pattern switch" '    let x: i32 = 2;
+    let r: i32 = 0;
+    transition 0 { _ -> pick() }
+    state pick() { transition x { 0 -> za()  1 -> ob()  _ -> tw() } }
+    state za() { r = 1; transition 0 { _ -> dn() } }
+    state ob() { r = 7; transition 0 { _ -> dn() } }
+    state tw() { r = 42; transition 0 { _ -> dn() } }
+    state dn() { self.console.exit_process(r); }' 42
+
 echo "eps2gamma diamond (native == Rust-free eps2gamma->interp == Rust gamma_emit): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
