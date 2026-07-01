@@ -1,0 +1,54 @@
+#!/usr/bin/env sh
+# OMEGA MEANING (slice 0) — real Omega sample programs, run down the RUST-FREE meaning route.
+#
+# The lattice's meaning-by-elaboration route (decision D2) now reaches the SUMMIT rung: an Omega
+# program is translated to gamma by `epsilon/eps2gamma.beta` (which understands the shared
+# epsilon/omega machine surface — dotted field paths `self.state.n`, subjectless transitions,
+# `state name(&mut self)` headers, state-body lets) and EXECUTED by `gamma/interp.beta`. Both are
+# Rust-free (alpha->beta->bc lineage). Each sample's exit code must equal the "Expected exit: N"
+# its header documents — the language's stated intent for that program.
+#
+# omega-rs (the Rust reference producer) is NOT in this loop; it remains the untrusted fast
+# compiler this meaning is one day checked against (translation validation, decision D3). The
+# subset grows exactly as eps2gamma's omega surface grows; samples outside it simply aren't listed.
+# Needs no cargo/clang — only bc. No `set -e`: exit codes are data here.
+cd "$(dirname "$0")"
+. ../alpha/seed_env.sh
+SEED=../alpha/$ALPHA_SEED
+ASM=../beta/$BETA_SEED
+( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "omega-meaning FAIL — bc build"; exit 1; }
+b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
+T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+b ../epsilon/eps2gamma.beta "$T/e2g.exe"    || { echo "omega-meaning FAIL — build eps2gamma.beta"; exit 1; }
+b ../gamma/interp.beta      "$T/interp.exe" || { echo "omega-meaning FAIL — build interp.beta"; exit 1; }
+
+PASS=0; FAIL=0
+# om SAMPLE : run samples/SAMPLE/main.omg down the meaning route; exit must equal the documented
+# "Expected exit: N". Most samples verify themselves internally and exit a distinguished success
+# code only when their own checks pass — so agreement is computation, not coincidence.
+om() {
+  src="../../samples/$1/main.omg"
+  want=$(grep -oE 'Expected exit: [0-9]+' "$src" | head -1 | grep -oE '[0-9]+')
+  [ -n "$want" ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : no documented exit"; return; }
+  "$T/e2g.exe" < "$src" 2>/dev/null | "$T/interp.exe" >/dev/null 2>&1; got=$?
+  if [ "$got" = "$want" ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : meaning-route exit $got, documented $want"; fi
+}
+
+om alarm_probe2              # 70 — self-verified
+om cli_mvp                   # 0
+om collatz_sequence          # 111 — hailstone steps for seed 27
+om dice_roller               # 70 — self-verified
+om digital_root              # 6  — digital root of 12345
+om euclid_gcd                # 12 — gcd
+om format_number             # 70 — self-verified
+om leap_year                 # 1
+om modular_exponentiation    # 87 — 7^13 mod 100 (+ offsets)
+om nested_counters           # 70 — 40 + 20 + 2*5 computed from nested data fields
+om number_guess              # 70 — self-verified
+om smallest_prime_factor     # 13
+om turn_combat               # 1
+om width_mixer               # 70 — self-verified
+
+echo "omega meaning slice 0 (Omega samples run Rust-free via eps2gamma.beta -> interp.beta): $PASS ok, $FAIL failed"
+[ "$FAIL" = 0 ] || exit 1
