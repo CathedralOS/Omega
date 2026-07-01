@@ -5,32 +5,35 @@
 ; removes it — reads epsilon SOURCE on stdin, prints a gamma s-expr on stdout, which the Rust-free
 ; reference interpreter (gamma/interp.beta) runs. Both halves of the meaning route are now Rust-free.
 ;
-; SUPPORTED SUBSET — a single entry machine `Main::main`, i32 locals only (no self fields / arrays /
-; calls yet):
+; SUPPORTED SUBSET — a single entry machine `Main::main` with i32 locals and scalar i32 self-fields
+; (no arrays / cross-machine calls / read_byte yet):
 ;   machine Main::main(&mut self) {
 ;       let a: i32 = <expr>;                      ; entry: locals, declared here
+;       self.f = <expr>;                          ; self-field write (fields declared in `data Main`)
 ;       transition <subj> { <pat> -> <state>() ...}   ; and/or a terminal exit
 ;       self.console.exit_process(<expr>)
 ;       state name() { <stmt>* <terminal> }       ; parameterless states
 ;   }
 ; <expr> (slice 0) := integer arithmetic + - * / %, parens, integer literals, locals.
 ; <expr> (slice 1) := also comparisons < > <= >= == != (lowest precedence), via interp's eq/lt.
-; <stmt>  (slice 2) := local assignment `x = <expr>;`.
+; <expr> (slice 3) := also `self.f` field reads.
+; <stmt>  := local assignment `x = <expr>;`  OR  self-field write `self.f = <expr>;` (slice 3).
 ; <terminal> := `transition <subj> { <arm>* }` (arm = <pat> -> <state>() ; pat = int|true|false|_,
 ;   last arm is the default/else) OR `self.console.exit_process(<expr>)`.
 ;
-; Emission (matching gamma_emit.rs slice 3): the machine becomes mutually-recursive gamma defs sharing
-; the full-locals signature — `(def m0_me (l0..) <entry>) (def m0_s{k} (l0..) <state k>) ... (m0_me 0..)`.
-; Mutation is SSA-threaded: each write `x = e` -> `(let t{fresh} <e-under-current-names> <rest>)`, updating
-; a per-block name map (local i's current gamma name). A transition -> nested `(if (eq subj pat) (target
-; <current names>) else)`, last arm the default. A straight-line main falls out as the no-states case.
+; Emission (matching gamma_emit.rs slices 3-4): the machine becomes mutually-recursive gamma defs sharing
+; the full-slot signature `(l0.. g0..)` — `(def m0_me (l0.. g0..) <entry>) (def m0_s{k} (..) <state k>) ...
+; (m0_me 0..)`. Mutation is SSA-threaded: each write `x = e` (local or field) -> `(let t{fresh}
+; <e-under-current-names> <rest>)`, updating a per-block name map. A transition -> nested `(if (eq subj
+; pat) (target <current names>) else)`, last arm the default. Fields thread like locals (slot g{i}),
+; zero-initialised. A straight-line main falls out as the no-states case.
 ;
 ; Memory:  2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR (arena@3145728)
-; Scratch: 6000000 LOCAL_CNT  6000008 STATE_CNT  6000016 ENTRY_START  6000024 FRESH
-;          6100000 NAMES[k]   6200000 STATE_NAME[s]  6300000 STATE_BODY[s]
-;          6400000 CURKIND[i] (0=l{i} param, 1=t{val})   6500000 CURVAL[i]
-;          6600000 ARM_PAT[j]  6700000 ARM_TGT[j]
-; AST nodes are 4 words [tag,f0,f1,f2] (32-byte stride): 0 INT(v)  1 LOCAL(idx)  2 BIN(opchar,a,b).
+; Scratch: 6000000 LOCAL_CNT  6000008 STATE_CNT  6000016 ENTRY_START  6000024 FRESH  6000032 FIELD_CNT
+;          6100000 NAMES[k]  6200000 STATE_NAME[s]  6300000 STATE_BODY[s]  6800000 FIELD_NAME[g]
+;          6400000 CURKIND[i]/6500000 CURVAL[i] (locals)   6420000 FCURKIND[g]/6520000 FCURVAL[g] (fields)
+;          (kind 0 = param l{i}/g{g}, 1 = t{val})   6600000 ARM_PAT[j]  6700000 ARM_TGT[j]
+; AST nodes are 4 words [tag,f0,f1,f2] (32-byte stride): 0 INT(v)  1 LOCAL(idx)  2 BIN(opchar,a,b)  3 FIELD(g).
 
 proc slurp() {
     let n = 0
@@ -175,6 +178,19 @@ proc lookup_state(off) {
     state nomatch { return 0 }
 }
 
+; map a self-field name at offset `off` to its field slot index. -> 0 if unknown.
+proc field_lookup(off) {
+    let k = 0
+    state loop {
+        to nomatch when (k == word[6000032])          ; FIELD_CNT
+        to hit when (name_eq2(off, word[6800000 + k * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state hit { return k }
+    state nomatch { return 0 }
+}
+
 ; ---- expression parser: precedence-climbing, builds a left-associative AST ----
 
 proc parse_term() {
@@ -186,9 +202,17 @@ proc parse_term() {
         to ident
     }
     state ident {
+        to selffield when (is_self() == 1)
         let off = word[2097144]
         skip_ident()
         return alloc(1, lookup_local(off), 0, 0)
+    }
+    state selffield {                  ; `self.NAME` -> a field read (AST tag 3)
+        skip_ident()                   ; past "self"
+        adv()                          ; past '.'
+        let foff = word[2097144]
+        skip_ident()                   ; past field name
+        return alloc(3, field_lookup(foff), 0, 0)
     }
     state paren {
         adv()
@@ -347,10 +371,18 @@ proc print_curname(i) {
     state isT { write_byte('t')  emit_dec(word[6500000 + i * 8])  return 0 }
 }
 
+; field g's CURRENT gamma name: g{g} if unwritten in this block, else t{fcurval}
+proc print_fcurname(g) {
+    state k { to isG when (word[6420000 + g * 8] == 0)  to isT }
+    state isG { write_byte('g')  emit_dec(g)  return 0 }
+    state isT { write_byte('t')  emit_dec(word[6520000 + g * 8])  return 0 }
+}
+
 proc print_expr(node) {
-    state s { to isint when (word[node] == 0)  to islocal when (word[node] == 1)  to isbin }
+    state s { to isint when (word[node] == 0)  to islocal when (word[node] == 1)  to isfield when (word[node] == 3)  to isbin }
     state isint { emit_dec(word[node + 8])  return 0 }
     state islocal { print_curname(word[node + 8])  return 0 }
+    state isfield { print_fcurname(word[node + 8])  return 0 }
     state isbin {
         let op = word[node + 8]
         to c_lt when (op == '<')
@@ -389,11 +421,19 @@ proc emit_call_state(tgt) {
     emit("(m0_s")  emit_dec(tgt)
     let i = 0
     state loop {
-        to done when (i == word[6000000])
+        to fields when (i == word[6000000])
         write_byte(' ')
         print_curname(i)
         i = i + 1
         to loop
+    }
+    state fields { let g = 0  to floop }
+    state floop {
+        to done when (g == word[6000032])         ; FIELD_CNT
+        write_byte(' ')
+        print_fcurname(g)
+        g = g + 1
+        to floop
     }
     state done { write_byte(')')  return 0 }
 }
@@ -403,18 +443,29 @@ proc emit_call_state(tgt) {
 proc reset_curname() {
     let i = 0
     state loop {
-        to done when (i == word[6000000])
-        word[6400000 + i * 8] = 0      ; kind L
-        word[6500000 + i * 8] = i      ; val i
+        to fields when (i == word[6000000])
+        word[6400000 + i * 8] = 0      ; local kind L
+        word[6500000 + i * 8] = i      ; local val i
         i = i + 1
         to loop
+    }
+    state fields { let g = 0  to floop }
+    state floop {
+        to done when (g == word[6000032])    ; FIELD_CNT
+        word[6420000 + g * 8] = 0      ; field kind G
+        word[6520000 + g * 8] = g      ; field val g
+        g = g + 1
+        to floop
     }
     state done { return 0 }
 }
 
 ; emit `(let t{fresh} <rhs-under-current-names> ` and rebind local i to t{fresh}. Leaves the let open;
 ; the block closes it after the terminal. CUR is positioned before the '='.
-proc do_write(i) {
+; emit `(let t{fresh} <rhs-under-current-names> ` and rebind slot `idx` (in the kind/val arrays at kindb/
+; valb) to t{fresh}. Leaves the let open; the block closes it after the terminal. Works for a local slot
+; (kindb=6400000 valb=6500000) or a field slot (kindb=6420000 valb=6520000). CUR is before the '='.
+proc do_write_slot(kindb, valb, idx) {
     state toeq { to eat when (cbyte() == '=')  adv()  to toeq }
     state eat {
         adv()                          ; consume '='
@@ -423,9 +474,9 @@ proc do_write(i) {
         emit("(let t")  emit_dec(word[6000024])  write_byte(' ')
         print_expr(node)               ; value under the PRE-write names
         write_byte(' ')
-        word[6400000 + i * 8] = 1                      ; kind T
-        word[6500000 + i * 8] = word[6000024]          ; val = fresh
-        word[6000024] = word[6000024] + 1              ; fresh++
+        word[kindb + idx * 8] = 1                       ; kind T
+        word[valb + idx * 8] = word[6000024]            ; val = fresh
+        word[6000024] = word[6000024] + 1               ; fresh++
         to tosemi
     }
     state tosemi { to esemi when (cbyte() == ';')  adv()  to tosemi }
@@ -437,14 +488,14 @@ proc do_let() {
     skip_ws()
     let off = word[2097144]
     skip_ident()                       ; past name
-    do_write(lookup_local(off))
+    do_write_slot(6400000, 6500000, lookup_local(off))
     return 0
 }
 
 proc do_assign() {
     let off = word[2097144]
     skip_ident()                       ; past name
-    do_write(lookup_local(off))
+    do_write_slot(6400000, 6500000, lookup_local(off))
     return 0
 }
 
@@ -545,7 +596,21 @@ proc translate_block(startoff) {
     }
     state t_let { do_let()  depth = depth + 1  to loop }
     state t_trans { emit_transition()  to close }
-    state t_exit { emit_exit()  to close }
+    state t_exit {                     ; `self.NAME ...` — a field store, or the console exit
+        skip_ident()                   ; past "self"
+        adv()                          ; past '.'
+        let foff = word[2097144]
+        skip_ident()                   ; past NAME
+        skip_ws()
+        to t_fstore when (cbyte() == '=')
+        emit_exit()                    ; else: self.console.exit_process(...) (CUR at ".exit_process(")
+        to close
+    }
+    state t_fstore {                   ; self.NAME = <expr>;  -> a field write
+        do_write_slot(6420000, 6520000, field_lookup(foff))
+        depth = depth + 1
+        to loop
+    }
     state close { let j = 0  to closed }
     state closed { to fin when (j == depth)  write_byte(')')  j = j + 1  to closed }
     state fin { return 0 }
@@ -591,6 +656,51 @@ proc collect_locals() {
     }
     state semi { to eat when (cbyte() == ';')  adv()  to semi }
     state eat { adv()  to loop }
+    state done { return 0 }
+}
+
+; add a distinct self-field name (dedup) to the FIELD_NAME table.
+proc add_field(off) {
+    let g = 0
+    state loop {
+        to add when (g == word[6000032])
+        to dup when (name_eq2(off, word[6800000 + g * 8]) == 1)
+        g = g + 1
+        to loop
+    }
+    state add {
+        word[6800000 + word[6000032] * 8] = off
+        word[6000032] = word[6000032] + 1
+        return 0
+    }
+    state dup { return 0 }
+}
+
+; scan the machine body for `self.NAME` reads/writes; each distinct NAME that is NOT a boundary access
+; (`self.console.` — followed by another `.`) is a threaded scalar field, slot g{index} by first sight.
+proc collect_fields() {
+    word[6000032] = 0                  ; FIELD_CNT
+    word[2097144] = word[6000016]      ; CUR = ENTRY_START
+    state loop {
+        skip_ws()
+        to done when (cbyte() == 0)
+        to is_s when (is_self() == 1)
+        to skiptok when (is_idchar(cbyte()) == 1)
+        adv()
+        to loop
+    }
+    state skiptok { skip_ident()  to loop }
+    state is_s {
+        skip_ident()                   ; past "self"
+        adv()                          ; past '.'
+        let foff = word[2097144]
+        skip_ident()                   ; past NAME
+        skip_ws()
+        to skipb when (cbyte() == '.')  ; self.console. -> boundary, not a field
+        add_field(foff)
+        to loop
+    }
+    state skipb { to loop }
     state done { return 0 }
 }
 
@@ -646,15 +756,22 @@ proc scan_states() {
     state eof { return 0 }
 }
 
+; the shared def signature: l0 .. l{n-1}  g0 .. g{m-1}  (locals then fields)
 proc emit_sig() {
-    let i = 0
+    let tot = word[6000000] + word[6000032]
+    let x = 0
     state loop {
-        to done when (i == word[6000000])
-        to sep when (i > 0)
-        to emit1
+        to done when (x == tot)
+        to sep when (x > 0)
+        to name
     }
-    state sep { write_byte(' ')  to emit1 }
-    state emit1 { write_byte('l')  emit_dec(i)  i = i + 1  to loop }
+    state sep { write_byte(' ')  to name }
+    state name {
+        to fld when (x >= word[6000000])
+        write_byte('l')  emit_dec(x)  to next
+    }
+    state fld { write_byte('g')  emit_dec(x - word[6000000])  to next }
+    state next { x = x + 1  to loop }
     state done { return 0 }
 }
 
@@ -680,7 +797,7 @@ proc render() {
         let k = 0
         to iloop
     }
-    state iloop { to idone when (k == word[6000000])  emit(" 0")  k = k + 1  to iloop }
+    state iloop { to idone when (k == word[6000000] + word[6000032])  emit(" 0")  k = k + 1  to iloop }
     state idone { write_byte(')')  write_byte(10)  return 0 }
 }
 
@@ -690,6 +807,7 @@ proc main() {
     word[6000016] = word[2097144]      ; ENTRY_START
     word[6000024] = 0                  ; FRESH
     collect_locals()
+    collect_fields()
     scan_states()
     render()
     return 0
