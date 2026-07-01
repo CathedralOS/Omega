@@ -120,6 +120,14 @@ machine Store::rtight(&mut self, i: i32 in 0..8) -> i32 { return self.vals[i]; }
 data Cell { slot: i32 in 0..100; }
 machine Cell::slit(&mut self) { self.slot = 42; }
 machine Cell::sparam(&mut self, p: i32 in 0..50) { self.slot = p; }
+
+// STORE-SIDE INTERVAL PROPAGATION: storing a COMPUTED sum `self.sum = i + j` into a bounded field
+// `sum: i32 in 0..100` owes `i+j < 100`, discharged from the operand ranges (i: 0..8, j: 0..8 -> i+j < 16
+// <= 100) by the SAME banked additive-comp lemma the array-index case uses. The store path routes the stored
+// value through prove_lt_bound, so the value-domain `+` reasoning is shared between reads (arr[i+j]) and
+// writes (f = i+j) with no extra code -- and this is the WEAKENING path (16 < 100).
+data Acc { sum: i32 in 0..100; }
+machine Acc::add2(&mut self, i: i32 in 0..8, j: i32 in 0..8) { self.sum = i + j; }
 // RANGE-REFINED RETURN (Omega's BoundedStateReturn / output contract): `-> i32 in 0..100` makes every
 // `return e` owe `e < 100`. `rlit` returns a literal (ground); `rparam` returns a range-typed parameter,
 // weakening its type's `p < 50` to `p < 100` via lt-le-trans -- so callers can RELY on the declared range.
