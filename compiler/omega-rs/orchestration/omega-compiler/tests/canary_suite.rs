@@ -11047,6 +11047,35 @@ fn runtime_join_meet_bound_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nested_loop_fill_exit_canary_runs() {
+    // Nested loops: an outer loop drives an inner write-first loop that fills a row (counter
+    // reset each outer pass). Exercises the loop-invariant machinery in a nested context -- the
+    // inner head sits inside the outer loop's natural loop yet its own back-edge guard still
+    // proves the write. Sum self-checks to 3 -> exit 70.
+    let canary = pass_canary("collections/runtime_nested_loop_fill_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-nested-loop-fill-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested-loop fill canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested-loop fill canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected an inner write-first loop nested in an outer loop to prove its bound and fill correctly (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_loop_counter_init_hoisted_exit_canary_runs() {
     // The loop counter is initialized one state BEFORE the loop head (a `setup` state that does
     // not touch the counter sits between). The loop-invariant pass walks back through the
@@ -17016,6 +17045,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_fixed_vec_round_trip_exit",
     "collections/runtime_write_first_loop_index_exit",
     "collections/runtime_loop_counter_init_hoisted_exit",
+    "collections/runtime_nested_loop_fill_exit",
     "core/array_core_surface",
     "core/fixed_vec_core_surface",
     "core/region_core_surface",

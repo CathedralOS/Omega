@@ -1,0 +1,34 @@
+// Nested loops: an outer loop drives an inner WRITE-FIRST loop that fills a row, with the inner
+// counter reset each outer pass. Exercises the loop-invariant machinery in a nested context --
+// the inner head `inner` is inside the outer loop's natural loop, yet its own back-edge guard
+// `j < 3` (with `j` reset in `reset_j`, the immediate predecessor) still proves `grid[j]`. The
+// outer loop runs the fill 3 times (idempotent: grid = [0,1,2] each pass). Sum self-checks to 3.
+// Differential: native == interp.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; grid: [i32 in Wrapping; 3]; i: i32 in Wrapping; j: i32 in Wrapping; sum: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.i = 0;
+    transition { _ -> outer() }
+    state outer(&mut self) {
+        transition self.i < 3 { true -> reset_j() _ -> tally() }
+    }
+    state reset_j(&mut self) {
+        self.j = 0;
+        transition { _ -> inner() }
+    }
+    state inner(&mut self) {
+        self.grid[self.j] = self.j;
+        self.j = self.j + 1;
+        transition self.j < 3 { true -> inner() _ -> outer_step() }
+    }
+    state outer_step(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> outer() }
+    }
+    state tally(&mut self) {
+        self.sum = self.grid[0] + self.grid[1] + self.grid[2];
+        transition self.sum == 3 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
