@@ -4745,6 +4745,34 @@ fn runtime_float32_array_conversion_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_float_nan_comparison_exit_canary_runs() {
+    // NaN comparison honors IEEE in native codegen: `!=` is true, the other five operators
+    // are false. Guards on `ucomis*` must test the parity flag (a `jp` branch) or 4 of 6 take
+    // the wrong arm. The canary checks all six against a NaN operand and exits 70 iff correct.
+    let canary = pass_canary("arithmetic/runtime_float_nan_comparison_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-float-nan-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float NaN comparison canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float NaN comparison canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected NaN comparisons to follow IEEE (only != true; exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_i64_signed_arithmetic_exit_canary_runs() {
     // i64 signed arithmetic beyond i32: multiply past 2^32, signed div/mod with a negative dividend
     // (sign follows dividend), and a 64-bit shift (1<<40). All chained -> exit 70.
