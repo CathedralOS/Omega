@@ -11075,6 +11075,34 @@ fn runtime_join_meet_bound_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_array_max_and_sum_exit_canary_runs() {
+    // Find the max and the sum of an array in one pass: an indexed read bound to a local, a
+    // reduction (`total += v`), and an element comparison via the sound local-bind pattern
+    // (`transition v > self.mx`). arr = [30,50,70,20,60,10] -> max 70, sum 240, both checked -> 70.
+    let canary = pass_canary("collections/runtime_array_max_and_sum_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-max-sum-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("array max-and-sum canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("array max-and-sum canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a one-pass max+sum reduction to compute correctly (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_indexed_reduction_loop_exit_canary_runs() {
     // Array reduction with a runtime index (`self.sum = self.sum + self.arr[self.i]`) in a loop --
     // an indexed read as an accumulation operand, the sum/reduce primitive. Sums [5,10,15,20,8,12]
@@ -17195,6 +17223,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_computed_indexed_write_exit",
     "collections/runtime_indexed_rmw_loop_exit",
     "collections/runtime_indexed_reduction_loop_exit",
+    "collections/runtime_array_max_and_sum_exit",
     "core/array_core_surface",
     "core/fixed_vec_core_surface",
     "core/region_core_surface",
