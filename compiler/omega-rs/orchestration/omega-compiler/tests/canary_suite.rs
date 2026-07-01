@@ -10863,6 +10863,40 @@ fn runtime_enum_struct_payload_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nested_field_accumulate_loop_exit_canary_runs() {
+    // Two-level nested struct fields (`self.body.pos.x`) mutated in place across a
+    // state-machine loop -- the physics/entity-update pattern (position += velocity).
+    // Two sibling nested fields must track independently (pos.x -> 70, pos.y -> 30),
+    // chained-guard self-checked. Guards against nested-place read/write cross-talk.
+    let canary = pass_canary("structs/runtime_nested_field_accumulate_loop_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-accum-loop-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested-field accumulate-loop canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested-field accumulate-loop canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected nested struct fields to accumulate independently across a loop (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_indexed_write_const_read_exit_canary_runs() {
     let canary = pass_canary("slices/runtime_indexed_write_const_read_exit");
     let build_dir = std::env::temp_dir()
@@ -16951,6 +16985,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/runtime_numeric_cast_exit",
     "calls/runtime_value_position_branching_call_exit",
     "calls/runtime_value_call_let_combine_exit",
+    "structs/runtime_nested_field_accumulate_loop_exit",
     "calls/runtime_value_transition_unsigned_guard_exit",
     "calls/runtime_exit_code_exit",
     "calls/value_call_sequential_result_slots_exit",
