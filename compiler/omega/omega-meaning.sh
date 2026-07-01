@@ -35,20 +35,29 @@ om() {
     FAIL=$((FAIL+1)); echo "  FAIL $1 : meaning-route exit $got, documented $want"; fi
 }
 
-om alarm_probe2              # 70 — self-verified
+# NB the set is AUDITED, not just swept: a sample whose pass depends on a mis-parse coincidence is
+# excluded even if its exit matches (format_number: string buffers; alarm_probe2: case-pattern
+# dispatch). width_mixer stays: its `as i32` casts drop harmlessly (widening is a no-op over gamma's
+# unbounded ints while values stay in range — the same status as `in Trapping` annotations).
+om bank_ledger               # 70 — self-verified (state args)
+om bouncing_ball             # 70 — self-verified (state args)
+om bounded_counter           # 70 — saturation check stays in range; state args report(70)
+om calculator_rpn            # 70 — self-verified (arrays + state args)
 om cli_mvp                   # 0
 om collatz_sequence          # 111 — hailstone steps for seed 27
 om dice_roller               # 70 — self-verified
 om digital_root              # 6  — digital root of 12345
 om euclid_gcd                # 12 — gcd
-om format_number             # 70 — self-verified
+om generic_ring_buffer       # 70 — self-verified (methods + wrap logic in range)
+om insertion_sort            # 70 — self-verified (array sort)
 om leap_year                 # 1
 om modular_exponentiation    # 87 — 7^13 mod 100 (+ offsets)
 om nested_counters           # 70 — 40 + 20 + 2*5 computed from nested data fields
 om number_guess              # 70 — self-verified
 om smallest_prime_factor     # 13
+om tic_tac_toe               # 70 — self-verified (board array + state args)
 om turn_combat               # 1
-om width_mixer               # 70 — self-verified
+om width_mixer               # 70 — self-verified (mixed-width fields, casts in range)
 
 echo "omega meaning slice 0 (Omega samples run Rust-free via eps2gamma.beta -> interp.beta): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
