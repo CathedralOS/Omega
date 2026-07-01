@@ -7927,6 +7927,33 @@ fn equatable_string_equality_guard_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_struct_value_copy_exit_canary_runs() {
+    // Struct assignment is a value copy, not an alias: copy a->b, mutate a, b stays unchanged;
+    // same between array-of-structs elements. Both sums stay 14 -> exit 70.
+    let canary = pass_canary("data/runtime_struct_value_copy_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-struct-value-copy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct value copy canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("struct value copy canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected struct + array-element value copies to stay unchanged after mutating the source (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_data_properties_exit_canary_runs() {
     let canary = pass_canary("data/runtime_data_properties_exit");
     let main_path = canary.join("main.omg");

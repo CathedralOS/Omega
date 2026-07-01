@@ -1,0 +1,46 @@
+// Struct assignment is a VALUE COPY, not an alias -- a foundational guarantee. Copy `a` into `b`,
+// then mutate `a`; `b` must be UNCHANGED. Do the same between two array-of-structs elements
+// (`arr[1] = arr[0]`, then mutate `arr[0]`). Each independent copy keeps its own storage; a wrong
+// (aliasing) copy would let the later mutation leak through. b.x+b.y and arr[1].x+arr[1].y must both
+// stay at their copied values (5+9 = 14 and 6+8 = 14). Exits 70 iff both hold.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Pt {
+    x: i32 in Wrapping;
+    y: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    a: Pt;
+    b: Pt;
+    arr: [Pt; 3];
+    s: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.a = Pt { x: 5, y: 9 };
+    self.b = self.a;
+    self.a.x = 100;
+    self.a.y = 200;
+    self.s = self.b.x + self.b.y;
+    transition self.s == 14 {
+        true -> array_copy()
+        _ -> bad()
+    }
+    state array_copy(&mut self) {
+        self.arr[0] = Pt { x: 6, y: 8 };
+        self.arr[1] = self.arr[0];
+        self.arr[0].x = 100;
+        self.arr[0].y = 200;
+        self.s = self.arr[1].x + self.arr[1].y;
+        transition self.s == 14 {
+            true -> ok()
+            _ -> bad()
+        }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(self.s); }
+}
