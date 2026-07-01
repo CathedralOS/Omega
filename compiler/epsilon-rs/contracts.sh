@@ -28,8 +28,10 @@ if ../beta-lang-rs/build/bc.exe < ../delta/check.beta > "$T/c.asm" 2>/dev/null \
 cargo build -q 2>/dev/null || { echo "contracts FAIL — cargo build"; exit 1; }
 
 # 3. generate the lemma library the compiler cites (add-zero-right etc.). It is prepended to
-# every certificate; self-contained (refl/witness) certs simply ignore its defs.
-python3 ../delta/gen-contract-lib.py > "$T/lib" 2>/dev/null \
+# every certificate; self-contained (refl/witness) certs simply ignore its defs. The proofs are SEARCHED by
+# the prover (prover-contract-lib.py), not hand-written -- "automation discharges, the kernel checks": each
+# library def is validated by check.beta along with the citation below.
+python3 ../delta/prover-contract-lib.py > "$T/lib" 2>/dev/null \
   || { echo "contracts FAIL — building the lemma library"; exit 1; }
 LIB=$(cat "$T/lib")
 
