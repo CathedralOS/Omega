@@ -165,6 +165,15 @@ ok "(All (All (All (-> (= (p (v 0) (v 2)) (p (v 0) (v 1))) (= (v 2) (v 1))))))" 
 ok "(All (All (All (-> (Lt (v 2) (v 1)) (Lt (p (v 2) (v 0)) (p (v 1) (v 0)))))))" # a<b => a+c<b+c  (add-strict-mono)
 ok "(All (All (-> (Le (s (v 1)) (s (v 0))) (Le (v 1) (v 0)))))"                   # s a<=s b => a<=b (succ-<=-cancel: le-cancel building block)
 no "(All (All (All (All (-> (= (p (v 3) (v 1)) (p (v 2) (v 0))) (= (v 3) (v 2)))))))"  # a+c=b+d does NOT give a=b (unequal addends)
+# ORDER + POSITIVITY — fundamental Peano facts (naturals are non-negative, strict order is irreflexive, and 0
+# is additively indecomposable). These fall out of the desugared existentials (a<b := ∃k.a+(sk)=b) + disj/sinj:
+# a<a would need ∃k.a+(sk)=a (impossible, the successor can't vanish); a+b=0 forces both summands to 0.
+ok "(All (-> (Lt (v 0) (v 0)) (bot)))"                          # a < a -> bot   (strict order IRREFLEXIVE)
+ok "(All (-> (Le (v 0) z) (= (v 0) z)))"                       # a <= 0 -> a=0  (0 is the order-minimum)
+ok "(All (All (-> (= (p (v 1) (v 0)) z) (= (v 1) z))))"        # a+b=0 -> a=0   (additive positivity, left)
+ok "(All (All (-> (= (p (v 1) (v 0)) z) (= (v 0) z))))"        # a+b=0 -> b=0   (additive positivity, right)
+no "(All (-> (Lt z (v 0)) (bot)))"                            # 0 < a -> bot is FALSE (a=1)
+no "(All (-> (Le (v 0) z) (Lt (v 0) z)))"                     # a<=0 does NOT give a<0 (a=0)
 # STRICT mult-mono needs a POSITIVITY guard (a<b => a*c<b*c is FALSE at c=0). With 0<c it discharges via the
 # strict mult-SCALING witness w = P+K*c (from 0<c giving c=s P, a<b giving b=a+s K), proved by right-distrib:
 # a*c + (s(P+K*c)) = a*c + (s K)*c = (a+s K)*c = b*c. A key fix: natind-first no longer hijacks such IMPLICATION
