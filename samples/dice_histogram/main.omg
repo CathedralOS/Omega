@@ -2,9 +2,9 @@
 // PRNG, tally how often each face 1..6 comes up, and render the distribution as a labeled
 // bar chart. Distinct from samples/histogram (which only counts and exits a number) and
 // from sort_visualizer (which bars array values): this RENDERS a frequency distribution of
-// random data, the kind of chart a real analytics tool emits. Composes the PRNG, the
-// temp-field indexed read-modify-write tally (counts[v] = counts[v] + 1 via a field), and
-// the bar-drawing render. Deterministic from the seed: the faces tally to 8,13,6,11,11,11.
+// random data, the kind of chart a real analytics tool emits. Composes the PRNG, a direct
+// runtime-indexed read-modify-write tally (`counts[v] = counts[v] + 1`), and the bar-drawing
+// render. Deterministic from the seed: the faces tally to 8,13,6,11,11,11.
 // Pure compute + stdout, no new features.
 // Expected exit: 0.
 // Expected output contains: #
@@ -21,8 +21,6 @@ data Main {
     sc: u32 in Wrapping;
     n: i32 in Wrapping;    // roll index
     v: i32 in Wrapping;    // face 0..5
-    cv: i32 in Wrapping;   // counts[v]
-    nc: i32 in Wrapping;   // cv + 1
     // render
     val: i32 in Wrapping;  // face 0..5 being drawn
     cnt: i32 in Wrapping;
@@ -53,9 +51,9 @@ machine Main::main(&mut self) {
         transition self.v >= 0 && self.v < 6 { true -> tally() _ -> bad() }
     }
     state tally(&mut self) {
-        self.cv = self.counts[self.v];
-        self.nc = self.cv + 1;
-        self.counts[self.v] = self.nc;
+        // Read-modify-write straight into the runtime-indexed element (`counts[v] += 1`).
+        // The face `v` is proven `>= 0 && < 6` by the guard that reaches this state.
+        self.counts[self.v] = self.counts[self.v] + 1;
         self.n = self.n + 1;
         transition { _ -> roll_loop() }
     }
