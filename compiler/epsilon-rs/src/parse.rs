@@ -243,6 +243,18 @@ impl<'a> Parser<'a> {
         self.expressions.push(expression);
         self.expressions.len() - 1
     }
+    // Read an integer-literal token's value (for a range-refinement bound `lo..hi`).
+    fn parse_int_token(&mut self) -> Result<i32, String> {
+        let token = self.expect(TokenKind::Int)?;
+        let text = std::str::from_utf8(token_text(&token, self.source)).unwrap();
+        let value: i64 = text
+            .parse()
+            .map_err(|_| format!("alpha-onramp: bad integer in range type '{}'", text))?;
+        if value > i32::MAX as i64 {
+            return Err(format!("alpha-onramp: range bound {} out of i32 range", value));
+        }
+        Ok(value as i32)
+    }
     fn find_local_index(&self, name: &[u8]) -> Option<usize> {
         // a state's parameters resolve to the machine's shared state-arg slots (by position)
         if let Some(position) = self.current_state_params.iter().position(|p| p.as_slice() == name) {
@@ -620,6 +632,9 @@ impl<'a> Parser<'a> {
         self.expect(TokenKind::LParen)?;
         let mut param_count = 0usize;
         let mut has_self = false;
+        // Range-refinement param types (`i: i32 in lo..hi`): collected here, desugared into preconditions
+        // (lo <= i, i < hi) once the precondition list exists. Omega's bounded type -- the type IS the contract.
+        let mut param_ranges: Vec<(usize, i32, i32)> = Vec::new();
         while self.current_kind() != TokenKind::RParen {
             if self.current_kind() == TokenKind::Eof {
                 return Err("alpha-onramp: parse error: unterminated parameter list".into());
@@ -641,11 +656,24 @@ impl<'a> Parser<'a> {
                 self.expect(TokenKind::Colon)?;
                 while self.current_kind() != TokenKind::Comma
                     && self.current_kind() != TokenKind::RParen
+                    && !(self.current_kind() == TokenKind::Ident && self.current_text() == b"in")
                 {
                     if self.current_kind() == TokenKind::Eof {
                         return Err("alpha-onramp: parse error: unterminated parameter type".into());
                     }
                     self.bump(); // skip the type (slice 6: everything is i32-width)
+                }
+                let this_param = param_count; // this parameter's local index (params are locals 0..n)
+                // RANGE REFINEMENT `i32 in lo..hi` (Omega's bounded type). Desugar into two preconditions on
+                // this parameter, so the type IS the contract: an access self.arr[i] with i: i32 in 0..len
+                // discharges its bounds obligation from the type (no explicit `requires i < len` needed).
+                if self.current_kind() == TokenKind::Ident && self.current_text() == b"in" {
+                    self.bump(); // in
+                    let lo = self.parse_int_token()?;
+                    self.expect(TokenKind::Dot)?;
+                    self.expect(TokenKind::Dot)?; // ..
+                    let hi = self.parse_int_token()?;
+                    param_ranges.push((this_param, lo, hi));
                 }
                 self.local_names.push(param_name);
                 param_count += 1;
@@ -677,6 +705,17 @@ impl<'a> Parser<'a> {
         // (The static, proof-carrying half is the convergence's certify-*.) Preconditions range
         // over the parameters (locals 0..param_count); postconditions also over `result`.
         let mut preconditions = Vec::new();
+        // Desugar range-refinement param types into preconditions: `i: i32 in lo..hi` -> `i >= lo` and `i < hi`.
+        // They become entry asserts (checked at runtime) AND are citable by the static discharge (array-bounds,
+        // call args) exactly like a hand-written `requires` -- so a bounded type gives memory safety for free.
+        for &(param_index, lo, hi) in &param_ranges {
+            let local = self.add_expression(Expr::Local(param_index));
+            let lo_node = self.add_expression(Expr::Int(lo));
+            preconditions.push(self.add_expression(Expr::Binary(BinaryOp::Ge, local, lo_node)));
+            let local2 = self.add_expression(Expr::Local(param_index));
+            let hi_node = self.add_expression(Expr::Int(hi));
+            preconditions.push(self.add_expression(Expr::Binary(BinaryOp::Lt, local2, hi_node)));
+        }
         let mut postconditions = Vec::new();
         let mut result_index = 0usize;
         loop {
