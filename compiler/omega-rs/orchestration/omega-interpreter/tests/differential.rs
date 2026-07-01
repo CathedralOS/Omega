@@ -219,6 +219,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_fixed_vec_round_trip_exit", 70),
     ("collections/runtime_write_first_loop_index_exit", 70),
     ("collections/runtime_loop_counter_init_hoisted_exit", 70),
+    ("collections/runtime_nested_loop_fill_exit", 70),
     ("collections/runtime_rule90_automaton_exit", 70),
     ("collections/runtime_whole_array_value_copy_exit", 70),
     ("collections/runtime_nested_array_const_index_exit", 70),
