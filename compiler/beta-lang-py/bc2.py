@@ -484,4 +484,5 @@ def main():
     procs = Parser(lex(src)).parse()
     sys.stdout.write(Gen().program(procs))
 
-main()
+if __name__ == '__main__':                             # importable (beta_interp.py reuses lex + Parser)
+    main()
