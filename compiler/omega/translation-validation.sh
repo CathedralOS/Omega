@@ -38,15 +38,14 @@ b ../delta/check.beta  "$T/check.exe" || { echo "translation-validation FAIL —
 BE=../epsilon-rs/target/debug/beta
 
 PASS=0; FAIL=0
-# tv DESC BODY : compile BODY natively, run it, and have delta certify that the observed exit is the
-# source's meaning. Then require the MISCOMPILE simulation (exit+1) to be REJECTED.
-tv() {
-  printf 'boundary trait Console { machine exit_process(return_code: i32); }\ndata Main { console: Console; }\nmachine Main::main(&mut self) {\n%s\n}\n' "$2" > "$T/p.alp"
+# tvcore DESC : the .alp program is already at $T/p.alp — compile natively, run it, and have delta certify
+# that the observed exit IS the source's meaning; then require the MISCOMPILE simulation (exit+1) REJECTED.
+tvcore() {
   EPS_ARCH=aarch64 "$BE" "$T/p.alp" "$T/p" >/dev/null 2>&1 || { FAIL=$((FAIL+1)); echo "  FAIL $1 : native compile"; return; }
   chmod +x "$T/p"
   set +e; "$T/p"; nat=$?; set -e
   g=$("$T/o2g.exe" < "$T/p.alp" 2>/dev/null)
-  cert=$(printf '%s\n' "$g" | python3 tv-encode.py "$nat") || { FAIL=$((FAIL+1)); echo "  FAIL $1 : encode (outside slice-0 subset?)"; return; }
+  cert=$(printf '%s\n' "$g" | python3 tv-encode.py "$nat") || { FAIL=$((FAIL+1)); echo "  FAIL $1 : encode (outside subset?)"; return; }
   set +e
   v=$(printf '%s' "$cert" | "$T/check.exe")
   badcert=$(printf '%s\n' "$g" | python3 tv-encode.py $((nat + 1)))
@@ -55,6 +54,13 @@ tv() {
   if [ "$v" = "accept" ] && [ "$vb" = "reject" ]; then PASS=$((PASS+1)); else
     FAIL=$((FAIL+1)); echo "  FAIL $1 : validate=$v (want accept), miscompile-sim=$vb (want reject), exit=$nat"; fi
 }
+# tv DESC BODY : $2 is the Main::main body (wrapped in the standard preamble).
+tv() {
+  printf 'boundary trait Console { machine exit_process(return_code: i32); }\ndata Main { console: Console; }\nmachine Main::main(&mut self) {\n%s\n}\n' "$2" > "$T/p.alp"
+  tvcore "$1"
+}
+# tvm DESC PROGRAM : $2 is a FULL program (free machines + Main::main), for cross-machine cases.
+tvm() { printf '%s\n' "$2" > "$T/p.alp"; tvcore "$1"; }
 
 tv "literal"          '    self.console.exit_process(42)'
 tv "product"          '    let a: i32 = 6 * 7;
@@ -160,6 +166,21 @@ tv "digit-sum-ish"    '    let n: i32 = 47;
     state lp() { transition n == 0 { true -> dn()  false -> st() } }
     state st() { s = s + n % 10; n = n / 10; transition 0 { _ -> lp() } }
     state dn() { self.console.exit_process(s) }'
+# cross-machine calls: value-returning FREE machines. The encoder INLINES each call (bind params, encode
+# the callee body) so delta recomputes the whole nested computation; the meaning route already handles them.
+tvm "nested call" 'boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine add(a: i32, b: i32) -> i32 { return a + b; }
+machine dbl(x: i32) -> i32 { return x + x; }
+machine Main::main(&mut self) { self.console.exit_process(add(dbl(15), 12)) }'
+tvm "call under arith" 'boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine sq(x: i32) -> i32 { return x * x; }
+machine Main::main(&mut self) { self.console.exit_process(sq(6) + sq(2) + 2) }'
+tvm "chained calls" 'boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine inc(x: i32) -> i32 { return x + 1; }
+machine Main::main(&mut self) { self.console.exit_process(inc(inc(inc(39)))) }'
 
-echo "translation validation (delta re-evaluates each compilation's result — straight-line + - * < == / % AND bounded loops — and certifies it IS the source's meaning): $PASS ok, $FAIL failed"
+echo "translation validation (delta re-evaluates each compilation's result — straight-line + - * < == / %, bounded loops, AND cross-machine calls — and certifies it IS the source's meaning): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

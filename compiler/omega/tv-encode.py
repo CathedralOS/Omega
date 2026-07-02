@@ -38,11 +38,21 @@
 # body arithmetic in + - * < == ; general while-loops with data-dependent bounds, /, %, and >2 carried
 # locals are later slices.
 #
+# CROSS-MACHINE CALLS: a program may define value-returning FREE machines (`machine f(x: i32) -> i32 {..}`)
+# that Main::main and each other call. omega2gamma emits them as sibling gamma defs `m{i}_me` with calls
+# `(m{i}_me args)`. The encoder INLINES each call — bind the callee's params to the (encoded) args and encode
+# its body — so delta recomputes the whole nested computation; the entry is the def named in the final call.
+# Inlining is depth-bounded (MAX_INLINE) so the term stays in the arena; terminating recursion inlines
+# finitely, deeper ones bail. (Loops inside a called machine / recursive machines past the bound are later.)
+#
 # UNTRUSTED, like prover.py: a bad encoding can only make certs that FAIL or mis-state the meaning;
 # meaning-fidelity is independently pinned by the kernel diamond over the same translator output.
 import sys
 
 MAXV = 200  # arena guard: unary numerals beyond this blow delta's node budget (200 admits 5! = 120)
+MAX_INLINE = 64  # cross-machine calls inline their callee; bound the nesting so terms stay in the arena
+DEFS = {}        # machine name -> (params, body); set in main, read by ev for cross-machine call inlining
+DEPTH = [0]      # current inline depth (list so nested ev calls can mutate it)
 
 PRELUDE = (
     "(data 2 0 0 0) (data 3 1 1 0) "
@@ -147,7 +157,19 @@ def ev(e, env):
         env2 = dict(env)
         env2[e[1]] = ev(e[2], env)                         # straight-line -> inline the binding
         return ev(e[3], env2)
-    sys.exit(2)                                            # /, %, if, match, call, ... -> later slices
+    if isinstance(e, list) and e and isinstance(e[0], str) and e[0] in DEFS:
+        params, body = DEFS[e[0]]                          # cross-machine call: inline the callee's body
+        args = e[1:]
+        if len(args) != len(params):
+            sys.exit(2)
+        DEPTH[0] += 1
+        if DEPTH[0] > MAX_INLINE:
+            sys.exit(2)                                    # runaway / too-deep to keep the term in the arena
+        env2 = {p: ev(a, env) for p, a in zip(params, args)}
+        r = ev(body, env2)
+        DEPTH[0] -= 1
+        return r
+    sys.exit(2)                                            # if/match, unresolved name, ... -> later slices
 
 
 # ---- loop path: gamma state machine -> delta encoding ------------------------------------------
@@ -320,20 +342,26 @@ def encode_loop(defs, call, claimed):
     print(f'{prelude} (= {term} {e}) (refl {e})')
 
 def main():
+    global DEFS
     claimed = int(sys.argv[1])
     forms = parse_all(sys.stdin.read())
     defs = [f for f in forms if isinstance(f, list) and f and f[0] == 'def']
     call = forms[-1]
     if not isinstance(call, list):
         sys.exit(2)
-    if len(defs) >= 3:                                     # mutually-recursive state machine -> loop path
+    DEFS = {d[1]: (d[2], d[3]) for d in defs}
+    entry = call[0]                                       # the def called at the very end is the entry
+    if entry not in DEFS:
+        sys.exit(2)
+    prefix = entry[:-3] if entry.endswith('_me') else entry
+    # a state-machine LOOP has the entry's own state defs (m{i}_s0, ...); route those to the loop encoder.
+    if any(n.startswith(prefix + '_s') for n in DEFS):
         encode_loop(defs, call, claimed)
         return
-    if len(defs) != 1:
-        sys.exit(2)                                        # multiple machines (cross-call) -> later slices
-    _, name, params, body = defs[0]
+    # otherwise: straight-line, possibly calling value-returning FREE machines -> inline the calls (ev).
+    params, body = DEFS[entry]
     args = call[1:]
-    if call[0] != name or len(args) != len(params):
+    if len(args) != len(params):
         sys.exit(2)
     env = {p: ev(a, {}) for p, a in zip(params, args)}
     term, _ = ev(body, env)
