@@ -1,3 +1,7 @@
+// NOTE: no Expected-exit annotation on purpose -- this is a compile-time proof ladder
+// (every machine body is empty). The native exe exits an abnormal status (0x40001000-ish)
+// while the interpreter exits 0; run behavior of an empty proof program is unspecified
+// today. The sample is compile-checked only.
 // Math proofs: a theorem ladder as Omega proof machines.
 //
 // Every machine below has an empty body. Per Chapter 10, that makes the

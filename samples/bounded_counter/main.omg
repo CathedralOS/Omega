@@ -1,9 +1,9 @@
 // A counter saturating at a bound. Showcases `[copy, zero_init]` type
 // properties and saturating arithmetic over a dispatched self-write path
-// driven by scalar arguments (the proven-good shape — case-payload commands
-// threaded into a self-writing sub-machine are a known miscompile, see
-// canaries/pending/calls/by_value_case_param_self_write_lost, so this sample
-// uses scalar drives; vending_machine is the case-payload showcase).
+// driven by scalar arguments. (Historical: case-payload commands threaded into
+// a self-writing sub-machine used to miscompile; FIXED 2026-06, locked by the
+// pass canary canaries/pass/calls/by_value_case_param_self_write_exit.
+// vending_machine is the case-payload showcase.)
 // Expected exit: 70.
 
 use omega::language::std::console;

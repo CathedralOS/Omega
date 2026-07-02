@@ -1,3 +1,4 @@
+// Expected exit: 35.
 // RPN calculator: interpret an encoded postfix program with an operand stack -- a
 // real little bytecode VM. Each token is either a number (push it) or an operator
 // that pops two operands and pushes the result. Demonstrates TWO bounded mutable

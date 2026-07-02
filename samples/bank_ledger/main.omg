@@ -3,12 +3,12 @@
 // Stresses: [i32 in Saturating; 8] fixed-array with const-indexed reads/writes, running
 // balance accumulation, deposit/withdraw operations, and multi-step arithmetic.
 //
-// Workaround note: a native miscompile triggers when a let-bound local is
-// captured and then passed as an argument to a nested dispatch state within
-// the same machine call. Specifically `let slot = count; ... try1(slot, val)`
-// produces wrong slot values on repeated calls. Worked around by re-reading
-// self.ledger.count from the field in guards instead of binding it as a local.
-// See canaries/pending/calls/let_local_passed_to_nested_state_arg_wrong.
+// Historical workaround note: a native miscompile used to trigger when a let-bound
+// local was captured and passed as an argument to a nested dispatch state within
+// the same machine call (`let slot = count; ... try1(slot, val)` gave wrong slot
+// values on repeated calls). Probe-verified FIXED (native==interp) on 2026-07-01;
+// the field-read style below is retained but no longer load-bearing. (The old
+// canaries/pending reference was purged with the pending backlog.)
 //
 // Transactions (positive=deposit, negative=withdraw):
 //   txns[0] = +500   deposit 500

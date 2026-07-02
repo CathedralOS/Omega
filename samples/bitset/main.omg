@@ -1,3 +1,4 @@
+// Expected exit: 70.
 // A bitset: a set of small integers stored as bits of a single u32 (bit k set <=> k is in the set).
 // Insert is `bits |= 1 << k`; membership is `(bits >> k) & 1`. We insert {3, 5, 7} (one mask built
 // by a runtime shift of a value read by runtime index), giving bits = 8|32|128 = 168, then check

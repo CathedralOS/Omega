@@ -1,3 +1,4 @@
+// Expected exit: 70.
 // Sieve of Eratosthenes over a bitset: bit k of a u32 means "k is composite". Starting empty (all
 // bits 0 = all candidates prime), walk k = 2..30; if k is unmarked it is prime, so mark every
 // multiple 2k, 3k, ... by setting its bit (`bits |= 1 << multiple`). Then count the still-unmarked

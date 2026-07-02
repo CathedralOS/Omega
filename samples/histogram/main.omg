@@ -1,3 +1,4 @@
+// Expected exit: 4.
 // Histogram: tally how many samples fall in each of four categories, then report
 // the count for category 2. A real counting computation -- the kind that was
 // blocked until a runtime-indexed write learned to invalidate the whole array's

@@ -145,8 +145,9 @@ machine Main::main(&mut self) {
     }
 
     state bad_score(&mut self) {
-        // Exits 71 due to miscompile: fire_count is wrong because Trigger
-        // and other no-payload variants after payload variants are unreachable.
+        // Failure arm (wrong fire_count). Historical: this fired natively while the
+        // 2026-06-14 miscompile (no-payload variants after payload variants were
+        // unreachable) was live; that is fixed and the sample exits 70 via good().
         self.console.exit_process(71);
     }
 
