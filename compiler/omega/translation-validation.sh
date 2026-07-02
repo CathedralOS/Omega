@@ -1,8 +1,8 @@
 #!/usr/bin/env sh
-# TRANSLATION VALIDATION, slice 0 — each compilation certified against the source's meaning (D3).
+# TRANSLATION VALIDATION — each compilation certified against the source's meaning (D3).
 #
 # The kernel diamond checks native-vs-meaning agreement by SHELL COMPARISON (test-based). This gate
-# upgrades the check to a PROOF for straight-line +/* programs: the program is compiled natively and
+# upgrades the check to a PROOF for straight-line + - * programs: the program is compiled natively and
 # RUN; its actual exit E is encoded (tv-encode.py, untrusted) into a delta claim
 #     (= <the program's meaning as a p/m arithmetic term> <unary E>)  (refl <unary E>)
 # and check.beta must ACCEPT — the trust anchor's own conversion rule RE-COMPUTES the meaning, so
@@ -63,6 +63,12 @@ tv "local chain"      '    let a: i32 = 2 * 3;
     let b: i32 = a + 4;
     let c: i32 = b * 4;
     self.console.exit_process(c + 2)'
+tv "subtraction"      '    let a: i32 = 50 - 8;
+    self.console.exit_process(a)'
+tv "mixed +-*"        '    let a: i32 = 9 - 2;
+    let b: i32 = a * 6;
+    self.console.exit_process(b - 0)'
+tv "nested minus"     '    self.console.exit_process((10 - 3) * (8 - 2))'
 
-echo "translation validation slice 0 (delta certifies each compilation's result IS the source's meaning): $PASS ok, $FAIL failed"
+echo "translation validation (delta re-evaluates each compilation's result and certifies it IS the source's + - * meaning): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
