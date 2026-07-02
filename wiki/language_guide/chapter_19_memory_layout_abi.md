@@ -193,19 +193,30 @@ volatile accesses also imply hardware ordering (they should not -- ordering
 against the device is the boundary contract's job, fences are separate), and
 how a region capability is constructed at boot.
 
-[^repr-hardware]: Open details: `repr` spelling for packed/explicit-offset
-layouts, untagged unions for hardware views, and whether such types are
-restricted to boundary-adjacent packages.
+[^repr-hardware]: Direction settled 2026-07-02
+(`design_briefs/programmable_layouts.md`): hardware-shaped structures are
+**stated layout plans** — a policy returning literal placements (`At` offsets,
+`Bits(container, lsb, width)` slots, per-register access classes) validated
+against overlap/straddle/range rules, with field access, RMW gating, and
+snapshot-then-project MMIO discipline *derived* from the plan. No bit-width
+value types (range facts on plain integers carry the surface). Still open:
+untagged unions for hardware views, and whether such types are restricted to
+boundary-adjacent packages.
 
 ## Endianness
 
 Native layout follows the target. Wire protocols must declare byte order or use
 field encodings that define byte order independently.
 
-## Relationship To Wire Data
+## Relationship To Serialized Bytes
 
-Wire data is not native layout.
+Serialized layout is not native layout.
 
-Native layout optimizes in-memory access. Wire layout optimizes compatibility
-and decoding. A declaration may choose to make them match, but that should be an
-explicit contract, not an accident.
+Native layout optimizes in-memory access; a serialized layout (a *layout
+policy* chosen at the carrier — [Wire Protocols](chapter_20_wire_protocols.md),
+`design_briefs/programmable_layouts.md`) optimizes compatibility and decoding.
+A value has exactly one in-memory form; a schema may serialize through many
+policies. The two coincide only by explicit contract: a fully static policy in
+type position makes the plan *be* the in-memory layout, and crossing a
+boundary with such a value is a borrow, not an encode — the copy vanishes by
+theorem, not by accident.

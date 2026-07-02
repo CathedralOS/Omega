@@ -18,18 +18,19 @@ provisional; the obligations are the point.
 
 Two concerns stay separate:
 
-- **Wire data ([chapter 20](chapter_20_wire_protocols.md))** owns persisted and
-  external data — save files, protocols, on-disk snapshots, anything that may be
-  found many versions old. It is self-versioning (stable field numbers, a
-  reserved version id, reader tolerance). A five-versions-stale persisted value
-  is wire data's problem, not this chapter's.
+- **Wire protocols ([chapter 20](chapter_20_wire_protocols.md))** own persisted
+  and external data — save files, protocols, on-disk snapshots, anything that
+  may be found many versions old. Schemas with identity numbers are
+  self-versioning (stable field numbers, era discriminators, reader
+  tolerance). A five-versions-stale persisted value is chapter 20's problem,
+  not this chapter's.
 - **Versioned data (this chapter)** owns *live in-memory state* across a hot
   swap. A live component is always at the last-installed version, so a runtime
   upgrade is **single-step**: `prev -> current`. No migration chain, no
   multi-version dispatch, no runtime graph-completeness check — skipped releases
   for a live component are applied as sequential single-steps, or refused. (The
-  chain and coexistence sketches below were solving wire data's multi-version
-  problem and do not apply to live state.)
+  chain and coexistence sketches below were solving the wire-protocol
+  multi-version problem and do not apply to live state.)
 
 ### Shape identity and freeze
 
@@ -408,7 +409,9 @@ should be visible in build artifacts.
 - Migration is typed code with effect, ownership, and invariant obligations.
 - Hot-swap safety depends on borrow checking, invariant checking, effect
   checking, and state/control-flow facts.
-- Wire protocol compatibility is related, but belongs to `wire data`.
+- Wire protocol compatibility is related, but belongs to
+  [chapter 20](chapter_20_wire_protocols.md) (identity numbers + layout
+  policies).
 
 ## Open Design Questions
 
