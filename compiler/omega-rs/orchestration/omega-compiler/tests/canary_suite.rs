@@ -11188,6 +11188,34 @@ fn runtime_indexed_guard_subject_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_generic_param_position_inference_exit_canary_runs() {
+    // Param-position monomorphization: `weigh<T [copy]>(x: &T) -> i32` infers T := Light from the
+    // argument place (concrete return, so no return-position inference). Exit 70.
+    let canary = pass_canary("generics/runtime_generic_param_position_inference_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gen-pp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("param-position inference canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("param-position inference canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected param-position monomorphization to materialize the call (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_generic_value_call_agreeing_exit_canary_runs() {
     // Two value calls to one generic machine with AGREEING instantiations (both T := i32 in
     // Wrapping): the conflict detector must not fire and both results materialize. 30+40 -> 70.
@@ -17611,6 +17639,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/runtime_generic_enum_payload_exit",
     "generics/runtime_generic_value_call_exit",
     "generics/runtime_generic_value_call_agreeing_exit",
+    "generics/runtime_generic_param_position_inference_exit",
     "inline_asm/asm_block_jmp_state",
     "memory/abi_calling_convention_machine",
     "memory/repr_native_stable_layout",
