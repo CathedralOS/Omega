@@ -20,6 +20,13 @@
 # i32 wrap, so the encoder BAILS (exit 2) on it, as it does on any value it cannot encode small (unary
 # numerals hit delta's arena wall — guard at MAXV) or any construct outside the supported subset.
 #
+# DIV / MOD: `/` and `%` are kernel-EVALUATED by self-fueled repeated monus (udiv/umod; the dividend is its
+# own termination bound). Fully faithful — delta re-subtracts — but each op costs O(quotient) reduction
+# steps, and the checker's recursive normalizer runs out of native stack past ~6 steps, so the encoder
+# guards the quotient at SAFE_Q and BAILS above it (arena/stack wall, like MAXV). A future slice can lift
+# this by switching to a quotient-WITNESS check (a == b*q + r  &&  r < b — shallow, any size) at the cost of
+# the encoder supplying q. div-by-zero also bails.
+#
 # LOOPS: a bounded state machine (mutually-recursive gamma defs: entry -> guard -> body -> back-to-guard,
 # with an exit state) becomes a delta FUEL-STRUCTURED fold. The two loop-carried locals are packed into a
 # user Pair (cid 4, projected by fst=42/snd=43) threaded as the single extra arg (the kernel is binary-only
@@ -51,11 +58,30 @@ PRELUDE = (
     "(fun 29 2 (k 2)) (fun 29 3 (f 28 (y 0) (v 0)))"    # lts (scrut=b): lt(Z,x)=0 ; lt(S y,x)=lt(x,y)
 )
 
-# extra funs the LOOP path needs on top of PRELUDE: a 2-tuple (Pair, cid 4) and its projections.
-LOOP_EXTRA = (
-    " (data 4 2 0 0) "                                  # Pair a b  (packs the two loop-carried locals)
+# a user 2-tuple (Pair, cid 4) + projections — used to pack loop locals AND div/mod's (dividend,divisor).
+PAIR_DEFS = (
+    " (data 4 2 0 0) "
     "(fun 42 4 (v 0)) (fun 43 4 (v 1))"                 # fst / snd
 )
+
+# div / mod as SELF-FUELED fuel-folds (the dividend is its own termination bound: each step subtracts the
+# divisor, at most `a` steps). udiv(a,b) = floor(a/b) ; umod(a,b) = a mod b. Both fully kernel-EVALUATED.
+# Cost is O(quotient) reduction steps, so the encoder guards the quotient at SAFE_Q (arena wall, like MAXV).
+DIV_DEFS = (
+    " (fun 46 2 (k 2)) (fun 46 3 (f 47 (k 3 (v 0)) (k 4 (k 3 (v 0)) (y 0)))) "                     # udiv
+    "(fun 47 2 (k 2)) (fun 47 3 (f 48 (f 28 (f 42 (y 0)) (f 43 (y 0))) (k 4 (v 0) (y 0)))) "       # divf(fuel,Pair(a,b))
+    "(fun 48 3 (k 2)) "                                                                            #   a<b -> 0
+    "(fun 48 2 (k 3 (f 47 (f 42 (y 0)) (k 4 (f 22 (f 43 (f 43 (y 0))) (f 42 (f 43 (y 0)))) (f 43 (f 43 (y 0))))))) "  # a>=b -> S(divf(f,Pair(a-b,b)))
+    "(fun 49 2 (k 2)) (fun 49 3 (f 50 (k 3 (v 0)) (k 4 (k 3 (v 0)) (y 0)))) "                      # umod
+    "(fun 50 2 (f 42 (y 0))) (fun 50 3 (f 51 (f 28 (f 42 (y 0)) (f 43 (y 0))) (k 4 (v 0) (y 0)))) "# modf(fuel,Pair(a,b))
+    "(fun 51 3 (f 42 (f 43 (y 0)))) "                                                              #   a<b -> a
+    "(fun 51 2 (f 50 (f 42 (y 0)) (k 4 (f 22 (f 43 (f 43 (y 0))) (f 42 (f 43 (y 0)))) (f 43 (f 43 (y 0))))))"  # a>=b -> modf(f,Pair(a-b,b))
+)
+
+# everything reusable in one base; the loop path adds only its two per-loop funs (loopfn/brancher).
+BASE = PRELUDE + PAIR_DEFS + DIV_DEFS
+
+SAFE_Q = 6   # div/mod quotient guard: > this many subtraction steps overflows the checker's node budget
 
 def tokens(s):
     return s.replace('(', ' ( ').replace(')', ' ) ').split()
@@ -93,7 +119,7 @@ def ev(e, env):
         if e in env:
             return env[e]
         sys.exit(2)                                        # unbound name -> outside subset
-    if len(e) == 3 and e[0] in ('+', '*', '-', 'lt', 'eq'):
+    if len(e) == 3 and e[0] in ('+', '*', '-', 'lt', 'eq', '/', '%'):
         (ta, va), (tb, vb) = ev(e[1], env), ev(e[2], env)
         if e[0] == '+':
             v = va + vb; t = f'(f 21 {ta} {tb})'
@@ -103,6 +129,13 @@ def ev(e, env):
             v = 1 if va < vb else 0; t = f'(f 28 {ta} {tb})'
         elif e[0] == 'eq':                                 # 1 if a==b else 0 (kernel-decided)
             v = 1 if va == vb else 0; t = f'(f 25 {ta} {tb})'
+        elif e[0] in ('/', '%'):                           # kernel-evaluated by repeated monus
+            if vb == 0 or va // vb > SAFE_Q:
+                sys.exit(2)                                # div-by-zero / quotient past the arena wall
+            if e[0] == '/':
+                v = va // vb; t = f'(f 46 {ta} {tb})'
+            else:
+                v = va % vb;  t = f'(f 49 {ta} {tb})'
         else:                                              # a - b  ==  usub(b, a)
             if va < vb:
                 sys.exit(2)                                # would go negative: monus != native i32
@@ -231,7 +264,7 @@ def encode_loop(defs, call, claimed):
     env_p = {params[k]: proj(k, n, '(y 0)')        for k in range(n)}
     env_s = {params[k]: proj(k, n, '(f 43 (y 0))') for k in range(n)}
     newpack = pack([tr(newl[k], env_s) for k in range(n)])
-    prelude = (PRELUDE + LOOP_EXTRA + " "
+    prelude = (BASE + " "
         f"(fun 44 2 {tr(exitexpr, env_p)}) "                             # fuel=Z  -> exit(p)  (unreached)
         f"(fun 44 3 (f 45 {tr(cond, env_p)} (k 4 (v 0) (y 0)))) "        # loopfn(S f,p)=brancher(guard p, Pair(f,p))
         f"(fun 45 2 {tr(exitexpr, env_s)}) "                            # guard false -> exit(snd fp)
@@ -259,6 +292,6 @@ def main():
     env = {p: ev(a, {}) for p, a in zip(params, args)}
     term, _ = ev(body, env)
     e = unary(claimed)
-    print(f'{PRELUDE} (= {term} {e}) (refl {e})')
+    print(f'{BASE} (= {term} {e}) (refl {e})')
 
 main()

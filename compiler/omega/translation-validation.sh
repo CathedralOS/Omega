@@ -13,10 +13,11 @@
 # Trust boundary (stated, per the honest-edges discipline): the encoder is untrusted; a bad encoding
 # either fails outright or mis-states the meaning, and meaning-fidelity is independently pinned by the
 # kernel diamond over the same translator output. Scope: whole-program-result-level validation of
-# straight-line + - * < == programs (comparisons decide 0/1 inside the kernel) AND bounded state-machine
-# loops (encoded as a delta fuel-fold whose guard + body the kernel re-evaluates each iteration, with the
-# two loop-carried locals packed into a user Pair; the encoder abstract-executes the loop to get a safe
-# trip bound). Data-dependent unbounded loops, /, %, and >2 carried locals are later slices.
+# straight-line + - * < == / % programs (comparisons decide 0/1 and div/mod re-subtract, all inside the
+# kernel) AND bounded state-machine loops (encoded as a delta fuel-fold whose guard + body the kernel
+# re-evaluates each iteration, N loop-carried locals packed into user Pairs; the encoder abstract-executes
+# the loop to get a safe trip bound). div/mod are quotient-bounded (arena wall); div/mod INSIDE loops and
+# data-dependent unbounded loops (gcd) are later slices.
 #
 # Native leg needs macOS arm64 + cargo/clang; skips cleanly otherwise.
 set -e
@@ -121,6 +122,15 @@ tv "3 carried locals" '    let i: i32 = 0;
     state lp() { transition i < 4 { true -> bd()  false -> dn() } }
     state bd() { i = i + 1; s = s + i; p = p + 2; transition 0 { _ -> lp() } }
     state dn() { self.console.exit_process(s + p) }'
+# div / mod: kernel re-subtracts (small quotients; larger ones the encoder bails on, arena wall).
+tv "divide"           '    let q: i32 = 17 / 5;
+    self.console.exit_process(q)'
+tv "modulo"           '    let r: i32 = 17 % 5;
+    self.console.exit_process(r)'
+tv "div and mod"      '    let a: i32 = 23;
+    self.console.exit_process((a / 4) * 10 + (a % 4))'
+tv "mod under arith"  '    let n: i32 = 20;
+    self.console.exit_process(n % 7 + n / 7 * 6)'
 
-echo "translation validation (delta re-evaluates each compilation's result — straight-line + - * < == AND bounded loops — and certifies it IS the source's meaning): $PASS ok, $FAIL failed"
+echo "translation validation (delta re-evaluates each compilation's result — straight-line + - * < == / % AND bounded loops — and certifies it IS the source's meaning): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
