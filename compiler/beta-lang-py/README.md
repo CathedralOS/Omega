@@ -42,11 +42,23 @@ the official self-host fixed point.
 | 6 | string literals via `emit("...")` (`db` data + a `__write_str` loop) | ✅ |
 | ⇒ | **compile `bc.beta` → true diverse double compilation of `bc`** | ✅ **DONE** |
 
-**The gap is closed.** `bc2.py` compiles the whole `bc.beta`, and the resulting compiler `bcA` compiles
-`bc.beta` to output **byte-for-byte identical** to what the Rust-lineage `bc` produces (8716 lines). So the
-compilation of `bc` no longer depends on which bootstrap compiler produced it — a Trojan in either the Rust
-on-ramp or `bc2.py` would have to be present, identically, in *both* independent paths. The gate's final
-line (`bc DDC`) checks this on every run. (Along the way `bc2.py` also compiles the `calc.beta`
+**The gap is closed — for the whole trust surface.** `bc2.py` compiles all of the substantial Beta
+programs, and the two independent compilers (Rust on-ramp `bc0`, Python-lineage `bcA`) compile each one
+to **byte-for-byte identical** assembly:
+
+| program | role | asm lines |
+| --- | --- | --- |
+| `bc.beta` | the Beta compiler itself | 8716 |
+| `check.beta` | the δ proof checker (the trust anchor) | 27208 |
+| `eq.beta` | the δ equality checker | 6757 |
+| `interp.beta` | the γ reference interpreter (the meaning substrate) | 7662 |
+| `typeck.beta` | the γ type checker | 8484 |
+| `omega2gamma.beta` | the Omega→Gamma elaborator | 24919 |
+
+So the compilation of every trust-critical program is independent of which bootstrap compiler produced it —
+a Trojan in either path would have to be present, identically, in *both* independent implementations.
+Agreement on `bc.beta` alone would not prove agreement on the checker, so the gate checks the actual
+programs whose compilation determines trust. (Along the way `bc2.py` also compiles the `calc.beta`
 recursive-descent calculator and matches the on-ramp byte-for-byte on real input.)
 
 Run the gate:
