@@ -2,7 +2,7 @@
 # TRANSLATION VALIDATION — each compilation certified against the source's meaning (D3).
 #
 # The kernel diamond checks native-vs-meaning agreement by SHELL COMPARISON (test-based). This gate
-# upgrades the check to a PROOF for straight-line + - * programs: the program is compiled natively and
+# upgrades the check to a PROOF for straight-line + - * < == programs: the program is compiled natively and
 # RUN; its actual exit E is encoded (tv-encode.py, untrusted) into a delta claim
 #     (= <the program's meaning as a p/m arithmetic term> <unary E>)  (refl <unary E>)
 # and check.beta must ACCEPT — the trust anchor's own conversion rule RE-COMPUTES the meaning, so
@@ -12,9 +12,9 @@
 #
 # Trust boundary (stated, per the honest-edges discipline): the encoder is untrusted; a bad encoding
 # either fails outright or mis-states the meaning, and meaning-fidelity is independently pinned by the
-# kernel diamond over the same translator output. Slice 0 scope: whole-program-result-level validation
-# of straight-line +/* programs; loops (via delta's recursive user functions), subtraction, and
-# instruction-level refinement are later slices.
+# kernel diamond over the same translator output. Scope: whole-program-result-level validation of
+# straight-line + - * < == programs (comparisons decide 0/1 inside the kernel); loops (via delta's
+# recursive user functions) and instruction-level refinement are later slices.
 #
 # Native leg needs macOS arm64 + cargo/clang; skips cleanly otherwise.
 set -e
@@ -69,6 +69,23 @@ tv "mixed +-*"        '    let a: i32 = 9 - 2;
     let b: i32 = a * 6;
     self.console.exit_process(b - 0)'
 tv "nested minus"     '    self.console.exit_process((10 - 3) * (8 - 2))'
+tv "less-than true"   '    let c: i32 = 3 < 5;
+    self.console.exit_process(c)'
+tv "less-than false"  '    let c: i32 = 5 < 3;
+    self.console.exit_process(c)'
+tv "equal true"       '    let c: i32 = 7 == 7;
+    self.console.exit_process(c)'
+tv "not-equal"        '    let c: i32 = 7 != 4;
+    self.console.exit_process(c)'
+tv "leq boundary"     '    let c: i32 = 4 <= 4;
+    self.console.exit_process(c)'
+tv "geq false"        '    let c: i32 = 6 >= 9;
+    self.console.exit_process(c)'
+tv "branch predicate" '    let a: i32 = 8;
+    self.console.exit_process((a > 5) * 30 + (a < 5) * 7 + 12)'
+tv "compare then sum" '    let a: i32 = 4 == 4;
+    let b: i32 = 3 < 9;
+    self.console.exit_process(a * 20 + b * 22)'
 
-echo "translation validation (delta re-evaluates each compilation's result and certifies it IS the source's + - * meaning): $PASS ok, $FAIL failed"
+echo "translation validation (delta re-evaluates each compilation's result and certifies it IS the source's + - * < == meaning): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
