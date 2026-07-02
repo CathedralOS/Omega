@@ -145,7 +145,7 @@ machine mint_regions(map: FinalMemoryMap) -> Vec<Region>
 - **Runtime record stride.** The UEFI spec *forbids* striding the map array by
   `sizeof(descriptor)` — firmware may append fields; you must stride by the
   runtime `DescriptorSize` it returns. So the walk's obligation must cite the
-  handoff value, not the type's comptime size — a `::size`-based stride should
+  handoff value, not the type's build-time size — a `::size`-based stride should
   *fail to discharge*, making the classic C bootloader bug untypeable. Derived
   static codecs assume fixed record size; this needs a runtime-stride walk form.
 - **Function-pointer tables.** BootServices/RuntimeServices are structs of

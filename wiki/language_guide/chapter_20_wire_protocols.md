@@ -98,7 +98,7 @@ c: [u8; 32] in OmegaLayout<Scratch>;                 // unnumbered → packed
 ```
 
 - `OmegaLayout` is the one Omega-native policy family. The grammar is an
-  ordinary defaulted comptime parameter (named, not bool); *detection is just
+  ordinary defaulted build-time parameter (named, not bool); *detection is just
   the default value*, computed from a visible schema fact (the numbers are in
   the declaration). Omega-native edges imply the policy, so most code names
   nothing.
@@ -121,7 +121,7 @@ schema evolution (**durable**); positional or offset-based placements do not.
 The grade is consumed **at compile time by APIs whose contract is
 longevity** — it is never a fact about bytes:
 
-- A versioned store (`Store<T>`-shaped API) comptime-requires a durable plan;
+- A versioned store (`Store<T>`-shaped API) build-time-requires a durable plan;
   handing it an unnumbered or `Packed` schema is a compile error naming the
   fix.
 - Raw byte edges (`write(bytes: &[u8])`) are format-agnostic, correctly —
@@ -352,7 +352,7 @@ details.
 - Encoding and decoding are generated from source-visible contracts
   (plan-derived); hand-written byte code forfeits the conformance theorem and
   says so.
-- Durability is a plan grade consumed at comptime by longevity-contract APIs,
+- Durability is a plan grade consumed at build time by longevity-contract APIs,
   never a fact about bytes.
 - Unknown-field behavior must be explicit.
 - Additions, removals, renames, type changes, and presence changes have

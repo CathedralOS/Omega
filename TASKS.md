@@ -258,27 +258,52 @@ stay effect-free (total, visible in types). Needs a settle before building.
 
 The chapters are now the spec (design_briefs/programmable_layouts.md, SETTLED).
 The compliance work splits into a MECHANICAL near-term series and a
-comptime-GATED program:
+build-time evaluation-GATED program:
 
-**R1 — the surface migration (mechanical; ch20's status note points here):**
-- Optional identity numbers on plain `data` (`1: seed: u64;` -- any values, any
-  order, sparse; unique + not-retired enforced) + `retired N;` member
-  declarations (replaces `reserved`; absent from schema.fields by construction).
-- DELETE the `wire data` declaration form and the `reserved` spelling.
-- Schema identity is re-keyed: "data with >=1 numbered field" is what the
-  tagged grammar consumes; unnumbered data has NO identity and it is NEVER
-  order-derived.
-- compact_binary v0 behavior stays BYTE-IDENTICAL (the ch20 implemented-slice
-  section is verbatim spec: era-discriminator-first framing, LEB128 + zigzag,
-  sticky-ok decode, one-level scalar-only nesting, encode-only String-last).
-  Era/version machinery (frozen decision 10, ch21 version blocks) unchanged.
-- Corpus migration: every canary/sample/std .omg using `wire data`/`reserved`.
+**R1 — the surface migration: DONE (266035104).** Identity numbers on plain
+`data` + `retired N;`; the `wire data` form, `reserved` spelling, and the
+declaration `encoding` clause retired with guided errors + fail canaries;
+compact_binary v0 byte-identical (the wire-schema trees are unchanged
+underneath -- an implementation detail the diagnostics no longer name). 42
+corpus files migrated. Landmine recorded: a numbered schema whose FIRST member
+is a version block is ambiguous with ch21's plain-data version blocks -- the
+parser peeks inside the leading block.
 
-**R2+ (comptime-gated, do NOT start without the ch13 comptime story):**
-Layout trait + comptime plan() machines; Schema reflection; Plan validation +
-the deriver (codec/projections/mint-index/value types); OmegaLayout<T, grammar>
-carriers; Bits placements + access classes; durability plan grades;
-publish-time predecessor diff. See the brief SS10 for the full delta list.
+**R2 — LAYOUTS AS A REAL CONCEPT (greenlit 2026-07-02; unblocked by the
+build-time-evaluation settle: NO keyword, `comptime` retired as a foreign
+term -- evaluation is position-driven, the effect system is the gate, trait
+signatures carry the contract; design_briefs/build_time_evaluation.md).**
+The ladder, smallest-landable-first; layouts need NO general const positions
+(the compiler itself invokes plan() -- a blessed-trait call site):
+
+- **L0 (the enabler): build-time machine evaluation entry point.** The
+  compiler invokes an effect-free machine through the reference interpreter
+  with compiler-built arguments and reads back a structured value. Purity
+  gate = decision 12's transitive effect surface (empty + no &mut/out
+  params); target-width emulation audit; failure = a compile error naming the
+  position + the call chain to any offending effect. Fuel only as
+  defense-in-depth.
+- **L1: the closed vocabulary as library data.** `Schema`/`SchemaField`,
+  `Plan`/`FieldEntry`/`FieldPlan` (At/Bits/Varint/LengthPrefixed)/`SizePlan`
+  + the `Layout` trait declared in omega/ .omg. The compiler materializes
+  `Schema` from a data definition's fields (name/size/align/kind/number --
+  target-resolved).
+- **L2: plan validation pass** (compiler-owned): names resolve, no overlap,
+  in-bounds, no Bits straddle, ranges fit slots, tag/retired collisions.
+  A bad plan is a compile error, never unsafety.
+- **L3: first consumer, zero codegen -- the plan REPORT.** Evaluate + validate
+  a policy's plan for a schema and emit it into the wire-report artifact
+  (offsets/size/align). Proves L0-L2 end-to-end; canary-able by artifact
+  content. CLayout (the ~15-line C ABI policy, written in OMEGA) is the pilot.
+- **L4: derived VALUE TYPES for fully-static plans**
+  (`gdt: CLayout<GdtDescriptor>` in type position): plan-laid in-memory
+  layout + derived field projections; the no-op boundary theorem
+  (`&CLayout<T>` IS `&[u8] in CLayout<T>`).
+- **L5: OmegaLayout carriers** -- re-key compact_binary v0 as the derived
+  tagged grammar (`[u8; N] in OmegaLayout<Save>`; Derived|Packed parameter;
+  one-way identity asymmetry); mint = validate(+indexed) then materialize.
+- **L6+: Bits placements + access classes (MMIO deriver); durability plan
+  grades consumed by Store<T>-class APIs; publish-time predecessor diff.**
 
 ### Language ergonomics surfaced (mostly engineering; one research)
 - **[NEEDS DESIGN — Zach]** loop syntax (`for`/`while`) that desugars to the
@@ -454,7 +479,7 @@ element miscompiles natively (#59; workaround = element-type Wrapping).
   settles (chapter is the authority; it is being actively edited).
 
 Long-view sign-offs still open (only the maintainer): S1-S6 (separate
-compilation -- the big backend revamp, untouched), M1-M6 beyond comptime
+compilation -- the big backend revamp, untouched), M1-M6 beyond build-time evaluation
 stage 1, A1-A5 beyond allocator stage 1. The next major VERTICAL SLICE is
 CONCURRENCY (decisions C1-C5 frozen, briefs/concurrency_atomics.md; the atomics
 foundation is now done) — gated on the ch15 error model above for cancellation.
@@ -493,7 +518,7 @@ points at the bullet carrying the full proposal:
    maintainer decisions are the register below.
 
 **Decisions needed (scout round 2, 2026-06-12).** Four design briefs in
-wiki/design_briefs/ (concurrency_atomics, separate_compilation, comptime,
+wiki/design_briefs/ (concurrency_atomics, separate_compilation, build-time evaluation,
 allocator_story). Each question one line + the scout's recommendation;
 sign-off freezes them.
 
@@ -573,7 +598,7 @@ SEPARATE COMPILATION (briefs/separate_compilation.md):
 - S6 The composition/linker tool is OMEGA's (Cathedral consumes it).
   REC: yes.
 
-COMPTIME (briefs/comptime.md):
+BUILD-TIME EVALUATION (briefs/build_time_evaluation.md):
 - M1 Purity gate: reuse decision 12's inferred transitive effect surface
   (empty effects + no &mut/out = const-evaluable). REC: yes.
 - M2 Reflection access spelling: bracket form `self.[field]`;
@@ -628,7 +653,7 @@ boundary decoder mints non-zero eras; true union layout lands with the
 decoder (stage 4). (d) WIRE REPEATED FIELDS: `N: name: [scalar; max];`
 packed LEN-delimited, max-unrolled self-guarded ops both ISAs, count
 companion `name_count`, hostile counts rejected by the Open/Close bound
-discipline. (e) COMPTIME STAGE 1: `[T; table_size()]` const-evaluates
+discipline. (e) BUILD-TIME EVALUATION STAGE 1: `[T; table_size()]` const-evaluates
 zero-arg effect-free machines via the reference interpreter
 (orchestration-layer pass pre-checking; decision-12 purity gate; 100k fuel
 backstop; target-width audited). (f) TEST DEBT: cargo test --workspace
@@ -783,7 +808,7 @@ remains tracked in its bullet below.
   `traits/equatable_missing_conformance_suggested` /
   `equatable_field_not_equatable` / `equatable_recursive_type` /
   `equatable_string_field_literal_compare`. STILL OPEN: a CALLABLE
-  synthesized `Type::equals` machine (comptime/trait-generator arc), trait
+  synthesized `Type::equals` machine (build-time evaluation/trait-generator arc), trait
   `default machine` instantiation for other traits, recursive Equatable
   support, String-vs-literal structural compares, equality in
   contracts/domain facts (no typing scope there), and written-equals
@@ -1214,7 +1239,7 @@ stay visible, not because they're next):**
   custom entry, linker/section/physical-address control, volatile/MMIO
   semantics, inline asm beyond `asm { jmp state(...) }` (CR3/MSR/port-IO
   contracts).
-- [ ] **Comptime (const eval + trait generators).** Effect-free machines in
+- [ ] **Build-time evaluation (const eval + trait generators).** Effect-free machines in
   constant positions; `default machine` bodies with `Self::fields` member
   reflection expanded per conformance. Direction frozen (no macros, no #run);
   implementation is a large interpreter+expansion arc. Equatable/Hashable
@@ -1598,7 +1623,7 @@ Six lanes merged, suite 179/179, differential oracle fully matched:
 (copy/send structural, zero_init owns zero-means-empty incl. the DEMOTED
 zero-case rule); (b) standalone conformance items `Point satisfies
 Equatable;` validate against written attached machines (default
-instantiation/core synthesis still pending -- the comptime direction);
+instantiation/core synthesis still pending -- the build-time evaluation direction);
 (c) interim `==` error on payload-bearing cases in statement position;
 (d) strict result use: discarding a non-unit call result errors, `_ =
 call();` is the explicit discard (only ONE corpus file needed the sweep);

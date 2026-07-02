@@ -52,7 +52,7 @@ implementation work. Each one gets more expensive to retrofit every month.
    design 2026-07-02** (`design_briefs/programmable_layouts.md`): one
    declaration form (`data`) with *optional* identity numbers + `retired N;`;
    serialization moves to layout policies (`OmegaLayout` grammar family,
-   durability as a comptime plan grade consumed by `Store<T>`-class APIs +
+   durability as a build-time plan grade consumed by `Store<T>`-class APIs +
    a publish-time predecessor diff). The *work* is unchanged in substance —
    schema identity validation, tag diagnostics, codec generation — but the
    surface it lands on is plain `data` + the plan/deriver machinery, so ch20
