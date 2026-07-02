@@ -26,21 +26,37 @@ BCRS=../beta-lang-rs/target/debug/beta-lang
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 PASS=0; FAIL=0
 
-run_asm() {  # asmfile -> program exit code (|| guards set -e against the program's own nonzero exit)
-  "$ASM" < "$1" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$T/x.exe" >/dev/null 2>&1 || return 1
-  code=0; "$T/x.exe" >/dev/null 2>&1 || code=$?; echo "$code"
+build() {  # betafile compiler-cmd... -> $T/out.exe  (compile, assemble, stamp)
+  bf="$1"; shift
+  "$@" < "$bf" > "$T/o.asm" 2>"$T/e" && "$ASM" < "$T/o.asm" > "$T/o.tape" 2>/dev/null \
+    && stamp_seed "$T/o.tape" "$SEED" "$T/o.exe" >/dev/null 2>&1
 }
+runp() { code=0; "$1" < "$2" > "$T/out" 2>/dev/null || code=$?; }   # exe stdinfile -> $T/out, $code
 
-# ddc DESC EXPECTED PROGRAM — compile with both front-ends, run both, require agreement + expected.
+# ddc DESC EXPECTED PROGRAM — compile with both front-ends, run both (no stdin), require agreement + expected exit.
 ddc() {
-  printf '%s' "$3" > "$T/p.beta"
-  if ! python3 bc2.py < "$T/p.beta" > "$T/py.asm" 2>"$T/e"; then
-    FAIL=$((FAIL+1)); echo "  FAIL $1 : bc2.py error: $(cat "$T/e")"; return; fi
-  py=$(run_asm "$T/py.asm")
-  "$BCRS" < "$T/p.beta" > "$T/rs.asm" 2>/dev/null || { FAIL=$((FAIL+1)); echo "  FAIL $1 : on-ramp error"; return; }
-  rs=$(run_asm "$T/rs.asm")
+  printf '%s' "$3" > "$T/p.beta"; : > "$T/in"
+  if ! build "$T/p.beta" python3 bc2.py;   then FAIL=$((FAIL+1)); echo "  FAIL $1 : bc2.py error: $(cat "$T/e")"; return; fi
+  cp "$T/o.exe" "$T/py.exe"
+  if ! build "$T/p.beta" "$BCRS";          then FAIL=$((FAIL+1)); echo "  FAIL $1 : on-ramp error"; return; fi
+  cp "$T/o.exe" "$T/rs.exe"
+  runp "$T/py.exe" "$T/in"; py=$code
+  runp "$T/rs.exe" "$T/in"; rs=$code
   if [ "$py" = "$rs" ] && [ "$py" = "$2" ]; then PASS=$((PASS+1)); else
     FAIL=$((FAIL+1)); echo "  FAIL $1 : bc2=$py rust=$rs expected=$2"; fi
+}
+
+# io DESC STDIN EXPECT_OUT PROGRAM — like ddc but compares STDOUT (and exit) between the two front-ends.
+io() {
+  printf '%s' "$4" > "$T/p.beta"; printf '%s' "$2" > "$T/in"
+  if ! build "$T/p.beta" python3 bc2.py; then FAIL=$((FAIL+1)); echo "  FAIL $1 : bc2.py error: $(cat "$T/e")"; return; fi
+  cp "$T/o.exe" "$T/py.exe"
+  if ! build "$T/p.beta" "$BCRS";        then FAIL=$((FAIL+1)); echo "  FAIL $1 : on-ramp error"; return; fi
+  cp "$T/o.exe" "$T/rs.exe"
+  runp "$T/py.exe" "$T/in"; pc=$code; po=$(cat "$T/out")
+  runp "$T/rs.exe" "$T/in"; rc=$code; ro=$(cat "$T/out")
+  if [ "$po" = "$ro" ] && [ "$pc" = "$rc" ] && [ "$po" = "$3" ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : bc2=(out='$po' rc=$pc) rust=(out='$ro' rc=$rc) expected out='$3'"; fi
 }
 
 ddc "product"        42 'proc main() { return 6 * 7 }'
@@ -138,6 +154,37 @@ ddc "buffer accumulate" 15 'proc main() {
     state loop { to add when (j < 5)  return s }
     state add { s = s + word[buf + j * 8]  j = j + 1  to loop }
 }'
+# slice 5 — char literals, read_byte/write_byte, call statements (compare STDOUT too)
+io "char literal"  ""    ""   "proc main() { return 'A' }"
+io "write chars"   ""    "Hi" "proc main() { write_byte('H')  write_byte('i')  return 0 }"
+io "echo stdin"    "xyz" "xyz" "proc main() {
+    let c = read_byte()
+    state loop { to body when (c >= 0)  return 0 }
+    state body { write_byte(c)  c = read_byte()  to loop }
+}"
+io "call statement" ""   "OK" "proc putc(c) { write_byte(c)  return 0 }
+proc main() { putc('O')  putc('K')  return 0 }"
+io "recursive print_num" "" "42" "proc print_num(n) {
+    state big { to rec when (n >= 10)  to digit }
+    state rec { print_num(n / 10)  to digit }
+    state digit { write_byte(n % 10 + '0')  return 0 }
+}
+proc main() { print_num(42)  return 0 }"
+
+# a REAL, non-trivial program: the recursive-descent calculator. bc2.py now covers everything it uses
+# (slices 1-5, no string literals). Compile it with both front-ends and check they agree on real input.
+if [ -f ../beta-lang-rs/examples/calc.beta ]; then
+  if build ../beta-lang-rs/examples/calc.beta python3 bc2.py; then cp "$T/o.exe" "$T/py.exe"
+    build ../beta-lang-rs/examples/calc.beta "$BCRS"; cp "$T/o.exe" "$T/rs.exe"
+    for expr in "2+3*4" "(2+3)*4" "100-58" "2*(3+4)*5" "7*7-7"; do
+      printf '%s' "$expr" > "$T/in"
+      runp "$T/py.exe" "$T/in"; pc=$code; po=$(cat "$T/out")
+      runp "$T/rs.exe" "$T/in"; rc=$code; ro=$(cat "$T/out")
+      if [ "$po" = "$ro" ] && [ "$pc" = "$rc" ]; then PASS=$((PASS+1)); else
+        FAIL=$((FAIL+1)); echo "  FAIL calc.beta '$expr' : bc2=(out='$po' rc=$pc) rust=(out='$ro' rc=$rc)"; fi
+    done
+  else FAIL=$((FAIL+1)); echo "  FAIL calc.beta : bc2.py could not compile it: $(cat "$T/e")"; fi
+fi
 
 echo "diverse double compilation (bc2.py — independent Rust-free Beta front-end — agrees with the on-ramp, both assembled + run): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

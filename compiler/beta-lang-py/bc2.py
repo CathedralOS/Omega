@@ -42,6 +42,19 @@ def lex(src):
             while i < n and src[i] != '\n':
                 i += 1
             continue
+        if c == "'":                                   # char literal 'x' / '\n' -> its byte value
+            i += 1
+            if src[i] == '\\':
+                val = {'n': 10, 't': 9, 'r': 13, '0': 0, '\\': 92, "'": 39, '"': 34}[src[i + 1]]
+                i += 2
+            else:
+                val = ord(src[i])
+                i += 1
+            if src[i] != "'":
+                raise SyntaxError('bc2: unterminated char literal')
+            i += 1
+            toks.append(('num', val))
+            continue
         if c in ' \t\r\n':
             i += 1
             continue
@@ -155,6 +168,16 @@ class Parser:
             self.expect('op', ']')
             self.expect('op', '=')
             return ('memset', kind, addr, self.expr())
+        if t[0] == 'word' and self.toks[self.i + 1] == ('op', '('):   # call statement (result discarded)
+            name = self.nxt()[1]
+            self.nxt()                                 # '('
+            args = []
+            while self.peek() != ('op', ')'):
+                args.append(self.expr())
+                if self.peek() == ('op', ','):
+                    self.nxt()
+            self.expect('op', ')')
+            return ('callstmt', ('call', name, args))
         if t[0] == 'word':                             # assignment: name = expr
             name = self.nxt()[1]
             self.expect('op', '=')
@@ -295,6 +318,9 @@ class Gen:
             self.expr(s[1], slots)                        # value -> r0
             self.epilogue()
             return
+        if s[0] == 'callstmt':                            # a call used for effect; result in r0 discarded
+            self.expr(s[1], slots)
+            return
         if s[0] == 'memset':                              # word[addr] = val  /  byte[addr] = val
             _, kind, addr, val = s
             self.expr(addr, slots)                        # addr -> r0
@@ -338,6 +364,13 @@ class Gen:
             return
         if e[0] == 'call':                                # name(args): push args L->R, pop reverse to r0..
             _, name, args = e
+            if name == 'read_byte':                       # intrinsic: next input byte (0xFFFF..FF at EOF) -> r0
+                self.emit('read  r0')
+                return
+            if name == 'write_byte':                      # intrinsic: append low byte of the arg to output
+                self.expr(args[0], slots)
+                self.emit('write r0')
+                return
             if len(args) > 4:
                 raise SyntaxError(f'bc2: >4 args unsupported (call {name})')
             for a in args:
