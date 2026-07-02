@@ -1,4 +1,4 @@
-use crate::packing::{PlannedField, pack_fields, pack_fields_at};
+use crate::packing::{PlannedField, pack_fields, pack_fields_at, place_fields_by_plan};
 use crate::sizing::{fat_descriptor_layout, primitive_type_layout};
 use crate::{
     DataLayout, DataShape, FieldLayout, LayoutPlan, MachineLayout, TypeLayout,
@@ -272,6 +272,43 @@ impl<'program> LayoutBuilder<'program> {
                 })
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
+
+        // PLAN-LAID VALUE TYPES (layouts L4): a synthesized `Policy<Schema>`
+        // instance is placed at its validated plan's offsets instead of the
+        // native packing; downstream field-offset resolution reads the baked
+        // `FieldLayout.offset` exactly as for packed records.
+        if let Some(plan) = self
+            .program
+            .plan_laid_layouts
+            .iter()
+            .find(|plan| definition.name.as_str() == plan.data_name)
+        {
+            if plan.offsets.len() != fields.len() {
+                return Err(Diagnostic::error(format!(
+                    "plan-laid data `{}` has {} fields but its plan places {}",
+                    definition.name,
+                    fields.len(),
+                    plan.offsets.len()
+                )));
+            }
+            let (fields, layout) = place_fields_by_plan(
+                &mut self.fields,
+                fields,
+                &plan.offsets,
+                TypeLayout {
+                    size: plan.size,
+                    alignment: plan.align,
+                },
+            );
+
+            return Ok(DataLayout {
+                symbol: definition.symbol,
+                name: definition.name.clone(),
+                shape: DataShape::Record { fields },
+                layout,
+            });
+        }
+
         let (fields, layout) = pack_fields(&mut self.fields, fields);
 
         Ok(DataLayout {

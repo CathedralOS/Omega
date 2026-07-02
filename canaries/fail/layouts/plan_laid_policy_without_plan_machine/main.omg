@@ -1,0 +1,25 @@
+// PLAN-LAID VALUE TYPES, the misuse face: applying type arguments to a
+// NON-GENERIC data definition that declares no `plan` machine is neither a
+// generic instantiation nor a layout-policy application. The diagnostic must
+// say both halves so the fix is obvious either way.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data NotAPolicy {
+    value: i32;
+}
+
+data Pairish {
+    a: i32;
+    b: i32;
+}
+
+data Main {
+    console: Console;
+    payload: NotAPolicy<Pairish>;
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

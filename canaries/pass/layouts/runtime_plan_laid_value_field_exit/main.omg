@@ -1,0 +1,131 @@
+// PLAN-LAID VALUE TYPES (layouts L4, programmable_layouts.md section 5):
+// `gdt: Spread16<Gdtish>` applies a layout POLICY to a schema in TYPE
+// position. The policy here is deliberately NOT the native packing rule --
+// every field is placed on its own 16-byte slot (offsets 0/16/32/48, size 64,
+// align 16), so the plan-laid value's placement disagrees with native packing
+// at every field but the first. All field writes, reads, and the whole-value
+// copy must go through the SAME baked plan offsets: if any downstream
+// consumer recomputed native offsets independently, the reads below would see
+// zeros from the padding gaps and the program exits 71. Exits 70 only when
+// every value written through the plan placement survives the copy and reads
+// back intact.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data SchemaField {
+    size: i64 [0..=4096];
+    align: i64 [1..=16];
+    number: i64;
+}
+data Schema {
+    fields: [SchemaField; 32];
+    field_count: i64 [0..=32];
+}
+data Plan {
+    offsets: [i64; 32];
+    entry_count: i64;
+    size_fixed: i64;
+    size_is_dynamic: bool;
+    align: i64;
+}
+
+// The spread policy: field i lives at byte i*16. Scratch arithmetic is
+// policy-internal (compiler plan validation owns soundness), and the computed
+// offset goes through a field temp because a computed VALUE in a
+// runtime-indexed write is a known gap.
+data Spread16 {
+    offsets: [i64; 32];
+    index: i64 in Wrapping;
+    slot: i64 in Wrapping;
+}
+machine Spread16::plan(&mut self, schema: Schema) -> Plan {
+    self.index = 0;
+    transition { _ -> fill_loop(schema) }
+
+    state fill_loop(&mut self, schema: Schema) {
+        transition self.index >= 0 && self.index < 32 && self.index < schema.field_count {
+            true -> place_field(schema)
+            _ -> done(schema)
+        }
+    }
+    state place_field(&mut self, schema: Schema) {
+        self.slot = self.index * 16;
+        transition self.index >= 0 && self.index < 32 {
+            true -> write_field(schema)
+            _ -> done(schema)
+        }
+    }
+    state write_field(&mut self, schema: Schema) {
+        self.offsets[self.index] = self.slot as i64;
+        self.index = self.index + 1;
+        transition { _ -> fill_loop(schema) }
+    }
+    state done(&mut self, schema: Schema) -> Plan {
+        Plan {
+            offsets: self.offsets,
+            entry_count: schema.field_count as i64,
+            size_fixed: (schema.field_count * 16) as i64,
+            size_is_dynamic: false,
+            align: 16,
+        }
+    }
+}
+
+// A UEFI-descriptor-ish schema: mixed widths so native packing (0/4/8/16)
+// and the spread plan (0/16/32/48) disagree everywhere past field 0.
+data Gdtish {
+    limit_low: u16;
+    base_low: u32;
+    flags: u8;
+    base_high: u64;
+}
+
+data Main {
+    console: Console;
+    gdt: Spread16<Gdtish>;
+    twin: Spread16<Gdtish>;
+    v: i32;
+}
+
+machine Main::main(&mut self) {
+    self.gdt.limit_low = 7;
+    self.gdt.base_low = 20;
+    self.gdt.flags = 3;
+    self.gdt.base_high = 40;
+    self.twin = self.gdt;
+
+    transition self.twin.limit_low == 7 {
+        true -> check_low()
+        false -> bad()
+    }
+
+    state check_low(&mut self) {
+        transition self.twin.base_low == 20 {
+            true -> check_flags()
+            false -> bad()
+        }
+    }
+
+    state check_flags(&mut self) {
+        transition self.twin.flags == 3 {
+            true -> check_high()
+            false -> bad()
+        }
+    }
+
+    state check_high(&mut self) {
+        transition self.twin.base_high == 40 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -8,8 +8,10 @@
 //! arithmetic may honestly declare Wrapping: plan validation owns soundness.
 
 use omega_compiler::{compile_to_checked, compute_layout_plan};
+use omega_layout::{DataShape, build_layout_plan};
+use omega_target::NativeTarget;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 fn write_program(name: &str, source: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("omega-layout-{name}-{}", std::process::id()));
@@ -116,6 +118,53 @@ data GdtEntryish {
 data Main { }
 machine Main::main(&mut self) { }
 "#;
+
+/// L4: plan-laid VALUE TYPES. The run canary's `gdt: Spread16<Gdtish>` field
+/// resolves to a synthesized record whose NATIVE placement is the validated
+/// plan's -- asserted here directly against the layout plan the backend
+/// consumes, because placement is deliberately unobservable from inside the
+/// language (the run canary proves no-miscompile; this proves the override
+/// actually fired: native packing would give offsets [0,4,8,16], size 24).
+#[test]
+fn plan_laid_value_types_are_placed_by_their_plan() {
+    let canary = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .nth(4)
+        .expect("compiler crate should live under compiler/orchestration/omega-compiler")
+        .join("canaries/pass/layouts/runtime_plan_laid_value_field_exit/main.omg");
+    let checked = compile_to_checked(&canary, None).expect("plan-laid canary should compile");
+
+    // The pipeline recorded the validated plan on the typed trees.
+    assert_eq!(checked.typed.plan_laid_layouts.len(), 1);
+    let recorded = &checked.typed.plan_laid_layouts[0];
+    assert_eq!(recorded.data_name, "Spread16<Gdtish>");
+    assert_eq!(recorded.offsets, vec![0, 16, 32, 48]);
+    assert_eq!(recorded.size, 64);
+    assert_eq!(recorded.align, 16);
+
+    // And the backend layout plan bakes those offsets into the synthesized
+    // record's FieldLayouts.
+    let target = NativeTarget::from_omega_target_name(None).expect("host target");
+    let layouts = build_layout_plan(&checked, target).expect("layout plan should build");
+    let data_layout = layouts
+        .data_layouts
+        .iter()
+        .map(|(_, layout)| layout)
+        .find(|layout| layout.name.as_str() == "Spread16<Gdtish>")
+        .expect("the synthesized plan-laid record should be laid out");
+    assert_eq!(data_layout.layout.size, 64);
+    assert_eq!(data_layout.layout.alignment, 16);
+    let DataShape::Record { fields } = &data_layout.shape else {
+        panic!("plan-laid data should be a record");
+    };
+    let offsets: Vec<usize> = layouts
+        .fields
+        .span_or_empty(*fields)
+        .iter()
+        .map(|field| field.offset)
+        .collect();
+    assert_eq!(offsets, vec![0, 16, 32, 48]);
+}
 
 #[test]
 fn c_layout_policy_plans_a_uefi_ish_schema() {

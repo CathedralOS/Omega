@@ -12,6 +12,28 @@ pub struct TypedTrees {
     pub roots: TypedTreeRoots,
     pub tables: TypedTreeTables,
     pub symbols: SymbolTable,
+    /// Validated layout plans for PLAN-LAID VALUE TYPES (`gdt: CLayout<Gdt>`
+    /// in type position; programmable-layouts L4). Populated by the compiler
+    /// pipeline AFTER build-time plan evaluation + validation; the native
+    /// layout builder places the named data definitions at these offsets
+    /// instead of running its own packing. Empty for programs with no
+    /// plan-laid fields.
+    pub plan_laid_layouts: Vec<PlanLaidLayout>,
+}
+
+/// One validated, FULLY-STATIC layout plan applied to a synthesized data
+/// definition (the compiler-generated `Policy<Schema>` instance). Offsets are
+/// per field in declaration order; the plan was validated (bounds, overlap,
+/// alignment) before it was recorded here, so the layout builder may trust it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PlanLaidLayout {
+    /// Name of the synthesized data definition (e.g. `CLayout<GdtEntryish>`).
+    pub data_name: String,
+    /// Byte offset of each field, in declaration order.
+    pub offsets: Vec<usize>,
+    /// Total value size (fixed by the value-type gate).
+    pub size: usize,
+    pub align: usize,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -98,6 +120,7 @@ impl TypedTrees {
             roots,
             tables,
             symbols,
+            plan_laid_layouts: Vec::new(),
         }
     }
 

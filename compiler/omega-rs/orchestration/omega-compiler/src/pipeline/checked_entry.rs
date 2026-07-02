@@ -19,13 +19,19 @@ pub fn compile_to_checked(
 ) -> Result<CheckedTrees, Vec<Diagnostic>> {
     let mut timings = CompileTimings::default();
 
-    let (_source_file_count, syntax) =
+    let (_source_file_count, mut syntax) =
         source_files_to_syntax_trees(root_path, target_name, &mut timings)?;
+    // PLAN-LAID VALUE TYPES (layouts L4), desugar half -- exactly as the full
+    // `compile` pipeline does.
+    let plan_laid_records =
+        crate::pipeline::plan_laid::desugar_plan_laid_value_types(&mut syntax.syntax_trees)?;
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
     let mut typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
     // COMPTIME STAGE 1: substitute const-evaluated fixed-array lengths before
     // checking, exactly as the full `compile` pipeline does.
     crate::pipeline::const_lengths::evaluate_const_array_lengths(&mut typed)?;
+    // PLAN-LAID VALUE TYPES, plan half: evaluate + validate + record.
+    crate::pipeline::plan_laid::compute_plan_laid_layouts(&mut typed, &plan_laid_records)?;
     let checked = typed_trees_to_checked_trees(typed, &mut timings)?;
 
     // `typed_trees_to_checked_trees` wraps the program in an `Arc`; unwrap it for the

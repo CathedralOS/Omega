@@ -1,0 +1,57 @@
+// PLAN-LAID VALUE TYPES, the value-type gate: a policy whose plan is DYNAMIC
+// cannot appear in type position -- values need offsets, bytes need mints
+// (programmable_layouts.md section 5). The rejection must name the policy.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data SchemaField {
+    size: i64 [0..=4096];
+    align: i64 [1..=16];
+    number: i64;
+}
+data Schema {
+    fields: [SchemaField; 32];
+    field_count: i64 [0..=32];
+}
+data Plan {
+    offsets: [i64; 32];
+    entry_count: i64;
+    size_fixed: i64;
+    size_is_dynamic: bool;
+    align: i64;
+}
+
+data Streamy {
+    offsets: [i64; 32];
+}
+machine Streamy::plan(&mut self, schema: Schema) -> Plan {
+    // Distinct offsets so placement VALIDATION passes; the plan is rejected
+    // in type position purely for being dynamic.
+    self.offsets[1] = 4;
+    transition { _ -> done(schema) }
+
+    state done(&mut self, schema: Schema) -> Plan {
+        Plan {
+            offsets: self.offsets,
+            entry_count: schema.field_count as i64,
+            size_fixed: 0,
+            size_is_dynamic: true,
+            align: 1,
+        }
+    }
+}
+
+data Pairish {
+    a: i32;
+    b: i32;
+}
+
+data Main {
+    console: Console;
+    payload: Streamy<Pairish>;
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

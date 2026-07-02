@@ -55,11 +55,16 @@ impl Compiler {
         let workers = WorkerPool::with_available_parallelism();
         let mut timings = CompileTimings::default();
 
-        let (source_file_count, syntax) = source_files_to_syntax_trees(
+        let (source_file_count, mut syntax) = source_files_to_syntax_trees(
             &self.options.root_path,
             self.options.target_name.as_deref(),
             &mut timings,
         )?;
+        // PLAN-LAID VALUE TYPES (layouts L4), desugar half: synthesize the
+        // `Policy<Schema>` instance definitions before resolution so every
+        // later stage sees ordinary records.
+        let plan_laid_records =
+            crate::pipeline::plan_laid::desugar_plan_laid_value_types(&mut syntax.syntax_trees)?;
         remove_stale_phase_diagrams(&self.options)?;
         write_pipeline_index(&self.options)?;
         write_syntax_snapshot(&self.options, &syntax)?;
@@ -75,6 +80,9 @@ impl Compiler {
         // length position and substitute concrete literals BEFORE checking,
         // proof facts, and layout consume the lengths.
         crate::pipeline::const_lengths::evaluate_const_array_lengths(&mut typed)?;
+        // PLAN-LAID VALUE TYPES, plan half: evaluate + validate each policy
+        // application and record the placements for the layout builder.
+        crate::pipeline::plan_laid::compute_plan_laid_layouts(&mut typed, &plan_laid_records)?;
         write_typed_snapshot(&self.options, &typed)?;
         crate::pipeline::wire_report::write_wire_protocol_report(&self.options, &typed)?;
 
