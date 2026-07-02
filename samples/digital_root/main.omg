@@ -9,9 +9,12 @@
 
 use omega::language::std::console;
 
+// Wrapping DECLARED: nested-field reads (self.state.n) carry no range facts
+// yet, so the digit fold `sum + n % 10` cannot prove its bounds even though the
+// real values stay tiny (max 45 for a 5-digit seed).
 data Roots [copy, zero_init] {
-    n: i32 in Trapping;
-    sum: i32 in Trapping;
+    n: i32 in Wrapping;
+    sum: i32 in Wrapping;
 }
 
 data Main {

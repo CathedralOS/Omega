@@ -20,19 +20,19 @@ domain [u8; 2]::Utf8 when valid_utf8(self) {}
 
 data Main {
     console: Console;
-    cells: [i32; 64] in Trapping;  // current generation (0/1)
-    next: [i32; 64] in Trapping;   // next generation
-    line: [u8; 64] in Utf8;        // render buffer
-    chars: [u8; 2] in Utf8;        // " #"  dead / alive glyphs
-    gen: i32 in Trapping;
-    rp: i32 in Trapping;     // sliding-window read head, 0..64
-    op: i32 in Trapping;     // output head = rp - 1
-    window: i32 in Trapping; // 3-bit (left,centre,right) neighbourhood
-    cell: i32 in Trapping;   // freshly read cell value
-    nv: i32 in Trapping;     // computed next value
-    x: i32 in Trapping;      // render / copy index
-    cv: i32 in Trapping;     // cell value during render / copy
-    glyph: u8;               // rendered byte (from the Utf8 ramp)
+    cells: [i32; 64];       // current generation (0/1)
+    next: [i32; 64];        // next generation
+    line: [u8; 64] in Utf8; // render buffer
+    chars: [u8; 2] in Utf8; // " #"  dead / alive glyphs
+    gen: i32 [0..=32];      // guard-proven Exact generation counter
+    rp: i32 [0..=65];       // sliding-window read head, 0..64 (guard-proven)
+    op: i32;                // output head = rp - 1 (-1 before the window fills)
+    window: i32 [0..=7];    // 3-bit (left,centre,right) neighbourhood, modular by construction
+    cell: i32;              // freshly read cell value (re-guarded to 0/1 before use)
+    nv: i32;                // computed next value
+    x: i32 [0..=64];        // render / copy index (guard-proven)
+    cv: i32;                // cell value during render / copy
+    glyph: u8;              // rendered byte (from the Utf8 ramp)
 }
 
 machine Main::main(&mut self) {
@@ -112,7 +112,12 @@ machine Main::main(&mut self) {
         transition { _ -> scan_update() }
     }
     state scan_update(&mut self) {
-        self.window = ((self.window << 1) | self.cell) & 7;
+        // Shift-in as PROVEN-Exact arithmetic: grid cells are always 0/1, so the
+        // min/max clamp is the identity while giving the freshly read cell (array
+        // elements carry no range facts) a provable [0,1] bound; the `% 8` then
+        // lands the fold back inside the window's [0..=7] range --
+        // (w*2 + c) % 8 == ((w << 1) | c) & 7 for w in [0,7], c in {0,1}.
+        self.window = (self.window * 2 + min(max(self.cell, 0), 1)) % 8;
         transition { _ -> scan_write() }
     }
     state scan_write(&mut self) {
@@ -123,8 +128,13 @@ machine Main::main(&mut self) {
         self.next[self.op] = self.nv;
         transition { _ -> scan_advance() }
     }
+    // Re-guard before the head advance: `rp < 65` on the direct edge proves the
+    // increment into [0..=65] (the prior `op = rp` write is disjoint).
     state scan_advance(&mut self) {
         self.op = self.rp;
+        transition self.rp < 65 { true -> rp_bump() _ -> scan_loop() }
+    }
+    state rp_bump(&mut self) {
         self.rp = self.rp + 1;
         transition { _ -> scan_loop() }
     }
@@ -146,9 +156,14 @@ machine Main::main(&mut self) {
         self.x = self.x + 1;
         transition { _ -> copy_loop() }
     }
+    // Sleep first (the host call would kill facts), then re-guard `gen < 32`
+    // so the increment proves into [0..=32].
     state gen_next(&mut self) {
-        self.gen = self.gen + 1;
         self.console.sleep(50);
+        transition self.gen < 32 { true -> gen_bump() _ -> gen_loop() }
+    }
+    state gen_bump(&mut self) {
+        self.gen = self.gen + 1;
         transition { _ -> gen_loop() }
     }
 

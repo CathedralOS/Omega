@@ -16,10 +16,10 @@ data Main {
     console: Console;
     line: [u8; 40] in Utf8;
     cr: [u8; 1] in Utf8;
-    p: i32 in Trapping;
-    dir: i32 in Trapping;
-    frame: i32 in Trapping;
-    x: i32 in Trapping;
+    p: i32 [0..=40];     // ball column; each move is re-guarded so +1/-1 stays in range
+    dir: i32;            // -1 or +1; only compared, never fed to ranged arithmetic
+    frame: i32 [0..=50]; // guard-proven Exact frame counter
+    x: i32 [0..=40];     // guard-proven Exact clear counter
 }
 
 machine Main::main(&mut self) {
@@ -50,12 +50,32 @@ machine Main::main(&mut self) {
         self.line[self.p] = 79;
         transition { _ -> emit() }
     }
+    // The host calls kill arithmetic facts, so the counter updates move behind
+    // re-guards: `frame < 50` proves the frame increment, and the movement step
+    // branches on `dir` so each direction's re-guard proves its own +1 / -1 --
+    // fully Exact, no domain.
     state emit(&mut self) {
         self.console.write(self.cr);
         self.console.write(self.line);
         self.console.sleep(25);
+        transition self.frame < 50 { true -> frame_bump() _ -> finish() }
+    }
+    state frame_bump(&mut self) {
         self.frame = self.frame + 1;
-        self.p = self.p + self.dir;
+        transition self.dir == 1 { true -> move_right_guard() _ -> move_left_guard() }
+    }
+    state move_right_guard(&mut self) {
+        transition self.p >= 0 && self.p < 40 { true -> move_right() _ -> bad() }
+    }
+    state move_right(&mut self) {
+        self.p = self.p + 1;
+        transition { _ -> bounce_hi() }
+    }
+    state move_left_guard(&mut self) {
+        transition self.p >= 1 && self.p < 41 { true -> move_left() _ -> bad() }
+    }
+    state move_left(&mut self) {
+        self.p = self.p - 1;
         transition { _ -> bounce_hi() }
     }
     state bounce_hi(&mut self) {

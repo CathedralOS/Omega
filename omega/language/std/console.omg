@@ -6,6 +6,7 @@
 platform Console {
     entry write_line(text: String);
     entry write(text: String);
+    entry read_line(out_line: &mut String);
     entry exit_process(return_code: i32);
     entry sleep(milliseconds: u32);
 }

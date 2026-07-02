@@ -9,11 +9,13 @@
 
 use omega::language::std::console;
 
+// Wrapping DECLARED: the checksum sums slice elements, which carry no range
+// facts yet (the elements share the domain so the accumulation is single-domain).
 data Frame {
-    bytes: [i32 in Trapping; 5];
+    bytes: [i32 in Wrapping; 5];
 }
 
-machine Frame::sum(&mut self, s: &[i32 in Trapping], acc: i32 in Trapping) -> i32 in Trapping {
+machine Frame::sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping {
     transition s.len > 0 {
         true -> sum(s[1..], acc + s[0])
         false -> (acc)
@@ -32,7 +34,7 @@ machine Main::main(&mut self) {
     self.frame.bytes[3] = 30;
     self.frame.bytes[4] = 0;
 
-    let full: &[i32 in Trapping] = self.frame.bytes.as_slice();
+    let full: &[i32 in Wrapping] = self.frame.bytes.as_slice();
     let checksum: i32 = self.frame.sum(full[1..4], 0);
     self.console.exit_process(checksum);
 }

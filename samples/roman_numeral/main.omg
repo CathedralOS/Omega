@@ -18,8 +18,13 @@ boundary trait Console {
 data Main {
     console: Console;
     text: [u8; 16] in Utf8;
-    i: i32 in Trapping;
+    // Exact ranged index: the byte read is bounded by the `.len` guard, and the
+    // increment is guard-proven by the `i < 16` edge into bump() (the carrier's
+    // capacity bound; i < text.len <= 16, so the re-guard never fails).
+    i: i32 [0..=16];
     b: u8;
+    // Wrapping DECLARED (v/prev/total): a parse accumulator over arbitrary input
+    // symbols -- the subtractive-pair correction can also dip below zero mid-parse.
     v: i32 in Wrapping;
     prev: i32 in Wrapping;
     total: i32 in Wrapping;
@@ -66,6 +71,9 @@ machine Main::main(&mut self) {
     }
     state advance(&mut self) {
         self.prev = self.v;
+        transition self.i < 16 { true -> bump() _ -> bad() }
+    }
+    state bump(&mut self) {
         self.i = self.i + 1;
         transition { _ -> step() }
     }

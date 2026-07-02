@@ -14,7 +14,7 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    year: i32 in Trapping;
+    year: i32;
 }
 
 machine Main::main(&mut self) {

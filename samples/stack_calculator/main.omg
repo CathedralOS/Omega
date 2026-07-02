@@ -5,11 +5,13 @@
 //   push v   ->  stack[sp] = v; sp = sp + 1     (guard sp < CAP first)
 //   pop      ->  sp = sp - 1;   x = stack[sp]    (guard sp > 0 first)
 //
-// AUTHORING RECIPE: the stack pointer is `i32 in Trapping`, NOT `usize`. Exact
-// `usize` arithmetic rejects `sp - 1` (cannot prove no underflow from a cross-state
-// guard) and `usize in Wrapping` defeats the index-bounds prover; `i32 in Trapping`
-// lets +/- run (trapping at runtime) while an explicit `sp >= 0 && sp < CAP` guard
-// before each indexed access discharges the bounds obligation, honestly.
+// AUTHORING RECIPE: the stack pointer is `i32 [0..=8]`, fully Exact -- every
+// push/pop step is guard-proven, because this sample already re-guards
+// `sp >= 0 && sp < CAP` (or the pop-side `sp >= k && sp <= CAP`) on the DIRECT
+// edge into each state that moves `sp`, which both discharges the index-bounds
+// obligation and proves `sp + 1` / `sp - 1` land back inside the range. The
+// operand VALUES flow through the stack array, and array elements carry no
+// range facts yet, so the value plumbing (stack/a/b/acc) is declared Wrapping.
 //
 //   (3 + 4) * 5 = 35. The program exits with the value it computed.
 // Expected exit: 35.
@@ -20,11 +22,13 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    stack: [i32; 8] in Trapping;
-    sp: i32 in Trapping;
-    a: i32 in Trapping;
-    b: i32 in Trapping;
-    acc: i32 in Trapping;
+    // Wrapping DECLARED (stack/a/b/acc): the operands round-trip through array
+    // elements, which carry no range facts yet.
+    stack: [i32; 8] in Wrapping;
+    sp: i32 [0..=8];
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    acc: i32 in Wrapping;
 }
 
 machine Main::main(&mut self) {

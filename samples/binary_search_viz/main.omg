@@ -14,16 +14,16 @@ domain [u8; 4]::Utf8 when valid_utf8(self) {}
 
 data Main {
     console: Console;
-    arr: [i32; 31] in Trapping;
+    arr: [i32; 31];
     line: [u8; 31] in Utf8;   // render buffer
     chars: [u8; 4] in Utf8;   // " -*#"  excluded / range / target / mid
-    target: i32 in Trapping;
-    lo: i32 in Trapping;
-    hi: i32 in Trapping;
-    mid: i32 in Trapping;
-    vmid: i32 in Trapping;
-    x: i32 in Trapping;
-    kind: i32 in Trapping;
+    target: i32;              // only compared, never fed to arithmetic
+    lo: i32;                  // in [0, 31]; each write is clamp-proven Exact
+    hi: i32;                  // in [-1, 30]; each write is clamp-proven Exact
+    mid: i32;                 // in [0, 30]; guards re-prove it before each index use
+    vmid: i32;                // probe value; only compared
+    x: i32 [0..=31];          // guard-proven Exact render counter
+    kind: i32;                // 0..3 glyph selector; guard-proven before the lookup
     glyph: u8;
 }
 
@@ -53,7 +53,10 @@ machine Main::main(&mut self) {
         transition self.lo <= self.hi { true -> mid_calc() _ -> not_found() }
     }
     state mid_calc(&mut self) {
-        self.mid = (self.lo + self.hi) / 2;
+        // The min/max clamps are the identity for the search's real values
+        // (lo in [0,31], hi in [-1,30] whenever this state runs) while giving
+        // the fold provable bounds, so the midpoint math is Exact -- no domain.
+        self.mid = (min(max(self.lo, 0), 31) + min(max(self.hi, 0 - 1), 30)) / 2;
         transition self.mid >= 0 && self.mid < 31 { true -> render_init() _ -> bad() }
     }
 
@@ -107,12 +110,14 @@ machine Main::main(&mut self) {
     state narrow(&mut self) {
         transition self.vmid < self.target { true -> go_right() _ -> go_left() }
     }
+    // The clamp on `mid` is the identity (mid is always in [0,30] here) and
+    // bounds the +1 / -1 folds, keeping the narrowing steps Exact.
     state go_right(&mut self) {
-        self.lo = self.mid + 1;
+        self.lo = min(max(self.mid, 0), 30) + 1;
         transition { _ -> search() }
     }
     state go_left(&mut self) {
-        self.hi = self.mid - 1;
+        self.hi = min(max(self.mid, 0), 30) - 1;
         transition { _ -> search() }
     }
 

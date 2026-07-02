@@ -17,7 +17,7 @@ boundary trait Console {
 data Main {
     console: Console;
     text: [u8; 16] in Utf8;
-    i: i32 in Trapping;
+    i: i32 [0..=16];
     cur: i32 in Wrapping;
     max: i32 in Wrapping;
     prev: u8 in Wrapping;
@@ -65,7 +65,15 @@ machine Main::main(&mut self) {
         self.max = self.cur;
         transition { _ -> advance() }
     }
+    // Re-guard against the carrier CAPACITY (16) so the increment's direct edge
+    // proves `i + 1` back into [0..=16] -- len <= 16, so this is always true.
     state advance(&mut self) {
+        transition self.i >= 0 && self.i < 16 {
+            true -> bump()
+            _ -> done()
+        }
+    }
+    state bump(&mut self) {
         self.i = self.i + 1;
         transition { _ -> step() }
     }

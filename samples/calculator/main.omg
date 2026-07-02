@@ -3,7 +3,9 @@
 // are read from the text by widening each character byte with `as i32`, subtracting
 // '0', and combining as tens*10+ones (the parse_number pattern); the operator is
 // dispatched by indexing the operator byte in a guard (`text[2] == '+'` / `'-'`);
-// and the result is computed with Trapping arithmetic. "12+34" -> 12 + 34 = 46.
+// and the result is computed with DECLARED Wrapping arithmetic (carrier byte
+// reads carry no range facts yet, so a parse accumulator cannot prove its
+// bounds -- decision 17 keeps the modular semantics honest). "12+34" -> 12 + 34 = 46.
 // Supports '+' (exit a+b) and '-' (exit a-b); an unknown operator exits 0.
 // Expected exit: 46.
 
@@ -17,10 +19,12 @@ boundary trait Console {
 data Main {
     console: Console;
     text: [u8; 8] in Utf8;
-    a: i32 in Trapping;
-    b: i32 in Trapping;
-    tmp: i32 in Trapping;
-    result: i32 in Trapping;
+    // Wrapping DECLARED: parse accumulators over carrier bytes -- element reads
+    // carry no range facts yet, so tens*10+ones cannot prove its bounds.
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    tmp: i32 in Wrapping;
+    result: i32 in Wrapping;
 }
 
 machine Main::main(&mut self) {

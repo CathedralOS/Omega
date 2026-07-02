@@ -19,18 +19,22 @@ domain [u8; 30]::Utf8 when valid_utf8(self) {}
 domain [u8; 8]::Utf8 when valid_utf8(self) {}
 domain [u8; 3]::Utf8 when valid_utf8(self) {}
 
+// FULLY EXACT -- no overflow domain anywhere: the counters carry ranges with
+// guard-proven increments (re-guard hops where the loop-head guard is several
+// states upstream), the offsets/distance fold bounded from those ranges, and the
+// ramp level folds through `% 8` (modulo bounds by the divisor).
 data Main {
     console: Console;
     line: [u8; 30] in Utf8;   // one rendered row
     ramp: [u8; 8] in Utf8;    // " .:-=+*#"  dim -> bright
     home: [u8; 3] in Utf8;    // ESC [ H  (cursor home)
-    frame: i32 in Trapping;
-    y: i32 in Trapping;
-    x: i32 in Trapping;
-    dx: i32 in Trapping;
-    dy: i32 in Trapping;
-    dist: i32 in Trapping;
-    level: i32 in Trapping;
+    frame: i32 [0..=60];
+    y: i32 [0..=16];
+    x: i32 [0..=30];
+    dx: i32 [-15..=15];       // x - 15 folds bounded from x's range
+    dy: i32 [-8..=8];         // y - 8 folds bounded from y's range
+    dist: i32 [-23..=23];     // dx + dy folds bounded from their ranges
+    level: i32;               // (dist + frame) % 8 folds bounded; range-checked at `bounds`
     c: u8;
 }
 
@@ -104,14 +108,25 @@ machine Main::main(&mut self) {
         self.x = self.x + 1;
         transition { _ -> col_loop() }
     }
+    // write_line is a CALL, so re-guard `y < 16` afterwards: the direct edge into
+    // y_bump is what proves the increment (y < 16 always holds inside the row
+    // loop, so the else arm is unreachable).
     state emit_row(&mut self) {
         self.console.write_line(self.line);
+        transition self.y < 16 { true -> y_bump() _ -> bad() }
+    }
+    state y_bump(&mut self) {
         self.y = self.y + 1;
         transition { _ -> row_loop() }
     }
 
     state after_frame(&mut self) {
         self.console.sleep(40);
+        // re-guard so the increment's edge carries the frame bound (the keystone
+        // reads the DIRECT incoming edge; frame_loop's guard is far upstream).
+        transition self.frame < 60 { true -> advance() _ -> finish() }
+    }
+    state advance(&mut self) {
         self.frame = self.frame + 1;
         transition { _ -> frame_loop() }
     }

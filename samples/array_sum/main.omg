@@ -1,13 +1,14 @@
 // Overflow-safe reduction: sum a [i32; N] array into an i64 accumulator so a
 // total that would overflow i32 is still correct. 2_000_000_000 + 200_000_000 =
-// 2_200_000_000 exceeds i32's max (2_147_483_647) -- in an i32 Trapping
-// accumulator that add would TRAP; widening each element to i64 first keeps the
-// running total in range. The result is checked to equal 2.2e9.
+// 2_200_000_000 exceeds i32's max (2_147_483_647); widening each element to i64
+// first keeps the running total in range. The result is checked to equal 2.2e9.
 //
-// The element is read and widened INLINE -- `sum + nums[i] as i64 in Trapping` --
-// a runtime-indexed read now works as a sub-expression operand. The `in Trapping`
+// The element is read and widened INLINE -- `sum + nums[i] as i64 in Wrapping` --
+// a runtime-indexed read now works as a sub-expression operand. The `in Wrapping`
 // matches the accumulator's domain (decision 17: arithmetic operands must share
-// an arithmetic domain).
+// an arithmetic domain). Wrapping is DECLARED on the accumulator because array
+// elements carry no range facts yet, so the sum cannot prove its bounds; the
+// loop counter is a guard-proven Exact range.
 //
 // Expected exit: 70.
 
@@ -17,9 +18,9 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    nums: [i32; 2] in Trapping;
-    i: i32 in Trapping;
-    sum: i64 in Trapping;
+    nums: [i32; 2];
+    i: i32 [0..=2];
+    sum: i64 in Wrapping; // Wrapping DECLARED: sums array elements, which carry no range facts yet.
 }
 
 machine Main::main(&mut self) {
@@ -40,7 +41,7 @@ machine Main::main(&mut self) {
     }
 
     state add(&mut self) {
-        self.sum = self.sum + self.nums[self.i] as i64 in Trapping;
+        self.sum = self.sum + self.nums[self.i] as i64 in Wrapping;
         self.i = self.i + 1;
         transition {
             _ -> step()

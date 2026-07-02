@@ -11329,6 +11329,37 @@ fn runtime_nested_payload_range_narrowing_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_trapping_overflow_traps_canary_runs() {
+    // Trapping must TRAP: i32::MAX + 1 under `in Trapping` executes ud2, so the
+    // process dies with a crash status and never reaches exit_process(70). If a
+    // regression made Trapping silently wrap, this would exit 70 and fail.
+    let canary = pass_canary("arithmetic/runtime_trapping_overflow_traps");
+    let build_dir = std::env::temp_dir().join(format!("omega-trap-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("trapping overflow canary should compile (the partiality is declared)");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("trapping overflow canary should start");
+    let code = output.status.code();
+    assert_ne!(
+        code,
+        Some(70),
+        "Trapping overflow must abort before the clean exit -- exit 70 means it silently wrapped"
+    );
+    assert!(
+        code.is_some_and(|code| code < 0),
+        "expected a crash status (ud2 -> STATUS_ILLEGAL_INSTRUCTION), got {code:?}"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_guard_proven_counter_exit_canary_runs() {
     // The de-Trapping keystone: a state entered through `count < 5` proves
     // `count = count + 1` into [0..=100] -- Exact, no domain. Exit 70.
@@ -17630,6 +17661,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_nested_payload_range_narrowing_exit",
     "arithmetic/runtime_guard_proven_counter_exit",
     "arithmetic/runtime_guard_narrowed_transition_arg_exit",
+    "arithmetic/runtime_trapping_overflow_traps",
     "arithmetic/runtime_saturating_domain_exit",
     "arithmetic/runtime_fnv1a_hash_exit",
     "arithmetic/runtime_min_max_clamp_narrowing_exit",

@@ -16,7 +16,7 @@ boundary trait Console {
 data Main {
     console: Console;
     digits: [i32; 11];
-    r: i32 in Trapping;
+    r: i32 [-1..=10];
     par: i32 in Wrapping;
     d: i32 in Wrapping;
     sum: i32 in Wrapping;
@@ -53,8 +53,16 @@ machine Main::main(&mut self) {
         self.d = self.d - 9;
         transition { _ -> accumulate() }
     }
+    // Re-guard so the decrement's direct edge proves `r - 1` back into
+    // [-1..=10] -- accumulate is only reachable with r >= 0, so always true.
     state accumulate(&mut self) {
         self.sum = self.sum + self.d;
+        transition self.r >= 0 {
+            true -> dec()
+            false -> check()
+        }
+    }
+    state dec(&mut self) {
         self.r = self.r - 1;
         transition { _ -> step() }
     }

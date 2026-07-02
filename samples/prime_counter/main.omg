@@ -3,7 +3,8 @@
 // d = 2..n-1 and clears an `is_prime` flag on the first divisor found; primes are
 // tallied. The inner loop's bound `d < n` is RELATIONAL (the outer counter is the
 // limit), and `n % d` exercises runtime modulo. No arrays -- pure control flow and
-// arithmetic over the Trapping domain.
+// FULLY EXACT arithmetic: ranged counters with guard-proven increments (re-guard
+// states put the bound on the increment's direct edge) and a modular tally.
 //
 //   primes <= 20: 2, 3, 5, 7, 11, 13, 17, 19  ->  8.
 // The program exits with the count it computed.
@@ -15,9 +16,9 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    n: i32 in Trapping;
-    d: i32 in Trapping;
-    count: i32 in Trapping;
+    n: i32 [0..=21];
+    d: i32 [0..=21];
+    count: i32 [0..=21];
     is_prime: bool;
 }
 
@@ -46,8 +47,10 @@ machine Main::main(&mut self) {
     }
 
     // Inner: try divisors d = 2..n-1 (bound is relational to the outer counter).
+    // The `d >= 1` conjunct is always true (d starts at 2 and only grows) and
+    // hands the edge into test_divisor the nonzero-divisor fact for `n % d`.
     state inner(&mut self) {
-        transition self.d < self.n {
+        transition self.d >= 1 && self.d < self.n {
             true -> test_divisor()
             _ -> tally()
         }
@@ -67,7 +70,16 @@ machine Main::main(&mut self) {
         }
     }
 
+    // Re-guard so the increment's direct edge proves `d + 1` back into
+    // [0..=21] -- d < n <= 20 here, so the guard is always true.
     state next_divisor(&mut self) {
+        transition self.d >= 0 && self.d < 21 {
+            true -> bump_divisor()
+            _ -> tally()
+        }
+    }
+
+    state bump_divisor(&mut self) {
         self.d = self.d + 1;
         transition {
             _ -> inner()
@@ -81,14 +93,25 @@ machine Main::main(&mut self) {
         }
     }
 
+    // The modular-counter idiom: `% 22` lands the tally provably back inside
+    // [0..=21] (there are at most 8 primes below 21, so the wrap never fires).
     state increment(&mut self) {
-        self.count = self.count + 1;
+        self.count = (self.count + 1) % 22;
         transition {
             _ -> outer_next()
         }
     }
 
+    // Re-guard so the increment's direct edge proves `n + 1` back into
+    // [0..=21] -- the outer loop only re-enters with n < 21, so always true.
     state outer_next(&mut self) {
+        transition self.n >= 0 && self.n < 21 {
+            true -> bump_candidate()
+            _ -> done()
+        }
+    }
+
+    state bump_candidate(&mut self) {
         self.n = self.n + 1;
         transition {
             _ -> outer()

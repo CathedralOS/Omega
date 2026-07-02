@@ -4,17 +4,19 @@
 // first sample to use both). For readings [80, -5, 50, 200, 30] the clamped values
 // are [60, 0, 50, 60, 30], summing to 200. Walks the slice with the shrinking-
 // window recursion (`s[1..]`), reading `s[0]` under the `s.len > 0` guard so the
-// index is discharged in the same transition. All arithmetic is `in Trapping`
-// (the clamped sum, max 300, never overflows i32).
+// index is discharged in the same transition. The accumulator is `in Wrapping`,
+// DECLARED: the recursion runs over a slice of unknown length, so no ceiling on
+// the running sum is provable (each clamped step is bounded, the count is not).
 // Expected exit: 200.
 
 use omega::language::std::console;
 
 data Clamper {
-    values: [i32 in Trapping; 5];
+    values: [i32 in Wrapping; 5];
 }
 
-machine Clamper::clamp_sum(&mut self, s: &[i32 in Trapping], acc: i32 in Trapping) -> i32 in Trapping {
+// Wrapping DECLARED: the accumulator sums an unbounded number of clamped steps.
+machine Clamper::clamp_sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping {
     transition s.len > 0 {
         true -> clamp_sum(s[1..], acc + max(0, min(s[0], 60)))
         false -> (acc)
@@ -33,7 +35,7 @@ machine Main::main(&mut self) {
     self.clamper.values[3] = 200;
     self.clamper.values[4] = 30;
 
-    let s: &[i32 in Trapping] = self.clamper.values.as_slice();
+    let s: &[i32 in Wrapping] = self.clamper.values.as_slice();
     let total: i32 = self.clamper.clamp_sum(s, 0);
     self.console.exit_process(total);
 }
