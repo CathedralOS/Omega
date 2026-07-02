@@ -157,4 +157,14 @@ def main():
     sys.stdout.buffer.write(it.out); sys.stdout.buffer.flush()
     sys.exit(rc & 0xFF)
 
-main()
+# a reusable entry for exhaustive drivers: interpret `procs` on `stdin_bytes` -> (exit_code, stdout_bytes)
+def interpret(procs, stdin_bytes):
+    it = Interp(procs, stdin_bytes)
+    try:
+        rc = it.run_proc(it.procs['main'], [])
+    except Trap:
+        return 132, bytes(it.out)
+    return rc & 0xFF, bytes(it.out)
+
+if __name__ == '__main__':                             # importable (io-verify.py reuses Interp/interpret)
+    main()

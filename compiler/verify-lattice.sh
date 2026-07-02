@@ -69,6 +69,7 @@ step "bc    — per-feature gate"                       beta-lang   test.sh
 step "bc    — DIVERSITY: independent 2nd front-end (bc2.py) DDCs the trust surface (Thompson, D5)" beta-lang-py diverse-double-compilation.sh beta-lang-rs beta-lang delta gamma omega
 step "bc    — CORRECTNESS: reference interpreter (beta_interp.py) == compile+run, random programs" beta-lang-py beta-correctness-fuzz.sh beta-lang-rs beta
 step "floor — INDEPENDENT: bc2.py->asm_ref.py->alpha_ref.py == the whole lineage, random programs" beta-lang-py independent-floor.sh beta-lang-rs beta alpha
+step "bc    — EXHAUSTIVE I/O: interpret == compile+run over ALL 256 input bytes per program" beta-lang-py beta-io-exhaust.sh beta-lang-rs beta
 step "delta — certificate checker"                    delta       test.sh
 step "delta — soundness battery (no false proof)"     delta       soundness.sh
 step "gamma — reference interpreter (ADTs + match)"   gamma       test-interp.sh
