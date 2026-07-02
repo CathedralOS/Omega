@@ -114,6 +114,13 @@ tv "countdown mul"    '    let n: i32 = 4;
     state lp() { transition 0 < n { true -> bd()  false -> dn() } }
     state bd() { a = a * 2; n = n - 1; transition 0 { _ -> lp() } }
     state dn() { self.console.exit_process(a) }'
+tv "3 carried locals" '    let i: i32 = 0;
+    let s: i32 = 0;
+    let p: i32 = 0;
+    transition 0 { _ -> lp() }
+    state lp() { transition i < 4 { true -> bd()  false -> dn() } }
+    state bd() { i = i + 1; s = s + i; p = p + 2; transition 0 { _ -> lp() } }
+    state dn() { self.console.exit_process(s + p) }'
 
 echo "translation validation (delta re-evaluates each compilation's result — straight-line + - * < == AND bounded loops — and certifies it IS the source's meaning): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
