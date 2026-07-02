@@ -20,6 +20,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("temperature_convert: 20 C to Fahrenheit with f64 arithmetic");
     self.celsius = 20.0;
     self.fahrenheit = self.celsius * 1.8 + 32.0;
     self.result = self.fahrenheit as i32;
@@ -27,6 +28,7 @@ machine Main::main(&mut self) {
     transition { _ -> done() }
 
     state done(&mut self) {
+        self.console.write_line("result: the Fahrenheit value truncated, 68 for 20 C (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.result);

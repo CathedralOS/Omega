@@ -32,6 +32,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("dice_roller: five deterministic d6 rolls from an LCG seeded with 42");
     // Seed the generator.
     let s0: i32 = 42;
 
@@ -74,16 +75,23 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: rolls 4+1+4+1+2 == 12 and the RNG chain ended at 24079 (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad_state(&mut self) {
+        self.console.write_line("FAIL: final LCG state != 24079 (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
     state bad_total(&mut self) {
+        self.console.write_line("FAIL: roll total != 12 (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 }

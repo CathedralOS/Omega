@@ -27,6 +27,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("array_sum: overflow-safe reduction -- i32 elements widened to an i64 accumulator");
     self.nums[0] = 2000000000;
     self.nums[1] = 200000000;
     self.i = 0;
@@ -59,12 +60,16 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: sum == 2200000000 -- past i32 max, correct in i64 (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad(&mut self) {
+        self.console.write_line("FAIL: sum != 2200000000 -- widening reduction wrong (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

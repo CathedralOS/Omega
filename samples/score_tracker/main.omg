@@ -37,6 +37,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("score_tracker: replays score/bonus/reset events for two players");
     self.apply(Event::Score { player: 0, points: 30 });
     self.apply(Event::Score { player: 1, points: 20 });
     self.apply(Event::Bonus { player: 0 });
@@ -53,12 +54,16 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: final scores 60 + 10 total 70 (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad(&mut self) {
+        self.console.write_line("FAIL: event replay total did not equal 70 (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

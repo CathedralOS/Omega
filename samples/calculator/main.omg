@@ -31,6 +31,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("calculator: parse and evaluate the expression \"12+34\" from text bytes");
     self.text = "12+34";
 
     // First operand from text[0..1].
@@ -61,8 +62,14 @@ machine Main::main(&mut self) {
 
     state do_add(&mut self) { self.result = self.a + self.b; transition { _ -> emit() } }
     state do_sub(&mut self) { self.result = self.a - self.b; transition { _ -> emit() } }
-    state unknown(&mut self) { self.console.exit_process(0); }
+    state unknown(&mut self) {
+        self.console.write_line("FAIL: operator byte not '+' or '-' -- unknown operator (exit 0)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(0);
+    }
     state emit(&mut self) {
+        self.console.write_line("result: the evaluated expression, 12+34 = 46 (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.result);

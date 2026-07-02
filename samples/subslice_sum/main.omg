@@ -43,6 +43,7 @@ terminates {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("subslice_sum: shrinking-window recursion sums [3, 7, 12, 18, 5, 25]");
     // Initialize the array.
     self.arr[0] = 3;
     self.arr[1] = 7;
@@ -61,12 +62,16 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: the six elements summed to 70 (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad(&mut self) {
+        self.console.write_line("FAIL: the recursive sum did not equal 70 (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

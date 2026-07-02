@@ -33,6 +33,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("substring_search: naive search finds cad inside abracadabra");
     self.text = "abracadabra";
     self.pat = "cad";
     self.i = 0;
@@ -90,6 +91,7 @@ machine Main::main(&mut self) {
         transition { _ -> outer() }
     }
     state done(&mut self) {
+        self.console.write_line("result: the match index, 4 for cad in abracadabra (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.found);

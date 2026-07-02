@@ -31,6 +31,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("modular_exponentiation: 3^7 mod 100 by repeated squaring, fully exact");
     self.state.base = 3;
     self.state.exponent = 7;
     
@@ -75,6 +76,7 @@ machine Main::main(&mut self) {
     }
 
     state done(&mut self) {
+        self.console.write_line("result: 3^7 mod 100 = 87 (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.state.result);

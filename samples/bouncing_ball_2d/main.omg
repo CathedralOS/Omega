@@ -32,6 +32,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("bouncing_ball_2d: a ball under gravity animated in a 24x12 box for 70 frames");
     self.line = "                        ";
     self.home = "XXX";
     self.home[0] = 27;
@@ -152,6 +153,7 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("done: 70 frames of gravity-bounce animation complete (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);

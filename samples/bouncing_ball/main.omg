@@ -71,6 +71,7 @@ machine Main::step(&mut self) {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("bouncing_ball: 1D integer physics -- 8 steps in a [0,9] box with wall reflection");
     // Initialize: pos=0, vel=3.
     self.s.pos = 0;
     self.s.vel = 3;
@@ -95,12 +96,16 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: ball at pos 6 after 8 steps, 6 + 64 == 70 (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad(&mut self) {
+        self.console.write_line("FAIL: final position wrong -- expected pos 6 (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

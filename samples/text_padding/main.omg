@@ -25,6 +25,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("text_padding: computes right-padding to a 16-column width from carrier length");
     self.message = "ALERT temp";
     self.padding = 16 - self.message.len;
     self.console.write_line(self.message);
@@ -32,6 +33,7 @@ machine Main::main(&mut self) {
     transition { _ -> done() }
 
     state done(&mut self) {
+        self.console.write_line("result: the padding count, 6 for this 10-char message (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.padding);

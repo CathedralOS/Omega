@@ -49,6 +49,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("elevator: case-payload commands drive a door/floor FSM through 6 scripted steps");
     self.send(Command::GoTo { floor: 2 });
     self.send(Command::OpenDoor);
     self.send(Command::CloseDoor);
@@ -77,20 +78,30 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: ends at floor 1 after 3 moves with the door open (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad_floor(&mut self) {
+        self.console.write_line("FAIL: final floor != 1 (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
     state bad_moves(&mut self) {
+        self.console.write_line("FAIL: move count != 3 -- door-closed gating wrong (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 
     state bad_door(&mut self) {
+        self.console.write_line("FAIL: door not open at the end (exit 73)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(73);
     }
 }

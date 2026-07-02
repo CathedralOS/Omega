@@ -29,6 +29,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("fibonacci_golden: iterating fibonacci pairs to approximate the golden ratio");
     self.fib.a = 1;
     self.fib.b = 1;
     self.fib.i = 0;
@@ -60,6 +61,7 @@ machine Main::main(&mut self) {
         self.ratio = self.fb / self.fa;
         self.ratio = self.ratio * 100.0;
         self.result = self.ratio as i32 in Wrapping;
+        self.console.write_line("result: floor(100 * fib(15)/fib(14)), 161 for this run (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.result);

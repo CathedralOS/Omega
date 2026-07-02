@@ -47,13 +47,19 @@ machine kg_to_lbs(kg: f64) -> f64 {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("unit_converter: f64 temperature, distance, and mass conversions");
     // Check 1: 100°C → 212°F.
     self.result = celsius_to_fahrenheit(100.0);
     transition self.result > 211.5 {
         true -> check_c2f_upper()
         _ -> bad_c2f_low()
     }
-    state bad_c2f_low(&mut self) { self.console.exit_process(71); }
+    state bad_c2f_low(&mut self) {
+        self.console.write_line("FAIL: 100 C converted below 211.5 F (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
 
     state check_c2f_upper(&mut self) {
         transition self.result < 212.5 {
@@ -61,7 +67,12 @@ machine Main::main(&mut self) {
             _ -> bad_c2f_high()
         }
     }
-    state bad_c2f_high(&mut self) { self.console.exit_process(72); }
+    state bad_c2f_high(&mut self) {
+        self.console.write_line("FAIL: 100 C converted above 212.5 F (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(72);
+    }
 
     // Check 2: 212°F → 100°C.
     state check_f2c(&mut self) {
@@ -71,7 +82,12 @@ machine Main::main(&mut self) {
             _ -> bad_f2c_low()
         }
     }
-    state bad_f2c_low(&mut self) { self.console.exit_process(73); }
+    state bad_f2c_low(&mut self) {
+        self.console.write_line("FAIL: 212 F converted below 99.5 C (exit 73)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(73);
+    }
 
     state check_f2c_upper(&mut self) {
         transition self.result < 100.5 {
@@ -79,7 +95,12 @@ machine Main::main(&mut self) {
             _ -> bad_f2c_high()
         }
     }
-    state bad_f2c_high(&mut self) { self.console.exit_process(74); }
+    state bad_f2c_high(&mut self) {
+        self.console.write_line("FAIL: 212 F converted above 100.5 C (exit 74)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(74);
+    }
 
     // Check 3: 373.15K → 100°C.
     state check_k2c(&mut self) {
@@ -89,7 +110,12 @@ machine Main::main(&mut self) {
             _ -> bad_k2c_low()
         }
     }
-    state bad_k2c_low(&mut self) { self.console.exit_process(75); }
+    state bad_k2c_low(&mut self) {
+        self.console.write_line("FAIL: 373.15 K converted below 99.9 C (exit 75)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(75);
+    }
 
     state check_k2c_upper(&mut self) {
         transition self.result < 100.1 {
@@ -97,7 +123,12 @@ machine Main::main(&mut self) {
             _ -> bad_k2c_high()
         }
     }
-    state bad_k2c_high(&mut self) { self.console.exit_process(76); }
+    state bad_k2c_high(&mut self) {
+        self.console.write_line("FAIL: 373.15 K converted above 100.1 C (exit 76)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(76);
+    }
 
     // Check 4: 10 km → ~6.21 miles.
     state check_km(&mut self) {
@@ -107,7 +138,12 @@ machine Main::main(&mut self) {
             _ -> bad_km_low()
         }
     }
-    state bad_km_low(&mut self) { self.console.exit_process(77); }
+    state bad_km_low(&mut self) {
+        self.console.write_line("FAIL: 10 km converted below 6.1 miles (exit 77)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(77);
+    }
 
     state check_km_upper(&mut self) {
         transition self.result < 6.3 {
@@ -115,7 +151,12 @@ machine Main::main(&mut self) {
             _ -> bad_km_high()
         }
     }
-    state bad_km_high(&mut self) { self.console.exit_process(78); }
+    state bad_km_high(&mut self) {
+        self.console.write_line("FAIL: 10 km converted above 6.3 miles (exit 78)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(78);
+    }
 
     // Check 5: 5 kg → ~11.023 lbs.
     state check_kg(&mut self) {
@@ -125,7 +166,12 @@ machine Main::main(&mut self) {
             _ -> bad_kg_low()
         }
     }
-    state bad_kg_low(&mut self) { self.console.exit_process(79); }
+    state bad_kg_low(&mut self) {
+        self.console.write_line("FAIL: 5 kg converted below 11.0 lbs (exit 79)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(79);
+    }
 
     state check_kg_upper(&mut self) {
         transition self.result < 11.1 {
@@ -133,9 +179,15 @@ machine Main::main(&mut self) {
             _ -> bad_kg_high()
         }
     }
-    state bad_kg_high(&mut self) { self.console.exit_process(80); }
+    state bad_kg_high(&mut self) {
+        self.console.write_line("FAIL: 5 kg converted above 11.1 lbs (exit 80)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(80);
+    }
 
     state good(&mut self) {
+        self.console.write_line("PASS: all five conversions landed in tolerance (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);

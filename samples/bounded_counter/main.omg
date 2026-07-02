@@ -20,6 +20,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("bounded_counter: saturating counter -- three add(40)s against a bound of 100");
     self.counter.bound = 100;
 
     self.add(40);
@@ -27,14 +28,26 @@ machine Main::main(&mut self) {
     self.add(40);   // 120, saturates to 100
 
     transition self.counter.value == 100 {
-        true -> report(70)
+        true -> good_msg()
         _ -> not_hundred()
+    }
+    state good_msg(&mut self) {
+        self.console.write_line("PASS: counter saturated at the bound, value == 100 (exit 70)");
+        transition { _ -> report(70) }
     }
     state not_hundred(&mut self) {
         transition self.counter.value == 120 {
-            true -> report(81)   // saturation didn't apply
-            _ -> report(82)      // some other wrong value
+            true -> bad_sat_msg()   // saturation didn't apply
+            _ -> bad_other_msg()    // some other wrong value
         }
+    }
+    state bad_sat_msg(&mut self) {
+        self.console.write_line("FAIL: counter reached 120 -- saturation did not apply (exit 81)");
+        transition { _ -> report(81) }
+    }
+    state bad_other_msg(&mut self) {
+        self.console.write_line("FAIL: counter holds an unexpected value -- neither 100 nor 120 (exit 82)");
+        transition { _ -> report(82) }
     }
     state report(&mut self, code: i32) {
         self.console.write_line("[press Enter to close]");

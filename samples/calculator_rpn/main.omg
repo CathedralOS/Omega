@@ -149,6 +149,7 @@ machine Main::mul(&mut self) {
 // main: evaluate "32 4 + 2 * 2 -" = 70.
 // ---------------------------------------------------------------------------
 machine Main::main(&mut self) {
+    self.console.write_line("calculator_rpn: evaluate \"32 4 + 2 * 2 -\" on a fixed-capacity stack");
     self.push(32);
     self.push(4);
     self.add();       // stack: [36], sp=1
@@ -176,16 +177,23 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: (32+4)*2-2 == 70 and the stack drained to empty (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad_result(&mut self) {
+        self.console.write_line("FAIL: RPN result != 70 (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
     state bad_sp(&mut self) {
+        self.console.write_line("FAIL: stack pointer != 0 after pop_result (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 }

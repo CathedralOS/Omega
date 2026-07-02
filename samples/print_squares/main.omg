@@ -23,6 +23,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("print_squares: the squares 1..9 printed as 3-digit decimal text");
     self.out = "XXX";
     self.k = 1;
     transition { _ -> outer() }
@@ -62,6 +63,7 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("PASS: 9 squares printed, ending at 081 (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);

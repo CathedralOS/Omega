@@ -21,6 +21,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("bit_shift: KiB->bytes->KiB round trip -- 64 << 10 == 65536, then >> 10 back to 64");
     self.kibibytes = 64;
     self.bytes = self.kibibytes << 10;
     self.recovered = self.bytes >> 10;
@@ -28,6 +29,7 @@ machine Main::main(&mut self) {
     transition { _ -> done() }
 
     state done(&mut self) {
+        self.console.write_line("result: the recovered KiB count, 64 for this round trip (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.recovered);

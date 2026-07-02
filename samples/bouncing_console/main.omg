@@ -24,6 +24,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("bouncing_console: a ball 'O' bouncing along one console line for 50 timed frames");
     self.line = "                                        ";
     self.cr = "X";
     self.cr[0] = 13;
@@ -89,9 +90,15 @@ machine Main::main(&mut self) {
     state flip_up(&mut self) { self.dir = 1; transition { _ -> frame_loop() } }
 
     state finish(&mut self) {
+        self.console.write_line("done: 50 frames of line-bounce animation complete (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
-    state bad(&mut self) { self.console.exit_process(1); }
+    state bad(&mut self) {
+        self.console.write_line("FAIL: ball position left the [0,40) range guard (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(1);
+    }
 }

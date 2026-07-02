@@ -46,6 +46,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("bouncing_particles: 4 particles (array-of-structs) bouncing in a 20x10 box for 60 frames");
     self.ps[0].x = 2;  self.ps[0].y = 2;  self.ps[0].vx = 1;  self.ps[0].vy = 1;
     self.ps[1].x = 17; self.ps[1].y = 3;  self.ps[1].vx = 0 - 1; self.ps[1].vy = 1;
     self.ps[2].x = 8;  self.ps[2].y = 8;  self.ps[2].vx = 1;  self.ps[2].vy = 0 - 1;
@@ -206,11 +207,15 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("done: 60 frames of the 4-particle entity system animated (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {
+        self.console.write_line("FAIL: a grid index or particle index left its guarded range (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
 }

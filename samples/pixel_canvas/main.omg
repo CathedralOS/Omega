@@ -104,6 +104,7 @@ machine Main::set_g(&mut self, idx: i32 in Saturating, val: i32 in Saturating) {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("pixel_canvas: writing r/g channels of 4 pixel structs, then summing them");
     self.set_r(0, 10);
     self.set_g(0, 5);
     self.set_r(1, 20);
@@ -126,6 +127,7 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: channel sum is 70 (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
@@ -133,6 +135,9 @@ machine Main::main(&mut self) {
 
     state bad(&mut self, total: i32 in Saturating) {
         // Exit with a code that encodes the wrong total for debugging.
+        self.console.write_line("FAIL: wrong channel sum (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

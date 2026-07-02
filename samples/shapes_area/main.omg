@@ -24,6 +24,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("shapes_area: circle + rectangle + triangle areas via value-returning machines");
     // Circle radius 3: r*r = 9, passed as scalar; callee returns 9*3 = 27.
     let rr: i32 in Saturating = 3 * 3;
     let a1: i32 in Saturating = self.triple(rr);
@@ -42,12 +43,16 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: areas 27+40+3 total 70 (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad(&mut self) {
+        self.console.write_line("FAIL: area total did not equal 70 (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

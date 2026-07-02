@@ -72,6 +72,7 @@ machine Main::compute_total(&mut self) {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("string_catalog: String fields, concatenation, and equality-guard checks");
     self.set_entry1();
     self.set_entry2();
     self.build_label();
@@ -83,7 +84,12 @@ machine Main::main(&mut self) {
         _ -> bad_name1()
     }
 
-    state bad_name1(&mut self) { self.console.exit_process(71); }
+    state bad_name1(&mut self) {
+        self.console.write_line("FAIL: entry1.name did not equal Alpha (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
 
     state check_name2(&mut self) {
         transition self.catalog.entry2.name == "Beta" {
@@ -92,7 +98,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_name2(&mut self) { self.console.exit_process(72); }
+    state bad_name2(&mut self) {
+        self.console.write_line("FAIL: entry2.name did not equal Beta (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(72);
+    }
 
     state check_label(&mut self) {
         transition self.catalog.label == "[Alpha+Beta]" {
@@ -101,7 +112,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_label(&mut self) { self.console.exit_process(73); }
+    state bad_label(&mut self) {
+        self.console.write_line("FAIL: concatenated label was not [Alpha+Beta] (exit 73)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(73);
+    }
 
     state check_total(&mut self) {
         transition self.catalog.total == 70 {
@@ -110,9 +126,15 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_total(&mut self) { self.console.exit_process(74); }
+    state bad_total(&mut self) {
+        self.console.write_line("FAIL: score total was not 70 (exit 74)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(74);
+    }
 
     state good(&mut self) {
+        self.console.write_line("PASS: names, label [Alpha+Beta], and total 70 all verified (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);

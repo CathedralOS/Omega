@@ -181,6 +181,7 @@ machine Main::step(&mut self, op: Opcode) {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("stack_vm: a tiny bytecode VM runs (3 + 4) * 2 - 1 on a fixed stack");
     // Initialize VM.
     self.init();
 
@@ -205,9 +206,15 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: program evaluated to 13, reported as 13 + 57 (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state bad(&mut self) {
+        self.console.write_line("FAIL: top of stack was not 13 after the program (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
 }

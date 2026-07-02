@@ -24,6 +24,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("bitset_sieve: Sieve of Eratosthenes over a u32 bitset -- counting primes in 2..30");
     self.bits = 0;
     self.i = 2;
     transition { _ -> outer() }
@@ -80,9 +81,15 @@ machine Main::main(&mut self) {
         transition self.count == 10 { true -> ok() _ -> bad() }
     }
     state ok(&mut self) {
+        self.console.write_line("PASS: 10 primes found in 2..30 (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
-    state bad(&mut self) { self.console.exit_process(self.count); }
+    state bad(&mut self) {
+        self.console.write_line("FAIL: prime count != 10 -- exiting the actual count (the exit code)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(self.count);
+    }
 }

@@ -326,7 +326,12 @@ machine Main::apply(&mut self, idx: i32 in Wrapping, tx: Transaction) {
         }
     }
 
-    state xfer_bad_idx(&mut self) { self.console.exit_process(91); }
+    state xfer_bad_idx(&mut self) {
+        self.console.write_line("FAIL: Transfer sub-state src idx != 0 -- probe arm (exit 91)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(91);
+    }
 
     state xfer_check_to(&mut self, to: i32 in Wrapping, amount: i32 in Wrapping) {
         // to should be 3.
@@ -336,7 +341,12 @@ machine Main::apply(&mut self, idx: i32 in Wrapping, tx: Transaction) {
         }
     }
 
-    state xfer_bad_to(&mut self) { self.console.exit_process(92); }
+    state xfer_bad_to(&mut self) {
+        self.console.write_line("FAIL: Transfer payload field to != 3 -- probe arm (exit 92)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(92);
+    }
 
     state xfer_check_amount(&mut self, to: i32 in Wrapping, amount: i32 in Wrapping) {
         // amount should be 40. In native: amount==3 (same as `to`).
@@ -347,7 +357,12 @@ machine Main::apply(&mut self, idx: i32 in Wrapping, tx: Transaction) {
         }
     }
 
-    state xfer_bad_amount(&mut self) { self.console.exit_process(93); }
+    state xfer_bad_amount(&mut self) {
+        self.console.write_line("FAIL: Transfer payload field amount != 40 -- historical miscompile tripwire (exit 93)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(93);
+    }
 
     state xfer_do(&mut self, to: i32 in Wrapping, amount: i32 in Wrapping) {
         self.do_withdraw(0, amount);
@@ -371,6 +386,7 @@ machine Main::apply(&mut self, idx: i32 in Wrapping, tx: Transaction) {
 
 // ── main: scripted transaction sequence + multi-layer verification ─────────────
 machine Main::main(&mut self) {
+    self.console.write_line("account_ledger: event-sourced account ledger -- case-payload dispatch, frozen gates, value-call checksums");
     // 10 apply calls.
     self.apply(0, Transaction::Deposit { amount: 100 });
     self.apply(1, Transaction::Deposit { amount: 200 });
@@ -389,7 +405,12 @@ machine Main::main(&mut self) {
         _ -> bad_raw0()
     }
 
-    state bad_raw0(&mut self) { self.console.exit_process(71); }
+    state bad_raw0(&mut self) {
+        self.console.write_line("FAIL: raw acc[0].balance wrong -- expected 40 (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
 
     state raw_check_acc2(&mut self) {
         transition self.accounts[2].balance == 30 {
@@ -398,7 +419,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_raw2(&mut self) { self.console.exit_process(72); }
+    state bad_raw2(&mut self) {
+        self.console.write_line("FAIL: raw acc[2].balance wrong -- expected 30 (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(72);
+    }
 
     state raw_check_acc1(&mut self) {
         transition self.accounts[1].balance == 120 {
@@ -407,7 +433,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_raw1(&mut self) { self.console.exit_process(73); }
+    state bad_raw1(&mut self) {
+        self.console.write_line("FAIL: raw acc[1].balance wrong -- expected 120 (exit 73)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(73);
+    }
 
     state raw_check_acc3(&mut self) {
         transition self.accounts[3].balance == 40 {
@@ -416,7 +447,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_raw3(&mut self) { self.console.exit_process(74); }
+    state bad_raw3(&mut self) {
+        self.console.write_line("FAIL: raw acc[3].balance wrong -- expected 40 (exit 74)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(74);
+    }
 
     // Layer 2: value-call reads (balance_of captures+mutates+returns).
     state vcall_check_b0(&mut self) {
@@ -427,7 +463,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_vcall0(&mut self) { self.console.exit_process(75); }
+    state bad_vcall0(&mut self) {
+        self.console.write_line("FAIL: balance_of(0) value-call read wrong -- expected 40 (exit 75)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(75);
+    }
 
     state vcall_check_b2(&mut self, b0: i32 in Wrapping) {
         let b2: i32 in Wrapping = self.balance_of(2);
@@ -437,7 +478,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_vcall2(&mut self) { self.console.exit_process(76); }
+    state bad_vcall2(&mut self) {
+        self.console.write_line("FAIL: balance_of(2) value-call read wrong -- expected 30 (exit 76)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(76);
+    }
 
     // Layer 3: two sequential value-call results combined in arithmetic.
     // balance_of(0) + balance_of(2) = 40 + 30 = 70 (the key checksum).
@@ -451,7 +497,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_sum(&mut self) { self.console.exit_process(77); }
+    state bad_sum(&mut self) {
+        self.console.write_line("FAIL: balance_of(0)+balance_of(2) checksum wrong -- expected 70 (exit 77)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(77);
+    }
 
     // Layer 4: total() value-call.
     state check_total(&mut self) {
@@ -462,9 +513,15 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_total(&mut self) { self.console.exit_process(78); }
+    state bad_total(&mut self) {
+        self.console.write_line("FAIL: total() wrong -- expected 230 (exit 78)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(78);
+    }
 
     state good(&mut self) {
+        self.console.write_line("PASS: all 4 balances + value-call checksum 70 + total 230 verified (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);

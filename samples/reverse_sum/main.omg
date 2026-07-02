@@ -30,6 +30,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("reverse_sum: sums an array by walking it backward from the top index");
     self.nums[0] = 5;
     self.nums[1] = 10;
     self.nums[2] = 15;
@@ -60,6 +61,7 @@ machine Main::main(&mut self) {
     }
 
     state done(&mut self) {
+        self.console.write_line("PASS: reverse sum computed, 75 for this data (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.acc);

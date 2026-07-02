@@ -59,6 +59,7 @@ data Main {
     pause: String;
 }
 machine Main::main(&mut self) {
+    self.console.write_line("window_app: standalone software-rendered app -- drag the window; ESC or the X closes it");
     // "STATIC\0"
     self.cls[0] = 83;
     self.cls[1] = 84;
@@ -170,11 +171,15 @@ machine Main::main(&mut self) {
         transition { _ -> frame_loop() }
     }
     state closed(&mut self) {
+        self.console.write_line("window closed -- goodbye (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {
+        self.console.write_line("FAIL: window/DC creation failed or a blit failed while alive (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
 }

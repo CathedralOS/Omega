@@ -27,6 +27,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("xorshift_prng: one xorshift32 step from Marsaglia's classic seed");
     self.state = 2463534242;
 
     self.scratch = self.state << 13;
@@ -44,6 +45,7 @@ machine Main::main(&mut self) {
     transition { _ -> emit() }
 
     state emit(&mut self) {
+        self.console.write_line("result: the draw's low byte, 99 for this seed (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.output);

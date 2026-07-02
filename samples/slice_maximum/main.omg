@@ -26,6 +26,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("slice_maximum: tail-recursive max over the slice [3, 7, 2, 9, 4]");
     self.finder.values[0] = 3;
     self.finder.values[1] = 7;
     self.finder.values[2] = 2;
@@ -34,6 +35,7 @@ machine Main::main(&mut self) {
 
     let s: &[i32] = self.finder.values.as_slice();
     let m: i32 = self.finder.find_max(s, 0);
+    self.console.write_line("result: the slice maximum, 9 for this data (the exit code)");
     self.console.write_line("[press Enter to close]");
     self.console.read_line(&mut self.pause);
     self.console.exit_process(m);

@@ -29,6 +29,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("calendar: render a 30-day month starting on Wednesday as a 7-column grid");
     self.header = "Su Mo Tu We Th Fr Sa ";
     self.line = "                     ";
     self.col = 3; // the month starts on Wednesday
@@ -100,11 +101,15 @@ machine Main::main(&mut self) {
         transition { _ -> finish() }
     }
     state finish(&mut self) {
+        self.console.write_line("done: all 30 dates laid out and flushed (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {
+        self.console.write_line("FAIL: a column offset left the 21-byte line (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
 }

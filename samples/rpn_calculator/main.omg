@@ -38,6 +38,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("rpn_calculator: evaluates the postfix program 3 4 + 5 * on an operand stack");
     self.program[0] = 3;
     self.program[1] = 4;
     self.program[2] = 0 - 1;
@@ -180,6 +181,7 @@ machine Main::main(&mut self) {
 
     state finish(&mut self) {
         // The result is the bottom of the stack.
+        self.console.write_line("result: the RPN evaluation, 35 for this program (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.stack[0]);

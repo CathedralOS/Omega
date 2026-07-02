@@ -40,6 +40,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("ripple_field: 60 frames of concentric diamond ripples shaded per cell");
     self.line = "                              ";
     self.ramp = " .:-=+*#";
     self.home = "XXX";
@@ -133,11 +134,15 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("PASS: 60 ripple frames rendered (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {
+        self.console.write_line("FAIL: cell index bounds guard tripped (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
 }

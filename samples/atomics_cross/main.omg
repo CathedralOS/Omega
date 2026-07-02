@@ -22,6 +22,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("atomics_cross: real LOCK xadd + LOCK cmpxchg -- store(10), fetch_add(5), compare_exchange(15,99)");
     self.counter.store(10, Relaxed);
 
     let old1: u32 in Wrapping = self.counter.fetch_add(5, Relaxed);
@@ -47,11 +48,15 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: fetch_add returned 10, CAS matched 15, counter ends 99 (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
     state bad(&mut self) {
+        self.console.write_line("FAIL: an atomic op misbehaved -- fetch_add old value, CAS prior, or final counter wrong (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

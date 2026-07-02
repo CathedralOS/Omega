@@ -45,6 +45,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("game_of_life_glider: a glider crossing a 24x12 field, animated in place");
     self.chars = " #";
     self.home = "XXX";
     self.home[0] = 27;
@@ -255,11 +256,15 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("PASS: 40 generations rendered (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {
+        self.console.write_line("FAIL: internal bounds check failed (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
 }

@@ -38,6 +38,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("dungeon_render: a 6x4 tile map of enum cells rendered as # . + ~ glyphs");
     self.grid = [
         Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,  Cell::Wall,
         Cell::Wall,  Cell::Floor, Cell::Door,  Cell::Floor, Cell::Floor, Cell::Wall,
@@ -89,6 +90,7 @@ machine Main::main(&mut self) {
         transition { _ -> row_loop() }
     }
     state done(&mut self) {
+        self.console.write_line("done: 4 rows rendered -- walls, floor, door and water all classified (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);

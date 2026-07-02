@@ -24,6 +24,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("digital_root: collapse 12345 by repeated digit sums (15, then 6)");
     self.state.n = 12345;
 
     transition {
@@ -70,6 +71,7 @@ machine Main::main(&mut self) {
     }
 
     state done(&mut self) {
+        self.console.write_line("result: the digital root, 6 for 12345 (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.state.n);

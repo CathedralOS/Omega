@@ -30,6 +30,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("shape_area: matches a Shape enum payload and computes that variant's area");
     self.shape = Shape::Rectangle { width: 6, height: 7 };
 
     transition self.shape {
@@ -60,6 +61,7 @@ machine Main::main(&mut self) {
         transition { _ -> emit() }
     }
     state emit(&mut self) {
+        self.console.write_line("result: the matched shape's area, 42 for this 6x7 rectangle (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.area);

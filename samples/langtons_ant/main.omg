@@ -37,6 +37,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("langtons_ant: an ant on a two-color toroidal grid, 120 animated steps");
     self.ax = 12;
     self.ay = 7;
     self.ad = 0;
@@ -188,11 +189,15 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("PASS: 120 ant steps rendered (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {
+        self.console.write_line("FAIL: internal bounds check failed (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
 }

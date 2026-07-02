@@ -34,6 +34,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("traffic_light: cycles Red -> Green -> Yellow through 4 advances");
     // Start: Red (zero-initialized), advances = 0.
     self.advance();  // Red    -> Green,  advances = 1
     self.advance();  // Green  -> Yellow, advances = 2
@@ -54,16 +55,23 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: 4 advances landed on Green as expected (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad_count(&mut self) {
+        self.console.write_line("FAIL: the advance count was not 4 (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
     state bad_phase(&mut self) {
+        self.console.write_line("FAIL: the final phase was not Green (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 }

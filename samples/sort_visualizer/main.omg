@@ -38,6 +38,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("sort_visualizer: bubble sort animated as bars settling into a staircase");
     self.arr = [5, 2, 8, 1, 7, 3, 6, 4];
     self.home = "XXX";
     self.home[0] = 27;
@@ -147,6 +148,7 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("PASS: 7 bubble-sort passes rendered, array sorted (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);

@@ -30,6 +30,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("status_report: builds an ALERT/ok status string in conditional arms");
     self.label = "temp";
     self.reading = 95;
 
@@ -51,9 +52,15 @@ machine Main::main(&mut self) {
     }
 
     state ok(&mut self) {
+        self.console.write_line("PASS: reading 95 built and verified the ALERT message (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state bad(&mut self) {
+        self.console.write_line("FAIL: the concatenated message did not match (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
 }

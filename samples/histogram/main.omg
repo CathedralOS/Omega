@@ -37,6 +37,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("histogram: counting value frequencies into a fixed-bucket array");
     self.histogram[0] = 0;
     self.histogram[1] = 0;
     self.histogram[2] = 0;
@@ -97,6 +98,7 @@ machine Main::main(&mut self) {
 
     state done(&mut self) {
         self.result = self.histogram[2];
+        self.console.write_line("result: the count for category 2, 4 for this dataset (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.result);

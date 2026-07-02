@@ -40,6 +40,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("tic_tac_toe: replays a scripted game where X wins the top row");
     // Scripted moves.
     self.play(0, 1);  // X plays cell 0
     self.play(3, 2);  // O plays cell 3
@@ -85,16 +86,23 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: X owns the top row after 5 moves (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad_count(&mut self) {
+        self.console.write_line("FAIL: move count was not 5 after the script (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
     state bad_winner(&mut self) {
+        self.console.write_line("FAIL: the board did not show X winning the top row (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 }

@@ -31,6 +31,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("text_greeting: builds Hello, Ada! by carrier concatenation");
     self.name = "Ada";
     self.greeting = "Hello, " + self.name + "!";
     self.console.write_line(self.greeting);
@@ -41,9 +42,15 @@ machine Main::main(&mut self) {
     }
 
     state ok(&mut self) {
+        self.console.write_line("PASS: the greeting matched Hello, Ada! exactly (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
-    state mismatch(&mut self) { self.console.exit_process(71); }
+    state mismatch(&mut self) {
+        self.console.write_line("FAIL: the concatenated greeting did not match (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
 }

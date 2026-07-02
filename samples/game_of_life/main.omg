@@ -491,6 +491,7 @@ machine Main::checksum(&mut self) -> i32 {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("game_of_life: one generation of a 2x2 still-life block on a 4x4 grid");
     // Seed the board with the 2x2 block still-life.
     self.init_board();
 
@@ -507,12 +508,16 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: block still-life preserved, checksum 4 (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad(&mut self) {
+        self.console.write_line("FAIL: wrong checksum after one generation (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

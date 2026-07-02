@@ -39,6 +39,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("dual_float: f32 and f64 coexisting in one struct -- 3.5+3.5 (f32) and 6.5-3.0 (f64)");
     // Assign the mixed-width float fields.
     self.f.low = 3.5;
     self.f.high = 6.5;
@@ -55,7 +56,12 @@ machine Main::main(&mut self) {
         _ -> bad_sum_low()
     }
 
-    state bad_sum_low(&mut self) { self.console.exit_process(71); }
+    state bad_sum_low(&mut self) {
+        self.console.write_line("FAIL: f32 sum <= 6.9 -- expected ~7.0 (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
 
     state check_sum_upper(&mut self) {
         transition self.f.sum_f32 < 7.1 {
@@ -63,7 +69,12 @@ machine Main::main(&mut self) {
             _ -> bad_sum_high()
         }
     }
-    state bad_sum_high(&mut self) { self.console.exit_process(72); }
+    state bad_sum_high(&mut self) {
+        self.console.write_line("FAIL: f32 sum >= 7.1 -- expected ~7.0 (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(72);
+    }
 
     // Check diff_f64 is ~3.5.
     state check_diff_low(&mut self) {
@@ -72,7 +83,12 @@ machine Main::main(&mut self) {
             _ -> bad_diff_low()
         }
     }
-    state bad_diff_low(&mut self) { self.console.exit_process(73); }
+    state bad_diff_low(&mut self) {
+        self.console.write_line("FAIL: f64 diff <= 3.4 -- expected ~3.5 (exit 73)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(73);
+    }
 
     state check_diff_high(&mut self) {
         transition self.f.diff_f64 < 3.6 {
@@ -80,7 +96,12 @@ machine Main::main(&mut self) {
             _ -> bad_diff_high()
         }
     }
-    state bad_diff_high(&mut self) { self.console.exit_process(74); }
+    state bad_diff_high(&mut self) {
+        self.console.write_line("FAIL: f64 diff >= 3.6 -- expected ~3.5 (exit 74)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(74);
+    }
 
     // All checks passed: encode exit 70.
     state store_result(&mut self) {
@@ -92,12 +113,16 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: both float widths computed and compared correctly (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad_result(&mut self) {
+        self.console.write_line("FAIL: integer result field readback != 70 (exit 75)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(75);
     }
 }

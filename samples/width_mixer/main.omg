@@ -39,6 +39,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("width_mixer: u8, i16, and i32 fields combined through cast arithmetic");
     // Set up the sub-width fields.
     self.data.flags = 5;
     self.data.offset = 0 - 300;
@@ -72,20 +73,30 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: 50 - 300 + 320 = 70 across three widths (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad_total(&mut self) {
+        self.console.write_line("FAIL: the mixed-width total was not 70 (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
     state bad_flags(&mut self) {
+        self.console.write_line("FAIL: the u8 flags field did not read back 5 (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 
     state bad_offset(&mut self) {
+        self.console.write_line("FAIL: the i16 offset field did not read back -300 (exit 73)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(73);
     }
 }

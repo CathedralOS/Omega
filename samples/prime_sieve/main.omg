@@ -30,6 +30,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("prime_sieve: sieve of Eratosthenes printing the primes below 50");
     self.line = "                                                ";
     self.pos = 0;
     self.i = 2;
@@ -93,6 +94,7 @@ machine Main::main(&mut self) {
         transition { _ -> finish() }
     }
     state finish(&mut self) {
+        self.console.write_line("PASS: primes below 50 printed (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);

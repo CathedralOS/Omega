@@ -41,6 +41,7 @@ machine Main::dispatch(&mut self, event: AlarmEvent) {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("alarm_probe: no-payload case arm after payload arms -- Trigger must fire twice");
     self.dispatch(AlarmEvent::Trigger);
     self.dispatch(AlarmEvent::Trigger);
 
@@ -49,9 +50,15 @@ machine Main::main(&mut self) {
         _ -> bad()
     }
     state good(&mut self) {
+        self.console.write_line("PASS: fire_count == 2 after two Trigger dispatches (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state bad(&mut self) {
+        self.console.write_line("FAIL: fire_count != 2 -- Trigger arm dropped or unreachable (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
 }

@@ -33,6 +33,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("bubble_sort: in-place sort of [29, 10, 14, 37, 13] with runtime-indexed swaps");
     self.nums[0] = 29;
     self.nums[1] = 10;
     self.nums[2] = 14;
@@ -119,6 +120,7 @@ machine Main::main(&mut self) {
     }
 
     state done(&mut self) {
+        self.console.write_line("result: nums[0] after sorting -- the minimum, 10 for this dataset (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.nums[0]);

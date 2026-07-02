@@ -37,6 +37,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("cellular_automaton: Rule 90 from a single centre cell -- 32 generations draw the Sierpinski triangle");
     self.line = "                                                                ";
     self.chars = " #";
     self.x = 0;
@@ -169,11 +170,15 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("done: 32 generations of Rule 90 rendered (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {
+        self.console.write_line("FAIL: a cell value or index left its guarded range (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
 }

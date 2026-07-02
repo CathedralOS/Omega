@@ -30,6 +30,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("clamp_sum: clamp readings [80, -5, 50, 200, 30] to [0, 60] and sum them");
     self.clamper.values[0] = 80;
     self.clamper.values[1] = -5;
     self.clamper.values[2] = 50;
@@ -38,6 +39,7 @@ machine Main::main(&mut self) {
 
     let s: &[i32 in Wrapping] = self.clamper.values.as_slice();
     let total: i32 = self.clamper.clamp_sum(s, 0);
+    self.console.write_line("result: the clamped sum, 200 for these readings (the exit code)");
     self.console.write_line("[press Enter to close]");
     self.console.read_line(&mut self.pause);
     self.console.exit_process(total);

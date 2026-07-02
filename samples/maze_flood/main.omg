@@ -51,6 +51,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("maze_flood: BFS shortest distances flooding a 5x5 maze (## = wall)");
     self.wall = [0, 0, 0, 0, 0,  1, 1, 1, 1, 0,  0, 0, 0, 0, 0,  0, 1, 1, 1, 1,  0, 0, 0, 0, 0];
     self.dist = [0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,
                  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,
@@ -191,11 +192,15 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("PASS: distance map rendered, far corner is 16 away (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {
+        self.console.write_line("FAIL: internal bounds check failed (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
 }
