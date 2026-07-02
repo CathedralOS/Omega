@@ -1050,20 +1050,35 @@ stay visible, not because they're next):**
   reflection expanded per conformance. Direction frozen (no macros, no #run);
   implementation is a large interpreter+expansion arc. Equatable/Hashable
   synthesis becomes ordinary once this lands.
-- [ ] **Generics completion.** Pending canaries exist (generic data
-  instantiation, machine-call monomorphization, type params in states);
-  const-parameter instantiation/substitution, layout for symbolic lengths.
-  Decision-13 bounds are checked on type-reference instantiations; extend
+- [ ] **Generics completion.** STAGE-1 DATA MONOMORPHIZATION LANDED (2026-07-01):
+  a generic data instance's fields now lower NATIVELY -- the layout builder
+  records one monomorphized instance per generic definition (memoized, keyed by
+  the definition symbol; descriptors substitute bound parameters), so
+  `Box<i32 in Wrapping>` field reads/writes run end-to-end (canary
+  `generics/runtime_generic_record_instance_exit`, differential). STAGE-1
+  BOUNDARIES: (a) a SECOND different instantiation of the same generic data
+  poisons the recorded offsets -- both instances still SIZE correctly and the
+  program compiles, but native field access through the colliding type rejects
+  cleanly (fail canary `generic_second_instantiation_access_rejected`); real
+  per-instance identity needs instance keys threaded through type descriptors.
+  (b) A generic ENUM payload (`Maybe<T>::Some(value: T)`) still rejects: the
+  DESTRUCTURED BINDING's frame slot is sized from the unsubstituted variant
+  field type in compute_machine_layout (the data-side layout is ready; the
+  machine/frame side needs dispatch-site bindings). (c) A VALUE-position call
+  to a generic machine used to SILENTLY yield 0 natively (interp correct -- a
+  #40 violation, worse than the 06-29 audit recorded); now FENCED with a clean
+  error in omega-validation/calls.rs `fence_generic_value_callee` (fail
+  canaries `generic_value_call_rejected` +
+  `machine_bound_satisfied_value_call_fenced`, the latter re-purposed from the
+  pass set where it codified the miscompile as must-compile). Statement calls
+  to generic machines still work. REMAINING: (b)'s frame-side bindings, real
+  machine-call monomorphization (unfence value calls by materializing the
+  result slot), per-instance identity for (a), const-parameter substitution,
+  layout for symbolic lengths. Decision-13 bounds are checked on
+  type-reference instantiations; extend
   the check to machine-call monomorphization arguments when those land.
-  RUNTIME GAP (audited 2026-06-29 -- ALL CLEAN errors, no silent miscompile,
-  so the #40 trap is satisfied and this is safe to defer): generics are
-  TYPE-CHECK-ONLY today. A generic DATA instance's field access fails in the
-  backend ("needs runtime storage write lowering") -- and not just the T-typed
-  field: a CONCRETE sibling field of a generic instance fails too, while the
-  non-generic equivalent lowers fine. A generic VALUE-call (`id<T>(x: T) -> T`)
-  fails likewise. But a generic MACHINE whose body touches only CONCRETE storage
-  DOES lower and run (`run<T>(&self, x: &T) { exit_process(70) }` exits 70). So
-  the unbuilt piece is the backend monomorphization path: threading substituted
+  HISTORICAL (superseded by the above): generics were TYPE-CHECK-ONLY; the
+  unbuilt piece was the backend monomorphization path: threading substituted
   (T -> concrete) layouts through layout planning -> storage places ->
   instruction selection, so a monomorphized instance gets real storage. The
   front-end type system already substitutes correctly; the lowering does not
