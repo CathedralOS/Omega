@@ -5,7 +5,8 @@
 # rules, (k ..) constructors, (f ..) applications). For K random valid certs, check.beta and the independent
 # reference check_ref.py must AGREE: both accept each cert, and both reject a perturbed (wrong-value/wrong-
 # type) variant. So check_ref independently validates not just the checker's logic but the REAL TV certs.
-# Deterministic (fixed seed). Only induction (natind/listind) remains check.beta-only.
+# Deterministic (fixed seed). A curated Nat-induction corpus (natind/eqelim/disj/sinj) is also cross-checked;
+# only LIST induction (listind, needing nil/cons/app normalization) remains check.beta-only.
 import sys, os, random, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import check_ref
@@ -167,7 +168,31 @@ def tv_expr(rng, depth):                               # -> (term_string, value)
     if va < vb:    va, vb, ta, tb = vb, va, tb, ta     # keep monus non-negative
     return "(f 22 %s %s)" % (tb, ta), va - vb          # a - b via (f 22 b a)
 
+# ---- induction corpus (natind + eqelim + disj + sinj) ------------------------------------------------
+# Random valid induction proofs are impractical to generate, so this is a curated accept/reject corpus over
+# the Nat-induction fragment: check.beta and check_ref must agree on every one. (List induction — listind
+# with nil/cons/app normalization — remains check.beta-only, a later slice.)
+IND_CORPUS = [
+    ("(All (= (p (v 0) z) (v 0))) (natind (= (p (v 0) z) (v 0)) (refl z) (gen (lam (= (p (v 0) z) (v 0)) (eqelim (= (s (p (v 1) z)) (s (v 0))) (hyp 0) (refl (s (p (v 0) z)))))))", "accept"),
+    ("(All (= (m (v 0) z) z)) (natind (= (m (v 0) z) z) (refl z) (gen (lam (= (m (v 0) z) z) (hyp 0))))", "accept"),
+    ("(-> (= z (s z)) (bot)) (lam (= z (s z)) (disj (hyp 0)))", "accept"),
+    ("(-> (= (s (v 0)) (s z)) (= (v 0) z)) (lam (= (s (v 0)) (s z)) (sinj (hyp 0)))", "accept"),
+    ("(All (-> (= (v 0) (s (v 0))) (bot))) (natind (-> (= (v 0) (s (v 0))) (bot)) (lam (= z (s z)) (disj (hyp 0))) (gen (lam (-> (= (v 0) (s (v 0))) (bot)) (lam (= (s (v 0)) (s (s (v 0)))) (app (hyp 1) (sinj (hyp 0)))))))", "accept"),
+    ("(All (+ (= (v 0) z) (Exists (= (v 1) (s (v 0)))))) (natind (+ (= (v 0) z) (Exists (= (v 1) (s (v 0))))) (inl (Exists (= z (s (v 0)))) (refl z)) (gen (lam (+ (= (v 0) z) (Exists (= (v 1) (s (v 0))))) (inr (= (s (v 0)) z) (wit (= (s (v 1)) (s (v 0))) (v 0) (refl (s (v 0))))))))", "accept"),
+    ("(All (All (-> (= (v 1) (v 0)) (= (s (v 1)) (s (v 0)))))) (gen (gen (lam (= (v 1) (v 0)) (eqelim (= (s (v 2)) (s (v 0))) (hyp 0) (refl (s (v 1)))))))", "accept"),
+    # rejects: base is not P(0), and the fabrications guarded by disj/sinj's normal-form checks
+    ("(-> (Pred 0 z) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (All (Pred 0 (v 0))))) (lam (Pred 0 z) (lam (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (natind (Pred 0 (v 0)) (hyp 1) (hyp 0))))", "reject"),
+    ("(-> (= (s z) (s z)) (bot)) (lam (= (s z) (s z)) (disj (hyp 0)))", "reject"),
+    ("(-> (= (s z) (s z)) (= z (s z))) (lam (= (s z) (s z)) (sinj (hyp 0)))", "reject"),
+]
+
 fails = 0; n = 0
+for cert, expect in IND_CORPUS:
+    n += 1
+    vb, vr = verdict_beta(cert), verdict_ref(cert)
+    if not (vb == vr == expect):
+        fails += 1
+        print("  FAIL (induction) beta=%s ref=%s want=%s : %s" % (vb, vr, expect, cert[:160]))
 for _ in range(K):
     r = random.random()
     if r < 0.35:                                       # propositional

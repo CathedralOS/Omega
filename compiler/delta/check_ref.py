@@ -7,9 +7,11 @@
 # Beta, checker.gamma in Gamma) are BOTH lattice-lineage (compiled by bc). Every other rung now has a truly
 # independent, auditable reference — alpha_ref.py (VM), asm_ref.py (assembler), bc2.py/beta_interp.py (bc),
 # gamma_ref.py (meaning). This is that reference for the checker's core: intuitionistic propositional logic
-# (->, &, +, bot with intro+elim). check-ref-diamond.sh fuzzes it against check.beta on random propositional
-# proofs, requiring identical accept/reject. UNTRUSTED and checked, like the other *_ref tools; a bug here
-# (or in check.beta) surfaces as a disagreement. (Quantifiers/equality/conversion are later slices.)
+# (->, &, +, bot with intro+elim), PLUS first-order (All/Exists, de Bruijn), equality by conversion (refl +
+# Peano/user-function normalization), and the Nat-induction fragment (natind/eqelim/disj/sinj).
+# check-ref-diamond.sh fuzzes it against check.beta on random propositional/FO/equality/TV proofs and a curated
+# induction corpus, requiring identical accept/reject. UNTRUSTED and checked, like the other *_ref tools; a bug
+# here (or in check.beta) surfaces as a disagreement. (LIST induction, listind, remains a later slice.)
 #
 # Proof := (hyp i) | (lam PROP p) | (app f x) | (pair a b) | (fst p) | (snd p)
 #        | (inl PROP p) | (inr PROP p) | (case s l r) | (absurd PROP p)
@@ -148,6 +150,8 @@ def shift_prop(p, d, cut):
     h = p[0]
     if h == 'bot':
         return p
+    if h == '=':
+        return ['=', shift_term(p[1], d, cut), shift_term(p[2], d, cut)]
     if h == 'Pred':
         return ['Pred', p[1], shift_term(p[2], d, cut)]
     if h == 'Rel':
@@ -165,6 +169,8 @@ def subst_term(t, s, depth):
             return ['v', str(i - 1)] if i > depth else t
         if t[0] == 's':
             return ['s', subst_term(t[1], s, depth)]
+        if t[0] in ('p', 'm'):
+            return [t[0], subst_term(t[1], s, depth), subst_term(t[2], s, depth)]
     return t                                           # z
 
 def subst_prop(p, s, depth):
@@ -173,6 +179,8 @@ def subst_prop(p, s, depth):
     h = p[0]
     if h == 'bot':
         return p
+    if h == '=':
+        return ['=', subst_term(p[1], s, depth), subst_term(p[2], s, depth)]
     if h == 'Pred':
         return ['Pred', p[1], subst_term(p[2], s, depth)]
     if h == 'Rel':
@@ -180,6 +188,32 @@ def subst_prop(p, s, depth):
     if h in ('All', 'Exists'):
         return [h, subst_prop(p[1], shift_term(s, 1, 0), depth + 1)]   # lift s across the binder
     return [h, subst_prop(p[1], s, depth), subst_prop(p[2], s, depth)]
+
+def subst_term_keep(t, s, depth):                      # like subst_term but KEEPS the binder (no decrement)
+    if isinstance(t, list):
+        if t[0] == 'v':
+            return s if int(t[1]) == depth else t
+        if t[0] == 's':
+            return ['s', subst_term_keep(t[1], s, depth)]
+        if t[0] in ('p', 'm'):
+            return [t[0], subst_term_keep(t[1], s, depth), subst_term_keep(t[2], s, depth)]
+    return t
+
+def subst_prop_keep(p, s, depth):                      # for induction's P(s n): substitute, keep the binder
+    if not isinstance(p, list):
+        return p
+    h = p[0]
+    if h == 'bot':
+        return p
+    if h == '=':
+        return ['=', subst_term_keep(p[1], s, depth), subst_term_keep(p[2], s, depth)]
+    if h == 'Pred':
+        return ['Pred', p[1], subst_term_keep(p[2], s, depth)]
+    if h == 'Rel':
+        return ['Rel', p[1], subst_term_keep(p[2], s, depth), subst_term_keep(p[3], s, depth)]
+    if h in ('All', 'Exists'):
+        return [h, subst_prop_keep(p[1], shift_term(s, 1, 0), depth + 1)]
+    return [h, subst_prop_keep(p[1], s, depth), subst_prop_keep(p[2], s, depth)]
 
 def mentions_ivar(p, k):                               # does Ivar k occur free in p?
     if not isinstance(p, list):
@@ -270,6 +304,41 @@ def infer(pf, ctx, idep=0):                            # ctx: list of (prop, pus
         if not prop_eq(ant, e[1]) or mentions_ivar(C, 0):   # C must not depend on the witness var
             return None
         return subst_prop(C, 'z', 0)                   # drop the binder, lower outer vars
+    if h == 'natind':                                  # (natind motive base step): Peano induction
+        motive, base, step = pf[1], pf[2], pf[3]
+        tb = infer(base, ctx, idep)
+        if tb is None or not prop_eq(tb, subst_prop(motive, 'z', 0)):   # base : P(0)
+            return None
+        ts = infer(step, ctx, idep)
+        want = ['All', ['->', motive, subst_prop_keep(motive, ['s', ['v', '0']], 0)]]  # All n. P(n)->P(s n)
+        if ts is None or not prop_eq(ts, want):
+            return None
+        return ['All', motive]                         # forall n. P(n)
+    if h == 'eqelim':                                  # (eqelim motive pf_eq pf_pa): Leibniz / transport
+        motive, pf_eq, pf_pa = pf[1], pf[2], pf[3]
+        te = infer(pf_eq, ctx, idep)
+        if not (isinstance(te, list) and te[0] == '='):
+            return None
+        tpa = infer(pf_pa, ctx, idep)
+        if tpa is None or not prop_eq(tpa, subst_prop(motive, te[1], 0)):   # pf_pa : P(a)
+            return None
+        return subst_prop(motive, te[2], 0)            # P(b)
+    if h == 'disj':                                    # (disj pf): from (0 = s t) or (s t = 0), falsity
+        te = infer(pf[1], ctx, idep)
+        if not (isinstance(te, list) and te[0] == '='):
+            return None
+        a, b = normalize(te[1]), normalize(te[2])
+        az = (a == 'z'); asuc = isinstance(a, list) and a[0] == 's'
+        bz = (b == 'z'); bsuc = isinstance(b, list) and b[0] == 's'
+        return ['bot'] if (az and bsuc) or (asuc and bz) else None
+    if h == 'sinj':                                    # (sinj pf): from (s a = s b), (a = b)
+        te = infer(pf[1], ctx, idep)
+        if not (isinstance(te, list) and te[0] == '='):
+            return None
+        a, b = normalize(te[1]), normalize(te[2])
+        if isinstance(a, list) and a[0] == 's' and isinstance(b, list) and b[0] == 's':
+            return ['=', a[1], b[1]]
+        return None
     return None
 
 def register(forms):
