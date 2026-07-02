@@ -19,11 +19,11 @@
 
 use omega::language::std::console;
 
-wire data RoomHeader {
+data RoomHeader {
     0: room_id: u32;
 }
 
-wire data SensorPacket {
+data SensorPacket {
     0: header: RoomHeader;
     1: samples: [i32; 4];
     2: depth: i32;

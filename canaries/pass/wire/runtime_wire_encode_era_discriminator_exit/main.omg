@@ -15,12 +15,12 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data VersionedMessage {
+data VersionedMessage {
     version v1 {
         0: counter: i32;
     }
 
-    reserved 0;
+    retired 0;
     1: counter: u32;
 }
 

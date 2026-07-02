@@ -19,7 +19,7 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data CounterMessage {
+data CounterMessage {
     0: counter: u32;
     1: delta: i32;
     2: flag: bool;

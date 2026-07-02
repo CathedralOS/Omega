@@ -1,0 +1,10 @@
+// FAIL canary: identity numbers are all-or-nothing within one declaration
+// today -- a numbered data with an unnumbered field is a guided error (the
+// tagged grammar consumes numbers only; a silent unnumbered field would be
+// dropped from every encoding).
+data Save {
+    1: seed: u64;
+    name: u32;
+}
+data Main { }
+machine Main::main(&mut self) { }

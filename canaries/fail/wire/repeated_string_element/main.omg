@@ -8,7 +8,7 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data NameList {
+data NameList {
     0: names: [String; 4];
 }
 

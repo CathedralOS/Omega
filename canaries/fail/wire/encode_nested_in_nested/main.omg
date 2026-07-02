@@ -8,15 +8,15 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data Inner {
+data Inner {
     0: value: i32;
 }
 
-wire data Middle {
+data Middle {
     0: inner: Inner;
 }
 
-wire data Outer {
+data Outer {
     0: middle: Middle;
 }
 

@@ -9,7 +9,7 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data LabelMessage {
+data LabelMessage {
     0: count: u32;
     1: label: String;
 }

@@ -3,7 +3,7 @@
 // reserved in the current schema is rejected, because the retired number
 // could be silently reused later.
 
-wire data CounterMessage {
+data CounterMessage {
     version v1 {
         0: counter: i32;
     }

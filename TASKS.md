@@ -254,6 +254,32 @@ site (`in Trapping`, future assert/panic) carries an `abort` effect threaded to
 main / the target block (absence = denial = total program); Wrapping/Saturating
 stay effect-free (total, visible in types). Needs a settle before building.
 
+### Programmable-layouts compliance refactors (ch19/20/21 rewrite, 2026-07-02)
+
+The chapters are now the spec (design_briefs/programmable_layouts.md, SETTLED).
+The compliance work splits into a MECHANICAL near-term series and a
+comptime-GATED program:
+
+**R1 — the surface migration (mechanical; ch20's status note points here):**
+- Optional identity numbers on plain `data` (`1: seed: u64;` -- any values, any
+  order, sparse; unique + not-retired enforced) + `retired N;` member
+  declarations (replaces `reserved`; absent from schema.fields by construction).
+- DELETE the `wire data` declaration form and the `reserved` spelling.
+- Schema identity is re-keyed: "data with >=1 numbered field" is what the
+  tagged grammar consumes; unnumbered data has NO identity and it is NEVER
+  order-derived.
+- compact_binary v0 behavior stays BYTE-IDENTICAL (the ch20 implemented-slice
+  section is verbatim spec: era-discriminator-first framing, LEB128 + zigzag,
+  sticky-ok decode, one-level scalar-only nesting, encode-only String-last).
+  Era/version machinery (frozen decision 10, ch21 version blocks) unchanged.
+- Corpus migration: every canary/sample/std .omg using `wire data`/`reserved`.
+
+**R2+ (comptime-gated, do NOT start without the ch13 comptime story):**
+Layout trait + comptime plan() machines; Schema reflection; Plan validation +
+the deriver (codec/projections/mint-index/value types); OmegaLayout<T, grammar>
+carriers; Bits placements + access classes; durability plan grades;
+publish-time predecessor diff. See the brief SS10 for the full delta list.
+
 ### Language ergonomics surfaced (mostly engineering; one research)
 - **[NEEDS DESIGN — Zach]** loop syntax (`for`/`while`) that desugars to the
   existing proven state-machine loop pattern. Today every loop is a hand-written

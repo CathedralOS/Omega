@@ -22,7 +22,7 @@ pub(crate) fn validate_wire_schemas(
             .any(|previous| previous.name == schema.name)
         {
             diagnostics.push(Diagnostic::error(format!(
-                "duplicate wire data `{}`",
+                "duplicate data `{}`",
                 schema.name
             )));
         }
@@ -45,7 +45,7 @@ fn validate_nested_schema_cycles(
     let mut visited: Vec<&str> = Vec::new();
     if nested_references_reach(program, schema, schema.name.as_str(), &mut visited) {
         diagnostics.push(Diagnostic::error(format!(
-            "wire data `{}` contains itself through its nested message fields; a schema cycle has no finite worst-case encoding",
+            "data `{}` contains itself through its nested message fields; a schema cycle has no finite worst-case encoding",
             schema.name
         )));
     }
@@ -112,9 +112,11 @@ fn collect_scope<'program>(
 }
 
 fn scope_label(schema: &WireSchema, scope: &WireScope<'_>) -> String {
+    // The declaration form is plain `data` with identity numbers (ch20); the
+    // wire-schema machinery behind it is an implementation detail.
     match scope.version {
-        Some(version) => format!("wire data `{}` version `{version}`", schema.name),
-        None => format!("wire data `{}`", schema.name),
+        Some(version) => format!("data `{}` version `{version}`", schema.name),
+        None => format!("data `{}`", schema.name),
     }
 }
 
@@ -132,7 +134,7 @@ fn validate_schema(
             .any(|previous| previous.name == version.name)
         {
             diagnostics.push(Diagnostic::error(format!(
-                "wire data `{}` declares duplicate version `{}`",
+                "data `{}` declares duplicate version `{}`",
                 schema.name, version.name
             )));
         }
@@ -192,7 +194,7 @@ fn validate_scope_numbering(
             .any(|reserved| reserved.number == field.number)
         {
             diagnostics.push(Diagnostic::error(format!(
-                "{} field `{}` reuses reserved field number {}",
+                "{} field `{}` reuses retired identity number {}",
                 scope_label(schema, scope),
                 field.name,
                 field.number
@@ -206,7 +208,7 @@ fn validate_scope_numbering(
             .any(|previous| previous.number == reserved.number)
         {
             diagnostics.push(Diagnostic::error(format!(
-                "{} reserves field number {} more than once",
+                "{} retires identity number {} more than once",
                 scope_label(schema, scope),
                 reserved.number
             )));
@@ -398,7 +400,7 @@ fn validate_adjacent_eras(
 
             if !is_reserved {
                 diagnostics.push(Diagnostic::error(format!(
-                    "{} retires field number {} (`{}` in version `{predecessor_name}`) without reserving it; add `reserved {};`",
+                    "{} drops field number {} (`{}` in version `{predecessor_name}`) without tombstoning it; add `retired {};`",
                     scope_label(schema, successor),
                     field.number,
                     field.name,
@@ -456,7 +458,7 @@ pub(crate) fn validate_wire_schema_call(
         }
         _ => {
             diagnostics.push(Diagnostic::error(format!(
-                "wire data `{}` has no machine `{}`; the compiler only synthesizes `encode_wire(&value, &mut out, &mut written)` and `decode_wire(&mut value, &buffer, &mut read, &mut ok)` (wire stage 2)",
+                "data `{}` has no machine `{}`; the compiler only synthesizes `encode_wire(&value, &mut out, &mut written)` and `decode_wire(&mut value, &buffer, &mut read, &mut ok)` (wire stage 2)",
                 schema.name, call.target
             )));
         }
@@ -547,7 +549,7 @@ fn validate_wire_encode_call(
         if let Some((_, max_count)) = program.wire_field_fixed_array(field) {
             if field.number < 0 {
                 diagnostics.push(Diagnostic::error(format!(
-                    "wire data `{}` field `{}`: negative field number {} cannot ride a varint tag",
+                    "data `{}` field `{}`: negative field number {} cannot ride a varint tag",
                     schema.name, field.name, field.number
                 )));
                 schema_rejects = true;
@@ -555,7 +557,7 @@ fn validate_wire_encode_call(
             }
             let Some(repeated) = program.wire_field_repeated_encoding(field) else {
                 diagnostics.push(Diagnostic::error(format!(
-                    "wire data `{}` field `{}`: a repeated wire field's element must be a stage 2 scalar (i32, i64, u32, u64, bool); `{}` is not supported (repeated String and repeated nested messages reject until they have an honest encoding)",
+                    "data `{}` field `{}`: a repeated wire field's element must be a stage 2 scalar (i32, i64, u32, u64, bool); `{}` is not supported (repeated String and repeated nested messages reject until they have an honest encoding)",
                     schema.name,
                     field.name,
                     program.display_type_reference(field.type_reference)
@@ -579,7 +581,7 @@ fn validate_wire_encode_call(
         if program.is_borrowed_byte_slice(field.type_reference) {
             if field.number < 0 {
                 diagnostics.push(Diagnostic::error(format!(
-                    "wire data `{}` field `{}`: negative field number {} cannot ride a varint tag",
+                    "data `{}` field `{}`: negative field number {} cannot ride a varint tag",
                     schema.name, field.name, field.number
                 )));
                 schema_rejects = true;
@@ -599,7 +601,7 @@ fn validate_wire_encode_call(
         let nested = program.wire_field_nested_schema(field);
         if encoding.is_none() && nested.is_none() {
             diagnostics.push(Diagnostic::error(format!(
-                "wire data `{}` field `{}`: `{}` is not encodable by the compact_binary v0 encoder yet; wire stage 2 supports i32, i64, u32, u64, bool, String, and a sibling wire schema (one nesting level)",
+                "data `{}` field `{}`: `{}` is not encodable by the compact_binary v0 encoder yet; wire stage 2 supports i32, i64, u32, u64, bool, String, and a sibling wire schema (one nesting level)",
                 schema.name,
                 field.name,
                 program.display_type_reference(field.type_reference)
@@ -609,7 +611,7 @@ fn validate_wire_encode_call(
         }
         if field.number < 0 {
             diagnostics.push(Diagnostic::error(format!(
-                "wire data `{}` field `{}`: negative field number {} cannot ride a varint tag",
+                "data `{}` field `{}`: negative field number {} cannot ride a varint tag",
                 schema.name, field.name, field.number
             )));
             schema_rejects = true;
@@ -627,7 +629,7 @@ fn validate_wire_encode_call(
             // second staging region, so both reject (one honest level first).
             let Some(nested_worst) = program.wire_nested_field_worst_case(child) else {
                 diagnostics.push(Diagnostic::error(format!(
-                    "wire data `{}` field `{}`: nested wire schema `{}` must contain only scalar fields (i32, i64, u32, u64, bool); String and doubly-nested message fields inside a nested message are not supported yet",
+                    "data `{}` field `{}`: nested wire schema `{}` must contain only scalar fields (i32, i64, u32, u64, bool); String and doubly-nested message fields inside a nested message are not supported yet",
                     schema.name, field.name, child.name
                 )));
                 schema_rejects = true;
@@ -658,14 +660,14 @@ fn validate_wire_encode_call(
     if let [first_text, more_text @ ..] = text_fields.as_slice() {
         for field in more_text {
             diagnostics.push(Diagnostic::error(format!(
-                "wire data `{}` field `{}`: the compact_binary v0 encoder supports at most one String field per message (String content is runtime-sized, so only the final field can be unbounded)",
+                "data `{}` field `{}`: the compact_binary v0 encoder supports at most one String field per message (String content is runtime-sized, so only the final field can be unbounded)",
                 schema.name, field.name
             )));
             schema_rejects = true;
         }
         if more_text.is_empty() && first_text.number != max_field_number {
             diagnostics.push(Diagnostic::error(format!(
-                "wire data `{}` field `{}`: a String field must carry the schema's highest field number so it encodes last; its byte count is runtime-sized, and any field after it would lose the compile-time out-buffer guarantee",
+                "data `{}` field `{}`: a String field must carry the schema's highest field number so it encodes last; its byte count is runtime-sized, and any field after it would lose the compile-time out-buffer guarantee",
                 schema.name, first_text.name
             )));
             schema_rejects = true;
@@ -886,7 +888,7 @@ fn validate_wire_decode_call(
         if program.wire_field_fixed_array(field).is_some() {
             if field.number < 0 {
                 diagnostics.push(Diagnostic::error(format!(
-                    "wire data `{}` field `{}`: negative field number {} cannot ride a varint tag",
+                    "data `{}` field `{}`: negative field number {} cannot ride a varint tag",
                     schema.name, field.name, field.number
                 )));
                 schema_rejects = true;
@@ -894,7 +896,7 @@ fn validate_wire_decode_call(
             }
             let Some(repeated) = program.wire_field_repeated_encoding(field) else {
                 diagnostics.push(Diagnostic::error(format!(
-                    "wire data `{}` field `{}`: a repeated wire field's element must be a stage 2 scalar (i32, i64, u32, u64, bool); `{}` is not supported (repeated String and repeated nested messages reject until they have an honest encoding)",
+                    "data `{}` field `{}`: a repeated wire field's element must be a stage 2 scalar (i32, i64, u32, u64, bool); `{}` is not supported (repeated String and repeated nested messages reject until they have an honest encoding)",
                     schema.name,
                     field.name,
                     program.display_type_reference(field.type_reference)
@@ -911,7 +913,7 @@ fn validate_wire_decode_call(
         if program.is_borrowed_byte_slice(field.type_reference) {
             if field.number < 0 {
                 diagnostics.push(Diagnostic::error(format!(
-                    "wire data `{}` field `{}`: negative field number {} cannot ride a varint tag",
+                    "data `{}` field `{}`: negative field number {} cannot ride a varint tag",
                     schema.name, field.name, field.number
                 )));
                 schema_rejects = true;
@@ -932,7 +934,7 @@ fn validate_wire_decode_call(
             // than lumping String in with genuinely-unsupported field types.
             let message = if primitive == Some(omega_typed_trees::types::PrimitiveType::String) {
                 format!(
-                    "wire data `{}` field `{}`: decoding an owned `String` is not implemented yet \
+                    "data `{}` field `{}`: decoding an owned `String` is not implemented yet \
                      -- it must copy the field's bytes out of the decode buffer into owned storage, \
                      which requires the runtime allocator (the reclamation substrate / arena is \
                      designed but not built). The allocator-free alternative is a borrowed \
@@ -942,7 +944,7 @@ fn validate_wire_decode_call(
                 )
             } else {
                 format!(
-                    "wire data `{}` field `{}`: `{}` is not decodable by the compact_binary v0 decoder yet; wire stage 2b supports i32, i64, u32, u64, bool, and a sibling wire schema (one nesting level)",
+                    "data `{}` field `{}`: `{}` is not decodable by the compact_binary v0 decoder yet; wire stage 2b supports i32, i64, u32, u64, bool, and a sibling wire schema (one nesting level)",
                     schema.name,
                     field.name,
                     program.display_type_reference(field.type_reference)
@@ -954,7 +956,7 @@ fn validate_wire_decode_call(
         }
         if field.number < 0 {
             diagnostics.push(Diagnostic::error(format!(
-                "wire data `{}` field `{}`: negative field number {} cannot ride a varint tag",
+                "data `{}` field `{}`: negative field number {} cannot ride a varint tag",
                 schema.name, field.name, field.number
             )));
             schema_rejects = true;
@@ -967,7 +969,7 @@ fn validate_wire_decode_call(
             // slot).
             if program.wire_schema_scalar_body_worst_case(child).is_none() {
                 diagnostics.push(Diagnostic::error(format!(
-                    "wire data `{}` field `{}`: nested wire schema `{}` must contain only scalar fields (i32, i64, u32, u64, bool); String and doubly-nested message fields inside a nested message are not supported yet",
+                    "data `{}` field `{}`: nested wire schema `{}` must contain only scalar fields (i32, i64, u32, u64, bool); String and doubly-nested message fields inside a nested message are not supported yet",
                     schema.name, field.name, child.name
                 )));
                 schema_rejects = true;

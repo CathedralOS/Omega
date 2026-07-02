@@ -150,6 +150,14 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
             .is_some_and(is_identifier_token_for_parser)
     }
 
+    /// Whether the next token is an integer literal (the identity-number
+    /// prefix of a numbered data field, `N: name: Type;`).
+    pub(super) fn at_integer(&self) -> bool {
+        self.tokens
+            .first()
+            .is_some_and(|token| token.integer_literal_kind().is_some())
+    }
+
     pub(super) fn has_newline_before(self, later: Self) -> bool {
         let skipped_count = self.tokens.len().saturating_sub(later.tokens.len());
         let mut index = skipped_count;

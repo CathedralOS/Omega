@@ -5,7 +5,7 @@
 // a "requires migration" verdict for field 0 on each hop (v1 -> v2 widens
 // i32 -> i64, v2 -> current moves to f64).
 
-wire data CounterMessage {
+data CounterMessage {
     version v1 {
         0: counter: i32;
         1: timestamp_millis: i64;

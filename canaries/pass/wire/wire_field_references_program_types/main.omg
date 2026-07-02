@@ -6,11 +6,11 @@ data RoomLabel {
     index: i32;
 }
 
-wire data RoomHeader {
+data RoomHeader {
     0: label: RoomLabel;
 }
 
-wire data RoomMessage {
+data RoomMessage {
     0: header: RoomHeader;
     1: depth: i32;
 }

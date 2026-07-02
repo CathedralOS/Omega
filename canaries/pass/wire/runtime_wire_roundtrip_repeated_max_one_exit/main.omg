@@ -18,7 +18,7 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data Ping {
+data Ping {
     0: code: [u32; 1];
     1: flag: bool;
 }

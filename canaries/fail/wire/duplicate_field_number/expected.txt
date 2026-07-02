@@ -1,1 +1,1 @@
-wire data `CounterMessage` declares duplicate field number 0
+data `CounterMessage` declares duplicate field number 0
