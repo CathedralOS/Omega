@@ -140,6 +140,45 @@ fn receiver_surface_name(program: &CheckedTrees, symbol: SymbolHandle) -> Option
         })
 }
 
+/// The platform (boundary) type name behind an EXPRESSION call -- the
+/// assignment-RHS host-call shape `self.t = self.clock.tick_count()`. Resolved
+/// through the boundary-trait fallback: the call's resolved target symbol is a
+/// signature of exactly one boundary trait.
+pub(crate) fn expression_platform_receiver_type<'program>(
+    program: &'program CheckedTrees,
+    target_symbol: omega_core::symbols::SymbolHandle,
+) -> Option<&'program str> {
+    if !target_symbol.is_valid() {
+        return None;
+    }
+    let trait_symbol = program
+        .traits()
+        .iter()
+        .filter(|trait_definition| trait_definition.is_boundary)
+        .find(|trait_definition| {
+            program
+                .trait_machine_signatures(trait_definition)
+                .iter()
+                .any(|machine| machine.symbol == target_symbol)
+        })
+        .map(|trait_definition| trait_definition.symbol)?;
+    receiver_surface_name(program, trait_symbol)
+}
+
+/// Like `find_platform_call_lowering`, keyed directly on the callee target
+/// name (for expression calls, which have no statement `TableCall`).
+pub(crate) fn find_platform_call_lowering_by_target<'abi>(
+    host_abi: &'abi HostAbiPlan,
+    platform_name: &str,
+    target: &omega_checked_trees::name::Identifier,
+) -> Option<(PlatformCallLoweringHandle, &'abi PlatformCallLowering)> {
+    host_abi
+        .platform_call_lowerings
+        .iter()
+        .find(|(_, lowering)| lowering_matches(lowering, platform_name, target))
+        .map(|(handle, lowering)| (handle, lowering))
+}
+
 pub(crate) fn find_platform_call_lowering<'abi>(
     host_abi: &'abi HostAbiPlan,
     platform_name: &str,
@@ -219,7 +258,7 @@ fn lowering_matches(
         && lowering.state.as_ref() == state_name
 }
 
-fn lower_host_call_argument(
+pub(crate) fn lower_host_call_argument(
     program: &CheckedTrees,
     argument: ExpressionHandle,
     static_values: &StaticValues,

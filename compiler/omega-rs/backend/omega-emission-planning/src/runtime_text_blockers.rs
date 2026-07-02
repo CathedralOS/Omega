@@ -111,6 +111,7 @@ fn state_value_has_planned_storage_write(
                 && matches!(
                     instruction.kind,
                     SelectedInstructionKind::AtomicFetchAdd { .. }
+                        | SelectedInstructionKind::HostOperation { .. }
                         | SelectedInstructionKind::AtomicCompareExchange { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
                         | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
