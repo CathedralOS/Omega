@@ -6,6 +6,10 @@ use crate::host_calls::static_values::{
     StaticValues, apply_call_static_effects, apply_static_assignment, initial_static_values,
 };
 use crate::{HostCall, HostCallPlan, UnsupportedHostCall, UnsupportedHostCallReason};
+use super::lowering::{
+    expression_platform_receiver_type, find_platform_call_lowering_by_target,
+    lower_host_call_argument,
+};
 use omega_calling_conventions::HostAbiPlan;
 use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::machine::Machine;
@@ -48,6 +52,17 @@ fn collect_state_host_calls(
     {
         match statement {
             StatementNode::Assignment(assignment) => {
+                collect_assignment_result_host_lowering(
+                    program,
+                    target,
+                    host_abi,
+                    machine,
+                    state,
+                    statement_index,
+                    assignment,
+                    &static_values,
+                    plan,
+                )?;
                 apply_static_assignment(
                     &mut static_values,
                     program,
@@ -74,6 +89,89 @@ fn collect_state_host_calls(
         }
     }
 
+    Ok(())
+}
+
+/// The assignment-RHS host-call shape: `self.t = self.clock.tick_count()`.
+/// When the assignment VALUE is a call into a boundary trait with a known
+/// platform lowering, insert a `HostCall` whose single ARGUMENT is the
+/// assignment TARGET place -- the value-returning encoder reads it as the
+/// result storage operand. A non-host call value simply falls through (the
+/// ordinary mutation machinery, or its clean blocker, handles it).
+#[allow(clippy::too_many_arguments)]
+fn collect_assignment_result_host_lowering(
+    program: &CheckedTrees,
+    target: NativeTarget,
+    host_abi: &HostAbiPlan,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    assignment: &omega_checked_trees::statement::TableAssignment,
+    static_values: &StaticValues,
+    plan: &mut HostCallPlan,
+) -> Result<(), Diagnostic> {
+    let omega_checked_trees::expression::ExpressionNode::Call(call) =
+        program.expression_table.expression(assignment.value)
+    else {
+        return Ok(());
+    };
+    let call = call.clone();
+    let Some(platform_name) = expression_platform_receiver_type(program, call.target_symbol)
+    else {
+        return Ok(());
+    };
+    let Some((lowering_handle, lowering)) =
+        find_platform_call_lowering_by_target(host_abi, &platform_name, &call.target)
+    else {
+        // A boundary call with no native lowering on this target: record it as
+        // unsupported so the report explains the gap.
+        plan.unsupported_calls.insert(UnsupportedHostCall {
+            source_key: state_key(machine, state),
+            statement_index,
+            call_ordinal: 0,
+            platform_call: format!("{platform_name}.{}", call.target.as_str()),
+            reason: UnsupportedHostCallReason::NoNativeLowering { target },
+        });
+        return Ok(());
+    };
+
+    let operations = host_abi
+        .host_operations
+        .span(lowering.operations)
+        .map(|operations| {
+            plan.operations.insert_many(
+                operations
+                    .iter()
+                    .map(|operation| host_operation(host_abi, operation.key)),
+            )
+        })
+        .unwrap_or_else(HandleSpan::empty);
+
+    // The RESULT place travels as argument[0]: the same argument lowering and
+    // operand resolution the scalar-argument ops use, read by the encoder as
+    // the store destination.
+    let mut argument_span = HandleSpan::empty();
+    plan.arguments.append_to_span(
+        &mut argument_span,
+        crate::HostCallArgument {
+            kind: lower_host_call_argument(
+                program,
+                assignment.target,
+                static_values,
+                &mut plan.expressions,
+            ),
+        },
+    );
+
+    plan.calls.insert(HostCall {
+        source_key: state_key(machine, state),
+        statement_index,
+        call_ordinal: 0,
+        lowering: lowering_handle,
+        data: lowering.data,
+        operations,
+        arguments: argument_span,
+    });
     Ok(())
 }
 

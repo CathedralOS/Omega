@@ -232,6 +232,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("generics/runtime_generic_value_call_exit", 70),
     ("generics/runtime_generic_value_call_agreeing_exit", 70),
     ("generics/runtime_generic_param_position_inference_exit", 70),
+    ("host/runtime_tick_count_monotonic_exit", 70),
     ("collections/runtime_indexed_guard_subject_exit", 70),
     ("collections/runtime_array_min_max_builtin_exit", 70),
     ("collections/runtime_dual_indexed_comparison_guard_exit", 70),

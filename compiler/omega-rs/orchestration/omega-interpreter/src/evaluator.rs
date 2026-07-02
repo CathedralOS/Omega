@@ -141,6 +141,10 @@ struct Evaluator<'program> {
     stderr: Vec<u8>,
     stdin: &'program [u8],
     stdin_cursor: usize,
+    /// Virtual monotonic tick counter for `Clock.tick_count` (advances on every
+    /// read and every `sleep`); deterministic, so tick-based programs must
+    /// assert monotonicity rather than concrete values.
+    virtual_ticks: i64,
     steps: u64,
     /// Total step allowance for this run. Full-program interpretation uses
     /// `STEP_BUDGET`; const evaluation uses the much smaller
@@ -161,6 +165,7 @@ impl<'program> Evaluator<'program> {
             stderr: Vec::new(),
             stdin,
             stdin_cursor: 0,
+            virtual_ticks: 0,
             steps: 0,
             step_budget: STEP_BUDGET,
             call_depth: 0,
@@ -1933,7 +1938,19 @@ impl<'program> Evaluator<'program> {
                 // Frame pacing: a no-op for the interpreter. Real-time delay has no
                 // effect on the deterministic state the differential oracle compares
                 // (exit code + stdout), so native and interpreter still agree.
+                // It DOES advance the virtual tick counter, so a
+                // tick-after-sleep reads strictly later than a tick-before --
+                // matching the native monotonicity a canary asserts.
+                self.virtual_ticks += 1;
                 Ok(Some(Value::Unit))
+            }
+            "tick_count" => {
+                // A VIRTUAL monotonic millisecond counter: deterministic (the
+                // differential oracle compares exit codes, and tick-based
+                // programs must assert MONOTONICITY, not values), advancing on
+                // every read and every sleep.
+                self.virtual_ticks += 1;
+                Ok(Some(Value::Int(self.virtual_ticks)))
             }
             other => unsupported(format!("host boundary call `{other}` not yet supported")),
         }
@@ -2201,8 +2218,24 @@ impl<'program> Evaluator<'program> {
         // Resolve the value-call. A bare-self receiver naming a SIBLING state of the
         // current machine runs that state; a receiver expression resolving to a contained
         // sub-machine instance runs on that instance; otherwise a free helper machine.
-        let (machine, entry_state, instance) =
-            self.resolve_value_call_target(call, target, frame)?;
+        let (machine, entry_state, instance) = match self
+            .resolve_value_call_target(call, target, frame)
+        {
+            Ok(resolution) => resolution,
+            Err(halt) => {
+                // A host-boundary VALUE call (`self.clock.tick_count()`): driven
+                // directly, like the statement-position host calls in
+                // try_host_call. User machines take precedence -- the host
+                // fallback only fires when nothing else resolves, mirroring the
+                // native collection (which keys on boundary-trait signature
+                // symbols).
+                if target == "tick_count" {
+                    self.virtual_ticks += 1;
+                    return Ok(Value::Int(self.virtual_ticks));
+                }
+                return Err(halt);
+            }
+        };
         let mut args = Vec::new();
         for argument in self
             .program
@@ -3013,6 +3046,7 @@ fn is_canonical_host_method(name: &str) -> bool {
             | "read_line"
             | "exit_process"
             | "sleep"
+            | "tick_count"
     )
 }
 

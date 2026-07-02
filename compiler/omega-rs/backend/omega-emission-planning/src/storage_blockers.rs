@@ -245,6 +245,7 @@ fn state_mutation_is_planned(
             matches!(
                 instruction.kind,
                 SelectedInstructionKind::AtomicFetchAdd { .. }
+                    | SelectedInstructionKind::HostOperation { .. }
                     | SelectedInstructionKind::AtomicCompareExchange { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }

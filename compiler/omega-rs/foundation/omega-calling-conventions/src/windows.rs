@@ -103,6 +103,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
     insert_platform_lowering(
         plan,
         "*",
+        "tick_count",
+        [host_operation("Clock", "tick_count")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
         "sleep",
         [host_operation("Clock", "sleep")],
         PlatformCallData::None,
