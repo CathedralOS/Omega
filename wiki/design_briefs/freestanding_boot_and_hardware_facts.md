@@ -41,26 +41,37 @@ data UefiHandoff {
 }
 
 boundary trait Uefi64Entry {
-    // The firmware jump target. There is no caller to prove `requires` for —
-    // the guarantees are ACCEPTED from the provider, audited against the
-    // UEFI spec. This is the axiom set everything else descends from.
+    // The firmware jump target. There is no caller to prove `requires` for.
+    // The initial machine state is an AUDITED AXIOM LIST — prose statements
+    // checked by a human against the UEFI spec and enumerated in the build
+    // artifact next to the provider, NOT typed ensures clauses:
+    //
+    //   axiom: CPU is in long mode with paging on, identity-mapped
+    //          (= the state this target's codegen assumes; audited once,
+    //          never threaded through proofs — a TARGET invariant)
+    //   axiom: interrupts are enabled at entry (so masking is an early act)
+    //   axiom: >= 128 KiB of 16-aligned stack
+    //   axiom: result.system_table points at the live EFI system table
+    //          (provenance only — the STRUCTURE is minted, sample 2)
+    //
     machine entry() -> UefiHandoff
-        ensures cpu in Cpu::LongMode
-        ensures paging_active(Identity)      // UEFI: paging on, identity-mapped
-        ensures interrupts in Irq::Enabled   // UEFI: interrupts are ON at entry
-        ensures stack.aligned<16> and stack.len >= 128 * KiB
-        ensures result.system_table.valid    // points at a live EFI system table
         effects device_io, memory_map;
 }
 ```
 
+An earlier draft wrote these axioms as typed clauses (`ensures cpu in
+Cpu::LongMode`, `ensures paging_active(Identity)`) — wishcasts: there is no
+`Cpu` value, no mint, no checker story. The trust *is* the boundary; the
+machine-checkable things downstream are mints on structures, invariants on
+values, and tokens for transitions (see the roll-up).
+
 **Forces the language to decide:**
 - The target-declaration shape for "no host" — how a build names an entry
   provider instead of a host package.
-- What an `ensures` over *machine state* (`cpu in Cpu::LongMode`,
-  `interrupts in Irq::Enabled`) even is — these are not facts about values,
-  they are facts about the world. Are they domains over distinguished
-  zero-sized state objects? A new fact kind? (See sample 4.)
+- The form of the entry axiom list: prose in the provider declaration,
+  enumerated in the boundary report like unchecked-assembly obligations —
+  probably no new mechanism beyond a doc-comment convention the artifact
+  surfaces.
 - Whether `entry()` is a machine at all — nothing calls it; hardware does. The
   same question as interrupt entry (sample 6) in its simplest form.
 
@@ -93,42 +104,44 @@ data FinalMemoryMap { entries: Vec<EfiMemoryDescriptor>; }
 boundary trait BootServices {
     // Bytes with an EMPTY invariant set: the caller must validate every
     // descriptor before use (snapshot-then-validate — cannot typecheck
-    // otherwise). The `ensures` is the audited SEMANTIC vouch: the firmware's
-    // map describes physical memory. Validation checks shape; the axiom
-    // supplies meaning.
+    // otherwise). Validation checks SHAPE. The MEANING — "this map genuinely
+    // describes physical memory" — is not a postcondition; it is the decision
+    // to trust firmware, i.e. the boundary itself. (An earlier draft wrote
+    // `ensures buffer describes_physical_memory` — a wishcast: unfalsifiable
+    // from inside; not a fact any type could hold.)
     machine get_memory_map(buffer: &mut [u8, [writable]]) -> MapKey
-        ensures buffer describes_physical_memory   // the axiom, spec-audited
         effects device_io;
 
-    // The freshness dance: succeeds only against the CURRENT map key. On
-    // success, firmware is gone and the map is final — mint the token.
+    // The freshness dance: succeeds only against the CURRENT map key —
+    // a runtime retry loop returning a sum (UEFI reality: loop until it
+    // sticks). On success, firmware is gone and the map is final: MINT THE
+    // TOKEN. FinalMemoryMap is the evidence — holding it IS "boot services
+    // have exited"; no ambient fact needed.
     machine exit_boot_services(handoff: UefiHandoff, key: MapKey)
         -> FinalMemoryMap | StaleMap
-        requires key.fresh
-        ensures  result is FinalMemoryMap implies boot_services in Efi::Exited
         effects device_io;
 }
 
 // The origin-of-authority moment: the first Region capabilities are minted
-// FROM the final map. Region is private with mint_regions the only minter, so
-// every later memory authority descends from this call, by construction.
+// FROM the final map. Region is private with mint_regions the only minter,
+// and the FinalMemoryMap token is the precondition — every later memory
+// authority descends from this call, by construction, with zero ambient
+// state consulted.
 machine mint_regions(map: FinalMemoryMap) -> Vec<Region>
-    requires boot_services in Efi::Exited
     ensures  forall r in result: r.exclusive and r.backed_by_ram
     effects  alloc;
 ```
 
 **Forces the language to decide:**
-- How a *semantic* provider vouch (`describes_physical_memory`) attaches to a
-  value the caller then validates structurally — two different fact sources on
-  one buffer.
+- ~~Two fact sources on one buffer~~ — RESOLVED: the mint supplies the
+  structural fact; the semantic "meaning" is not a fact at all, it is the
+  boundary's trust decision, enumerated in the audit trail. Facts attach where
+  they're true.
 - The `Region` minting story ch19 names open ("how a region capability is
-  constructed at boot"): private-mint + a required world-fact
-  (`Efi::Exited`) looks sufficient — confirm no new core feature is needed.
-- Whether `MapKey.fresh` — a fact invalidated by *someone else's* later call
-  to `get_memory_map` — is expressible, or the freshness stays a runtime
-  `StaleMap` retry loop with no static help (UEFI reality: loop until it
-  sticks).
+  constructed at boot"): private mint gated by the `FinalMemoryMap` evidence
+  token — CONFIRMED sufficient, no new core feature.
+- `MapKey.fresh` stays a runtime `StaleMap` retry with no static help — a
+  fact invalidated by someone else's later call is not worth a type.
 - **Runtime record stride.** The UEFI spec *forbids* striding the map array by
   `sizeof(descriptor)` — firmware may append fields; you must stride by the
   runtime `DescriptorSize` it returns. So the walk's obligation must cite the
@@ -192,20 +205,29 @@ machine uart_put(uart: &mut MmioRegion<Uart16550>, byte: u8)
 - Confirming ch19's note that volatile ordering is *not* hardware ordering —
   fences/barriers stay separate boundary machines with their own contracts.
 
-## Sample 4 — CR3, MSRs, and hardware facts that later code requires
+## Sample 4 — CR3 and MSRs: value invariants and owned state, not world facts
 
-The contract-heavy asm form (ch22) is the vehicle; the open question ch18
-names — "is 'paging enabled' a fact a provider establishes and later providers
-require?" — is the design content. The sharp detail: `mov cr3` has a real
-*requires* (the new table must map the currently-executing code, or the next
-fetch faults) that only the proof layer above can discharge.
+The open question ch18 names — "is 'paging enabled' a fact a provider
+establishes and later providers require?" — resolves **no**. Chase every
+would-be consumer of `paging_active(table)` and it wants one of two existing
+things:
+
+- *"The new table must map the currently-executing kernel code (or the next
+  fetch faults)"* — an **invariant of the table value**: every `PageTableRoot`
+  is constructed from the kernel prototype (higher-half mappings shared by
+  construction), so safety is minted where the table is *built* and
+  `load_page_table` is safe for any well-typed argument. Constrain the value,
+  don't assert the world.
+- *"Which table is live right now"* — the kernel is a program; "current X" is
+  a **field it owns**: `per_cpu.address_space`. Loading CR3 is a method on
+  that owned structure (swap + TLB maintenance as one operation — a data
+  structure maintaining its own hardware shadow). Virt↔phys translation is a
+  function of the table object you hold, not an ambient registry.
 
 ```omega
-machine load_page_table(table: PageTableRoot) 
-    requires table in PageTable::Valid
-    requires table.maps_executing_code        // or the next instruction faults
-    ensures  paging_active(table)             // a WORLD fact, not a value fact
-    effects  memory_map
+// PageTableRoot's INVARIANT carries the safety condition; minted at build.
+machine load_page_table(space: &mut per_cpu.AddressSpace, table: PageTableRoot)
+    effects memory_map
 {
     asm where
         requires table.phys.aligned<4096>
@@ -213,74 +235,60 @@ machine load_page_table(table: PageTableRoot)
     {
         mov cr3, table.phys
     }
+    space.current = table;                    // owned state, ordinary assignment
 }
 
 machine write_msr(msr: MsrId, value: u64)
     requires msr in Msr::KnownWritable        // no blind wrmsr
     effects  device_io
 {
-    asm where
-        requires target_feature<msr>
-        ensures  msr_state(msr) == value
-    {
-        wrmsr
-    }
+    asm where requires target_feature<msr> { wrmsr }
+    // No `ensures msr_state(msr) == value` — config writes are EFFECTS, not
+    // facts. Downstream code never proves things from an MSR's value; the
+    // write's consequence is hardware behavior. Tracking register state in
+    // the type system is modeling the whole machine — the wishcast line.
 }
-
-// Later code REQUIRES the established world fact:
-machine map_kernel_heap(...) 
-    requires paging_active(kernel_table)
-    ...
 ```
 
 **Forces the language to decide:**
-- **World facts as first-class:** `paging_active(table)`, `msr_state(msr)`,
-  `interrupts in Irq::Masked` are facts about machine state — established by
-  one machine's `ensures`, required by another's `requires`, *invalidated* by
-  a third (the next `load_page_table` kills the old `paging_active`). That is
-  affine/state-like fact flow, not value invariants. This is the single
-  biggest gap the samples surface — nothing in the current fact system holds,
-  threads, or revokes a global machine-state fact.
 - `clobbers tlb` — clobber vocabulary beyond registers (TLB, caches, pipeline
-  serialization).
-- `table.maps_executing_code` — a proof obligation relating a data structure
-  (the page table) to the *current instruction pointer*. Stateable? Or is this
-  exactly where a human `boundary` assertion is honest?
+  serialization). The one genuine ask left in this sample.
+- Nothing else: no world-fact machinery, no `maps_executing_code` obligation
+  against the instruction pointer (dissolved into the table type's
+  construction invariant).
 
-## Sample 5 — interrupt masking: a bracketed world fact
+## Sample 5 — interrupt masking: an evidence token
 
 UEFI hands over with interrupts *enabled*, so masking is among the first real
-acts. "This sequence masks interrupts until the matching unmask" is a
-*scoped* world fact — the ch21 provenance pattern again, plus drop-semantics.
+acts. "This sequence masks interrupts until the matching unmask" is a *scoped*
+machine-state transition — and the ch21 provenance pattern plus drop-semantics
+carries it whole. No typed "world fact" anywhere: the token IS the fact.
 
 ```omega
-// IrqGuard is private; mask() is its only minter. Holding it IS the fact
-// "interrupts are masked". Dropping it (or unmask()) revokes the fact.
+// IrqGuard is private; mask() is its only minter. Holding it IS
+// "interrupts are masked". Dropping it (or unmask()) revokes it.
 machine mask() -> IrqGuard
-    ensures interrupts in Irq::Masked
     effects device_io
 {
-    asm where ensures interrupts in Irq::Masked { cli }
+    asm { cli }        // the asm's contract is the instruction's; the FACT
+                       // lives in the minted token, not an ensures clause
 }
 
 machine unmask(guard: IrqGuard)
-    ensures interrupts in Irq::Enabled
     effects device_io
 {
-    asm where ensures interrupts in Irq::Enabled { sti }
+    asm { sti }
 }
 
 // A machine that must not be preempted takes the guard as evidence:
 machine switch_context(guard: &IrqGuard, ...) ...
 ```
 
-**Forces the language to decide:**
-- Whether holding-a-value-as-evidence-of-a-world-fact (the guard) is *the*
-  blessed encoding of scoped machine state — it composes with ownership (the
-  fact dies when the guard drops) and needs no new core feature — or whether
-  world facts (sample 4) need their own tracking and the guard is sugar.
-- Nesting/re-entrancy: two guards, the inner unmask must not unmask — a
-  counting guard is a library answer *if* the evidence pattern is blessed.
+**Resolved (was open):** evidence-as-fact IS the blessed encoding of scoped
+machine state — it composes with ownership (the fact dies when the guard
+drops) and needs no new core feature. Nesting/re-entrancy (the inner unmask
+must not unmask) is a counting guard — a library answer, now that the pattern
+is blessed.
 
 ## Sample 6 — interrupt entry: hardware calls a machine (mostly a question)
 
@@ -290,22 +298,20 @@ enter the state graph.
 
 ```omega
 boundary trait InterruptEntry {
-    // The provider declares what the CPU did before our first instruction:
-    // what is on the stack, what is masked, alignment. The handler machine is
-    // entered with a typed frame minted by the vector stub.
-    machine on_vector(vector: u8, frame: &mut TrapFrame)
-        // Accepted, not proved: the CPU pushed this frame and masked delivery
-        // for this vector before we ran. We cannot prove what hardware did.
-        ensures interrupts in Irq::Masked        // arrived with delivery off
-        ensures frame.saved_rip.valid
+    // The provider's axiom list (prose, audited against the SDM, enumerated
+    // in the artifact — same form as sample 1's entry axioms):
+    //   axiom: the CPU pushed this frame and masked delivery for this vector
+    //          before our first instruction
+    // The vector stub mints BOTH values: the typed frame AND an IrqGuard —
+    // "arrived masked" is evidence the handler HOLDS, not a clause.
+    machine on_vector(vector: u8, frame: &mut TrapFrame, guard: IrqGuard)
         effects device_io;
 }
 
-// A concrete handler is ordinary proved Omega — but note what it CANNOT assume:
-// the code it interrupted holds borrows and world facts this handler did not
-// establish. `&mut self` on a preempted machine is the open wound.
-machine timer_tick(entry: &InterruptEntry, frame: &mut TrapFrame)
-    requires interrupts in Irq::Masked           // handler runs masked
+// A concrete handler is ordinary proved Omega — but note what it CANNOT
+// assume: the code it interrupted holds borrows this handler did not make.
+// `&mut self` on a preempted machine is the open wound.
+machine timer_tick(frame: &mut TrapFrame, guard: &IrqGuard)   // masked: evidenced
     effects device_io
 {
     // ... acknowledge the interrupt controller, bump the tick, maybe reschedule
@@ -316,64 +322,107 @@ machine timer_tick(entry: &InterruptEntry, frame: &mut TrapFrame)
 **Forces the language to decide:**
 - The **entry convention**: hardware, not a caller, transfers control — sample
   1's `entry()` shape again, but re-entrant and mid-execution. The vector stub
-  (asm) mints the typed `TrapFrame` and calls the handler machine — is that
-  stub expressible, or is it irreducibly a hand-audited boundary blob?
+  (asm) mints the typed `TrapFrame` + `IrqGuard` and calls the handler machine
+  — is that stub expressible, or is it irreducibly a hand-audited boundary
+  blob?
 - **The `&mut self`-under-preemption question ch18 flags directly:** a handler
   runs *inside* another machine's execution. What happens to the interrupted
-  machine's in-flight borrows and its established world facts (sample 4)? The
-  honest answer is probably "the affected region ran under sample 5's mask
-  guard, so no machine is preempted mid-borrow" — which means **world facts and
-  the borrow checker together define what an interrupt may touch.** A real
-  interaction to design, not a stub.
+  machine's in-flight borrows? The honest answer is probably "the affected
+  region ran under sample 5's mask guard, so no machine is preempted
+  mid-borrow" — which means **guard tokens and the borrow checker together
+  define what an interrupt may touch.** A real interaction to design, not a
+  stub.
 - Whether nested/prioritized interrupts are a language concern or pure runtime
   config (interrupt-controller priorities).
 
 ## What the six samples force, rolled up
 
-Boot does not want a new `unsafe` regime. Across all six samples, exactly **one
-genuinely new fact kind** recurs; everything else is existing machinery pointed
-at hardware.
+Boot does not want a new `unsafe` regime — **and it does not want world facts
+either.** The first draft of this brief named "world facts" (ambient
+machine-state predicates established/required/revoked across machines) as its
+#1 gap. Deflated 2026-07-02: chase every would-be consumer and it wants one of
+four **existing** things. Nothing true is ambient.
 
-**The one real gap — world facts.** `cpu in Cpu::LongMode`,
-`paging_active(table)`, `interrupts in Irq::Masked`, `boot_services in
-Efi::Exited`, `msr_state(msr) == v` are facts about *machine state*, not about
-values. They are **established** by one machine's `ensures`, **required** by
-another's `requires`, and **invalidated** by a third (the next
-`load_page_table` kills the prior `paging_active`; `unmask` kills
-`Irq::Masked`). That is affine/state-threaded fact flow — nothing in the
-current value-invariant system holds, threads, or revokes a global state fact.
-This is the load-bearing decision the brief exists to surface. The candidate
-encoding that needs no new core feature: **hold-a-value-as-evidence** (sample
-5's `IrqGuard`) — a private-minted token whose ownership *is* the fact, so
-ownership/drop already gives establish/revoke. Whether that also covers the
-*non-scoped* facts (`paging_active` has no natural guard lifetime) or those
-need first-class world-fact tracking is the question to answer first.
-
-| Sample | Mechanism exercised | New language ask? |
+| Would-be "world fact" | Actual consumer need | Mechanism (exists) |
 |---|---|---|
-| 1 Entry provider | `boundary trait`, `ensures` over world state, no-host target | Target-decl for "no host"; world-fact `ensures` → **the gap** |
-| 2 Memory map | untrusted-bytes validation + semantic vouch; private-mint Region | Two fact sources on one buffer; `MapKey.fresh` — mostly existing |
+| `boot_services in Efi::Exited` | gate `mint_regions` | **evidence token** (`FinalMemoryMap` — private mint; holding it is the fact) |
+| `interrupts in Irq::Masked` | non-preemptible sections | **evidence token** (`IrqGuard`, threaded as a borrow; drop = revoke) |
+| `cpu in Cpu::LongMode` | every instruction | **target invariant** — the state codegen assumes; audited once at the entry boundary, never threaded |
+| `msr_state(msr) == v` | ~nobody as a premise | config writes are **effects, not facts**; consequences are hardware behavior, not propositions |
+| `paging_active(table)` | table safety; "what's live" | **value invariant** (tables built from the kernel prototype) + **owned state** (`per_cpu.address_space`) |
+
+The residue at the entry boundary is an **audited axiom list** — prose checked
+by a human against the spec, enumerated in the build artifact next to the
+provider (the same visibility discipline as unchecked-assembly obligations) —
+never typed `ensures` clauses pretending to flow. The wishcast to guard
+against: writing a machine-state predicate as if some value carried it.
+
+| Sample | Mechanism exercised | Remaining language ask |
+|---|---|---|
+| 1 Entry provider | boundary trait + audited axiom list | target-decl for "no host"; axiom-list surfacing in the artifact |
+| 2 Memory map | mint for shape, boundary for trust; token-gated Region mint | none new (`MapKey.fresh` stays a runtime retry) |
 | 3 MMIO / volatile | boundary operators, volatile contracts | `exactly_once` / `ordered_within` = contracts on *lowering* — new contract kind |
-| 4 CR3 / MSR | contract-heavy asm, established world facts | **World facts → the gap**; `clobbers tlb` vocabulary |
-| 5 IRQ mask | provenance guard = scoped world fact | Bless evidence-as-fact, or world facts need own tracking |
-| 6 IRQ entry | hardware-enters-machine; `&mut self` under preemption | Entry convention; borrow × world-fact under preemption |
+| 4 CR3 / MSR | value invariants + owned per-CPU state | `clobbers tlb` — clobber vocabulary beyond registers |
+| 5 IRQ mask | evidence token (blessed) | none — counting guards are a library |
+| 6 IRQ entry | vector stub mints frame + guard | entry convention; borrow-checker × preemption interaction |
 
-Everything not in the "the gap" rows is either the **existing provenance
-pattern** (private type + single minter = "holding this proves how it was
-obtained", already used for `IrqCtx` in ch21) or the **existing boundary/asm
-machinery** (ch18 providers, ch22 instruction contracts, ch19 volatile) simply
-declaring hardware axioms instead of OS ones.
+Everything above is the **existing provenance pattern** (private type + single
+minter, ch21's `IrqCtx`) or the **existing boundary/asm machinery** (ch18
+providers, ch22 instruction contracts, ch19 volatile) declaring hardware
+axioms instead of OS ones — plus the layout-policy machinery
+(`programmable_layouts.md`) for every foreign struct in the chain.
 
-**Sequencing.** None of this blocks current compiler work. It should be
-*designed* before the freestanding target and interrupt model are implemented,
-because the world-fact representation is shared with ordinary `requires` /
-`ensures` and constrains the fact system as a whole. Recommended first move:
-take up **world facts** as its own fact-system decision, with the
-evidence-token pattern as the leading candidate and `paging_active` (the
-unscoped case) as the test that decides whether tokens suffice.
+**Sequencing.** None of this blocks current compiler work. The remaining asks
+are the no-host target/entry spelling, the lowering-contract vocabulary
+(volatile, clobbers), and the interrupt-entry convention — all scoped to the
+freestanding target arc.
+
+## The firmware seam: one UEFI-subset contract, two implementations
+
+Decided direction (2026-07-02): the boot handoff is **UEFI-shaped on every
+path**, and who implements the firmware side varies:
+
+- **Commodity x86:** vendor UEFI → Cathedral. Works everywhere; uses exactly
+  the glue in samples 1–2.
+- **Reference x86:** coreboot (+ the vendor FSP blob for DRAM init —
+  immovable) → **Omega UEFI payload** → Cathedral. The payload slot exists
+  today (coreboot's `UefiPayloadPkg` pattern).
+- **Reference ARM:** open init → Omega UEFI. Proven territory: U-Boot's
+  `EFI_LOADER` is precisely a small to-spec UEFI surface over one's own
+  firmware, shipping in products.
+
+The kernel side is **identical on all paths and honors the boundary
+identically** — mints the tables, validates the map, trusts nothing
+structurally, with no "it's our firmware, skip validation" special case (that
+would be a sandbox-escape in boot clothing). What varies is the *residual risk
+behind the same boundary*: audited prose about vendor C vs proved Omega. And
+"did we implement the spec right" becomes **differentially testable** — boot
+the same kernel against vendor UEFI and ours; divergence = someone misread the
+spec.
+
+What the Omega implementation buys beyond boot: **runtime services in proved
+Omega** (vendor UEFI runtime services are foreign code the OS must keep mapped
+and callable forever — a classic persistent attack surface); **no ACPI/AML on
+the reference platform** (static tables instead of a firmware bytecode
+interpreter in the TCB); the measured chain rooted in our key from near-reset;
+and the reference firmware boots other OSes (Linux's EFI stub is just another
+loader), keeping it independently testable.
+
+What it costs, honestly: the **bounded C-ABI export table** — implementing
+UEFI puts Omega on the *provider* side of a C function-pointer table (~40
+compile-time-known entries a foreign loader calls at MS-x64). This is the
+bounded version of the callback problem the extern brief deliberately scoped
+out: a static export table (a `provides` mapping in reverse — each entry = one
+Omega machine + a declared C-ABI contract + a compiler-emitted thunk), not
+general first-class function pointers. Plus boot-time storage drivers on our
+side, and a firmware fork's maintenance tail. DRAM init stays a vendor blob on
+x86 regardless; ME/PSP sit below everything either way.
 
 ## Status
 
-THEORETICAL — worked samples to force the encounter, not decisions. Feeds
-Tier-1 item 7 in `cathedral_alignment.md`. When world facts get a real design
-call, record it in TASKS.md and collapse the relevant rows above.
+THEORETICAL samples; the world-facts deflation, the evidence-token blessing,
+and the firmware-seam direction are SETTLED (2026-07-02). Feeds Tier-1 item 7
+in `cathedral_alignment.md`. Remaining open: no-host target + entry spelling,
+lowering-contract vocabulary, interrupt-entry convention, the bounded C-ABI
+export table (extern-brief adjacent), and — Cathedral-side, un-owned by any
+chapter — the ACPI/AML question on the commodity path.

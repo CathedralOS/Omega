@@ -113,15 +113,18 @@ implementation work. Each one gets more expensive to retrofit every month.
    samples walk a UEFI x86-64 handoff (entry provider → memory-map exit dance →
    MMIO/volatile → CR3/MSR → interrupt mask → interrupt entry). They surface
    that boot needs **no new `unsafe` regime** — every act is a declared axiom at
-   an enumerable boundary — and that the *one* genuinely new language ask is
-   **world facts**: machine-state facts (`paging_active`, `interrupts in
-   Irq::Masked`, `boot_services in Efi::Exited`) that are established, required,
-   and *revoked* across machines — affine/state-threaded, unlike value
-   invariants. Leading candidate encoding is the ch21 evidence-token pattern
-   (private-mint guard whose ownership IS the fact); the open test is the
-   unscoped `paging_active` case. Design world facts before implementing the
-   freestanding target — the representation is shared with ordinary
-   `requires`/`ensures`.
+   an enumerable boundary — and (after deflating the first draft's "world
+   facts" ask) **no new fact kind either**: every machine-state predicate
+   resolves to an existing mechanism — evidence tokens (`IrqGuard`,
+   `FinalMemoryMap`), value invariants (page tables built from the kernel
+   prototype), owned per-CPU state, or a one-time audited axiom list at the
+   entry boundary. Foreign structs ride the layout-policy machinery
+   (`programmable_layouts.md`). Remaining asks: no-host target + entry
+   spelling, lowering-contract vocabulary (volatile `exactly_once`,
+   `clobbers tlb`), interrupt-entry convention, and the **bounded C-ABI export
+   table** for the firmware seam (one UEFI-subset contract; vendor firmware on
+   commodity hardware, an Omega UEFI payload on reference platforms — see the
+   brief's firmware-seam section).
 
 8. **Case members (sum/mixed data shapes)** — SUM SHAPES IMPLEMENTED
    (2026-06-10): `case` members with named payloads parse, validate,
