@@ -11188,6 +11188,34 @@ fn runtime_indexed_guard_subject_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_generic_value_call_agreeing_exit_canary_runs() {
+    // Two value calls to one generic machine with AGREEING instantiations (both T := i32 in
+    // Wrapping): the conflict detector must not fire and both results materialize. 30+40 -> 70.
+    let canary = pass_canary("generics/runtime_generic_value_call_agreeing_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gen-agree-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("agreeing generic value calls canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("agreeing generic value calls canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected two agreeing generic value calls to both materialize (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_generic_value_call_exit_canary_runs() {
     // A monomorphized generic VALUE call: `let v: i32 in Wrapping = self.id(70)` with
     // `id<T>(x: T) -> T`. Used to silently return 0 natively; the monomorphization pass now infers
@@ -17582,6 +17610,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/runtime_generic_record_instance_exit",
     "generics/runtime_generic_enum_payload_exit",
     "generics/runtime_generic_value_call_exit",
+    "generics/runtime_generic_value_call_agreeing_exit",
     "inline_asm/asm_block_jmp_state",
     "memory/abi_calling_convention_machine",
     "memory/repr_native_stable_layout",
