@@ -33,7 +33,7 @@ x64, the `.s` + `.lst` for arm64), checking that each opcode realizes the transi
 instructions. `conformance.sh` mechanically checks the runtime behavior against the spec
 (`sh conformance.sh` runs the host seed through every case).
 
-## Two independent implementations = a real diamond
+## Independent implementations = a real diamond
 
 The x64 and arm64 seeds are **independently hand-authored** (different ISA, OS, executable
 format, and author). They are not transcriptions of each other — they are two
@@ -44,6 +44,15 @@ disagreement would expose a bug (or a Thompson backdoor) in one of them. This is
 than bolted on later. Verified: the arm64 macOS VM reproduces the x64 VM's assembler
 bytecode from `../beta/assembler.alpha` byte-for-byte (sha256 `945c8061…`), and the full
 example corpus runs to the same answers on both.
+
+**Third point — `alpha_ref.py`.** The two seeds are hand-authored *assembly*, hard to audit.
+`alpha_ref.py` is a third, independent realization of the same semantics in ~150 lines of
+Python, written straight from `SEMANTICS.md` and short enough to read line by line against
+it. It is **UNTRUSTED and checked** (like `../beta-lang-py/bc2.py`): `diamond-py.sh` runs
+opcode edges (signedness, traps, EOF) *and* real bc-compiled programs through both the host
+seed and `alpha_ref.py` and asserts they agree — so the semantics is now pinned by two opaque
+seeds *and* one auditable reference. The runtime lineage never runs `alpha_ref.py`; it is a
+verification instrument that makes the seed diamond a triple. Run `sh diamond-py.sh`.
 
 macOS note: `dd`-stamping a tape into a Mach-O invalidates its code signature, and Apple
 Silicon refuses to exec an invalid one, so a stamped seed is re-signed (`codesign -f -s -`)
