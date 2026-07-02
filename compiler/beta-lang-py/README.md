@@ -37,8 +37,8 @@ the official self-host fixed point.
 | 1 | single `proc main()`, `let` locals, assignment, `+ - * / %` with parens/precedence, `return` | ✅ |
 | 2 | the six comparisons (materialised 0/1) + `state`/`to..when` CFG control flow (loops) | ✅ |
 | 3 | procedures, parameters, calls, recursion (args r0..r3, callee spills to frame) | ✅ |
-| — | `byte[]`/`word[]` memory | next |
-| — | char literals, `read_byte`/`write_byte`, call statements | |
+| 4 | `byte[]`/`word[]` memory — `load`/`loadb`/`store`/`storeb` | ✅ |
+| — | char literals, `read_byte`/`write_byte`, call statements | next |
 | — | string literals via `emit("...")` | |
 | ⇒ | **compile `bc.beta` → true diverse double compilation of `bc`** | goal |
 
