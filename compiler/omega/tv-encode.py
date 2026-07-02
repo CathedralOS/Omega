@@ -172,9 +172,24 @@ def inline(e, binds):
         return inline(binds[e], binds) if e in binds else e
     return [e[0]] + [inline(x, binds) for x in e[1:]]
 
+MAXLOCALS = 4   # loop-carried locals: nested-Pair packing depth stays small enough for the arena
+
+# N loop-carried locals pack right-nested: P = Pair(l0, Pair(l1, ..., Pair(l_{N-2}, l_{N-1}))).
+def pack(terms):
+    t = terms[-1]
+    for x in reversed(terms[:-1]):
+        t = f'(k 4 {x} {t})'
+    return t
+
+def proj(k, n, base):                     # delta term selecting local k out of an n-tuple rooted at `base`
+    t = base
+    for _ in range(k):
+        t = f'(f 43 {t})'                 # snd
+    return t if k == n - 1 else f'(f 42 {t})'   # innermost is snd^{n-1}; earlier ones take fst
+
 def encode_loop(defs, call, claimed):
     dmap = {d[1]: d for d in defs}
-    # entry: (let init...)* -> (guard i0 i1)
+    # entry: (let init...)* -> (guard i0 .. i_{n-1})
     entry = dmap.get(call[0])
     if entry is None:
         sys.exit(2)
@@ -183,44 +198,45 @@ def encode_loop(defs, call, claimed):
         sys.exit(2)
     guard_name = etail[0]
     init = [val(inline(a, ebinds), {}) for a in etail[1:]]
-    if len(init) != 2:
-        sys.exit(2)                                        # scope: exactly two loop-carried locals
-    # guard state: (if COND (body l0 l1) (exit l0 l1))
+    n = len(init)
+    if n < 1 or n > MAXLOCALS:
+        sys.exit(2)
+    # guard state: (if COND (body l..) (exit l..))
     gdef = dmap[guard_name]
     params = gdef[2]
     gbody = gdef[3]
-    if len(params) != 2 or not (isinstance(gbody, list) and gbody[0] == 'if'):
+    if len(params) != n or not (isinstance(gbody, list) and gbody[0] == 'if'):
         sys.exit(2)
     cond, then_call, else_call = gbody[1], gbody[2], gbody[3]
     body_name, exit_name = then_call[0], else_call[0]
     if body_name not in dmap or exit_name not in dmap:
         sys.exit(2)
-    # body state: (let step...)* -> (guard n0 n1)
+    # body state: (let step...)* -> (guard n0 .. n_{n-1})
     bbinds, btail = flatten_lets(dmap[body_name][3])
-    if not (isinstance(btail, list) and btail[0] == guard_name and len(btail) == 3):
+    if not (isinstance(btail, list) and btail[0] == guard_name and len(btail) == n + 1):
         sys.exit(2)
     newl = [inline(a, bbinds) for a in btail[1:]]           # next loop-var exprs over params
     exitexpr = dmap[exit_name][3]                          # returned expression over params
-    p0, p1 = params
     # abstract-execute over the concrete initial literals: trip count + bounds-check every step
-    cur = {p0: init[0], p1: init[1]}
+    cur = {params[k]: init[k] for k in range(n)}
     trips = 0
     while val(cond, cur) == 1:
-        cur = {p0: val(newl[0], cur), p1: val(newl[1], cur)}
+        cur = {params[k]: val(newl[k], cur) for k in range(n)}
         trips += 1
         if trips > MAXV:
             sys.exit(2)                                    # runaway / not a bounded loop in range
     val(exitexpr, cur)                                     # bounds-check the exit value too
     fuel = trips + 2                                       # safe over-estimate; guard decides termination
-    # delta terms: p = (y 0) inside loopfn ; inside brancher the pair is snd of (y 0)=Pair(f,p)
-    env_p = {p0: '(f 42 (y 0))',        p1: '(f 43 (y 0))'}
-    env_s = {p0: '(f 42 (f 43 (y 0)))', p1: '(f 43 (f 43 (y 0)))'}
+    # delta terms: inside loopfn the tuple is p=(y 0) ; inside brancher it is snd of (y 0)=Pair(f,p)
+    env_p = {params[k]: proj(k, n, '(y 0)')        for k in range(n)}
+    env_s = {params[k]: proj(k, n, '(f 43 (y 0))') for k in range(n)}
+    newpack = pack([tr(newl[k], env_s) for k in range(n)])
     prelude = (PRELUDE + LOOP_EXTRA + " "
-        f"(fun 44 2 {tr(exitexpr, env_p)}) "                                  # fuel=Z  -> exit(p)  (unreached)
-        f"(fun 44 3 (f 45 {tr(cond, env_p)} (k 4 (v 0) (y 0)))) "             # loopfn(S f,p)=brancher(guard p, Pair(f,p))
-        f"(fun 45 2 {tr(exitexpr, env_s)}) "                                  # guard false -> exit(snd fp)
-        f"(fun 45 3 (f 44 (f 42 (y 0)) (k 4 {tr(newl[0], env_s)} {tr(newl[1], env_s)})))")  # guard true -> loopfn(f, body p)
-    term = f'(f 44 {unary(fuel)} (k 4 {unary(init[0])} {unary(init[1])}))'
+        f"(fun 44 2 {tr(exitexpr, env_p)}) "                             # fuel=Z  -> exit(p)  (unreached)
+        f"(fun 44 3 (f 45 {tr(cond, env_p)} (k 4 (v 0) (y 0)))) "        # loopfn(S f,p)=brancher(guard p, Pair(f,p))
+        f"(fun 45 2 {tr(exitexpr, env_s)}) "                            # guard false -> exit(snd fp)
+        f"(fun 45 3 (f 44 (f 42 (y 0)) {newpack}))")                     # guard true -> loopfn(f, body p)
+    term = f'(f 44 {unary(fuel)} {pack([unary(v) for v in init])})'
     e = unary(claimed)
     print(f'{prelude} (= {term} {e}) (refl {e})')
 
