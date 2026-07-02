@@ -148,6 +148,13 @@ class Parser:
                 cond = self.expr()
                 self.expect('op', ')')
             return ('goto', target, cond)
+        if t[0] == 'word' and t[1] in ('word', 'byte') and self.toks[self.i + 1] == ('op', '['):
+            kind = self.nxt()[1]                       # memory write: word[addr] = val / byte[addr] = val
+            self.expect('op', '[')
+            addr = self.expr()
+            self.expect('op', ']')
+            self.expect('op', '=')
+            return ('memset', kind, addr, self.expr())
         if t[0] == 'word':                             # assignment: name = expr
             name = self.nxt()[1]
             self.expect('op', '=')
@@ -183,6 +190,11 @@ class Parser:
         if t[0] == 'num':
             return ('num', t[1])
         if t[0] == 'word':
+            if t[1] in ('word', 'byte') and self.peek() == ('op', '['):   # memory read
+                self.nxt()
+                addr = self.expr()
+                self.expect('op', ']')
+                return ('mem', t[1], addr)
             if self.peek() == ('op', '('):             # call: name ( args )
                 self.nxt()
                 args = []
@@ -283,6 +295,18 @@ class Gen:
             self.expr(s[1], slots)                        # value -> r0
             self.epilogue()
             return
+        if s[0] == 'memset':                              # word[addr] = val  /  byte[addr] = val
+            _, kind, addr, val = s
+            self.expr(addr, slots)                        # addr -> r0
+            self.emit('imm   r2, 8')                      # push addr
+            self.emit('sub   r15, r2')
+            self.emit('store r15, r0')
+            self.expr(val, slots)                         # val -> r0
+            self.emit('load  r1, r15')                    # pop addr -> r1
+            self.emit('imm   r5, 8')
+            self.emit('add   r15, r5')
+            self.emit(f'{"store" if kind == "word" else "storeb"} r1, r0')
+            return
         if s[0] == 'goto':                                # to STATE [when (cond)]
             _, target, cond = s
             dest = f'{self.curproc}__{target}'
@@ -306,6 +330,11 @@ class Gen:
             self.emit(f'imm   r1, {self.off(slots, e[1])}')
             self.emit('sub   r0, r1')
             self.emit('load  r0, r0')
+            return
+        if e[0] == 'mem':                                 # word[addr] / byte[addr] read
+            _, kind, addr = e
+            self.expr(addr, slots)                        # addr -> r0
+            self.emit(f'{"load " if kind == "word" else "loadb"} r0, r0')
             return
         if e[0] == 'call':                                # name(args): push args L->R, pop reverse to r0..
             _, name, args = e

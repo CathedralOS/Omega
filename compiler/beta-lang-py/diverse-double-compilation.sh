@@ -118,6 +118,26 @@ ddc "recursive gcd"   12 'proc gcd(a, b) {
 proc main() { return gcd(48, 36) }'
 ddc "four params"    100 'proc sum4(a, b, c, d) { return a + b + c + d }
 proc main() { return sum4(10, 20, 30, 40) }'
+# slice 4 — byte[]/word[] memory
+ddc "word roundtrip"  42 'proc main() {
+    let buf = 2097152
+    word[buf] = 42
+    return word[buf]
+}'
+ddc "byte truncation"  1 'proc main() {
+    let buf = 2097152
+    byte[buf] = 257
+    return byte[buf]
+}'
+ddc "buffer accumulate" 15 'proc main() {
+    let buf = 2097152
+    let i = 0
+    state fill { to body when (i < 5)  to go }
+    state body { word[buf + i * 8] = i + 1  i = i + 1  to fill }
+    state go { let s = 0  let j = 0  to loop }
+    state loop { to add when (j < 5)  return s }
+    state add { s = s + word[buf + j * 8]  j = j + 1  to loop }
+}'
 
 echo "diverse double compilation (bc2.py — independent Rust-free Beta front-end — agrees with the on-ramp, both assembled + run): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
