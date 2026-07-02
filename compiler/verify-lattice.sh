@@ -60,6 +60,7 @@ step() {  # label dir script [extra dep dirs...]
 
 step "alpha — seed (provenance + behavior + diamond)" alpha       verify.sh
 step "alpha — 3rd VM: independent Python reference agrees (deepens the Thompson root)" alpha diamond-py.sh
+step "alpha — VM FUZZ: seed vs reference over random arithmetic tapes (signedness/wraparound/traps)" alpha vm-fuzz.sh
 step "beta  — assembler self-hosts"                   beta        selfhost.sh
 step "Beta  — language compiler (on-ramp) + corpus"   beta-lang-rs test.sh
 step "bc    — Beta compiler in Beta self-hosts"       beta-lang   selfhost.sh
