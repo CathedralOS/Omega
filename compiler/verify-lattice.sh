@@ -72,7 +72,7 @@ step "floor — INDEPENDENT: bc2.py->asm_ref.py->alpha_ref.py == the whole linea
 step "bc    — EXHAUSTIVE I/O: interpret == compile+run over ALL 256 input bytes per program" beta-lang-py beta-io-exhaust.sh beta-lang-rs beta
 step "delta — certificate checker"                    delta       test.sh
 step "delta — soundness battery (no false proof)"     delta       soundness.sh
-step "delta — TRUST-ANCHOR DIAMOND: independent check_ref.py agrees on first-order logic + equality" delta check-ref-diamond.sh beta-lang-rs beta
+step "delta — TRUST-ANCHOR DIAMOND: independent check_ref.py agrees on logic + equality + TV certs" delta check-ref-diamond.sh beta-lang-rs beta
 step "gamma — reference interpreter (ADTs + match)"   gamma       test-interp.sh
 step "gamma — MEANING DIAMOND: independent gamma_ref.py agrees with interp.beta (fuzz)" gamma gamma-diamond-py.sh beta-lang-rs beta
 step "gamma — static type checker"                    gamma       test-typeck.sh

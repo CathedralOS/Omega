@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # TRUST-ANCHOR DIAMOND, independent point — an auditable reference checker (check_ref.py) agrees with
-# check.beta on first-order logic (propositional + All/Exists) + equality-conversion.
+# check.beta on logic (propositional + first-order), equality-conversion, and the TV cert language.
 #
 # The checker is the trust anchor: it decides which proofs are valid. Its two implementations — check.beta
 # (in Beta) and checker.gamma (in Gamma) — are diamonded against each other, but BOTH are lattice-lineage
@@ -8,10 +8,11 @@
 # propositional natural deduction (->, &, +, bot intro+elim) the first-order rules (All/Exists with de
 # Bruijn: gen/inst/wit/unpack, capture-avoiding), AND equality by CONVERSION (refl + a Peano p/m normalizer,
 # so `(= a b)` accepts iff a and b reduce to the same normal form), short enough to read against the rules.
-# This gate fuzzes it against check.beta on random first-order + arithmetic-equality proofs, requiring identical accept/reject (both accept a proof
+# This gate fuzzes it against check.beta on random proofs across all four categories — propositional,
+# first-order, equality-conversion, and USER-FUNCTION arithmetic certificates (the actual TV cert language) — requiring identical accept/reject (both accept a proof
 # against its true goal; both reject it against a perturbed, wrong-type goal). So the LOGIC + equality of the
 # trust anchor are pinned by an independent, auditable implementation — the last rung to get one. UNTRUSTED and
-# checked; the runtime never runs it. (User-function reduction / induction remain check.beta-only, later slices.)
+# checked; the runtime never runs it. (Only induction remains check.beta-only, a later slice.)
 set -e
 cd "$(dirname "$0")"
 command -v python3 >/dev/null 2>&1 || { echo "check-ref diamond: skipped (python3 absent)"; exit 0; }
@@ -24,7 +25,7 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
   && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1 || { echo "check-ref diamond: check.beta build failed"; exit 1; }
 
 if python3 check-ref-fuzz.py "$T/check.exe" "${1:-200}" > "$T/out" 2>&1; then
-  echo "trust-anchor diamond (independent check_ref.py agrees with check.beta on first-order logic + equality-conversion proofs): $(cat "$T/out")"
+  echo "trust-anchor diamond (independent check_ref.py agrees with check.beta on logic + equality + TV-certificate proofs): $(cat "$T/out")"
 else
   echo "trust-anchor diamond FAILED:"; cat "$T/out"; exit 1
 fi

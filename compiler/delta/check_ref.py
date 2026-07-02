@@ -39,32 +39,75 @@ def parse_all(s):
         node, i = parse(ts, i); out.append(node)
     return out
 
-# ---- definitional equality: normalize built-in Peano arithmetic terms, then compare -------------
-# Terms:  z | (s t) | (p a b)=plus | (m a b)=times | (v i)=Ivar (free, already normal).  The `refl` proof
-# and the conversion rule make equality props `(= a b)` accept when a and b reduce to the same normal form.
-sys.setrecursionlimit(100000)
+# ---- definitional equality: normalize (Peano + USER FUNCTIONS), then compare --------------------
+# Terms:  z | (s t) | (p a b)=plus | (m a b)=times | (v i)=Ivar/pattern-var | (k cid arg..)=constructor
+#       | (f fid arg [extra])=user-function application.  Declarations `(data cid ..)` / `(fun fid cid body)`
+# populate FUNS. The `refl` proof + the conversion rule make `(= a b)` accept when a,b reduce to one form.
+# This is exactly the machinery the translation-validation certificates use, so check_ref can validate them.
+sys.setrecursionlimit(200000)
+FUNS = {}                                              # (fid, cid) -> rule body ; from (fun fid cid body)
+FUEL = 2_000_000
 
-def normalize(t):
-    if not isinstance(t, list):
-        return t                                       # z (or any atom)
+def normalize(t, fuel=FUEL):
+    if not isinstance(t, list) or fuel <= 0:
+        return t                                       # z / atom / out of fuel (stuck)
     h = t[0]
     if h == 's':
-        return ['s', normalize(t[1])]
+        return ['s', normalize(t[1], fuel - 1)]
     if h == 'p':                                       # plus:  0+b=b ; (s a)+b = s(a+b)
-        a = normalize(t[1])
+        a = normalize(t[1], fuel - 1)
         if a == 'z':
-            return normalize(t[2])
+            return normalize(t[2], fuel - 1)
         if isinstance(a, list) and a[0] == 's':
-            return ['s', normalize(['p', a[1], t[2]])]
-        return ['p', a, normalize(t[2])]               # stuck (open) — stays normal
+            return ['s', normalize(['p', a[1], t[2]], fuel - 1)]
+        return ['p', a, normalize(t[2], fuel - 1)]     # stuck (open) — stays normal
     if h == 'm':                                       # times: 0*b=0 ; (s a)*b = b + a*b
-        a = normalize(t[1])
+        a = normalize(t[1], fuel - 1)
         if a == 'z':
             return 'z'
         if isinstance(a, list) and a[0] == 's':
-            return normalize(['p', t[2], ['m', a[1], t[2]]])
-        return ['m', a, normalize(t[2])]
+            return normalize(['p', t[2], ['m', a[1], t[2]]], fuel - 1)
+        return ['m', a, normalize(t[2], fuel - 1)]
+    if h == 'k':                                       # constructor value: normalize its fields
+        return ['k', t[1]] + [normalize(a, fuel - 1) for a in t[2:]]
+    if h == 'f':                                        # user-function application (f fid scrut [extra])
+        fid, scrut = t[1], t[2]
+        extra = t[3] if len(t) > 3 else None
+        r = reduce_fun(fid, scrut, extra, fuel - 1)
+        if r is not None:
+            return normalize(r, fuel - 1)
+        return ['f', fid, normalize(scrut, fuel - 1)] + ([normalize(extra, fuel - 1)] if extra is not None else [])
     return t                                           # (v i) etc. — normal
+
+def reduce_fun(fid, scrut, extra, fuel):               # one rewrite of (f fid scrut extra), or None if stuck
+    a = normalize(scrut, fuel)
+    if isinstance(a, list) and a and a[0] == 'k':
+        body = FUNS.get((fid, a[1]))
+        if body is not None:
+            return instantiate(body, fid, a[2:], extra)
+    return None
+
+def instantiate(t, fid, fields, extra):                # substitute a rule body (structural, no fuel)
+    if not isinstance(t, list):
+        return t
+    h = t[0]
+    if h == 'v':                                       # pattern var (v 0)/(v 1) -> scrutinee field
+        i = int(t[1])
+        return fields[i] if i < len(fields) else t
+    if h == 'y':                                       # (y k) -> the extra argument
+        return extra
+    if h == 'rec':                                     # (rec i) -> recursive call on field i
+        f = fields[int(t[1])]
+        return ['f', fid, f] if extra is None else ['f', fid, f, extra]
+    if h == 'f':                                       # nested (f gid ...): keep gid, recurse args
+        return ['f', t[1]] + [instantiate(a, fid, fields, extra) for a in t[2:]]
+    if h == 'k':                                       # (k cid ...): keep cid, recurse args
+        return ['k', t[1]] + [instantiate(a, fid, fields, extra) for a in t[2:]]
+    if h == 's':
+        return ['s', instantiate(t[1], fid, fields, extra)]
+    if h in ('p', 'm'):
+        return [h, instantiate(t[1], fid, fields, extra), instantiate(t[2], fid, fields, extra)]
+    return t
 
 def conv(a, b):                                        # definitional equality of terms
     return normalize(a) == normalize(b)
@@ -229,9 +272,21 @@ def infer(pf, ctx, idep=0):                            # ctx: list of (prop, pus
         return subst_prop(C, 'z', 0)                   # drop the binder, lower outer vars
     return None
 
+def register(forms):
+    """pull (fun fid cid body) rules into FUNS; return the non-declaration forms (goal, proof)."""
+    rest = []
+    for f in forms:
+        if isinstance(f, list) and f and f[0] == 'fun':
+            FUNS[(f[1], f[2])] = f[3]
+        elif isinstance(f, list) and f and f[0] == 'data':
+            pass                                       # constructor arity is inferred from the (k ..) shape
+        else:
+            rest.append(f)
+    return rest
+
 def main():
-    forms = parse_all(sys.stdin.read())
-    goal, proof = forms[0], forms[1]
+    forms = register(parse_all(sys.stdin.read()))
+    goal, proof = forms[-2], forms[-1]                 # a cert is <decls> <goal> <proof(refl ..)>
     r = infer(proof, [], 0)
     print('accept' if r is not None and prop_eq(r, goal) else 'reject')
 

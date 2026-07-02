@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-# check-ref-fuzz.py CHECK_EXE K — differential-test the trust anchor's LOGIC (propositional AND first-order):
-# for K random valid proofs (tautology-schema libraries instantiated with random atoms / predicate indices /
-# witness terms), require check.beta and the independent reference check_ref.py to AGREE — both ACCEPT the
-# proof against its true goal, and both REJECT it against an index-perturbed (wrong-type) goal. A disagreement
-# is a logic bug in one of them. Deterministic (fixed seed). check_ref covers ->/&/+/bot (intro+elim) plus
-# All/Exists with de Bruijn (gen/inst/wit/unpack); equality-conversion and induction are check.beta-only.
+# check-ref-fuzz.py CHECK_EXE K — differential-test the trust anchor across FOUR proof categories: (1)
+# propositional logic, (2) first-order (All/Exists), (3) equality by conversion (refl over Peano p/m), and
+# (4) USER-FUNCTION arithmetic certificates — the actual translation-validation cert language (data/fun
+# rules, (k ..) constructors, (f ..) applications). For K random valid certs, check.beta and the independent
+# reference check_ref.py must AGREE: both accept each cert, and both reject a perturbed (wrong-value/wrong-
+# type) variant. So check_ref independently validates not just the checker's logic but the REAL TV certs.
+# Deterministic (fixed seed). Only induction (natind/listind) remains check.beta-only.
 import sys, os, random, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import check_ref
@@ -137,36 +138,62 @@ def gterm(n):
         t = ("s", t)
     return t
 
-def verdict_beta(goal, proof):
-    return subprocess.run([CHECK], input="%s %s" % (goal, proof), capture_output=True, text=True).stdout.strip()
+def verdict_beta(cert):                                # cert = full input: <decls> <goal> <proof>
+    return subprocess.run([CHECK], input=cert, capture_output=True, text=True).stdout.strip()
 
-def verdict_ref(goal, proof):
-    g = check_ref.parse_all("%s %s" % (goal, proof))
-    r = check_ref.infer(g[1], [], 0)                   # conversion-aware, matching check_ref's own main()
-    return 'accept' if r is not None and check_ref.prop_eq(r, g[0]) else 'reject'
+def verdict_ref(cert):
+    check_ref.FUNS.clear()
+    forms = check_ref.register(check_ref.parse_all(cert))
+    r = check_ref.infer(forms[-1], [], 0)              # conversion-aware, matching check_ref's own main()
+    return 'accept' if r is not None and check_ref.prop_eq(r, forms[-2]) else 'reject'
+
+# ---- user-function certificates (the translation-validation cert language) --------------------------
+# user-Nat Z=(k 2), S x=(k 3 x), over uadd(21)/umul(23)/usub(22, monus)/upred(20) as delta user functions.
+TVPRE = ("(data 2 0 0 0) (data 3 1 1 0) "
+         "(fun 20 2 (k 2)) (fun 20 3 (v 0)) (fun 21 2 (y 0)) (fun 21 3 (k 3 (rec 0))) "
+         "(fun 22 2 (y 0)) (fun 22 3 (f 20 (rec 0))) (fun 23 2 (k 2)) (fun 23 3 (f 21 (y 0) (rec 0)))")
+def unat(k):
+    t = "(k 2)"
+    for _ in range(k):
+        t = "(k 3 %s)" % t
+    return t
+def tv_expr(rng, depth):                               # -> (term_string, value); small trap-free values
+    if depth <= 0 or rng.random() < 0.5:
+        v = rng.randint(0, 4); return unat(v), v
+    op = rng.choice(["+", "-", "*"])
+    (ta, va), (tb, vb) = tv_expr(rng, depth - 1), tv_expr(rng, depth - 1)
+    if op == "+":  return "(f 21 %s %s)" % (ta, tb), va + vb
+    if op == "*":  return "(f 23 %s %s)" % (ta, tb), va * vb
+    if va < vb:    va, vb, ta, tb = vb, va, tb, ta     # keep monus non-negative
+    return "(f 22 %s %s)" % (tb, ta), va - vb          # a - b via (f 22 b a)
 
 fails = 0; n = 0
 for _ in range(K):
     r = random.random()
-    if r < 0.4:                                        # propositional
+    if r < 0.35:                                       # propositional
         a, b, c = random.sample(range(6), 3)
         goal, proof = random.choice(prop_schemas(a, b, c))
-        cases = [(goal, "accept"), (mutate(goal, 7), "reject")]
-    elif r < 0.7:                                      # first-order (quantifiers)
+        cases = [("%s %s" % (pr(goal), pf(proof)), "accept")]
+        m = mutate(goal, 7)
+        if m: cases.append(("%s %s" % (pr(m), pf(proof)), "reject"))
+    elif r < 0.6:                                      # first-order (quantifiers)
         goal, proof = random.choice(quant_schemas(random.randrange(3), 5, gterm(random.randint(0, 2))))
-        cases = [(goal, "accept"), (mutate(goal, 7), "reject")]
-    else:                                              # equality / conversion (refl over Peano p/m)
+        cases = [("%s %s" % (pr(goal), pf(proof)), "accept")]
+        m = mutate(goal, 7)
+        if m: cases.append(("%s %s" % (pr(m), pf(proof)), "reject"))
+    elif r < 0.8:                                      # equality / conversion (refl over Peano p/m)
         e = arith(random.Random(random.random()), 3); v = tval(e)
-        proof = ("refl", num(v))
-        cases = [(("eq", e, num(v)), "accept"), (("eq", e, num(v + 1)), "reject")]
-    pfs = pf(proof)
-    for g, expect in cases:
-        if g is None:
-            continue
-        gs = pr(g); n += 1
-        vb, vr = verdict_beta(gs, pfs), verdict_ref(gs, pfs)
+        cases = [("%s %s" % (pr(("eq", e, num(v))), pf(("refl", num(v)))), "accept"),
+                 ("%s %s" % (pr(("eq", e, num(v + 1))), pf(("refl", num(v)))), "reject")]
+    else:                                              # user-function arithmetic certs (TV cert language)
+        tvterm, v = tv_expr(random.Random(random.random()), 3)
+        cases = [("%s (= %s %s) (refl %s)" % (TVPRE, tvterm, unat(v), unat(v)), "accept"),
+                 ("%s (= %s %s) (refl %s)" % (TVPRE, tvterm, unat(v + 1), unat(v + 1)), "reject")]
+    for cert, expect in cases:
+        n += 1
+        vb, vr = verdict_beta(cert), verdict_ref(cert)
         if not (vb == vr == expect):
             fails += 1
-            print("  FAIL %s : beta=%s ref=%s want=%s : %s" % (gs, vb, vr, expect, pfs))
+            print("  FAIL beta=%s ref=%s want=%s : %s" % (vb, vr, expect, cert[:160]))
 print("%d ok, %d failed" % (n - fails, fails))
 sys.exit(1 if fails else 0)
