@@ -218,9 +218,14 @@ free (identity is the number).
 
 ## 10. Open spellings (the only unsettled parts)
 
-1. **Generic domains** — `Protobuf<Level>` is a domain family indexed by a schema;
-   domains today are non-generic. Either domains grow one type parameter or each
-   (schema, format) pair derives a flat name. The biggest open language question.
+1. **Generic domains — ANSWERED 2026-07-01: no generic semantics needed.**
+   Nothing is ever polymorphic over the schema parameter (a relay forwards raw
+   `&[u8]`; consumers always know the concrete schema), so `Protobuf<Level>` is a
+   PARAMETERIZED NAME resolving at name-resolution time to a flat derived domain
+   instance — monomorphization-by-instantiation with no unification, bounds, or
+   inference. Mirrors the landed stage-1 data/machine monomorphization, and is
+   easier (domains have no layout). Remaining spelling detail: the surface
+   grammar for the angle-bracketed domain name.
 2. **encode/decode surface** — builtins (like min/max) vs boundary-operator
    surfaces (like the stdlib slice contracts).
 3. **Field-peek accessors** — per-field derived accessor *functions* for validated
