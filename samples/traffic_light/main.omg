@@ -22,7 +22,9 @@ data Phase [copy, zero_init] {
 // Traffic-light state: current phase + total advance count.
 data Light [copy, zero_init] {
     phase: Phase;
-    advances: i32;
+    // Ranged + the modular-counter idiom at the increment: Exact-provable, no
+    // overflow domain.
+    advances: i32 [0..=100];
 }
 
 data Main {
@@ -65,7 +67,7 @@ machine Main::main(&mut self) {
 
 // Advance the light one phase: Red->Green, Green->Yellow, Yellow->Red.
 machine Main::advance(&mut self) {
-    self.light.advances = self.light.advances + 1;
+    self.light.advances = (self.light.advances + 1) % 101;
 
     transition self.light.phase {
         Phase::Red -> go_green()

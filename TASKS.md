@@ -181,6 +181,40 @@ Settled-design MIGRATIONS (mechanical, can precede the ladder):
 Open spellings tracked in the brief §10 (generic domains `Protobuf<Level>` is the
 big one; encode/decode surface; field-peek accessors; streaming/append).
 
+### "No silent-anything" wave (2026-07-02, Zach's direction) -- landed + the keystone gap
+
+Direction (chat, 2026-07-02): nothing silent -- overflow-capable arithmetic must PROVE its
+bounds or DECLARE a domain; if verifiably bounded, the operator shouldn't care which domain.
+Toward abort-as-an-effect (#65): trapping should eventually be visible at main. Landed:
+
+- **Nested-field Exact enforcement** (the decision-17 hole): 3+-member places
+  (`self.p.x`, field-stored payload `self.m.dx`) now carry the overflow
+  obligation instead of silently wrapping; nested RANGES also narrow.
+- **ZII-range fence** (found during the migration, PRE-EXISTING): a range
+  excluding 0 on zero-initialized state let the prover trust a bound the
+  startup 0 violates -- probed to a runtime div-by-zero in a fully-"proven"
+  program. Rejected across the ZII-reachable closure
+  (validate_zero_reachable_field_ranges).
+- **7 samples migrated FULLY EXACT** (no Wrapping added; modular_exponentiation
+  dropped 2 Trapping fields). The MODULAR-COUNTER idiom is the one
+  Exact-provable bounded counter today: `c: i32 [0..=N]` + `c = (c + 1) % (N+1)`.
+
+**THE DE-TRAPPING KEYSTONE (open, high leverage):** loop-carried arithmetic
+cannot use dominating GUARDS today -- cross-state guard narrowing for the
+arithmetic obligations is pinned unsupported (fail/arithmetic/
+bounded_guarded_increment_unproven), and even co-located transition-arg
+narrowing (`transition c < 100 { true -> bump(c + 1) }` into a ranged param)
+fails (probed 2026-07-02). The index prover ALREADY carries bounds cross-state
+(incoming_guards back-walk, reassignment-invalidating); extending S3/S4 to
+consume the same dominating-guard fact flow would unlock guard-proven counters
+and de-Trap most of the 41 Trapping samples. Until then, bounded counters use
+the modular idiom and genuine accumulators declare Wrapping.
+
+**Abort-as-effect (#65) design sketch (chat, NOT settled):** every trap-capable
+site (`in Trapping`, future assert/panic) carries an `abort` effect threaded to
+main / the target block (absence = denial = total program); Wrapping/Saturating
+stay effect-free (total, visible in types). Needs a settle before building.
+
 ### Language ergonomics surfaced (mostly engineering; one research)
 - **[NEEDS DESIGN — Zach]** loop syntax (`for`/`while`) that desugars to the
   existing proven state-machine loop pattern. Today every loop is a hand-written

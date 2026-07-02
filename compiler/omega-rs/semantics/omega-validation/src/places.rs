@@ -97,30 +97,7 @@ pub fn declared_place_type_raw(
         handle = *inner;
     }
 
-    let members: Vec<String> = match program.expression_table.expression(handle) {
-        ExpressionNode::Name(path) => program
-            .expression_table
-            .name_path_members(path.members)
-            .iter()
-            .map(|member| member.as_str().to_owned())
-            .collect(),
-        ExpressionNode::Member(member) => {
-            let ExpressionNode::Name(receiver) =
-                program.expression_table.expression(member.receiver)
-            else {
-                return None;
-            };
-            let mut names: Vec<String> = program
-                .expression_table
-                .name_path_members(receiver.members)
-                .iter()
-                .map(|name| name.as_str().to_owned())
-                .collect();
-            names.push(member.member.as_str().to_owned());
-            names
-        }
-        _ => return None,
-    };
+    let members: Vec<String> = collect_member_path(program, handle)?;
 
     match members.as_slice() {
         [name] => {
@@ -188,8 +165,91 @@ pub fn declared_place_type_raw(
                 .find(|data| data.name == *name)?;
             data_field_or_payload_type(program, data, field_name)
         }
+        // A NESTED place, 3+ members (`self.p.x`, `self.a.inner.x`, or a
+        // FIELD-stored enum payload's `self.m.dx` -- a destructure arm lowers
+        // the payload binding onto the receiver field's path): walk each hop
+        // through its struct/sum definition so the last hop's declared type --
+        // domain and range intact -- reaches the decision-17 exact check. This
+        // used to return None, which silently EXEMPTED nested-field arithmetic
+        // from the overflow obligation (it wrapped).
+        path if path.len() >= 3 => {
+            resolve_nested_member_path(program, current_machine, current_state, path)
+        }
         _ => None,
     }
+}
+
+/// Collect a place expression's member path (`self.p.x` -> ["self","p","x"]),
+/// descending NESTED `Member` receivers. `None` for non-name shapes (indexed
+/// receivers, calls) -- those re-resolve during instruction selection.
+fn collect_member_path(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<Vec<String>> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => Some(
+            program
+                .expression_table
+                .name_path_members(path.members)
+                .iter()
+                .map(|member| member.as_str().to_owned())
+                .collect(),
+        ),
+        ExpressionNode::Member(member) => {
+            let mut names = collect_member_path(program, member.receiver)?;
+            names.push(member.member.as_str().to_owned());
+            Some(names)
+        }
+        _ => None,
+    }
+}
+
+/// Resolve a 3+-member place by walking each hop through its struct/sum type:
+/// the root is `self` (the machine's attached data) or a local/parameter of
+/// data type; every intermediate hop must land on a Named data definition; the
+/// LAST hop returns the field/payload type reference RAW (constraints intact)
+/// so callers read the arithmetic domain (decision 17) and range refinement.
+fn resolve_nested_member_path(
+    program: &TypedTrees,
+    current_machine: &omega_typed_trees::machine::Machine,
+    current_state: Option<&omega_typed_trees::state::State>,
+    path: &[String],
+) -> Option<TypeReferenceHandle> {
+    let (root, rest) = path.split_first()?;
+    let mut current_data = if root == "self" {
+        let attached = current_machine.attached_data.as_ref()?;
+        program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name == *attached)?
+    } else {
+        let receiver_type = local_or_parameter_type(program, current_state, root)?;
+        data_definition_for_type(program, receiver_type)?
+    };
+    let (last, intermediates) = rest.split_last()?;
+    for hop in intermediates {
+        let hop_type = data_field_or_payload_type(program, current_data, hop)?;
+        current_data = data_definition_for_type(program, hop_type)?;
+    }
+    data_field_or_payload_type(program, current_data, last)
+}
+
+/// The data/sum definition behind a type reference (through `&`/`in Domain`
+/// shells). `None` for primitives, arrays, and unknown names.
+fn data_definition_for_type(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<&omega_typed_trees::data::DataDefinition> {
+    let unwrapped = unwrapped_type_reference(program, type_reference)?;
+    let TypeReferenceNode::Named { name, .. } =
+        program.type_reference_table.type_reference(unwrapped)
+    else {
+        return None;
+    };
+    program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name == *name)
 }
 
 /// Resolve a bare local-data or state-parameter name to its declared type.
