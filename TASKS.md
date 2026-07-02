@@ -325,9 +325,22 @@ The ladder, smallest-landable-first; layouts need NO general const positions
   projections into a plan-laid BYTE VIEW + the no-op boundary theorem
   (`&CLayout<T>` IS `&[u8] in CLayout<T>`) -- needs the carrier/domain rung
   (L5) to express the byte side.
-- **L5: OmegaLayout carriers** -- re-key compact_binary v0 as the derived
-  tagged grammar (`[u8; N] in OmegaLayout<Save>`; Derived|Packed parameter;
-  one-way identity asymmetry); mint = validate(+indexed) then materialize.
+- **L5: OmegaLayout carriers -- v0 LANDED 2026-07-02** (834570a11): the
+  carrier spelling `[u8; N] in OmegaLayout<Save>` parses (parameterized
+  domain names flatten to instance names), validates (compiler-known family;
+  byte-array carrier; schema must be numbered -- the packed grammar of an
+  unnumbered schema honestly rejects; explicit grammar argument rejects,
+  `Derived` is the default and only grammar), and is ENFORCED at every
+  encode/decode call site (schema agreement). Byte-identical by canary (the
+  refined round-trip pins the same hand-computed framing as the unrefined
+  twin, native + differential); the {len,bytes} text-carrier reclassification
+  excludes the family at both layout-builder gates; samples/wire_protocol
+  states its buffer's format. REMAINDER for L5-full: target-directed
+  `encode()` into a refined carrier (spelling OPEN -- extern brief section
+  10.2 builtins-vs-boundary-operators), the `Packed` grammar, the
+  plan-walking deriver (blocked on the case-vocabulary Plan = array-of-struct
+  element construction), the validate/materialize decode mint, and
+  refinement-as-obligation (unrefined buffers still work today).
 - **L6+: Bits placements + access classes (MMIO deriver); durability plan
   grades consumed by Store<T>-class APIs; publish-time predecessor diff.**
 
