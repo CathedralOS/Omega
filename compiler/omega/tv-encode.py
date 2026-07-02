@@ -150,11 +150,13 @@ def ev(e, env):
     sys.exit(2)                                            # /, %, if, match, call, ... -> later slices
 
 
-# ---- loop path: gamma state machine -> delta fuel-fold -----------------------------------------
-# Two separate views of a gamma expression, no value/term fusion (the loop body's locals vary each
-# iteration, so its delta term is purely SYNTACTIC while its concrete value comes from abstract exec):
+# ---- loop path: gamma state machine -> delta encoding ------------------------------------------
+# Two separate views of a gamma expression (the loop body's locals vary each iteration):
 #   tr(e, env)  -> delta term          (env: name -> delta-term string)
-#   val(e, env) -> concrete int        (env: name -> int; enforces monus>=0 and 0..MAXV, like ev)
+#   val(e, env) -> concrete int        (env: name -> int; enforces monus>=0, div/quotient bound, 0..MAXV)
+# Both cover the same operators as straight-line ev, INCLUDING / and %. div/mod are used only on the
+# UNROLL path (below): each op is then a standalone recursive udiv/umod on that step's operands — NOT
+# nested in a fuel recursion — so the depth stays bounded (val guards the per-step quotient at SAFE_Q).
 
 def tr(e, env):
     if isinstance(e, str):
@@ -163,14 +165,12 @@ def tr(e, env):
         if e in env:
             return env[e]
         sys.exit(2)
-    if len(e) == 3 and e[0] in ('+', '*', '-', 'lt', 'eq'):
+    if len(e) == 3 and e[0] in ('+', '*', '-', 'lt', 'eq', '/', '%'):
         a, b = tr(e[1], env), tr(e[2], env)
         return {'+': f'(f 21 {a} {b})', '*': f'(f 23 {a} {b})', 'lt': f'(f 28 {a} {b})',
-                'eq': f'(f 25 {a} {b})', '-': f'(f 22 {b} {a})'}[e[0]]
-    sys.exit(2)   # div/mod deliberately NOT here: recursive mod nested in a loop fuel-fold overflows
-                  # the checker's native stack past a few small iterations, and the crash point is not
-                  # cleanly predictable (depends on iteration count AND value magnitude). gcd etc. wait
-                  # for the shallow quotient-WITNESS mod encoding.
+                'eq': f'(f 25 {a} {b})', '-': f'(f 22 {b} {a})',
+                '/': f'(f 46 {a} {b})', '%': f'(f 49 {a} {b})'}[e[0]]
+    sys.exit(2)
 
 def val(e, env):
     if isinstance(e, str):
@@ -179,12 +179,16 @@ def val(e, env):
         if e in env:
             return env[e]
         sys.exit(2)
-    if len(e) == 3 and e[0] in ('+', '*', '-', 'lt', 'eq'):
+    if len(e) == 3 and e[0] in ('+', '*', '-', 'lt', 'eq', '/', '%'):
         a, b = val(e[1], env), val(e[2], env)
         if   e[0] == '+':  r = a + b
         elif e[0] == '*':  r = a * b
         elif e[0] == 'lt': r = 1 if a < b else 0
         elif e[0] == 'eq': r = 1 if a == b else 0
+        elif e[0] in ('/', '%'):
+            if b == 0 or a // b > SAFE_Q:
+                sys.exit(2)                                # div-by-zero / per-step quotient past the wall
+            r = a // b if e[0] == '/' else a % b
         else:
             if a < b:
                 sys.exit(2)                                # monus would go negative
@@ -192,7 +196,10 @@ def val(e, env):
         if r < 0 or r > MAXV:
             sys.exit(2)
         return r
-    sys.exit(2)   # div/mod not in the loop path (see tr) — a gcd body silently skips rather than crashes
+    sys.exit(2)
+
+def uses_divmod(e):
+    return isinstance(e, list) and (e[0] in ('/', '%') or any(uses_divmod(x) for x in e[1:]))
 
 def flatten_lets(node):
     """peel a (let n v body)* chain -> (bindings, innermost tail node)"""
@@ -209,6 +216,9 @@ def inline(e, binds):
     return [e[0]] + [inline(x, binds) for x in e[1:]]
 
 MAXLOCALS = 4   # loop-carried locals: nested-Pair packing depth stays small enough for the arena
+UNROLL_MAX = 12 # div/mod-bearing loops are unrolled; cap iterations so the exit term stays shallow
+MODNODE_MAX = 4 # ... and cap div/mod nodes in the exit term: each nests a recursive udiv/umod, and past
+                # ~4 the composed reduction depth overflows the checker's stack (Fibonacci-worst gcds bail)
 
 # N loop-carried locals pack right-nested: P = Pair(l0, Pair(l1, ..., Pair(l_{N-2}, l_{N-1}))).
 def pack(terms):
@@ -262,6 +272,30 @@ def encode_loop(defs, call, claimed):
     bbinds, btail = flatten_lets(dmap[body_name][3])
     newl = [inline(a, bbinds) for a in btail[1:]]           # next loop-var exprs over params
     exitexpr = dmap[exit_name][3]                          # returned expression over params
+
+    # A body containing div/mod can't ride the fuel-fold: a recursive udiv/umod nested inside the fuel
+    # recursion overflows the checker's stack. Instead UNROLL — the trip count is data-dependent but the
+    # encoder knows it, so symbolically step the loop, threading each local as a delta term; each div/mod
+    # is then a standalone (shallow) op. The meaning is the exit expression over the final terms. This is
+    # result-level TV (delta recomputes the arithmetic of the taken path; the trip count is the encoder's
+    # witness, as with the fuel bound). Used for gcd and other small data-dependent loops.
+    if any(uses_divmod(x) for x in newl + [exitexpr, cont]):
+        tenv = {params[k]: unary(init[k]) for k in range(n)}   # term env  (delta terms)
+        venv = {params[k]: init[k] for k in range(n)}          # value env (concrete)
+        steps = 0
+        while val(cont, venv) == 1:
+            if steps >= UNROLL_MAX:
+                sys.exit(2)                                    # too many iterations to unroll safely
+            tenv = {params[k]: tr(newl[k], tenv) for k in range(n)}
+            venv = {params[k]: val(newl[k], venv) for k in range(n)}
+            steps += 1
+        meaning = tr(exitexpr, tenv)
+        if meaning.count('(f 46') + meaning.count('(f 49') > MODNODE_MAX:
+            sys.exit(2)                                        # exit term too deep -> would crash the checker
+        e = unary(claimed)
+        print(f'{BASE} (= {meaning} {e}) (refl {e})')
+        return
+
     # abstract-execute over the concrete initial literals: trip count + bounds-check every step
     cur = {params[k]: init[k] for k in range(n)}
     trips = 0

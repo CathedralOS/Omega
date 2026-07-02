@@ -16,8 +16,9 @@
 # straight-line + - * < == / % programs (comparisons decide 0/1 and div/mod re-subtract, all inside the
 # kernel) AND bounded state-machine loops (encoded as a delta fuel-fold whose guard + body the kernel
 # re-evaluates each iteration, N loop-carried locals packed into user Pairs; the encoder abstract-executes
-# the loop to get a safe trip bound). div/mod are quotient-bounded (arena wall); div/mod INSIDE loops and
-# data-dependent unbounded loops (gcd) are later slices.
+# the loop to get a safe trip bound). Data-dependent loops whose body uses div/mod (e.g. gcd) are instead
+# UNROLLED — the encoder knows the trip count, so it steps the loop symbolically and each mod becomes a
+# standalone kernel-recomputed op; deep unrollings bail on the arena wall.
 #
 # Native leg needs macOS arm64 + cargo/clang; skips cleanly otherwise.
 set -e
@@ -137,6 +138,28 @@ tv "div and mod"      '    let a: i32 = 23;
     self.console.exit_process((a / 4) * 10 + (a % 4))'
 tv "mod under arith"  '    let n: i32 = 20;
     self.console.exit_process(n % 7 + n / 7 * 6)'
+# data-dependent loops with div/mod in the body: UNROLLED (trip count is data-dependent but known to the
+# encoder), each mod a standalone kernel-recomputed op. gcd (Euclid) is the flagship; deep ones bail.
+tv "gcd(48,36)=12"    '    let a: i32 = 48;
+    let b: i32 = 36;
+    let t: i32 = 0;
+    transition 0 { _ -> lp() }
+    state lp() { transition b == 0 { true -> dn()  false -> st() } }
+    state st() { t = a % b; a = b; b = t; transition 0 { _ -> lp() } }
+    state dn() { self.console.exit_process(a) }'
+tv "gcd(100,60)=20"   '    let a: i32 = 100;
+    let b: i32 = 60;
+    let t: i32 = 0;
+    transition 0 { _ -> lp() }
+    state lp() { transition b == 0 { true -> dn()  false -> st() } }
+    state st() { t = a % b; a = b; b = t; transition 0 { _ -> lp() } }
+    state dn() { self.console.exit_process(a) }'
+tv "digit-sum-ish"    '    let n: i32 = 47;
+    let s: i32 = 0;
+    transition 0 { _ -> lp() }
+    state lp() { transition n == 0 { true -> dn()  false -> st() } }
+    state st() { s = s + n % 10; n = n / 10; transition 0 { _ -> lp() } }
+    state dn() { self.console.exit_process(s) }'
 
 echo "translation validation (delta re-evaluates each compilation's result — straight-line + - * < == / % AND bounded loops — and certifies it IS the source's meaning): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
