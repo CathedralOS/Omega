@@ -234,26 +234,35 @@ def encode_loop(defs, call, claimed):
     n = len(init)
     if n < 1 or n > MAXLOCALS:
         sys.exit(2)
-    # guard state: (if COND (body l..) (exit l..))
+    # guard state: (if COND (then l..) (else l..)) — either branch may be the body; the one that
+    # tail-calls back to the guard IS the body (loop), the other is the exit. This handles both
+    # `while COND` (then=body) and `while !COND` / exit-when-true (else=body, e.g. gcd's b==0).
     gdef = dmap[guard_name]
     params = gdef[2]
     gbody = gdef[3]
     if len(params) != n or not (isinstance(gbody, list) and gbody[0] == 'if'):
         sys.exit(2)
-    cond, then_call, else_call = gbody[1], gbody[2], gbody[3]
-    body_name, exit_name = then_call[0], else_call[0]
-    if body_name not in dmap or exit_name not in dmap:
+    cond, then_name, else_name = gbody[1], gbody[2][0], gbody[3][0]
+    if then_name not in dmap or else_name not in dmap:
         sys.exit(2)
+    def loops_back(nm):
+        _, t = flatten_lets(dmap[nm][3])
+        return isinstance(t, list) and len(t) == n + 1 and t[0] == guard_name
+    tb, eb = loops_back(then_name), loops_back(else_name)
+    if tb and not eb:
+        body_name, exit_name, cont = then_name, else_name, cond        # loop while COND is 1
+    elif eb and not tb:
+        body_name, exit_name, cont = else_name, then_name, ['eq', cond, '0']  # loop while COND is 0
+    else:
+        sys.exit(2)                                        # not a single-exit loop
     # body state: (let step...)* -> (guard n0 .. n_{n-1})
     bbinds, btail = flatten_lets(dmap[body_name][3])
-    if not (isinstance(btail, list) and btail[0] == guard_name and len(btail) == n + 1):
-        sys.exit(2)
     newl = [inline(a, bbinds) for a in btail[1:]]           # next loop-var exprs over params
     exitexpr = dmap[exit_name][3]                          # returned expression over params
     # abstract-execute over the concrete initial literals: trip count + bounds-check every step
     cur = {params[k]: init[k] for k in range(n)}
     trips = 0
-    while val(cond, cur) == 1:
+    while val(cont, cur) == 1:
         cur = {params[k]: val(newl[k], cur) for k in range(n)}
         trips += 1
         if trips > MAXV:
@@ -266,7 +275,7 @@ def encode_loop(defs, call, claimed):
     newpack = pack([tr(newl[k], env_s) for k in range(n)])
     prelude = (BASE + " "
         f"(fun 44 2 {tr(exitexpr, env_p)}) "                             # fuel=Z  -> exit(p)  (unreached)
-        f"(fun 44 3 (f 45 {tr(cond, env_p)} (k 4 (v 0) (y 0)))) "        # loopfn(S f,p)=brancher(guard p, Pair(f,p))
+        f"(fun 44 3 (f 45 {tr(cont, env_p)} (k 4 (v 0) (y 0)))) "        # loopfn(S f,p)=brancher(continue? p, Pair(f,p))
         f"(fun 45 2 {tr(exitexpr, env_s)}) "                            # guard false -> exit(snd fp)
         f"(fun 45 3 (f 44 (f 42 (y 0)) {newpack}))")                     # guard true -> loopfn(f, body p)
     term = f'(f 44 {unary(fuel)} {pack([unary(v) for v in init])})'
