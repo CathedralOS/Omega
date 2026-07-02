@@ -79,6 +79,22 @@ implementation work. Each one gets more expensive to retrofit every month.
    explicit architecture note: which backend layers are allowed to assume
    whole-program, and which must stay relocatable/per-component.
 
+   **Companion ask — import-side dependency gate (2026-07-02, Cathedral repo
+   layout).** ch14 gives export-side visibility (`pub`) and imports-by-logical-
+   name (good — no filesystem `../../` reach), but name resolution's
+   "fully qualified package/module paths" rule is an **ambient escape**: a
+   package can name any other package it did not declare a dependency on.
+   Cathedral wants the build-time analog of its capability model — a package
+   reaches **only** its declared dependency set (the pinned-closure manifest),
+   so an undeclared package is *unresolvable*, not merely lint-flagged. This
+   makes the layer law self-enforcing (`boot` can't name `core` because its
+   manifest omits it). Interim enforcement is a graph check
+   (`imports ⊆ declared deps`, build-failing — the omega-architecture-test
+   pattern); the target is the resolver consulting the manifest so
+   fully-qualified paths cannot bypass it. Small, and it completes the
+   pinned-closure model (imports as the sole, declared reach path). Pairs with
+   this item's package/artifact model.
+
 5. **Concurrency: pick the model's hard answers** — CORE MODEL DECIDED
    (frozen decision 16, 2026-06-12; implementation not started): typed
    state clusters CAN suspend; no await/no keyword — waiting originates at
