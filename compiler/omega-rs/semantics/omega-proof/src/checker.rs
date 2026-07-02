@@ -339,7 +339,11 @@ fn guarded_integer_range_for_transition_argument(
             maximum: i64::MAX,
         });
 
-    apply_handle_guard(proof_plan, base, obligation.argument, &obligation.guard)
+    // Co-located: the arm's guard and its arguments evaluate at the SAME
+    // dispatch, so the guard fact needs no stability gate here (collection
+    // downgrades the guard when a sibling argument contains an opaque call).
+    let range = apply_handle_guard(proof_plan, base, obligation.argument, &obligation.guard);
+    guard_refined_binary_range(proof_plan, range, obligation.argument, &obligation.guard)
 }
 
 fn float_range_for_transition_argument(
@@ -498,11 +502,270 @@ fn guarded_integer_range_for_assignment(
 ) -> Option<IntegerRange> {
     let mut range = integer_range_for_assignment(proof_plan, obligation)?;
 
-    if let Some(guard) = &obligation.state_guard {
+    // The incoming-edge guard held at STATE ENTRY; it still holds at this
+    // assignment only if nothing earlier in the state could have changed what
+    // it constrained (a prior write to a may-aliasing place, or any opaque
+    // call). Without this gate, `transition c < 100 { true -> bump() }` with
+    // `bump { c = 100; c = c + 1 }` would "prove" the second write.
+    if let Some(guard) = &obligation.state_guard
+        && assignment_guard_is_stable(proof_plan, obligation, guard)
+    {
         range = apply_assignment_guard(proof_plan, range, obligation.value, guard);
+        range = guard_refined_binary_range(proof_plan, range, obligation.value, guard);
     }
 
     Some(range)
+}
+
+/// Whether the incoming-edge guard's facts survive from state entry to THIS
+/// assignment: every earlier statement in the state must be a transparent
+/// (call-free) local/assignment whose written place is provably DISJOINT from
+/// every place the guard condition or the assignment value reads. Prefix
+/// member paths alias (`self.state` vs `self.state.count`); distinct roots do
+/// not (`self.pixels[i]` vs `self.i` -- the render-loop shape stays provable).
+/// Unresolvable shapes and calls are opaque: the guard is dropped (sound).
+fn assignment_guard_is_stable(
+    proof_plan: &ProofPlan,
+    obligation: &BoundedAssignmentObligation,
+    guard: &TransitionGuardNode,
+) -> bool {
+    use omega_typed_trees::statement::StatementNode;
+
+    let program = proof_plan.program;
+    let Some(machine) = program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == obligation.machine_symbol)
+    else {
+        return false;
+    };
+    let Some(state) = program
+        .machine_states(machine)
+        .iter()
+        .find(|state| state.symbol == obligation.state_symbol)
+    else {
+        return false;
+    };
+
+    // Every place the guard fact (and the value it refines) depends on.
+    let mut read_paths: Vec<Vec<String>> = Vec::new();
+    if let TransitionGuardNode::When(condition) = guard {
+        collect_read_place_paths(proof_plan, *condition, &mut read_paths);
+    }
+    collect_read_place_paths(proof_plan, obligation.value, &mut read_paths);
+
+    for statement in program.statement_table.statements(state.statement_nodes) {
+        match statement {
+            StatementNode::Assignment(assignment) => {
+                if assignment.target == obligation.target
+                    && assignment.value == obligation.value
+                {
+                    // Reached the obligation's own assignment: everything
+                    // before it was transparent and disjoint.
+                    return true;
+                }
+                if expression_contains_call(proof_plan, assignment.value) {
+                    return false;
+                }
+                let Some(written) = written_place_path(proof_plan, assignment.target) else {
+                    return false;
+                };
+                if read_paths
+                    .iter()
+                    .any(|read| member_paths_may_alias(read, &written))
+                {
+                    return false;
+                }
+            }
+            StatementNode::LocalData(local) => {
+                if local.initial_value.is_valid()
+                    && expression_contains_call(proof_plan, local.initial_value)
+                {
+                    return false;
+                }
+                // A `let` binds a fresh local name; it cannot alias a field
+                // path, and same-name reads in `read_paths` would be the local
+                // itself (rebinding kills the fact conservatively).
+                let written = vec![local.name.as_str().to_owned()];
+                if read_paths
+                    .iter()
+                    .any(|read| member_paths_may_alias(read, &written))
+                {
+                    return false;
+                }
+            }
+            _ => return false,
+        }
+    }
+    false
+}
+
+/// The member path a place expression READS or WRITES, for the aliasing check:
+/// `self.state.count` -> [self, state, count]; an INDEXED place resolves to its
+/// collection's path (a write anywhere inside the collection aliases the whole
+/// collection, nothing else). `None` for shapes the walk cannot name (treated
+/// as opaque by callers).
+fn written_place_path(
+    proof_plan: &ProofPlan,
+    expression: ExpressionHandle,
+) -> Option<Vec<String>> {
+    match proof_plan.program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => written_place_path(proof_plan, *inner),
+        ExpressionNode::Indexed(indexed) => written_place_path(proof_plan, indexed.collection),
+        ExpressionNode::Member(member) => {
+            let mut path = written_place_path(proof_plan, member.receiver)?;
+            path.push(member.member.as_str().to_owned());
+            Some(path)
+        }
+        ExpressionNode::Name(path) => Some(
+            proof_plan
+                .program
+                .expression_table
+                .name_path_members(path.members)
+                .iter()
+                .map(|member| member.as_str().to_owned())
+                .collect(),
+        ),
+        _ => None,
+    }
+}
+
+/// Collect the member paths of every Name/Member read inside `expression`
+/// (guard conditions, assignment values). Unnameable reads (indexed elements)
+/// contribute their COLLECTION path, so a write into the collection kills the
+/// fact.
+fn collect_read_place_paths(
+    proof_plan: &ProofPlan,
+    expression: ExpressionHandle,
+    paths: &mut Vec<Vec<String>>,
+) {
+    if !expression.is_valid() {
+        return;
+    }
+    match proof_plan.program.expression_table.expression(expression) {
+        ExpressionNode::Binary(binary) => {
+            collect_read_place_paths(proof_plan, binary.left, paths);
+            collect_read_place_paths(proof_plan, binary.right, paths);
+        }
+        ExpressionNode::Unary(unary) => {
+            collect_read_place_paths(proof_plan, unary.operand, paths);
+        }
+        ExpressionNode::Cast(cast) => collect_read_place_paths(proof_plan, cast.value, paths),
+        ExpressionNode::Mutable(inner) => collect_read_place_paths(proof_plan, *inner, paths),
+        ExpressionNode::Indexed(indexed) => {
+            collect_read_place_paths(proof_plan, indexed.collection, paths);
+            collect_read_place_paths(proof_plan, indexed.index, paths);
+        }
+        ExpressionNode::Member(_) | ExpressionNode::Name(_) => {
+            if let Some(path) = written_place_path(proof_plan, expression) {
+                paths.push(path);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Two member paths may alias when one is a PREFIX of the other (a whole-struct
+/// write aliases every field under it, and vice versa).
+fn member_paths_may_alias(left: &[String], right: &[String]) -> bool {
+    let shared = left.len().min(right.len());
+    left[..shared] == right[..shared]
+}
+
+/// Whether any `Call` node appears in the expression tree (an opaque effect:
+/// a value-machine call may mutate fields through `&mut self`).
+fn expression_contains_call(proof_plan: &ProofPlan, expression: ExpressionHandle) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+    match proof_plan.program.expression_table.expression(expression) {
+        ExpressionNode::Call(_) => true,
+        ExpressionNode::Binary(binary) => {
+            expression_contains_call(proof_plan, binary.left)
+                || expression_contains_call(proof_plan, binary.right)
+        }
+        ExpressionNode::Unary(unary) => expression_contains_call(proof_plan, unary.operand),
+        ExpressionNode::Cast(cast) => expression_contains_call(proof_plan, cast.value),
+        ExpressionNode::Mutable(inner) => expression_contains_call(proof_plan, *inner),
+        ExpressionNode::Indexed(indexed) => {
+            expression_contains_call(proof_plan, indexed.collection)
+                || expression_contains_call(proof_plan, indexed.index)
+        }
+        ExpressionNode::Member(member) => expression_contains_call(proof_plan, member.receiver),
+        _ => false,
+    }
+}
+
+/// The dominating-guard KEYSTONE: refine the folded range of a
+/// `<place> + K` / `<place> - K` / `K - <place>` value by narrowing the PLACE
+/// operand with the guard and refolding. `range` soundly bounds the value, so
+/// the place's implied bound INVERTS from it algebraically; the guard
+/// tightens it (via `apply_handle_condition`, which matches the place
+/// structurally, understands `&&`, and reads either literal side); the refold
+/// intersects back into `range`. This is what lets a state entered through
+/// `c < 100` prove `c = c + 1` into a `[0..=100]` target -- the guard-proven
+/// counter -- instead of forcing a Trapping/Wrapping domain or the modular
+/// idiom.
+fn guard_refined_binary_range(
+    proof_plan: &ProofPlan,
+    range: IntegerRange,
+    value: ExpressionHandle,
+    guard: &TransitionGuardNode,
+) -> IntegerRange {
+    let TransitionGuardNode::When(condition) = guard else {
+        return range;
+    };
+    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(value)
+    else {
+        return range;
+    };
+    let (place, literal, place_is_left) =
+        if let Some(literal) = integer_literal_handle(proof_plan, binary.right) {
+            (binary.left, literal, true)
+        } else if let Some(literal) = integer_literal_handle(proof_plan, binary.left) {
+            (binary.right, literal, false)
+        } else {
+            return range;
+        };
+    // value = place + K  =>  place = value - K (and the subtract mirrors).
+    let place_range = match (binary.operator, place_is_left) {
+        (BinaryOperator::Add, _) => IntegerRange {
+            minimum: range.minimum.saturating_sub(literal),
+            maximum: range.maximum.saturating_sub(literal),
+        },
+        (BinaryOperator::Subtract, true) => IntegerRange {
+            minimum: range.minimum.saturating_add(literal),
+            maximum: range.maximum.saturating_add(literal),
+        },
+        (BinaryOperator::Subtract, false) => IntegerRange {
+            minimum: literal.saturating_sub(range.maximum),
+            maximum: literal.saturating_sub(range.minimum),
+        },
+        _ => return range,
+    };
+    let narrowed = apply_handle_condition(proof_plan, place_range, place, *condition);
+    if narrowed == place_range {
+        return range;
+    }
+    let refolded = match (binary.operator, place_is_left) {
+        (BinaryOperator::Add, _) => IntegerRange {
+            minimum: narrowed.minimum.saturating_add(literal),
+            maximum: narrowed.maximum.saturating_add(literal),
+        },
+        (BinaryOperator::Subtract, true) => IntegerRange {
+            minimum: narrowed.minimum.saturating_sub(literal),
+            maximum: narrowed.maximum.saturating_sub(literal),
+        },
+        (BinaryOperator::Subtract, false) => IntegerRange {
+            minimum: literal.saturating_sub(narrowed.maximum),
+            maximum: literal.saturating_sub(narrowed.minimum),
+        },
+        _ => unreachable!("classified above"),
+    };
+    IntegerRange {
+        minimum: range.minimum.max(refolded.minimum),
+        maximum: range.maximum.min(refolded.maximum),
+    }
 }
 
 fn integer_range_for_return_value(

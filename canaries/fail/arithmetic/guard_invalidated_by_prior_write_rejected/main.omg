@@ -1,0 +1,20 @@
+// FAIL canary: the incoming-edge guard fact does NOT survive a prior write to
+// the guarded place within the state. `bump` is entered through `count < 5`,
+// but `count = 100` runs first -- if the guard were still trusted, the
+// increment would "prove" and store 101 into the [0..=100] field at runtime.
+// The stability gate must drop the guard and reject. (The keystone's
+// enforcement half -- a narrowing without its invalidation is the #40 trap.)
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; count: i32 [0..=100]; }
+machine Main::main(&mut self) {
+    transition { _ -> head() }
+    state head(&mut self) {
+        transition self.count < 5 { true -> bump() _ -> done() }
+    }
+    state bump(&mut self) {
+        self.count = 100;
+        self.count = self.count + 1;
+        transition { _ -> head() }
+    }
+    state done(&mut self) { self.console.exit_process(70); }
+}
