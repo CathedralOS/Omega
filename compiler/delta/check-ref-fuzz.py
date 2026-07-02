@@ -17,20 +17,41 @@ ATOM = ["P", "Q", "R", "S", "T", "U", "V", "W"]
 def term(t):
     if t[0] == "z":  return "z"
     if t[0] == "s":  return "(s %s)" % term(t[1])
+    if t[0] in ("p", "m"): return "(%s %s %s)" % (t[0], term(t[1]), term(t[2]))
     return "(v %d)" % t[1]
 
 def pr(p):
     h = p[0]
     if h == "at":   return ATOM[p[1]]
     if h == "bot":  return "(bot)"
+    if h == "eq":   return "(= %s %s)" % (term(p[1]), term(p[2]))
     if h == "pred": return "(Pred %d %s)" % (p[1], term(p[2]))
     if h == "rel":  return "(Rel %d %s %s)" % (p[1], term(p[2]), term(p[3]))
     if h in ("all", "ex"): return "(%s %s)" % ("All" if h == "all" else "Exists", pr(p[1]))
     return "(%s %s %s)" % (h, pr(p[1]), pr(p[2]))
 
+def num(n):                                            # n -> s^n z
+    t = ("z",)
+    for _ in range(n):
+        t = ("s", t)
+    return t
+
+def tval(t):                                           # value of a Peano p/m term
+    if t[0] == "z":  return 0
+    if t[0] == "s":  return 1 + tval(t[1])
+    if t[0] == "p":  return tval(t[1]) + tval(t[2])
+    return tval(t[1]) * tval(t[2])                      # m
+
+def arith(rng, depth):                                 # random small Peano p/m expression (value <= ~30)
+    if depth <= 0 or rng.random() < 0.5:
+        return num(rng.randint(0, 4))
+    op = "p" if rng.random() < 0.6 else "m"
+    return (op, arith(rng, depth - 1), arith(rng, depth - 1))
+
 def pf(x):
     h = x[0]
     if h == "hyp":                    return "(hyp %d)" % x[1]
+    if h == "refl":                   return "(refl %s)" % term(x[1])
     if h == "lam":                    return "(lam %s %s)" % (pr(x[1]), pf(x[2]))
     if h in ("fst", "snd", "gen"):    return "(%s %s)" % (h, pf(x[1]))
     if h in ("app", "pair", "unpack"): return "(%s %s %s)" % (h, pf(x[1]), pf(x[2]))
@@ -121,17 +142,25 @@ def verdict_beta(goal, proof):
 
 def verdict_ref(goal, proof):
     g = check_ref.parse_all("%s %s" % (goal, proof))
-    return 'accept' if check_ref.infer(g[1], [], 0) == g[0] else 'reject'
+    r = check_ref.infer(g[1], [], 0)                   # conversion-aware, matching check_ref's own main()
+    return 'accept' if r is not None and check_ref.prop_eq(r, g[0]) else 'reject'
 
 fails = 0; n = 0
 for _ in range(K):
-    if random.random() < 0.5:
+    r = random.random()
+    if r < 0.4:                                        # propositional
         a, b, c = random.sample(range(6), 3)
         goal, proof = random.choice(prop_schemas(a, b, c))
-    else:
+        cases = [(goal, "accept"), (mutate(goal, 7), "reject")]
+    elif r < 0.7:                                      # first-order (quantifiers)
         goal, proof = random.choice(quant_schemas(random.randrange(3), 5, gterm(random.randint(0, 2))))
+        cases = [(goal, "accept"), (mutate(goal, 7), "reject")]
+    else:                                              # equality / conversion (refl over Peano p/m)
+        e = arith(random.Random(random.random()), 3); v = tval(e)
+        proof = ("refl", num(v))
+        cases = [(("eq", e, num(v)), "accept"), (("eq", e, num(v + 1)), "reject")]
     pfs = pf(proof)
-    for g, expect in ((goal, "accept"), (mutate(goal, 7), "reject")):
+    for g, expect in cases:
         if g is None:
             continue
         gs = pr(g); n += 1

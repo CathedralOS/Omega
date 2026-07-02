@@ -39,6 +39,56 @@ def parse_all(s):
         node, i = parse(ts, i); out.append(node)
     return out
 
+# ---- definitional equality: normalize built-in Peano arithmetic terms, then compare -------------
+# Terms:  z | (s t) | (p a b)=plus | (m a b)=times | (v i)=Ivar (free, already normal).  The `refl` proof
+# and the conversion rule make equality props `(= a b)` accept when a and b reduce to the same normal form.
+sys.setrecursionlimit(100000)
+
+def normalize(t):
+    if not isinstance(t, list):
+        return t                                       # z (or any atom)
+    h = t[0]
+    if h == 's':
+        return ['s', normalize(t[1])]
+    if h == 'p':                                       # plus:  0+b=b ; (s a)+b = s(a+b)
+        a = normalize(t[1])
+        if a == 'z':
+            return normalize(t[2])
+        if isinstance(a, list) and a[0] == 's':
+            return ['s', normalize(['p', a[1], t[2]])]
+        return ['p', a, normalize(t[2])]               # stuck (open) — stays normal
+    if h == 'm':                                       # times: 0*b=0 ; (s a)*b = b + a*b
+        a = normalize(t[1])
+        if a == 'z':
+            return 'z'
+        if isinstance(a, list) and a[0] == 's':
+            return normalize(['p', t[2], ['m', a[1], t[2]]])
+        return ['m', a, normalize(t[2])]
+    return t                                           # (v i) etc. — normal
+
+def conv(a, b):                                        # definitional equality of terms
+    return normalize(a) == normalize(b)
+
+def prop_eq(p, q):                                     # proposition equality up to conversion (check.beta type_eq)
+    if not isinstance(p, list) or not isinstance(q, list):
+        return p == q                                  # bare atoms
+    if p[0] != q[0]:
+        return False
+    h = p[0]
+    if h == 'bot':
+        return True
+    if h == '=':
+        return conv(p[1], q[1]) and conv(p[2], q[2])
+    if h == 'Pred':
+        return p[1] == q[1] and conv(p[2], q[2])
+    if h == 'Rel':
+        return p[1] == q[1] and conv(p[2], q[2]) and conv(p[3], q[3])
+    if h in ('All', 'Exists'):
+        return prop_eq(p[1], q[1])
+    if h in ('->', '&', '+'):
+        return prop_eq(p[1], q[1]) and prop_eq(p[2], q[2])
+    return False
+
 # ---- capture-avoiding de Bruijn machinery on individual terms/props ------------------------------
 def shift_term(t, d, cut):
     if isinstance(t, list):
@@ -125,7 +175,7 @@ def infer(pf, ctx, idep=0):                            # ctx: list of (prop, pus
         return None if b is None else ['->', pf[1], b]
     if h == 'app':
         f = infer(pf[1], ctx, idep); x = infer(pf[2], ctx, idep)
-        if isinstance(f, list) and f[0] == '->' and x is not None and f[1] == x:
+        if isinstance(f, list) and f[0] == '->' and x is not None and prop_eq(f[1], x):
             return f[2]
         return None
     if h == 'pair':
@@ -147,12 +197,14 @@ def infer(pf, ctx, idep=0):                            # ctx: list of (prop, pus
         s = infer(pf[1], ctx, idep); l = infer(pf[2], ctx, idep); r = infer(pf[3], ctx, idep)
         if (isinstance(s, list) and s[0] == '+' and isinstance(l, list) and l[0] == '->'
                 and isinstance(r, list) and r[0] == '->'
-                and l[1] == s[1] and r[1] == s[2] and l[2] == r[2]):
+                and prop_eq(l[1], s[1]) and prop_eq(r[1], s[2]) and prop_eq(l[2], r[2])):
             return l[2]
         return None
     if h == 'absurd':
         p = infer(pf[2], ctx, idep)                    # (absurd C p): p:bot -> C
         return pf[1] if p == ['bot'] else None
+    if h == 'refl':
+        return ['=', pf[1], pf[1]]                      # (refl t) : (= t t)  — conversion does the rest
     if h == 'gen':                                     # (gen p): forall-intro over a fresh individual
         t = infer(pf[1], ctx, idep + 1)
         return None if t is None else ['All', t]
@@ -161,7 +213,8 @@ def infer(pf, ctx, idep=0):                            # ctx: list of (prop, pus
         return subst_prop(t[1], pf[2], 0) if isinstance(t, list) and t[0] == 'All' else None
     if h == 'wit':                                     # (wit body t p): exists-intro, p : body[t/x]
         body, term, p = pf[1], pf[2], pf[3]
-        return ['Exists', body] if infer(p, ctx, idep) == subst_prop(body, term, 0) else None
+        r = infer(p, ctx, idep)
+        return ['Exists', body] if r is not None and prop_eq(r, subst_prop(body, term, 0)) else None
     if h == 'unpack':                                  # (unpack epf handler): exists-elim
         e = infer(pf[1], ctx, idep)
         hd = infer(pf[2], ctx, idep)
@@ -171,7 +224,7 @@ def infer(pf, ctx, idep=0):                            # ctx: list of (prop, pus
                 and isinstance(hd[1], list) and hd[1][0] == '->'):
             return None
         ant, C = hd[1][1], hd[1][2]
-        if ant != e[1] or mentions_ivar(C, 0):         # C must not depend on the witness var
+        if not prop_eq(ant, e[1]) or mentions_ivar(C, 0):   # C must not depend on the witness var
             return None
         return subst_prop(C, 'z', 0)                   # drop the binder, lower outer vars
     return None
@@ -179,7 +232,8 @@ def infer(pf, ctx, idep=0):                            # ctx: list of (prop, pus
 def main():
     forms = parse_all(sys.stdin.read())
     goal, proof = forms[0], forms[1]
-    print('accept' if infer(proof, [], 0) == goal else 'reject')
+    r = infer(proof, [], 0)
+    print('accept' if r is not None and prop_eq(r, goal) else 'reject')
 
 if __name__ == '__main__':                             # importable (check-ref-fuzz.py reuses parse_all/infer)
     main()
