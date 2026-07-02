@@ -719,12 +719,43 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
         }
         (HostCapability::Process, HostOperation::ExitProcess)
         | (HostCapability::Clock, HostOperation::Sleep) => encode_scalar_arg_call(operands),
+        (HostCapability::Clock, HostOperation::TickCount) => encode_tick_count_call(operands),
         _ => Err(Diagnostic::error(format!(
             "X86_64 host operation {}.{} is not implemented",
             operation_key.capability_name(),
             operation_key.operation_name()
         ))),
     }
+}
+
+/// `GetTickCount64()` -- the first VALUE-RETURNING import: shadow space, the
+/// relocated `call rel32`, the shadow restore, then the NEW store-rax tail --
+/// `mov r15, imm64=0` (relocated to the RESULT place's storage-region base) +
+/// `mov [r15 + disp32], rax`. The single operand is the result storage place
+/// (a runtime scalar); with no operand the encoder hard-errors rather than
+/// silently dropping the result (#40).
+fn encode_tick_count_call<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
+    let Some((_, byte_offset, _)) = operands
+        .first()
+        .and_then(|operand| operand.runtime_scalar_integer())
+    else {
+        return Err(Diagnostic::error(
+            "cannot encode X86_64 tick_count: the result storage place did not lower to a \
+             runtime scalar operand",
+        ));
+    };
+    let mut bytes = Vec::with_capacity(13 + 10 + 7);
+    bytes.extend([0x48, 0x83, 0xec, 0x28]); // sub rsp, 40
+    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 (relocated)
+    bytes.extend([0x48, 0x83, 0xc4, 0x28]); // add rsp, 40
+    append_mov_r15_imm64(&mut bytes, 0); // relocated to the result region base
+    bytes.extend([0x49, 0x89, 0x87]); // mov [r15 + disp32], rax
+    let displacement: i32 = byte_offset
+        .try_into()
+        .map_err(|_| Diagnostic::error("tick_count result offset exceeds i32"))?;
+    bytes.extend(displacement.to_le_bytes());
+    debug_assert_eq!(bytes.len(), 30);
+    Ok(bytes)
 }
 
 fn encode_get_std_handle<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
@@ -980,6 +1011,25 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
             // Single-u32-arg kernel32 call (ExitProcess/Sleep), re-expressed
             // through the general Win64 scalar-args helper (extern rung 1).
             win64_scalar_args_relocation_sites(operands, 1)
+        }
+        (HostCapability::Clock, HostOperation::TickCount) => {
+            // 0-arg value-returning call: `call rel32` right after the shadow
+            // sub (4+1), then the result-region base inside `mov r15, imm64`
+            // after the shadow restore (4+5+4 = 13, +2 into the instruction).
+            vec![
+                X86_64RelocationSite {
+                    operand_index: None,
+                    byte_offset: 4 + 1,
+                    byte_width: 4,
+                    kind: X86_64RelocationSiteKind::Relative32,
+                },
+                X86_64RelocationSite {
+                    operand_index: Some(0),
+                    byte_offset: 13 + 2,
+                    byte_width: 8,
+                    kind: X86_64RelocationSiteKind::Absolute64,
+                },
+            ]
         }
         (
             HostCapability::Stdout | HostCapability::Stderr,
