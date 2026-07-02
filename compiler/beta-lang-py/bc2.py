@@ -183,6 +183,15 @@ class Parser:
         if t[0] == 'num':
             return ('num', t[1])
         if t[0] == 'word':
+            if self.peek() == ('op', '('):             # call: name ( args )
+                self.nxt()
+                args = []
+                while self.peek() != ('op', ')'):
+                    args.append(self.expr())
+                    if self.peek() == ('op', ','):
+                        self.nxt()
+                self.expect('op', ')')
+                return ('call', t[1], args)
             return ('var', t[1])
         if t == ('op', '('):
             e = self.expr()
@@ -242,6 +251,11 @@ class Gen:
         if slots:
             self.emit(f'imm   r5, {8 * len(slots)}')    # allocate frame for all locals
             self.emit('sub   r15, r5')
+        for k in range(len(params)):                    # spill incoming arg regs r0..r3 into param slots
+            self.emit('mov   r5, r14')
+            self.emit(f'imm   r4, {8 * (k + 1)}')
+            self.emit('sub   r5, r4')
+            self.emit(f'store r5, r{k}')
         # entry statements run, then fall into the first state; each state is a labelled block.
         for s in body:
             if s[0] == 'state':
@@ -292,6 +306,21 @@ class Gen:
             self.emit(f'imm   r1, {self.off(slots, e[1])}')
             self.emit('sub   r0, r1')
             self.emit('load  r0, r0')
+            return
+        if e[0] == 'call':                                # name(args): push args L->R, pop reverse to r0..
+            _, name, args = e
+            if len(args) > 4:
+                raise SyntaxError(f'bc2: >4 args unsupported (call {name})')
+            for a in args:
+                self.expr(a, slots)                       # arg -> r0
+                self.emit('imm   r2, 8')                  # push it (args share the data stack, popped below)
+                self.emit('sub   r15, r2')
+                self.emit('store r15, r0')
+            for i in range(len(args) - 1, -1, -1):        # top of stack is the last arg -> highest reg
+                self.emit(f'load  r{i}, r15')
+                self.emit('imm   r5, 8')
+                self.emit('add   r15, r5')
+            self.emit(f'call  {name}')                    # result in r0
             return
         if e[0] == 'bin':
             _, op, a, b = e
