@@ -35,8 +35,8 @@ the official self-host fixed point.
 | Slice | Covers | Done |
 | --- | --- | --- |
 | 1 | single `proc main()`, `let` locals, assignment, `+ - * / %` with parens/precedence, `return` | ✅ |
-| — | comparisons + `state`/`to..when` CFG control flow | next |
-| — | procs, params, calls, recursion | |
+| 2 | the six comparisons (materialised 0/1) + `state`/`to..when` CFG control flow (loops) | ✅ |
+| — | procs, params, calls, recursion | next |
 | — | `byte[]`/`word[]` memory | |
 | — | char literals, `read_byte`/`write_byte`, call statements | |
 | — | string literals via `emit("...")` | |
