@@ -275,4 +275,87 @@ boundary trait InterruptEntry {
     // The provider declares what the CPU did before our first instruction:
     // what is on the stack, what is masked, alignment. The handler machine is
     // entered with a typed frame minted by the vector stub.
-    machine on
+    machine on_vector(vector: u8, frame: &mut TrapFrame)
+        // Accepted, not proved: the CPU pushed this frame and masked delivery
+        // for this vector before we ran. We cannot prove what hardware did.
+        ensures interrupts in Irq::Masked        // arrived with delivery off
+        ensures frame.saved_rip.valid
+        effects device_io;
+}
+
+// A concrete handler is ordinary proved Omega — but note what it CANNOT assume:
+// the code it interrupted holds borrows and world facts this handler did not
+// establish. `&mut self` on a preempted machine is the open wound.
+machine timer_tick(entry: &InterruptEntry, frame: &mut TrapFrame)
+    requires interrupts in Irq::Masked           // handler runs masked
+    effects device_io
+{
+    // ... acknowledge the interrupt controller, bump the tick, maybe reschedule
+    Mmio::write8(apic, EOI, 0);
+}
+```
+
+**Forces the language to decide:**
+- The **entry convention**: hardware, not a caller, transfers control — sample
+  1's `entry()` shape again, but re-entrant and mid-execution. The vector stub
+  (asm) mints the typed `TrapFrame` and calls the handler machine — is that
+  stub expressible, or is it irreducibly a hand-audited boundary blob?
+- **The `&mut self`-under-preemption question ch18 flags directly:** a handler
+  runs *inside* another machine's execution. What happens to the interrupted
+  machine's in-flight borrows and its established world facts (sample 4)? The
+  honest answer is probably "the affected region ran under sample 5's mask
+  guard, so no machine is preempted mid-borrow" — which means **world facts and
+  the borrow checker together define what an interrupt may touch.** A real
+  interaction to design, not a stub.
+- Whether nested/prioritized interrupts are a language concern or pure runtime
+  config (interrupt-controller priorities).
+
+## What the six samples force, rolled up
+
+Boot does not want a new `unsafe` regime. Across all six samples, exactly **one
+genuinely new fact kind** recurs; everything else is existing machinery pointed
+at hardware.
+
+**The one real gap — world facts.** `cpu in Cpu::LongMode`,
+`paging_active(table)`, `interrupts in Irq::Masked`, `boot_services in
+Efi::Exited`, `msr_state(msr) == v` are facts about *machine state*, not about
+values. They are **established** by one machine's `ensures`, **required** by
+another's `requires`, and **invalidated** by a third (the next
+`load_page_table` kills the prior `paging_active`; `unmask` kills
+`Irq::Masked`). That is affine/state-threaded fact flow — nothing in the
+current value-invariant system holds, threads, or revokes a global state fact.
+This is the load-bearing decision the brief exists to surface. The candidate
+encoding that needs no new core feature: **hold-a-value-as-evidence** (sample
+5's `IrqGuard`) — a private-minted token whose ownership *is* the fact, so
+ownership/drop already gives establish/revoke. Whether that also covers the
+*non-scoped* facts (`paging_active` has no natural guard lifetime) or those
+need first-class world-fact tracking is the question to answer first.
+
+| Sample | Mechanism exercised | New language ask? |
+|---|---|---|
+| 1 Entry provider | `boundary trait`, `ensures` over world state, no-host target | Target-decl for "no host"; world-fact `ensures` → **the gap** |
+| 2 Memory map | untrusted-bytes validation + semantic vouch; private-mint Region | Two fact sources on one buffer; `MapKey.fresh` — mostly existing |
+| 3 MMIO / volatile | boundary operators, volatile contracts | `exactly_once` / `ordered_within` = contracts on *lowering* — new contract kind |
+| 4 CR3 / MSR | contract-heavy asm, established world facts | **World facts → the gap**; `clobbers tlb` vocabulary |
+| 5 IRQ mask | provenance guard = scoped world fact | Bless evidence-as-fact, or world facts need own tracking |
+| 6 IRQ entry | hardware-enters-machine; `&mut self` under preemption | Entry convention; borrow × world-fact under preemption |
+
+Everything not in the "the gap" rows is either the **existing provenance
+pattern** (private type + single minter = "holding this proves how it was
+obtained", already used for `IrqCtx` in ch21) or the **existing boundary/asm
+machinery** (ch18 providers, ch22 instruction contracts, ch19 volatile) simply
+declaring hardware axioms instead of OS ones.
+
+**Sequencing.** None of this blocks current compiler work. It should be
+*designed* before the freestanding target and interrupt model are implemented,
+because the world-fact representation is shared with ordinary `requires` /
+`ensures` and constrains the fact system as a whole. Recommended first move:
+take up **world facts** as its own fact-system decision, with the
+evidence-token pattern as the leading candidate and `paging_active` (the
+unscoped case) as the test that decides whether tokens suffice.
+
+## Status
+
+THEORETICAL — worked samples to force the encounter, not decisions. Feeds
+Tier-1 item 7 in `cathedral_alignment.md`. When world facts get a real design
+call, record it in TASKS.md and collapse the relevant rows above.
