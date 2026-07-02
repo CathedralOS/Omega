@@ -95,6 +95,29 @@ ddc "countdown mul"  16 'proc main() {
     state body { a = a * 2  n = n - 1  to loop }
     state done { return a }
 }'
+# slice 3 — procedures, parameters, calls, recursion
+ddc "call with args" 42 'proc add(a, b) { return a + b }
+proc main() { return add(6, 36) }'
+ddc "nested calls"   42 'proc add(a, b) { return a + b }
+proc dbl(x) { return x + x }
+proc main() { return add(dbl(15), 12) }'
+ddc "recursive fact" 120 'proc fact(n) {
+    state c { to rec when (n > 1)  return 1 }
+    state rec { return n * fact(n - 1) }
+}
+proc main() { return fact(5) }'
+ddc "recursive fib"   55 'proc fib(n) {
+    state c { to rec when (n > 1)  return n }
+    state rec { return fib(n - 1) + fib(n - 2) }
+}
+proc main() { return fib(10) }'
+ddc "recursive gcd"   12 'proc gcd(a, b) {
+    state c { to done when (b == 0)  return gcd(b, a % b) }
+    state done { return a }
+}
+proc main() { return gcd(48, 36) }'
+ddc "four params"    100 'proc sum4(a, b, c, d) { return a + b + c + d }
+proc main() { return sum4(10, 20, 30, 40) }'
 
 echo "diverse double compilation (bc2.py — independent Rust-free Beta front-end — agrees with the on-ramp, both assembled + run): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
