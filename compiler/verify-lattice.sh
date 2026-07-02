@@ -73,6 +73,7 @@ step "bc    — EXHAUSTIVE I/O: interpret == compile+run over ALL 256 input byte
 step "delta — certificate checker"                    delta       test.sh
 step "delta — soundness battery (no false proof)"     delta       soundness.sh
 step "gamma — reference interpreter (ADTs + match)"   gamma       test-interp.sh
+step "gamma — MEANING DIAMOND: independent gamma_ref.py agrees with interp.beta (fuzz)" gamma gamma-diamond-py.sh beta-lang-rs beta
 step "gamma — static type checker"                    gamma       test-typeck.sh
 step "gamma — the Delta checker, written IN gamma"    gamma       test-checker.sh
 step "diamond — checkers agree (Beta, Gamma, type-erased typed)" delta  checker-diamond.sh gamma
