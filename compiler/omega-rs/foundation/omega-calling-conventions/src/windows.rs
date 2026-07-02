@@ -3,34 +3,48 @@ use crate::{
     host_operation, insert_platform_lowering,
 };
 
+/// The Windows import catalog rows: (capability, operation, library, symbol).
+/// Single source of truth for BOTH the host-ABI bindings and the PE import
+/// table's symbol->library grouping.
+pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
+    ("Stdin", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
+    ("Stdin", "read_file", "Kernel32.dll", "ReadFile"),
+    ("Stdin", "read", "Kernel32.dll", "ReadFile"),
+    ("Stdout", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
+    ("Stdout", "write", "Kernel32.dll", "WriteFile"),
+    ("Stdout", "write_file", "Kernel32.dll", "WriteFile"),
+    ("Stderr", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
+    ("Stderr", "write", "Kernel32.dll", "WriteFile"),
+    ("Stderr", "write_file", "Kernel32.dll", "WriteFile"),
+    ("Process", "exit_process", "Kernel32.dll", "ExitProcess"),
+    ("Clock", "sleep", "Kernel32.dll", "Sleep"),
+    ("Clock", "tick_count", "Kernel32.dll", "GetTickCount64"),
+    ("Input", "key_state", "User32.dll", "GetAsyncKeyState"),
+];
+
+/// The DLL a Windows import symbol belongs to, per the catalog. `None` for
+/// symbols outside the catalog (callers default to KERNEL32.dll, the
+/// historical single-DLL behavior).
+pub fn windows_import_library(symbol: &str) -> Option<&'static str> {
+    WINDOWS_IMPORT_ROWS
+        .iter()
+        .find(|(_, _, _, row_symbol)| *row_symbol == symbol)
+        .map(|(_, _, library, _)| *library)
+}
+
 pub(crate) fn populate(plan: &mut HostAbiPlan) {
     plan.boundary_policies.insert(HostBoundaryPolicy {
         path: "omega::host::targets::windows".into(),
         checked: true,
     });
 
-    plan.bindings.insert_many([
-        windows_import("Stdin", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
-        windows_import("Stdin", "read_file", "Kernel32.dll", "ReadFile"),
-        // Runtime text-read lowering tags the `ReadRuntimeTextLine` instruction with
-        // the portable `Stdin.read` operation key (see omega-target-operations'
-        // abstract_conversions), mirroring the single-call Linux/Darwin shape. The
-        // Windows line read is a GetStdHandle + ReadFile sequence emitted inline, so
-        // bind the portable `Stdin.read` key to the same kernel32 `ReadFile` import
-        // that the explicit `Stdin.read_file` operation uses. Without this the
-        // emission planner fails the read-line binding lookup with "missing host
-        // binding for runtime text read operation Stdin.read".
-        windows_import("Stdin", "read", "Kernel32.dll", "ReadFile"),
-        windows_import("Stdout", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
-        windows_import("Stdout", "write", "Kernel32.dll", "WriteFile"),
-        windows_import("Stdout", "write_file", "Kernel32.dll", "WriteFile"),
-        windows_import("Stderr", "get_std_handle", "Kernel32.dll", "GetStdHandle"),
-        windows_import("Stderr", "write", "Kernel32.dll", "WriteFile"),
-        windows_import("Stderr", "write_file", "Kernel32.dll", "WriteFile"),
-        windows_import("Process", "exit_process", "Kernel32.dll", "ExitProcess"),
-        windows_import("Clock", "sleep", "Kernel32.dll", "Sleep"),
-        windows_import("Clock", "tick_count", "Kernel32.dll", "GetTickCount64"),
-    ]);
+    plan.bindings.insert_many(
+        WINDOWS_IMPORT_ROWS
+            .iter()
+            .map(|(capability, operation, library, symbol)| {
+                windows_import(capability, operation, library, symbol)
+            }),
+    );
 
     insert_platform_lowering(
         plan,
@@ -105,6 +119,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "*",
         "tick_count",
         [host_operation("Clock", "tick_count")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "key_state",
+        [host_operation("Input", "key_state")],
         PlatformCallData::None,
     );
     insert_platform_lowering(

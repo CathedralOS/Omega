@@ -55,42 +55,92 @@ pub(crate) struct PeImportTable {
 }
 
 pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> PeImportTable {
-    let descriptor_offset = 0usize;
-    let descriptor_count = usize::from(!imports.is_empty());
-    let descriptor_table_size = (descriptor_count + 1) * 20;
-    let ilt_offset = descriptor_table_size;
-    let thunk_table_size = (imports.len() + 1) * 8;
-    let iat_offset = ilt_offset + thunk_table_size;
-    let dll_name_offset = iat_offset + thunk_table_size;
-    let mut name_cursor = align_to(dll_name_offset + b"KERNEL32.dll\0".len(), 2);
-    let mut hint_name_offsets = Vec::with_capacity(imports.len());
-
-    for import in imports {
-        hint_name_offsets.push(name_cursor);
-        name_cursor = align_to(name_cursor + 2 + import.symbol.len() + 1, 2);
+    // MULTI-DLL import table: thunks are grouped by their catalog library
+    // (default KERNEL32.dll -- the historical single-DLL behavior for symbols
+    // outside the Windows catalog). Layout, all offsets relative to rdata_rva:
+    //   [descriptors: (n_dlls + 1) * 20]
+    //   [ILT_dll1][ILT_dll2]...      (each (count+1) * 8)
+    //   [IAT_dll1][IAT_dll2]...      (contiguous, so ONE directory entry covers all)
+    //   [dll names][hint/name entries]
+    // `iat_rvas` is returned in the INPUT thunk order (patch_import_thunks zips
+    // it against the same slice).
+    let mut libraries: Vec<(&'static str, Vec<usize>)> = Vec::new();
+    for (index, import) in imports.iter().enumerate() {
+        let library = omega_calling_conventions::windows_import_library(&import.symbol)
+            .unwrap_or("KERNEL32.dll");
+        match libraries.iter_mut().find(|(name, _)| *name == library) {
+            Some((_, members)) => members.push(index),
+            None => libraries.push((library, vec![index])),
+        }
     }
 
-    let mut bytes = vec![0; name_cursor];
-    let ilt_rva = rdata_rva + ilt_offset as u32;
-    let iat_rva = rdata_rva + iat_offset as u32;
-    let dll_name_rva = rdata_rva + dll_name_offset as u32;
+    let descriptor_table_size = (libraries.len() + 1) * 20;
+    // Per-library ILT offsets, then the contiguous IAT region.
+    let mut ilt_offsets = Vec::with_capacity(libraries.len());
+    let mut cursor = descriptor_table_size;
+    for (_, members) in &libraries {
+        ilt_offsets.push(cursor);
+        cursor += (members.len() + 1) * 8;
+    }
+    let iat_region_offset = cursor;
+    let mut iat_offsets = Vec::with_capacity(libraries.len());
+    for (_, members) in &libraries {
+        iat_offsets.push(cursor);
+        cursor += (members.len() + 1) * 8;
+    }
+    let iat_region_size = cursor - iat_region_offset;
+    // DLL name strings.
+    let mut dll_name_offsets = Vec::with_capacity(libraries.len());
+    for (library, _) in &libraries {
+        dll_name_offsets.push(cursor);
+        cursor += library.len() + 1;
+    }
+    cursor = align_to(cursor, 2);
+    // Hint/name entries, in INPUT thunk order.
+    let mut hint_name_offsets = vec![0usize; imports.len()];
+    for (index, import) in imports.iter().enumerate() {
+        hint_name_offsets[index] = cursor;
+        cursor = align_to(cursor + 2 + import.symbol.len() + 1, 2);
+    }
 
-    if !imports.is_empty() {
+    let mut bytes = vec![0; cursor];
+
+    for (library_index, (library, members)) in libraries.iter().enumerate() {
+        let descriptor_offset = library_index * 20;
+        let ilt_rva = rdata_rva + ilt_offsets[library_index] as u32;
+        let iat_rva = rdata_rva + iat_offsets[library_index] as u32;
+        let dll_name_rva = rdata_rva + dll_name_offsets[library_index] as u32;
         write_u32_at(&mut bytes, descriptor_offset, ilt_rva);
         write_u32_at(&mut bytes, descriptor_offset + 12, dll_name_rva);
         write_u32_at(&mut bytes, descriptor_offset + 16, iat_rva);
+
+        let name_offset = dll_name_offsets[library_index];
+        bytes[name_offset..name_offset + library.len()].copy_from_slice(library.as_bytes());
+
+        for (slot, import_index) in members.iter().enumerate() {
+            let hint_name_rva = rdata_rva + hint_name_offsets[*import_index] as u32;
+            write_u64_at(
+                &mut bytes,
+                ilt_offsets[library_index] + slot * 8,
+                u64::from(hint_name_rva),
+            );
+            write_u64_at(
+                &mut bytes,
+                iat_offsets[library_index] + slot * 8,
+                u64::from(hint_name_rva),
+            );
+        }
     }
 
-    bytes[dll_name_offset..dll_name_offset + b"KERNEL32.dll\0".len()]
-        .copy_from_slice(b"KERNEL32.dll\0");
-
-    let mut iat_rvas = Vec::with_capacity(imports.len());
+    // Hint/name entries + per-thunk IAT rvas in INPUT order.
+    let mut iat_rvas = vec![0u32; imports.len()];
+    for (library_index, (_, members)) in libraries.iter().enumerate() {
+        for (slot, import_index) in members.iter().enumerate() {
+            iat_rvas[*import_index] =
+                rdata_rva + (iat_offsets[library_index] + slot * 8) as u32;
+        }
+    }
     for (index, import) in imports.iter().enumerate() {
-        let hint_name_rva = rdata_rva + hint_name_offsets[index] as u32;
-        write_u64_at(&mut bytes, ilt_offset + index * 8, u64::from(hint_name_rva));
-        write_u64_at(&mut bytes, iat_offset + index * 8, u64::from(hint_name_rva));
-        iat_rvas.push(iat_rva + (index * 8) as u32);
-
         let name_offset = hint_name_offsets[index];
         write_u16_at(&mut bytes, name_offset, 0);
         let symbol_start = name_offset + 2;
@@ -103,8 +153,8 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
         iat_rvas,
         import_directory_rva: rdata_rva,
         import_directory_size: descriptor_table_size,
-        iat_rva,
-        iat_size: thunk_table_size,
+        iat_rva: rdata_rva + iat_region_offset as u32,
+        iat_size: iat_region_size,
     }
 }
 

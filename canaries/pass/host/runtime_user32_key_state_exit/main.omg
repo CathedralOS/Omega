@@ -1,0 +1,15 @@
+// The MULTI-DLL import proof: one PE importing BOTH KERNEL32.dll (ExitProcess) and User32.dll
+// (GetAsyncKeyState). The import table groups thunks by their catalog library into per-DLL
+// descriptors with a contiguous IAT region. `key_state(vk)` is the second value-returning import:
+// the vk marshals into ecx, the SHORT return is zero-extended (movzx) and stored to the result
+// place. The value is inherently unpredictable (whether a key is down), so the canary asserts only
+// that the import resolves and the call completes; the interpreter's virtual host reports no key
+// down. Exit 70. Differential (native must match the interpreter).
+boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
+data Main { console: Console; input: Input; k: u64; }
+machine Main::main(&mut self) {
+    self.k = self.input.key_state(32);
+    transition self.k >= 0 { true -> ok() _ -> ok() }
+    state ok(&mut self) { self.console.exit_process(70); }
+}
