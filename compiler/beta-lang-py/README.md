@@ -39,12 +39,15 @@ the official self-host fixed point.
 | 3 | procedures, parameters, calls, recursion (args r0..r3, callee spills to frame) | ✅ |
 | 4 | `byte[]`/`word[]` memory — `load`/`loadb`/`store`/`storeb` | ✅ |
 | 5 | char literals `'x'` (+ escapes), `read_byte`/`write_byte`, call statements | ✅ |
-| — | string literals via `emit("...")` | next |
-| ⇒ | **compile `bc.beta` → true diverse double compilation of `bc`** | goal |
+| 6 | string literals via `emit("...")` (`db` data + a `__write_str` loop) | ✅ |
+| ⇒ | **compile `bc.beta` → true diverse double compilation of `bc`** | ✅ **DONE** |
 
-After slice 5, `bc2.py` compiles the whole **`calc.beta`** recursive-descent calculator (125 lines) and
-matches the on-ramp byte-for-byte on real input — the gate checks this directly. Only `emit("...")` string
-literals remain before `bc.beta` itself is in reach.
+**The gap is closed.** `bc2.py` compiles the whole `bc.beta`, and the resulting compiler `bcA` compiles
+`bc.beta` to output **byte-for-byte identical** to what the Rust-lineage `bc` produces (8716 lines). So the
+compilation of `bc` no longer depends on which bootstrap compiler produced it — a Trojan in either the Rust
+on-ramp or `bc2.py` would have to be present, identically, in *both* independent paths. The gate's final
+line (`bc DDC`) checks this on every run. (Along the way `bc2.py` also compiles the `calc.beta`
+recursive-descent calculator and matches the on-ramp byte-for-byte on real input.)
 
 Run the gate:
 

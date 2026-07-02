@@ -42,6 +42,19 @@ def lex(src):
             while i < n and src[i] != '\n':
                 i += 1
             continue
+        if c == '"':                                   # string literal (for emit) -> raw inner text
+            j = i + 1
+            inner = ''
+            while j < n and src[j] != '"':
+                if src[j] == '\\':
+                    inner += src[j:j + 2]
+                    j += 2
+                else:
+                    inner += src[j]
+                    j += 1
+            toks.append(('str', inner))
+            i = j + 1
+            continue
         if c == "'":                                   # char literal 'x' / '\n' -> its byte value
             i += 1
             if src[i] == '\\':
@@ -168,6 +181,12 @@ class Parser:
             self.expect('op', ']')
             self.expect('op', '=')
             return ('memset', kind, addr, self.expr())
+        if t == ('word', 'emit'):                      # emit("...") — write a string literal
+            self.nxt()
+            self.expect('op', '(')
+            s = self.expect('str')[1]
+            self.expect('op', ')')
+            return ('emit', s)
         if t[0] == 'word' and self.toks[self.i + 1] == ('op', '('):   # call statement (result discarded)
             name = self.nxt()[1]
             self.nxt()                                 # '('
@@ -242,6 +261,7 @@ class Gen:
         self.out = []
         self.lc = 0                                    # fresh-label counter (_L0, _L1, ...)
         self.curproc = None
+        self.strings = []                              # string literals -> _strN db data (emitted at end)
 
     def emit(self, s):
         self.out.append('        ' + s)
@@ -261,7 +281,36 @@ class Gen:
         self.emit('halt  r0')
         for p in procs:
             self.proc(p)
+        if self.strings:                               # once-per-program string runtime + data
+            self.write_str_helper()
+            for idx, s in enumerate(self.strings):
+                self.label(f'_str{idx}')
+                self.emit(f'db "{s}"')
         return '\n'.join(self.out) + '\n'
+
+    def write_str_helper(self):
+        # __write_str(r0 = addr, r1 = length): write r1 bytes starting at r0.
+        self.label('__write_str')
+        self.label('__ws_loop')
+        self.emit('imm   r3, 0')
+        self.emit('jeq   r1, r3, __ws_done')
+        self.emit('loadb r2, r0')
+        self.emit('write r2')
+        self.emit('imm   r3, 1')
+        self.emit('add   r0, r3')
+        self.emit('sub   r1, r3')
+        self.emit('jmp   __ws_loop')
+        self.label('__ws_done')
+        self.emit('ret')
+
+    @staticmethod
+    def strbytes(inner):
+        """decoded byte length of a string literal (each \\X escape is one byte)"""
+        n = i = 0
+        while i < len(inner):
+            i += 2 if inner[i] == '\\' else 1
+            n += 1
+        return n
 
     def collect_lets(self, body, slots):
         """prescan (source order, incl. inside states) so the frame is sized once up front"""
@@ -317,6 +366,13 @@ class Gen:
         if s[0] == 'return':
             self.expr(s[1], slots)                        # value -> r0
             self.epilogue()
+            return
+        if s[0] == 'emit':                                # emit("...") -> write the string via __write_str
+            idx = len(self.strings)
+            self.strings.append(s[1])
+            self.emit(f'imm   r0, _str{idx}')
+            self.emit(f'imm   r1, {self.strbytes(s[1])}')
+            self.emit('call  __write_str')
             return
         if s[0] == 'callstmt':                            # a call used for effect; result in r0 discarded
             self.expr(s[1], slots)

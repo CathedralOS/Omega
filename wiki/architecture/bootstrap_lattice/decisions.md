@@ -106,14 +106,25 @@ above inherits that resistance **only through Rust-free reproduction** — a dia
 between two paths that share a Rust ancestor catches implementation bugs, not
 Thompson (overview honest-edge #2).
 
-**The one real inheritance gap:** `bc`'s first bootstrap runs through
-`beta-lang-rs` (Rust). Self-host reproduces `bc` but does not *diversify* it.
+**The one real inheritance gap — NOW CLOSED (2026-07-02).** `bc`'s first bootstrap
+runs through `beta-lang-rs` (Rust); self-host reproduces `bc` but does not
+*diversify* it. Closed by a **second, independent Beta compiler**,
+`compiler/beta-lang-py/bc2.py` — a from-scratch Beta→Alpha-asm compiler in Python,
+written against the ISA + grammar, NOT ported from the Rust on-ramp. It is
+UNTRUSTED and output-checked (like `elab.py`/`prover.py`/`tv-encode.py`): a bug or
+Trojan in it makes the diverse-double-compilation check FAIL, never silently pass,
+so Python is a verification instrument here, not runtime TCB (the lineage stays
+α→β→bc). `diverse-double-compilation.sh` proves it: `bc2.py` compiles `bc.beta`
+into `bcA`, and `bcA(bc.beta)` is **byte-identical** to the Rust-lineage
+`bc0(bc.beta)` (8716 lines). The compilation of `bc` is therefore independent of
+which bootstrap compiler produced it — a Trojan would have to sit, identically, in
+*both* independent paths. Wired into `verify-lattice.sh`.
 
 **Policy:**
-- **Standing goal:** a second, Rust-free path to `bc` (diverse double compilation)
-  — e.g. a Beta front-end derivable directly from the seed lineage, or a proof
-  that `bc.beta`'s self-host fixpoint is reachable without the Rust on-ramp. Until
-  then the audited on-ramp + fixpoint stands, **logged here as a known gap.**
+- **Done:** the diverse second path to `bc` exists and is gated on every lattice
+  run. Future hardening: a THIRD path in yet another language, and diversifying the
+  *assembler* (β) the same way (its only source is α-asm today, so it is already
+  seed-diverse, but a second Beta-asm→tape path would deepen it).
 - **Grow seed diversity:** more independent Alpha implementations / ISAs, authored
   as independently as possible (the overview's "diversity plan" open question). The
   count is driven by the threat model, not aesthetics; each new independent seed
@@ -165,7 +176,7 @@ converging surface is redundancy without a trust payoff. Therefore:
 α  seed VM ...... two independent hand-written implementations (x64, arm64), diamond   [ROOT: diversity]
 │                 hand-audited; own small-step semantics
 β  assembler .... written in α-asm, run by α; self-hosts                                [derived from α]
-   bc ........... Beta compiler in Beta; self-hosts (Rust on-ramp disposable)           [D5 diversity gap]
+   bc ........... Beta compiler in Beta; self-hosts; + bc2.py diverse 2nd path (DDC)    [D5 gap CLOSED]
 γ  interpreter .. interp.beta (+ typeck): the canonical MEANING substrate               [Rust-free]
 δ  checker ...... check.beta AND checker.gamma, diamonded; the trust anchor             [Rust-free, audited]
                   every capability paired with a soundness seam                          [D4]
@@ -185,6 +196,6 @@ A false proposition cannot get a certificate past δ, whoever produced it (D3).
    machines → self fields → cross-machine calls → arrays → read_byte. *(D1 urgent
    kill; slices 0–1 done.)*
 2. **Grow δ and its seams in lockstep** — no capability without its paired seam. *(D4)*
-3. **Close the bc diversity gap** — a Rust-free second path to `bc`. *(D5)*
+3. ~~Close the bc diversity gap~~ **DONE** — `bc2.py`, an independent second Beta compiler; DDC of `bc` gated. *(D5)*
 4. **Translation-validation backend** — per-compile refinement certs. *(D3 north star, later.)*
 5. **Omega meaning route + dependent-type δ** — after epsilon's meaning is complete. *(D2/D6, later.)*
