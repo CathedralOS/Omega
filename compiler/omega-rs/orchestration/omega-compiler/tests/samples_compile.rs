@@ -37,9 +37,13 @@ fn executable_name() -> &'static str {
 }
 
 /// Parse a `// Expected exit: N` annotation (any casing) from a sample's source.
+/// The COLON is required: a comment merely MENTIONING the phrase ("this sample
+/// has no Expected exit annotation") must not opt a forever-running app into
+/// the auto-run set on a garbage code scraped from later prose (bitten by
+/// samples/window_app, which waits for a human to close its window).
 fn documented_expected_exit(source: &str) -> Option<i32> {
     let lower = source.to_ascii_lowercase();
-    let after = &lower[lower.find("expected exit")? + "expected exit".len()..];
+    let after = &lower[lower.find("expected exit:")? + "expected exit:".len()..];
     let digits: String = after
         .chars()
         .skip_while(|c| !c.is_ascii_digit())

@@ -145,6 +145,12 @@ struct Evaluator<'program> {
     /// read and every `sleep`); deterministic, so tick-based programs must
     /// assert monotonicity rather than concrete values.
     virtual_ticks: i64,
+    /// The virtual window system: `window_create` mints opaque non-zero handle
+    /// tokens; `is_window` reports membership; `window_destroy` removes.
+    /// Deterministic, so programs must branch on liveness (handle != 0,
+    /// is_window > 0), never on concrete handle values.
+    virtual_live_windows: std::collections::HashSet<i64>,
+    virtual_window_next: i64,
     steps: u64,
     /// Total step allowance for this run. Full-program interpretation uses
     /// `STEP_BUDGET`; const evaluation uses the much smaller
@@ -166,6 +172,8 @@ impl<'program> Evaluator<'program> {
             stdin,
             stdin_cursor: 0,
             virtual_ticks: 0,
+            virtual_live_windows: std::collections::HashSet::new(),
+            virtual_window_next: 0,
             steps: 0,
             step_budget: STEP_BUDGET,
             call_depth: 0,
@@ -2245,12 +2253,48 @@ impl<'program> Evaluator<'program> {
                     // The virtual host has no keyboard: no key is ever down.
                     return Ok(Value::Int(0));
                 }
-                if target == "dc_create" || target == "get_dc" || target == "window_create" {
-                    // The virtual window system: device contexts and windows are
-                    // opaque handles, and every virtual handle is the non-zero
-                    // token 1 (programs must branch on handle != 0, never on a
-                    // concrete handle value -- native handles are real pointers).
+                if target == "dc_create" || target == "get_dc" {
+                    // Virtual device contexts are the opaque non-zero token 1
+                    // (programs must branch on handle != 0, never on a concrete
+                    // handle value -- native handles are real pointers).
                     return Ok(Value::Int(1));
+                }
+                if target == "window_create" {
+                    // Mint a live virtual window handle token.
+                    self.virtual_window_next += 1;
+                    self.virtual_live_windows.insert(self.virtual_window_next);
+                    return Ok(Value::Int(self.virtual_window_next));
+                }
+                if target == "is_window" || target == "window_destroy" {
+                    // Liveness mirrors native IsWindow/DestroyWindow: 1 for a
+                    // live handle, 0 otherwise; destroy removes it.
+                    let Some(handle_argument) = self
+                        .program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .first()
+                        .copied()
+                    else {
+                        return Err(halt);
+                    };
+                    let handle = match &*self
+                        .eval_call_expression_argument(handle_argument, frame)?
+                        .borrow()
+                    {
+                        Value::Int(handle) => *handle,
+                        _ => return Ok(Value::Int(0)),
+                    };
+                    let live = if target == "window_destroy" {
+                        self.virtual_live_windows.remove(&handle)
+                    } else {
+                        self.virtual_live_windows.contains(&handle)
+                    };
+                    return Ok(Value::Int(i64::from(live)));
+                }
+                if target == "msg_peek" || target == "msg_translate" || target == "msg_dispatch" {
+                    // The virtual host posts no messages: the queue is always
+                    // empty (peek = 0) and translate/dispatch have nothing to do.
+                    return Ok(Value::Int(0));
                 }
                 if target == "blit" {
                     // Virtual GDI blit(hdc, dest_w, dest_h, src_w, src_h, pixels,
@@ -3089,6 +3133,11 @@ fn is_canonical_host_method(name: &str) -> bool {
             | "get_dc"
             | "window_create"
             | "blit"
+            | "msg_peek"
+            | "msg_translate"
+            | "msg_dispatch"
+            | "is_window"
+            | "window_destroy"
     )
 }
 
