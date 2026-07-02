@@ -1,0 +1,19 @@
+// A MONOMORPHIZED generic ENUM with a T-typed payload, matched and destructured natively -- the
+// `Option<T>` shape: `Maybe<i32 in Wrapping>` constructed with `Some { value: 70 }`, matched, and
+// the payload forwarded to a sub-state. Generic enums used to fail layout entirely ("unknown
+// layout-bearing type T"): the case-bearing payload-field planning sized variant payloads WITHOUT
+// the instance bindings. The payload closure is now bindings-aware, so the recorded monomorphized
+// instance carries substituted payload layouts/descriptors. Exit 70 via the destructured payload.
+// Differential (native must match the interpreter).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Maybe<T> { case None; case Some(value: T); }
+data Main { console: Console; m: Maybe<i32 in Wrapping>; }
+machine Main::main(&mut self) {
+    self.m = Maybe::Some { value: 70 };
+    transition self.m {
+        Maybe::Some { value } -> take(value)
+        Maybe::None -> bad()
+    }
+    state take(&mut self, v: i32 in Wrapping) { self.console.exit_process(v); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}
