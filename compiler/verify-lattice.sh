@@ -87,7 +87,7 @@ step "convergence (self-hosted) — the self-hosted compiler's certifiers, check
 step "convergence (reference route) — certifier RUN on interp.beta; cert checked by check.beta" epsilon-rs convergence-reference.sh delta gamma
 step "convergence (RUST-FREE) — omega2gamma.beta->interp.beta; cert checked by check.beta" omega convergence-reference.sh epsilon-rs delta gamma
 step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega omega-meaning.sh gamma ../samples
-step "translation validation (slice 0) — delta certifies each compilation's result IS the source's meaning" omega translation-validation.sh epsilon-rs delta gamma
+step "translation validation — delta certifies each compilation's result IS the source's + - * < == meaning" omega translation-validation.sh epsilon-rs delta gamma
 step "contracts — compiler discharges ensures; delta checks at build" epsilon-rs contracts.sh delta
 step "contracts — static discharge and runtime asserts agree (soundness)" epsilon-rs discharge-soundness.sh delta
 # untrusted proof elaborator (named binders -> raw certs); skipped if python3 is absent
