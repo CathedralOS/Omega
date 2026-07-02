@@ -63,6 +63,7 @@ step "beta  — assembler self-hosts"                   beta        selfhost.sh
 step "Beta  — language compiler (on-ramp) + corpus"   beta-lang-rs test.sh
 step "bc    — Beta compiler in Beta self-hosts"       beta-lang   selfhost.sh
 step "bc    — per-feature gate"                       beta-lang   test.sh
+step "bc    — DIVERSITY: independent 2nd front-end (bc2.py) agrees (Thompson, D5)" beta-lang-py diverse-double-compilation.sh beta-lang-rs
 step "delta — certificate checker"                    delta       test.sh
 step "delta — soundness battery (no false proof)"     delta       soundness.sh
 step "gamma — reference interpreter (ADTs + match)"   gamma       test-interp.sh
