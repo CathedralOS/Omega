@@ -63,6 +63,25 @@ Linux `clock_gettime` as a follow-up. (b) existing stdout. Then a real sample
 (rotating cube / plasma / fire in the terminal). Proves "software rendering +
 animation" cheaply and de-risks host extensibility.
 
+### Software-rendering STATUS (2026-07-01): console tier COMPLETE
+
+The functioning software-rendered canary/sample set exists and is output-verified
+(not just exit-checked) + differential where applicable: `mandelbrot` /
+`mandelbrot_zoom` (per-pixel escape-time), `dungeon_render` (enum tilemap),
+`cellular_automaton` (animated Sierpinski Rule 90), `tick_marquee` (render loop
+verified against REAL elapsed time via tick_count), `bouncing_console` /
+`bouncing_ball_2d` / `bouncing_particles`, `ripple_field`, `dice_histogram`.
+Extern ladder landed: rung 1 (general Win64 scalar-args call), rung 2 (value-
+returning import + store-rax, `tick_count`), rung 3 (multi-DLL import table),
+rung 6 (input, `key_state` via user32). This is the differential-testable tier;
+it is DONE.
+
+The WINDOWED tier below is a distinct DEDICATED-SESSION effort: it is a large
+integration bundle (see the rung list) AND it is inherently NOT differential-
+canary-able -- the interpreter cannot open a window and a window's output is not
+stdout, so its canaries are compile-only + manual-run samples, unlike every
+rendered app above. Do it as one focused push, not loop-sized increments.
+
 ### Tier 2 — windowed software renderer (the native-FFI ladder)
 > **DESIGN SETTLED 2026-07-01** — see
 > [wiki/design_briefs/extern_boundary_and_format_domains.md](wiki/design_briefs/extern_boundary_and_format_domains.md).
