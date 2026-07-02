@@ -27,7 +27,7 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
   && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1 || { echo "check-ref diamond: check.beta build failed"; exit 1; }
 
 if python3 check-ref-fuzz.py "$T/check.exe" "${1:-200}" > "$T/out" 2>&1; then
-  echo "trust-anchor diamond (independent check_ref.py agrees with check.beta on logic + equality + TV-certificate proofs): $(cat "$T/out")"
+  echo "trust-anchor diamond (independent check_ref.py agrees with check.beta on the COMPLETE rule set — logic, first-order, equality, induction, predicates, lemmas, TV certs): $(cat "$T/out")"
 else
   echo "trust-anchor diamond FAILED:"; cat "$T/out"; exit 1
 fi
