@@ -34,6 +34,15 @@ om() {
   if [ "$got" = "$want" ]; then PASS=$((PASS+1)); else
     FAIL=$((FAIL+1)); echo "  FAIL $1 : meaning-route exit $got, documented $want"; fi
 }
+# omt NAME : like om but for a local feature test under tests/ (constructs no committed sample
+# isolates — e.g. cross-data method calls without floats/struct-arrays alongside).
+omt() {
+  src="tests/$1.omg"
+  want=$(grep -oE 'Expected exit: [0-9]+' "$src" | head -1 | grep -oE '[0-9]+')
+  "$T/e2g.exe" < "$src" 2>/dev/null | "$T/interp.exe" >/dev/null 2>&1; got=$?
+  if [ "$got" = "$want" ]; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL tests/$1 : meaning-route exit $got, documented $want"; fi
+}
 
 # NB the set is AUDITED, not just swept: a sample whose pass depends on a mis-parse coincidence is
 # excluded even if its exit matches (format_number: string buffers; alarm_probe2: case-pattern
@@ -58,6 +67,9 @@ om smallest_prime_factor     # 13
 om tic_tac_toe               # 70 — self-verified (board array + state args)
 om turn_combat               # 1
 om width_mixer               # 70 — self-verified (mixed-width fields, casts in range)
+
+# feature tests (constructs not isolated by any committed sample):
+omt cross_data               # 63 — Counter::bump/get unify self.value with Main's self.counter.value
 
 echo "omega meaning slice 0 (Omega samples run Rust-free via eps2gamma.beta -> interp.beta): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
