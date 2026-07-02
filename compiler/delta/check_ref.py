@@ -8,10 +8,10 @@
 # independent, auditable reference — alpha_ref.py (VM), asm_ref.py (assembler), bc2.py/beta_interp.py (bc),
 # gamma_ref.py (meaning). This is that reference for the checker's core: intuitionistic propositional logic
 # (->, &, +, bot with intro+elim), PLUS first-order (All/Exists, de Bruijn), equality by conversion (refl +
-# Peano/user-function normalization), and the Nat-induction fragment (natind/eqelim/disj/sinj).
+# Peano/list/user-function normalization), and the FULL induction fragment (natind/listind/eqelim/disj/sinj).
 # check-ref-diamond.sh fuzzes it against check.beta on random propositional/FO/equality/TV proofs and a curated
 # induction corpus, requiring identical accept/reject. UNTRUSTED and checked, like the other *_ref tools; a bug
-# here (or in check.beta) surfaces as a disagreement. (LIST induction, listind, remains a later slice.)
+# here (or in check.beta) surfaces as a disagreement — an independent, auditable realization of every check.beta rule.
 #
 # Proof := (hyp i) | (lam PROP p) | (app f x) | (pair a b) | (fst p) | (snd p)
 #        | (inl PROP p) | (inr PROP p) | (case s l r) | (absurd PROP p)
@@ -70,6 +70,22 @@ def normalize(t, fuel=FUEL):
         if isinstance(a, list) and a[0] == 's':
             return normalize(['p', t[2], ['m', a[1], t[2]]], fuel - 1)
         return ['m', a, normalize(t[2], fuel - 1)]
+    if h == 'cons':                                    # list cons: normalize head and tail
+        return ['cons', normalize(t[1], fuel - 1), normalize(t[2], fuel - 1)]
+    if h == 'app':                                     # append: nil++l=l ; (cons h t)++l = cons h (t++l)
+        a = normalize(t[1], fuel - 1)
+        if a == 'nil':
+            return normalize(t[2], fuel - 1)
+        if isinstance(a, list) and a[0] == 'cons':
+            return ['cons', a[1], normalize(['app', a[2], t[2]], fuel - 1)]
+        return ['app', a, normalize(t[2], fuel - 1)]   # stuck (open) — stays normal
+    if h == 'len':                                     # length: len nil=z ; len (cons h t) = s (len t)
+        a = normalize(t[1], fuel - 1)
+        if a == 'nil':
+            return 'z'
+        if isinstance(a, list) and a[0] == 'cons':
+            return ['s', normalize(['len', a[2]], fuel - 1)]
+        return ['len', a]
     if h == 'k':                                       # constructor value: normalize its fields
         return ['k', t[1]] + [normalize(a, fuel - 1) for a in t[2:]]
     if h == 'f':                                        # user-function application (f fid scrut [extra])
@@ -142,7 +158,11 @@ def shift_term(t, d, cut):
             return ['v', str(i + d)] if i >= cut else t
         if t[0] == 's':
             return ['s', shift_term(t[1], d, cut)]
-    return t                                           # z
+        if t[0] in ('p', 'm', 'cons', 'app'):
+            return [t[0], shift_term(t[1], d, cut), shift_term(t[2], d, cut)]
+        if t[0] == 'len':
+            return ['len', shift_term(t[1], d, cut)]
+    return t                                           # z / nil
 
 def shift_prop(p, d, cut):
     if not isinstance(p, list):
@@ -169,9 +189,11 @@ def subst_term(t, s, depth):
             return ['v', str(i - 1)] if i > depth else t
         if t[0] == 's':
             return ['s', subst_term(t[1], s, depth)]
-        if t[0] in ('p', 'm'):
+        if t[0] in ('p', 'm', 'cons', 'app'):
             return [t[0], subst_term(t[1], s, depth), subst_term(t[2], s, depth)]
-    return t                                           # z
+        if t[0] == 'len':
+            return ['len', subst_term(t[1], s, depth)]
+    return t                                           # z / nil
 
 def subst_prop(p, s, depth):
     if not isinstance(p, list):
@@ -195,8 +217,10 @@ def subst_term_keep(t, s, depth):                      # like subst_term but KEE
             return s if int(t[1]) == depth else t
         if t[0] == 's':
             return ['s', subst_term_keep(t[1], s, depth)]
-        if t[0] in ('p', 'm'):
+        if t[0] in ('p', 'm', 'cons', 'app'):
             return [t[0], subst_term_keep(t[1], s, depth), subst_term_keep(t[2], s, depth)]
+        if t[0] == 'len':
+            return ['len', subst_term_keep(t[1], s, depth)]
     return t
 
 def subst_prop_keep(p, s, depth):                      # for induction's P(s n): substitute, keep the binder
@@ -314,6 +338,18 @@ def infer(pf, ctx, idep=0):                            # ctx: list of (prop, pus
         if ts is None or not prop_eq(ts, want):
             return None
         return ['All', motive]                         # forall n. P(n)
+    if h == 'listind':                                 # (listind motive base step): list induction
+        motive, base, step = pf[1], pf[2], pf[3]
+        tb = infer(base, ctx, idep)
+        if tb is None or not prop_eq(tb, subst_prop(motive, 'nil', 0)):   # base : P(nil)
+            return None
+        ts = infer(step, ctx, idep)
+        t2 = shift_prop(motive, 1, 1)                                     # motive' (for P(t))
+        t3 = subst_prop_keep(t2, ['cons', ['v', '1'], ['v', '0']], 0)     # P(cons h t)
+        want = ['All', ['All', ['->', t2, t3]]]        # All h. All t. (P(t) -> P(cons h t))
+        if ts is None or not prop_eq(ts, want):
+            return None
+        return ['All', motive]                         # forall l. P(l)
     if h == 'eqelim':                                  # (eqelim motive pf_eq pf_pa): Leibniz / transport
         motive, pf_eq, pf_pa = pf[1], pf[2], pf[3]
         te = infer(pf_eq, ctx, idep)

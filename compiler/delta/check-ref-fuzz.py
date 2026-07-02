@@ -5,8 +5,8 @@
 # rules, (k ..) constructors, (f ..) applications). For K random valid certs, check.beta and the independent
 # reference check_ref.py must AGREE: both accept each cert, and both reject a perturbed (wrong-value/wrong-
 # type) variant. So check_ref independently validates not just the checker's logic but the REAL TV certs.
-# Deterministic (fixed seed). A curated Nat-induction corpus (natind/eqelim/disj/sinj) is also cross-checked;
-# only LIST induction (listind, needing nil/cons/app normalization) remains check.beta-only.
+# Deterministic (fixed seed). A curated induction corpus (natind/listind/eqelim/disj/sinj, incl. nil/cons/
+# app/len normalization) is also cross-checked, so check_ref now realizes EVERY rule of the trust anchor.
 import sys, os, random, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import check_ref
@@ -168,10 +168,10 @@ def tv_expr(rng, depth):                               # -> (term_string, value)
     if va < vb:    va, vb, ta, tb = vb, va, tb, ta     # keep monus non-negative
     return "(f 22 %s %s)" % (tb, ta), va - vb          # a - b via (f 22 b a)
 
-# ---- induction corpus (natind + eqelim + disj + sinj) ------------------------------------------------
+# ---- induction corpus (natind + listind + eqelim + disj + sinj) --------------------------------------
 # Random valid induction proofs are impractical to generate, so this is a curated accept/reject corpus over
-# the Nat-induction fragment: check.beta and check_ref must agree on every one. (List induction — listind
-# with nil/cons/app normalization — remains check.beta-only, a later slice.)
+# the whole induction fragment — Nat AND list induction (nil/cons/app/len normalization): check.beta and
+# check_ref must agree on every one.
 IND_CORPUS = [
     ("(All (= (p (v 0) z) (v 0))) (natind (= (p (v 0) z) (v 0)) (refl z) (gen (lam (= (p (v 0) z) (v 0)) (eqelim (= (s (p (v 1) z)) (s (v 0))) (hyp 0) (refl (s (p (v 0) z)))))))", "accept"),
     ("(All (= (m (v 0) z) z)) (natind (= (m (v 0) z) z) (refl z) (gen (lam (= (m (v 0) z) z) (hyp 0))))", "accept"),
@@ -184,6 +184,12 @@ IND_CORPUS = [
     ("(-> (Pred 0 z) (-> (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (All (Pred 0 (v 0))))) (lam (Pred 0 z) (lam (All (-> (Pred 0 (v 0)) (Pred 0 (v 0)))) (natind (Pred 0 (v 0)) (hyp 1) (hyp 0))))", "reject"),
     ("(-> (= (s z) (s z)) (bot)) (lam (= (s z) (s z)) (disj (hyp 0)))", "reject"),
     ("(-> (= (s z) (s z)) (= z (s z))) (lam (= (s z) (s z)) (sinj (hyp 0)))", "reject"),
+    # list induction: l++nil=l and append-associativity, via listind + Leibniz eqelim over cons/app; plus a
+    # len-normalization equality and its perturbation
+    ("(All (= (app (v 0) nil) (v 0))) (listind (= (app (v 0) nil) (v 0)) (refl nil) (gen (gen (lam (= (app (v 0) nil) (v 0)) (eqelim (= (cons (v 2) (app (v 1) nil)) (cons (v 2) (v 0))) (hyp 0) (refl (cons (v 1) (app (v 0) nil))))))))", "accept"),
+    ("(All (All (All (= (app (app (v 0) (v 2)) (v 1)) (app (v 0) (app (v 2) (v 1))))))) (gen (gen (listind (= (app (app (v 0) (v 2)) (v 1)) (app (v 0) (app (v 2) (v 1)))) (refl (app (v 1) (v 0))) (gen (gen (lam (= (app (app (v 0) (v 3)) (v 2)) (app (v 0) (app (v 3) (v 2)))) (eqelim (= (cons (v 2) (app (app (v 1) (v 4)) (v 3))) (cons (v 2) (v 0))) (hyp 0) (refl (cons (v 1) (app (app (v 0) (v 3)) (v 2)))))))))))", "accept"),
+    ("(= (len (cons z (cons z nil))) (s (s z))) (refl (s (s z)))", "accept"),
+    ("(= (len (cons z (cons z nil))) (s z)) (refl (s z))", "reject"),
 ]
 
 fails = 0; n = 0
