@@ -719,7 +719,12 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
         }
         (HostCapability::Process, HostOperation::ExitProcess)
         | (HostCapability::Clock, HostOperation::Sleep) => encode_scalar_arg_call(operands),
-        (HostCapability::Clock, HostOperation::TickCount) => encode_tick_count_call(operands),
+        // A 0-arg value-returning import through the GENERAL import-call encoder
+        // (byte-identical to the original bespoke tick_count sequence for an
+        // 8-byte result, and width-correct for a 4-byte one).
+        (HostCapability::Clock, HostOperation::TickCount) => {
+            encode_win64_import_call(operands, true)
+        }
         (HostCapability::Input, HostOperation::KeyState) => encode_key_state_call(operands),
         _ => Err(Diagnostic::error(format!(
             "X86_64 host operation {}.{} is not implemented",
@@ -727,36 +732,6 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
             operation_key.operation_name()
         ))),
     }
-}
-
-/// `GetTickCount64()` -- the first VALUE-RETURNING import: shadow space, the
-/// relocated `call rel32`, the shadow restore, then the NEW store-rax tail --
-/// `mov r15, imm64=0` (relocated to the RESULT place's storage-region base) +
-/// `mov [r15 + disp32], rax`. The single operand is the result storage place
-/// (a runtime scalar); with no operand the encoder hard-errors rather than
-/// silently dropping the result (#40).
-fn encode_tick_count_call<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
-    let Some((_, byte_offset, _)) = operands
-        .first()
-        .and_then(|operand| operand.runtime_scalar_integer())
-    else {
-        return Err(Diagnostic::error(
-            "cannot encode X86_64 tick_count: the result storage place did not lower to a \
-             runtime scalar operand",
-        ));
-    };
-    let mut bytes = Vec::with_capacity(13 + 10 + 7);
-    bytes.extend([0x48, 0x83, 0xec, 0x28]); // sub rsp, 40
-    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 (relocated)
-    bytes.extend([0x48, 0x83, 0xc4, 0x28]); // add rsp, 40
-    append_mov_r15_imm64(&mut bytes, 0); // relocated to the result region base
-    bytes.extend([0x49, 0x89, 0x87]); // mov [r15 + disp32], rax
-    let displacement: i32 = byte_offset
-        .try_into()
-        .map_err(|_| Diagnostic::error("tick_count result offset exceeds i32"))?;
-    bytes.extend(displacement.to_le_bytes());
-    debug_assert_eq!(bytes.len(), 30);
-    Ok(bytes)
 }
 
 /// `GetAsyncKeyState(vk)` -- a value-returning USER32 import (the multi-DLL
@@ -1035,6 +1010,278 @@ fn encode_scalar_arg_call<T: InstructionOperandLike>(operands: &[T]) -> Result<V
     encode_win64_scalar_args_call(operands, 1)
 }
 
+/// `lea <reg64>, [r15+disp32]` opcode bytes for the Win64 integer argument
+/// registers rcx/rdx/r8/r9 -- `WIN64_ARG_REGISTERS`' load opcodes with the mov
+/// (8B) swapped for lea (8D), byte-for-byte the same width.
+const WIN64_ARG_LEA_OPCODES: [&[u8]; 4] = [
+    &[0x49, 0x8d, 0x8f], // lea rcx, [r15+d]
+    &[0x49, 0x8d, 0x97], // lea rdx, [r15+d]
+    &[0x4d, 0x8d, 0x87], // lea r8,  [r15+d]
+    &[0x4d, 0x8d, 0x8f], // lea r9,  [r15+d]
+];
+
+/// The outgoing stack-argument area starts right above the 32-byte shadow space.
+const WIN64_STACK_ARG_HOME: usize = 32;
+
+/// The stack reservation for a general Win64 import call with `arg_count`
+/// arguments: the 32-byte shadow space plus one 8-byte outgoing slot per
+/// argument past the 4 register args, padded so rsp stays 16-byte aligned at
+/// the `call` (the emitted code runs with rsp ≡ 8 mod 16 -- the invariant the
+/// existing 40-byte no-stack-arg reservation encodes).
+fn win64_import_reserve(arg_count: usize) -> usize {
+    let stack_slots = arg_count.saturating_sub(4);
+    let mut reserve = WIN64_STACK_ARG_HOME + 8 * stack_slots;
+    if reserve % 16 == 0 {
+        reserve += 8;
+    }
+    reserve
+}
+
+/// `sub/add rsp, imm` width: the imm8 form (4 bytes) up to 127, else imm32 (7).
+fn rsp_adjust_width(reserve: usize) -> usize {
+    if reserve <= 127 { 4 } else { 7 }
+}
+
+fn append_sub_rsp(bytes: &mut Vec<u8>, reserve: usize) {
+    if reserve <= 127 {
+        bytes.extend([0x48, 0x83, 0xec, reserve as u8]); // sub rsp, imm8
+    } else {
+        bytes.extend([0x48, 0x81, 0xec]); // sub rsp, imm32
+        bytes.extend((reserve as u32).to_le_bytes());
+    }
+}
+
+fn append_add_rsp(bytes: &mut Vec<u8>, reserve: usize) {
+    if reserve <= 127 {
+        bytes.extend([0x48, 0x83, 0xc4, reserve as u8]); // add rsp, imm8
+    } else {
+        bytes.extend([0x48, 0x81, 0xc4]); // add rsp, imm32
+        bytes.extend((reserve as u32).to_le_bytes());
+    }
+}
+
+/// Whether a general-import argument operand marshals through the relocated r15
+/// region base (a runtime-storage scalar LOAD or a runtime-storage ADDRESS lea)
+/// rather than as a constant immediate.
+fn win64_import_arg_is_staged<T: InstructionOperandLike>(operand: Option<&T>) -> bool {
+    operand.is_some_and(|operand| {
+        operand.runtime_scalar_integer().is_some() || operand.runtime_storage_address().is_some()
+    })
+}
+
+/// Marshalling width of general-import argument `index` (0-based ABI order,
+/// stored at `operands[arg_start + index]`). Register args mirror
+/// `win64_scalar_arg_width` (an address lea is the same width as a scalar
+/// load); stack args stage through r15/rax (10 + 7 + a 5-byte
+/// `mov [rsp+disp8], rax`), or store a constant directly (9-byte
+/// `mov qword [rsp+disp8], imm32`).
+fn win64_import_arg_width<T: InstructionOperandLike>(
+    operands: &[T],
+    arg_start: usize,
+    index: usize,
+) -> usize {
+    let staged = win64_import_arg_is_staged(operands.get(arg_start + index));
+    if index < 4 {
+        let (imm_opcode, load_opcode) = WIN64_ARG_REGISTERS[index];
+        if staged {
+            10 + load_opcode.len() + 4
+        } else {
+            imm_opcode.len() + 4
+        }
+    } else if staged {
+        10 + 7 + 5
+    } else {
+        9
+    }
+}
+
+/// Total width of a `encode_win64_import_call` sequence -- must mirror the
+/// encoder byte for byte (the relocation cursor math depends on it).
+fn win64_import_call_width<T: InstructionOperandLike>(
+    operands: &[T],
+    returns_value: bool,
+) -> usize {
+    let arg_start = usize::from(returns_value);
+    let arg_count = operands.len().saturating_sub(arg_start);
+    let reserve = win64_import_reserve(arg_count);
+    let mut width = 2 * rsp_adjust_width(reserve) + 5;
+    for index in 0..arg_count {
+        width += win64_import_arg_width(operands, arg_start, index);
+    }
+    if returns_value {
+        width += 17; // mov r15, imm64 (10) + mov [r15+disp32], eax/rax (7)
+    }
+    width
+}
+
+/// A host-call immediate encoded into a 32-bit field: accepts the i32 range AND
+/// the u32 range (DWORD flag words like `WS_POPUP|WS_VISIBLE` = 0x9000_0000),
+/// encoding the low 32 bits. Register args use `mov r32, imm32` (zero-extends);
+/// stack slots use `mov qword, imm32` (SIGN-extends -- correct for ints and for
+/// DWORD-consuming callees, so keep pointer-sized big constants out of stack
+/// slots).
+fn immediate_imm32<T: InstructionOperandLike>(
+    operands: &[T],
+    index: usize,
+    label: &str,
+) -> Result<i32, Diagnostic> {
+    let Some(value) = operands.get(index).and_then(|operand| operand.immediate_integer()) else {
+        return Err(Diagnostic::error(format!(
+            "cannot encode X86_64 host call: {label} did not lower to a marshallable operand"
+        )));
+    };
+    if value < i64::from(i32::MIN) || value > i64::from(u32::MAX) {
+        return Err(Diagnostic::error(format!(
+            "cannot encode X86_64 host call: {label} value {value} does not fit a 32-bit immediate"
+        )));
+    }
+    Ok(value as u32 as i32)
+}
+
+/// The GENERAL Win64 import call -- the full extern-ABI shape. Marshals the
+/// argument operands into rcx/rdx/r8/r9 then the outgoing stack slots
+/// `[rsp + 32 + 8k]`, emits the relocated `call rel32`, restores the stack
+/// reservation, and (for a value-returning import) stores rax into the result
+/// place at the result's declared width (4-byte results store eax -- an int
+/// return's upper 32 bits are undefined under Win64).
+///
+/// Operand roles: when `returns_value`, `operands[0]` is the RESULT place (a
+/// runtime scalar; its byte_count picks the store width) and the arguments
+/// follow; otherwise every operand is an argument. Each argument is a constant
+/// immediate, a runtime-storage scalar (loaded through the relocated r15 region
+/// base), or a runtime-storage ADDRESS (`lea` through the same base -- the
+/// pointer-argument shape: buffers, OS structs, C strings).
+fn encode_win64_import_call<T: InstructionOperandLike>(
+    operands: &[T],
+    returns_value: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    if returns_value && operands.is_empty() {
+        return Err(Diagnostic::error(
+            "cannot encode X86_64 import call: the result storage place did not lower to a \
+             runtime scalar operand",
+        ));
+    }
+    let arg_start = usize::from(returns_value);
+    let arg_count = operands.len() - arg_start;
+    let reserve = win64_import_reserve(arg_count);
+    let mut bytes = Vec::with_capacity(win64_import_call_width(operands, returns_value));
+    append_sub_rsp(&mut bytes, reserve);
+    for index in 0..arg_count {
+        let operand = &operands[arg_start + index];
+        if index < 4 {
+            let (imm_opcode, load_opcode) = WIN64_ARG_REGISTERS[index];
+            if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
+                append_mov_r15_imm64(&mut bytes, 0); // relocated to the argument's region base
+                bytes.extend_from_slice(load_opcode);
+                bytes.extend(disp32(byte_offset)?.to_le_bytes());
+            } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
+                append_mov_r15_imm64(&mut bytes, 0); // relocated to the argument's region base
+                bytes.extend_from_slice(WIN64_ARG_LEA_OPCODES[index]);
+                bytes.extend(disp32(byte_offset)?.to_le_bytes());
+            } else {
+                let argument = immediate_imm32(operands, arg_start + index, "import argument")?;
+                bytes.extend_from_slice(imm_opcode);
+                bytes.extend(argument.to_le_bytes());
+            }
+        } else {
+            let stack_offset = WIN64_STACK_ARG_HOME + 8 * (index - 4);
+            let stack_disp8 = u8::try_from(stack_offset)
+                .ok()
+                .filter(|_| stack_offset <= 127)
+                .ok_or_else(|| {
+                    Diagnostic::error("X86_64 import call supports at most 16 arguments")
+                })?;
+            if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
+                append_mov_r15_imm64(&mut bytes, 0); // relocated to the argument's region base
+                bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15+disp32]
+                bytes.extend(disp32(byte_offset)?.to_le_bytes());
+                bytes.extend([0x48, 0x89, 0x44, 0x24, stack_disp8]); // mov [rsp+o], rax
+            } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
+                append_mov_r15_imm64(&mut bytes, 0); // relocated to the argument's region base
+                bytes.extend([0x49, 0x8d, 0x87]); // lea rax, [r15+disp32]
+                bytes.extend(disp32(byte_offset)?.to_le_bytes());
+                bytes.extend([0x48, 0x89, 0x44, 0x24, stack_disp8]); // mov [rsp+o], rax
+            } else {
+                let argument = immediate_imm32(operands, arg_start + index, "import argument")?;
+                bytes.extend([0x48, 0xc7, 0x44, 0x24, stack_disp8]); // mov qword [rsp+o], imm32
+                bytes.extend(argument.to_le_bytes());
+            }
+        }
+    }
+    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 (relocated)
+    append_add_rsp(&mut bytes, reserve);
+    if returns_value {
+        let Some((_, byte_offset, byte_count)) = operands[0].runtime_scalar_integer() else {
+            return Err(Diagnostic::error(
+                "cannot encode X86_64 import call: the result storage place did not lower to a \
+                 runtime scalar operand",
+            ));
+        };
+        append_mov_r15_imm64(&mut bytes, 0); // relocated to the result region base
+        match byte_count {
+            4 => bytes.extend([0x41, 0x89, 0x87]), // mov [r15+disp32], eax
+            8 => bytes.extend([0x49, 0x89, 0x87]), // mov [r15+disp32], rax
+            other => {
+                return Err(Diagnostic::error(format!(
+                    "X86_64 import call cannot store a {other}-byte result (expected 4 or 8)"
+                )));
+            }
+        }
+        bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        win64_import_call_width(operands, returns_value)
+    );
+    Ok(bytes)
+}
+
+/// Relocation sites for a `encode_win64_import_call` sequence: one Absolute64
+/// region-base site per staged argument (inside its `mov r15, imm64`), the
+/// Relative32 `call rel32` after all marshalling, and (value-returning) the
+/// result region base inside the store tail's `mov r15, imm64`.
+fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
+    operands: &[T],
+    returns_value: bool,
+) -> Vec<X86_64RelocationSite> {
+    let arg_start = usize::from(returns_value);
+    let arg_count = operands.len().saturating_sub(arg_start);
+    let reserve = win64_import_reserve(arg_count);
+    let mut sites = Vec::new();
+    let mut cursor = rsp_adjust_width(reserve);
+    for index in 0..arg_count {
+        if win64_import_arg_is_staged(operands.get(arg_start + index)) {
+            sites.push(X86_64RelocationSite {
+                operand_index: Some(arg_start + index),
+                byte_offset: cursor + 2, // inside mov r15, imm64
+                byte_width: 8,
+                kind: X86_64RelocationSiteKind::Absolute64,
+            });
+        }
+        cursor += win64_import_arg_width(operands, arg_start, index);
+    }
+    sites.push(X86_64RelocationSite {
+        operand_index: None,
+        byte_offset: cursor + 1, // past the call opcode
+        byte_width: 4,
+        kind: X86_64RelocationSiteKind::Relative32,
+    });
+    cursor += 5 + rsp_adjust_width(reserve);
+    if returns_value
+        && operands
+            .first()
+            .is_some_and(|operand| operand.runtime_scalar_integer().is_some())
+    {
+        sites.push(X86_64RelocationSite {
+            operand_index: Some(0),
+            byte_offset: cursor + 2, // inside the result mov r15, imm64
+            byte_width: 8,
+            kind: X86_64RelocationSiteKind::Absolute64,
+        });
+    }
+    sites
+}
+
 fn host_call_relocation_sites<T: InstructionOperandLike>(
     operation_key: HostOperationKey,
     operands: &[T],
@@ -1088,23 +1335,10 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
             sites
         }
         (HostCapability::Clock, HostOperation::TickCount) => {
-            // 0-arg value-returning call: `call rel32` right after the shadow
-            // sub (4+1), then the result-region base inside `mov r15, imm64`
-            // after the shadow restore (4+5+4 = 13, +2 into the instruction).
-            vec![
-                X86_64RelocationSite {
-                    operand_index: None,
-                    byte_offset: 4 + 1,
-                    byte_width: 4,
-                    kind: X86_64RelocationSiteKind::Relative32,
-                },
-                X86_64RelocationSite {
-                    operand_index: Some(0),
-                    byte_offset: 13 + 2,
-                    byte_width: 8,
-                    kind: X86_64RelocationSiteKind::Absolute64,
-                },
-            ]
+            // 0-arg value-returning call through the general import-call layout
+            // (call at 4+1; result-region base at 13+2 -- identical to the
+            // original bespoke site list).
+            win64_import_call_relocation_sites(operands, true)
         }
         (
             HostCapability::Stdout | HostCapability::Stderr,

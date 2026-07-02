@@ -57,6 +57,13 @@ pub(super) fn selected_instruction_operands_name(
                 let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
                 format!("scalar i{} {symbol}@{byte_offset}", byte_count * 8)
             }
+            InstructionOperandKind::RuntimeStorageAddress {
+                region,
+                byte_offset,
+            } => {
+                let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
+                format!("address &{symbol}@{byte_offset}")
+            }
             InstructionOperandKind::ImmediateInteger(value) => value.to_string(),
             InstructionOperandKind::ByteLength(value) => format!("len {value}"),
         })
