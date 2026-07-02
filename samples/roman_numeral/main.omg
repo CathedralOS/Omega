@@ -1,3 +1,4 @@
+// Expected exit: 70.
 // Roman numeral -> integer. Scan the characters left to right accumulating each symbol's value; when
 // a symbol is larger than the one before it (a subtractive pair like IV or CM), undo the previous
 // addition twice, because that smaller symbol should have been subtracted. For "MCMXCIV" this yields

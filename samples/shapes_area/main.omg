@@ -7,11 +7,11 @@
 //   tri_area(6, 1)   = 6*1/2 =  3
 //   Total: 27+40+3   = 70
 //
-// Workaround note: a known native miscompile triggers when a value-position
-// call with an internal `let` is followed by a call with MORE args
-// (canaries/pending/calls/value_call_internal_let_slot_clobbers_prior_result).
-// To avoid it, intermediate multiplications are done in the caller before
-// passing the product to the callee.
+// Historical workaround note: a native miscompile used to trigger when a
+// value-position call with an internal `let` was followed by a call with MORE
+// args. Probe-verified FIXED (native==interp) on 2026-07-01; the caller-side
+// multiplications below are retained but no longer load-bearing. (The old
+// canaries/pending reference was purged with the pending backlog.)
 //
 // Expected exit: 70.
 

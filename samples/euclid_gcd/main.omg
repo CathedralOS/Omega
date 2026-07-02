@@ -8,7 +8,7 @@
 // (A `let r = self.state.a % self.state.b; self.state.a = self.state.b;
 // self.state.b = r;` form currently miscompiles: the let-local is inline-folded
 // back to `a % b` at its use, after `a` was reassigned. A `tmp` field is read from
-// its slot, so it is correct. The fold bug is filed separately.)
+// its slot, so it is correct. The fold bug is filed separately; probe-verified STILL LIVE 2026-07-01.)
 // Expected exit: 12.
 
 use omega::language::std::console;

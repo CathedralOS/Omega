@@ -7,7 +7,9 @@ They are allowed to be rough while the language is moving, but each sample
 should still have a clear project shape:
 
 - `main.omg`: the entrypoint the compiler is pointed at.
-- `build.omg`: target, host, and boundary policy when the sample needs one.
+- `build.omg`: targets and their trusted boundary packages, when the sample
+  needs one (a `target` block lists `boundary` lines only — see
+  `wiki/design_briefs/extern_boundary_and_format_domains.md` §4).
 - `.gitignore`: local sample ignore rules, including `/build/`.
 - Domain folders such as `data/`, `platform/`, `rooms/`, or `dungeon/`.
 

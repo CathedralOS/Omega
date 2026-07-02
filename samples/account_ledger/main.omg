@@ -5,16 +5,17 @@
 // flag gate, value-returning helpers (balance_of with self-mutation, total()),
 // and sequential value-call results combined in arithmetic.
 //
-// *** MISCOMPILE DOCUMENTED ***
+// *** MISCOMPILE FIXED (historical; verified native==interp==70 on 2026-07-01) ***
 //
-// Native exit: 93  (wrong)
-// Interpreter exit: 70  (correct)
+// This sample originally documented a live miscompile (native exited 93 while the
+// interpreter exited 70). The probe arms below (exit codes 91-93) are retained as a
+// regression tripwire.
 //
-// Root cause (confirmed by arm-argument probes):
+// Historical root cause (confirmed by arm-argument probes at the time):
 //   When dispatching the THIRD case variant `Transaction::Transfer { to, amount }`
 //   and passing both fields as sub-state arguments `check_xfer(idx, to, amount)`,
-//   the SECOND payload field `amount` receives the value of the FIRST payload
-//   field `to` in native emission.  The interpreter extracts both fields correctly.
+//   the SECOND payload field `amount` received the value of the FIRST payload
+//   field `to` in native emission.  The interpreter extracted both fields correctly.
 //
 // Minimal trigger:
 //   data Transaction {
@@ -49,7 +50,7 @@
 //   apply(1, Withdraw(80))              acc[1].bal=120
 //   apply(2, Freeze)                    acc[2].frozen=1
 //   apply(2, Deposit(50))               acc[2] frozen -> skipped
-//   apply(0, Transfer(to=3, amount=40)) acc[0].bal=60, acc[3].bal=40  [MISCOMPILE]
+//   apply(0, Transfer(to=3, amount=40)) acc[0].bal=60, acc[3].bal=40  [was the MISCOMPILE site]
 //   apply(2, Unfreeze)                  acc[2].frozen=0
 //   apply(2, Deposit(30))               acc[2].bal=30
 //   apply(1, Query)                     query_count++ only
@@ -60,7 +61,7 @@
 //
 // Exit codes:
 //   70  success
-//   71  raw acc[0].balance != 40 (Transfer miscompile propagates here)
+//   71  raw acc[0].balance != 40 (the historical Transfer miscompile propagated here)
 //   72  raw acc[2].balance != 30
 //   73  raw acc[1].balance != 120
 //   74  raw acc[3].balance != 40
@@ -70,7 +71,7 @@
 //   78  total() != 230
 //   91  Transfer sub-state: src (idx) != 0  [probe arm]
 //   92  Transfer sub-state: dst (to) != 3   [probe arm]
-//   93  Transfer sub-state: amount != 40    [FIRES in native -- amount==3 not 40]
+//   93  Transfer sub-state: amount != 40    [historically fired in native -- amount==3 not 40]
 //
 // Expected exit: 70.
 
@@ -316,7 +317,7 @@ machine Main::apply(&mut self, idx: i32 in Wrapping, tx: Transaction) {
     // Transfer path: probe the extracted payload fields.
     // In native: `amount` receives the value of `to` (the first payload field).
     state check_xfer(&mut self, idx: i32 in Wrapping, to: i32 in Wrapping, amount: i32 in Wrapping) {
-        // Guard chain to expose the miscompile:
+        // Guard chain that exposed the (now-fixed) miscompile:
         // src (=idx) should be 0 for our apply(0, Transfer{...}) call.
         transition idx == 0 {
             true -> xfer_check_to(to, amount)
@@ -338,7 +339,7 @@ machine Main::apply(&mut self, idx: i32 in Wrapping, tx: Transaction) {
 
     state xfer_check_amount(&mut self, to: i32 in Wrapping, amount: i32 in Wrapping) {
         // amount should be 40. In native: amount==3 (same as `to`).
-        // MISCOMPILE: this arm fires in native (exit 93).
+        // Historical MISCOMPILE arm: fired in native (exit 93) while the payload-extraction bug was live; now a regression tripwire.
         transition amount == 40 {
             true -> xfer_do(to, amount)
             _ -> xfer_bad_amount()
