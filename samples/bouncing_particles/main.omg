@@ -42,6 +42,7 @@ data Main {
     b: i32 in Wrapping;    // scratch: its velocity
     n: i32 in Wrapping;    // scratch: integrated component
     glyph: u8;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -205,6 +206,8 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {

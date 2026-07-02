@@ -28,6 +28,7 @@ data Main {
     frame: i32 [0..=70]; // guard-proven Exact frame counter
     y: i32 [0..=12];     // guard-proven Exact row counter
     x: i32 [0..=24];     // guard-proven Exact column counter
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -151,6 +152,8 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
 }

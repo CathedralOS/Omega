@@ -6,6 +6,8 @@
 // primitives a flag set or a Bloom-filter word uses. Exits 70 iff all three checks pass.
 
 boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
     machine exit_process(return_code: i32);
 }
 
@@ -16,6 +18,7 @@ data Main {
     i: u32 in Wrapping;
     mask: u32 in Wrapping;
     test: u32 in Wrapping;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -57,6 +60,10 @@ machine Main::main(&mut self) {
         self.test = self.test & 1;
         transition self.test == 1 { true -> ok() _ -> bad() }
     }
-    state ok(&mut self) { self.console.exit_process(70); }
+    state ok(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
     state bad(&mut self) { self.console.exit_process(71); }
 }

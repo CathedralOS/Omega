@@ -50,6 +50,7 @@ data Log [copy, zero_init] {
 data Main {
     console: Console;
     log: Log;
+    pause: String;
 }
 
 machine Main::apply(&mut self, event: Event) {
@@ -120,5 +121,9 @@ machine Main::main(&mut self) {
 
     state bad_count(&mut self) { self.console.exit_process(74); }
 
-    state good(&mut self) { self.console.exit_process(70); }
+    state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
 }

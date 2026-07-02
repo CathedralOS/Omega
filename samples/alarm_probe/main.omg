@@ -19,6 +19,7 @@ data AlarmEvent {
 data Main {
     console: Console;
     fire_count: i32 in Saturating;
+    pause: String;
 }
 
 machine Main::dispatch(&mut self, event: AlarmEvent) {
@@ -47,6 +48,10 @@ machine Main::main(&mut self) {
         true -> good()
         _ -> bad()
     }
-    state good(&mut self) { self.console.exit_process(70); }
+    state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
     state bad(&mut self) { self.console.exit_process(71); }
 }

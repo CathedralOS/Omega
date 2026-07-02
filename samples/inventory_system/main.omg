@@ -48,6 +48,7 @@ data Inventory [copy, zero_init] {
 data Main {
     console: Console;
     inv: Inventory;
+    pause: String;
 }
 
 // Set item at each const index (dispatch-based runtime write).
@@ -202,5 +203,9 @@ machine Main::main(&mut self) {
 
     state bad_total(&mut self) { self.console.exit_process(72); }
 
-    state good(&mut self) { self.console.exit_process(70); }
+    state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
 }

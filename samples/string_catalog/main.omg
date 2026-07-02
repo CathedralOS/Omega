@@ -50,6 +50,7 @@ data Catalog {
 data Main {
     console: Console;
     catalog: Catalog;
+    pause: String;
 }
 
 machine Main::set_entry1(&mut self) {
@@ -111,5 +112,9 @@ machine Main::main(&mut self) {
 
     state bad_total(&mut self) { self.console.exit_process(74); }
 
-    state good(&mut self) { self.console.exit_process(70); }
+    state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
 }

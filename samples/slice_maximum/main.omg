@@ -22,6 +22,7 @@ machine Finder::find_max(&mut self, s: &[i32], current: i32) -> i32 {
 data Main {
     console: Console;
     finder: Finder;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -33,5 +34,7 @@ machine Main::main(&mut self) {
 
     let s: &[i32] = self.finder.values.as_slice();
     let m: i32 = self.finder.find_max(s, 0);
+    self.console.write_line("[press Enter to close]");
+    self.console.read_line(&mut self.pause);
     self.console.exit_process(m);
 }

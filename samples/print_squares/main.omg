@@ -19,6 +19,7 @@ data Main {
     ch: u32 in Wrapping;
     byte: u8 in Wrapping;
     p: usize;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -61,6 +62,8 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
 }

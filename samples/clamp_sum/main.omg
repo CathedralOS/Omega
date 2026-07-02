@@ -26,6 +26,7 @@ machine Clamper::clamp_sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrappin
 data Main {
     console: Console;
     clamper: Clamper;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -37,5 +38,7 @@ machine Main::main(&mut self) {
 
     let s: &[i32 in Wrapping] = self.clamper.values.as_slice();
     let total: i32 = self.clamper.clamp_sum(s, 0);
+    self.console.write_line("[press Enter to close]");
+    self.console.read_line(&mut self.pause);
     self.console.exit_process(total);
 }

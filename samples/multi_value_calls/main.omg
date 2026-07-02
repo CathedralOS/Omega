@@ -28,6 +28,7 @@ use omega::language::std::console;
 data Main {
     console: Console;
     offset: i32 in Saturating;
+    pause: String;
 }
 
 machine Main::double_val(&mut self, n: i32 in Saturating) -> i32 in Saturating {
@@ -95,5 +96,9 @@ machine Main::main(&mut self) {
 
     state bad_r3(&mut self) { self.console.exit_process(74); }
 
-    state good(&mut self) { self.console.exit_process(70); }
+    state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
 }

@@ -41,6 +41,7 @@ data Main {
     console: Console;
     data: [i32 in Wrapping; 5];
     r: Recursor;
+    pause: String;
 }
 
 // Recursive: sum all elements (linear accumulator: acc + s[0]).
@@ -134,5 +135,9 @@ machine Main::main(&mut self) {
 
     state bad_final(&mut self) { self.console.exit_process(73); }
 
-    state good(&mut self) { self.console.exit_process(70); }
+    state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
 }

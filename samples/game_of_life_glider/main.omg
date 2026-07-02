@@ -41,6 +41,7 @@ data Main {
     vx: i32 [0..=24];       // render visible col 0..24
     rf: i32;                // render flat index (bounded fold from ry/vx ranges)
     glyph: u8;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -254,6 +255,8 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {

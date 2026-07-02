@@ -53,6 +53,7 @@ data State [copy, zero_init] {
 data Main {
     console: Console;
     st: State;
+    pause: String;
 }
 
 // Value-returning machine that reads self.st.multiplier.
@@ -129,5 +130,9 @@ machine Main::main(&mut self) {
 
     state bad_total(&mut self) { self.console.exit_process(75); }
 
-    state good(&mut self) { self.console.exit_process(70); }
+    state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
 }

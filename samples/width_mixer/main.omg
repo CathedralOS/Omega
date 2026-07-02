@@ -35,6 +35,7 @@ data Readings [copy, zero_init] {
 data Main {
     console: Console;
     data: Readings;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -71,6 +72,8 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 

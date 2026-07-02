@@ -27,6 +27,7 @@ data Main {
     console: Console;
     arr: [i32 in Wrapping; 6];
     adder: Adder;
+    pause: String;
 }
 
 // Looping value-returning machine: acc + s[0] at each step, recurse on s[1..].
@@ -60,6 +61,8 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 

@@ -30,6 +30,7 @@ data Main {
     k: i32 [0..=40];
     idx: i32;
     ch: u8 in Wrapping;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -119,6 +120,10 @@ machine Main::main(&mut self) {
         self.frame = self.frame + 1;
         transition { _ -> frame_loop() }
     }
-    state finish(&mut self) { self.console.exit_process(0); }
+    state finish(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(0);
+    }
     state bad(&mut self) { self.console.exit_process(1); }
 }

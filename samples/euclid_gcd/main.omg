@@ -25,6 +25,7 @@ data Euclid [copy, zero_init] {
 data Main {
     console: Console;
     state: Euclid;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -52,6 +53,8 @@ machine Main::main(&mut self) {
     }
 
     state done(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(self.state.a);
     }
 }

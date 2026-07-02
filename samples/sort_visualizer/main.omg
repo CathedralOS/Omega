@@ -34,6 +34,7 @@ data Main {
     ry: i32 [0..=8];   // render row
     cx: i32 [0..=8];   // render column
     val: i32;          // bar length for the current row
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -146,6 +147,8 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
 }

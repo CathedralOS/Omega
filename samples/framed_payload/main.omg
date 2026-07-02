@@ -25,6 +25,7 @@ machine Frame::sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i3
 data Main {
     console: Console;
     frame: Frame;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -36,5 +37,7 @@ machine Main::main(&mut self) {
 
     let full: &[i32 in Wrapping] = self.frame.bytes.as_slice();
     let checksum: i32 = self.frame.sum(full[1..4], 0);
+    self.console.write_line("[press Enter to close]");
+    self.console.read_line(&mut self.pause);
     self.console.exit_process(checksum);
 }

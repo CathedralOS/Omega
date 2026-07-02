@@ -13,11 +13,14 @@
 // Expected exit: 24.
 
 boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
     machine exit_process(return_code: i32);
 }
 
 data Main {
     console: Console;
+    pause: String;
     x: u32 in Wrapping;
     bit: u32 in Wrapping;
     count: u32 in Wrapping;
@@ -52,6 +55,8 @@ machine Main::main(&mut self) {
 
     state done(&mut self) {
         self.result = self.count as i32;
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(self.result);
     }
 }

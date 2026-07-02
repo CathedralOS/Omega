@@ -54,6 +54,7 @@ data Sorter [copy, zero_init] {
 data Main {
     console: Console;
     s: Sorter;
+    pause: String;
 }
 
 // ---- Per-pair compare-and-swap machines ----
@@ -240,5 +241,9 @@ machine Main::main(&mut self) {
 
     state bad5(&mut self) { self.console.exit_process(76); }
 
-    state good(&mut self) { self.console.exit_process(70); }
+    state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
 }

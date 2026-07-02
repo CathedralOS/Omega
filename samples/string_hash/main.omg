@@ -16,6 +16,8 @@ domain [u8; 8]::Utf8 when valid_utf8(self) {
 }
 
 boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
     machine exit_process(return_code: i32);
 }
 
@@ -31,6 +33,7 @@ data Main {
     hash: u32 in Wrapping;
     digest: u32 in Wrapping;
     out: i32;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -72,6 +75,8 @@ machine Main::main(&mut self) {
     state done(&mut self) {
         self.digest = self.hash & 255;
         self.out = self.digest as i32;
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(self.out);
     }
 }

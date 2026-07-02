@@ -38,6 +38,7 @@ data Grid [copy, zero_init] {
 data Main {
     console: Console;
     g: Grid;
+    pause: String;
 }
 
 // Initialize the board with the 2x2 block still-life at positions 5,6,9,10.
@@ -506,6 +507,8 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 

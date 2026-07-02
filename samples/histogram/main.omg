@@ -18,11 +18,14 @@
 // The program exits with that count. Expected exit: 4.
 
 boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
     machine exit_process(return_code: i32);
 }
 
 data Main {
     console: Console;
+    pause: String;
     samples: [usize; 8];
     // Wrapping DECLARED: the tallies accumulate values read back OUT of the
     // histogram array, and array elements carry no range facts yet.
@@ -94,6 +97,8 @@ machine Main::main(&mut self) {
 
     state done(&mut self) {
         self.result = self.histogram[2];
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(self.result);
     }
 }

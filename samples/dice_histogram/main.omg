@@ -27,6 +27,7 @@ data Main {
     k: i32 in Wrapping;
     bo: i32 in Wrapping;   // bar offset
     lab: u8;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -95,6 +96,8 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {

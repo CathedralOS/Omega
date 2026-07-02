@@ -26,6 +26,7 @@ data Main {
     console: Console;
     px: i32 in Saturating;
     py: i32 in Saturating;
+    pause: String;
 }
 
 // Dispatch on the direction, returning the unit step as a struct literal per arm.
@@ -61,6 +62,8 @@ machine Main::main(&mut self) {
 
     state report(&mut self) {
         self.px = self.px * 10 + self.py;
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(self.px);
     }
 }

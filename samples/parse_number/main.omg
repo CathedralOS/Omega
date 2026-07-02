@@ -13,11 +13,14 @@ domain [u8]::Utf8 when valid_utf8(self) {}
 domain [u8; 4]::Utf8 when valid_utf8(self) {}
 
 boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
     machine exit_process(return_code: i32);
 }
 
 data Main {
     console: Console;
+    pause: String;
     text: [u8; 4] in Utf8;
     tens: i32;
     ones: i32;
@@ -36,6 +39,8 @@ machine Main::main(&mut self) {
     transition { _ -> done() }
 
     state done(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(self.value);
     }
 }

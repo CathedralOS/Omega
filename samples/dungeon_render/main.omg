@@ -34,6 +34,7 @@ data Main {
     c: u32 in Wrapping;   // current column (write index into the line buffer)
     k: u32 in Wrapping;   // linear index into the grid
     lab: u8;              // glyph for the current cell
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -88,6 +89,8 @@ machine Main::main(&mut self) {
         transition { _ -> row_loop() }
     }
     state done(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
 }

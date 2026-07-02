@@ -17,6 +17,7 @@ domain [u8; 32]::Utf8 when valid_utf8(self) {}
 
 boundary trait Console {
     machine write_line(text: &[u8] in Utf8);
+    machine read_line(out_line: &mut String);
     machine exit_process(return_code: i32);
 }
 
@@ -25,6 +26,7 @@ data Main {
     label: [u8; 8] in Utf8;
     message: [u8; 32] in Utf8;
     reading: i32;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -48,6 +50,10 @@ machine Main::main(&mut self) {
         transition self.message == "ok temp" { true -> ok() _ -> bad() }
     }
 
-    state ok(&mut self) { self.console.exit_process(70); }
+    state ok(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
     state bad(&mut self) { self.console.exit_process(71); }
 }

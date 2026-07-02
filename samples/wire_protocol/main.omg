@@ -46,6 +46,7 @@ data Main {
     written: usize;
     read: usize;
     ok: bool;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -90,6 +91,8 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 

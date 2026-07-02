@@ -7,6 +7,8 @@
 // across nested loops, with no array indexing.
 
 boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
     machine exit_process(return_code: i32);
 }
 
@@ -18,6 +20,7 @@ data Main {
     m: u32 in Wrapping;
     k: u32 in Wrapping;
     count: i32 in Wrapping;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -76,6 +79,10 @@ machine Main::main(&mut self) {
     state done(&mut self) {
         transition self.count == 10 { true -> ok() _ -> bad() }
     }
-    state ok(&mut self) { self.console.exit_process(70); }
+    state ok(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
     state bad(&mut self) { self.console.exit_process(self.count); }
 }

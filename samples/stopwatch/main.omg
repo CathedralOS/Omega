@@ -40,6 +40,7 @@ data Watch [copy, zero_init] {
 data Main {
     console: Console;
     watch: Watch;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -78,7 +79,11 @@ machine Main::main(&mut self) {
         }
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
+    state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
     state bad_total(&mut self) { self.console.exit_process(71); }
     state bad_split(&mut self) { self.console.exit_process(72); }
     state bad_lap(&mut self) { self.console.exit_process(73); }

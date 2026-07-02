@@ -6,6 +6,8 @@
 // Expected exit: 68.
 
 boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
     machine exit_process(return_code: i32);
 }
 
@@ -14,6 +16,7 @@ data Main {
     celsius: f64;
     fahrenheit: f64;
     result: i32;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -24,6 +27,8 @@ machine Main::main(&mut self) {
     transition { _ -> done() }
 
     state done(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(self.result);
     }
 }

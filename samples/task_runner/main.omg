@@ -41,6 +41,7 @@ data Runner [copy, zero_init] {
 data Main {
     console: Console;
     runner: Runner;
+    pause: String;
 }
 
 // Top-level dispatcher: receive a task and handle it.
@@ -93,6 +94,8 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 

@@ -52,6 +52,7 @@ data Vm [copy, zero_init] {
 data Main {
     console: Console;
     vm: Vm;
+    pause: String;
 }
 
 // Initialize VM: sp = -1 (empty stack).
@@ -203,6 +204,10 @@ machine Main::main(&mut self) {
         _ -> bad()
     }
 
-    state good(&mut self) { self.console.exit_process(70); }
+    state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
     state bad(&mut self) { self.console.exit_process(71); }
 }
