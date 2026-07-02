@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.join(HERE, '..', 'beta-lang-py'))
 import alpha_symbolic as S
 import beta_symbolic as B                              # source-side symbolic evaluator (the auto-derived meaning)
 import beta_interp                                     # concrete Beta interpreter (pins the source meaning)
+import refinement_fuzz_gen                             # random straight-line arithmetic Beta programs
 from bc2 import lex, Parser
 ALPHA_REF = os.path.join(HERE, 'alpha_ref.py')
 PROVER = os.path.join(HERE, '..', 'delta', 'prover.py')
@@ -66,9 +67,9 @@ AUTO_SAMPLES = [
     ("double    (double(21))",      "../beta-lang-rs/examples/double.beta"),
 ]
 
-def compile_beta(src_path):
-    """bc.exe < src | asm  ->  raw alpha tape bytes."""
-    asm = subprocess.run([BC], stdin=open(src_path, 'rb'), capture_output=True).stdout
+def compile_beta_text(text):
+    """bc.exe < text | asm  ->  raw alpha tape bytes."""
+    asm = subprocess.run([BC], input=text.encode(), capture_output=True).stdout
     with tempfile.NamedTemporaryFile(delete=False) as f:
         f.write(asm); apath = f.name
     try:
@@ -82,16 +83,13 @@ def beta_ref_observe(procs, env, n):
     rc, out = beta_interp.interpret(procs, bytes(env[i] for i in range(n)))
     return (out[0] if out else rc) & 0xFF
 
-def check_auto(label, srcrel):
-    """Derive the COMPILED meaning (alpha_symbolic ∘ bc) and the SOURCE meaning (beta_symbolic); pin each
+def prove_equiv(label, text, tape, ok_msg, quiet_perturb=False, trials=40, teeth=True):
+    """Derive the COMPILED meaning (alpha_symbolic) and the SOURCE meaning (beta_symbolic); pin each
     INDEPENDENTLY to its own reference — the compiled meaning to the actual bytecode (alpha_ref), the source
     meaning to the source interpreter (beta_interp) — then prove they are equal for all inputs (and a
     perturbation is not). The two pins are what make the kernel proof of (= C M) certify the COMPILER: C is
     tied to what the machine really does, M to what the source really means, and the proof ties C to M."""
-    src = os.path.join(HERE, srcrel)
-    text = open(src).read()
     try:
-        tape = compile_beta(src)
         C, nC = S.symexec(tape)                         # what the machine code computes
         M, nM = B.meaning(text)                         # what the source means
     except (S.Unsupported, B.Unsupported) as e:
@@ -99,7 +97,7 @@ def check_auto(label, srcrel):
     if nC != nM:
         print("  FAIL %-26s : arity mismatch code=%d source=%d" % (label, nC, nM)); return False
     procs = Parser(lex(text)).parse()
-    for _ in range(1 if nC == 0 else 40):              # differential: each derivation vs its OWN reference VM
+    for _ in range(1 if nC == 0 else trials):          # differential: each derivation vs its OWN reference VM
         env = {i: random.randint(0, 6) for i in range(nC)}
         vc, vm = S.evaluate(C, env), B.evaluate(M, env)
         if vc >= 256 or vm >= 256:
@@ -107,20 +105,32 @@ def check_auto(label, srcrel):
         va = run_ref(tape, [env[i] for i in range(nC)])          # the actual bytecode (alpha VM)
         vb = beta_ref_observe(procs, env, nC)                    # the actual source (beta interpreter)
         if vc % 256 != va:
-            print("  FAIL %-26s : alpha_symbolic ≠ bytecode (sym=%s vm=%s at %s)" % (label, vc, va, env)); return False
+            print("  FAIL %-26s : alpha_symbolic ≠ bytecode (sym=%s vm=%s at %s)\n%s" % (label, vc, va, env, text)); return False
         if vm % 256 != vb:
-            print("  FAIL %-26s : beta_symbolic ≠ source interp (sym=%s interp=%s at %s)" % (label, vm, vb, env)); return False
+            print("  FAIL %-26s : beta_symbolic ≠ source interp (sym=%s interp=%s at %s)\n%s" % (label, vm, vb, env, text)); return False
     def univ(rhs):
         g = '(= %s %s)' % (S.render(C), rhs)
         for _ in range(nC):
             g = '(All %s)' % g
         return g
     if not prove(univ(B.render(M))):                   # bc output ≡ source meaning, ∀ inputs
-        print("  FAIL %-26s : could not prove code ≡ source meaning" % label); return False
-    if prove(univ('(s %s)' % B.render(M))):            # teeth: a perturbed meaning must NOT be provable
-        print("  FAIL %-26s : proved a WRONG (perturbed) meaning" % label); return False
-    print("  ok   %-26s : bc output ≡ source meaning  (proof-carrying, both derivations pinned)" % label)
+        print("  FAIL %-26s : could not prove code ≡ source meaning\n%s" % (label, text)); return False
+    if teeth and prove(univ('(s %s)' % B.render(M))):  # teeth: a perturbed meaning must NOT be provable
+        print("  FAIL %-26s : proved a WRONG (perturbed) meaning\n%s" % (label, text)); return False
+    if not quiet_perturb:
+        print("  ok   %-26s : %s" % (label, ok_msg))
     return True
+
+def check_auto(label, srcrel):
+    src = os.path.join(HERE, srcrel)
+    text = open(src).read()
+    return prove_equiv(label, text, compile_beta_text(text),
+                       "bc output ≡ source meaning  (proof-carrying, both derivations pinned)")
+
+def check_fuzz(seed):
+    text = refinement_fuzz_gen.program(seed)
+    # teeth/perturbation is exercised by the curated samples; fuzz keeps it lean (positive proof + both pins)
+    return prove_equiv("fuzz seed %d" % seed, text, compile_beta_text(text), "", quiet_perturb=True, trials=8, teeth=False)
 
 def run_ref(tape, stdin_bytes):
     with tempfile.NamedTemporaryFile(delete=False) as f:
@@ -185,6 +195,12 @@ def main():
         print(" real bc-compiled Beta sources (meaning auto-derived from source — no hand claim):")
         for label, srcrel in AUTO_SAMPLES:
             total += 1; passed += check_auto(label, srcrel)
+        nfuzz = int(os.environ.get('REFINE_FUZZ', '15'))
+        print(" FUZZ: random straight-line arithmetic programs (bc output ≡ source meaning, ∀ inputs):")
+        fpass = 0
+        for seed in range(1, nfuzz + 1):
+            total += 1; ok = check_fuzz(seed); passed += ok; fpass += ok
+        print("   %d/%d random programs certified (bc compiles arithmetic correctly for all inputs)" % (fpass, nfuzz))
     else:
         print(" (real-bc samples skipped: bc.exe / assembler not provided)")
     print("%d/%d refinement checks passed" % (passed, total))
