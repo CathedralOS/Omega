@@ -1,0 +1,15 @@
+// RUN CANARY: `in Trapping` actually TRAPS at runtime. x = i32::MAX, then
+// x + 1 -- the emitted overflow check executes ud2, the process dies with
+// STATUS_ILLEGAL_INSTRUCTION (0xC000001D on Windows), and exit_process(70) is
+// never reached. The suite asserts the exit code is NOT 70 (and is a crash
+// status, not a clean exit). This locks the trap semantics end-to-end: if a
+// regression ever made Trapping silently wrap, this canary would exit 70 and
+// fail. Compiles cleanly (Trapping is the DECLARED escape from the decision-17
+// proof obligation); the partiality is the declared behavior.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; x: i32 in Trapping; }
+machine Main::main(&mut self) {
+    self.x = 2147483647;
+    self.x = self.x + 1;
+    self.console.exit_process(70);
+}

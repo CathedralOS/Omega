@@ -18,9 +18,9 @@ boundary trait Console {
 data Main {
     console: Console;
     buffer: [u8; 8] in Utf8;
-    value: i32 in Trapping;
-    tens: i32 in Trapping;
-    ones: i32 in Trapping;
+    value: i32;
+    tens: i32;
+    ones: i32;
     tens_byte: u8;
     ones_byte: u8;
 }

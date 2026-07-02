@@ -220,17 +220,34 @@ runtime_guard_narrowed_transition_arg_exit. The natural loop
 `i: i32 [0..=N]`. samples/window_demo + window_app are converted FULLY EXACT
 (zero domains in a real interactive windowed renderer).
 
-**De-Trapping sweep (remaining, ~39 samples), the RECIPE + its walls:**
-convert counters to `i32 [0..=N]`; ensure the increment's DIRECT incoming edge
-carries the bound (add a re-guard state when the original guard is several
-states upstream -- the keystone reads direct edges only, no back-walk yet);
-fold masked pattern math through `% K` (modulo bounds; `& mask` does not feed
-the constraint fold). WALLS FOUND (2026-07-02): (a) NO ARRAY-ELEMENT RANGES --
-`cells: [i32; 64]` elements are unbounded, so CA/grid samples whose VALUES
-flow through arrays (cellular_automaton's cell/window dataflow) cannot fully
-convert; needs element-range syntax + enforcement (design-adjacent); (b) no
-multi-hop guard back-walk (re-guard states are the workaround); (c) genuine
-accumulators/PRNG/hash (xorshift, FNV, gcd) correctly KEEP declared Wrapping.
+**De-Trapping sweep DONE (2026-07-02): 38/38 converted, 0 reverted.** 24 fully
+Exact (incl. game_of_life_glider at zero domains with byte-identical output;
+cellular_automaton via an identity-clamp + `% 8` fold); 14 partial (indices
+Exact; array-element/unbounded values keep DECLARED Wrapping with comments --
+elements carry no range facts yet). `in Trapping` survives in samples ONLY in
+`samples/trapping_probe`, where trapping IS the feature under test; canary
+arithmetic/runtime_trapping_overflow_traps asserts the ud2 trap actually fires
+(exit != 70 and negative). Verified techniques beyond the recipe: identity
+min/max clamps (bound an unbounded value inline), branch-per-direction for
+`p + dir`, funnel states for multi-predecessor edges, decreasing counters off
+a bare `>= 0` guard.
+
+**KEYSTONE COMPLETENESS GAP CATALOG (the next round's worklist, from the sweep):**
+1. The proof-side range fold has NO Divide (obligations.rs integer_binary_range
+   returns None for Divide + BitwiseAnd) while validation's Interval::divide
+   folds -- the two folds disagree; `y = c/26` into a ranged y rejects even
+   with c ranged, and appending `% K` doesn't rescue it.
+2. guard_refined_binary_range is literal-only + top-level-only (`p + dir` and
+   compound values unrefinable); declared ranges of a non-self OPERAND don't
+   feed either fold.
+3. A guarded COPY (`y = self.yv` with yv fully edge-guarded) doesn't narrow.
+4. Multi-VARIABLE compound guards don't decompose (single-variable conjuncts work).
+5. Multi-predecessor edge agreement fails for the write keystone (equivalent
+   `sp < 16` guards on 3 edges don't prove; funnel states are the workaround).
+6. Declared ranges don't feed the INDEX lower-bound prover (an explicit
+   `>= 0` conjunct is still needed).
+7. EXPRESSION range bounds (`[0 - 1..=40]`) parse but behave UNBOUNDED (no
+   const-eval); literal negative forms (`[-1..=10]`) work. Const-eval or reject.
 
 **Abort-as-effect (#65) design sketch (chat, NOT settled):** every trap-capable
 site (`in Trapping`, future assert/panic) carries an `abort` effect threaded to

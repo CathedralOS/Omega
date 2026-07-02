@@ -16,9 +16,9 @@ boundary trait Console {
 data Main {
     console: Console;
     nums: [i32; 6];
-    i: i32 in Trapping;
-    cur: i32 in Trapping;
-    max: i32 in Trapping;
+    i: i32 [0..=6];
+    cur: i32;
+    max: i32;
 }
 
 machine Main::main(&mut self) {
@@ -59,7 +59,16 @@ machine Main::main(&mut self) {
         }
     }
 
+    // Re-guard before the increment: the `i < 6` fact on the DIRECT edge into
+    // `bump` proves `i + 1` stays within [0..=6] -- fully Exact, no domain.
     state advance(&mut self) {
+        transition self.i < 6 {
+            true -> bump()
+            _ -> step()
+        }
+    }
+
+    state bump(&mut self) {
         self.i = self.i + 1;
         transition {
             _ -> step()

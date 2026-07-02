@@ -11,9 +11,12 @@
 
 use omega::language::std::console;
 
+// FULLY EXACT -- no overflow domain: `n` and `d` carry ranges, so the guard
+// arithmetic `d * d` (<= 40000) and `n % d` are verifiably bounded, and the
+// `d = d + 1` step is guard-proven (`d < 200` on the direct edge into `advance`).
 data Trial [copy, zero_init] {
-    n: i32;
-    d: i32 in Trapping;
+    n: i32 [0..=1000];
+    d: i32 [0..=200];
 }
 
 data Main {
@@ -41,7 +44,18 @@ machine Main::main(&mut self) {
     state test_divisor(&mut self) {
         transition self.trial.n % self.trial.d == 0 {
             true -> found()
-            _ -> advance()
+            _ -> adv_guard()
+        }
+    }
+
+    // Re-assert d's headroom right before the increment: the `d < 200` guard on
+    // the direct edge into `advance` is what proves `d + 1` stays in [0..=200].
+    // (d never nears 200 -- the probe stops at sqrt(n) -- so the else arm is
+    // unreachable and routes to prime() as the give-up answer.)
+    state adv_guard(&mut self) {
+        transition self.trial.d < 200 {
+            true -> advance()
+            _ -> prime()
         }
     }
 

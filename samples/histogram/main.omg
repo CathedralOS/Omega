@@ -24,11 +24,13 @@ boundary trait Console {
 data Main {
     console: Console;
     samples: [usize; 8];
-    histogram: [i32; 4] in Trapping;
+    // Wrapping DECLARED: the tallies accumulate values read back OUT of the
+    // histogram array, and array elements carry no range facts yet.
+    histogram: [i32; 4] in Wrapping;
     k: usize;
     v: usize;
-    tmp: i32 in Trapping;
-    result: i32 in Trapping;
+    tmp: i32 in Wrapping;
+    result: i32 in Wrapping;
 }
 
 machine Main::main(&mut self) {

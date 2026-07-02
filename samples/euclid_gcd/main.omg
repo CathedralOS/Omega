@@ -13,10 +13,13 @@
 
 use omega::language::std::console;
 
+// Wrapping DECLARED: the gcd remainder chain divides by a live runtime value
+// (`a % b`), and a runtime divisor feeds no range fact yet -- the values are
+// honestly declared unbounded rather than convenience-trapped.
 data Euclid [copy, zero_init] {
-    a: i32 in Trapping;
-    b: i32 in Trapping;
-    tmp: i32 in Trapping;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    tmp: i32 in Wrapping;
 }
 
 data Main {

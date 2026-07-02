@@ -16,9 +16,14 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    nums: [i32; 5] in Trapping;
-    i: i32 in Trapping;
-    acc: i32 in Trapping;
+    // Wrapping DECLARED: the elements feed the Wrapping accumulator, and Decision
+    // 17 forbids mixing domains in one expression.
+    nums: [i32; 5] in Wrapping;
+    // The index walks 4 down to -1 (the exit value), guard-proven Exact: the
+    // `i >= 0` edge into add() plus the range's upper bound prove `i - 1`.
+    i: i32 [-1..=4];
+    // Wrapping DECLARED: sums array elements, which carry no range facts yet.
+    acc: i32 in Wrapping;
 }
 
 machine Main::main(&mut self) {

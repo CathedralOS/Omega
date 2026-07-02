@@ -16,10 +16,10 @@ data Main {
     row: [u8; 48] in Utf8;
     palette: [u8; 8] in Utf8;
     home: [u8; 3] in Utf8;
-    frame: i32 in Trapping;
+    frame: i32 [0..=12];
     span: f64;
-    x: i32 in Trapping;
-    y: i32 in Trapping;
+    x: i32 [0..=48];
+    y: i32 [0..=22];
     cr: f64;
     ci: f64;
     zr: f64;
@@ -27,8 +27,8 @@ data Main {
     zr2: f64;
     zi2: f64;
     mag: f64;
-    k: i32 in Trapping;
-    idx: i32 in Trapping;
+    k: i32 [0..=40];
+    idx: i32;
     ch: u8 in Wrapping;
 }
 
@@ -75,9 +75,13 @@ machine Main::main(&mut self) {
         self.mag = self.zr2 + self.zi2;
         transition self.mag > 4.0 { true -> pixel_done() _ -> iter_step() }
     }
+    // Re-guard so the increment's direct edge proves `k + 1` back into [0..=40].
     state iter_step(&mut self) {
         self.zi = 2.0 * self.zr * self.zi + self.ci;
         self.zr = self.zr2 - self.zi2 + self.cr;
+        transition self.k >= 0 && self.k < 40 { true -> iter_advance() _ -> pixel_done() }
+    }
+    state iter_advance(&mut self) {
         self.k = self.k + 1;
         transition { _ -> iter_loop() }
     }
@@ -94,14 +98,24 @@ machine Main::main(&mut self) {
         self.x = self.x + 1;
         transition { _ -> col_loop() }
     }
+    // Re-guard so the increment's direct edge proves `y + 1` back into
+    // [0..=22] (the write_line call severs the row_loop guard anyway).
     state emit_row(&mut self) {
         self.console.write_line(self.row);
+        transition self.y >= 0 && self.y < 22 { true -> row_advance() _ -> frame_end() }
+    }
+    state row_advance(&mut self) {
         self.y = self.y + 1;
         transition { _ -> row_loop() }
     }
+    // Re-guard so the increment's direct edge proves `frame + 1` back into
+    // [0..=12] (the sleep call severs the frame_loop guard anyway).
     state frame_end(&mut self) {
         self.console.sleep(70);
         self.span = self.span * 0.62;
+        transition self.frame >= 0 && self.frame < 12 { true -> frame_advance() _ -> finish() }
+    }
+    state frame_advance(&mut self) {
         self.frame = self.frame + 1;
         transition { _ -> frame_loop() }
     }

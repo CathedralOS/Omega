@@ -3,8 +3,11 @@
 // real little bytecode VM. Each token is either a number (push it) or an operator
 // that pops two operands and pushes the result. Demonstrates TWO bounded mutable
 // indices cooperating: a program counter `pc` walking the program and a stack
-// pointer `sp` driving the operand stack, both `i32 in Trapping` with explicit
-// `0 <= idx < CAP` guards before every indexed access (Omega's proof model).
+// pointer `sp` driving the operand stack, both fully-Exact `i32 [0..=16]` -- the
+// explicit `0 <= idx < CAP` guards on the direct edges into every state that moves
+// an index both discharge the bounds obligations and prove the +1/-1 steps stay in
+// range (Omega's proof model). The token VALUES round-trip through array elements,
+// which carry no range facts yet, so the value plumbing is declared Wrapping.
 //
 // Encoding: program[k] >= 0 pushes that value; negative codes are operators:
 //   -1 = add, -2 = multiply, -3 = subtract.
@@ -18,15 +21,17 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    program: [i32; 16] in Trapping;
-    nprog: i32 in Trapping;
-    stack: [i32; 16] in Trapping;
-    sp: i32 in Trapping;
-    pc: i32 in Trapping;
-    tok: i32 in Trapping;
-    a: i32 in Trapping;
-    b: i32 in Trapping;
-    acc: i32 in Trapping;
+    // Wrapping DECLARED (program/stack/tok/a/b/acc): the operand values flow
+    // through array elements, which carry no range facts yet.
+    program: [i32; 16] in Wrapping;
+    nprog: i32;
+    stack: [i32; 16] in Wrapping;
+    sp: i32 [0..=16];
+    pc: i32 [0..=16];
+    tok: i32 in Wrapping;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    acc: i32 in Wrapping;
 }
 
 machine Main::main(&mut self) {
@@ -124,22 +129,29 @@ machine Main::main(&mut self) {
     }
     state op_add(&mut self) {
         self.acc = self.a + self.b;
-        transition { _ -> op_push() }
+        transition { _ -> op_guard() }
     }
     state op_mul(&mut self) {
         self.acc = self.a * self.b;
-        transition { _ -> op_push() }
+        transition { _ -> op_guard() }
     }
     state op_sub(&mut self) {
         self.acc = self.a - self.b;
-        transition { _ -> op_push() }
+        transition { _ -> op_guard() }
     }
 
-    // Push the result back (sp points at the freed slot after the two pops). This
-    // is a multi-predecessor join (reached from add/mul/sub), and the range checker
-    // carries `sp >= 0 && sp < 16` here via the predecessor MEET -- every incoming
-    // arm establishes it (from the `op_pop_a` bound check above) and none rewrites
-    // `sp` -- so no extra guard state is needed.
+    // The add/mul/sub arms join here, then a single re-guard puts `sp < 16` on
+    // the one DIRECT edge into op_push -- the dominating-guard keystone is what
+    // proves the `sp = sp + 1` after the result push. (After two pops sp <= 14,
+    // so the else arm is unreachable.)
+    state op_guard(&mut self) {
+        transition self.sp >= 0 && self.sp < 16 {
+            true -> op_push()
+            _ -> finish()
+        }
+    }
+
+    // Push the result back (sp points at the freed slot after the two pops).
     state op_push(&mut self) {
         self.stack[self.sp] = self.acc;
         self.sp = self.sp + 1;
@@ -148,7 +160,15 @@ machine Main::main(&mut self) {
         }
     }
 
+    // Re-assert pc's headroom on the direct edge into the increment (pc < nprog
+    // <= 16 always holds, so the else arm is unreachable).
     state advance(&mut self) {
+        transition self.pc < 16 {
+            true -> bump()
+            _ -> finish()
+        }
+    }
+    state bump(&mut self) {
         self.pc = self.pc + 1;
         transition {
             _ -> loop()

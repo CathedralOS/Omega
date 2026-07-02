@@ -3,8 +3,10 @@
 // for records/tables in serious apps -- via constant-index field writes
 // (`self.players[k].score = ...`) and a multi-field read in arithmetic
 // (`players[0].score + players[1].score + players[2].score`). The scores 30 + 25 +
-// 15 total 70 (in a Trapping domain). (Runtime-index access into such a table needs
-// a bounds proof and is exercised elsewhere; this sample uses constant indices.)
+// 15 total 70 -- fully Exact: `score` carries a [0..=100] range, so the three-way
+// sum is verifiably bounded (<= 300) and needs no overflow domain. (Runtime-index
+// access into such a table needs a bounds proof and is exercised elsewhere; this
+// sample uses constant indices.)
 // Expected exit: 70.
 
 boundary trait Console {
@@ -13,13 +15,13 @@ boundary trait Console {
 
 data Player {
     id: i32;
-    score: i32 in Trapping;
+    score: i32 [0..=100];
 }
 
 data Main {
     console: Console;
     players: [Player; 3];
-    total: i32 in Trapping;
+    total: i32;
 }
 
 machine Main::main(&mut self) {

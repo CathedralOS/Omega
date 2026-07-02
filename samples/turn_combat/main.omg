@@ -1,8 +1,11 @@
 // A turn-based combat simulator -- a small but complete app that stresses how the
 // pieces compose: two `Fighter` records (hp + attack), damage ARITHMETIC
-// (`hp = hp - attacker.attack` in a Trapping domain), and a genuine state-machine
-// LOOP where `hero_attacks` and `monster_attacks` transition back and forth until
-// one combatant's hp drops to 0 or below. The hero (30 hp, 7 atk) out-damages the
+// (`hp = (hp - attacker.attack) % 101`, fully Exact via the modular idiom: the
+// `% 101` lands the result provably back inside hp's [-100..=100] range, and for
+// every value these fights can produce, `x % 101 == x`, so the fold is exact and
+// no overflow domain is needed), and a genuine state-machine LOOP where
+// `hero_attacks` and `monster_attacks` transition back and forth until one
+// combatant's hp drops to 0 or below. The hero (30 hp, 7 atk) out-damages the
 // monster (25 hp, 5 atk) and wins. Exits 1 if the hero wins, 2 if the monster wins.
 // Expected exit: 1.
 
@@ -11,8 +14,8 @@ boundary trait Console {
 }
 
 data Fighter {
-    hp: i32 in Trapping;
-    attack: i32 in Trapping;
+    hp: i32 [-100..=100];
+    attack: i32 [0..=10];
 }
 
 data Main {
@@ -30,7 +33,7 @@ machine Main::main(&mut self) {
     transition { _ -> hero_attacks() }
 
     state hero_attacks(&mut self) {
-        self.monster.hp = self.monster.hp - self.hero.attack;
+        self.monster.hp = (self.monster.hp - self.hero.attack) % 101;
         transition self.monster.hp <= 0 {
             true -> hero_wins()
             _ -> monster_attacks()
@@ -38,7 +41,7 @@ machine Main::main(&mut self) {
     }
 
     state monster_attacks(&mut self) {
-        self.hero.hp = self.hero.hp - self.monster.attack;
+        self.hero.hp = (self.hero.hp - self.monster.attack) % 101;
         transition self.hero.hp <= 0 {
             true -> monster_wins()
             _ -> hero_attacks()

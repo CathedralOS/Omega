@@ -6,8 +6,10 @@
 //   for each byte b in text: result = result * 10 + (b - 48)
 //
 // Composes a `.len`-bounded loop, runtime carrier byte reads, a widening cast,
-// and Trapping arithmetic. Parsing "150" yields 150 (a dynamic, 3-digit parse --
-// the length is read at runtime, not hard-coded).
+// a guard-proven Exact loop counter, and an honestly-Wrapping accumulator (digit
+// bytes carry no range facts, so the multiply-accumulate declares its domain).
+// Parsing "150" yields 150 (a dynamic, 3-digit parse -- the length is read at
+// runtime, not hard-coded).
 // Expected exit: 150.
 
 domain [u8]::Utf8 when valid_utf8(self) {
@@ -22,10 +24,13 @@ boundary trait Console {
 data Main {
     console: Console;
     text: [u8; 8] in Utf8;
-    i: i32 in Trapping;
+    i: i32 [0..=8];
     b: u8;
-    dval: i32 in Trapping;
-    result: i32 in Trapping;
+    // Wrapping DECLARED: the accumulator multiplies-and-adds digits read out of
+    // the carrier, and carrier bytes carry no range facts yet (a parse of
+    // arbitrary digits is genuinely unbounded math).
+    dval: i32 in Wrapping;
+    result: i32 in Wrapping;
 }
 
 machine Main::main(&mut self) {
@@ -52,6 +57,15 @@ machine Main::main(&mut self) {
         self.dval = self.dval - 48;
         self.result = self.result * 10;
         self.result = self.result + self.dval;
+        // Re-guard against the carrier CAPACITY (8) so the increment's direct
+        // edge proves `i + 1` back into [0..=8] -- len <= 8, so this is always true.
+        transition self.i >= 0 && self.i < 8 {
+            true -> advance()
+            _ -> done()
+        }
+    }
+
+    state advance(&mut self) {
         self.i = self.i + 1;
         transition {
             _ -> step()

@@ -23,11 +23,11 @@ data Main {
     by: f64;
     vx: f64;
     vy: f64;
-    ball_x: i32 in Trapping;
-    ball_y: i32 in Trapping;
-    frame: i32 in Trapping;
-    y: i32 in Trapping;
-    x: i32 in Trapping;
+    ball_x: i32;         // cell coordinates of the ball; only compared, never
+    ball_y: i32;         // fed to arithmetic
+    frame: i32 [0..=70]; // guard-proven Exact frame counter
+    y: i32 [0..=12];     // guard-proven Exact row counter
+    x: i32 [0..=24];     // guard-proven Exact column counter
 }
 
 machine Main::main(&mut self) {
@@ -74,16 +74,26 @@ machine Main::main(&mut self) {
     }
     state ball_cell(&mut self) {
         self.line[self.x] = 79;
-        self.x = self.x + 1;
-        transition { _ -> col_loop() }
+        transition { _ -> x_step() }
     }
     state space_cell(&mut self) {
         self.line[self.x] = 32;
+        transition { _ -> x_step() }
+    }
+    // Re-guard before each counter increment (the ball/space branch and the
+    // write_line call don't carry the loop bound), so the `+ 1`s prove Exact.
+    state x_step(&mut self) {
+        transition self.x >= 0 && self.x < 24 { true -> x_bump() _ -> emit_row() }
+    }
+    state x_bump(&mut self) {
         self.x = self.x + 1;
         transition { _ -> col_loop() }
     }
     state emit_row(&mut self) {
         self.console.write_line(self.line);
+        transition self.y >= 0 && self.y < 12 { true -> y_bump() _ -> row_loop() }
+    }
+    state y_bump(&mut self) {
         self.y = self.y + 1;
         transition { _ -> row_loop() }
     }
@@ -128,9 +138,14 @@ machine Main::main(&mut self) {
         transition { _ -> recompute() }
     }
     state recompute(&mut self) {
-        self.ball_x = self.bx as i32 in Trapping;
-        self.ball_y = self.by as i32 in Trapping;
+        // Float->int casts truncate; Wrapping declares the (physically clamped,
+        // but not float-provable) conversion honestly.
+        self.ball_x = self.bx as i32 in Wrapping;
+        self.ball_y = self.by as i32 in Wrapping;
         self.console.sleep(40);
+        transition self.frame < 70 { true -> frame_bump() _ -> frame_loop() }
+    }
+    state frame_bump(&mut self) {
         self.frame = self.frame + 1;
         transition { _ -> frame_loop() }
     }

@@ -11,15 +11,19 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
+// FULLY EXACT -- no overflow domain: each match arm passes its payload through a
+// guard hop (`radius < 101` etc.) into a compute state with a RANGED parameter, so
+// every per-variant area computation is verifiably bounded (radius*radius*3 <=
+// 30000, width*height <= 10000) and `area` needs no domain at all.
 data Shape {
-    case Circle(radius: i32 in Trapping);
-    case Rectangle(width: i32 in Trapping, height: i32 in Trapping);
+    case Circle(radius: i32);
+    case Rectangle(width: i32, height: i32);
 }
 
 data Main {
     console: Console;
     shape: Shape;
-    area: i32 in Trapping;
+    area: i32;
 }
 
 machine Main::main(&mut self) {
@@ -30,11 +34,25 @@ machine Main::main(&mut self) {
         Shape::Rectangle { width, height } -> rect(width, height)
     }
 
-    state circle(&mut self, radius: i32 in Trapping) {
+    // The payload arrives as a plain i32; a guard hop re-establishes its bound on
+    // the direct edge into the compute state, which carries a ranged parameter.
+    state circle(&mut self, radius: i32) {
+        transition radius >= 0 && radius < 101 {
+            true -> circle_area(radius)
+            _ -> emit()
+        }
+    }
+    state circle_area(&mut self, radius: i32 [0..=100]) {
         self.area = radius * radius * 3;
         transition { _ -> emit() }
     }
-    state rect(&mut self, width: i32 in Trapping, height: i32 in Trapping) {
+    state rect(&mut self, width: i32, height: i32) {
+        transition width >= 0 && width < 101 && height >= 0 && height < 101 {
+            true -> rect_area(width, height)
+            _ -> emit()
+        }
+    }
+    state rect_area(&mut self, width: i32 [0..=100], height: i32 [0..=100]) {
         self.area = width * height;
         transition { _ -> emit() }
     }

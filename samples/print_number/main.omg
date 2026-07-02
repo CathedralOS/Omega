@@ -20,12 +20,16 @@ domain [u8; 4]::Utf8 when valid_utf8(self) {
 
 data Main {
     console: Console;
-    nums: [i32; 5];
-    i: i32 in Trapping;
-    elem: i32 in Trapping;
-    sum: i32 in Trapping;
+    // Wrapping DECLARED (nums/elem/sum/digit): the sum flows from array elements,
+    // which carry no range facts yet, and Decision 17 forbids mixing domains in
+    // one expression. The loop index stays Exact: its increment is guard-proven
+    // by the `i < 5` edge into add().
+    nums: [i32; 5] in Wrapping;
+    i: i32 [0..=5];
+    elem: i32 in Wrapping;
+    sum: i32 in Wrapping;
     out: [u8; 4] in Utf8;
-    digit: i32 in Trapping;
+    digit: i32 in Wrapping;
     ch: u8;
 }
 

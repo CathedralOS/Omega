@@ -695,6 +695,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
 /// `(relative path under canaries/pass, reason for exclusion)`.
 const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
     (
+        "arithmetic/runtime_trapping_overflow_traps",
+        "the suite asserts the process DIES (a negative crash status from the ud2 trap, assert_ne 70); there is no clean exit code for the differential to match",
+    ),
+    (
         "dungeon/runtime_ordered_room_dispatch_loop_exit",
         "suite feeds stdin (b\"east\\n\"); differential harness runs with empty stdin, so the recorded exit code 135 does not apply",
     ),

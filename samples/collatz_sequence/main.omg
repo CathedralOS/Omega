@@ -1,17 +1,18 @@
 // Collatz ("hailstone") sequence length. Starting at N = 27, count the steps to
 // reach 1, where each step is `n/2` when n is even and `3n+1` when n is odd. 27
 // is the famous small seed: it takes 111 steps and peaks at 9232 before falling
-// to 1. Showcases TRAPPING arithmetic (the `3n+1` step is a genuine overflow
-// obligation: an out-of-range product would trap at runtime — it provably never
-// does for seed 27, peaking well under i32::MAX) driving a pure self-transition
-// loop with no host I/O until the final exit.
+// to 1. The `3n+1` step is GENUINELY unbounded math (whether any seed's orbit
+// stays bounded is the open Collatz conjecture itself), so the arithmetic
+// DECLARES honest modular semantics with `in Wrapping` -- no proof of a bound
+// exists to make it Exact. Drives a pure self-transition loop with no host I/O
+// until the final exit.
 // Expected exit: 111.
 
 use omega::language::std::console;
 
 data Collatz [copy, zero_init] {
-    value: i32 in Trapping;
-    steps: i32 in Trapping;
+    value: i32 in Wrapping; // Wrapping DECLARED: 3n+1 growth is the open Collatz conjecture -- no bound is provable.
+    steps: i32 in Wrapping; // Wrapping DECLARED: the step count has no provable ceiling (termination is the conjecture).
 }
 
 data Main {

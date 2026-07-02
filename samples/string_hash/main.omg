@@ -22,7 +22,10 @@ boundary trait Console {
 data Main {
     console: Console;
     text: [u8; 8] in Utf8;
-    i: i32 in Trapping;
+    // Exact ranged index: the byte read is bounded by the `.len` guard, and the
+    // increment is guard-proven by the `i < 8` edge into bump() (the carrier's
+    // capacity bound; i < text.len <= 8, so the re-guard never fails).
+    i: i32 [0..=8];
     b: u8;
     bw: u32 in Wrapping;
     hash: u32 in Wrapping;
@@ -53,6 +56,13 @@ machine Main::main(&mut self) {
         self.bw = self.b as u32;
         self.hash = self.hash ^ self.bw;
         self.hash = self.hash * 16777619;
+        transition self.i < 8 {
+            true -> bump()
+            _ -> done()
+        }
+    }
+
+    state bump(&mut self) {
         self.i = self.i + 1;
         transition {
             _ -> step()
