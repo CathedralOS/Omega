@@ -167,7 +167,10 @@ def tr(e, env):
         a, b = tr(e[1], env), tr(e[2], env)
         return {'+': f'(f 21 {a} {b})', '*': f'(f 23 {a} {b})', 'lt': f'(f 28 {a} {b})',
                 'eq': f'(f 25 {a} {b})', '-': f'(f 22 {b} {a})'}[e[0]]
-    sys.exit(2)
+    sys.exit(2)   # div/mod deliberately NOT here: recursive mod nested in a loop fuel-fold overflows
+                  # the checker's native stack past a few small iterations, and the crash point is not
+                  # cleanly predictable (depends on iteration count AND value magnitude). gcd etc. wait
+                  # for the shallow quotient-WITNESS mod encoding.
 
 def val(e, env):
     if isinstance(e, str):
@@ -189,7 +192,7 @@ def val(e, env):
         if r < 0 or r > MAXV:
             sys.exit(2)
         return r
-    sys.exit(2)
+    sys.exit(2)   # div/mod not in the loop path (see tr) — a gcd body silently skips rather than crashes
 
 def flatten_lets(node):
     """peel a (let n v body)* chain -> (bindings, innermost tail node)"""
