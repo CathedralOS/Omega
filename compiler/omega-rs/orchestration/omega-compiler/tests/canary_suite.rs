@@ -11300,6 +11300,35 @@ fn runtime_gui_memory_dc_blit_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nested_payload_range_narrowing_exit_canary_runs() {
+    // The field-stored payload's [0..=15] range narrows through the nested place
+    // `self.m.dx`, discharging the decision-17 obligation for `dx * 10` -- and the
+    // scaled arg discriminates at runtime (dx=7 -> 70). Exit 70.
+    let canary = pass_canary("arithmetic/runtime_nested_payload_range_narrowing_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-npr-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested payload range narrowing canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested payload range narrowing canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the destructured nested payload to scale to 70, got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_gui_window_lifecycle_exit_canary_runs() {
     // Message pump + lifecycle: create an invisible window, drain PeekMessageW (bounded),
     // IsWindow > 0, DestroyWindow > 0, IsWindow == 0. Exit 70. CI-safe.
@@ -17542,6 +17571,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_indexed_array_write_exit",
     "arithmetic/runtime_modulo_value",
     "arithmetic/runtime_modulo_div_narrowing_exit",
+    "arithmetic/runtime_nested_payload_range_narrowing_exit",
     "arithmetic/runtime_saturating_domain_exit",
     "arithmetic/runtime_fnv1a_hash_exit",
     "arithmetic/runtime_min_max_clamp_narrowing_exit",
@@ -17895,6 +17925,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/construction_payload_out_of_range",
     "arithmetic/unconstrained_payload_arithmetic",
     "arithmetic/bounded_assignment_unproven",
+    "arithmetic/nested_field_exact_overflow_rejected",
+    "arithmetic/zii_range_excludes_zero_rejected",
     "arithmetic/struct_field_arithmetic_unproven",
     "arithmetic/transition_arg_unguarded_overflow",
     "domains/type_constraint_unknown_domain",

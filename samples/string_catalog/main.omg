@@ -34,7 +34,10 @@ use omega::language::std::console;
 
 data Entry {
     name: String;
-    score: i32;
+    // Ranged so `entry1.score + entry2.score` is verifiably bounded (<= 200):
+    // Exact arithmetic on nested fields carries the overflow obligation, and a
+    // range discharges it by proof -- no overflow domain needed.
+    score: i32 [0..=100];
 }
 
 data Catalog {

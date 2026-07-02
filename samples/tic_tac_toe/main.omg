@@ -27,7 +27,9 @@ use omega::language::std::console;
 
 data Board [copy, zero_init] {
     cells: [i32; 9];
-    move_count: i32;
+    // A board has at most 9 moves: ranged + the modular-counter idiom keeps the
+    // increment Exact-provable with no overflow domain.
+    move_count: i32 [0..=9];
     winner: i32;
 }
 
@@ -96,7 +98,7 @@ machine Main::main(&mut self) {
 
 // Place a piece on the board: cell=which cell, player=1 for X, 2 for O.
 machine Main::play(&mut self, cell: i32, player: i32) {
-    self.board.move_count = self.board.move_count + 1;
+    self.board.move_count = (self.board.move_count + 1) % 10;
     transition cell == 0 {
         true -> set0(player)
         _ -> try_cell1(cell, player)

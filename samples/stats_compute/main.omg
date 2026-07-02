@@ -24,7 +24,9 @@ data Stats [copy, zero_init] {
     // Running accumulator for sum and sum-of-squares.
     sum: f64;
     sum_sq_dev: f64;
-    count: i32;
+    // Ranged + the modular-counter idiom at the increment: Exact-provable, no
+    // overflow domain.
+    count: i32 [0..=100];
     mean: f64;
     variance: f64;
     weighted_sum: f64;
@@ -38,7 +40,7 @@ data Main {
 // Add one value to the running sum.
 machine Main::add(&mut self, x: f64) {
     self.s.sum = self.s.sum + x;
-    self.s.count = self.s.count + 1;
+    self.s.count = (self.s.count + 1) % 101;
 }
 
 // Finalize mean = sum / count.

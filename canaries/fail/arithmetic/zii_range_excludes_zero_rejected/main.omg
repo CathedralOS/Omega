@@ -1,0 +1,12 @@
+// FAIL canary: an integer range that EXCLUDES 0 on zero-initialized machine
+// state is rejected. Machine state starts physically zeroed, so a read before
+// the first assignment would let the prover trust a bound the actual value 0
+// violates -- probed consequence: `10 % self.m` with `m: i32 [1..=100]`
+// compiled ("provably nonzero divisor") and divided by the real 0 at runtime,
+// a crash in a fully-"proven" Exact program. No silent anything.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; m: i32 [1..=100]; q: i32; }
+machine Main::main(&mut self) {
+    self.q = 10 % self.m;
+    self.console.exit_process(0);
+}

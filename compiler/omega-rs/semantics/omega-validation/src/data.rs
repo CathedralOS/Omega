@@ -5,6 +5,7 @@ use crate::type_references::{
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataMember, DataShapeKind};
+use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn validate_data_field_types(
     program: &TypedTrees,
@@ -48,6 +49,95 @@ pub(crate) fn validate_data_field_types(
 // (crate::properties): zero-VALIDITY is unconditional (a zeroed payload is
 // itself zeroed, so the value stays valid), while zero-MEANS-EMPTY is the
 // opt-in property that demands a payload-free zero case (frozen decision 8).
+
+/// ZII-range soundness: every machine's attached data (and every `[zero_init]`
+/// data) starts PHYSICALLY ZEROED, so an integer range that EXCLUDES 0 on a
+/// reachable field would let the S4 range facts trust a bound the startup
+/// value violates. Probed consequence: `10 % self.m` with `m: i32 [1..=100]`
+/// compiles ("provably nonzero divisor") and then divides by the actual 0 at
+/// runtime -- a crash in a fully-"proven" Exact program. Reject the
+/// declaration instead: include 0 in the range, or carry the value in a shape
+/// that is not zero-initialized (a parameter, a constructed payload). The
+/// reachable set closes over Named field/payload types and array elements.
+pub(crate) fn validate_zero_reachable_field_ranges(
+    program: &TypedTrees,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut queue: Vec<&str> = Vec::new();
+    for machine in program.machines() {
+        if let Some(attached) = machine.attached_data.as_ref() {
+            queue.push(attached.as_str());
+        }
+    }
+    for data_definition in program.data_definitions() {
+        if data_definition.properties.zero_init {
+            queue.push(data_definition.name.as_str());
+        }
+    }
+
+    let mut seen: Vec<&str> = Vec::new();
+    while let Some(name) = queue.pop() {
+        if seen.contains(&name) {
+            continue;
+        }
+        seen.push(name);
+        let Some(data_definition) = program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name.as_str() == name)
+        else {
+            continue;
+        };
+        for member in program.data_members(data_definition) {
+            let fields = match member {
+                DataMember::Field(field) => std::slice::from_ref(field),
+                DataMember::Variant(variant) => program.data_payload_fields(variant),
+            };
+            for field in fields {
+                if let Some(interval) = crate::arithmetic_domains::range_constraint_interval(
+                    program,
+                    field.type_reference,
+                ) && (interval.low().is_some_and(|low| low > 0)
+                    || interval.high().is_some_and(|high| high < 0))
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "field `{}` of `{name}` declares a range that excludes 0, but `{name}` \
+                         is zero-initialized (machine state starts zeroed): a read before the \
+                         first assignment would trust a bound the actual value 0 violates. \
+                         Include 0 in the range, or carry the value in a shape that is not \
+                         zero-initialized (a parameter or a constructed payload)",
+                        field.name.as_str(),
+                    )));
+                }
+                if let Some(inner) = embedded_data_name(program, field.type_reference) {
+                    queue.push(inner);
+                }
+            }
+        }
+    }
+}
+
+/// The Named data type a field EMBEDS (its bytes live inline, so ZII zeroes
+/// them): through constraint shells and fixed-array elements. References are
+/// NOT embedded -- a `&T` field is a zeroed pointer, not zeroed `T` bytes.
+fn embedded_data_name<'program>(
+    program: &'program TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<&'program str> {
+    if !type_reference.is_valid() {
+        return None;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            embedded_data_name(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            embedded_data_name(program, *element_type)
+        }
+        TypeReferenceNode::Named { name, .. } => Some(name.as_str()),
+        _ => None,
+    }
+}
 
 fn validate_payload_field_names(
     data_definition: &omega_typed_trees::data::DataDefinition,

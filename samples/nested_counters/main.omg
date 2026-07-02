@@ -58,15 +58,20 @@
 
 use omega::language::std::console;
 
+// FULLY EXACT -- no overflow domain anywhere: range refinements make the final
+// `value + bonus + count * multiplier` verifiably bounded (<= 1000 + 1000 +
+// 100*100 = 12000), and the counter increment is guard-proven (`count < 100`
+// dominates the `+ 1`). When arithmetic is verifiably bounded, no domain is
+// needed -- the avionics posture.
 data Inner [copy, zero_init] {
-    value: i32;
-    bonus: i32;
+    value: i32 [0..=1000];
+    bonus: i32 [0..=1000];
 }
 
 data Outer [copy, zero_init] {
     inner: Inner;
-    count: i32;
-    multiplier: i32;
+    count: i32 [0..=100];
+    multiplier: i32 [0..=100];
 }
 
 data Main {
@@ -74,19 +79,24 @@ data Main {
     state: Outer;
 }
 
-machine Main::set_value(&mut self, v: i32) {
+machine Main::set_value(&mut self, v: i32 [0..=1000]) {
     self.state.inner.value = v;
 }
 
-machine Main::set_bonus(&mut self, b: i32) {
+machine Main::set_bonus(&mut self, b: i32 [0..=1000]) {
     self.state.inner.bonus = b;
 }
 
+// The MODULAR-COUNTER idiom -- the Exact-provable bounded counter: the field's
+// [0..=100] range bounds the read, `+ 1` stays within i32, and `% 101` lands
+// the result provably back inside the range. The boundary behavior (wrap to 0
+// at 101) is declared IN the arithmetic, not silently assumed -- nothing here
+// can overflow, so no overflow domain is needed.
 machine Main::increment_count(&mut self) {
-    self.state.count = self.state.count + 1;
+    self.state.count = (self.state.count + 1) % 101;
 }
 
-machine Main::set_multiplier(&mut self, m: i32) {
+machine Main::set_multiplier(&mut self, m: i32 [0..=100]) {
     self.state.multiplier = m;
 }
 

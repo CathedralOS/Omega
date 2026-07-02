@@ -238,6 +238,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("host/runtime_gui_memory_dc_blit_exit", 70),
     ("host/runtime_gui_window_blit_exit", 70),
     ("host/runtime_gui_window_lifecycle_exit", 70),
+    ("arithmetic/runtime_nested_payload_range_narrowing_exit", 70),
     ("collections/runtime_indexed_guard_subject_exit", 70),
     ("collections/runtime_array_min_max_builtin_exit", 70),
     ("collections/runtime_dual_indexed_comparison_guard_exit", 70),
