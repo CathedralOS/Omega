@@ -1,0 +1,53 @@
+// LAYOUT POLICIES (chapter 19/20; design_briefs/programmable_layouts.md):
+// layout is a library, not a language axiom. A policy is ordinary data
+// satisfying `Layout`; its `plan(schema)` machine runs at BUILD TIME (no
+// keyword -- the position makes the evaluation build-time, the effect system
+// makes it legal, and this trait's effect-free signature is the stability
+// contract). The compiler materializes `Schema` from a data definition,
+// validates the returned `Plan` (a bad plan is a compile error, never
+// unsafety), and derives codecs / projections / value types from it.
+//
+// v0 SHAPES (the pilot slice): the Plan is FLAT -- a parallel offsets array
+// keyed by schema field INDEX -- because array-of-struct element construction
+// at runtime indexes is not writable in today's language. The settled TARGET
+// vocabulary (a `FieldPlan` case per placement: At / Bits / Varint /
+// LengthPrefixed; entries keyed by field name; retired-number list) replaces
+// these shapes when struct-element writes land. Sizes and offsets are plain
+// i64 until the `count` model lands.
+
+// One field of a schema, target-resolved by the compiler: byte size,
+// alignment, and the declared identity number (-1 when unnumbered). Ranges
+// keep policy arithmetic Exact: a field is at most 4 KiB wide and its
+// alignment is a nonzero power of two at most 16. (Schema is compiler-built
+// and passed BY VALUE into plan() -- it is never zero-initialized machine
+// state, so the 0-excluding alignment range is sound.)
+data SchemaField {
+    size: i64 [0..=4096];
+    align: i64 [1..=16];
+    number: i64;
+}
+
+// A schema: the fields of one data definition, in declaration order. At most
+// 32 fields in the pilot slice (plan validation rejects more).
+data Schema {
+    fields: [SchemaField; 32];
+    field_count: i64 [0..=32];
+}
+
+// A validated placement plan. `offsets[i]` is the byte offset of schema field
+// i (positions past `entry_count` are meaningless); `size_fixed` is the total
+// size when `size_is_dynamic` is false. The compiler checks entry bounds,
+// overlap, and size/alignment consistency before anything trusts the plan.
+data Plan {
+    offsets: [i64; 32];
+    entry_count: i64;
+    size_fixed: i64;
+    size_is_dynamic: bool;
+    align: i64;
+}
+
+// The policy interface. plan() declares no effects, so implementations HAVE
+// none -- that absence is what makes them build-time-evaluable.
+trait Layout {
+    machine plan(schema: Schema) -> Plan;
+}
