@@ -18,14 +18,24 @@
 # to lt/eq/+/- , so those five heads (+ - * lt eq) cover the whole comparison surface, all kernel-evaluated.
 # `-` is honest monus: a program whose subtraction would go negative has a different meaning than native
 # i32 wrap, so the encoder BAILS (exit 2) on it, as it does on any value it cannot encode small (unary
-# numerals hit delta's arena wall — guard at MAXV) or any construct outside the straight-line + - * < ==
-# subset (/, %, loops, calls -> later slices).
+# numerals hit delta's arena wall — guard at MAXV) or any construct outside the supported subset.
+#
+# LOOPS: a bounded state machine (mutually-recursive gamma defs: entry -> guard -> body -> back-to-guard,
+# with an exit state) becomes a delta FUEL-STRUCTURED fold. The two loop-carried locals are packed into a
+# user Pair (cid 4, projected by fst=42/snd=43) threaded as the single extra arg (the kernel is binary-only
+# by design). loopfn(S f, p) hands (guard(p), Pair(f,p)) to a brancher that RE-EVALUATES the guard in the
+# kernel and either iterates on body(p) or exits — so delta re-runs the real loop (guard + body + result),
+# with fuel only a safe termination bound (the encoder abstract-executes the loop over the concrete initial
+# literals to get a trip count and to bounds-check every intermediate value). A miscompiled body/guard makes
+# the native exit unreachable by this evaluation and is REJECTED. Scope: exactly two loop-carried locals,
+# body arithmetic in + - * < == ; general while-loops with data-dependent bounds, /, %, and >2 carried
+# locals are later slices.
 #
 # UNTRUSTED, like prover.py: a bad encoding can only make certs that FAIL or mis-state the meaning;
 # meaning-fidelity is independently pinned by the kernel diamond over the same translator output.
 import sys
 
-MAXV = 80   # arena guard: unary numerals beyond this blow delta's node budget
+MAXV = 200  # arena guard: unary numerals beyond this blow delta's node budget (200 admits 5! = 120)
 
 PRELUDE = (
     "(data 2 0 0 0) (data 3 1 1 0) "
@@ -39,6 +49,12 @@ PRELUDE = (
     "(fun 27 2 (k 2)) (fun 27 3 (k 3 (k 2))) "          # pos:    Z->0 ; S _->1
     "(fun 28 2 (f 27 (y 0))) (fun 28 3 (f 29 (y 0) (v 0))) "  # ult:  lt(Z,b)=pos b ; lt(S x,b)=lts(b,x)
     "(fun 29 2 (k 2)) (fun 29 3 (f 28 (y 0) (v 0)))"    # lts (scrut=b): lt(Z,x)=0 ; lt(S y,x)=lt(x,y)
+)
+
+# extra funs the LOOP path needs on top of PRELUDE: a 2-tuple (Pair, cid 4) and its projections.
+LOOP_EXTRA = (
+    " (data 4 2 0 0) "                                  # Pair a b  (packs the two loop-carried locals)
+    "(fun 42 4 (v 0)) (fun 43 4 (v 1))"                 # fst / snd
 )
 
 def tokens(s):
@@ -100,13 +116,126 @@ def ev(e, env):
         return ev(e[3], env2)
     sys.exit(2)                                            # /, %, if, match, call, ... -> later slices
 
+
+# ---- loop path: gamma state machine -> delta fuel-fold -----------------------------------------
+# Two separate views of a gamma expression, no value/term fusion (the loop body's locals vary each
+# iteration, so its delta term is purely SYNTACTIC while its concrete value comes from abstract exec):
+#   tr(e, env)  -> delta term          (env: name -> delta-term string)
+#   val(e, env) -> concrete int        (env: name -> int; enforces monus>=0 and 0..MAXV, like ev)
+
+def tr(e, env):
+    if isinstance(e, str):
+        if e.lstrip('-').isdigit():
+            return unary(int(e))
+        if e in env:
+            return env[e]
+        sys.exit(2)
+    if len(e) == 3 and e[0] in ('+', '*', '-', 'lt', 'eq'):
+        a, b = tr(e[1], env), tr(e[2], env)
+        return {'+': f'(f 21 {a} {b})', '*': f'(f 23 {a} {b})', 'lt': f'(f 28 {a} {b})',
+                'eq': f'(f 25 {a} {b})', '-': f'(f 22 {b} {a})'}[e[0]]
+    sys.exit(2)
+
+def val(e, env):
+    if isinstance(e, str):
+        if e.lstrip('-').isdigit():
+            return int(e)
+        if e in env:
+            return env[e]
+        sys.exit(2)
+    if len(e) == 3 and e[0] in ('+', '*', '-', 'lt', 'eq'):
+        a, b = val(e[1], env), val(e[2], env)
+        if   e[0] == '+':  r = a + b
+        elif e[0] == '*':  r = a * b
+        elif e[0] == 'lt': r = 1 if a < b else 0
+        elif e[0] == 'eq': r = 1 if a == b else 0
+        else:
+            if a < b:
+                sys.exit(2)                                # monus would go negative
+            r = a - b
+        if r < 0 or r > MAXV:
+            sys.exit(2)
+        return r
+    sys.exit(2)
+
+def flatten_lets(node):
+    """peel a (let n v body)* chain -> (bindings, innermost tail node)"""
+    binds = {}
+    while isinstance(node, list) and node and node[0] == 'let':
+        _, n, v, node = node
+        binds[n] = v
+    return binds, node
+
+def inline(e, binds):
+    """substitute a def's local temps away, leaving only loop-param names + literals + operators"""
+    if isinstance(e, str):
+        return inline(binds[e], binds) if e in binds else e
+    return [e[0]] + [inline(x, binds) for x in e[1:]]
+
+def encode_loop(defs, call, claimed):
+    dmap = {d[1]: d for d in defs}
+    # entry: (let init...)* -> (guard i0 i1)
+    entry = dmap.get(call[0])
+    if entry is None:
+        sys.exit(2)
+    ebinds, etail = flatten_lets(entry[3])
+    if not (isinstance(etail, list) and etail[0] in dmap):
+        sys.exit(2)
+    guard_name = etail[0]
+    init = [val(inline(a, ebinds), {}) for a in etail[1:]]
+    if len(init) != 2:
+        sys.exit(2)                                        # scope: exactly two loop-carried locals
+    # guard state: (if COND (body l0 l1) (exit l0 l1))
+    gdef = dmap[guard_name]
+    params = gdef[2]
+    gbody = gdef[3]
+    if len(params) != 2 or not (isinstance(gbody, list) and gbody[0] == 'if'):
+        sys.exit(2)
+    cond, then_call, else_call = gbody[1], gbody[2], gbody[3]
+    body_name, exit_name = then_call[0], else_call[0]
+    if body_name not in dmap or exit_name not in dmap:
+        sys.exit(2)
+    # body state: (let step...)* -> (guard n0 n1)
+    bbinds, btail = flatten_lets(dmap[body_name][3])
+    if not (isinstance(btail, list) and btail[0] == guard_name and len(btail) == 3):
+        sys.exit(2)
+    newl = [inline(a, bbinds) for a in btail[1:]]           # next loop-var exprs over params
+    exitexpr = dmap[exit_name][3]                          # returned expression over params
+    p0, p1 = params
+    # abstract-execute over the concrete initial literals: trip count + bounds-check every step
+    cur = {p0: init[0], p1: init[1]}
+    trips = 0
+    while val(cond, cur) == 1:
+        cur = {p0: val(newl[0], cur), p1: val(newl[1], cur)}
+        trips += 1
+        if trips > MAXV:
+            sys.exit(2)                                    # runaway / not a bounded loop in range
+    val(exitexpr, cur)                                     # bounds-check the exit value too
+    fuel = trips + 2                                       # safe over-estimate; guard decides termination
+    # delta terms: p = (y 0) inside loopfn ; inside brancher the pair is snd of (y 0)=Pair(f,p)
+    env_p = {p0: '(f 42 (y 0))',        p1: '(f 43 (y 0))'}
+    env_s = {p0: '(f 42 (f 43 (y 0)))', p1: '(f 43 (f 43 (y 0)))'}
+    prelude = (PRELUDE + LOOP_EXTRA + " "
+        f"(fun 44 2 {tr(exitexpr, env_p)}) "                                  # fuel=Z  -> exit(p)  (unreached)
+        f"(fun 44 3 (f 45 {tr(cond, env_p)} (k 4 (v 0) (y 0)))) "             # loopfn(S f,p)=brancher(guard p, Pair(f,p))
+        f"(fun 45 2 {tr(exitexpr, env_s)}) "                                  # guard false -> exit(snd fp)
+        f"(fun 45 3 (f 44 (f 42 (y 0)) (k 4 {tr(newl[0], env_s)} {tr(newl[1], env_s)})))")  # guard true -> loopfn(f, body p)
+    term = f'(f 44 {unary(fuel)} (k 4 {unary(init[0])} {unary(init[1])}))'
+    e = unary(claimed)
+    print(f'{prelude} (= {term} {e}) (refl {e})')
+
 def main():
     claimed = int(sys.argv[1])
     forms = parse_all(sys.stdin.read())
     defs = [f for f in forms if isinstance(f, list) and f and f[0] == 'def']
     call = forms[-1]
-    if len(defs) != 1 or not isinstance(call, list):
-        sys.exit(2)                                        # multiple machines / states -> later slices
+    if not isinstance(call, list):
+        sys.exit(2)
+    if len(defs) >= 3:                                     # mutually-recursive state machine -> loop path
+        encode_loop(defs, call, claimed)
+        return
+    if len(defs) != 1:
+        sys.exit(2)                                        # multiple machines (cross-call) -> later slices
     _, name, params, body = defs[0]
     args = call[1:]
     if call[0] != name or len(args) != len(params):

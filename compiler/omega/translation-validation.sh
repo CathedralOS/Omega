@@ -13,8 +13,10 @@
 # Trust boundary (stated, per the honest-edges discipline): the encoder is untrusted; a bad encoding
 # either fails outright or mis-states the meaning, and meaning-fidelity is independently pinned by the
 # kernel diamond over the same translator output. Scope: whole-program-result-level validation of
-# straight-line + - * < == programs (comparisons decide 0/1 inside the kernel); loops (via delta's
-# recursive user functions) and instruction-level refinement are later slices.
+# straight-line + - * < == programs (comparisons decide 0/1 inside the kernel) AND bounded state-machine
+# loops (encoded as a delta fuel-fold whose guard + body the kernel re-evaluates each iteration, with the
+# two loop-carried locals packed into a user Pair; the encoder abstract-executes the loop to get a safe
+# trip bound). Data-dependent unbounded loops, /, %, and >2 carried locals are later slices.
 #
 # Native leg needs macOS arm64 + cargo/clang; skips cleanly otherwise.
 set -e
@@ -86,6 +88,32 @@ tv "branch predicate" '    let a: i32 = 8;
 tv "compare then sum" '    let a: i32 = 4 == 4;
     let b: i32 = 3 < 9;
     self.console.exit_process(a * 20 + b * 22)'
+# bounded state-machine loops: delta re-runs the guard + body each iteration (fuel-fold, Pair-packed
+# loop-carried locals). exit is the source's meaning, exit+1 is unreachable by the re-evaluation.
+tv "loop sum 1..4"    '    let i: i32 = 0;
+    let s: i32 = 0;
+    transition 0 { _ -> lp() }
+    state lp() { transition i < 4 { true -> bd()  false -> dn() } }
+    state bd() { i = i + 1; s = s + i; transition 0 { _ -> lp() } }
+    state dn() { self.console.exit_process(s) }'
+tv "factorial 5!"     '    let i: i32 = 1;
+    let a: i32 = 1;
+    transition 0 { _ -> lp() }
+    state lp() { transition i <= 5 { true -> bd()  false -> dn() } }
+    state bd() { a = a * i; i = i + 1; transition 0 { _ -> lp() } }
+    state dn() { self.console.exit_process(a) }'
+tv "loop then offset" '    let i: i32 = 0;
+    let s: i32 = 0;
+    transition 0 { _ -> lp() }
+    state lp() { transition i < 5 { true -> bd()  false -> dn() } }
+    state bd() { i = i + 1; s = s + i; transition 0 { _ -> lp() } }
+    state dn() { self.console.exit_process(s + 3) }'
+tv "countdown mul"    '    let n: i32 = 4;
+    let a: i32 = 1;
+    transition 0 { _ -> lp() }
+    state lp() { transition 0 < n { true -> bd()  false -> dn() } }
+    state bd() { a = a * 2; n = n - 1; transition 0 { _ -> lp() } }
+    state dn() { self.console.exit_process(a) }'
 
-echo "translation validation (delta re-evaluates each compilation's result and certifies it IS the source's + - * < == meaning): $PASS ok, $FAIL failed"
+echo "translation validation (delta re-evaluates each compilation's result — straight-line + - * < == AND bounded loops — and certifies it IS the source's meaning): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
