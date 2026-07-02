@@ -11188,6 +11188,34 @@ fn runtime_indexed_guard_subject_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_tick_paced_marquee_exit_canary_runs() {
+    // A tick-paced render loop: 24 frames of carrier writes + write_line + sleep(15), then the
+    // REAL elapsed time asserted via tick_count (>= 100ms) -> exit 0.
+    let canary = pass_canary("host/runtime_tick_paced_marquee_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-marquee-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("tick marquee canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("tick marquee canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected the tick-paced marquee to render and satisfy the elapsed-time check (exit 0), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_user32_key_state_exit_canary_runs() {
     // Multi-DLL proof: KERNEL32 + User32 in one PE; key_state(32) completes and stores -> exit 70.
     let canary = pass_canary("host/runtime_user32_key_state_exit");
@@ -17697,6 +17725,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/runtime_generic_param_position_inference_exit",
     "host/runtime_tick_count_monotonic_exit",
     "host/runtime_user32_key_state_exit",
+    "host/runtime_tick_paced_marquee_exit",
     "inline_asm/asm_block_jmp_state",
     "memory/abi_calling_convention_machine",
     "memory/repr_native_stable_layout",

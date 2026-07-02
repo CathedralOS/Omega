@@ -234,6 +234,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("generics/runtime_generic_param_position_inference_exit", 70),
     ("host/runtime_tick_count_monotonic_exit", 70),
     ("host/runtime_user32_key_state_exit", 70),
+    ("host/runtime_tick_paced_marquee_exit", 0),
     ("collections/runtime_indexed_guard_subject_exit", 70),
     ("collections/runtime_array_min_max_builtin_exit", 70),
     ("collections/runtime_dual_indexed_comparison_guard_exit", 70),
