@@ -276,13 +276,20 @@ signatures carry the contract; design_briefs/build_time_evaluation.md).**
 The ladder, smallest-landable-first; layouts need NO general const positions
 (the compiler itself invokes plan() -- a blessed-trait call site):
 
-- **L0 (the enabler): build-time machine evaluation entry point.** The
-  compiler invokes an effect-free machine through the reference interpreter
-  with compiler-built arguments and reads back a structured value. Purity
-  gate = decision 12's transitive effect surface (empty + no &mut/out
-  params); target-width emulation audit; failure = a compile error naming the
-  position + the call chain to any offending effect. Fuel only as
-  defense-in-depth.
+- **L0 -- DONE (dc3acbd43).** `evaluate_build_time_machine`: structured
+  arguments in (BuildTimeValue), positional binding (receiver excluded,
+  count-checked), structured terminal value out; fuel cap; pilot = a
+  plan-shaped machine. **L1-L3 -- DONE (same session).** layout.omg v0
+  vocabulary (FLAT index-keyed Plan until array-of-struct element
+  construction lands); compute_layout_plan (schema materialization for
+  primitive fields, purity gate, L2 validation: overlap/bounds/alignment/
+  power-of-two); pilot = CLayout IN OMEGA planning a UEFI-ish schema to
+  correct C offsets/size/align; effectful + overlapping policies rejected.
+  **GAP FOUND + FENCED: decision 12's inferred effect surface does NOT fold
+  host-authority facts** -- a boundary write_line passes the static gate
+  (const_lengths shares the hole); build-time evaluation adds a DYNAMIC
+  backstop (the evaluator marks driven host calls and the entry rejects).
+  Proper fix: fold the host-call audit into the transitive surface.
 - **L1: the closed vocabulary as library data.** `Schema`/`SchemaField`,
   `Plan`/`FieldEntry`/`FieldPlan` (At/Bits/Varint/LengthPrefixed)/`SizePlan`
   + the `Layout` trait declared in omega/ .omg. The compiler materializes

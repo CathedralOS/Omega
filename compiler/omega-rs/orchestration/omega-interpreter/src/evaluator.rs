@@ -181,6 +181,10 @@ struct Evaluator<'program> {
     /// is_window > 0), never on concrete handle values.
     virtual_live_windows: std::collections::HashSet<i64>,
     virtual_window_next: i64,
+    /// Set whenever a host-boundary call is driven (statement position or the
+    /// value-call fallback). The build-time evaluation entry rejects runs that
+    /// touched the host: a dynamic backstop behind decision 12's static gate.
+    host_boundary_touched: bool,
     steps: u64,
     /// Total step allowance for this run. Full-program interpretation uses
     /// `STEP_BUDGET`; const evaluation uses the much smaller
@@ -204,6 +208,7 @@ impl<'program> Evaluator<'program> {
             virtual_ticks: 0,
             virtual_live_windows: std::collections::HashSet::new(),
             virtual_window_next: 0,
+            host_boundary_touched: false,
             steps: 0,
             step_budget: STEP_BUDGET,
             call_depth: 0,
@@ -355,6 +360,15 @@ impl<'program> Evaluator<'program> {
                 "machine `{machine_name}` terminated without producing a value"
             ))
         })?;
+        // The dynamic purity backstop: the static effect surface does not yet
+        // fold host-authority audit facts (boundary-trait calls), so any run
+        // that actually touched the host is rejected here.
+        if self.host_boundary_touched {
+            return Err(Halt::Trap(format!(
+                "machine `{machine_name}` is not effect-free: it drove a host-boundary call \
+                 during build-time evaluation"
+            )));
+        }
         Ok(crate::build_time::BuildTimeValue::from_value(&value))
     }
 
@@ -1966,6 +1980,10 @@ impl<'program> Evaluator<'program> {
         if !self.is_boundary_call(call, frame) {
             return Ok(None);
         }
+        // Any driven host-boundary call marks the run: the build-time
+        // evaluation entry uses this as a DYNAMIC purity backstop (the static
+        // effect surface does not fold host-authority audit facts in yet).
+        self.host_boundary_touched = true;
         let target = call.target.as_str();
         let arguments = self
             .program
@@ -2329,6 +2347,23 @@ impl<'program> Evaluator<'program> {
                 // fallback only fires when nothing else resolves, mirroring the
                 // native collection (which keys on boundary-trait signature
                 // symbols).
+                if matches!(
+                    target,
+                    "tick_count"
+                        | "key_state"
+                        | "dc_create"
+                        | "get_dc"
+                        | "window_create"
+                        | "is_window"
+                        | "window_destroy"
+                        | "msg_peek"
+                        | "msg_translate"
+                        | "msg_dispatch"
+                ) {
+                    // Value-position host fallbacks are host-boundary calls too
+                    // (the build-time purity backstop must see them).
+                    self.host_boundary_touched = true;
+                }
                 if target == "tick_count" {
                     self.virtual_ticks += 1;
                     return Ok(Value::Int(self.virtual_ticks));
