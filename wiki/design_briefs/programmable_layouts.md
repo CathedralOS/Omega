@@ -8,8 +8,8 @@
 > sites. · **Amends:** [`extern_boundary_and_format_domains.md`](extern_boundary_and_format_domains.md)
 > §5/§6/§9/§10 (catalog → policies; wire data retired) and
 > [`freestanding_boot_and_hardware_facts.md`](freestanding_boot_and_hardware_facts.md)
-> sample 2. · **Depends on:** the ch13 comptime sketch (const evaluation +
-> member reflection), [`comptime.md`](comptime.md), the totality budget story,
+> sample 2. · **Depends on:** the ch13 build-time-evaluation sketch (const evaluation +
+> member reflection), [`build_time_evaluation.md`](build_time_evaluation.md), the totality budget story,
 > and [`index_count_and_address_model.md`](index_count_and_address_model.md)
 > (`count`/`addr`; no `usize`).
 
@@ -18,7 +18,7 @@
 ## 1. Bottom line up front
 
 **Layout is a library, not a language axiom.** A layout policy is ordinary data
-satisfying a `Layout` trait whose `plan()` machine runs at comptime (zero
+satisfying a `Layout` trait whose `plan()` machine runs at build time (zero
 effects, structurally bounded) and returns a `Plan` — a per-field placement
 description in a **closed vocabulary** the compiler knows how to walk. The
 compiler **validates** the plan (no overlap, no straddle, ranges fit slots),
@@ -37,7 +37,7 @@ Consequences that fell out and are settled here:
    selection defaulted from schema facts (`OmegaLayout`).
 3. **Bit-addressable fields with no bit-width types** — `Bits` placements +
    range facts on plain integers; shifts live in the deriver.
-4. **Durability is a plan grade consumed at comptime by typed APIs** — never a
+4. **Durability is a plan grade consumed at build time by typed APIs** — never a
    domain on bytes (two attempts at byte-level `Durable`/`SelfDescribing`
    domains were made and rejected; recorded in §9 as anti-patterns).
 
@@ -48,12 +48,12 @@ machine does the work. No trait carries a body.
 
 ```omega
 trait Layout {
-    machine plan(schema: Schema) -> Plan comptime;
+    machine plan(schema: Schema) -> Plan;
 }
 
 data CLayout;                       // a policy: zero-field tag type
 CLayout satisfies Layout {
-    machine plan(schema: Schema) -> Plan comptime {
+    machine plan(schema: Schema) -> Plan {
         transition schema.fields.len > 0 {
             true  -> place(0, 0, 1, FieldOffsets::empty())
             false -> done(0, 1, FieldOffsets::empty())
@@ -75,15 +75,15 @@ CLayout satisfies Layout {
 ```
 
 - **Iteration is states** (self-re-entering with accumulators) — the decreasing
-  measure (`fields.len - index`) is the comptime termination proof, falling out
+  measure (`fields.len - index`) is the build-time termination proof, falling out
   of the shape rather than bolted on. No `for`, no `var`.
 - **Sizes and offsets are `count`s** (no `usize`; field metadata arrives
   target-resolved — pointer width, natural alignments — so no ABI threading).
 - **Build-time safety is the effect system**: `plan()` declares no effects, so
   it *has* none — no IO at build time, structurally. Evaluated by the reference
-  interpreter (the ch13 comptime story). The only misbehaviors possible are a
+  interpreter (the ch13 build-time-evaluation story). The only misbehaviors possible are a
   garbage plan (caught by validation, §3) and non-termination (totality budget).
-- **Reflection ask**: `Schema` as first-class comptime data (fields with
+- **Reflection ask**: `Schema` as first-class build-time reflection data (fields with
   name/size/align/type-kind/number). A modest generalization of the ch13
   `Self::fields` sketch — the reflection surface was already footnoted open.
 - `Packed` is the same machine minus one `round_up`. The C ABI's pathological
@@ -130,7 +130,7 @@ algorithm):
 ```omega
 data UartMmio;
 UartMmio satisfies Layout {
-    machine plan(schema: Schema) -> Plan comptime {
+    machine plan(schema: Schema) -> Plan {
         Plan { fields: [
             field("data",   At(0), ReadPop),      // access classes are PLAN DATA,
             field("status", At(5), ReadOnly),     //   not schema syntax
@@ -282,7 +282,7 @@ c: [u8; 32] in OmegaLayout<Scratch>;         // unnumbered → packed
 ```
 
 - **Detection is not a modality; it's the default value of an ordinary
-  comptime parameter** (named, not bool). One name exposed; usually zero —
+  build-time parameter** (named, not bool). One name exposed; usually zero —
   Omega-native edges imply it.
 - **One-way asymmetry**: you can always *drop* identity from the wire
   (`Packed` on a numbered schema); you can never *invent* it (no
@@ -300,13 +300,13 @@ c: [u8; 32] in OmegaLayout<Scratch>;         // unnumbered → packed
 
 The deriver grades each resolved plan: identity-keyed placements → **durable**
 (survives schema evolution); positional/offset placements → not. The grade is
-consumed **at comptime, by APIs whose contract is longevity**:
+consumed **at build time, by APIs whose contract is longevity**:
 
 ```omega
 machine write(bytes: &[u8]) effects filesystem;   // raw edges: agnostic, correctly —
                                                   //   PNGs, ciphertext, foreign frames
 
-data Store<T>;    // versioned persistence: comptime-requires plan(T) durable
+data Store<T>;    // versioned persistence: build-time-requires plan(T) durable
                   //   Store<Save> OK; Store<Scratch> ERROR: no field identities
 data Cache<T>;    // no check; read = validate → Valid | Invalid → regenerate
 ```
@@ -330,10 +330,10 @@ contract instead.
 
 ## 10. What this asks of the language (delta over existing sketches)
 
-1. **Comptime evaluation of effect-free machines** in constant position +
-   totality budget — already the ch13/comptime-brief direction; this is its
+1. **Build-time evaluation of effect-free machines** in constant position +
+   totality budget — already the ch13/build-time-evaluation-brief direction; this is its
    first heavyweight client.
-2. **`Schema` as first-class comptime reflection data** (name/size/align/kind/
+2. **`Schema` as first-class build-time reflection data** (name/size/align/kind/
    number per field) — generalizes the sketched `Self::fields`.
 3. **Plan validation pass** + the **deriver** (codec, projections, mint-index,
    value types) — compiler-owned; the conformance theorem lives here.
