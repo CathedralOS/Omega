@@ -137,6 +137,26 @@ Thompson (overview honest-edge #2).
 - **Rung count stays emergent** (overview). Epsilon/Omega are labels for "systems
   layer" and "proof-surface layer"; the DAG, not this doc, fixes the true count.
 
+## D7 — Epsilon is ABSORBED into Omega: one machine-surface language, the "Omega kernel subset".
+
+**Ratified 2026-07-02 (user-directed).** Epsilon was created as omega's on-ramp; the meaning-route work
+proved the two surfaces are one language (the shared translator runs real Omega samples with only
+surface deltas). Maintaining two named systems languages, two corpora, and two gate families for one
+converging surface is redundancy without a trust payoff. Therefore:
+
+- **The rung dissolves.** The ladder is α → β/bc → γ → δ → **ω**. What was "epsilon" is now the
+  **Omega kernel subset** — the machine-surface fragment of Omega that the lattice can already give
+  Rust-free meaning to. Programs, certifiers, and gates survive unchanged in substance.
+- **The translator is Omega's.** `eps2gamma.beta` → `omega/omega2gamma.beta` — the Rust-free
+  Omega→gamma elaborator (D2), covering the kernel subset and growing toward the full language.
+- **The kept rung home merges**: `compiler/epsilon/` → `compiler/omega/` (the 42-case triple diamond
+  becomes the *kernel diamond*; the Rust-free proof-carrying convergence gate moves as-is).
+- **`epsilon-rs/` keeps its (historical) name and its role**: the disposable Rust producer for the
+  kernel subset, with its native gates, certifier corpus, and self-hosted lowermachine — still
+  outside the trust base, still killed eventually for self-sufficiency only (D6 unchanged).
+- Rung docs: `rungs/epsilon.md` is marked absorbed; its "Adds" (safe systems programming) is now a
+  stage of omega's roadmap rather than a separate rung.
+
 ---
 
 ## The chain, end to end

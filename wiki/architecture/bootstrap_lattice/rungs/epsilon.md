@@ -1,5 +1,12 @@
 # Rung: Epsilon — safe systems programming
 
+> **Status: ABSORBED INTO OMEGA (2026-07-02, decision D7 in [decisions.md](../decisions.md)).**
+> Epsilon is no longer a separate rung. Its surface is the **Omega kernel subset**; its Rust-free
+> meaning translator lives on as `compiler/omega/omega2gamma.beta`; its kept gates (the kernel
+> diamond, the Rust-free proof-carrying convergence) moved to `compiler/omega/`. `compiler/epsilon-rs/`
+> keeps its historical name as the disposable Rust producer for the kernel subset. The ladder is now
+> α → β/bc → γ → δ → ω. The text below is retained as the design record of what the kernel subset adds.
+
 [Lattice overview](../bootstrap_lattice.md) | Prev: [Delta](delta.md) | Next: [Omega](omega.md)
 
 > **Status: DIRECTION.** The on-ramp (`compiler/epsilon-rs/`, throwaway Rust) and

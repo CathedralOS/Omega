@@ -1,57 +1,57 @@
 #!/usr/bin/env sh
-# EPS2GAMMA DIAMOND — epsilon's meaning, now with RUST OFF the meaning route.
+# OMEGA KERNEL DIAMOND — epsilon's meaning, now with RUST OFF the meaning route.
 #
 # The epsilon-meaning diamond (epsilon-rs/epsilon-meaning-diamond.sh) already pins epsilon's meaning
 # against native execution — but its translator, gamma_emit.rs, is RUST, so Rust still sat on the
-# meaning side. This diamond removes it: epsilon/eps2gamma.beta is a Rust-FREE epsilon->gamma
+# meaning side. This diamond removes it: omega/omega2gamma.beta is a Rust-FREE epsilon->gamma
 # translator (built alpha->beta->bc, the same lineage as interp.beta). Each program is run TWO ways
 # and the exit codes must agree:
 #   (1) NATIVE     — compiled by the epsilon-rs aarch64 backend and executed (the reference)
-#   (2) EPS2GAMMA  — eps2gamma.beta (Rust-free) translates it to gamma; interp.beta (Rust-free) runs it
+#   (2) OMEGA2GAMMA  — omega2gamma.beta (Rust-free) translates it to gamma; interp.beta (Rust-free) runs it
 # Both artifacts on route (2) are in the Rust-free trust lineage, so epsilon's meaning is now defined
 # without Rust for the supported subset. As a bonus cross-check we also confirm the Rust-free route
 # agrees with the existing Rust gamma_emit.rs route (EPS_EMIT=gamma) — the two translators converge.
 #
 # SLICE 0: straight-line integer `main` (lets + exit_process terminal; + - * / %, parens, locals).
-# The subset grows exactly as eps2gamma.beta grows (comparisons, states, calls, ... — later slices).
+# The subset grows exactly as omega2gamma.beta grows (comparisons, states, calls, ... — later slices).
 #
 # Skips cleanly off macOS arm64 or without the cargo/clang toolchain (the native route needs them).
 set -e
 cd "$(dirname "$0")"
-case "$(uname -sm)" in "Darwin arm64") ;; *) echo "eps2gamma diamond SKIP — not macOS arm64"; exit 0 ;; esac
-for t in cargo clang codesign; do command -v "$t" >/dev/null 2>&1 || { echo "eps2gamma diamond SKIP — no $t"; exit 0; }; done
+case "$(uname -sm)" in "Darwin arm64") ;; *) echo "omega kernel diamond SKIP — not macOS arm64"; exit 0 ;; esac
+for t in cargo clang codesign; do command -v "$t" >/dev/null 2>&1 || { echo "omega kernel diamond SKIP — no $t"; exit 0; }; done
 
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 
-# Rust-free lineage: alpha seed -> beta assembler -> bc -> {interp.exe, eps2gamma.exe}
+# Rust-free lineage: alpha seed -> beta assembler -> bc -> {interp.exe, omega2gamma.exe}
 . ../alpha/seed_env.sh
 SEED=../alpha/$ALPHA_SEED
 ASM=../beta/$BETA_SEED
-( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "eps2gamma diamond FAIL — bc build"; exit 1; }
+( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "omega kernel diamond FAIL — bc build"; exit 1; }
 BC=../beta-lang-rs/build/bc.exe
 build_beta() { # src.beta  ->  out.exe   (bc -> assemble -> stamp)
   "$BC" < "$1" > "$T/b.asm" 2>/dev/null && "$ASM" < "$T/b.asm" > "$T/b.tape" 2>/dev/null \
     && stamp_seed "$T/b.tape" "$SEED" "$2" >/dev/null 2>&1
 }
-build_beta ../gamma/interp.beta "$T/interp.exe" || { echo "eps2gamma diamond FAIL — build interp.beta"; exit 1; }
-build_beta eps2gamma.beta        "$T/e2g.exe"    || { echo "eps2gamma diamond FAIL — build eps2gamma.beta"; exit 1; }
+build_beta ../gamma/interp.beta "$T/interp.exe" || { echo "omega kernel diamond FAIL — build interp.beta"; exit 1; }
+build_beta omega2gamma.beta      "$T/e2g.exe"    || { echo "omega kernel diamond FAIL — build omega2gamma.beta"; exit 1; }
 
 # native reference backend (Rust on-ramp — this is the thing being CHECKED, not trusted)
-( cd ../epsilon-rs && cargo build -q 2>/dev/null ) || { echo "eps2gamma diamond FAIL — cargo build"; exit 1; }
+( cd ../epsilon-rs && cargo build -q 2>/dev/null ) || { echo "omega kernel diamond FAIL — cargo build"; exit 1; }
 BE=../epsilon-rs/target/debug/beta
 
 PASS=0; FAIL=0
-# _check DESC EXPECT : assumes $T/p.alp is written; native exit, Rust-free eps2gamma-route exit, the Rust
+# _check DESC EXPECT : assumes $T/p.alp is written; native exit, Rust-free omega2gamma-route exit, the Rust
 # gamma_emit route, and EXPECT must all agree.
 _check() {
   EPS_ARCH=aarch64 "$BE" "$T/p.alp" "$T/p" >/dev/null 2>&1 || { FAIL=$((FAIL+1)); echo "  FAIL $1 : native compile"; return; }
   chmod +x "$T/p"; set +e; "$T/p"; nat=$?; set -e
   g=$("$T/e2g.exe" < "$T/p.alp" 2>/dev/null)
-  if [ -z "$g" ]; then FAIL=$((FAIL+1)); echo "  FAIL $1 : eps2gamma emitted nothing"; return; fi
+  if [ -z "$g" ]; then FAIL=$((FAIL+1)); echo "  FAIL $1 : omega2gamma emitted nothing"; return; fi
   set +e; printf '%s\n' "$g" | "$T/interp.exe" >/dev/null; mine=$?; set -e
   rg=$(EPS_EMIT=gamma "$BE" "$T/p.alp" 2>/dev/null); set +e; printf '%s\n' "$rg" | "$T/interp.exe" >/dev/null; rgi=$?; set -e
   if [ "$nat" = "$mine" ] && [ "$nat" = "$2" ] && [ "$nat" = "$rgi" ]; then PASS=$((PASS+1)); else
-    FAIL=$((FAIL+1)); echo "  FAIL $1 : native=$nat eps2gamma=$mine rustgamma=$rgi expect=$2"; fi
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : native=$nat omega2gamma=$mine rustgamma=$rgi expect=$2"; fi
 }
 # dia DESC BODY EXPECT : BODY is the main body; Main has no scalar fields.
 dia() {
@@ -75,7 +75,7 @@ diaa() {
   _check "$1" "$3"
 }
 # diar DESC BODY "b0 b1 .." EXPECT : the read_byte slice. Console also exposes read_byte(); the SAME bytes
-# feed native stdin AND both gamma routes (Rust via EPS_GAMMA_INPUT; Rust-free by substituting eps2gamma's
+# feed native stdin AND both gamma routes (Rust via EPS_GAMMA_INPUT; Rust-free by substituting omega2gamma's
 # STDIN placeholder with the (Cons b0 .. Nil) list). Main has scalar fields c, s.
 diar() {
   printf 'boundary trait Console { machine exit_process(return_code: i32); machine read_byte() -> i32; }\ndata Main { console: Console; c: i32; s: i32; }\nmachine Main::main(&mut self) {\n%s\n}\n' "$2" > "$T/p.alp"
@@ -87,11 +87,11 @@ diar() {
   rev=""; for b in $3; do rev="$b $rev"; done
   list="Nil"; for b in $rev; do list="(Cons $b $list)"; done
   g=$("$T/e2g.exe" < "$T/p.alp" 2>/dev/null | sed "s/STDIN/$list/")
-  if [ -z "$g" ]; then FAIL=$((FAIL+1)); echo "  FAIL $1 : eps2gamma emitted nothing"; return; fi
+  if [ -z "$g" ]; then FAIL=$((FAIL+1)); echo "  FAIL $1 : omega2gamma emitted nothing"; return; fi
   set +e; printf '%s\n' "$g" | "$T/interp.exe" >/dev/null; mine=$?; set -e
   rg=$(EPS_GAMMA_INPUT="$3" EPS_EMIT=gamma "$BE" "$T/p.alp" 2>/dev/null); set +e; printf '%s\n' "$rg" | "$T/interp.exe" >/dev/null; rgi=$?; set -e
   if [ "$nat" = "$mine" ] && [ "$nat" = "$4" ] && [ "$nat" = "$rgi" ]; then PASS=$((PASS+1)); else
-    FAIL=$((FAIL+1)); echo "  FAIL $1 : native=$nat eps2gamma=$mine rustgamma=$rgi expect=$4"; fi
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : native=$nat omega2gamma=$mine rustgamma=$rgi expect=$4"; fi
 }
 # diao DESC FULLSRC "in-bytes" "out-bytes" : STDOUT programs. Compares the native process's raw stdout bytes
 # to the gamma route's OUTPUT list (the program returns `(rev out Nil)`; interp prints it; decode the ints).
@@ -107,7 +107,7 @@ diao() {
   mout=$(decode_list "$("$T/e2g.exe" < "$T/p.alp" 2>/dev/null | sed "s/STDIN/$list/")")
   rout=$(decode_list "$(EPS_GAMMA_INPUT="$3" EPS_EMIT=gamma "$BE" "$T/p.alp" 2>/dev/null)")
   if [ "$nout" = "$mout" ] && [ "$nout" = "$4" ] && [ "$nout" = "$rout" ]; then PASS=$((PASS+1)); else
-    FAIL=$((FAIL+1)); echo "  FAIL $1 : native=[$nout] eps2gamma=[$mout] rustgamma=[$rout] want=[$4]"; fi
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : native=[$nout] omega2gamma=[$mout] rustgamma=[$rout] want=[$4]"; fi
 }
 
 dia "literal"            '    self.console.exit_process(42)' 42
@@ -243,5 +243,5 @@ M='boundary trait Console { machine exit_process(return_code: i32); machine read
 diao "self-method emits pair" "$M machine Main::emitpair(&mut self, v: i32) { self.tmp = v; self.console.write_byte(self.tmp + 65); self.console.write_byte(self.tmp + 66); } machine Main::main(&mut self) { self.emitpair(0); self.emitpair(1); self.console.exit_process(0); }" "" "65 66 66 67"
 diao "self-method echos input" "$M machine Main::emit(&mut self, v: i32) { self.console.write_byte(v); } machine Main::main(&mut self) { transition 0 { _ -> rd() } state rd() { self.tmp = read_byte(); transition self.tmp < 0 { true -> dn()  false -> ec() } } state ec() { self.emit(self.tmp + 1); transition 0 { _ -> rd() } } state dn() { self.console.exit_process(0); } }" "65 66 67" "66 67 68"
 
-echo "eps2gamma diamond (native == Rust-free eps2gamma->interp == Rust gamma_emit): $PASS passed, $FAIL failed"
+echo "omega kernel diamond (native == Rust-free omega2gamma->interp == Rust gamma_emit): $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

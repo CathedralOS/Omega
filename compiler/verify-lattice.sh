@@ -81,12 +81,12 @@ step "predicate diamond — FUZZ: random Mem/ProdIs/Perm proofs, all 3 checkers"
 step "predicate soundness — FUZZ: random predicates, kernel vs operational decision" delta predicate-soundness-fuzz.sh gamma
 step "epsilon — on-ramp compiles + RUNS its corpus"   epsilon-rs  test_aarch64.sh
 step "epsilon meaning — native exec vs gamma reference interpreter (diamond)" epsilon-rs epsilon-meaning-diamond.sh gamma
-step "epsilon meaning (RUST-FREE) — native vs eps2gamma.beta->interp.beta (diamond)" epsilon eps2gamma-diamond.sh epsilon-rs gamma
+step "omega kernel diamond (RUST-FREE) — native vs omega2gamma.beta->interp.beta" omega kernel-diamond.sh epsilon-rs gamma
 step "convergence — epsilon emits a proof; delta checks it" epsilon-rs convergence.sh delta
 step "convergence (self-hosted) — the self-hosted compiler's certifiers, checked by delta" epsilon-rs convergence-selfhost.sh delta
 step "convergence (reference route) — certifier RUN on interp.beta; cert checked by check.beta" epsilon-rs convergence-reference.sh delta gamma
-step "convergence (reference route, RUST-FREE) — eps2gamma.beta->interp.beta; cert checked by check.beta" epsilon convergence-reference.sh epsilon-rs delta gamma
-step "omega meaning (slice 0) — real Omega samples run Rust-free; exits match documented intent" omega omega-meaning.sh epsilon gamma ../samples
+step "convergence (RUST-FREE) — omega2gamma.beta->interp.beta; cert checked by check.beta" omega convergence-reference.sh epsilon-rs delta gamma
+step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega omega-meaning.sh gamma ../samples
 step "contracts — compiler discharges ensures; delta checks at build" epsilon-rs contracts.sh delta
 step "contracts — static discharge and runtime asserts agree (soundness)" epsilon-rs discharge-soundness.sh delta
 # untrusted proof elaborator (named binders -> raw certs); skipped if python3 is absent
