@@ -46,15 +46,23 @@ PROGRAMS = [
     ("a+3  ⋢ 3*a   (wrong claim)", read(0) + imm(1, 3) + add(0, 1) + write(0), "(m (s (s (s z))) (v 0))", "differs"),
 ]
 
-# REAL bc-compiled programs: the genuine payoff — prove the ACTUAL compiler's straight-line output refines its
-# Beta source meaning (enabled when bc.exe + the assembler are provided). Files live in refinement-samples/.
-NAT3 = '(s (s (s z)))'
+# REAL bc-compiled programs: the genuine payoff — prove the ACTUAL compiler's output refines its Beta source
+# meaning (enabled when bc.exe + the assembler are provided). The last three are LOOPS / RECURSION: their
+# control flow is data-independent (concrete trip counts), so the symbolic executor unrolls it — a loop over
+# SYMBOLIC data (triple) yields a symbolic expression proven for all inputs; concrete loops/recursion (sumto,
+# factorial) are computed and pinned. Each entry: (label, source-path, claimed-meaning, expect).
+def natS(k):                                   # k as the source term s^k z
+    return 'z' if k == 0 else '(s %s)' % natS(k - 1)
+NAT3 = natS(3)
 REAL_SAMPLES = [
-    ("sum2.beta   ⊑ b+a",   "(p (v 1) (v 0))", "refines"),                         # read a,b; a+b  (commuted)
-    ("prod2.beta  ⊑ b*a",   "(m (v 1) (v 0))", "refines"),                         # read a,b; a*b  (commuted)
-    ("dbl.beta    ⊑ 2*a",   "(m (s (s z)) (v 0))", "refines"),                     # read a; a+a
-    ("affine.beta ⊑ 3*a+1", "(p (m %s (v 0)) (s z))" % NAT3, "refines"),           # read a; a+a+a+1
-    ("sum2.beta   ⋢ a*b",   "(m (v 0) (v 1))", "differs"),                         # wrong claim -> no proof
+    ("sum2   ⊑ b+a",     "refinement-samples/sum2.beta",   "(p (v 1) (v 0))", "refines"),        # a+b (commuted)
+    ("prod2  ⊑ b*a",     "refinement-samples/prod2.beta",  "(m (v 1) (v 0))", "refines"),        # a*b (commuted)
+    ("dbl    ⊑ 2*a",     "refinement-samples/dbl.beta",    "(m (s (s z)) (v 0))", "refines"),    # a+a
+    ("affine ⊑ 3*a+1",   "refinement-samples/affine.beta", "(p (m %s (v 0)) (s z))" % NAT3, "refines"),  # a+a+a+1
+    ("sum2   ⋢ a*b",     "refinement-samples/sum2.beta",   "(m (v 0) (v 1))", "differs"),        # wrong claim
+    ("triple ⊑ 3*a  (LOOP over symbolic data)", "refinement-samples/triple.beta", "(m %s (v 0))" % NAT3, "refines"),
+    ("sumto(10) ⊑ 55  (concrete LOOP)",         "../beta-lang-rs/examples/sumto.beta",     natS(55),  "refines"),
+    ("fact(5) ⊑ 120  (RECURSION, n-1, n*..)",   "../beta-lang-rs/examples/factorial.beta", natS(120), "refines"),
 ]
 
 def compile_beta(src_path):
@@ -79,6 +87,8 @@ def run_ref(tape, stdin_bytes):
 
 def differential(tape, term, n, trials=40):
     """Instantiate the symbolic term at random small inputs and compare to the concrete VM (mod 256)."""
+    if n == 0:
+        trials = 1                                     # input-free: one run settles it
     for _ in range(trials):
         env = {i: random.randint(0, 6) for i in range(n)}
         v = S.evaluate(term, env)
@@ -127,9 +137,8 @@ def main():
         total += 1; passed += check_one(name, tape, claim, expect)
     if BC and ASM:
         print(" real bc-compiled Beta sources:")
-        for name, claim, expect in REAL_SAMPLES:
-            src = os.path.join(HERE, 'refinement-samples', name.split()[0])
-            tape = compile_beta(src)
+        for name, srcrel, claim, expect in REAL_SAMPLES:
+            tape = compile_beta(os.path.join(HERE, srcrel))
             total += 1; passed += check_one(name, tape, claim, expect)
     else:
         print(" (real-bc samples skipped: bc.exe / assembler not provided)")
