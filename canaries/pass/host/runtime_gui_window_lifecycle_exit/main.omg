@@ -1,0 +1,69 @@
+// The window LIFECYCLE + MESSAGE PUMP proof: create a real (invisible, CI-safe) window, drain
+// its message queue through PeekMessageW(PM_REMOVE) into a caller-owned [u64;6] MSG buffer (a
+// fresh invisible window has ~1 pending message natively, 0 in the virtual host -- the drain is
+// BOUNDED and its count deliberately unasserted), then assert the liveness transitions the probe
+// pinned exactly: IsWindow(live) > 0, DestroyWindow > 0, IsWindow(destroyed) == 0. These five
+// user32 imports (PeekMessageW/TranslateMessage/DispatchMessageW dispatch through the built-in
+// STATIC class's DefWindowProc) are what make a long-lived window draggable and closable -- the
+// standalone-app gap. The interpreter's virtual window system mints live handle tokens and
+// mirrors the same liveness answers. Exit 70. Differential.
+boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Gui {
+    machine window_create(class_name: [u8; 7], title: [u8; 6], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
+    machine msg_peek(message: [u64; 6]) -> u32;
+    machine is_window(window: u64) -> u32;
+    machine window_destroy(window: u64) -> u32;
+}
+data Main {
+    console: Console;
+    gui: Gui;
+    cls: [u8; 7];
+    title: [u8; 6];
+    message: [u64; 6];
+    hwnd: u64;
+    have: u32;
+    drains: u32 in Wrapping;
+    alive_before: u32;
+    killed: u32;
+    alive_after: u32;
+}
+machine Main::main(&mut self) {
+    self.cls[0] = 83;
+    self.cls[1] = 84;
+    self.cls[2] = 65;
+    self.cls[3] = 84;
+    self.cls[4] = 73;
+    self.cls[5] = 67;
+    self.cls[6] = 0;
+    self.title[0] = 111;
+    self.title[1] = 109;
+    self.title[2] = 101;
+    self.title[3] = 103;
+    self.title[4] = 97;
+    self.title[5] = 0;
+    self.hwnd = self.gui.window_create(self.cls, self.title, 0, 10, 10, 64, 64);
+    self.drains = 0;
+    transition self.hwnd > 0 { true -> drain_loop() _ -> bad() }
+    state drain_loop(&mut self) {
+        transition self.drains < 8 { true -> drain_peek() _ -> liveness() }
+    }
+    state drain_peek(&mut self) {
+        self.have = self.gui.msg_peek(self.message);
+        self.drains = self.drains + 1;
+        transition self.have > 0 { true -> drain_loop() _ -> liveness() }
+    }
+    state liveness(&mut self) {
+        self.alive_before = self.gui.is_window(self.hwnd);
+        transition self.alive_before > 0 { true -> destroy() _ -> bad() }
+    }
+    state destroy(&mut self) {
+        self.killed = self.gui.window_destroy(self.hwnd);
+        transition self.killed > 0 { true -> recheck() _ -> bad() }
+    }
+    state recheck(&mut self) {
+        self.alive_after = self.gui.is_window(self.hwnd);
+        transition self.alive_after == 0 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

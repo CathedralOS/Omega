@@ -1,0 +1,165 @@
+// A GENUINE STANDALONE software-rendered APP -- it STAYS OPEN until you close it. Every frame:
+// drain the message queue (PeekMessageW -> TranslateMessage -> DispatchMessageW through the
+// built-in STATIC class's DefWindowProc -- this is what makes the window DRAGGABLE, gives it a
+// live titlebar, and makes the X button work: DefWindowProc turns WM_CLOSE into DestroyWindow),
+// then check liveness (IsWindow goes 0 after the X) and ESC (GetAsyncKeyState 27) as a second
+// quit path, then render: a 64x64 framebuffer animated diagonal wash stretched 4x into the
+// ~256x256 client area, paced at ~60fps. Closing the window or pressing ESC exits 0.
+//
+// This sample deliberately carries NO exit annotation for the harness: it is compiled but never
+// auto-run (it waits for a human to close the window). samples/window_demo is the short-lived,
+// exit-asserted variant of the same pipeline. Note: dragging pauses rendering (the modal move
+// loop runs inside DispatchMessageW) -- normal for a single-threaded pump.
+// (Careful wording: the harness's annotation parser substring-matches the annotation phrase
+// anywhere in this comment and would auto-run this app on a garbage exit code.)
+boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Clock { machine sleep(milliseconds: u32); }
+boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
+boundary trait Gui {
+    machine window_create(class_name: [u8; 7], title: [u8; 10], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
+    machine get_dc(window: u64) -> u64;
+    machine blit(device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32;
+    machine msg_peek(message: [u64; 6]) -> u32;
+    machine msg_translate(message: [u64; 6]) -> u32;
+    machine msg_dispatch(message: [u64; 6]) -> u64;
+    machine is_window(window: u64) -> u32;
+    machine window_destroy(window: u64) -> u32;
+}
+data Main {
+    console: Console;
+    clock: Clock;
+    input: Input;
+    gui: Gui;
+    cls: [u8; 7];
+    title: [u8; 10];
+    message: [u64; 6];
+    pixels: [i32; 4096] in Trapping;
+    info: [i32; 11] in Trapping;
+    hwnd: u64;
+    hdc: u64;
+    copied: u32;
+    have: u32;
+    translated: u32;
+    dispatched: u64;
+    alive: u32;
+    killed: u32;
+    escape: u64;
+    pumped: i32 in Trapping;
+    frame: i32 in Trapping;
+    i: i32 in Trapping;
+    row: i32 in Trapping;
+    col: i32 in Trapping;
+    c: i32 in Trapping;
+    px: i32 in Trapping;
+}
+machine Main::main(&mut self) {
+    // "STATIC\0"
+    self.cls[0] = 83;
+    self.cls[1] = 84;
+    self.cls[2] = 65;
+    self.cls[3] = 84;
+    self.cls[4] = 73;
+    self.cls[5] = 67;
+    self.cls[6] = 0;
+    // "omega app\0"
+    self.title[0] = 111;
+    self.title[1] = 109;
+    self.title[2] = 101;
+    self.title[3] = 103;
+    self.title[4] = 97;
+    self.title[5] = 32;
+    self.title[6] = 97;
+    self.title[7] = 112;
+    self.title[8] = 112;
+    self.title[9] = 0;
+    // BITMAPINFOHEADER: 64x64 top-down 32bpp BI_RGB.
+    self.info[0] = 40;
+    self.info[1] = 64;
+    self.info[2] = 0 - 64;
+    self.info[3] = 2097153;
+    // WS_VISIBLE|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX; outer padded so client ~256x256.
+    self.hwnd = self.gui.window_create(self.cls, self.title, 281542656, 200, 200, 272, 295);
+    transition self.hwnd > 0 { true -> dc() _ -> bad() }
+    state dc(&mut self) {
+        self.hdc = self.gui.get_dc(self.hwnd);
+        self.frame = 0;
+        transition self.hdc > 0 { true -> frame_loop() _ -> bad() }
+    }
+    state frame_loop(&mut self) {
+        // keep the animation counter bounded (it runs for as long as the app lives)
+        transition self.frame < 16384 { true -> pump_init() _ -> wrap_frame() }
+    }
+    state wrap_frame(&mut self) {
+        self.frame = 0;
+        transition { _ -> pump_init() }
+    }
+    // --- pump: drain up to 16 queued messages through DefWindowProc ---
+    state pump_init(&mut self) {
+        self.pumped = 0;
+        transition { _ -> pump_loop() }
+    }
+    state pump_loop(&mut self) {
+        self.have = self.gui.msg_peek(self.message);
+        transition self.have > 0 { true -> pump_handle() _ -> liveness() }
+    }
+    state pump_handle(&mut self) {
+        self.translated = self.gui.msg_translate(self.message);
+        self.dispatched = self.gui.msg_dispatch(self.message);
+        self.pumped = self.pumped + 1;
+        transition self.pumped < 16 { true -> pump_loop() _ -> liveness() }
+    }
+    // --- quit paths: the X button (window destroyed by DefWindowProc) or ESC ---
+    state liveness(&mut self) {
+        self.alive = self.gui.is_window(self.hwnd);
+        transition self.alive > 0 { true -> esc_check() _ -> closed() }
+    }
+    state esc_check(&mut self) {
+        self.escape = self.input.key_state(27);
+        transition self.escape > 0 { true -> quit_self() _ -> fill_init() }
+    }
+    state quit_self(&mut self) {
+        self.killed = self.gui.window_destroy(self.hwnd);
+        transition { _ -> closed() }
+    }
+    // --- render: the animated wash, then present ---
+    state fill_init(&mut self) {
+        self.i = 0;
+        transition { _ -> fill_loop() }
+    }
+    state fill_loop(&mut self) {
+        transition self.i >= 0 && self.i < 4096 { true -> fill_cell() _ -> present() }
+    }
+    state fill_cell(&mut self) {
+        self.row = self.i >> 6;
+        self.col = self.i & 63;
+        self.c = (self.row + self.col + self.frame * 4) & 255;
+        self.px = (self.c * 65536) + ((255 - self.c) * 256) + 96;
+        transition self.i >= 0 && self.i < 4096 { true -> fill_put() _ -> bad() }
+    }
+    state fill_put(&mut self) {
+        self.pixels[self.i] = self.px;
+        self.i = self.i + 1;
+        transition { _ -> fill_loop() }
+    }
+    state present(&mut self) {
+        self.copied = self.gui.blit(self.hdc, 256, 256, 64, 64, self.pixels, self.info);
+        transition self.copied == 64 { true -> pace() _ -> present_failed() }
+    }
+    state present_failed(&mut self) {
+        // A failed blit right after the user closed the window is the normal
+        // shutdown race, not an error.
+        self.alive = self.gui.is_window(self.hwnd);
+        transition self.alive > 0 { true -> bad() _ -> closed() }
+    }
+    state pace(&mut self) {
+        self.clock.sleep(15);
+        self.frame = self.frame + 1;
+        transition { _ -> frame_loop() }
+    }
+    state closed(&mut self) {
+        self.console.exit_process(0);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

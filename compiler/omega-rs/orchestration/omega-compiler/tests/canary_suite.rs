@@ -11300,6 +11300,34 @@ fn runtime_gui_memory_dc_blit_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_gui_window_lifecycle_exit_canary_runs() {
+    // Message pump + lifecycle: create an invisible window, drain PeekMessageW (bounded),
+    // IsWindow > 0, DestroyWindow > 0, IsWindow == 0. Exit 70. CI-safe.
+    let canary = pass_canary("host/runtime_gui_window_lifecycle_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gui-life-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("gui window lifecycle canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("gui window lifecycle canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected pump-drain + live/destroyed liveness transitions (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_gui_window_blit_exit_canary_runs() {
     // The windowed integration proof: CreateWindowExA("STATIC", style 0 -- INVISIBLE, CI-safe)
     // -> GetDC -> StretchDIBits into the window DC. Real HWND end-to-end. Exit 70.
@@ -17785,6 +17813,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "host/runtime_tick_paced_marquee_exit",
     "host/runtime_gui_memory_dc_blit_exit",
     "host/runtime_gui_window_blit_exit",
+    "host/runtime_gui_window_lifecycle_exit",
     "inline_asm/asm_block_jmp_state",
     "memory/abi_calling_convention_machine",
     "memory/repr_native_stable_layout",

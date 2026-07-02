@@ -200,6 +200,21 @@ fn select_gui_operation_operands(
         }
         // get_dc(hwnd) -> GetDC(hwnd): [result, hwnd].
         HostOperation::GetDc if arity == 2 => [scalar(0), scalar(1)].into_iter().collect(),
+        // is_window(hwnd) / window_destroy(hwnd): the same [result, hwnd] shape.
+        HostOperation::IsWindow | HostOperation::WindowDestroy if arity == 2 => {
+            [scalar(0), scalar(1)].into_iter().collect()
+        }
+        // msg_peek(msg) -> PeekMessageW(&msg, 0, 0, 0, PM_REMOVE): poll one
+        // queued message into the caller's [u64; 6] MSG buffer.
+        HostOperation::MsgPeek if arity == 2 => {
+            [scalar(0), address(1), imm(0), imm(0), imm(0), imm(1)]
+                .into_iter()
+                .collect()
+        }
+        // msg_translate(msg) / msg_dispatch(msg): one MSG-buffer address arg.
+        HostOperation::MsgTranslate | HostOperation::MsgDispatch if arity == 2 => {
+            [scalar(0), address(1)].into_iter().collect()
+        }
         // window_create(class, title, style, x, y, w, h) ->
         // CreateWindowExA(0, class, title, style, x, y, w, h, 0, 0, 0, 0).
         HostOperation::WindowCreate if arity == 8 => [

@@ -107,6 +107,19 @@ pub enum HostOperation {
     /// `StretchDIBits` -- blit a top-down 32bpp DIB framebuffer into a device
     /// context.
     Blit,
+    /// `PeekMessageW(&msg, 0, 0, 0, PM_REMOVE)` -- poll one queued message into
+    /// a caller-owned MSG buffer; 0 when the queue is empty.
+    MsgPeek,
+    /// `TranslateMessage(&msg)` -- produce character messages from key messages.
+    MsgTranslate,
+    /// `DispatchMessageW(&msg)` -- route the message to the window procedure
+    /// (DefWindowProc via the built-in "STATIC" class), which is what makes a
+    /// window draggable, hoverable, and closable.
+    MsgDispatch,
+    /// `IsWindow(hwnd)` -- liveness: 0 once the user (or the app) destroyed it.
+    IsWindow,
+    /// `DestroyWindow(hwnd)`.
+    WindowDestroy,
 }
 
 impl HostOperation {
@@ -127,6 +140,11 @@ impl HostOperation {
             "get_dc" => Self::GetDc,
             "window_create" => Self::WindowCreate,
             "blit" => Self::Blit,
+            "msg_peek" => Self::MsgPeek,
+            "msg_translate" => Self::MsgTranslate,
+            "msg_dispatch" => Self::MsgDispatch,
+            "is_window" => Self::IsWindow,
+            "window_destroy" => Self::WindowDestroy,
             _ => Self::Unknown,
         }
     }
@@ -149,6 +167,11 @@ impl HostOperation {
             Self::GetDc => "get_dc",
             Self::WindowCreate => "window_create",
             Self::Blit => "blit",
+            Self::MsgPeek => "msg_peek",
+            Self::MsgTranslate => "msg_translate",
+            Self::MsgDispatch => "msg_dispatch",
+            Self::IsWindow => "is_window",
+            Self::WindowDestroy => "window_destroy",
         }
     }
 }

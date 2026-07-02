@@ -107,11 +107,31 @@ assertable and the interpreter's virtual GDI mirrors it. What landed:
   GetDC -> blit). Sample `samples/window_demo`: a visible WS_POPUP window, 60
   frames of animated 64x64 wash stretched 4x, ~1.5s, exit-asserted.
 
-Remaining windowed-tier work (all incremental now): a message-pump op
-(PeekMessageW/DispatchMessageW + an MSG buffer) for long-lived/interactive
-windows; the PE GUI-subsystem toggle (headers.rs write_u16(3) -> 2) if a
-console-less exe is ever wanted; format-domain codecs when a NON-identity
-schema shows up; UTF-16 window text (CreateWindowExW) if titles matter.
+**MESSAGE PUMP + STANDALONE APP LANDED (same session, follow-up).** Five more
+user32 ops -- msg_peek (PeekMessageW PM_REMOVE into a caller-owned [u64;6] MSG
+buffer), msg_translate, msg_dispatch, is_window, window_destroy -- all pure
+catalog+selection+interp additions (the general import encoder needed ZERO
+changes: the machinery amortizes exactly as intended). The interp's virtual
+window system mints live handle tokens (HashSet liveness; is_window/destroy
+mirror native 1/0). Canary host/runtime_gui_window_lifecycle_exit
+(differential): create invisible -> bounded pump drain (a fresh window has ~1
+pending message natively, 0 virtually -- drain count deliberately unasserted)
+-> IsWindow>0 -> DestroyWindow>0 -> IsWindow==0. `samples/window_app` is the
+GENUINE STANDALONE APP: stays open until closed, draggable (pump dispatches
+through the STATIC class's DefWindowProc), X button works (verified end-to-end
+by posting a real WM_CLOSE from another process -> pump -> destroy -> exit 0),
+ESC quits too (key_state 27). It has NO "Expected exit" annotation ON PURPOSE
+-- the harness compiles it but must never RUN it (it waits for a human);
+window_demo remains the short-lived exit-asserted variant.
+
+Remaining windowed-tier work: the PE GUI-subsystem toggle (headers.rs:57
+write_u16(3) -> 2) so a double-click launch spawns no console -- NEEDS A
+SPELLING DECISION (per-program/per-build; the settled design deleted the
+`host:` flag dialect, so where "subsystem" lives is Zach's call -- do NOT
+pre-decide); format-domain codecs when a NON-identity schema shows up; UTF-16
+window text (CreateWindowExW) if titles matter. Note: launching from an
+existing terminal inherits that console (no extra window) -- the toggle only
+changes double-click/Start-Process launches.
 
 ### Tier 2 — windowed software renderer (the native-FFI ladder)
 > **DESIGN SETTLED 2026-07-01** — see

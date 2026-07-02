@@ -24,6 +24,11 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     ("Gui", "get_dc", "User32.dll", "GetDC"),
     ("Gui", "window_create", "User32.dll", "CreateWindowExA"),
     ("Gui", "blit", "Gdi32.dll", "StretchDIBits"),
+    ("Gui", "msg_peek", "User32.dll", "PeekMessageW"),
+    ("Gui", "msg_translate", "User32.dll", "TranslateMessage"),
+    ("Gui", "msg_dispatch", "User32.dll", "DispatchMessageW"),
+    ("Gui", "is_window", "User32.dll", "IsWindow"),
+    ("Gui", "window_destroy", "User32.dll", "DestroyWindow"),
 ];
 
 /// The DLL a Windows import symbol belongs to, per the catalog. `None` for
@@ -170,6 +175,41 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             "*",
             "blit",
             [host_operation("Gui", "blit")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "*",
+            "msg_peek",
+            [host_operation("Gui", "msg_peek")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "*",
+            "msg_translate",
+            [host_operation("Gui", "msg_translate")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "*",
+            "msg_dispatch",
+            [host_operation("Gui", "msg_dispatch")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "*",
+            "is_window",
+            [host_operation("Gui", "is_window")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "*",
+            "window_destroy",
+            [host_operation("Gui", "window_destroy")],
             PlatformCallData::None,
         );
     }
