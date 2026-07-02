@@ -28,6 +28,10 @@ pub trait InstructionOperandLike {
     /// A scalar integer read directly from a runtime-storage slot: `(region, byte_offset,
     /// byte_count)`. Used to marshal a non-constant exit code / host-call argument.
     fn runtime_scalar_integer(&self) -> Option<(RuntimeStorageRegion, usize, usize)>;
+    /// The ADDRESS of a runtime-storage place, `(region, byte_offset)`, marshalled
+    /// as a pointer-sized host-call argument (`lea` through the relocated region
+    /// base) -- the extern boundary's pointer-argument shape.
+    fn runtime_storage_address(&self) -> Option<(RuntimeStorageRegion, usize)>;
     fn immediate_integer(&self) -> Option<i64>;
     fn byte_length(&self) -> Option<usize>;
 }
@@ -106,6 +110,16 @@ impl InstructionOperandLike for TargetInstructionOperand {
         }
     }
 
+    fn runtime_storage_address(&self) -> Option<(RuntimeStorageRegion, usize)> {
+        match self.kind {
+            InstructionOperandKind::RuntimeStorageAddress {
+                region,
+                byte_offset,
+            } => Some((region, byte_offset)),
+            _ => None,
+        }
+    }
+
     fn immediate_integer(&self) -> Option<i64> {
         match self.kind {
             InstructionOperandKind::ImmediateInteger(value) => Some(value),
@@ -153,6 +167,14 @@ pub enum TargetInstructionOperandKind {
         region: RuntimeStorageRegion,
         byte_offset: usize,
         byte_count: usize,
+    },
+    /// The ADDRESS of a statically allocated runtime-storage place (`region` base
+    /// + `byte_offset`), marshalled as a pointer-sized host-call argument (the
+    /// extern boundary's pointer-argument shape). Encoders emit `lea` through the
+    /// relocated region base rather than loading the place's bytes.
+    RuntimeStorageAddress {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
     },
     ImmediateInteger(i64),
     ByteLength(usize),
