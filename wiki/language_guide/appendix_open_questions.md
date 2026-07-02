@@ -101,8 +101,8 @@ This page tracks design pressure that is not fully nailed down yet.
   -- fields only is a record, cases only is a sum, both is MIXED (sum-only
   shipped first; mixed is live -- see chapter 1 for the layout,
   zero-unless-named construction, and access rules). Case-bearing data gets the
-  full `data` machinery: versions and `wire data` cover the case part, zero
-  rules apply uniformly (first case is the zero case). Today's `enum`
+  full `data` machinery: versions and wire identity numbers (chapter 20) cover
+  the case part, zero rules apply uniformly (first case is the zero case). Today's `enum`
   spelling is transitional and retired by this decision.
 - Cases ARE domains. A case implicitly declares the same-named domain (tag
   compare as a free classifier); `case` never appears at a use site. Case
@@ -163,8 +163,9 @@ This page tracks design pressure that is not fully nailed down yet.
 - Attribute-system stances: no per-item conditional compilation (per-target
   code lives in target packages); lint policy lives at the package/build
   declaration, never per-item in source; deprecation is versioned-data
-  metadata, not a marker; field-level codegen metadata is wire data, not
-  attributes; optimization hints deliberately deferred. `[open]`
+  metadata, not a marker; field-level codegen metadata is schema identity /
+  plan data (chapter 20), not attributes; optimization hints deliberately
+  deferred. `[open]`
   (non-exhaustive evolution contracts) is DROPPED until separate compilation
   gives it teeth; an in-language test surface is deferred.
 - Wire compatibility rulings: declared `version` blocks are checked schema
