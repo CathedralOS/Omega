@@ -11188,6 +11188,35 @@ fn runtime_indexed_guard_subject_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_generic_value_call_exit_canary_runs() {
+    // A monomorphized generic VALUE call: `let v: i32 in Wrapping = self.id(70)` with
+    // `id<T>(x: T) -> T`. Used to silently return 0 natively; the monomorphization pass now infers
+    // T from the annotated let and the result materializes. Exit 70.
+    let canary = pass_canary("generics/runtime_generic_value_call_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gen-vcall-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("generic value call canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("generic value call canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a monomorphized generic value call to materialize its result (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_generic_enum_payload_exit_canary_runs() {
     // A monomorphized generic ENUM with a T-typed payload (`Maybe<i32 in Wrapping>`), constructed,
     // matched, and destructured natively -- the Option<T> shape. Exit 70 via the payload.
@@ -17552,6 +17581,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/property_bound_type_parameter",
     "generics/runtime_generic_record_instance_exit",
     "generics/runtime_generic_enum_payload_exit",
+    "generics/runtime_generic_value_call_exit",
     "inline_asm/asm_block_jmp_state",
     "memory/abi_calling_convention_machine",
     "memory/repr_native_stable_layout",
@@ -17684,7 +17714,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/property_zero_init_nonzero_default",
     "generics/colon_bound_rejected",
     "generics/generic_second_instantiation_access_rejected",
-    "generics/generic_value_call_rejected",
     "generics/machine_bound_satisfied_value_call_fenced",
     "generics/machine_bound_value_call_unchecked",
     "generics/machine_bound_violated_at_call",

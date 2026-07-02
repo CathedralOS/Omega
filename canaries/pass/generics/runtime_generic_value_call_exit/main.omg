@@ -1,0 +1,14 @@
+// A VALUE call to a generic machine, monomorphized: `let v: i32 in Wrapping = self.id(70)` with
+// callee `id<T>(x: T) -> T`. This used to compile and SILENTLY return 0 natively (the T-typed
+// result slot never materialized; the interpreter returned 70) and was then fenced. The stage-1
+// machine-monomorphization pass now infers T := i32 in Wrapping from the annotated let (return-
+// position inference), substitutes the machine's type-parameter references in place, and clears its
+// parameter list -- so the backend compiles it as a concrete value machine and the result
+// materializes. Exit 70. Differential (native must match the interpreter).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::id<T>(&self, x: T) -> T { transition { _ -> x } }
+machine Main::main(&mut self) {
+    let v: i32 in Wrapping = self.id(70);
+    self.console.exit_process(v);
+}

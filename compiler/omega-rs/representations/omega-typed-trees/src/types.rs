@@ -128,6 +128,30 @@ impl TypeReferenceTable {
             })
     }
 
+    /// Every NAMED type reference in the table, as `(handle, symbol)` pairs.
+    /// The machine-monomorphization pass scans these for generic type-parameter
+    /// references to substitute before checking/layout (a type parameter's
+    /// symbol is unique to its declaring machine, so symbol equality exactly
+    /// identifies the occurrences to substitute).
+    pub fn named_references(
+        &self,
+    ) -> impl Iterator<Item = (TypeReferenceHandle, SymbolHandle)> + '_ {
+        self.type_references
+            .iter()
+            .filter_map(|(handle, node)| match node {
+                TypeReferenceNode::Named { symbol, .. } => Some((handle, *symbol)),
+                _ => None,
+            })
+    }
+
+    /// Replace a type reference's node wholesale -- the machine-monomorphization
+    /// substitution: a `Named` type-parameter reference becomes a copy of the
+    /// inferred argument's node. Compound argument nodes share their child
+    /// handles, which is sound (children are never mutated by the pass).
+    pub fn substitute_node(&mut self, handle: TypeReferenceHandle, node: TypeReferenceNode) {
+        *self.type_references.get_mut(handle) = node;
+    }
+
     /// Replace a fixed-array type reference's length with a concrete literal
     /// (the comptime const-eval substitution). Panics if `handle` is not a
     /// fixed-array node -- callers obtain handles from `fixed_array_lengths`.
