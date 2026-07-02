@@ -68,6 +68,33 @@ ddc "many locals"    55 'proc main() {
     let e = d + 25
     return e
 }'
+# slice 2 — comparisons (0/1) + state/to-when CFG control flow
+ddc "less-than"       1 'proc main() { return 5 < 8 }'
+ddc "ge boundary"     1 'proc main() { return 5 >= 5 }'
+ddc "not-equal"       1 'proc main() { return 7 != 4 }'
+ddc "cmp under arith" 42 'proc main() {
+    let a = 8
+    return (a > 5) * 30 + (a < 5) * 7 + 12
+}'
+ddc "loop sum 1..4"  10 'proc main() {
+    let i = 0
+    let s = 0
+    state loop { to body when (i < 4)  return s }
+    state body { i = i + 1  s = s + i  to loop }
+}'
+ddc "factorial 5!"  120 'proc main() {
+    let i = 1
+    let a = 1
+    state loop { to body when (i <= 5)  return a }
+    state body { a = a * i  i = i + 1  to loop }
+}'
+ddc "countdown mul"  16 'proc main() {
+    let n = 4
+    let a = 1
+    state loop { to done when (n == 0)  to body }
+    state body { a = a * 2  n = n - 1  to loop }
+    state done { return a }
+}'
 
 echo "diverse double compilation (bc2.py — independent Rust-free Beta front-end — agrees with the on-ramp, both assembled + run): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
