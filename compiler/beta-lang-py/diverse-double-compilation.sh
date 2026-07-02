@@ -186,5 +186,30 @@ if [ -f ../beta-lang-rs/examples/calc.beta ]; then
   else FAIL=$((FAIL+1)); echo "  FAIL calc.beta : bc2.py could not compile it: $(cat "$T/e")"; fi
 fi
 
-echo "diverse double compilation (bc2.py — independent Rust-free Beta front-end — agrees with the on-ramp, both assembled + run): $PASS ok, $FAIL failed"
+# ============================================================================================
+# THE REAL THING — true diverse double compilation of bc itself. bc2.py now compiles the whole
+# bc.beta. Build the compiler two independent ways and check they compile bc.beta IDENTICALLY:
+#   official : bc.beta --(Rust on-ramp)--> bc0 ; asmO = bc0(bc.beta)      [the shipped lineage]
+#   diverse  : bc.beta --(bc2.py, Python)--> bcA ; asmA = bcA(bc.beta)    [the independent path]
+# If asmO == asmA byte-for-byte, the compilation of bc is independent of which bootstrap compiler
+# produced it — a Trojan in either path would have to be present, identically, in BOTH. That is the
+# defence the self-host fixed point alone cannot give. (selfhost.sh already proves bc0(bc.beta) is a
+# fixed point, so comparing against bc0(bc.beta) is comparing against the canonical bc compilation.)
+BC=../beta-lang/bc.beta
+if [ -f "$BC" ]; then
+  if build "$BC" "$BCRS" && cp "$T/o.exe" "$T/bc0.exe" \
+     && "$T/bc0.exe" < "$BC" > "$T/asmO" 2>/dev/null; then
+    if build "$BC" python3 bc2.py && cp "$T/o.exe" "$T/bcA.exe" \
+       && "$T/bcA.exe" < "$BC" > "$T/asmA" 2>/dev/null; then
+      if cmp -s "$T/asmO" "$T/asmA"; then
+        PASS=$((PASS+1))
+        echo "  bc DDC: bcA(bc.beta) == bc0(bc.beta) byte-for-byte ($(wc -l < "$T/asmO" | tr -d ' ') lines) — the Thompson gap is closed"
+      else
+        FAIL=$((FAIL+1)); echo "  FAIL bc DDC: the two independent compilations of bc.beta DIFFER"
+      fi
+    else FAIL=$((FAIL+1)); echo "  FAIL bc DDC: bc2.py path could not build/run bcA: $(cat "$T/e" 2>/dev/null)"; fi
+  else FAIL=$((FAIL+1)); echo "  FAIL bc DDC: on-ramp path could not build bc0"; fi
+fi
+
+echo "diverse double compilation (bc2.py — independent Rust-free Beta front-end — agrees with the on-ramp, both assembled + run; incl. true DDC of bc itself): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
