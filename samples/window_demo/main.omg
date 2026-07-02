@@ -9,7 +9,11 @@
 // top-down, planes|bitcount word 0x00200001). Every blit must report 64 copied source
 // scanlines. Runs ~1.5s of visible animation, then exits 0.
 // Expected exit: 0
-boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
+    machine exit_process(return_code: i32);
+}
 boundary trait Clock { machine sleep(milliseconds: u32); }
 boundary trait Gui {
     machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
@@ -37,6 +41,7 @@ data Main {
     i: i32 [0..=4096];
     c: i32;
     px: i32;
+    pause: String;
 }
 machine Main::main(&mut self) {
     // "STATIC\0" -- the built-in window class; no registration needed.
@@ -115,6 +120,8 @@ machine Main::main(&mut self) {
         transition { _ -> frame_loop() }
     }
     state finish(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {

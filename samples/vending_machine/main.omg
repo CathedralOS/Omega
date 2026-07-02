@@ -29,6 +29,7 @@ data Register [copy, zero_init] {
 data Main {
     console: Console;
     register: Register;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -52,6 +53,8 @@ machine Main::main(&mut self) {
     }
 
     state report(&mut self, code: i32 in Saturating) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(code);
     }
 }

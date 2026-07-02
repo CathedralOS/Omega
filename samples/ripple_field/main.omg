@@ -36,6 +36,7 @@ data Main {
     dist: i32 [-23..=23];     // dx + dy folds bounded from their ranges
     level: i32;               // (dist + frame) % 8 folds bounded; range-checked at `bounds`
     c: u8;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -132,6 +133,8 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {

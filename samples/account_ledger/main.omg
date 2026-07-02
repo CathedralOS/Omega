@@ -95,6 +95,7 @@ data Main {
     console: Console;
     accounts: [Account; 4];
     query_count: i32 in Wrapping;
+    pause: String;
 }
 
 // ── write helpers: deposit/withdraw per const index ────────────────────────────
@@ -463,5 +464,9 @@ machine Main::main(&mut self) {
 
     state bad_total(&mut self) { self.console.exit_process(78); }
 
-    state good(&mut self) { self.console.exit_process(70); }
+    state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
 }

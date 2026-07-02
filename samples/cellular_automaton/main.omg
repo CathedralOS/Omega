@@ -33,6 +33,7 @@ data Main {
     x: i32 [0..=64];        // render / copy index (guard-proven)
     cv: i32;                // cell value during render / copy
     glyph: u8;              // rendered byte (from the Utf8 ramp)
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -168,6 +169,8 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {

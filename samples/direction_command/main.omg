@@ -10,12 +10,15 @@ domain [u8]::Utf8 when valid_utf8(self) {}
 domain [u8; 8]::Utf8 when valid_utf8(self) {}
 
 boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
     machine exit_process(return_code: i32);
 }
 
 data Main {
     console: Console;
     command: [u8; 8] in Utf8;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -36,7 +39,11 @@ machine Main::main(&mut self) {
         transition self.command[0] == 119 { true -> go_west() _ -> unknown() }
     }
 
-    state go_north(&mut self) { self.console.exit_process(1); }
+    state go_north(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(1);
+    }
     state go_south(&mut self) { self.console.exit_process(2); }
     state go_east(&mut self) { self.console.exit_process(3); }
     state go_west(&mut self) { self.console.exit_process(4); }

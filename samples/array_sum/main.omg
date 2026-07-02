@@ -13,6 +13,8 @@
 // Expected exit: 70.
 
 boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
     machine exit_process(return_code: i32);
 }
 
@@ -21,6 +23,7 @@ data Main {
     nums: [i32; 2];
     i: i32 [0..=2];
     sum: i64 in Wrapping; // Wrapping DECLARED: sums array elements, which carry no range facts yet.
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -56,6 +59,8 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 

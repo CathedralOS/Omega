@@ -12,7 +12,11 @@
 // loop runs inside DispatchMessageW) -- normal for a single-threaded pump.
 // (Careful wording: the harness's annotation parser substring-matches the annotation phrase
 // anywhere in this comment and would auto-run this app on a garbage exit code.)
-boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
+    machine exit_process(return_code: i32);
+}
 boundary trait Clock { machine sleep(milliseconds: u32); }
 boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
 boundary trait Gui {
@@ -52,6 +56,7 @@ data Main {
     i: i32 [0..=4096];
     c: i32;
     px: i32;
+    pause: String;
 }
 machine Main::main(&mut self) {
     // "STATIC\0"
@@ -165,6 +170,8 @@ machine Main::main(&mut self) {
         transition { _ -> frame_loop() }
     }
     state closed(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {

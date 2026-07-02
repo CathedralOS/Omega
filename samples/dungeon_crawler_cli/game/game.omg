@@ -11,6 +11,7 @@ data Game {
     view: GameView;
     input: String;
     output: String;
+    pause: String;
 }
 
 machine Game::initialize(
@@ -267,6 +268,8 @@ machine Game::run_game_loop(&mut self) {
     }
 
     state finished(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
 }

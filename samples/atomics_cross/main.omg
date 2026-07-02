@@ -18,6 +18,7 @@ use omega::language::std::console;
 data Main {
     console: Console;
     counter: AtomicU32;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -46,6 +47,8 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
     state bad(&mut self) {

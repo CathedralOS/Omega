@@ -31,6 +31,7 @@ data Search [copy, zero_init] {
 data Main {
     console: Console;
     search: Search;
+    pause: String;
 }
 
 // Perform one binary-search step: compute mid = (lo+hi)/2, compare to target.
@@ -96,6 +97,8 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 

@@ -30,6 +30,7 @@ data Main {
     ints: [i32 in Wrapping; 7];
     entries: [Entry; 7];
     walker: Walker;
+    pause: String;
 }
 
 // Probe A: i32 slice accumulation.
@@ -97,5 +98,9 @@ machine Main::main(&mut self) {
 
     state bad_b(&mut self) { self.console.exit_process(72); }
 
-    state good(&mut self) { self.console.exit_process(70); }
+    state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
 }

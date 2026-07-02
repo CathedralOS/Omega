@@ -40,6 +40,7 @@ data Main {
     console: Console;
     base: i32 in Saturating;
     calc: Calc;
+    pause: String;
 }
 
 machine Calc::double_val(&mut self, n: i32 in Saturating) -> i32 in Saturating {
@@ -120,5 +121,9 @@ machine Main::main(&mut self) {
 
     state bad_result(&mut self) { self.console.exit_process(71); }
 
-    state good(&mut self) { self.console.exit_process(70); }
+    state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
 }

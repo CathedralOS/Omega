@@ -36,6 +36,7 @@ data Main {
     console: Console;
     arr: [i32 in Wrapping; 4];
     summer: Summer;
+    pause: String;
 }
 
 // Recursive value-returning machine: sum all elements in slice s.
@@ -101,6 +102,8 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 }

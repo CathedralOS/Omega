@@ -46,7 +46,13 @@ fn windows_x64_cli_mvp_emits_runnable_pe() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "Hello, Omega.\n");
+    // The greeting plus the hold-the-window closer (every sample ends with a
+    // read_line pause so a double-clicked exe doesn't vanish; a piped stdin
+    // hits EOF and returns immediately, which is why this test still runs).
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "Hello, Omega.\n[press Enter to close]\n"
+    );
 }
 
 // Cross-compile cli_mvp to a linux_x64 ELF and verify its structure + syscall

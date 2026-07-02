@@ -10,6 +10,8 @@ domain [u8]::Utf8 when valid_utf8(self) {}
 domain [u8; 8]::Utf8 when valid_utf8(self) {}
 
 boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
     machine exit_process(return_code: i32);
 }
 
@@ -21,6 +23,7 @@ data Item {
 data Main {
     console: Console;
     items: [Item; 3];
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -44,7 +47,11 @@ machine Main::main(&mut self) {
     }
 
     state found0(&mut self) { self.console.exit_process(self.items[0].id); }
-    state found1(&mut self) { self.console.exit_process(self.items[1].id); }
+    state found1(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(self.items[1].id);
+    }
     state found2(&mut self) { self.console.exit_process(self.items[2].id); }
     state missing(&mut self) { self.console.exit_process(0); }
 }

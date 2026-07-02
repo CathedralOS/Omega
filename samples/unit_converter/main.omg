@@ -19,6 +19,7 @@ use omega::language::std::console;
 data Main {
     console: Console;
     result: f64;
+    pause: String;
 }
 
 // Temperature conversions.
@@ -134,5 +135,9 @@ machine Main::main(&mut self) {
     }
     state bad_kg_high(&mut self) { self.console.exit_process(80); }
 
-    state good(&mut self) { self.console.exit_process(70); }
+    state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
 }

@@ -31,6 +31,7 @@ data Main {
     out: [u8; 4] in Utf8;
     digit: i32 in Wrapping;
     ch: u8;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -83,6 +84,8 @@ machine Main::main(&mut self) {
         self.out[2] = self.ch;
 
         self.console.write_line(self.out);
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
 }

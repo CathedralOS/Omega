@@ -26,6 +26,7 @@ data Main {
     p1: i32 in Wrapping;   // pos + 1 (a computed index must be a field, not inline)
     tc: u8;
     oc: u8;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -92,6 +93,8 @@ machine Main::main(&mut self) {
         transition { _ -> finish() }
     }
     state finish(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
 }

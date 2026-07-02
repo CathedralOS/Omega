@@ -34,6 +34,7 @@ machine Adder::fletcher(
 data Main {
     console: Console;
     adder: Adder;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -46,5 +47,7 @@ machine Main::main(&mut self) {
 
     let s: &[i32 in Wrapping] = self.adder.bytes.as_slice();
     let checksum: i32 = self.adder.fletcher(s, 0, 0);
+    self.console.write_line("[press Enter to close]");
+    self.console.read_line(&mut self.pause);
     self.console.exit_process(checksum);
 }

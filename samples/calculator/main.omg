@@ -13,6 +13,8 @@ domain [u8]::Utf8 when valid_utf8(self) {}
 domain [u8; 8]::Utf8 when valid_utf8(self) {}
 
 boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
     machine exit_process(return_code: i32);
 }
 
@@ -25,6 +27,7 @@ data Main {
     b: i32 in Wrapping;
     tmp: i32 in Wrapping;
     result: i32 in Wrapping;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -59,5 +62,9 @@ machine Main::main(&mut self) {
     state do_add(&mut self) { self.result = self.a + self.b; transition { _ -> emit() } }
     state do_sub(&mut self) { self.result = self.a - self.b; transition { _ -> emit() } }
     state unknown(&mut self) { self.console.exit_process(0); }
-    state emit(&mut self) { self.console.exit_process(self.result); }
+    state emit(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(self.result);
+    }
 }

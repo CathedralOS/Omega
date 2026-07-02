@@ -25,6 +25,7 @@ data Main {
     fb: f64;
     ratio: f64;
     result: i32 in Wrapping;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -59,6 +60,8 @@ machine Main::main(&mut self) {
         self.ratio = self.fb / self.fa;
         self.ratio = self.ratio * 100.0;
         self.result = self.ratio as i32 in Wrapping;
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(self.result);
     }
 }

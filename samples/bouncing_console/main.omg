@@ -20,6 +20,7 @@ data Main {
     dir: i32;            // -1 or +1; only compared, never fed to ranged arithmetic
     frame: i32 [0..=50]; // guard-proven Exact frame counter
     x: i32 [0..=40];     // guard-proven Exact clear counter
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -87,6 +88,10 @@ machine Main::main(&mut self) {
     }
     state flip_up(&mut self) { self.dir = 1; transition { _ -> frame_loop() } }
 
-    state finish(&mut self) { self.console.exit_process(0); }
+    state finish(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(0);
+    }
     state bad(&mut self) { self.console.exit_process(1); }
 }

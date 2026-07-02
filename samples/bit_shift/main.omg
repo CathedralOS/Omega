@@ -7,6 +7,8 @@
 // Expected exit: 64.
 
 boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
     machine exit_process(return_code: i32);
 }
 
@@ -15,6 +17,7 @@ data Main {
     kibibytes: i32 in Wrapping;
     bytes: i32 in Wrapping;
     recovered: i32 in Wrapping;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -25,6 +28,8 @@ machine Main::main(&mut self) {
     transition { _ -> done() }
 
     state done(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(self.recovered);
     }
 }

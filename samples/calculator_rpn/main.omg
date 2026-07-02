@@ -33,6 +33,7 @@ data Stack [copy, zero_init] {
 data Main {
     console: Console;
     stack: Stack;
+    pause: String;
 }
 
 // ---------------------------------------------------------------------------
@@ -175,6 +176,8 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 

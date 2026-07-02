@@ -25,6 +25,7 @@ data Main {
     x: i32 [0..=31];          // guard-proven Exact render counter
     kind: i32;                // 0..3 glyph selector; guard-proven before the lookup
     glyph: u8;
+    pause: String;
 }
 
 machine Main::main(&mut self) {
@@ -122,6 +123,8 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state not_found(&mut self) {

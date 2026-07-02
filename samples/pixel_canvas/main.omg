@@ -42,6 +42,7 @@ data Canvas [copy, zero_init] {
 data Main {
     console: Console;
     canvas: Canvas;
+    pause: String;
 }
 
 // Write the red channel at the given pixel index (0..3).
@@ -125,6 +126,8 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 

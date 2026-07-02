@@ -19,6 +19,7 @@ data Main {
     t_start: u64 in Wrapping;
     t_end: u64 in Wrapping;
     elapsed: u64 in Wrapping;
+    pause: String;
 }
 machine Main::main(&mut self) {
     self.t_start = self.clock.tick_count();
@@ -44,6 +45,10 @@ machine Main::main(&mut self) {
         self.elapsed = self.t_end - self.t_start;
         transition self.elapsed >= 100 { true -> ok() _ -> bad() }
     }
-    state ok(&mut self)  { self.console.exit_process(0); }
+    state ok(&mut self)  {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(0);
+    }
     state bad(&mut self) { self.console.exit_process(1); }
 }

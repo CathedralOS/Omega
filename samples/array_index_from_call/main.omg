@@ -30,6 +30,7 @@ data Main {
     console: Console;
     table: [i32; 5];
     picker: Picker;
+    pause: String;
 }
 
 // Returns an array index for a given key (0->0, 1->2, 2->4).
@@ -133,5 +134,9 @@ machine Main::main(&mut self) {
 
     state bad_result(&mut self) { self.console.exit_process(74); }
 
-    state good(&mut self) { self.console.exit_process(70); }
+    state good(&mut self) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
 }
