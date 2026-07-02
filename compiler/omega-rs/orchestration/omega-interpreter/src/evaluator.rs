@@ -45,7 +45,7 @@ pub(crate) fn run(checked: &TypedTrees, stdin: &[u8]) -> InterpretOutcome {
     })
 }
 
-/// CONST EVALUATION (comptime stage 1): run a zero-argument, effect-free
+/// BUILD-TIME EVALUATION (stage 1): run a zero-argument, effect-free
 /// machine to its terminal value and return that value as an `i64`, width-
 /// adjusted to the machine's declared integer return type (the same
 /// `wrap_to_width` the interpreter applies on writes, so the result is
@@ -79,6 +79,36 @@ fn run_const_machine_on_current_thread(
         )),
         Err(Halt::Unsupported(message)) | Err(Halt::Trap(message)) => Err(message),
     }
+}
+
+/// STRUCTURED build-time evaluation (the R2 layouts enabler): run an
+/// effect-free machine with compiler-built ARGUMENTS and read back its
+/// terminal value as a structured tree. Same ownership split as
+/// `run_const_machine`: the caller owns the purity gate (decision 12's
+/// transitive effect surface), this entry owns evaluation + the fuel cap.
+pub(crate) fn run_build_time_machine(
+    program: &TypedTrees,
+    machine_name: &str,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+) -> Result<crate::build_time::BuildTimeValue, String> {
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(256 * 1024 * 1024)
+            .spawn_scoped(scope, || {
+                let mut evaluator = Evaluator::new(program, &[]);
+                evaluator.step_budget = CONST_EVAL_STEP_BUDGET;
+                match evaluator.run_build_time_machine(machine_name, arguments) {
+                    Ok(value) => Ok(value),
+                    Err(Halt::Exit(code)) => Err(format!(
+                        "the machine attempted to exit the process (code {code}) instead of returning a value"
+                    )),
+                    Err(Halt::Unsupported(message)) | Err(Halt::Trap(message)) => Err(message),
+                }
+            })
+            .expect("spawn build-time evaluation worker thread")
+            .join()
+            .unwrap_or_else(|_| Err("build-time evaluator thread panicked".to_owned()))
+    })
 }
 
 fn run_on_current_thread(checked: &TypedTrees, stdin: &[u8]) -> InterpretOutcome {
@@ -272,6 +302,60 @@ impl<'program> Evaluator<'program> {
         })?;
 
         Ok(wrap_to_width(raw, return_primitive))
+    }
+
+    /// STRUCTURED build-time evaluation: bind compiler-built arguments to the
+    /// machine's entry-state parameters positionally, run to the terminal
+    /// value, and deep-read it back out. Argument-count mismatch is a clear
+    /// error here (the position's diagnostic names the machine); the caller
+    /// owns the purity gate.
+    fn run_build_time_machine(
+        &mut self,
+        machine_name: &str,
+        arguments: Vec<crate::build_time::BuildTimeValue>,
+    ) -> EvalResult<crate::build_time::BuildTimeValue> {
+        let machine = self
+            .find_machine_by_name(machine_name)
+            .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?
+            .clone();
+        let entry_state_name = self.machine_entry_state_name(&machine).ok_or_else(|| {
+            Halt::Trap(format!(
+                "machine `{machine_name}` has no states to evaluate"
+            ))
+        })?;
+        // The `&self` receiver is bound from the machine instance, not the
+        // argument list -- exclude it from the positional count.
+        let parameter_count = self
+            .find_state(&machine, &entry_state_name)
+            .map(|state| {
+                self.program
+                    .state_parameters(state)
+                    .iter()
+                    .filter(|parameter| parameter.name.as_str() != "self")
+                    .count()
+            })
+            .unwrap_or(0);
+        if parameter_count != arguments.len() {
+            return Err(Halt::Trap(format!(
+                "machine `{machine_name}` takes {parameter_count} argument(s); the build-time \
+                 position supplied {}",
+                arguments.len()
+            )));
+        }
+
+        let instance = self.instantiate_machine(&machine)?;
+        let argument_cells = arguments
+            .into_iter()
+            .map(|argument| argument.into_value().cell())
+            .collect();
+        let returned =
+            self.run_state_collect(&machine, &entry_state_name, instance, argument_cells)?;
+        let value = returned.ok_or_else(|| {
+            Halt::Trap(format!(
+                "machine `{machine_name}` terminated without producing a value"
+            ))
+        })?;
+        Ok(crate::build_time::BuildTimeValue::from_value(&value))
     }
 
     // ---- machine / data instantiation --------------------------------------
