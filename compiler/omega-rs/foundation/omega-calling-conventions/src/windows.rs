@@ -29,6 +29,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         windows_import("Stderr", "write_file", "Kernel32.dll", "WriteFile"),
         windows_import("Process", "exit_process", "Kernel32.dll", "ExitProcess"),
         windows_import("Clock", "sleep", "Kernel32.dll", "Sleep"),
+        windows_import("Clock", "tick_count", "Kernel32.dll", "GetTickCount64"),
     ]);
 
     insert_platform_lowering(

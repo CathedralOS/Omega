@@ -84,6 +84,7 @@ pub enum HostOperation {
     Write,
     WriteFile,
     Sleep,
+    TickCount,
 }
 
 impl HostOperation {
@@ -98,6 +99,7 @@ impl HostOperation {
             "write" => Self::Write,
             "write_file" => Self::WriteFile,
             "sleep" => Self::Sleep,
+            "tick_count" => Self::TickCount,
             _ => Self::Unknown,
         }
     }
@@ -114,6 +116,7 @@ impl HostOperation {
             Self::Write => "write",
             Self::WriteFile => "write_file",
             Self::Sleep => "sleep",
+            Self::TickCount => "tick_count",
         }
     }
 }
