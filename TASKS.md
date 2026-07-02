@@ -301,10 +301,30 @@ The ladder, smallest-landable-first; layouts need NO general const positions
   a policy's plan for a schema and emit it into the wire-report artifact
   (offsets/size/align). Proves L0-L2 end-to-end; canary-able by artifact
   content. CLayout (the ~15-line C ABI policy, written in OMEGA) is the pilot.
-- **L4: derived VALUE TYPES for fully-static plans**
-  (`gdt: CLayout<GdtDescriptor>` in type position): plan-laid in-memory
-  layout + derived field projections; the no-op boundary theorem
-  (`&CLayout<T>` IS `&[u8] in CLayout<T>`).
+- **L4: derived VALUE TYPES for fully-static plans -- v0 LANDED 2026-07-02**
+  (`gdt: Spread16<Gdtish>` in FIELD type position works end to end, both
+  backends). Mechanism: a pre-resolution desugar synthesizes
+  `data Policy<Schema> { <schema fields> }` and rewrites the spelling, so
+  typing/validation/proof/interp see an ordinary record (the interpreter is
+  name-keyed -- zero interp changes); the post-typing pass evaluates +
+  validates the plan (L2/L3 pipeline), REQUIRES a fixed size ("a dynamic plan
+  cannot be a value type -- values need offsets, bytes need mints"), and
+  records it on `TypedTrees::plan_laid_layouts`; the native layout builder
+  places those records at the plan's offsets (`place_fields_by_plan`) instead
+  of packing. Placement is deliberately unobservable in-language, so the
+  proof is two-sided: run canary `layouts/runtime_plan_laid_value_field_exit`
+  (spread 16-byte placement, write/copy/read-back, differential-matched) +
+  the `plan_laid_value_types_are_placed_by_their_plan` unit test asserting
+  the baked FieldLayout offsets [0,16,32,48]/64/16 (native would be
+  [0,4,8,16]/24). Fail canaries: dynamic plan; `X<...>` on a non-generic
+  data with no `plan` machine. v0 boundaries (all clean errors): field type
+  position only (params/lets keep existing generic errors); schema = plain
+  record of primitives; construction = ZII + field writes + whole-value copy
+  (no literal spelling); policy gate is structural (attached `plan` machine)
+  until Layout-trait conformance is declared. STILL OPEN for L4 full: derived
+  projections into a plan-laid BYTE VIEW + the no-op boundary theorem
+  (`&CLayout<T>` IS `&[u8] in CLayout<T>`) -- needs the carrier/domain rung
+  (L5) to express the byte side.
 - **L5: OmegaLayout carriers** -- re-key compact_binary v0 as the derived
   tagged grammar (`[u8; N] in OmegaLayout<Save>`; Derived|Packed parameter;
   one-way identity asymmetry); mint = validate(+indexed) then materialize.

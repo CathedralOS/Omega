@@ -18,4 +18,4 @@ pub mod types;
 pub mod wire;
 
 pub use snapshot::TypedTreesSnapshot;
-pub use typed_trees::{TypedTreeRoots, TypedTreeTables, TypedTrees};
+pub use typed_trees::{PlanLaidLayout, TypedTreeRoots, TypedTreeTables, TypedTrees};

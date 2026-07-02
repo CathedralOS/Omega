@@ -17123,6 +17123,42 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
 }
 
 #[test]
+fn plan_laid_value_field_exit_canary_runs() {
+    // PLAN-LAID VALUE TYPES (layouts L4): `gdt: Spread16<Gdtish>` places every
+    // field on its own 16-byte slot -- deliberately NOT the native packing --
+    // and the program writes, whole-value-copies, and reads back through those
+    // baked plan offsets. Exit 71 = some consumer recomputed native offsets
+    // independently (a read landed in a padding gap).
+    let canary = pass_canary("layouts/runtime_plan_laid_value_field_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-plan-laid-value-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("plan-laid value canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("plan-laid value canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the spread-placed fields (7/20/3/40) to survive the copy and read back \
+         intact (exit 70); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn value_call_sequential_result_slots_exit_canary_runs() {
     // Two sequential value-position calls where callee 1 (`f`) has an internal
     // `let rr = r * r` binding and callee 2 (`g`) takes MORE arguments.
@@ -17468,6 +17504,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/acquires_filesystem_authority",
     "capabilities/stores_capability",
     "comptime/runtime_const_array_length_exit",
+    "layouts/runtime_plan_laid_value_field_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
     "concurrency/runtime_spawn_struct_result_exit",
@@ -18015,6 +18052,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "layouts/plan_laid_dynamic_plan",
+    "layouts/plan_laid_policy_without_plan_machine",
     "wire/wire_data_form_retired",
     "wire/reserved_spelling_retired",
     "wire/unnumbered_field_in_numbered_data",
