@@ -1,10 +1,41 @@
-use crate::places::{declared_place_type, unwrapped_type_reference};
+use crate::places::{declared_place_type, declared_place_type_raw, unwrapped_type_reference};
 use crate::symbols::TopLevelSymbols;
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use omega_typed_trees::wire::{WireField, WireMember, WireReserved, WireSchema, WireVersion};
+
+/// The schema name of an `OmegaLayout` refinement on a carrier's RAW
+/// (constraint-carrying) declared type, walking `&`/`Constrained` shells.
+/// `None` when the carrier is unrefined or refined by an ordinary declared
+/// domain (`Utf8` -- a different carrier layout entirely, rejected by the
+/// existing shape checks).
+fn carrier_layout_domain_schema(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<String> {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            carrier_layout_domain_schema(program, *referee)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            for constraint in program.type_reference_table.constraints(*constraints) {
+                if let omega_typed_trees::types::TypeConstraintNode::Domain(name) = constraint
+                    && let Some((schema, _)) =
+                        omega_typed_trees::wire::layout_domain_arguments(name.as_str())
+                {
+                    return Some(schema.to_owned());
+                }
+            }
+            carrier_layout_domain_schema(program, *base_type)
+        }
+        _ => None,
+    }
+}
 
 /// Validates `wire data` protocol schemas (chapter 20): stable field numbers,
 /// reserved (retired) tags, version eras, resolvable field types, and the
@@ -787,10 +818,26 @@ fn validate_wire_encode_call(
         }
     }
 
-    // Out argument: `&mut [u8; N]` with N covering the worst case.
-    if let Some(out_type) =
-        declared_place_type(program, current_machine, current_state, arguments[1])
+    // Out argument: `&mut [u8; N]` with N covering the worst case. An
+    // OmegaLayout refinement on the carrier (`[u8; N] in OmegaLayout<X>`,
+    // ch20 / layouts L5) must AGREE with the schema being encoded: writing
+    // `Save` bytes into a carrier refined to another schema's layout is the
+    // exact confusion the domain exists to reject. The raw (constraint-
+    // carrying) type is consulted for the refinement; the unwrapped base
+    // takes the existing shape/size checks.
+    if let Some(out_type_raw) =
+        declared_place_type_raw(program, current_machine, current_state, arguments[1])
+        && let Some(out_type) = unwrapped_type_reference(program, out_type_raw)
     {
+        if let Some(domain_schema) = carrier_layout_domain_schema(program, out_type_raw)
+            && domain_schema != schema.name.as_str()
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "`{}::encode_wire` out buffer is refined `in OmegaLayout<{domain_schema}>`; \
+                 encoding `{}` into it would violate the carrier's declared layout domain",
+                schema.name, schema.name
+            )));
+        }
         match program.type_reference_table.type_reference(out_type) {
             TypeReferenceNode::FixedArray {
                 element_type,
@@ -1094,23 +1141,38 @@ fn validate_wire_decode_call(
     }
 
     // Buffer argument: a fixed `[u8; N]` byte array (any length -- the
-    // decoder bounds-checks every read against N at runtime).
-    if let Some(buffer_type) =
-        declared_place_type(program, current_machine, current_state, arguments[1])
-        && !matches!(
+    // decoder bounds-checks every read against N at runtime). An OmegaLayout
+    // refinement must AGREE with the schema being decoded (decoding `Save`
+    // out of a carrier refined to another schema's layout is the confusion
+    // the domain exists to reject); the unwrapped base takes the existing
+    // shape check.
+    if let Some(buffer_type_raw) =
+        declared_place_type_raw(program, current_machine, current_state, arguments[1])
+        && let Some(buffer_type) = unwrapped_type_reference(program, buffer_type_raw)
+    {
+        if let Some(domain_schema) = carrier_layout_domain_schema(program, buffer_type_raw)
+            && domain_schema != schema.name.as_str()
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "`{}::decode_wire` buffer is refined `in OmegaLayout<{domain_schema}>`; \
+                 decoding `{}` from it would violate the carrier's declared layout domain",
+                schema.name, schema.name
+            )));
+        }
+        if !matches!(
             program.type_reference_table.type_reference(buffer_type),
             TypeReferenceNode::FixedArray {
                 element_type,
                 length: omega_typed_trees::types::FixedArrayLength::Literal(_),
             } if program.primitive_type_reference(*element_type)
                 == Some(omega_typed_trees::types::PrimitiveType::U8)
-        )
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "`{}::decode_wire` buffer argument must be `&[u8; N]`, got `{}`",
-            schema.name,
-            program.display_type_reference(buffer_type)
-        )));
+        ) {
+            diagnostics.push(Diagnostic::error(format!(
+                "`{}::decode_wire` buffer argument must be `&[u8; N]`, got `{}`",
+                schema.name,
+                program.display_type_reference(buffer_type)
+            )));
+        }
     }
 
     // Read argument: `&mut usize`.

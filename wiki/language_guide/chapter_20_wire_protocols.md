@@ -228,10 +228,17 @@ hot-swap migration is a third thing with its own obligations
 
 ## The Implemented Encoding: `compact_binary` v0
 
-STATUS: the first implemented grammar — today riding the legacy `wire data`
-declaration surface and the `reserved` spelling; in the settled design it is
-the **tagged grammar of `OmegaLayout`**, and the surface migration is
-mechanical. The synthesized `Schema::encode_wire(&value, &mut out, &mut
+STATUS: the first implemented grammar — the **tagged grammar of
+`OmegaLayout`**. The carrier spelling is implemented (v0): a buffer declares
+`[u8; N] in OmegaLayout<Schema>` and the refinement is CHECKED — the schema
+must be identity-numbered (the packed grammar of an unnumbered schema is not
+implemented), an explicit grammar argument rejects (`Derived` is the default
+and only grammar), and every `encode_wire`/`decode_wire` call site must agree
+with the carrier's declared schema. The refinement records what the bytes
+hold and never changes what they are: the carrier stays a plain byte array
+(NOT the `{len, bytes}` text carrier), and the encoding is byte-identical to
+an unrefined buffer's. Unrefined `[u8; N]` buffers still work — the
+refinement is the stated form, not yet an obligation. The synthesized `Schema::encode_wire(&value, &mut out, &mut
 written)` encoder covers primitive integer fields (i32, i64, u32, u64, bool):
 the message's ERA DISCRIMINATOR varint comes first, then each current-era
 field in field-number order as a field-number varint followed by a value

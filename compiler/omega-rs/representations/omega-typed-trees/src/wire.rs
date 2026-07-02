@@ -194,6 +194,31 @@ impl WireRepeatedEncoding {
     }
 }
 
+/// The Omega-native LAYOUT-POLICY domain family on byte carriers
+/// (`[u8; N] in OmegaLayout<Save>`; ch20 "grammars are layout policies").
+/// Returns `(schema_name, optional grammar argument)` when `name` spells an
+/// `OmegaLayout` instance. The flat instance name is produced by the parser's
+/// parameterized-domain flattening (monomorphization-by-instantiation -- the
+/// name IS the identity, no unification).
+pub fn layout_domain_arguments(name: &str) -> Option<(&str, Option<&str>)> {
+    let rest = name.strip_prefix("OmegaLayout<")?;
+    let rest = rest.strip_suffix('>')?;
+    Some(match rest.split_once(',') {
+        Some((schema, grammar)) => (schema.trim(), Some(grammar.trim())),
+        None => (rest.trim(), None),
+    })
+}
+
+/// True when a domain-constraint name belongs to the `OmegaLayout` family.
+/// Consumers that reclassify `[u8; N] in <named-domain>` as the owned bounded
+/// TEXT carrier (`{len, bytes}` -- the layout builder, descriptor layouts, the
+/// interpreter's carrier detection) must EXCLUDE this family: an OmegaLayout
+/// refinement records what the bytes hold, it never changes what they are --
+/// the carrier stays a plain byte array the wire codec addresses directly.
+pub fn is_layout_domain_name(name: &str) -> bool {
+    layout_domain_arguments(name).is_some()
+}
+
 /// The unsigned LEB128 byte sequence for a compile-time value (era
 /// discriminators and field-number tags are known at compile time).
 pub fn wire_varint_bytes(mut value: u64) -> Vec<u8> {

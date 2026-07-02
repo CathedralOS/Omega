@@ -597,13 +597,21 @@ impl<'program> LayoutBuilder<'program> {
                 // The owned bounded byte carrier `[u8; N] in <named-domain>` lays
                 // out as `{ len, bytes }`: a pointer-sized length word followed by
                 // the N inline bytes. Must agree with the BoundedByteBuffer arm of
-                // instruction-selection's `descriptor_layout`.
+                // instruction-selection's `descriptor_layout`. The OmegaLayout
+                // FAMILY is excluded: `[u8; N] in OmegaLayout<Save>` records what
+                // the bytes hold, never changes what they are -- the wire codec
+                // addresses the plain array directly.
                 let has_named_domain = self
                     .program
                     .type_reference_table
                     .constraints(*constraints)
                     .iter()
-                    .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)));
+                    .any(|constraint| match constraint {
+                        TypeConstraintNode::Domain(name) => {
+                            !omega_checked_trees::wire::is_layout_domain_name(name.as_str())
+                        }
+                        _ => false,
+                    });
                 if has_named_domain
                     && matches!(
                         self.program.type_reference_table.type_reference(*base_type),
@@ -950,10 +958,14 @@ impl<'program> LayoutBuilder<'program> {
                 // `{len, bytes}` is a distinct layout from the always-full
                 // `FixedArray`, and the named domain does not otherwise survive to
                 // the backend (only arithmetic domains do), so the carrier needs
-                // its own variant to be recognizable downstream.
-                let has_named_domain = constraint_list
-                    .iter()
-                    .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)));
+                // its own variant to be recognizable downstream. The OmegaLayout
+                // family stays a PLAIN array (see the TypeLayout arm above).
+                let has_named_domain = constraint_list.iter().any(|constraint| match constraint {
+                    TypeConstraintNode::Domain(name) => {
+                        !omega_checked_trees::wire::is_layout_domain_name(name.as_str())
+                    }
+                    _ => false,
+                });
                 match base {
                     TypeLayoutDescriptor::FixedArray {
                         element_type,

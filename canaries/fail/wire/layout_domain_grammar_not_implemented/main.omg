@@ -1,0 +1,19 @@
+// LAYOUTS L5: the grammar parameter of OmegaLayout is not spellable yet --
+// `Derived` is the default and the only implemented grammar; an explicit
+// `Packed` names the honest gap.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data CounterMessage {
+    0: counter: u32;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64] in OmegaLayout<CounterMessage, Packed>;
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

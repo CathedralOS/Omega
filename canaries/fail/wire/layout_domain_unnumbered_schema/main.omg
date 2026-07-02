@@ -1,0 +1,19 @@
+// LAYOUTS L5: an OmegaLayout refinement over an UNNUMBERED schema would be
+// the packed grammar (identity dropped), which is not implemented. The
+// diagnostic names the fix for the derived tagged grammar: number the fields.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Plain {
+    value: i32;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64] in OmegaLayout<Plain>;
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

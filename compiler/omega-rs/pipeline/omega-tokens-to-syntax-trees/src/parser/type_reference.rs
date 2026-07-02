@@ -3,6 +3,7 @@ use crate::parser::input::{Input, ParseResult};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::ExpressionNode;
+use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
@@ -232,6 +233,31 @@ fn apply_in_domain_suffix<'tokens, 'source>(
     }
     let after_in = input.take_contextual("in")?;
     let (domain_name, rest) = after_in.take_identifier()?;
+    // A PARAMETERIZED domain name (`in OmegaLayout<Save>`, ch20 "grammars are
+    // layout policies") flattens to a single instance name -- the same
+    // monomorphization-by-instantiation shape as generic data: no unification,
+    // no bounds, just a name resolved to a flat derived domain instance.
+    // Arguments are plain identifiers (a schema name + optionally a grammar).
+    let (domain_name, rest) = if rest.at_punctuation(PunctuationKind::Less) {
+        let mut flat = String::from(domain_name.as_str());
+        flat.push('<');
+        let mut cursor = rest.take_punctuation(PunctuationKind::Less, "<")?;
+        loop {
+            let (argument, next) = cursor.take_identifier()?;
+            flat.push_str(argument.as_str());
+            if next.at_punctuation(PunctuationKind::Comma) {
+                flat.push_str(", ");
+                cursor = next.take_punctuation(PunctuationKind::Comma, ",")?;
+                continue;
+            }
+            cursor = next.take_punctuation(PunctuationKind::Greater, ">")?;
+            break;
+        }
+        flat.push('>');
+        (Identifier::generated(flat), cursor)
+    } else {
+        (domain_name, rest)
+    };
     let constraint =
         match omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str()) {
             Some(domain) => TypeConstraintNode::ArithmeticDomain(domain),

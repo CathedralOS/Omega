@@ -42,7 +42,10 @@ data SensorPacketValue {
 
 data Main {
     console: Console;
-    buffer: [u8; 64];
+    // The carrier STATES its format (ch20 "grammars are layout policies"):
+    // encoding is chosen where the bytes live. The refinement is checked at
+    // every encode/decode call site and changes nothing about the bytes.
+    buffer: [u8; 64] in OmegaLayout<SensorPacket>;
     written: usize;
     read: usize;
     ok: bool;

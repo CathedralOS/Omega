@@ -464,6 +464,21 @@ fn validate_type_constraints_node(
                 }
             }
             TypeConstraintNode::Named(_) => {}
+            // The OmegaLayout FAMILY (`[u8; N] in OmegaLayout<Save>`; ch20
+            // "grammars are layout policies"): compiler-known, never declared.
+            // The refinement records what the bytes hold -- the carrier stays a
+            // plain byte array (see the layout builder's carrier exclusion).
+            TypeConstraintNode::Domain(name)
+                if omega_typed_trees::wire::is_layout_domain_name(name.as_str()) =>
+            {
+                validate_layout_domain_constraint(
+                    program,
+                    base_type,
+                    name.as_str(),
+                    diagnostics,
+                    &owner,
+                );
+            }
             // A declared encoding domain on a carrier (`[u8] in Utf8`; ch8). It
             // must reference a `domain ...::Name` declaration -- this rejects
             // typos (`in Utf8x`) and is what distinguishes a domain from a
@@ -493,6 +508,71 @@ fn validate_type_constraints_node(
             // is only meaningful on integer primitives. (Stricter integer-only
             // validation can be added when the domains gain distinct codegen.)
             TypeConstraintNode::ArithmeticDomain(_) => {}
+        }
+    }
+}
+
+/// Validate one `OmegaLayout` instance in constraint position (ch20, wire
+/// stage: the layouts L5 spelling). The v0 slice: the carrier must be an
+/// owned `[u8; N]`, the schema argument must name an identity-numbered wire
+/// schema (the DERIVED grammar of a numbered schema is the tagged
+/// compact_binary encoding), and the grammar argument is not spellable yet
+/// (`Derived` is the default and the only implemented grammar).
+fn validate_layout_domain_constraint(
+    program: &TypedTrees,
+    base_type: TypeReferenceHandle,
+    name: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: &TypeReferenceOwner<'_>,
+) {
+    let Some((schema_name, grammar)) = omega_typed_trees::wire::layout_domain_arguments(name)
+    else {
+        return;
+    };
+
+    let carrier_is_byte_array = matches!(
+        program.type_reference_table.type_reference(base_type),
+        TypeReferenceNode::FixedArray { element_type, .. }
+            if program.primitive_type_reference(*element_type)
+                == Some(omega_typed_trees::types::PrimitiveType::U8)
+    );
+    if !carrier_is_byte_array {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} uses `in {name}` on `{}`, but an OmegaLayout refinement lives on an \
+             owned byte carrier (`[u8; N] in OmegaLayout<{schema_name}>`)",
+            type_reference_label(program, base_type)
+        )));
+        return;
+    }
+    if let Some(grammar) = grammar {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} names the `{grammar}` grammar explicitly, but `Derived` is the default \
+             and the only implemented grammar of `OmegaLayout` (an explicit `Packed` \
+             parameter is not implemented yet)"
+        )));
+        return;
+    }
+    if !program
+        .wire_schemas()
+        .iter()
+        .any(|schema| schema.name.as_str() == schema_name)
+    {
+        let is_plain_data = program
+            .data_definitions()
+            .iter()
+            .any(|data| data.name.as_str() == schema_name);
+        if is_plain_data {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} uses `in OmegaLayout<{schema_name}>`, but data `{schema_name}` has \
+                 no identity numbers; the packed grammar of an unnumbered schema is not \
+                 implemented yet -- number the fields (`1: name: type;`) for the derived \
+                 tagged grammar"
+            )));
+        } else {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} uses `in OmegaLayout<{schema_name}>`, but no data definition named \
+                 `{schema_name}` exists"
+            )));
         }
     }
 }
