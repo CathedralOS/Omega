@@ -202,6 +202,66 @@ proc skip_path() {
     state body { adv()  to loop }
 }
 
+; the k-th character of the LOGICAL path `pref + "." + name` (pref may be 0 = no prefix), or 0 past
+; the end. Lets slots keyed from different vantage points unify: Main's `clamper.values` (pref 0)
+; equals Clamper's `values` under instance prefix `clamper`.
+proc lp_char(pref, name, k) {
+    state haspref { to nopref when (pref == 0)  to plen }
+    state nopref {
+        let c = byte[2097152 + name + k]
+        to nend when (is_pathchar(c) == 0)
+        return c
+    }
+    state nend { return 0 }
+    state plen {                       ; length of the prefix path
+        let n = 0
+        to plenloop
+    }
+    state plenloop {
+        to pdone when (is_pathchar(byte[2097152 + pref + n]) == 0)
+        n = n + 1
+        to plenloop
+    }
+    state pdone {
+        to inpref when (k < n)
+        to isdot when (k == n)
+        let c2 = byte[2097152 + name + (k - n - 1)]
+        to nend2 when (is_pathchar(c2) == 0)
+        return c2
+    }
+    state nend2 { return 0 }
+    state inpref { return byte[2097152 + pref + k] }
+    state isdot { return '.' }
+}
+
+; do two (prefix, name) logical paths match?
+proc path2_eq(p1, x1, p2, x2) {
+    let k = 0
+    state loop {
+        let c1 = lp_char(p1, x1, k)
+        let c2 = lp_char(p2, x2, k)
+        to mism when (c1 != c2)
+        to same when (c1 == 0)
+        k = k + 1
+        to loop
+    }
+    state same { return 1 }
+    state mism { return 0 }
+}
+
+; is the identifier at `off` the name of a user machine?
+proc machine_exists(off) {
+    let mi = 0
+    state loop {
+        to no when (mi == word[6000000])                ; MACHINE_CNT
+        to yes when (name_eq2(off, word[6010000 + mi * 8]) == 1)
+        mi = mi + 1
+        to loop
+    }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
 ; ---- lookups (locals/states are per-machine, indexed by CUR_MI) ----
 
 proc lookup_local(off) {
@@ -230,16 +290,22 @@ proc lookup_state(off) {
     state nomatch { return 0 }
 }
 
-proc field_lookup(off) {
+; fields key on the LOGICAL path: the machine's instance prefix (0 for Main-owned) + the dotted ref.
+proc field_lookup(pref, off) {
     let k = 0
     state loop {
         to nomatch when (k == word[6000024])                ; FIELD_CNT
-        to hit when (name_eq_path(off, word[6800000 + k * 8]) == 1)   ; fields key on the DOTTED path
+        to hit when (path2_eq(pref, off, word[6810000 + k * 8], word[6800000 + k * 8]) == 1)
         k = k + 1
         to loop
     }
     state hit { return k }
     state nomatch { return 0 }
+}
+
+; the current machine's instance prefix (M_PREF[CUR_MI]).
+proc cur_pref() {
+    return word[6011400 + word[6000032] * 8]
 }
 
 proc lookup_machine(off) {
@@ -254,16 +320,29 @@ proc lookup_machine(off) {
     state nomatch { return 0 }
 }
 
-proc array_lookup(off) {
+proc array_lookup(pref, off) {
     let k = 0
     state loop {
         to nomatch when (k == word[6000040])                ; ARRAY_CNT
-        to hit when (name_eq2(off, word[6820000 + k * 8]) == 1)
+        to hit when (path2_eq(pref, off, word[6830000 + k * 8], word[6820000 + k * 8]) == 1)
         k = k + 1
         to loop
     }
     state hit { return k }
     state nomatch { return 0 }
+}
+
+; the single instance path in `data Main` for type `off` (0 if none).
+proc inst_for_type(off) {
+    let t = 0
+    state loop {
+        to none when (t == word[6000064])                   ; DT_CNT
+        to hit when (name_eq2(off, word[6870000 + t * 8]) == 1)
+        t = t + 1
+        to loop
+    }
+    state hit { return word[6880000 + t * 8] }
+    state none { return 0 }
 }
 
 ; ---- expression parser: precedence-climbing, builds a left-associative AST ----
@@ -312,14 +391,14 @@ proc parse_term() {
         skip_path()                    ; past the dotted path
         skip_ws()
         to arrread when (cbyte() == '[')
-        return alloc(3, field_lookup(foff), 0, 0)
+        return alloc(3, field_lookup(cur_pref(), foff), 0, 0)
     }
     state arrread {
         adv()                          ; consume '['
         let ix = parse_cmp()
         skip_ws()
         adv()                          ; consume ']'
-        return alloc(6, array_lookup(foff), ix, 0)
+        return alloc(6, array_lookup(cur_pref(), foff), ix, 0)
     }
     state paren {
         adv()
@@ -1033,15 +1112,19 @@ proc do_write_slot(kindb, valb, idx) {
         to vself when (is_self() == 1)
         to normal
     }
-    state vself {                      ; `self.NAME(` -> a value-returning method call; else an ordinary
-        let sav = word[2097144]        ; expression (self.f / self.arr[i]) -> rewind and parse normally
+    state vself {                      ; `self.PATH(` -> a value-returning method call (single-segment
+        let sav = word[2097144]        ; or cross-data); else an ordinary expression -> rewind + parse
         skip_ident()                   ; past "self"
         adv()                          ; past '.'
-        let moff = word[2097144]
-        skip_ident()                   ; past NAME
+        let moff = skip_path()         ; past the dotted path; moff = its LAST segment
         skip_ws()
-        to vcall when (cbyte() == '(')
+        to vchk when (cbyte() == '(')
         word[2097144] = sav
+        to normal
+    }
+    state vchk {
+        to vcall when (machine_exists(moff) == 1)
+        word[2097144] = sav            ; e.g. a boundary value call -> not modeled; parse normally
         to normal
     }
     state vcall { return emit_vcall(lookup_machine(moff), kindb, valb, idx) }
@@ -1245,17 +1328,19 @@ proc translate_block(mi, off) {
     }
     state t_call {
         to t_scall when (segoff == foff)    ; single segment -> a self-METHOD call self.m(args)
-        word[2097144] = segoff              ; dotted -> a boundary call; dispatch from the last segment
+        word[2097144] = segoff              ; dotted -> dispatch from the last segment
         to t_wbyte when (is_write_byte() == 1)
         to t_wline when (is_write_line() == 1)
+        to t_xcall when (machine_exists(segoff) == 1)   ; self.inst.m(args) -> a cross-data method call
         emit_exit_om()                      ; else exit_process (-> `(rev out Nil)` in output mode)
         to close
     }
+    state t_xcall { skip_ident()  depth = depth + emit_scall(lookup_machine(segoff))  to loop }
     state t_scall { depth = depth + emit_scall(lookup_machine(foff))  to loop }   ; CUR is at '('
     state t_wbyte { depth = depth + emit_write_byte()  to loop }
     state t_wline { depth = depth + emit_write_line()  to loop }
-    state t_awrite { do_array_write(array_lookup(foff))  depth = depth + 1  to loop }
-    state t_fstore { depth = depth + do_write_slot(6420000, 6430000, field_lookup(foff))  to loop }
+    state t_awrite { do_array_write(array_lookup(cur_pref(), foff))  depth = depth + 1  to loop }
+    state t_fstore { depth = depth + do_write_slot(6420000, 6430000, field_lookup(cur_pref(), foff))  to loop }
     state close { let j = 0  to closed }
     state closed { to fin when (j == depth)  write_byte(')')  j = j + 1  to closed }
     state fin { return 0 }
@@ -1270,14 +1355,16 @@ proc parse_machine_header() {
     let mc = word[6000000]
     word[6010000 + mc * 8] = word[2097144]     ; M_NAME = first name segment (updated on '::')
     word[6010600 + mc * 8] = 0                 ; M_PCNT = 0
+    word[6011200 + mc * 8] = 0                 ; M_OWNER = 0 (unqualified / free)
     skip_ident()                       ; first name segment
-    state colon {                      ; a qualified name `Main::method` -> M_NAME is the LAST segment
-        to hascolon when (cbyte() == ':')
+    state colon {                      ; a qualified name `Type::method` -> M_NAME is the LAST segment,
+        to hascolon when (cbyte() == ':')      ; M_OWNER the type before the first '::'
         to toparen
     }
     state hascolon {
         adv()  adv()                   ; consume '::'
-        word[6010000 + mc * 8] = word[2097144]     ; M_NAME = segment after '::'
+        word[6011200 + mc * 8] = word[6010000 + mc * 8]   ; owner = the segment before '::'
+        word[6010000 + mc * 8] = word[2097144]            ; M_NAME = segment after '::'
         skip_ident()
         to colon
     }
@@ -1559,7 +1646,7 @@ proc collect_self(mi) {
         skip_ws()
         to c_sk when (cbyte() == '[')  ; self.arr[ -> array
         to c_redo when (cbyte() == '(')  ; a call -> re-scan from the LAST segment so that
-        add_field(foff)                ;   write_byte / write_line boundary tokens are still seen
+        add_field(word[6011400 + mi * 8], foff)   ; keyed (M_PREF[mi], path)
         to loop
     }
     state c_redo { word[2097144] = soff  to loop }
@@ -1577,11 +1664,107 @@ proc is_data() {
     state yes { return 1 }
 }
 
+proc name_is_Main(off) {               ; does the name at `off` spell "Main" (the root data type)?
+    state c1 { to c2 when (byte[2097152 + off] == 'M')  return 0 }
+    state c2 { to c3 when (byte[2097152 + off + 1] == 'a')  return 0 }
+    state c3 { to c4 when (byte[2097152 + off + 2] == 'i')  return 0 }
+    state c4 { to c5 when (byte[2097152 + off + 3] == 'n')  return 0 }
+    state c5 { to yes when (is_idchar(byte[2097152 + off + 4]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+; scan `data Main { ... }` for nested-data INSTANCES: each field `F: T;` with an uppercase type T
+; records (T -> F) in DATA_TYPE/DATA_PATH — the single-instance map that lets a T-owned method's
+; `self.X` resolve to the unified slot `F.X`. (One instance per type; Console is just another entry,
+; harmless since nothing is owned by Console.)
+proc collect_instances() {
+    word[6000064] = 0                  ; DT_CNT
+    word[2097144] = 0
+    state find {
+        skip_ws()
+        to done when (cbyte() == 0)
+        to atdata when (is_data() == 1)
+        to skiptok when (is_idchar(cbyte()) == 1)
+        adv()
+        to find
+    }
+    state skiptok { skip_ident()  to find }
+    state atdata {
+        skip_ident()                   ; past "data"
+        skip_ws()
+        let noff = word[2097144]       ; the block's type name
+        skip_ident()
+        to inmain when (name_is_Main(noff) == 1)
+        to find                        ; not Main -> keep scanning (its body tokens are skipped by find)
+    }
+    state inmain { to atbrace }
+    state atbrace { to fieldloop when (cbyte() == '{')  adv()  to atbrace }
+    state fieldloop {
+        adv()                          ; consume '{' (first) / ';' (subsequent, via fsemi)
+        skip_ws()
+        to done when (cbyte() == '}')
+        let foff = word[2097144]       ; field name F
+        skip_ident()
+        to tocolon
+    }
+    state tocolon {
+        to done when (cbyte() == 0)
+        to atcolon when (cbyte() == ':')
+        adv()
+        to tocolon
+    }
+    state atcolon {
+        adv()                          ; consume ':'
+        skip_ws()
+        to fskip when (is_upper(cbyte()) == 0)          ; not an uppercase type (e.g. an array/scalar)
+        word[6870000 + word[6000064] * 8] = word[2097144]   ; DATA_TYPE[t] = type-name offset
+        word[6880000 + word[6000064] * 8] = foff            ; DATA_PATH[t] = instance field name
+        word[6000064] = word[6000064] + 1                   ; DT_CNT++
+        to fskip
+    }
+    state fskip {                      ; skip to the field's terminating ';' — an ARRAY type carries an
+        to done when (cbyte() == 0)    ; INNER ';' inside `[i32; 5]`, so skip bracketed regions whole
+        to fbrk when (cbyte() == '[')
+        to fieldloop when (cbyte() == ';')
+        adv()
+        to fskip
+    }
+    state fbrk {
+        to done when (cbyte() == 0)
+        to fbrkend when (cbyte() == ']')
+        adv()
+        to fbrk
+    }
+    state fbrkend { adv()  to fskip }
+    state done { return 0 }
+}
+
+proc is_upper(c) {
+    state c1 { to no when (c < 'A')  to c2 }
+    state c2 { to no when (c > 'Z')  return 1 }
+    state no { return 0 }
+}
+
+; the instance-path prefix for machine mi: 0 for Main-owned / unqualified machines, else the field
+; path of its owner type's single instance in `data Main`.
+proc compute_pref(mi) {
+    let ow = word[6011200 + mi * 8]    ; M_OWNER
+    state d {
+        to zero when (ow == 0)
+        to zero when (name_is_Main(ow) == 1)
+        word[6011400 + mi * 8] = inst_for_type(ow)      ; 0 if no instance -> behaves as Main-owned
+        return 0
+    }
+    state zero { word[6011400 + mi * 8] = 0  return 0 }
+}
+
 ; parse the `data Main { ... }` declaration for array fields `NAME: [i32; N];` -> ARRAY_NAME/ACOUNT.
 ; (scalar fields are discovered by the body scan; arrays need their length from the declaration.)
 proc collect_arrays() {
     word[6000040] = 0                  ; ARRAY_CNT
     word[2097144] = 0                  ; CUR = 0
+    let pref = 0
+    let usable = 0
     state find {
         skip_ws()
         to done when (cbyte() == 0)
@@ -1591,12 +1774,27 @@ proc collect_arrays() {
         to find
     }
     state skip { skip_ident()  to find }
-    state found { skip_ident()  to tobrace }        ; past "data"
+    state found {                      ; a data block: its arrays key on the block's instance prefix
+        skip_ident()                   ; past "data"
+        skip_ws()
+        let tnoff = word[2097144]      ; the block's type name
+        skip_ident()
+        to blkmain when (name_is_Main(tnoff) == 1)
+        pref = inst_for_type(tnoff)
+        usable = 1
+        to chkinst
+    }
+    state chkinst {
+        to tobrace when (pref != 0)
+        usable = 0                     ; a type with no instance in Main -> its arrays are unreachable
+        to tobrace
+    }
+    state blkmain { pref = 0  usable = 1  to tobrace }
     state tobrace { to atbrace when (cbyte() == '{')  adv()  to tobrace }
     state atbrace { adv()  to floop }               ; consume '{'
     state floop {
         skip_ws()
-        to done when (cbyte() == '}')
+        to blkend when (cbyte() == '}')
         let noff = word[2097144]
         skip_ident()                   ; field NAME
         skip_ws()
@@ -1605,8 +1803,14 @@ proc collect_arrays() {
         to isarr when (cbyte() == '[')
         to fskip                       ; a scalar field -> skip to ';'
     }
+    state blkend { adv()  to find }    ; block done -> continue to the NEXT data block
     state isarr {
+        to isarr2 when (usable == 1)
+        to fskip                       ; an unreachable block: skip without recording
+    }
+    state isarr2 {
         word[6820000 + word[6000040] * 8] = noff    ; ARRAY_NAME[ac] = noff
+        word[6830000 + word[6000040] * 8] = pref    ; ARRAY_PREF[ac] = the block's instance path (0 = Main)
         adv()                          ; consume '['
         to arrsemi
     }
@@ -1646,16 +1850,17 @@ proc do_array_write(arr) {
     state esemi { adv()  return 0 }
 }
 
-proc add_field(off) {
+proc add_field(pref, off) {
     let g = 0
     state loop {
         to add when (g == word[6000024])
-        to dup when (name_eq_path(off, word[6800000 + g * 8]) == 1)
+        to dup when (path2_eq(pref, off, word[6810000 + g * 8], word[6800000 + g * 8]) == 1)
         g = g + 1
         to loop
     }
     state add {
         word[6800000 + word[6000024] * 8] = off
+        word[6810000 + word[6000024] * 8] = pref
         word[6000024] = word[6000024] + 1
         return 0
     }
@@ -1795,12 +2000,20 @@ proc main() {
         to ploop
     }
     state pdone {                      ; the UNIFIED self-state: union of fields/input/output over ALL
+        collect_instances()            ; data Main's nested-data instances (type -> field path)
         word[6000024] = 0              ; &mut self machines (entry + methods), plus arrays from the decl.
         word[6000048] = 0
         word[6000056] = 0
-        let mj = 0
-        to sloop
+        let mp = 0
+        to prefloop
     }
+    state prefloop {                   ; each machine's instance-path prefix (its owner's field in Main)
+        to prefdone when (mp == word[6000000])
+        compute_pref(mp)
+        mp = mp + 1
+        to prefloop
+    }
+    state prefdone { let mj = 0  to sloop }
     state sloop {
         to sdone when (mj == word[6000000])
         to do_cs when (word[6010200 + mj * 8] != 1)   ; has_self -> fold into the unified self-state
