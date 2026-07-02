@@ -285,11 +285,10 @@ The ladder, smallest-landable-first; layouts need NO general const positions
   primitive fields, purity gate, L2 validation: overlap/bounds/alignment/
   power-of-two); pilot = CLayout IN OMEGA planning a UEFI-ish schema to
   correct C offsets/size/align; effectful + overlapping policies rejected.
-  **GAP FOUND + FENCED: decision 12's inferred effect surface does NOT fold
-  host-authority facts** -- a boundary write_line passes the static gate
-  (const_lengths shares the hole); build-time evaluation adds a DYNAMIC
-  backstop (the evaluator marks driven host calls and the entry rejects).
-  Proper fix: fold the host-call audit into the transitive surface.
+  **Effect-surface gap CLOSED (48f600151):** boundary-trait methods with no
+  declared effect row carry the implicit `host_boundary` effect in the
+  decision-12 transitive surface -- both build-time gates reject statically;
+  the evaluator's dynamic backstop stays as defense-in-depth.
 - **L1: the closed vocabulary as library data.** `Schema`/`SchemaField`,
   `Plan`/`FieldEntry`/`FieldPlan` (At/Bits/Varint/LengthPrefixed)/`SizePlan`
   + the `Layout` trait declared in omega/ .omg. The compiler materializes
