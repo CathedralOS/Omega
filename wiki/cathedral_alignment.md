@@ -119,12 +119,15 @@ implementation work. Each one gets more expensive to retrofit every month.
    `FinalMemoryMap`), value invariants (page tables built from the kernel
    prototype), owned per-CPU state, or a one-time audited axiom list at the
    entry boundary. Foreign structs ride the layout-policy machinery
-   (`programmable_layouts.md`). Remaining asks: no-host target + entry
-   spelling, lowering-contract vocabulary (volatile `exactly_once`,
-   `clobbers tlb`), interrupt-entry convention, and the **bounded C-ABI export
-   table** for the firmware seam (one UEFI-subset contract; vendor firmware on
-   commodity hardware, an Omega UEFI payload on reference platforms — see the
-   brief's firmware-seam section).
+   (`programmable_layouts.md`); foreign *pointers* ride the extern brief's §12
+   taxonomy (borrows for call-scoped args, gated tokens / owned mints for
+   returned pointers, `Binding`-sum provides mappings — `Syscall(n)` /
+   `DllImport(m, s)` / `VtableSlot(i)` — for call targets). Remaining asks:
+   no-host target + entry spelling, lowering-contract vocabulary (volatile
+   `exactly_once`, `clobbers tlb`), and the **entry-stub lowering** — one
+   design for interrupt entry, the firmware seam's UEFI export table, and
+   outbound callbacks (foreign-initiated activation; shape settled in extern
+   brief §12, frame provenance open).
 
 8. **Case members (sum/mixed data shapes)** — SUM SHAPES IMPLEMENTED
    (2026-06-10): `case` members with named payloads parse, validate,
