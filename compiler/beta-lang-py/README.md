@@ -67,4 +67,20 @@ Run the gate:
 sh diverse-double-compilation.sh   # compiles a corpus with BOTH front-ends, runs both, asserts they agree
 ```
 
-Skips cleanly without `python3` or `cargo` (the on-ramp). Part of `../verify-lattice.sh`.
+## `beta_interp.py` — a reference interpreter (compiler *correctness*, not just reproducibility)
+
+DDC proves `bc` compiles **reproducibly** (Thompson); it says nothing about whether `bc` compiles
+**correctly**. Beta has no formal spec — `bc.beta` is its de-facto definition — so `beta_interp.py` is a
+**second, independent definition of Beta's meaning**: it tree-walks `bc2.py`'s AST (reusing the lexer +
+parser, separate back end) and runs the program directly, mirroring Alpha's exact 64-bit signed semantics
+(comparisons and div/mod signed, truncating toward zero; div-by-zero and INT_MIN/−1 trap; exit = low byte
+of `main`'s result). `beta-correctness-fuzz.sh` runs random programs (`beta-fuzz-gen.py`, a DAG of
+value-returning procs so they always terminate) two ways — **interpret** vs **compile-with-`bc`-and-run** —
+and asserts they agree on exit and stdout. A `bc` miscompile shows up as a disagreement (a negative control
+that breaks the interpreter's `+` is duly caught). 200 random programs agree.
+
+```sh
+sh beta-correctness-fuzz.sh        # interpret == compile+run over random programs
+```
+
+Both gates skip cleanly without `python3` or `cargo` (the on-ramp). Part of `../verify-lattice.sh`.
