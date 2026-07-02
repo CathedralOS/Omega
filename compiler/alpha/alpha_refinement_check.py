@@ -83,26 +83,33 @@ def beta_ref_observe(procs, env, n):
     return (out[0] if out else rc) & 0xFF
 
 def check_auto(label, srcrel):
-    """Derive the COMPILED meaning (alpha_symbolic ∘ bc) and the SOURCE meaning (beta_symbolic); pin each to
-    its reference VM on random inputs; prove they are equal for all inputs, and that a perturbation is not."""
+    """Derive the COMPILED meaning (alpha_symbolic ∘ bc) and the SOURCE meaning (beta_symbolic); pin each
+    INDEPENDENTLY to its own reference — the compiled meaning to the actual bytecode (alpha_ref), the source
+    meaning to the source interpreter (beta_interp) — then prove they are equal for all inputs (and a
+    perturbation is not). The two pins are what make the kernel proof of (= C M) certify the COMPILER: C is
+    tied to what the machine really does, M to what the source really means, and the proof ties C to M."""
     src = os.path.join(HERE, srcrel)
     text = open(src).read()
     try:
-        C, nC = S.symexec(compile_beta(src))           # what the machine code computes
+        tape = compile_beta(src)
+        C, nC = S.symexec(tape)                         # what the machine code computes
         M, nM = B.meaning(text)                         # what the source means
     except (S.Unsupported, B.Unsupported) as e:
         print("  FAIL %-26s : outside the modelled fragment (%s)" % (label, e)); return False
     if nC != nM:
         print("  FAIL %-26s : arity mismatch code=%d source=%d" % (label, nC, nM)); return False
     procs = Parser(lex(text)).parse()
-    for _ in range(1 if nC == 0 else 40):              # differential: both derivations vs their reference VMs
+    for _ in range(1 if nC == 0 else 40):              # differential: each derivation vs its OWN reference VM
         env = {i: random.randint(0, 6) for i in range(nC)}
         vc, vm = S.evaluate(C, env), B.evaluate(M, env)
         if vc >= 256 or vm >= 256:
             continue
-        vref = beta_ref_observe(procs, env, nC)
-        if vc % 256 != vref or vm % 256 != vref:
-            print("  FAIL %-26s : differential (code=%s source=%s ref=%s at %s)" % (label, vc, vm, vref, env)); return False
+        va = run_ref(tape, [env[i] for i in range(nC)])          # the actual bytecode (alpha VM)
+        vb = beta_ref_observe(procs, env, nC)                    # the actual source (beta interpreter)
+        if vc % 256 != va:
+            print("  FAIL %-26s : alpha_symbolic ≠ bytecode (sym=%s vm=%s at %s)" % (label, vc, va, env)); return False
+        if vm % 256 != vb:
+            print("  FAIL %-26s : beta_symbolic ≠ source interp (sym=%s interp=%s at %s)" % (label, vm, vb, env)); return False
     def univ(rhs):
         g = '(= %s %s)' % (S.render(C), rhs)
         for _ in range(nC):
