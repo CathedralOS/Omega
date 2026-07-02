@@ -720,6 +720,7 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
         (HostCapability::Process, HostOperation::ExitProcess)
         | (HostCapability::Clock, HostOperation::Sleep) => encode_scalar_arg_call(operands),
         (HostCapability::Clock, HostOperation::TickCount) => encode_tick_count_call(operands),
+        (HostCapability::Input, HostOperation::KeyState) => encode_key_state_call(operands),
         _ => Err(Diagnostic::error(format!(
             "X86_64 host operation {}.{} is not implemented",
             operation_key.capability_name(),
@@ -755,6 +756,50 @@ fn encode_tick_count_call<T: InstructionOperandLike>(operands: &[T]) -> Result<V
         .map_err(|_| Diagnostic::error("tick_count result offset exceeds i32"))?;
     bytes.extend(displacement.to_le_bytes());
     debug_assert_eq!(bytes.len(), 30);
+    Ok(bytes)
+}
+
+/// `GetAsyncKeyState(vk)` -- a value-returning USER32 import (the multi-DLL
+/// proof): shadow space, the vk marshalled into ecx from operands[1] (constant
+/// or runtime scalar), the relocated `call rel32`, the shadow restore, then
+/// `movzx eax, ax` (the return is a SHORT; zero the undefined upper bits) and
+/// the store-rax tail into the result place (operands[0]).
+fn encode_key_state_call<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
+    let Some((_, result_offset, _)) = operands
+        .first()
+        .and_then(|operand| operand.runtime_scalar_integer())
+    else {
+        return Err(Diagnostic::error(
+            "cannot encode X86_64 key_state: the result storage place did not lower to a              runtime scalar operand",
+        ));
+    };
+    let mut bytes = Vec::with_capacity(4 + 17 + 5 + 4 + 3 + 17);
+    bytes.extend([0x48, 0x83, 0xec, 0x28]); // sub rsp, 40
+    match operands.get(1) {
+        Some(operand) if operand.runtime_scalar_integer().is_some() => {
+            let (_, byte_offset, _) = operand.runtime_scalar_integer().unwrap();
+            append_mov_r15_imm64(&mut bytes, 0); // relocated to the vk region base
+            bytes.extend([0x49, 0x8b, 0x8f]); // mov rcx, [r15 + disp32]
+            let displacement: i32 = byte_offset
+                .try_into()
+                .map_err(|_| Diagnostic::error("key_state vk offset exceeds i32"))?;
+            bytes.extend(displacement.to_le_bytes());
+        }
+        _ => {
+            let vk = immediate_i32(operands, 1, "key_state virtual-key argument")?;
+            bytes.push(0xb9); // mov ecx, imm32
+            bytes.extend(vk.to_le_bytes());
+        }
+    }
+    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 (relocated)
+    bytes.extend([0x48, 0x83, 0xc4, 0x28]); // add rsp, 40
+    bytes.extend([0x0f, 0xb7, 0xc0]); // movzx eax, ax (zero the upper bits)
+    append_mov_r15_imm64(&mut bytes, 0); // relocated to the result region base
+    bytes.extend([0x49, 0x89, 0x87]); // mov [r15 + disp32], rax
+    let displacement: i32 = result_offset
+        .try_into()
+        .map_err(|_| Diagnostic::error("key_state result offset exceeds i32"))?;
+    bytes.extend(displacement.to_le_bytes());
     Ok(bytes)
 }
 
@@ -1011,6 +1056,36 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
             // Single-u32-arg kernel32 call (ExitProcess/Sleep), re-expressed
             // through the general Win64 scalar-args helper (extern rung 1).
             win64_scalar_args_relocation_sites(operands, 1)
+        }
+        (HostCapability::Input, HostOperation::KeyState) => {
+            // Layout: sub(4) + vk marshalling (17 runtime / 5 const) + call(5)
+            // + add(4) + movzx(3) + mov r15,imm64(10) + store(7).
+            let vk_is_runtime = operands
+                .get(1)
+                .is_some_and(|operand| operand.runtime_scalar_integer().is_some());
+            let vk_width = if vk_is_runtime { 17 } else { 5 };
+            let mut sites = Vec::new();
+            if vk_is_runtime {
+                sites.push(X86_64RelocationSite {
+                    operand_index: Some(1),
+                    byte_offset: 4 + 2, // inside the vk mov r15, imm64
+                    byte_width: 8,
+                    kind: X86_64RelocationSiteKind::Absolute64,
+                });
+            }
+            sites.push(X86_64RelocationSite {
+                operand_index: None,
+                byte_offset: 4 + vk_width + 1, // past the call opcode
+                byte_width: 4,
+                kind: X86_64RelocationSiteKind::Relative32,
+            });
+            sites.push(X86_64RelocationSite {
+                operand_index: Some(0),
+                byte_offset: 4 + vk_width + 5 + 4 + 3 + 2, // inside the result mov r15, imm64
+                byte_width: 8,
+                kind: X86_64RelocationSiteKind::Absolute64,
+            });
+            sites
         }
         (HostCapability::Clock, HostOperation::TickCount) => {
             // 0-arg value-returning call: `call rel32` right after the shadow

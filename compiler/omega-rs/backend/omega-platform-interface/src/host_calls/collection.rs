@@ -162,6 +162,20 @@ fn collect_assignment_result_host_lowering(
             ),
         },
     );
+    // The call's REAL arguments follow the result (e.g. key_state(vk)).
+    for argument in program.expression_table.expression_handles(call.arguments) {
+        plan.arguments.append_to_span(
+            &mut argument_span,
+            crate::HostCallArgument {
+                kind: lower_host_call_argument(
+                    program,
+                    *argument,
+                    static_values,
+                    &mut plan.expressions,
+                ),
+            },
+        );
+    }
 
     plan.calls.insert(HostCall {
         source_key: state_key(machine, state),

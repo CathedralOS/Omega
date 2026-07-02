@@ -496,6 +496,7 @@ dependencies = [
 name = "omega-image-pe"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-core",
  "omega-image",
  "omega-object-file",

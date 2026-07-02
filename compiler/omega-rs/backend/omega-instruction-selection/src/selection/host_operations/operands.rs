@@ -125,6 +125,18 @@ pub(super) fn select_host_operation_operands(
 
             HandleSpan::empty()
         }
+        (HostCapability::Input, HostOperation::KeyState) => {
+            // operands = [result place, vk argument]: both must resolve or the
+            // encoder hard-errors (no silent zero result / zero vk).
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let argument = scalar_argument_operand_at(input, host_call, dispatch_index, 1);
+            match (result, argument) {
+                (Some(result), Some(argument)) => {
+                    operands.insert_many([operand(result), operand(argument)])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
         (
             HostCapability::Process,
             HostOperation::Exit | HostOperation::ExitGroup | HostOperation::ExitProcess,
@@ -260,6 +272,41 @@ fn first_scalar_argument_operand(
             byte_count: place.byte_count,
         }),
         HostCallArgumentKind::Text(_) => Some(InstructionOperandKind::ImmediateInteger(0)),
+    }
+}
+
+/// Scalar operand resolution for the host-call argument at `index` -- the same
+/// shapes `first_scalar_argument_operand` accepts (constant integer or a
+/// resolvable runtime-storage scalar place). `None` when absent/unresolvable.
+fn scalar_argument_operand_at(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    index: usize,
+) -> Option<InstructionOperandKind> {
+    let argument = input
+        .host_calls
+        .arguments
+        .span(host_call.arguments)
+        .and_then(|arguments| arguments.get(index))?;
+    match &argument.kind {
+        HostCallArgumentKind::Integer(value) => {
+            Some(InstructionOperandKind::ImmediateInteger(*value))
+        }
+        HostCallArgumentKind::Expression(expression) => resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index.unwrap_or(0),
+            host_call.source_key,
+            &input.host_calls.expressions,
+            *expression,
+        )
+        .filter(|place| matches!(place.byte_count, 1 | 2 | 4 | 8))
+        .map(|place| InstructionOperandKind::RuntimeScalarInteger {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            byte_count: place.byte_count,
+        }),
+        _ => None,
     }
 }
 

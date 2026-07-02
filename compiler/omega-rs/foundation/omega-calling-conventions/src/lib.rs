@@ -1,6 +1,7 @@
 mod darwin;
 mod linux;
 mod windows;
+pub use windows::windows_import_library;
 
 use omega_core::arena::{Arena, Handle, HandleSpan};
 use omega_target::{NativeTarget, ObjectFormat};
@@ -45,6 +46,7 @@ pub enum HostCapability {
     Stdout,
     Stderr,
     Clock,
+    Input,
 }
 
 impl HostCapability {
@@ -55,6 +57,7 @@ impl HostCapability {
             "Stdout" => Self::Stdout,
             "Stderr" => Self::Stderr,
             "Clock" => Self::Clock,
+            "Input" => Self::Input,
             _ => Self::Unknown,
         }
     }
@@ -67,6 +70,7 @@ impl HostCapability {
             Self::Stdout => "Stdout",
             Self::Stderr => "Stderr",
             Self::Clock => "Clock",
+            Self::Input => "Input",
         }
     }
 }
@@ -85,6 +89,7 @@ pub enum HostOperation {
     WriteFile,
     Sleep,
     TickCount,
+    KeyState,
 }
 
 impl HostOperation {
@@ -100,6 +105,7 @@ impl HostOperation {
             "write_file" => Self::WriteFile,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
+            "key_state" => Self::KeyState,
             _ => Self::Unknown,
         }
     }
@@ -117,6 +123,7 @@ impl HostOperation {
             Self::WriteFile => "write_file",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
+            Self::KeyState => "key_state",
         }
     }
 }

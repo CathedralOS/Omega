@@ -2233,6 +2233,10 @@ impl<'program> Evaluator<'program> {
                     self.virtual_ticks += 1;
                     return Ok(Value::Int(self.virtual_ticks));
                 }
+                if target == "key_state" {
+                    // The virtual host has no keyboard: no key is ever down.
+                    return Ok(Value::Int(0));
+                }
                 return Err(halt);
             }
         };
@@ -3047,6 +3051,7 @@ fn is_canonical_host_method(name: &str) -> bool {
             | "exit_process"
             | "sleep"
             | "tick_count"
+            | "key_state"
     )
 }
 
