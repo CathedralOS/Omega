@@ -11271,6 +11271,63 @@ fn runtime_tick_count_monotonic_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_gui_memory_dc_blit_exit_canary_runs() {
+    // The first windowed-tier pixel proof: CreateCompatibleDC(0) + StretchDIBits of an 8x8
+    // 32bpp DIB (13 args -- the general import call's stack-arg + address-operand shape).
+    // Blit reports the copied scanline count == height -> exit 70. CI-safe (nothing visible).
+    let canary = pass_canary("host/runtime_gui_memory_dc_blit_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gui-blit-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("gui memory-dc blit canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("gui memory-dc blit canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a full-height memory-DC blit (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_gui_window_blit_exit_canary_runs() {
+    // The windowed integration proof: CreateWindowExA("STATIC", style 0 -- INVISIBLE, CI-safe)
+    // -> GetDC -> StretchDIBits into the window DC. Real HWND end-to-end. Exit 70.
+    let canary = pass_canary("host/runtime_gui_window_blit_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gui-wnd-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("gui window blit canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("gui window blit canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected window-create + get_dc + full-height blit (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_generic_param_position_inference_exit_canary_runs() {
     // Param-position monomorphization: `weigh<T [copy]>(x: &T) -> i32` infers T := Light from the
     // argument place (concrete return, so no return-position inference). Exit 70.
@@ -17726,6 +17783,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "host/runtime_tick_count_monotonic_exit",
     "host/runtime_user32_key_state_exit",
     "host/runtime_tick_paced_marquee_exit",
+    "host/runtime_gui_memory_dc_blit_exit",
+    "host/runtime_gui_window_blit_exit",
     "inline_asm/asm_block_jmp_state",
     "memory/abi_calling_convention_machine",
     "memory/repr_native_stable_layout",

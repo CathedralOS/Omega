@@ -47,6 +47,9 @@ pub enum HostCapability {
     Stderr,
     Clock,
     Input,
+    /// The windowed-renderer surface: device contexts, windows, framebuffer
+    /// blits (user32/gdi32 imports on Windows).
+    Gui,
 }
 
 impl HostCapability {
@@ -58,6 +61,7 @@ impl HostCapability {
             "Stderr" => Self::Stderr,
             "Clock" => Self::Clock,
             "Input" => Self::Input,
+            "Gui" => Self::Gui,
             _ => Self::Unknown,
         }
     }
@@ -71,6 +75,7 @@ impl HostCapability {
             Self::Stderr => "Stderr",
             Self::Clock => "Clock",
             Self::Input => "Input",
+            Self::Gui => "Gui",
         }
     }
 }
@@ -90,6 +95,18 @@ pub enum HostOperation {
     Sleep,
     TickCount,
     KeyState,
+    /// `CreateCompatibleDC(0)` -- a memory device context (the CI-safe,
+    /// differential-testable blit target).
+    DcCreate,
+    /// `GetDC(hwnd)` -- a window's device context.
+    GetDc,
+    /// `CreateWindowExA` through the built-in `"STATIC"` window class (no
+    /// WNDCLASS registration, no WndProc, no message pump for a short-lived
+    /// window).
+    WindowCreate,
+    /// `StretchDIBits` -- blit a top-down 32bpp DIB framebuffer into a device
+    /// context.
+    Blit,
 }
 
 impl HostOperation {
@@ -106,6 +123,10 @@ impl HostOperation {
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
+            "dc_create" => Self::DcCreate,
+            "get_dc" => Self::GetDc,
+            "window_create" => Self::WindowCreate,
+            "blit" => Self::Blit,
             _ => Self::Unknown,
         }
     }
@@ -124,6 +145,10 @@ impl HostOperation {
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",
+            Self::DcCreate => "dc_create",
+            Self::GetDc => "get_dc",
+            Self::WindowCreate => "window_create",
+            Self::Blit => "blit",
         }
     }
 }

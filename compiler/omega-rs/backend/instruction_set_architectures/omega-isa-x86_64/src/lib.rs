@@ -726,6 +726,10 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
             encode_win64_import_call(operands, true)
         }
         (HostCapability::Input, HostOperation::KeyState) => encode_key_state_call(operands),
+        // Every Gui import is value-returning and encodes through the GENERAL
+        // import call: operands[0] = result place, then the full ABI argument
+        // list (selection interleaves the hard-wired immediates).
+        (HostCapability::Gui, _) => encode_win64_import_call(operands, true),
         _ => Err(Diagnostic::error(format!(
             "X86_64 host operation {}.{} is not implemented",
             operation_key.capability_name(),
@@ -922,11 +926,6 @@ fn win64_scalar_args_width<T: InstructionOperandLike>(operands: &[T], count: usi
     (0..count)
         .map(|index| win64_scalar_arg_width(operands, index))
         .sum()
-}
-
-/// Marshalling width of a single u32 first argument (the 1-arg kernel32 shape).
-fn scalar_arg_call_width<T: InstructionOperandLike>(operands: &[T]) -> usize {
-    win64_scalar_args_width(operands, 1)
 }
 
 /// The GENERAL Win64 scalar-argument call: shadow space, the first `count`
@@ -1338,6 +1337,10 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
             // 0-arg value-returning call through the general import-call layout
             // (call at 4+1; result-region base at 13+2 -- identical to the
             // original bespoke site list).
+            win64_import_call_relocation_sites(operands, true)
+        }
+        (HostCapability::Gui, _) => {
+            // Value-returning general import calls (mirrors the encode arm).
             win64_import_call_relocation_sites(operands, true)
         }
         (

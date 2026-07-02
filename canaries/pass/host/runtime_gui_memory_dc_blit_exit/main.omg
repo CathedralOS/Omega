@@ -1,0 +1,37 @@
+// The FIRST windowed-tier pixel proof: a gdi32 memory DC (CreateCompatibleDC(0) -- CI-safe,
+// nothing visible) receives a StretchDIBits blit of an 8x8 top-down 32bpp framebuffer. This
+// exercises the whole new extern shape in one call: a value-returning gdi32 import (3rd DLL in
+// the import table), the GENERAL Win64 call with STACK arguments (StretchDIBits takes 13), and
+// RuntimeStorageAddress operands (the [u32;64] framebuffer as LPVOID + the BITMAPINFO built as a
+// plain [u32;11] -- biSize=40, biWidth=8, biHeight=-8 as u32 for top-down, planes|bitcount packed
+// word 0x00200001). StretchDIBits returns the copied SOURCE scanline count (probed natively:
+// full-height even into the memory DC's default 1x1 bitmap); the interpreter's virtual GDI
+// reports the same. Handles are opaque: branch on != 0 only. Exit 70. Differential.
+boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Gui {
+    machine dc_create() -> u64;
+    machine blit(device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [u32; 64], info: [u32; 11]) -> u32;
+}
+data Main {
+    console: Console;
+    gui: Gui;
+    pixels: [u32; 64];
+    info: [u32; 11];
+    hdc: u64;
+    copied: u32;
+}
+machine Main::main(&mut self) {
+    self.info[0] = 40;
+    self.info[1] = 8;
+    self.info[2] = 4294967288;
+    self.info[3] = 2097153;
+    self.pixels[0] = 4294901760;
+    self.hdc = self.gui.dc_create();
+    transition self.hdc > 0 { true -> blit_frame() _ -> bad() }
+    state blit_frame(&mut self) {
+        self.copied = self.gui.blit(self.hdc, 8, 8, 8, 8, self.pixels, self.info);
+        transition self.copied == 8 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

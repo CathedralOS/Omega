@@ -1,0 +1,58 @@
+// THE WINDOWED INTEGRATION PROOF: CreateWindowExA through the built-in "STATIC" class (the
+// design dodge -- no WNDCLASS registration, no WndProc, no message pump), GetDC on the real
+// HWND, and a StretchDIBits framebuffer blit into the window's device context. Style 0 keeps
+// the window INVISIBLE (never shown), so the canary is CI-safe while still exercising a real
+// window handle end-to-end. The class and title are NUL-terminated byte arrays passed as
+// RuntimeStorageAddress args ("STATIC\0" = 83,84,65,84,73,67,0); CreateWindowExA takes 12 ABI
+// arguments (4 register + 8 stack) with the origin/parent/menu/instance/param hard-wired by the
+// lowering. Handles are opaque: branch on != 0 only (native = real pointers, interpreter = the
+// virtual token 1). Blit reports the copied scanline count == height. Exit 70. Differential.
+boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Gui {
+    machine window_create(class_name: [u8; 7], title: [u8; 6], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
+    machine get_dc(window: u64) -> u64;
+    machine blit(device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [u32; 64], info: [u32; 11]) -> u32;
+}
+data Main {
+    console: Console;
+    gui: Gui;
+    cls: [u8; 7];
+    title: [u8; 6];
+    pixels: [u32; 64];
+    info: [u32; 11];
+    hwnd: u64;
+    hdc: u64;
+    copied: u32;
+}
+machine Main::main(&mut self) {
+    self.cls[0] = 83;
+    self.cls[1] = 84;
+    self.cls[2] = 65;
+    self.cls[3] = 84;
+    self.cls[4] = 73;
+    self.cls[5] = 67;
+    self.cls[6] = 0;
+    self.title[0] = 111;
+    self.title[1] = 109;
+    self.title[2] = 101;
+    self.title[3] = 103;
+    self.title[4] = 97;
+    self.title[5] = 0;
+    self.info[0] = 40;
+    self.info[1] = 8;
+    self.info[2] = 4294967288;
+    self.info[3] = 2097153;
+    self.pixels[0] = 4278255360;
+    self.hwnd = self.gui.window_create(self.cls, self.title, 0, 10, 10, 64, 64);
+    transition self.hwnd > 0 { true -> dc() _ -> bad() }
+    state dc(&mut self) {
+        self.hdc = self.gui.get_dc(self.hwnd);
+        transition self.hdc > 0 { true -> draw() _ -> bad() }
+    }
+    state draw(&mut self) {
+        self.copied = self.gui.blit(self.hdc, 8, 8, 8, 8, self.pixels, self.info);
+        transition self.copied == 8 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
