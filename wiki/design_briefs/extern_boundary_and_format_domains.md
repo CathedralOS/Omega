@@ -1,5 +1,14 @@
 # Design Brief — The Extern Surface & Format Domains (settled 2026-07-01)
 
+> **AMENDED 2026-07-02 by [`programmable_layouts.md`](programmable_layouts.md):**
+> the compiler-known format *catalog* (§5/§6) decomposes one level down —
+> blessed **placement primitives**, with formats as authored *layout policies*
+> composing them; `wire data` (§9, §10.5) is **retired** in favor of plain
+> `data` with optional identity numbers + `retired N;`; fully-static policies
+> are additionally legal in *type position* (generalizing §8's structural
+> zero-copy). §7's validate/materialize split, forget-on-boundary-write, and
+> the never-import-foreign-concepts rule all stand unchanged.
+
 > **For:** Omega maintainer · **Status:** SETTLED (chat session 2026-07-01, Zach) —
 > spellings marked *open* below are the only undecided parts. · **Driver:** Tier-2
 > windowed software rendering (TASKS.md) needs Win32 API calls; the host layer was a

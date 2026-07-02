@@ -48,13 +48,17 @@ implementation work. Each one gets more expensive to retrofit every month.
    potential debt. Cheap first step: a validation pass (or lint) that flags
    zero-excluding declarations, plus a guide section stating the commitment.
 
-2. **`wire data` semantics** (STRUCTURAL today). Cathedral's IPC, networking,
-   on-disk storage format, package compatibility checking, and (eventually)
-   serialized capabilities are all `wire data`. Schema validation, duplicate/
-   reserved tag diagnostics, version compatibility rules, and encoder/decoder
-   generation need to become real. This is also the natural next differential-
-   oracle-friendly feature: encoders/decoders are pure functions with byte-
-   exact expected outputs.
+2. **`wire data` semantics** (STRUCTURAL today) — **construct retired as
+   design 2026-07-02** (`design_briefs/programmable_layouts.md`): one
+   declaration form (`data`) with *optional* identity numbers + `retired N;`;
+   serialization moves to layout policies (`OmegaLayout` grammar family,
+   durability as a comptime plan grade consumed by `Store<T>`-class APIs +
+   a publish-time predecessor diff). The *work* is unchanged in substance —
+   schema identity validation, tag diagnostics, codec generation — but the
+   surface it lands on is plain `data` + the plan/deriver machinery, so ch20
+   needs a rewrite before implementation starts. Still the natural next
+   differential-oracle-friendly feature: derived codecs are pure functions
+   with byte-exact expected outputs.
 
 3. **Versioned `data` + migration machines** (STRUCTURAL today). "The spine of
    Cathedral's no-reboot upgrade story." Historical member blocks are parsed

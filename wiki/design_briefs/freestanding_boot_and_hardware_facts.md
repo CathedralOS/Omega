@@ -74,11 +74,17 @@ a *freshness contract*: the map is only authoritative if boot services exited
 against that exact map version.
 
 ```omega
-wire data EfiMemoryDescriptor {
-    0: kind: u32;
-    1: physical_start: u64;
-    2: page_count: u64;
-    3: attributes: u64;
+// Plain data — a firmware struct never crosses a schema-evolution edge, so no
+// identity numbers. Its BYTE layout comes from a layout policy (`Uefi`, the
+// C-ABI/MS-x64 plan — see design_briefs/programmable_layouts.md); the schema
+// itself stays layout-free. (An earlier draft wrongly wrote this as `wire data`
+// with tag numbers — that would have implied Omega tag-framing over firmware
+// bytes, which is exactly backwards.)
+data EfiMemoryDescriptor {
+    kind: u32;
+    physical_start: u64;
+    page_count: u64;
+    attributes: u64;
 }
 
 // FinalMemoryMap is private; exit_boot_services is its only minter.
@@ -123,6 +129,18 @@ machine mint_regions(map: FinalMemoryMap) -> Vec<Region>
   to `get_memory_map` — is expressible, or the freshness stays a runtime
   `StaleMap` retry loop with no static help (UEFI reality: loop until it
   sticks).
+- **Runtime record stride.** The UEFI spec *forbids* striding the map array by
+  `sizeof(descriptor)` — firmware may append fields; you must stride by the
+  runtime `DescriptorSize` it returns. So the walk's obligation must cite the
+  handoff value, not the type's comptime size — a `::size`-based stride should
+  *fail to discharge*, making the classic C bootloader bug untypeable. Derived
+  static codecs assume fixed record size; this needs a runtime-stride walk form.
+- **Function-pointer tables.** BootServices/RuntimeServices are structs of
+  pointers called MS-x64 — `SystemTable → BootServices → GetMemoryMap` is a
+  pointer read from a laid-out struct, then a call through it. The extern brief
+  deliberately kept machine-as-C-function-pointer out of scope (bind-by-symbol
+  only); boot re-opens it: the win64 call encoder pointed at a runtime pointer
+  instead of an import symbol.
 
 ## Sample 3 — an MMIO region and volatile operators
 
