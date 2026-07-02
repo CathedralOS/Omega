@@ -22,4 +22,4 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
   && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1 || { echo "refinement: check.beta build failed"; exit 1; }
 
 echo "instruction-level refinement (alpha machine code provably computes its source meaning, checked without running it):"
-python3 alpha_refinement_check.py "$T/check.exe"
+python3 alpha_refinement_check.py "$T/check.exe" "$(pwd)/../beta-lang-rs/build/bc.exe" "$(pwd)/$ASM"
