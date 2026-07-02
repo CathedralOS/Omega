@@ -86,7 +86,7 @@ pub(crate) fn declared_place_type(
 /// Like [`declared_place_type`] but returns the place's type reference WITHOUT
 /// unwrapping the `Constrained`/`Reference` shells -- callers that need the
 /// arithmetic domain (decision 17) read it from this raw handle.
-pub(crate) fn declared_place_type_raw(
+pub fn declared_place_type_raw(
     program: &TypedTrees,
     current_machine: &omega_typed_trees::machine::Machine,
     current_state: Option<&omega_typed_trees::state::State>,
@@ -249,7 +249,7 @@ fn data_field_or_payload_type(
 
 /// Unwrap reference and constraint shells so the structural type underneath
 /// (`[u8; N]`, `usize`, a data name) is inspectable.
-pub(crate) fn unwrapped_type_reference(
+pub fn unwrapped_type_reference(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {

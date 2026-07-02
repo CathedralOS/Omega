@@ -135,11 +135,13 @@ impl TypeReferenceTable {
     /// identifies the occurrences to substitute).
     pub fn named_references(
         &self,
-    ) -> impl Iterator<Item = (TypeReferenceHandle, SymbolHandle)> + '_ {
+    ) -> impl Iterator<Item = (TypeReferenceHandle, SymbolHandle, &str)> + '_ {
         self.type_references
             .iter()
             .filter_map(|(handle, node)| match node {
-                TypeReferenceNode::Named { symbol, .. } => Some((handle, *symbol)),
+                TypeReferenceNode::Named { symbol, name } => {
+                    Some((handle, *symbol, name.as_str()))
+                }
                 _ => None,
             })
     }

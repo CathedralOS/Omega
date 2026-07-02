@@ -39,13 +39,20 @@ use crate::state_signatures::{
     StateSignatureOwner, validate_callable_state_signatures, validate_machine_contracts,
     validate_machine_effects,
 };
-use crate::symbols::{MachineSymbols, TopLevelSymbols};
+use crate::symbols::MachineSymbols;
+pub use crate::symbols::TopLevelSymbols;
 use crate::traits::{
     validate_data_conformances, validate_machine_trait_conformances, validate_trait_requirements,
 };
 use crate::transitions::validate_transition_target_node;
 use crate::type_references::{TypeReferenceOwner, validate_type_reference_handle};
 pub use effects::validate_effect_plan;
+/// The declared type of a simple place argument (bare name / `self.field`,
+/// through the `&mut` marker), WITH its Constrained shells -- exposed for the
+/// typed-trees machine-monomorphization pass's param-position inference.
+pub use places::declared_place_type_raw;
+pub use places::unwrapped_type_reference;
+pub use properties::{declared_property_names, type_satisfies_declared_property};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
