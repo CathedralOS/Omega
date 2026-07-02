@@ -1,37 +1,42 @@
-# `omega/` — the kept, Rust-free omega rung (beginnings)
+# `omega/` — the kept, Rust-free omega rung
 
 `omega-rs/` is the full Rust compiler for Omega — the **untrusted fast producer** and today's
-executable reference. This directory is where omega's **kept, lattice-built** artifacts live, exactly
-as `epsilon/` is to `epsilon-rs/`.
+executable reference. This directory holds omega's **kept, lattice-built** artifacts: the Rust-free
+meaning route and its gates.
+
+**Epsilon was absorbed here** (decision D7, 2026-07-02): what was a separate rung is now the
+**Omega kernel subset** — the machine-surface fragment of Omega the lattice already gives Rust-free
+meaning to. Its translator, gates, and certifier corpus live on below; `epsilon-rs/` keeps its
+historical name as the kernel subset's disposable Rust producer.
 
 ## What's here
 
-- **`omega-meaning.sh`** — the first omega meaning gate. Real Omega sample programs from
-  `samples/` are translated to gamma by [`epsilon/eps2gamma.beta`](../epsilon/eps2gamma.beta) and
-  executed by [`gamma/interp.beta`](../gamma/interp.beta) — both Rust-free — and must exit with the
-  `Expected exit: N` their headers document. **19 audited samples** pass today, including
-  `euclid_gcd`, `collatz_sequence`, `digital_root`, `modular_exponentiation`,
-  `smallest_prime_factor`, `insertion_sort`, `tic_tac_toe`, and `bounded_counter`. Audited means a
-  sample whose exit matches only through a mis-parse coincidence is excluded (`format_number`:
-  string buffers; `alarm_probe2`: case-pattern dispatch).
+- **`omega2gamma.beta`** (née `eps2gamma.beta`) — the Rust-free **Omega → gamma meaning translator**,
+  written in Beta (built alpha→beta→bc, the same lineage as `gamma/interp.beta`). Reads Omega source
+  on stdin, prints a gamma s-expression; `interp.beta` runs it. Decision D2: meaning by elaboration
+  to the canonical interpreter. Covers the kernel subset (the full former-epsilon feature set: state
+  machines, self fields/arrays, cross-machine calls + recursion, stdin/stdout, self-methods incl.
+  value-returning) plus the omega surface (dotted field paths, subjectless transitions, state
+  arguments, cross-data method calls via single-instance monomorphization, `use`/attributes/domain
+  annotations tolerated in range).
 
-## Why this works (and what it is not)
+- **`omega-meaning.sh`** — real Omega samples from `samples/` run down the meaning route; each must
+  exit with the `Expected exit: N` its header documents. **19 audited samples** + feature tests under
+  `tests/` (audited = a sample whose pass depends on a mis-parse coincidence is excluded).
 
-Epsilon was designed as omega's on-ramp, so the core machine surface — `data` blocks,
-`machine Main::main(&mut self)`, states, guarded transitions, console boundary — is shared.
-`eps2gamma.beta` (decision D2: meaning by elaboration to gamma) gained the omega surface deltas:
+- **`kernel-diamond.sh`** — the 42-case triple diamond on kernel-subset programs: native execution
+  (epsilon-rs backend) == Rust-free `omega2gamma→interp` == the Rust `gamma_emit` cross-check, over
+  arithmetic, comparisons, state machines, fields, arrays, calls, stdin/stdout, self-methods.
 
-- **dotted field paths** — `self.state.n` (nested data flattens to one threaded slot per path)
-- **subjectless transitions** — `transition { _ -> x() }` (subject ≔ 0)
-- **`state name(&mut self)` headers** and **state-body `let`s** (collected machine-wide, deduped)
-- **state arguments** — `state report(&mut self, code: i32)` + arm `-> report(70)`. Params register
-  as machine locals; an arm's argument expressions are passed inline at those slots' positions in
-  that arm's state call (branch-correct — no cross-arm pre-evaluation)
-- `use` declarations, data attributes `[copy, zero_init]`, `in Trapping/...` domain annotations, and
-  `as i32`-style widening casts are tolerated syntactically (semantic no-ops while values stay in
-  range — a sample whose checks depend on saturation/wrap-around at the boundary is excluded)
+- **`convergence-reference.sh`** — the proof-carrying loop with **no Rust anywhere**: certifiers
+  (incl. the omega safety obligations `certify-lt/bounds/accesses/safety` and the certifying compiler
+  frontend `certify-source`) are translated by `omega2gamma.beta`, *run* by `interp.beta`, and their
+  delta certificates checked by `check.beta` — all on the alpha→beta→bc lineage. Mutated certs and
+  unsafe source are rejected.
 
-This is **not yet** omega's full meaning: slices, strings, enums/cases, contracts, state arguments,
-and cross-data method calls are outside the subset, and omega-rs native execution is not yet
-cross-checked against this route (that is translation validation, decision D3). The subset grows
-slice by slice, exactly as epsilon's did.
+## What this is not yet
+
+Omega's *full* meaning: slices, strings, enum cases, contracts surface, floats (interp-blocked), and
+bitwise (seed-blocked) are outside the subset. omega-rs native execution is not yet cross-checked
+per-compilation against this route — that is translation validation (decision D3), the intended
+next deep arc. The subset grows slice by slice, exactly as it has since slice 0.

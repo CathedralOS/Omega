@@ -3,12 +3,12 @@
 #
 # epsilon-rs/convergence-reference.sh runs a certifier down the MEANING route, but its epsilon->gamma
 # translator is `EPS_EMIT=gamma` (Rust gamma_emit.rs). This is the same loop with that last Rust step
-# removed: `epsilon/eps2gamma.beta` (Rust-free, alpha->beta->bc) translates the certifier to gamma,
+# removed: `omega2gamma.beta` (Rust-free, alpha->beta->bc) translates the certifier to gamma,
 # `gamma/interp.beta` (Rust-free) EXECUTES it and emits the certificate, and `delta/check.beta` (Rust-free)
 # accepts it. Every artifact in the loop is in the hand-audited alpha-rooted lineage — so a real epsilon
 # program's MEANING is computed, and its emitted proof checked, with zero Rust in the chain.
 #
-#   certify-add '2 3'  --(eps2gamma.beta)-->  gamma  --(interp.beta)-->  (= (p (s (s z)) ...) ...) (refl ...)
+#   certify-add '2 3'  --(omega2gamma.beta)-->  gamma  --(interp.beta)-->  (= (p (s (s z)) ...) ...) (refl ...)
 #                                                                        --(check.beta)-->  accept
 #
 # Covers diverse cert kinds AND, crucially, the OMEGA SAFETY OBLIGATIONS a verifying compiler emits — array
@@ -27,12 +27,12 @@ ASM=../beta/$BETA_SEED
 ( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "convergence-reference(rust-free) FAIL — bc build"; exit 1; }
 b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-b eps2gamma.beta        "$T/e2g.exe"    || { echo "convergence-reference(rust-free) FAIL — build eps2gamma.beta"; exit 1; }
+b omega2gamma.beta      "$T/e2g.exe"    || { echo "convergence-reference(rust-free) FAIL — build omega2gamma.beta"; exit 1; }
 b ../gamma/interp.beta  "$T/interp.exe" || { echo "convergence-reference(rust-free) FAIL — build interp.beta"; exit 1; }
 b ../delta/check.beta   "$T/check.exe"  || { echo "convergence-reference(rust-free) FAIL — build check.beta"; exit 1; }
 
 PASS=0; FAIL=0
-# _emit SAMPLE "ascii-stdin" : eps2gamma translates the certifier; interp.beta runs it with that stdin
+# _emit SAMPLE "ascii-stdin" : omega2gamma translates the certifier; interp.beta runs it with that stdin
 # (the ASCII is turned into the gamma byte list baked into the STDIN placeholder); prints the emitted cert.
 _emit() {
   bytes=$(printf '%s' "$2" | od -An -tu1 | tr ' ' '\n' | grep -vE '^$')
@@ -87,5 +87,5 @@ refbad certify-safety   "b 2 5 3 4  d 7"   's/(s (s (s (s (s (s z))))))/(s (s (s
 ref    certify-source "arr 4 5  get 2 3  div 7  get 1 0" accept
 refnot certify-source "arr 2 3  get 5 5"                          # out-of-bounds source -> no accepted proof
 
-echo "reference-route convergence, RUST-FREE (eps2gamma.beta -> interp.beta; cert checked by check.beta): $PASS ok, $FAIL failed"
+echo "reference-route convergence, RUST-FREE (omega2gamma.beta -> interp.beta; cert checked by check.beta): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

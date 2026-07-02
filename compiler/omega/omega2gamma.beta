@@ -1,4 +1,4 @@
-; eps2gamma.beta — the epsilon/omega -> gamma MEANING translator, written in Beta (Rust-FREE).
+; omega2gamma.beta — the Omega -> gamma MEANING translator (covers the Omega KERNEL SUBSET, née epsilon), written in Beta (Rust-FREE).
 ;
 ; Rust-free counterpart to epsilon-rs/src/gamma_emit.rs. rungs/epsilon.md: epsilon's meaning is defined
 ; by the reference interpreter, not the native backend. gamma_emit.rs pins that meaning but is RUST; this

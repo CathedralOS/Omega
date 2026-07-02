@@ -2,7 +2,7 @@
 # OMEGA MEANING (slice 0) — real Omega sample programs, run down the RUST-FREE meaning route.
 #
 # The lattice's meaning-by-elaboration route (decision D2) now reaches the SUMMIT rung: an Omega
-# program is translated to gamma by `epsilon/eps2gamma.beta` (which understands the shared
+# program is translated to gamma by `omega2gamma.beta` (which understands the shared
 # epsilon/omega machine surface — dotted field paths `self.state.n`, subjectless transitions,
 # `state name(&mut self)` headers, state-body lets) and EXECUTED by `gamma/interp.beta`. Both are
 # Rust-free (alpha->beta->bc lineage). Each sample's exit code must equal the "Expected exit: N"
@@ -10,7 +10,7 @@
 #
 # omega-rs (the Rust reference producer) is NOT in this loop; it remains the untrusted fast
 # compiler this meaning is one day checked against (translation validation, decision D3). The
-# subset grows exactly as eps2gamma's omega surface grows; samples outside it simply aren't listed.
+# subset grows exactly as omega2gamma's surface grows; samples outside it simply aren't listed.
 # Needs no cargo/clang — only bc. No `set -e`: exit codes are data here.
 cd "$(dirname "$0")"
 . ../alpha/seed_env.sh
@@ -19,7 +19,7 @@ ASM=../beta/$BETA_SEED
 ( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null ) || { echo "omega-meaning FAIL — bc build"; exit 1; }
 b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-b ../epsilon/eps2gamma.beta "$T/e2g.exe"    || { echo "omega-meaning FAIL — build eps2gamma.beta"; exit 1; }
+b omega2gamma.beta          "$T/e2g.exe"    || { echo "omega-meaning FAIL — build omega2gamma.beta"; exit 1; }
 b ../gamma/interp.beta      "$T/interp.exe" || { echo "omega-meaning FAIL — build interp.beta"; exit 1; }
 
 PASS=0; FAIL=0
@@ -71,5 +71,5 @@ om width_mixer               # 70 — self-verified (mixed-width fields, casts i
 # feature tests (constructs not isolated by any committed sample):
 omt cross_data               # 63 — Counter::bump/get unify self.value with Main's self.counter.value
 
-echo "omega meaning slice 0 (Omega samples run Rust-free via eps2gamma.beta -> interp.beta): $PASS ok, $FAIL failed"
+echo "omega meaning (Omega samples run Rust-free via omega2gamma.beta -> interp.beta): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
