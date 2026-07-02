@@ -187,29 +187,34 @@ if [ -f ../beta-lang-rs/examples/calc.beta ]; then
 fi
 
 # ============================================================================================
-# THE REAL THING — true diverse double compilation of bc itself. bc2.py now compiles the whole
-# bc.beta. Build the compiler two independent ways and check they compile bc.beta IDENTICALLY:
-#   official : bc.beta --(Rust on-ramp)--> bc0 ; asmO = bc0(bc.beta)      [the shipped lineage]
-#   diverse  : bc.beta --(bc2.py, Python)--> bcA ; asmA = bcA(bc.beta)    [the independent path]
-# If asmO == asmA byte-for-byte, the compilation of bc is independent of which bootstrap compiler
-# produced it — a Trojan in either path would have to be present, identically, in BOTH. That is the
-# defence the self-host fixed point alone cannot give. (selfhost.sh already proves bc0(bc.beta) is a
-# fixed point, so comparing against bc0(bc.beta) is comparing against the canonical bc compilation.)
-BC=../beta-lang/bc.beta
-if [ -f "$BC" ]; then
-  if build "$BC" "$BCRS" && cp "$T/o.exe" "$T/bc0.exe" \
-     && "$T/bc0.exe" < "$BC" > "$T/asmO" 2>/dev/null; then
-    if build "$BC" python3 bc2.py && cp "$T/o.exe" "$T/bcA.exe" \
-       && "$T/bcA.exe" < "$BC" > "$T/asmA" 2>/dev/null; then
-      if cmp -s "$T/asmO" "$T/asmA"; then
-        PASS=$((PASS+1))
-        echo "  bc DDC: bcA(bc.beta) == bc0(bc.beta) byte-for-byte ($(wc -l < "$T/asmO" | tr -d ' ') lines) — the Thompson gap is closed"
-      else
-        FAIL=$((FAIL+1)); echo "  FAIL bc DDC: the two independent compilations of bc.beta DIFFER"
-      fi
-    else FAIL=$((FAIL+1)); echo "  FAIL bc DDC: bc2.py path could not build/run bcA: $(cat "$T/e" 2>/dev/null)"; fi
-  else FAIL=$((FAIL+1)); echo "  FAIL bc DDC: on-ramp path could not build bc0"; fi
+# THE REAL THING — true diverse double compilation of the whole TRUST SURFACE. bc2.py compiles all
+# of these; build the Beta compiler two independent ways and check each program compiles IDENTICALLY:
+#   official : prog --(Rust on-ramp)--> bc0 ; asmO = bc0(prog)      [the shipped lineage]
+#   diverse  : prog --(bc2.py, Python)--> bcA ; asmA = bcA(prog)    [the independent path]
+# If asmO == asmA byte-for-byte for EVERY trust-critical Beta program — bc itself, AND the checker,
+# the meaning interpreter, the type checker, the omega elaborator — then their compilation is
+# independent of which bootstrap compiler produced it: a Trojan would have to sit, identically, in
+# BOTH independent paths. Agreement on bc.beta alone does not imply agreement on all programs, so we
+# check the actual programs whose compilation determines trust. (selfhost.sh proves bc0(bc.beta) is a
+# fixed point, so bc0 is the canonical bc.)
+if build ../beta-lang/bc.beta "$BCRS" && cp "$T/o.exe" "$T/bc0.exe" \
+   && build ../beta-lang/bc.beta python3 bc2.py && cp "$T/o.exe" "$T/bcA.exe"; then
+  for prog in ../beta-lang/bc.beta ../delta/check.beta ../delta/eq.beta \
+              ../gamma/interp.beta ../gamma/typeck.beta ../omega/omega2gamma.beta; do
+    [ -f "$prog" ] || continue
+    if ! python3 bc2.py < "$prog" > /dev/null 2>"$T/e"; then
+      FAIL=$((FAIL+1)); echo "  FAIL DDC $prog : bc2.py cannot compile it: $(head -1 "$T/e")"; continue; fi
+    "$T/bc0.exe" < "$prog" > "$T/asmO" 2>/dev/null
+    "$T/bcA.exe" < "$prog" > "$T/asmA" 2>/dev/null
+    if cmp -s "$T/asmO" "$T/asmA"; then
+      PASS=$((PASS+1)); echo "  DDC $(basename "$prog"): bc0 == bcA ($(wc -l < "$T/asmO" | tr -d ' ') asm lines)"
+    else
+      FAIL=$((FAIL+1)); echo "  FAIL DDC $prog : the two independent compilations DIFFER"; fi
+  done
+  echo "  => the Thompson gap is closed for the whole Beta trust surface, not just bc"
+else
+  FAIL=$((FAIL+1)); echo "  FAIL DDC : could not build both compilers"
 fi
 
-echo "diverse double compilation (bc2.py — independent Rust-free Beta front-end — agrees with the on-ramp, both assembled + run; incl. true DDC of bc itself): $PASS ok, $FAIL failed"
+echo "diverse double compilation (bc2.py — independent Rust-free Beta front-end — agrees with the on-ramp; incl. true DDC of bc AND the whole trust surface): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
