@@ -1,0 +1,49 @@
+// A tick-PACED marquee -- the first render loop verified against REAL elapsed time. A '#'
+// sweeps across a carrier line for 24 frames at ~15ms each (write_line + Clock.sleep), and
+// the loop's wall-clock cost is then ASSERTED with the value-returning tick_count import:
+// elapsed = t_end - t_start >= 100ms. Natively GetTickCount64 measures real Sleep time; the
+// interpreter's virtual clock advances by the slept milliseconds, so the same arithmetic
+// holds deterministically. Composes: value-returning host imports in a live render loop,
+// carrier byte writes at a runtime index, per-frame host output, and Wrapping u64 tick math.
+// Expected exit: 0.
+// Expected output contains: #
+use omega::language::std::console;
+domain [u8; 12]::Utf8 when valid_utf8(self) {}
+boundary trait Clock2 { machine sleep(milliseconds: u32); machine tick_count() -> u64; }
+data Main {
+    console: Console;
+    clock: Clock2;
+    line: [u8; 12] in Utf8;
+    frame: u32 in Wrapping;
+    pos: u32 in Wrapping;
+    t_start: u64 in Wrapping;
+    t_end: u64 in Wrapping;
+    elapsed: u64 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.t_start = self.clock.tick_count();
+    self.frame = 0;
+    transition { _ -> frame_loop() }
+    state frame_loop(&mut self) {
+        transition self.frame < 24 { true -> draw() _ -> finish() }
+    }
+    state draw(&mut self) {
+        self.line = "            ";
+        self.pos = self.frame % 12;
+        transition self.pos < 12 { true -> put() _ -> finish() }
+    }
+    state put(&mut self) {
+        self.line[self.pos] = 35;
+        self.console.write_line(self.line);
+        self.clock.sleep(15);
+        self.frame = self.frame + 1;
+        transition { _ -> frame_loop() }
+    }
+    state finish(&mut self) {
+        self.t_end = self.clock.tick_count();
+        self.elapsed = self.t_end - self.t_start;
+        transition self.elapsed >= 100 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self)  { self.console.exit_process(0); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}

@@ -1935,13 +1935,21 @@ impl<'program> Evaluator<'program> {
                 Ok(Some(Value::Bool(!line.is_empty())))
             }
             "sleep" => {
-                // Frame pacing: a no-op for the interpreter. Real-time delay has no
-                // effect on the deterministic state the differential oracle compares
-                // (exit code + stdout), so native and interpreter still agree.
-                // It DOES advance the virtual tick counter, so a
-                // tick-after-sleep reads strictly later than a tick-before --
-                // matching the native monotonicity a canary asserts.
-                self.virtual_ticks += 1;
+                // Frame pacing: no REAL delay in the interpreter (real time has no
+                // effect on the deterministic state the differential oracle
+                // compares), but the VIRTUAL clock advances by the slept
+                // milliseconds -- so tick-paced programs observe the same elapsed
+                // arithmetic natively (where GetTickCount64 advances across a real
+                // Sleep) and virtually.
+                let slept = arguments
+                    .first()
+                    .and_then(|argument| self.eval_expression(*argument, frame).ok())
+                    .and_then(|value| match value {
+                        Value::Int(ms) => Some(ms.max(1)),
+                        _ => None,
+                    })
+                    .unwrap_or(1);
+                self.virtual_ticks += slept;
                 Ok(Some(Value::Unit))
             }
             "tick_count" => {
