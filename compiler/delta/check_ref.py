@@ -9,9 +9,11 @@
 # gamma_ref.py (meaning). This is that reference for the checker's core: intuitionistic propositional logic
 # (->, &, +, bot with intro+elim), PLUS first-order (All/Exists, de Bruijn), equality by conversion (refl +
 # Peano/list/user-function normalization), and the FULL induction fragment (natind/listind/eqelim/disj/sinj).
-# check-ref-diamond.sh fuzzes it against check.beta on random propositional/FO/equality/TV proofs and a curated
-# induction corpus, requiring identical accept/reject. UNTRUSTED and checked, like the other *_ref tools; a bug
-# here (or in check.beta) surfaces as a disagreement — an independent, auditable realization of every check.beta rule.
+# PLUS the inductive predicates Mem/ProdIs/Perm (Rel 777/778/779) that the number-theory layer is built on.
+# check-ref-diamond.sh fuzzes it against check.beta on random propositional/FO/equality/TV proofs and curated
+# induction + predicate corpora, requiring identical accept/reject. UNTRUSTED and checked, like the other *_ref
+# tools; a bug here (or in check.beta) surfaces as a disagreement. (Only user-lemma rec/use — the named-lemma
+# deep-assembly mechanism — is not yet mirrored here; that is the last remaining check_ref slice.)
 #
 # Proof := (hyp i) | (lam PROP p) | (app f x) | (pair a b) | (fst p) | (snd p)
 #        | (inl PROP p) | (inr PROP p) | (case s l r) | (absurd PROP p)
@@ -375,6 +377,59 @@ def infer(pf, ctx, idep=0):                            # ctx: list of (prop, pus
         if isinstance(a, list) and a[0] == 's' and isinstance(b, list) and b[0] == 's':
             return ['=', a[1], b[1]]
         return None
+    # ---- inductive predicates: Mem (Rel 777), ProdIs (Rel 778), Perm (Rel 779). Each intro rule mirrors
+    # check.beta exactly; the inversions are sound because the only closed sources of these Rels are the intros.
+    def as_rel(pf_sub, rid):                            # infer pf_sub, require it prove (Rel rid a b); return the prop
+        r = infer(pf_sub, ctx, idep)
+        return r if isinstance(r, list) and r[0] == 'Rel' and r[1] == rid else None
+    if h == 'memhead':                                 # (memhead x t): Mem(x, cons(x,t))
+        x, t = pf[1], pf[2]
+        return ['Rel', '777', x, ['cons', x, t]]
+    if h == 'memtail':                                 # (memtail h pf): from Mem(x,t) infer Mem(x, cons(h,t))
+        r = as_rel(pf[2], '777')
+        return ['Rel', '777', r[2], ['cons', pf[1], r[3]]] if r else None
+    if h == 'memcons':                                 # (memcons pf): from Mem(x, cons(h,t)) infer (x=h) + Mem(x,t)
+        r = as_rel(pf[1], '777')
+        if not r:
+            return None
+        L = normalize(r[3])
+        if not (isinstance(L, list) and L[0] == 'cons'):
+            return None
+        return ['+', ['=', r[2], L[1]], ['Rel', '777', r[2], L[2]]]
+    if h == 'memnil':                                  # (memnil pf): from Mem(x, nil) infer falsity
+        r = as_rel(pf[1], '777')
+        return ['bot'] if r and normalize(r[3]) == 'nil' else None
+    if h == 'pnil':                                    # (pnil): ProdIs(nil, 1)
+        return ['Rel', '778', 'nil', ['s', 'z']]
+    if h == 'pcons':                                   # (pcons h pf): from ProdIs(t,m) infer ProdIs(cons h t, h*m)
+        r = as_rel(pf[2], '778')
+        return ['Rel', '778', ['cons', pf[1], r[2]], ['m', pf[1], r[3]]] if r else None
+    if h == 'prodnilinv':                              # (prodnilinv pf): from ProdIs(nil, n) infer n = 1
+        r = as_rel(pf[1], '778')
+        return ['=', r[3], ['s', 'z']] if r and normalize(r[2]) == 'nil' else None
+    if h == 'prodconsinv':                             # (prodconsinv pf): from ProdIs(cons h t, n) infer ∃m. n=h*m & ProdIs(t,m)
+        r = as_rel(pf[1], '778')
+        if not r:
+            return None
+        L = normalize(r[2])
+        if not (isinstance(L, list) and L[0] == 'cons'):
+            return None
+        n1, h1, t1s = shift_term(r[3], 1, 0), shift_term(L[1], 1, 0), shift_term(L[2], 1, 0)
+        return ['Exists', ['&', ['=', n1, ['m', h1, ['v', '0']]], ['Rel', '778', t1s, ['v', '0']]]]
+    if h == 'permnil':                                 # (permnil): Perm(nil, nil)
+        return ['Rel', '779', 'nil', 'nil']
+    if h == 'permskip':                                # (permskip x pf): from Perm(a,b) infer Perm(cons x a, cons x b)
+        r = as_rel(pf[2], '779')
+        return ['Rel', '779', ['cons', pf[1], r[2]], ['cons', pf[1], r[3]]] if r else None
+    if h == 'permswap':                                # (permswap x y r): Perm(cons x (cons y r), cons y (cons x r))
+        x, y, rest = pf[1], pf[2], pf[3]
+        return ['Rel', '779', ['cons', x, ['cons', y, rest]], ['cons', y, ['cons', x, rest]]]
+    if h == 'permtrans':                               # (permtrans pf1 pf2): from Perm(a,b) & Perm(b,c) infer Perm(a,c)
+        r1 = as_rel(pf[1], '779')
+        r2 = as_rel(pf[2], '779')
+        if not (r1 and r2 and conv(r1[3], r2[2])):     # shared middle term matches up to conversion
+            return None
+        return ['Rel', '779', r1[2], r2[3]]
     return None
 
 def register(forms):

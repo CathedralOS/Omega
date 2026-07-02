@@ -5,8 +5,8 @@
 # rules, (k ..) constructors, (f ..) applications). For K random valid certs, check.beta and the independent
 # reference check_ref.py must AGREE: both accept each cert, and both reject a perturbed (wrong-value/wrong-
 # type) variant. So check_ref independently validates not just the checker's logic but the REAL TV certs.
-# Deterministic (fixed seed). A curated induction corpus (natind/listind/eqelim/disj/sinj, incl. nil/cons/
-# app/len normalization) is also cross-checked, so check_ref now realizes EVERY rule of the trust anchor.
+# Deterministic (fixed seed). Curated induction (natind/listind/eqelim/disj/sinj) and inductive-predicate
+# (Mem/ProdIs/Perm) corpora are also cross-checked — check_ref now mirrors all but the named-lemma rec/use.
 import sys, os, random, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import check_ref
@@ -192,13 +192,42 @@ IND_CORPUS = [
     ("(= (len (cons z (cons z nil))) (s z)) (refl (s z))", "reject"),
 ]
 
+# ---- inductive-predicate corpus (Mem 777 / ProdIs 778 / Perm 779) ------------------------------------
+# The relations the number-theory layer (FTA) is built on. Intro rules (memhead/tail, pnil/pcons, permnil/
+# skip/swap/trans) and inversions (memcons/memnil, pnilinv/pconsinv) — check.beta and check_ref must agree.
+_ML = "(cons (s z) (cons (s (s z)) (cons (s (s (s z))) nil)))"       # [1,2,3]
+_MPF = "(memtail (s z) (memhead (s (s z)) (cons (s (s (s z))) nil)))"  # Mem(2,[1,2,3])
+_PL = "(cons (s (s z)) (cons (s (s (s z))) nil))"                      # [2,3]
+_P6 = "(m (s (s z)) (m (s (s (s z))) (s z)))"                          # 2*(3*1)
+_PPF = "(pcons (s (s z)) (pcons (s (s (s z))) (pnil)))"                # ProdIs([2,3],6)
+_RS = "(cons z (cons (s z) (cons (s (s z)) nil)))"                     # [0,1,2]
+_RD = "(cons (s z) (cons (s (s z)) (cons z nil)))"                     # [1,2,0]
+_RSW1 = "(permswap z (s z) (cons (s (s z)) nil))"
+_RSW2 = "(permskip (s z) (permswap z (s (s z)) nil))"
+PRED_CORPUS = [
+    ("(Rel 777 (s (s z)) %s) %s" % (_ML, _MPF), "accept"),
+    ("(Rel 777 (s (s (s (s (s z))))) %s) %s" % (_ML, _MPF), "reject"),        # 5 ∉ [1,2,3]
+    ("(Rel 778 %s %s) %s" % (_PL, _P6, _PPF), "accept"),
+    ("(Rel 778 %s (s %s)) %s" % (_PL, _P6, _PPF), "reject"),                  # product ≠ 7
+    ("(Rel 779 %s %s) (permtrans %s %s)" % (_RS, _RD, _RSW1, _RSW2), "accept"),
+    ("(Rel 779 %s (cons (s z) (cons (s (s z)) (cons (s (s (s (s (s z))))) nil)))) (permtrans %s %s)" % (_RS, _RSW1, _RSW2), "reject"),
+    ("(+ (= (s (s z)) (s z)) (Rel 777 (s (s z)) %s)) (memcons %s)" % (_PL, _MPF), "accept"),   # memcons inversion
+    ("(-> (Rel 777 z nil) (bot)) (lam (Rel 777 z nil) (memnil (hyp 0)))", "accept"),          # memnil inversion
+    ("(-> (Rel 777 z (cons z nil)) (bot)) (lam (Rel 777 z (cons z nil)) (memnil (hyp 0)))", "reject"),
+    ("(= (m (s (s z)) (s z)) (s z)) (prodnilinv (pcons (s (s z)) (pnil)))", "reject"),   # ProdIs([2],2), nil-inv N/A
+    ("(-> (Rel 778 nil (s (s z))) (= (s (s z)) (s z))) (lam (Rel 778 nil (s (s z))) (prodnilinv (hyp 0)))", "accept"),
+    ("(Exists (& (= (m (s (s z)) (s z)) (m (s (s z)) (v 0))) (Rel 778 nil (v 0)))) (prodconsinv (pcons (s (s z)) (pnil)))", "accept"),
+    ("(All (All (All (-> (Rel 778 (cons (v 2) (v 1)) (v 0)) (Exists (& (= (v 1) (m (v 3) (v 0))) (Rel 778 (v 2) (v 0)))))))) (gen (gen (gen (lam (Rel 778 (cons (v 2) (v 1)) (v 0)) (prodconsinv (hyp 0))))))", "accept"),
+    ("(All (All (All (-> (Rel 778 (cons (v 2) (v 1)) (v 0)) (Exists (& (= (v 1) (m (v 0) (v 3))) (Rel 778 (v 2) (v 0)))))))) (gen (gen (gen (lam (Rel 778 (cons (v 2) (v 1)) (v 0)) (prodconsinv (hyp 0))))))", "reject"),
+]
+
 fails = 0; n = 0
-for cert, expect in IND_CORPUS:
+for cert, expect in IND_CORPUS + PRED_CORPUS:
     n += 1
     vb, vr = verdict_beta(cert), verdict_ref(cert)
     if not (vb == vr == expect):
         fails += 1
-        print("  FAIL (induction) beta=%s ref=%s want=%s : %s" % (vb, vr, expect, cert[:160]))
+        print("  FAIL (corpus) beta=%s ref=%s want=%s : %s" % (vb, vr, expect, cert[:160]))
 for _ in range(K):
     r = random.random()
     if r < 0.35:                                       # propositional
