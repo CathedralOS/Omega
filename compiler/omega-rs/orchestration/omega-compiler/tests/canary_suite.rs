@@ -11329,6 +11329,62 @@ fn runtime_nested_payload_range_narrowing_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_guard_proven_counter_exit_canary_runs() {
+    // The de-Trapping keystone: a state entered through `count < 5` proves
+    // `count = count + 1` into [0..=100] -- Exact, no domain. Exit 70.
+    let canary = pass_canary("arithmetic/runtime_guard_proven_counter_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gpc-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guard-proven counter canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guard-proven counter canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the guard-proven counter to reach 5 (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_guard_narrowed_transition_arg_exit_canary_runs() {
+    // The co-located face: the arm guard narrows `count + 1` into the ranged
+    // parameter. Exit 70.
+    let canary = pass_canary("arithmetic/runtime_guard_narrowed_transition_arg_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gnta-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guard-narrowed transition arg canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guard-narrowed transition arg canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the narrowed argument to store 1 (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_gui_window_lifecycle_exit_canary_runs() {
     // Message pump + lifecycle: create an invisible window, drain PeekMessageW (bounded),
     // IsWindow > 0, DestroyWindow > 0, IsWindow == 0. Exit 70. CI-safe.
@@ -17572,6 +17628,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_modulo_value",
     "arithmetic/runtime_modulo_div_narrowing_exit",
     "arithmetic/runtime_nested_payload_range_narrowing_exit",
+    "arithmetic/runtime_guard_proven_counter_exit",
+    "arithmetic/runtime_guard_narrowed_transition_arg_exit",
     "arithmetic/runtime_saturating_domain_exit",
     "arithmetic/runtime_fnv1a_hash_exit",
     "arithmetic/runtime_min_max_clamp_narrowing_exit",
@@ -17927,6 +17985,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/bounded_assignment_unproven",
     "arithmetic/nested_field_exact_overflow_rejected",
     "arithmetic/zii_range_excludes_zero_rejected",
+    "arithmetic/guard_invalidated_by_prior_write_rejected",
     "arithmetic/struct_field_arithmetic_unproven",
     "arithmetic/transition_arg_unguarded_overflow",
     "domains/type_constraint_unknown_domain",

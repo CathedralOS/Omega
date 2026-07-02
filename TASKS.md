@@ -199,16 +199,38 @@ Toward abort-as-an-effect (#65): trapping should eventually be visible at main. 
   dropped 2 Trapping fields). The MODULAR-COUNTER idiom is the one
   Exact-provable bounded counter today: `c: i32 [0..=N]` + `c = (c + 1) % (N+1)`.
 
-**THE DE-TRAPPING KEYSTONE (open, high leverage):** loop-carried arithmetic
-cannot use dominating GUARDS today -- cross-state guard narrowing for the
-arithmetic obligations is pinned unsupported (fail/arithmetic/
-bounded_guarded_increment_unproven), and even co-located transition-arg
-narrowing (`transition c < 100 { true -> bump(c + 1) }` into a ranged param)
-fails (probed 2026-07-02). The index prover ALREADY carries bounds cross-state
-(incoming_guards back-walk, reassignment-invalidating); extending S3/S4 to
-consume the same dominating-guard fact flow would unlock guard-proven counters
-and de-Trap most of the 41 Trapping samples. Until then, bounded counters use
-the modular idiom and genuine accumulators declare Wrapping.
+**THE DE-TRAPPING KEYSTONE -- LANDED (same day):** the bounded-place
+obligations (omega-proof checker) now refine `<place> +/- K` values by the
+DOMINATING GUARD: the value's folded range inverts to the place's bound, the
+guard tightens it (apply_handle_condition: structural place match, `&&`,
+either literal side), and the refold intersects back. Two faces:
+- ASSIGNMENT (incoming-edge guard, all edges must agree): gated by a STABILITY
+  check -- every earlier statement in the state must be a call-free local/
+  assignment writing a provably DISJOINT place (member-path prefix aliasing;
+  indexed writes alias their collection only -- so the render-loop shape
+  `arr[i] = px; i = i + 1` stays provable). Enforcement canary:
+  fail/arithmetic/guard_invalidated_by_prior_write_rejected (a prior write to
+  the counter must still reject).
+- CO-LOCATED transition args (the arm's own guard; no gap to gate -- but
+  collection DOWNGRADES the guard when any sibling argument contains a call,
+  which could mutate the guarded place between guard and argument evaluation).
+Pass canaries (differential): runtime_guard_proven_counter_exit +
+runtime_guard_narrowed_transition_arg_exit. The natural loop
+`transition i < N { true -> body } ... i = i + 1` now proves EXACT with
+`i: i32 [0..=N]`. samples/window_demo + window_app are converted FULLY EXACT
+(zero domains in a real interactive windowed renderer).
+
+**De-Trapping sweep (remaining, ~39 samples), the RECIPE + its walls:**
+convert counters to `i32 [0..=N]`; ensure the increment's DIRECT incoming edge
+carries the bound (add a re-guard state when the original guard is several
+states upstream -- the keystone reads direct edges only, no back-walk yet);
+fold masked pattern math through `% K` (modulo bounds; `& mask` does not feed
+the constraint fold). WALLS FOUND (2026-07-02): (a) NO ARRAY-ELEMENT RANGES --
+`cells: [i32; 64]` elements are unbounded, so CA/grid samples whose VALUES
+flow through arrays (cellular_automaton's cell/window dataflow) cannot fully
+convert; needs element-range syntax + enforcement (design-adjacent); (b) no
+multi-hop guard back-walk (re-guard states are the workaround); (c) genuine
+accumulators/PRNG/hash (xorshift, FNV, gcd) correctly KEEP declared Wrapping.
 
 **Abort-as-effect (#65) design sketch (chat, NOT settled):** every trap-capable
 site (`in Trapping`, future assert/panic) carries an `abort` effect threaded to

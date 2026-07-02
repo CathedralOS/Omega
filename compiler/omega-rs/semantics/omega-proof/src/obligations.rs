@@ -698,6 +698,14 @@ fn collect_bounded_transition_argument_obligations(
         return;
     };
 
+    // The arm guard and its arguments evaluate at the same dispatch, so the
+    // guard soundly narrows argument places -- UNLESS a sibling argument
+    // contains a call, which may mutate the guarded place between the guard's
+    // evaluation and a later argument's. Downgrade the guard to Always then.
+    let arguments_are_call_free = arguments
+        .iter()
+        .all(|argument| !expression_contains_call_node(program, *argument));
+
     for (parameter, argument) in callable_parameters(program, target_state).zip(arguments.iter()) {
         let Some((base_type, constraints)) =
             constrained_type_reference(program, parameter.type_reference)
@@ -722,9 +730,39 @@ fn collect_bounded_transition_argument_obligations(
                 argument_constraints,
                 base_type,
                 constraints,
-                guard: transition_guard,
+                guard: if arguments_are_call_free {
+                    transition_guard
+                } else {
+                    TransitionGuardNode::Always
+                },
             },
         ));
+    }
+}
+
+/// Whether any `Call` node appears in the expression tree (an opaque effect:
+/// a value-machine call may mutate fields through `&mut self`).
+fn expression_contains_call_node(program: &TypedTrees, expression: ExpressionHandle) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Call(_) => true,
+        ExpressionNode::Binary(binary) => {
+            expression_contains_call_node(program, binary.left)
+                || expression_contains_call_node(program, binary.right)
+        }
+        ExpressionNode::Unary(unary) => expression_contains_call_node(program, unary.operand),
+        ExpressionNode::Cast(cast) => expression_contains_call_node(program, cast.value),
+        ExpressionNode::Mutable(inner) => expression_contains_call_node(program, *inner),
+        ExpressionNode::Indexed(indexed) => {
+            expression_contains_call_node(program, indexed.collection)
+                || expression_contains_call_node(program, indexed.index)
+        }
+        ExpressionNode::Member(member) => {
+            expression_contains_call_node(program, member.receiver)
+        }
+        _ => false,
     }
 }
 
