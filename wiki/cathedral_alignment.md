@@ -104,7 +104,20 @@ implementation work. Each one gets more expensive to retrofit every month.
    `asm { jmp state(...) }` (CR3/MSR/port-IO instruction contracts — the
    appendix already lists the open questions; they need answers). The direct
    image emission bet is aligned with this; the gap is the freestanding
-   flavor of it.
+   flavor of it. **Worked samples now exist**
+   (`design_briefs/freestanding_boot_and_hardware_facts.md`, 2026-07-02): six
+   samples walk a UEFI x86-64 handoff (entry provider → memory-map exit dance →
+   MMIO/volatile → CR3/MSR → interrupt mask → interrupt entry). They surface
+   that boot needs **no new `unsafe` regime** — every act is a declared axiom at
+   an enumerable boundary — and that the *one* genuinely new language ask is
+   **world facts**: machine-state facts (`paging_active`, `interrupts in
+   Irq::Masked`, `boot_services in Efi::Exited`) that are established, required,
+   and *revoked* across machines — affine/state-threaded, unlike value
+   invariants. Leading candidate encoding is the ch21 evidence-token pattern
+   (private-mint guard whose ownership IS the fact); the open test is the
+   unscoped `paging_active` case. Design world facts before implementing the
+   freestanding target — the representation is shared with ordinary
+   `requires`/`ensures`.
 
 8. **Case members (sum/mixed data shapes)** — SUM SHAPES IMPLEMENTED
    (2026-06-10): `case` members with named payloads parse, validate,
