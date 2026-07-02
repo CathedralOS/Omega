@@ -76,11 +76,42 @@ returning import + store-rax, `tick_count`), rung 3 (multi-DLL import table),
 rung 6 (input, `key_state` via user32). This is the differential-testable tier;
 it is DONE.
 
-The WINDOWED tier below is a distinct DEDICATED-SESSION effort: it is a large
-integration bundle (see the rung list) AND it is inherently NOT differential-
-canary-able -- the interpreter cannot open a window and a window's output is not
-stdout, so its canaries are compile-only + manual-run samples, unlike every
-rendered app above. Do it as one focused push, not loop-sized increments.
+### WINDOWED TIER LANDED (2026-07-01, the dedicated session)
+
+The "not differential-canary-able" concern above was WRONG -- two techniques
+fixed it: (a) `CreateCompatibleDC(0)` gives a CI-safe memory-DC blit target
+(nothing visible, real gdi32 pixels), and (b) StretchDIBits RETURNS the copied
+source scanline count (probed: full height even into the memory DC's default
+1x1 bitmap, and the SOURCE height when stretching), so a blit is exit-code
+assertable and the interpreter's virtual GDI mirrors it. What landed:
+
+- **General Win64 import-call encoder** (`encode_win64_import_call`): stack
+  args at [rsp+32+8k] with 16-byte call alignment (pad 8 when the slot count is
+  even), `RuntimeStorageAddress` operands (lea through the relocated r15 region
+  base -- framebuffer as LPVOID, OS structs as inline arrays, byte-array C
+  strings), width-honoring result store (4-byte results store eax). TickCount
+  re-routed through it byte-identically.
+- **`Gui` capability** (x86_64-gated lowerings; other arches get a clean
+  UnsupportedHostCall): `dc_create` (CreateCompatibleDC), `get_dc` (GetDC),
+  `window_create` (CreateWindowExA via the built-in "STATIC" class -- rung 8's
+  WNDCLASS/DefWindowProc/message-pump bundle DODGED entirely), `blit`
+  (StretchDIBits, 13 ABI args, separate dest/src sizes so a small framebuffer
+  stretches). All value-returning, all REQUIRE the assignment form
+  (statement-position lowers to no operands -> clean encoder error, #40).
+- **BITMAPINFO as a plain [i32;11]** built in Omega code (biSize=40, negative
+  biHeight for top-down, packed planes|bitcount word) -- no format-domain codec
+  needed for the MVP; identity-layout arrays ARE the hot path the brief
+  predicts.
+- Canaries (both differential): `host/runtime_gui_memory_dc_blit_exit` (CI-safe
+  memory DC) + `host/runtime_gui_window_blit_exit` (REAL invisible window ->
+  GetDC -> blit). Sample `samples/window_demo`: a visible WS_POPUP window, 60
+  frames of animated 64x64 wash stretched 4x, ~1.5s, exit-asserted.
+
+Remaining windowed-tier work (all incremental now): a message-pump op
+(PeekMessageW/DispatchMessageW + an MSG buffer) for long-lived/interactive
+windows; the PE GUI-subsystem toggle (headers.rs write_u16(3) -> 2) if a
+console-less exe is ever wanted; format-domain codecs when a NON-identity
+schema shows up; UTF-16 window text (CreateWindowExW) if titles matter.
 
 ### Tier 2 — windowed software renderer (the native-FFI ladder)
 > **DESIGN SETTLED 2026-07-01** — see

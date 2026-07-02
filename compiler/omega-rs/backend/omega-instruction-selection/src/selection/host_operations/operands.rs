@@ -137,6 +137,9 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Gui, operation) => {
+            select_gui_operation_operands(input, host_call, dispatch_index, operation, operands)
+        }
         (
             HostCapability::Process,
             HostOperation::Exit | HostOperation::ExitGroup | HostOperation::ExitProcess,
@@ -159,6 +162,124 @@ pub(super) fn select_host_operation_operands(
 
 pub(super) fn operand(kind: InstructionOperandKind) -> InstructionOperand {
     InstructionOperand { kind }
+}
+
+/// The SRCCOPY raster op (StretchDIBits' rop argument).
+const SRCCOPY: i64 = 0x00CC_0020;
+
+/// Build the FULL Win64 ABI operand list for a Gui import: `operands[0]` is the
+/// RESULT place (every Gui op is value-returning and must be used in the
+/// assignment form `self.h = self.gui.op(..)` -- the result-as-argument shape
+/// the host-call collection produces), the rest are the callee's arguments in
+/// call order, with the constant parameters the Omega surface hard-wires
+/// (styles/origins/rops) interleaved as immediates. Wrong-arity calls (e.g. a
+/// statement-position use, which has no result place) lower to NO operands, so
+/// the encoder hard-errors instead of silently mis-marshalling (#40).
+fn select_gui_operation_operands(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    operation: HostOperation,
+    operands: &mut Arena<InstructionOperand>,
+) -> HandleSpan<InstructionOperand> {
+    let arity = input
+        .host_calls
+        .arguments
+        .span(host_call.arguments)
+        .map_or(0, |arguments| arguments.len());
+    let scalar =
+        |index: usize| scalar_argument_operand_at(input, host_call, dispatch_index, index);
+    let address =
+        |index: usize| address_argument_operand_at(input, host_call, dispatch_index, index);
+    let imm = |value: i64| Some(InstructionOperandKind::ImmediateInteger(value));
+
+    let kinds: Option<Vec<InstructionOperandKind>> = match operation {
+        // dc_create() -> CreateCompatibleDC(NULL): [result].
+        HostOperation::DcCreate if arity == 1 => {
+            [scalar(0), imm(0)].into_iter().collect()
+        }
+        // get_dc(hwnd) -> GetDC(hwnd): [result, hwnd].
+        HostOperation::GetDc if arity == 2 => [scalar(0), scalar(1)].into_iter().collect(),
+        // window_create(class, title, style, x, y, w, h) ->
+        // CreateWindowExA(0, class, title, style, x, y, w, h, 0, 0, 0, 0).
+        HostOperation::WindowCreate if arity == 8 => [
+            scalar(0),
+            imm(0), // dwExStyle
+            address(1),
+            address(2),
+            scalar(3), // style
+            scalar(4), // x
+            scalar(5), // y
+            scalar(6), // width
+            scalar(7), // height
+            imm(0), // hWndParent
+            imm(0), // hMenu
+            imm(0), // hInstance (NULL works for the system STATIC class)
+            imm(0), // lpParam
+        ]
+        .into_iter()
+        .collect(),
+        // blit(hdc, dest_w, dest_h, src_w, src_h, pixels, info) ->
+        // StretchDIBits(hdc, 0, 0, dest_w, dest_h, 0, 0, src_w, src_h, pixels,
+        // info, DIB_RGB_COLORS, SRCCOPY). Separate dest/src sizes let a small
+        // framebuffer stretch into a larger window; the return value is the
+        // SOURCE scanline count (probed natively).
+        HostOperation::Blit if arity == 8 => [
+            scalar(0),
+            scalar(1),  // hdc
+            imm(0),     // xDest
+            imm(0),     // yDest
+            scalar(2),  // DestWidth
+            scalar(3),  // DestHeight
+            imm(0),     // xSrc
+            imm(0),     // ySrc
+            scalar(4),  // SrcWidth
+            scalar(5),  // SrcHeight
+            address(6), // bits
+            address(7), // BITMAPINFO
+            imm(0),     // DIB_RGB_COLORS
+            imm(SRCCOPY),
+        ]
+        .into_iter()
+        .collect(),
+        _ => None,
+    };
+    match kinds {
+        Some(kinds) => operands.insert_many(kinds.into_iter().map(operand)),
+        None => HandleSpan::empty(),
+    }
+}
+
+/// Resolve the host-call argument at `index` to the ADDRESS of its
+/// runtime-storage place -- the pointer-argument shape (a `[u32; N]`
+/// framebuffer, an OS-struct array, a byte-array C string). Unlike the scalar
+/// resolution there is no width filter: the place IS the whole array; its
+/// address is what marshals.
+fn address_argument_operand_at(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    index: usize,
+) -> Option<InstructionOperandKind> {
+    let argument = input
+        .host_calls
+        .arguments
+        .span(host_call.arguments)
+        .and_then(|arguments| arguments.get(index))?;
+    let HostCallArgumentKind::Expression(expression) = &argument.kind else {
+        return None;
+    };
+    resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index.unwrap_or(0),
+        host_call.source_key,
+        &input.host_calls.expressions,
+        *expression,
+    )
+    .map(|place| InstructionOperandKind::RuntimeStorageAddress {
+        region: place.region,
+        byte_offset: place.byte_offset,
+    })
 }
 
 /// File descriptor marshalled as the first `write` argument on the

@@ -20,6 +20,10 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     ("Clock", "sleep", "Kernel32.dll", "Sleep"),
     ("Clock", "tick_count", "Kernel32.dll", "GetTickCount64"),
     ("Input", "key_state", "User32.dll", "GetAsyncKeyState"),
+    ("Gui", "dc_create", "Gdi32.dll", "CreateCompatibleDC"),
+    ("Gui", "get_dc", "User32.dll", "GetDC"),
+    ("Gui", "window_create", "User32.dll", "CreateWindowExA"),
+    ("Gui", "blit", "Gdi32.dll", "StretchDIBits"),
 ];
 
 /// The DLL a Windows import symbol belongs to, per the catalog. `None` for
@@ -135,6 +139,40 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         [host_operation("Clock", "sleep")],
         PlatformCallData::None,
     );
+    // The windowed-renderer surface (user32/gdi32). The encoders exist only for
+    // x86_64 today; withholding the lowerings on other architectures turns a Gui
+    // call into a clean UnsupportedHostCall diagnostic instead of a selection
+    // panic (mirrors the carrier text ops, which are x86_64-only).
+    if plan.target.architecture == omega_target::Architecture::X86_64 {
+        insert_platform_lowering(
+            plan,
+            "*",
+            "dc_create",
+            [host_operation("Gui", "dc_create")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "*",
+            "get_dc",
+            [host_operation("Gui", "get_dc")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "*",
+            "window_create",
+            [host_operation("Gui", "window_create")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "*",
+            "blit",
+            [host_operation("Gui", "blit")],
+            PlatformCallData::None,
+        );
+    }
 }
 
 fn windows_import(capability: &str, operation: &str, library: &str, symbol: &str) -> HostBinding {

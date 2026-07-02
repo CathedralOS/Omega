@@ -2245,6 +2245,31 @@ impl<'program> Evaluator<'program> {
                     // The virtual host has no keyboard: no key is ever down.
                     return Ok(Value::Int(0));
                 }
+                if target == "dc_create" || target == "get_dc" || target == "window_create" {
+                    // The virtual window system: device contexts and windows are
+                    // opaque handles, and every virtual handle is the non-zero
+                    // token 1 (programs must branch on handle != 0, never on a
+                    // concrete handle value -- native handles are real pointers).
+                    return Ok(Value::Int(1));
+                }
+                if target == "blit" {
+                    // Virtual GDI blit(hdc, dest_w, dest_h, src_w, src_h, pixels,
+                    // info): StretchDIBits reports the copied SOURCE scanline
+                    // count (probed natively: the source height even when
+                    // stretching, even into the memory DC's default 1x1 bitmap).
+                    let Some(height) = self
+                        .program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .get(4)
+                        .copied()
+                    else {
+                        return Err(halt);
+                    };
+                    return self
+                        .eval_call_expression_argument(height, frame)
+                        .map(|value| value.borrow().clone());
+                }
                 return Err(halt);
             }
         };
@@ -3060,6 +3085,10 @@ fn is_canonical_host_method(name: &str) -> bool {
             | "sleep"
             | "tick_count"
             | "key_state"
+            | "dc_create"
+            | "get_dc"
+            | "window_create"
+            | "blit"
     )
 }
 
