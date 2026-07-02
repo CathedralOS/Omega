@@ -77,8 +77,11 @@
 //! - (A paren'd construction against a payload-less case (`E::A(5)`) still parses as a
 //!   CALL but resolves to nothing; the interpreter declines it.)
 
+mod build_time;
 mod evaluator;
 mod value;
+
+pub use build_time::BuildTimeValue;
 
 pub use value::{Cell, Value};
 
@@ -150,4 +153,21 @@ pub fn evaluate_const_machine(
     machine_name: &str,
 ) -> Result<i64, String> {
     evaluator::run_const_machine(program, machine_name)
+}
+
+/// STRUCTURED build-time evaluation (design_briefs/build_time_evaluation.md;
+/// the R2 layouts enabler): invoke the effect-free machine `machine_name`
+/// with compiler-built arguments and read back its terminal value as a
+/// structured tree. As with [`evaluate_const_machine`], the CALLER owns the
+/// legality gate (decision 12's transitive effect surface must be empty and
+/// parameters must be by-value); this entry owns evaluation, positional
+/// argument binding (count-checked), and the fuel cap. No keyword marks
+/// build-time machines -- the position makes the evaluation build-time, and
+/// the effect system makes it legal.
+pub fn evaluate_build_time_machine(
+    program: &omega_typed_trees::TypedTrees,
+    machine_name: &str,
+    arguments: Vec<BuildTimeValue>,
+) -> Result<BuildTimeValue, String> {
+    evaluator::run_build_time_machine(program, machine_name, arguments)
 }
