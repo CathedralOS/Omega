@@ -149,23 +149,25 @@ parameterized by word count, so it stays under the same owner.
 
 ## Calling Conventions
 
-Machine calls inside Omega use Omega calling rules.
+Machine calls inside Omega use Omega calling rules — the internal convention
+is compiler-sovereign, never stated, never observable, free to change any
+release. Conventions exist only at **boundaries**.
 
-Host calls and exported ABI machines must declare a calling convention.
+Direction (settled 2026-07-02, `design_briefs/calling_plans.md`): a calling
+convention is a **layout over the register file + stack frame** and gets the
+layout treatment — a per-ABI policy (stated or computed, audited against the
+psABI document) produces a validated **CallPlan** from a signature: per-param
+placements (`InReg`/`OnStack`/`ByPointer`), return placement, clobber set,
+shadow space, stack alignment. One plan feeds both derivers — the outbound
+call encoder and the inbound entry stub — so caller and callee agree by
+construction. In practice no code names a convention: the `Binding` kind at
+the provides-mapping implies it (`Syscall(n)` → the target's syscall plan,
+`DllImport`/`VtableSlot` → its C plan). An earlier sketch here spelled this as
+an `abi "aarch64-darwin"` string attribute — retired: a string names nothing
+checkable; a policy is auditable data.
 
-```omega
-abi "aarch64-darwin"
-machine Host::write(
-    fd: i32,
-    buffer: &[u8]
-) -> i32
-boundary host
-{
-}
-```
-
-The ABI contract must cover argument placement, return placement, clobbers,
-stack alignment, and failure behavior.
+The plan must cover argument placement, return placement, clobbers, stack
+alignment, and failure behavior — validated before any deriver trusts it.
 
 ## Volatile And Device Memory
 

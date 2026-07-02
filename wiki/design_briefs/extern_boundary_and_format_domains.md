@@ -291,7 +291,11 @@ shape) whose RHS is ordinary expression syntax. One honest distinction:
 `VtableSlot` is a **dispatch recipe parameterized by the call's first
 argument** — deref `this`, read the vtable pointer, read slot N, call at the
 declared convention. A third *kind* of mechanism, not a third instance of the
-same kind.
+same kind. Each Binding kind also **implies the edge's calling convention**
+(`Syscall` → the target's syscall plan; `DllImport`/`VtableSlot` → its C
+plan) — conventions are stated layouts over registers, one plan feeding both
+the call encoder and the entry stub (see
+[`calling_plans.md`](calling_plans.md)); nobody names one in the common case.
 
 ```
 boundary trait ISum {                      // the contracts ARE machine signatures
