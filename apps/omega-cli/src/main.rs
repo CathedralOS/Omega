@@ -7,8 +7,24 @@ use omega_core::allocations::CountingAllocator;
 static GLOBAL_ALLOCATOR: CountingAllocator = CountingAllocator::system();
 
 fn main() {
+    // `omega refresh-samples [samples-dir]`: compile EVERY samples/*/main.omg in
+    // place, in parallel, so each sample folder holds a current, runnable
+    // build/omega-program.exe. Cross-platform (no shell script) and links this
+    // binary's own compiler -- though the binary itself still needs a rebuild
+    // after compiler changes (apps/omega-cli is its own workspace).
+    let mut raw_arguments = std::env::args_os().skip(1);
+    if raw_arguments.next().is_some_and(|first| first == "refresh-samples") {
+        let samples_root = raw_arguments
+            .next()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("samples"));
+        refresh_samples(&samples_root);
+    }
+
     let Some(arguments) = parse_arguments() else {
-        eprintln!("usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>");
+        eprintln!(
+            "usage: omega [--check] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega refresh-samples [samples-dir]"
+        );
         std::process::exit(2);
     };
 
@@ -31,6 +47,81 @@ fn main() {
             std::process::exit(1);
         }
     };
+}
+
+/// Compile every `<samples_root>/*/main.omg` into its own `build/` directory,
+/// fanned across the machine's cores (each sample owns a distinct build dir, so
+/// the parallel compiles never collide). Prints a summary and exits.
+fn refresh_samples(samples_root: &std::path::Path) -> ! {
+    let mut mains: Vec<PathBuf> = match std::fs::read_dir(samples_root) {
+        Ok(entries) => entries
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.path().join("main.omg"))
+            .filter(|main_path| main_path.is_file())
+            .collect(),
+        Err(error) => {
+            eprintln!("cannot read samples dir {}: {error}", samples_root.display());
+            std::process::exit(2);
+        }
+    };
+    mains.sort();
+    let total = mains.len();
+    let workers = std::thread::available_parallelism()
+        .map(|count| count.get())
+        .unwrap_or(4)
+        .min(total.max(1));
+
+    let queue = std::sync::Mutex::new(mains);
+    let failures = std::sync::Mutex::new(Vec::<String>::new());
+    let built = std::sync::atomic::AtomicUsize::new(0);
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            scope.spawn(|| {
+                loop {
+                    let Some(main_path) = queue.lock().unwrap().pop() else {
+                        break;
+                    };
+                    let build_dir = main_path
+                        .parent()
+                        .expect("main.omg has a sample directory")
+                        .join("build");
+                    match compile(CompileOptions {
+                        root_path: main_path.clone(),
+                        build_dir: Some(build_dir),
+                        target_name: None,
+                        write_output: true,
+                    }) {
+                        Ok(_) => {
+                            built.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        }
+                        Err(diagnostics) => {
+                            let first = diagnostics
+                                .first()
+                                .map(|diagnostic| diagnostic.to_string())
+                                .unwrap_or_else(|| "unknown error".to_owned());
+                            failures
+                                .lock()
+                                .unwrap()
+                                .push(format!("{}: {first}", main_path.display()));
+                        }
+                    }
+                }
+            });
+        }
+    });
+
+    let failures = failures.into_inner().unwrap();
+    println!(
+        "{} of {total} samples built across {workers} threads",
+        built.load(std::sync::atomic::Ordering::SeqCst)
+    );
+    if failures.is_empty() {
+        std::process::exit(0);
+    }
+    for failure in &failures {
+        eprintln!("FAILED {failure}");
+    }
+    std::process::exit(1);
 }
 
 struct CliArguments {
