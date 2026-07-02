@@ -5,8 +5,9 @@
 # rules, (k ..) constructors, (f ..) applications). For K random valid certs, check.beta and the independent
 # reference check_ref.py must AGREE: both accept each cert, and both reject a perturbed (wrong-value/wrong-
 # type) variant. So check_ref independently validates not just the checker's logic but the REAL TV certs.
-# Deterministic (fixed seed). Curated induction (natind/listind/eqelim/disj/sinj) and inductive-predicate
-# (Mem/ProdIs/Perm) corpora are also cross-checked — check_ref now mirrors all but the named-lemma rec/use.
+# Deterministic (fixed seed). Curated induction (natind/listind/eqelim/disj/sinj), inductive-predicate
+# (Mem/ProdIs/Perm), and named-lemma + generic-induction (def/use/rec) corpora are also cross-checked —
+# check_ref now mirrors EVERY rule of check.beta.
 import sys, os, random, subprocess
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import check_ref
@@ -143,8 +144,9 @@ def verdict_beta(cert):                                # cert = full input: <dec
     return subprocess.run([CHECK], input=cert, capture_output=True, text=True).stdout.strip()
 
 def verdict_ref(cert):
-    check_ref.FUNS.clear()
-    forms = check_ref.register(check_ref.parse_all(cert))
+    forms = check_ref.register(check_ref.parse_all(cert))   # register clears FUNS/DATA/LEMMAS and verifies (def ..)
+    if not check_ref.DEFS_OK:                          # a named-lemma proof failed its stated type
+        return 'reject'
     r = check_ref.infer(forms[-1], [], 0)              # conversion-aware, matching check_ref's own main()
     return 'accept' if r is not None and check_ref.prop_eq(r, forms[-2]) else 'reject'
 
@@ -221,8 +223,25 @@ PRED_CORPUS = [
     ("(All (All (All (-> (Rel 778 (cons (v 2) (v 1)) (v 0)) (Exists (& (= (v 1) (m (v 0) (v 3))) (Rel 778 (v 2) (v 0)))))))) (gen (gen (gen (lam (Rel 778 (cons (v 2) (v 1)) (v 0)) (prodconsinv (hyp 0))))))", "reject"),
 ]
 
+# ---- named-lemma (def/use) and generic structural-induction (rec) corpus ----------------------------
+# (def N type proof) is verified up front then cited by (use N); a def that fails its stated type rejects
+# the whole cert. (rec cidA cidB motive caseA caseB) is induction over any user datatype (con_case builds
+# the per-constructor obligations incl. induction hypotheses from the (data ..) recursion flags).
+_L0 = ("(def 0 (All (= (p (v 0) z) (v 0))) (natind (= (p (v 0) z) (v 0)) (refl z) "
+       "(gen (lam (= (p (v 0) z) (v 0)) (eqelim (= (s (p (v 1) z)) (s (v 0))) (hyp 0) (refl (s (p (v 0) z))))))))")
+LEMMA_CORPUS = [
+    ("(def 0 (-> P P) (lam P (hyp 0))) (-> P P) (use 0)", "accept"),
+    ("(def 0 (-> P Q) (lam P (hyp 0))) (-> P Q) (use 0)", "reject"),                  # def proof wrong type
+    ("(def 0 (-> P P) (lam P (hyp 0))) (-> Q Q) (use 0)", "reject"),                  # cite doesn't match goal
+    ("(def 0 (-> P P) (lam P (hyp 0))) (def 1 (-> (-> P P) (-> P P)) (lam (-> P P) (use 0))) (-> (-> P P) (-> P P)) (use 1)", "accept"),
+    ("%s (All (= (m (s z) (v 0)) (v 0))) (gen (inst (use 0) (v 0)))" % _L0, "accept"),   # 1*n=n via lemma
+    # rec: generic structural induction over a user Tree datatype (nil-leaf cid 0, binary-node cid 1)
+    ("(data 0 0 0 0) (data 1 2 1 1) (-> (Pred 0 (k 0)) (-> (All (All (-> (Pred 0 (v 1)) (-> (Pred 0 (v 0)) (Pred 0 (k 1 (v 1) (v 0))))))) (All (Pred 0 (v 0))))) (lam (Pred 0 (k 0)) (lam (All (All (-> (Pred 0 (v 1)) (-> (Pred 0 (v 0)) (Pred 0 (k 1 (v 1) (v 0))))))) (rec 0 1 (Pred 0 (v 0)) (hyp 1) (hyp 0))))", "accept"),
+    ("(data 0 0 0 0) (data 1 2 1 1) (-> (Pred 0 (k 0)) (-> (All (All (-> (Pred 0 (v 1)) (Pred 0 (k 1 (v 1) (v 0)))))) (All (Pred 0 (v 0))))) (lam (Pred 0 (k 0)) (lam (All (All (-> (Pred 0 (v 1)) (Pred 0 (k 1 (v 1) (v 0)))))) (rec 0 1 (Pred 0 (v 0)) (hyp 1) (hyp 0))))", "reject"),   # missing a0's IH
+]
+
 fails = 0; n = 0
-for cert, expect in IND_CORPUS + PRED_CORPUS:
+for cert, expect in IND_CORPUS + PRED_CORPUS + LEMMA_CORPUS:
     n += 1
     vb, vr = verdict_beta(cert), verdict_ref(cert)
     if not (vb == vr == expect):
