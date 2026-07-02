@@ -11188,6 +11188,34 @@ fn runtime_indexed_guard_subject_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_generic_enum_payload_exit_canary_runs() {
+    // A monomorphized generic ENUM with a T-typed payload (`Maybe<i32 in Wrapping>`), constructed,
+    // matched, and destructured natively -- the Option<T> shape. Exit 70 via the payload.
+    let canary = pass_canary("generics/runtime_generic_enum_payload_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gen-enum-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("generic enum payload canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("generic enum payload canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a monomorphized generic enum payload to destructure natively (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_generic_record_instance_exit_canary_runs() {
     // A monomorphized generic data instance (`Box<i32 in Wrapping>`) with native field access to
     // both the T-typed field and a concrete sibling: tag=30 + val=40 -> exit 70. Locks stage-1
@@ -17523,6 +17551,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/machine_bound_satisfied_at_call",
     "generics/property_bound_type_parameter",
     "generics/runtime_generic_record_instance_exit",
+    "generics/runtime_generic_enum_payload_exit",
     "inline_asm/asm_block_jmp_state",
     "memory/abi_calling_convention_machine",
     "memory/repr_native_stable_layout",

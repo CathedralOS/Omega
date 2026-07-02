@@ -347,7 +347,8 @@ impl<'program> LayoutBuilder<'program> {
                 .data_payload_fields(variant)
                 .iter()
                 .map(|field| {
-                    let layout = self.layout_type_reference_handle(field.type_reference)?;
+                    let layout = self
+                        .layout_type_reference_handle_with_bindings(field.type_reference, bindings)?;
                     Ok(PlannedField {
                         symbol: field.symbol,
                         name: field.name.clone(),
@@ -356,7 +357,8 @@ impl<'program> LayoutBuilder<'program> {
                             .program
                             .display_type_reference_with_constraints(field.type_reference)
                             .into(),
-                        type_descriptor: self.type_descriptor(field.type_reference),
+                        type_descriptor: self
+                            .type_descriptor_with_bindings(field.type_reference, bindings),
                         layout,
                     })
                 })
