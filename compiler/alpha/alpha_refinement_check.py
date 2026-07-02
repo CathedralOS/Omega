@@ -14,7 +14,11 @@ import sys, os, subprocess, tempfile, random
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(HERE, '..', 'beta-lang-py'))
 import alpha_symbolic as S
+import beta_symbolic as B                              # source-side symbolic evaluator (the auto-derived meaning)
+import beta_interp                                     # concrete Beta interpreter (pins the source meaning)
+from bc2 import lex, Parser
 ALPHA_REF = os.path.join(HERE, 'alpha_ref.py')
 PROVER = os.path.join(HERE, '..', 'delta', 'prover.py')
 CHECK = sys.argv[1]
@@ -46,23 +50,20 @@ PROGRAMS = [
     ("a+3  ⋢ 3*a   (wrong claim)", read(0) + imm(1, 3) + add(0, 1) + write(0), "(m (s (s (s z))) (v 0))", "differs"),
 ]
 
-# REAL bc-compiled programs: the genuine payoff — prove the ACTUAL compiler's output refines its Beta source
-# meaning (enabled when bc.exe + the assembler are provided). The last three are LOOPS / RECURSION: their
-# control flow is data-independent (concrete trip counts), so the symbolic executor unrolls it — a loop over
-# SYMBOLIC data (triple) yields a symbolic expression proven for all inputs; concrete loops/recursion (sumto,
-# factorial) are computed and pinned. Each entry: (label, source-path, claimed-meaning, expect).
-def natS(k):                                   # k as the source term s^k z
-    return 'z' if k == 0 else '(s %s)' % natS(k - 1)
-NAT3 = natS(3)
-REAL_SAMPLES = [
-    ("sum2   ⊑ b+a",     "refinement-samples/sum2.beta",   "(p (v 1) (v 0))", "refines"),        # a+b (commuted)
-    ("prod2  ⊑ b*a",     "refinement-samples/prod2.beta",  "(m (v 1) (v 0))", "refines"),        # a*b (commuted)
-    ("dbl    ⊑ 2*a",     "refinement-samples/dbl.beta",    "(m (s (s z)) (v 0))", "refines"),    # a+a
-    ("affine ⊑ 3*a+1",   "refinement-samples/affine.beta", "(p (m %s (v 0)) (s z))" % NAT3, "refines"),  # a+a+a+1
-    ("sum2   ⋢ a*b",     "refinement-samples/sum2.beta",   "(m (v 0) (v 1))", "differs"),        # wrong claim
-    ("triple ⊑ 3*a  (LOOP over symbolic data)", "refinement-samples/triple.beta", "(m %s (v 0))" % NAT3, "refines"),
-    ("sumto(10) ⊑ 55  (concrete LOOP)",         "../beta-lang-rs/examples/sumto.beta",     natS(55),  "refines"),
-    ("fact(5) ⊑ 120  (RECURSION, n-1, n*..)",   "../beta-lang-rs/examples/factorial.beta", natS(120), "refines"),
+# REAL bc-compiled programs — the genuine payoff, now FULLY AUTOMATIC: no human writes the meaning. For each
+# source, alpha_symbolic derives what the COMPILED code computes and beta_symbolic derives what the SOURCE
+# means; the gate proves the two agree for ALL inputs. The loop/recursion samples have data-independent
+# control flow, so BOTH evaluators unroll them identically. Each entry: (label, source-path).
+AUTO_SAMPLES = [
+    ("sum2      (a+b)",              "refinement-samples/sum2.beta"),
+    ("prod2     (a*b)",              "refinement-samples/prod2.beta"),
+    ("dbl       (a+a)",             "refinement-samples/dbl.beta"),
+    ("affine    (a+a+a+1)",         "refinement-samples/affine.beta"),
+    ("triple    (LOOP: +=a ×3)",    "refinement-samples/triple.beta"),
+    ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
+    ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
+    ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),
+    ("double    (double(21))",      "../beta-lang-rs/examples/double.beta"),
 ]
 
 def compile_beta(src_path):
@@ -75,6 +76,44 @@ def compile_beta(src_path):
     finally:
         os.unlink(apath)
     return tape
+
+def beta_ref_observe(procs, env, n):
+    """Run the concrete Beta interpreter on the given inputs; observe the exit code / stdout byte (mod 256)."""
+    rc, out = beta_interp.interpret(procs, bytes(env[i] for i in range(n)))
+    return (out[0] if out else rc) & 0xFF
+
+def check_auto(label, srcrel):
+    """Derive the COMPILED meaning (alpha_symbolic ∘ bc) and the SOURCE meaning (beta_symbolic); pin each to
+    its reference VM on random inputs; prove they are equal for all inputs, and that a perturbation is not."""
+    src = os.path.join(HERE, srcrel)
+    text = open(src).read()
+    try:
+        C, nC = S.symexec(compile_beta(src))           # what the machine code computes
+        M, nM = B.meaning(text)                         # what the source means
+    except (S.Unsupported, B.Unsupported) as e:
+        print("  FAIL %-26s : outside the modelled fragment (%s)" % (label, e)); return False
+    if nC != nM:
+        print("  FAIL %-26s : arity mismatch code=%d source=%d" % (label, nC, nM)); return False
+    procs = Parser(lex(text)).parse()
+    for _ in range(1 if nC == 0 else 40):              # differential: both derivations vs their reference VMs
+        env = {i: random.randint(0, 6) for i in range(nC)}
+        vc, vm = S.evaluate(C, env), B.evaluate(M, env)
+        if vc >= 256 or vm >= 256:
+            continue
+        vref = beta_ref_observe(procs, env, nC)
+        if vc % 256 != vref or vm % 256 != vref:
+            print("  FAIL %-26s : differential (code=%s source=%s ref=%s at %s)" % (label, vc, vm, vref, env)); return False
+    def univ(rhs):
+        g = '(= %s %s)' % (S.render(C), rhs)
+        for _ in range(nC):
+            g = '(All %s)' % g
+        return g
+    if not prove(univ(B.render(M))):                   # bc output ≡ source meaning, ∀ inputs
+        print("  FAIL %-26s : could not prove code ≡ source meaning" % label); return False
+    if prove(univ('(s %s)' % B.render(M))):            # teeth: a perturbed meaning must NOT be provable
+        print("  FAIL %-26s : proved a WRONG (perturbed) meaning" % label); return False
+    print("  ok   %-26s : bc output ≡ source meaning  (proof-carrying, both derivations pinned)" % label)
+    return True
 
 def run_ref(tape, stdin_bytes):
     with tempfile.NamedTemporaryFile(delete=False) as f:
@@ -136,10 +175,9 @@ def main():
     for name, tape, claim, expect in PROGRAMS:
         total += 1; passed += check_one(name, tape, claim, expect)
     if BC and ASM:
-        print(" real bc-compiled Beta sources:")
-        for name, srcrel, claim, expect in REAL_SAMPLES:
-            tape = compile_beta(os.path.join(HERE, srcrel))
-            total += 1; passed += check_one(name, tape, claim, expect)
+        print(" real bc-compiled Beta sources (meaning auto-derived from source — no hand claim):")
+        for label, srcrel in AUTO_SAMPLES:
+            total += 1; passed += check_auto(label, srcrel)
     else:
         print(" (real-bc samples skipped: bc.exe / assembler not provided)")
     print("%d/%d refinement checks passed" % (passed, total))

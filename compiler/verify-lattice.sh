@@ -97,7 +97,7 @@ step "convergence (reference route) — certifier RUN on interp.beta; cert check
 step "convergence (RUST-FREE) — omega2gamma.beta->interp.beta; cert checked by check.beta" omega convergence-reference.sh epsilon-rs delta gamma
 step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega omega-meaning.sh gamma ../samples
 step "translation validation — delta re-evaluates each compilation's result (+ - * < == / %, loops, gcd, cross-machine)" omega translation-validation.sh epsilon-rs delta gamma
-step "refinement — alpha machine code provably computes its source meaning (instruction-level, checked without running)" alpha refinement.sh delta beta beta-lang beta-lang-rs
+step "refinement — bc's machine code proved to compute its Beta source meaning (instruction-level TV: both meanings auto-derived, equivalence kernel-checked, never run)" alpha refinement.sh delta beta beta-lang beta-lang-rs beta-lang-py
 step "contracts — compiler discharges ensures; delta checks at build" epsilon-rs contracts.sh delta
 step "contracts — static discharge and runtime asserts agree (soundness)" epsilon-rs discharge-soundness.sh delta
 # untrusted proof elaborator (named binders -> raw certs); skipped if python3 is absent
