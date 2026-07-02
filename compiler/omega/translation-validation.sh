@@ -115,6 +115,12 @@ tv "countdown mul"    '    let n: i32 = 4;
     state lp() { transition 0 < n { true -> bd()  false -> dn() } }
     state bd() { a = a * 2; n = n - 1; transition 0 { _ -> lp() } }
     state dn() { self.console.exit_process(a) }'
+tv "exit-when-true"   '    let n: i32 = 4;
+    let a: i32 = 1;
+    transition 0 { _ -> lp() }
+    state lp() { transition n == 0 { true -> dn()  false -> bd() } }
+    state bd() { a = a * 2; n = n - 1; transition 0 { _ -> lp() } }
+    state dn() { self.console.exit_process(a) }'
 tv "3 carried locals" '    let i: i32 = 0;
     let s: i32 = 0;
     let p: i32 = 0;
