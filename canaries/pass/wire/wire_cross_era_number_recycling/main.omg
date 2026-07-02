@@ -5,7 +5,7 @@
 // number in the retiring era), and the current body deliberately reuses
 // number 2 for a new field with a different type.
 
-wire data CounterMessage {
+data CounterMessage {
     version v1 {
         1: counter: i32;
         2: legacy_flags: i64;
@@ -14,7 +14,7 @@ wire data CounterMessage {
     version v2 {
         1: counter: i32;
 
-        reserved 2;
+        retired 2;
     }
 
     1: counter: i32;

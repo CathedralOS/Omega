@@ -9,7 +9,7 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data Telemetry {
+data Telemetry {
     0: readings: [u32; 4];
 }
 

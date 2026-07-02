@@ -23,12 +23,12 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data RoomHeader {
+data RoomHeader {
     0: room_id: u32;
     1: kind: i32;
 }
 
-wire data RoomMessage {
+data RoomMessage {
     0: header: RoomHeader;
     1: depth: i32;
 }

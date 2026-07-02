@@ -1,1 +1,1 @@
-wire data `CounterMessage` declares duplicate version `v1`
+data `CounterMessage` declares duplicate version `v1`

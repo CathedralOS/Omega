@@ -40,14 +40,27 @@ pub(super) fn parse_item<'tokens, 'source>(
         // `repr native` explicitly requests the compiler's current native
         // field layout, so no extra representation marker is needed yet.
         let (item, rest) = parse_data_definition(syntax_trees, input)?;
-        return Ok((Item::Data(item), rest));
+        return match item {
+            crate::parser::data::ParsedDataDefinition::Plain(item) => Ok((Item::Data(item), rest)),
+            crate::parser::data::ParsedDataDefinition::Numbered(_) => Err(input.error_here(
+                "`repr native` data cannot carry identity numbers (identity is a schema fact \
+                 for serialization grammars, not a layout request)",
+            )),
+        };
     }
 
     if input.at_contextual("wire") {
-        let input = input.take_contextual("wire")?;
-        let input = input.take_keyword(KeywordKind::Data, "data")?;
-        let (item, rest) = parse_wire_data_definition(syntax_trees, input)?;
-        return Ok((Item::WireData(item), rest));
+        let after = input.take_contextual("wire")?;
+        let after = after.take_keyword(KeywordKind::Data, "data")?;
+        let _ = after;
+        // The `wire data` declaration form is RETIRED (ch20 rewrite): field
+        // identity is optional syntax on plain `data`, consumed by
+        // identity-keyed grammars at carriers.
+        return Err(input.error_here(
+            "`wire data` is retired: declare a plain `data` with identity numbers on its fields \
+             (`data Save { 1: seed: u64; retired 2; }`) -- numbers are optional schema facts, \
+             consumed by identity-keyed grammars (chapter 20)",
+        ));
     }
 
     if input.at_contextual("module") {
@@ -77,7 +90,13 @@ pub(super) fn parse_item<'tokens, 'source>(
     if input.at_keyword(KeywordKind::Data) {
         let input = input.take_keyword(KeywordKind::Data, "data")?;
         let (item, rest) = parse_data_definition(syntax_trees, input)?;
-        return Ok((Item::Data(item), rest));
+        return Ok((
+            match item {
+                crate::parser::data::ParsedDataDefinition::Plain(item) => Item::Data(item),
+                crate::parser::data::ParsedDataDefinition::Numbered(item) => Item::WireData(item),
+            },
+            rest,
+        ));
     }
 
     if input.at_contextual("domain") {
@@ -215,33 +234,31 @@ pub(super) fn parse_item<'tokens, 'source>(
         "`pub`",
         "`provider`",
         "`trait`",
-        "`wire data`",
         "`boundary operator`",
         "`boundary trait`",
     ]))
 }
 
-fn parse_wire_data_definition<'tokens, 'source>(
+/// Parse the body of an IDENTITY-NUMBERED data declaration (ch20): the caller
+/// (`parse_data_definition`) has consumed `data Name ... {` and peeked a
+/// numbered/`retired` first member. Numbers are optional schema facts on plain
+/// `data` -- any values, any order, sparse -- but within one declaration they
+/// are all-or-nothing today (a numbered schema with an unnumbered field is a
+/// guided error; the tagged grammar consumes numbers only). The legacy
+/// `encoding <name>` clause died with the `wire data` form: grammar selection
+/// belongs at carriers, not declarations.
+pub(super) fn parse_identity_data_body<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
+    name: omega_syntax_trees::identifier::Identifier,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, WireDataDefinition> {
-    let (name, mut input) = input.take_identifier()?;
-    let encoding = if input.at_contextual("encoding") {
-        input = input.take_contextual("encoding")?;
-        let (encoding, rest) = input.take_identifier()?;
-        input = rest;
-        Some(encoding)
-    } else {
-        None
-    };
-    input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let (members, input) = parse_wire_data_members(syntax_trees, input)?;
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
 
     Ok((
         WireDataDefinition {
             name,
-            encoding,
+            encoding: None,
             members,
         },
         input,
@@ -288,11 +305,19 @@ fn parse_wire_data_member<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, WireDataMember> {
-    if input.at_contextual("reserved") {
-        let input = input.take_contextual("reserved")?;
+    if input.at_contextual("retired") {
+        let input = input.take_contextual("retired")?;
         let (number, input) = input.take_integer()?;
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
         return Ok((WireDataMember::Reserved(WireDataReserved { number }), input));
+    }
+
+    if input.at_contextual("reserved") {
+        // The `reserved N;` spelling died with the `wire data` form: a retired
+        // identity number is a DECLARATION, not a tombstone field.
+        return Err(input.error_here(
+            "`reserved` is retired: tombstone an identity number with `retired N;` (chapter 20)",
+        ));
     }
 
     if input.at_contextual("version") {
@@ -307,6 +332,12 @@ fn parse_wire_data_member<'tokens, 'source>(
         ));
     }
 
+    if !input.at_integer() {
+        return Err(input.error_here(
+            "identity numbers are all-or-nothing within one declaration: every field of a \
+             numbered data needs its `N:` prefix (`N: name: Type;`)",
+        ));
+    }
     let (number, input) = input.take_integer()?;
     let input = input.take_punctuation(PunctuationKind::Colon, ":")?;
     let (name, input) = input.take_identifier()?;

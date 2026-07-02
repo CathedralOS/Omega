@@ -1,1 +1,1 @@
-wire data `LabelMessage` field `label`: a String field must carry the schema's highest field number so it encodes last
+data `LabelMessage` field `label`: a String field must carry the schema's highest field number so it encodes last

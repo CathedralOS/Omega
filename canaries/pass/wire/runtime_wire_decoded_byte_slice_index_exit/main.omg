@@ -13,7 +13,7 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data Blob {
+data Blob {
     0: bytes: &[u8];
 }
 

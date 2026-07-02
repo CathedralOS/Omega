@@ -1293,7 +1293,7 @@ impl<'program> Evaluator<'program> {
                 .and_then(WireFieldEncoding::for_primitive)
                 .ok_or_else(|| {
                     Halt::Unsupported(format!(
-                        "wire data `{schema_name}` field `{}` is not a stage 2a scalar or String",
+                        "data `{schema_name}` field `{}` is not a stage 2a scalar or String",
                         field.name
                     ))
                 })?;
@@ -1606,7 +1606,7 @@ impl<'program> Evaluator<'program> {
                 .and_then(WireScalarEncoding::for_primitive)
                 .ok_or_else(|| {
                     Halt::Unsupported(format!(
-                        "wire data `{schema_name}` field `{}` is not a stage 2 scalar",
+                        "data `{schema_name}` field `{}` is not a stage 2 scalar",
                         field.name
                     ))
                 })?;
@@ -3190,7 +3190,7 @@ fn wire_nested_scalar_fields(
             .and_then(WireScalarEncoding::for_primitive)
             .ok_or_else(|| {
                 Halt::Unsupported(format!(
-                    "wire data `{}` nested field `{}` is not a stage 2 scalar",
+                    "data `{}` nested field `{}` is not a stage 2 scalar",
                     child.name, field.name
                 ))
             })?;

@@ -7,7 +7,7 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data SampleMessage {
+data SampleMessage {
     0: count: u32;
     1: ratio: f64;
 }

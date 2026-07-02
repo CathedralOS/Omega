@@ -7,12 +7,12 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data Point {
+data Point {
     0: x: i32;
     1: y: i32;
 }
 
-wire data Polygon {
+data Polygon {
     0: points: [Point; 3];
 }
 

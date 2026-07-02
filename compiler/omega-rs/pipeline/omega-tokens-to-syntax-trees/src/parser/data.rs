@@ -11,10 +11,19 @@ use omega_syntax_trees::item::{
 };
 use omega_tokens::PunctuationKind;
 
+/// A parsed `data` declaration: plain, or IDENTITY-NUMBERED (ch20 -- fields
+/// carry optional identity numbers, `retired N;` tombstones one; such a
+/// declaration is the schema the identity-keyed grammars consume, and it
+/// lowers through the wire-schema representation).
+pub(super) enum ParsedDataDefinition {
+    Plain(DataDefinition),
+    Numbered(omega_syntax_trees::item::WireDataDefinition),
+}
+
 pub(super) fn parse_data_definition<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
-) -> ParseResult<'tokens, 'source, DataDefinition> {
+) -> ParseResult<'tokens, 'source, ParsedDataDefinition> {
     let (name, mut input) = input.take_identifier()?;
     // CONCURRENCY STAGE 1: `Join` is reserved as a data-type name so the
     // parser's `Join<T>` -> `T` erasure (type_reference.rs) can never collide
@@ -37,16 +46,52 @@ pub(super) fn parse_data_definition<'tokens, 'source>(
     let (properties, next) = parse_property_brackets(input)?;
     input = next;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
+
+    // An IDENTITY-NUMBERED data (ch20): the first member starting with an
+    // integer (`1: seed: u64;`) or `retired` decides the form; numbers are
+    // all-or-nothing within one declaration (guided error otherwise, inside
+    // the member parser). A leading `version vN { ... }` block appears in BOTH
+    // forms (ch21 version blocks on plain data; era history on numbered data),
+    // so peek INSIDE it: a numbered/`retired` first inner member decides
+    // numbered. (Input is a Copy cursor -- the peek consumes nothing.)
+    let leading_version_is_numbered = input.at_contextual("version")
+        && input
+            .take_contextual("version")
+            .ok()
+            .and_then(|after| after.take_identifier().ok())
+            .and_then(|(_, after)| {
+                after
+                    .take_punctuation(PunctuationKind::LeftBrace, "{")
+                    .ok()
+            })
+            .is_some_and(|inner| inner.at_integer() || inner.at_contextual("retired"));
+    if input.at_integer() || input.at_contextual("retired") || leading_version_is_numbered {
+        if !type_parameters.is_empty() {
+            return Err(input.error_here(
+                "identity-numbered data does not take type parameters yet (the schema the \
+                 tagged grammar consumes is concrete)",
+            ));
+        }
+        if properties != DataProperties::default() {
+            return Err(input.error_here(
+                "identity-numbered data does not take declared properties yet",
+            ));
+        }
+        let (definition, input) =
+            crate::parser::item::parse_identity_data_body(syntax_trees, name, input)?;
+        return Ok((ParsedDataDefinition::Numbered(definition), input));
+    }
+
     let (members, input) = parse_data_members(syntax_trees, input)?;
     let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
 
     Ok((
-        DataDefinition {
+        ParsedDataDefinition::Plain(DataDefinition {
             name,
             type_parameters,
             properties,
             members,
-        },
+        }),
         input,
     ))
 }

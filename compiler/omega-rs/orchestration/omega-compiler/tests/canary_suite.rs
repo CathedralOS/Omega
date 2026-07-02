@@ -18015,6 +18015,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "wire/wire_data_form_retired",
+    "wire/reserved_spelling_retired",
+    "wire/unnumbered_field_in_numbered_data",
     "expressions/arithmetic_domain_mixed",
     "expressions/nested_i32_mul_overflow",
     "arithmetic/removed_range_constraint_syntax",

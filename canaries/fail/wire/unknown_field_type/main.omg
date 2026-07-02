@@ -1,7 +1,7 @@
 // Chapter 20 (Wire Protocols): decoding produces typed Omega values, so every
 // wire field type must resolve to a declared type.
 
-wire data CounterMessage {
+data CounterMessage {
     0: counter: i32;
     1: header: MissingHeader;
 }

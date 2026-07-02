@@ -21,7 +21,7 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data Burst {
+data Burst {
     0: samples: [i32; 2];
 }
 
