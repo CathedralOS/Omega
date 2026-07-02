@@ -12,9 +12,9 @@
 # first-order, equality-conversion, and USER-FUNCTION arithmetic certificates (the actual TV cert language) — requiring identical accept/reject (both accept a proof
 # against its true goal; both reject it against a perturbed, wrong-type goal). So the LOGIC + equality of the
 # trust anchor are pinned by an independent, auditable implementation — the last rung to get one. UNTRUSTED and
-# checked; the runtime never runs it. Curated induction (natind/listind/eqelim/disj/sinj) and inductive-
-# predicate (Mem/ProdIs/Perm) corpora are cross-checked too — so check_ref independently realizes the trust
-# anchor's whole logic + equality + induction + predicate core. (Only named-lemma rec/use remains a later slice.)
+# checked; the runtime never runs it. Curated induction (natind/listind/eqelim/disj/sinj), inductive-predicate
+# (Mem/ProdIs/Perm), and named-lemma + generic-structural-induction (def/use/rec) corpora are cross-checked too
+# — so check_ref independently realizes EVERY rule of the trust anchor: it is now a complete second checker.
 set -e
 cd "$(dirname "$0")"
 command -v python3 >/dev/null 2>&1 || { echo "check-ref diamond: skipped (python3 absent)"; exit 0; }

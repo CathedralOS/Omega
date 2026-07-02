@@ -9,11 +9,12 @@
 # gamma_ref.py (meaning). This is that reference for the checker's core: intuitionistic propositional logic
 # (->, &, +, bot with intro+elim), PLUS first-order (All/Exists, de Bruijn), equality by conversion (refl +
 # Peano/list/user-function normalization), and the FULL induction fragment (natind/listind/eqelim/disj/sinj).
-# PLUS the inductive predicates Mem/ProdIs/Perm (Rel 777/778/779) that the number-theory layer is built on.
+# PLUS the inductive predicates Mem/ProdIs/Perm (Rel 777/778/779), generic structural induction over user
+# datatypes (rec + con_case), and named lemmas (def/use). check_ref now realizes EVERY rule of check.beta.
 # check-ref-diamond.sh fuzzes it against check.beta on random propositional/FO/equality/TV proofs and curated
-# induction + predicate corpora, requiring identical accept/reject. UNTRUSTED and checked, like the other *_ref
-# tools; a bug here (or in check.beta) surfaces as a disagreement. (Only user-lemma rec/use — the named-lemma
-# deep-assembly mechanism — is not yet mirrored here; that is the last remaining check_ref slice.)
+# induction + predicate + lemma corpora, requiring identical accept/reject. UNTRUSTED and checked, like the other
+# *_ref tools; a bug here (or in check.beta) surfaces as a disagreement — the trust anchor's one fully independent,
+# auditable second implementation.
 #
 # Proof := (hyp i) | (lam PROP p) | (app f x) | (pair a b) | (fst p) | (snd p)
 #        | (inl PROP p) | (inr PROP p) | (case s l r) | (absurd PROP p)
@@ -50,6 +51,9 @@ def parse_all(s):
 # This is exactly the machinery the translation-validation certificates use, so check_ref can validate them.
 sys.setrecursionlimit(200000)
 FUNS = {}                                              # (fid, cid) -> rule body ; from (fun fid cid body)
+DATA = {}                                              # cid -> (arity, r0, r1) ; from (data cid arity r0 r1)
+LEMMAS = {}                                            # N -> verified prop ; from (def N type proof), cited by (use N)
+DEFS_OK = True                                         # cleared if any (def ..) fails to verify -> whole cert rejects
 FUEL = 2_000_000
 
 def normalize(t, fuel=FUEL):
@@ -241,6 +245,23 @@ def subst_prop_keep(p, s, depth):                      # for induction's P(s n):
         return [h, subst_prop_keep(p[1], shift_term(s, 1, 0), depth + 1)]
     return [h, subst_prop_keep(p[1], s, depth), subst_prop_keep(p[2], s, depth)]
 
+def con_case(cid, motive):                             # expected case type for constructor `cid` under `motive`
+    arity, r0, r1 = DATA[cid]                           # generic structural induction, mirroring check.beta con_case
+    if arity == 0:
+        return subst_prop(motive, ['k', cid], 0)                          # P(cid)
+    if arity == 1:
+        body = subst_prop_keep(motive, ['k', cid, ['v', '0']], 0)         # P(cid a0), a0 = Iv0
+        if r0 == 1:
+            body = ['->', motive, body]                                   # IH: P(a0) = motive
+        return ['All', body]
+    mp = shift_prop(motive, 1, 1)                                         # arity 2: two binders, lift params by one
+    body = subst_prop_keep(mp, ['k', cid, ['v', '1'], ['v', '0']], 0)     # P(cid a1 a0), a1 = Iv1, a0 = Iv0
+    if r1 == 1:
+        body = ['->', mp, body]                                          # IH for a0 (inner arrow)
+    if r0 == 1:
+        body = ['->', subst_prop_keep(mp, ['v', '1'], 0), body]          # IH for a1 (outer arrow)
+    return ['All', ['All', body]]
+
 def mentions_ivar(p, k):                               # does Ivar k occur free in p?
     if not isinstance(p, list):
         return False
@@ -430,22 +451,48 @@ def infer(pf, ctx, idep=0):                            # ctx: list of (prop, pus
         if not (r1 and r2 and conv(r1[3], r2[2])):     # shared middle term matches up to conversion
             return None
         return ['Rel', '779', r1[2], r2[3]]
+    if h == 'use':                                     # (use N): cite a previously verified named lemma
+        return LEMMAS.get(pf[1])
+    if h == 'rec':                                     # (rec cidA cidB motive caseA caseB): generic structural induction
+        cidA, cidB, motive, caseA, caseB = pf[1], pf[2], pf[3], pf[4], pf[5]
+        tA = infer(caseA, ctx, idep)
+        if tA is None or not prop_eq(tA, con_case(cidA, motive)):
+            return None
+        tB = infer(caseB, ctx, idep)
+        if tB is None or not prop_eq(tB, con_case(cidB, motive)):
+            return None
+        return ['All', motive]                         # forall x. P(x)
     return None
 
 def register(forms):
-    """pull (fun fid cid body) rules into FUNS; return the non-declaration forms (goal, proof)."""
-    rest = []
-    for f in forms:
+    """Populate FUNS (rewrite rules), DATA (constructor shapes), and LEMMAS (named (def N type proof), each
+    VERIFIED against its stated type in source order before it is citable). Sets DEFS_OK=False if any def fails
+    to verify — the whole cert then rejects, matching check.beta. Returns the non-declaration forms (goal, proof)."""
+    global DEFS_OK
+    FUNS.clear(); DATA.clear(); LEMMAS.clear(); DEFS_OK = True
+    rest = []; defs = []
+    for f in forms:                                    # tables first: fun/data are position-independent
         if isinstance(f, list) and f and f[0] == 'fun':
             FUNS[(f[1], f[2])] = f[3]
         elif isinstance(f, list) and f and f[0] == 'data':
-            pass                                       # constructor arity is inferred from the (k ..) shape
+            DATA[f[1]] = (int(f[2]), int(f[3]), int(f[4]))
+        elif isinstance(f, list) and f and f[0] == 'def':
+            defs.append(f)                             # (def N type proof) — verified below, in order
         else:
             rest.append(f)
+    for d in defs:                                     # a def may cite earlier defs, so verify in order
+        N, typ, proof = d[1], d[2], d[3]
+        r = infer(proof, [], 0)
+        if r is None or not prop_eq(r, typ):
+            DEFS_OK = False
+            break
+        LEMMAS[N] = typ
     return rest
 
 def main():
     forms = register(parse_all(sys.stdin.read()))
+    if not DEFS_OK:                                     # a named-lemma proof failed its stated type
+        print('reject'); return
     goal, proof = forms[-2], forms[-1]                 # a cert is <decls> <goal> <proof(refl ..)>
     r = infer(proof, [], 0)
     print('accept' if r is not None and prop_eq(r, goal) else 'reject')
