@@ -1,6 +1,7 @@
 // A REAL WINDOW rendered by Omega native code -- the Tier-2 windowed-software-renderer
 // milestone. CreateWindowExA through the built-in "STATIC" class (no WNDCLASS, no WndProc,
-// no message pump -- fine for a short-lived window), WS_POPUP|WS_VISIBLE (0x90000000), then
+// no message pump -- fine for a short-lived window), a TITLED app window
+// (WS_VISIBLE|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX = 0x10CA0000), then
 // 60 frames of an animated diagonal color wash: a 64x64 [i32] framebuffer filled per-cell
 // with a SINGLE linear counter (row = i >> 6, col = i & 63 -- no unprovable y*W+x index),
 // stretched 4x by StretchDIBits into the 256x256 client area, paced by Clock.sleep. The
@@ -59,8 +60,10 @@ machine Main::main(&mut self) {
     self.info[1] = 64;
     self.info[2] = 0 - 64;
     self.info[3] = 2097153;
-    // WS_POPUP | WS_VISIBLE: shown immediately, no frame, client == window size.
-    self.hwnd = self.gui.window_create(self.cls, self.title, 2415919104, 200, 200, 256, 256);
+    // WS_VISIBLE | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX (0x10CA0000): a real
+    // titled app window, not a naked popup. The outer size is padded (+16, +39)
+    // so the CLIENT area is ~256x256 without an AdjustWindowRect import.
+    self.hwnd = self.gui.window_create(self.cls, self.title, 281542656, 200, 200, 272, 295);
     transition self.hwnd > 0 { true -> dc() _ -> bad() }
     state dc(&mut self) {
         self.hdc = self.gui.get_dc(self.hwnd);
