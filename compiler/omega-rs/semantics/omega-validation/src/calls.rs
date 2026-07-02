@@ -792,6 +792,28 @@ fn scan_expression_calls(
 /// Other receiver shapes (member chains, indexed, etc.) are beyond this
 /// scope and stand down silently, consistent with the statement-path's
 /// handling of unrecognised receivers.
+/// A VALUE-position call to a GENERIC machine is not lowered natively yet: the
+/// monomorphized result slot is never materialized, so the call silently yields
+/// zero (#40). Reject it cleanly until machine monomorphization lands.
+/// Statement-position calls to generic machines (which lower and run when the
+/// body touches only concrete storage) are NOT affected -- this fence is only
+/// reached from expression positions.
+fn fence_generic_value_callee(
+    program: &TypedTrees,
+    callee_machine: &Machine,
+    target: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if program.machine_type_parameters(callee_machine).is_empty() {
+        return;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "a value call to the generic machine `{target}` is not supported natively yet (the \
+         monomorphized result is never materialized): wrap it in a concrete machine, or use a \
+         statement call",
+    )));
+}
+
 #[allow(clippy::too_many_arguments)]
 fn validate_expression_call_bounds(
     program: &TypedTrees,
@@ -857,6 +879,7 @@ fn validate_expression_call_bounds(
             });
 
         if let Some((callee_machine, callee_state)) = attached_state {
+            fence_generic_value_callee(program, callee_machine, call.target.as_str(), diagnostics);
             validate_machine_call_type_parameter_bounds(
                 program,
                 symbols,
@@ -875,6 +898,7 @@ fn validate_expression_call_bounds(
         if let Some((callee_machine, callee_state)) =
             free_machine_entry_state(program, symbols, call.target.as_str())
         {
+            fence_generic_value_callee(program, callee_machine, call.target.as_str(), diagnostics);
             validate_machine_call_type_parameter_bounds(
                 program,
                 symbols,
@@ -906,6 +930,7 @@ fn validate_expression_call_bounds(
             .iter()
             .find(|s| s.name == call.target)
         {
+            fence_generic_value_callee(program, callee_machine, call.target.as_str(), diagnostics);
             validate_machine_call_type_parameter_bounds(
                 program,
                 symbols,
@@ -925,6 +950,7 @@ fn validate_expression_call_bounds(
     if let Some((callee_machine, callee_state)) = receiver_type.and_then(|type_name| {
         symbols.attached_machine_state(program, type_name, call.target.as_str())
     }) {
+        fence_generic_value_callee(program, callee_machine, call.target.as_str(), diagnostics);
         validate_machine_call_type_parameter_bounds(
             program,
             symbols,

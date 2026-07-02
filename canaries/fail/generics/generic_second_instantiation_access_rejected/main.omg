@@ -1,0 +1,12 @@
+// TWO different instantiations of one generic data may coexist (sizes are computed per-instance),
+// but NATIVE FIELD ACCESS through the colliding type is rejected: field offsets are recorded per
+// DEFINITION symbol (stage-1 monomorphization), so a second instantiation un-records them and the
+// write falls back to the clean storage-lowering rejection instead of silently using the wrong
+// instance's offsets.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Box<T> { val: T; }
+data Main { console: Console; a: Box<i32 in Wrapping>; b: Box<u8>; }
+machine Main::main(&mut self) {
+    self.a.val = 70;
+    self.console.exit_process(70);
+}

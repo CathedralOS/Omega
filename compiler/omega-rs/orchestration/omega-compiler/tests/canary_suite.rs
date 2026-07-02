@@ -11188,6 +11188,35 @@ fn runtime_indexed_guard_subject_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_generic_record_instance_exit_canary_runs() {
+    // A monomorphized generic data instance (`Box<i32 in Wrapping>`) with native field access to
+    // both the T-typed field and a concrete sibling: tag=30 + val=40 -> exit 70. Locks stage-1
+    // generics monomorphization (recorded instance layout keyed by the definition symbol).
+    let canary = pass_canary("generics/runtime_generic_record_instance_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gen-inst-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("generic record instance canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("generic record instance canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected native field access on a monomorphized generic instance (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_array_max_and_sum_exit_canary_runs() {
     // Find the max and the sum of an array in one pass: an indexed read bound to a local, a
     // reduction (`total += v`), and an element comparison via the sound local-bind pattern
@@ -17492,8 +17521,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/generic_trait_type_param",
     "generics/generic_type_param_in_state",
     "generics/machine_bound_satisfied_at_call",
-    "generics/machine_bound_satisfied_at_value_call",
     "generics/property_bound_type_parameter",
+    "generics/runtime_generic_record_instance_exit",
     "inline_asm/asm_block_jmp_state",
     "memory/abi_calling_convention_machine",
     "memory/repr_native_stable_layout",
@@ -17625,6 +17654,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/property_unknown",
     "data/property_zero_init_nonzero_default",
     "generics/colon_bound_rejected",
+    "generics/generic_second_instantiation_access_rejected",
+    "generics/generic_value_call_rejected",
+    "generics/machine_bound_satisfied_value_call_fenced",
     "generics/machine_bound_value_call_unchecked",
     "generics/machine_bound_violated_at_call",
     "generics/property_bound_missing_on_field",
