@@ -1,0 +1,50 @@
+#!/usr/bin/env sh
+# ASSEMBLER DIAMOND — the independent reference assembler (asm_ref.py) agrees with the real one.
+#
+# assembler.alpha is a single-implementation gap: it self-hosts, and both seed VMs run the SAME assembler,
+# so a backdoor in it would not be caught by the seed diamond (both seeds would reproduce it identically).
+# asm_ref.py is a third, independent realization (Python, from the encoding + beta/README.md, not ported).
+# This gate assembles a corpus with BOTH the real assembler and asm_ref.py and asserts the bytecode tapes
+# are byte-identical — so the assembly step is pinned by two independent implementations, closing the gap
+# the way ../beta-lang-py/bc2.py closed it for bc. asm_ref.py is UNTRUSTED and checked; runtime never runs it.
+set -e
+cd "$(dirname "$0")"
+command -v python3 >/dev/null 2>&1 || { echo "asm-diamond SKIP — no python3"; exit 0; }
+. ../alpha/seed_env.sh
+ASM="./$BETA_SEED"
+BC=../beta-lang-rs/build/bc.exe
+T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+PASS=0; FAIL=0
+
+cmp_asm() {  # name  asmfile
+  "$ASM" < "$2" > "$T/real.tape" 2>/dev/null
+  if ! python3 asm_ref.py < "$2" > "$T/ref.tape" 2>"$T/e"; then
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : asm_ref.py error: $(cat "$T/e")"; return; fi
+  if cmp -s "$T/real.tape" "$T/ref.tape"; then PASS=$((PASS+1)); else
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : tapes DIFFER (real=$(wc -c <"$T/real.tape"|tr -d ' ') ref=$(wc -c <"$T/ref.tape"|tr -d ' '))"; fi
+}
+
+# the assembler's own source (the ultimate case: assemble the real assembler both ways) + its examples
+cmp_asm "assembler.alpha (self)" "assembler.alpha"
+for ex in examples/*.alpha; do [ -f "$ex" ] && cmp_asm "example $(basename "$ex")" "$ex"; done
+
+# real bc-compiled programs — exercise every opcode + labels + comparisons + memory + I/O + db strings
+if command -v cargo >/dev/null 2>&1; then
+  ( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null 2>&1 ) || true
+fi
+if [ -x "$BC" ]; then
+  gen() { printf '%s\n' "$2" | "$BC" > "$T/$1.asm" 2>/dev/null && cmp_asm "bc: $1" "$T/$1.asm"; }
+  gen fact 'proc fact(n){ state c{ to r when (n>1) return 1 } state r{ return n*fact(n-1) } } proc main(){ return fact(5) }'
+  gen echo 'proc main(){ let c=read_byte() state l{ to b when (c>=0) return 0 } state b{ write_byte(c) c=read_byte() to l } }'
+  gen strs 'proc main(){ emit("Hi!\n") return 0 }'
+  gen cmps 'proc main(){ let a=5 return (a<8)*7 + (a>8) + (a==5) }'
+  gen mem  'proc main(){ let b=2097152 word[b]=42 return word[b] }'
+  # the big one: the checker (assemble bc''s compilation of check.beta both ways)
+  if [ -f ../delta/check.beta ] && "$BC" < ../delta/check.beta > "$T/check.asm" 2>/dev/null; then
+    cmp_asm "bc: check.beta (the trust anchor)" "$T/check.asm"; fi
+else
+  echo "  (skipped bc-compiled cases — bc not available)"
+fi
+
+echo "assembler diamond (independent reference asm_ref.py assembles byte-identically to assembler.alpha): $PASS ok, $FAIL failed"
+[ "$FAIL" = 0 ] || exit 1

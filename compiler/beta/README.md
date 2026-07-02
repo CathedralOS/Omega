@@ -13,6 +13,12 @@ whitespace) — **no Rust and no numeric-opcode step** anywhere in normal use.
 - `selfhost.sh` — beta assembles its own source; the result is byte-identical to
   `beta_x64_windows.exe`. That fixed point is the proof beta is self-hosting.
 - `examples/` — small alpha programs to build and run.
+- `asm_ref.py` — an INDEPENDENT reference assembler in Python (from the encoding, not ported from
+  `assembler.alpha`). `assembler.alpha` self-hosts but is a single implementation — both seeds run the
+  same one, so a backdoor in it escapes the seed diamond. `asm-diamond.sh` assembles a corpus (the
+  examples, real bc-compiled programs incl. the checker, and `assembler.alpha` itself) with BOTH and
+  asserts byte-identical tapes, closing that gap the way `../beta-lang-py/bc2.py` did for bc. UNTRUSTED
+  and checked; with `bc2.py` + `../alpha/alpha_ref.py` it forms a complete independent Python floor.
 - `../beta-rs/` — a throwaway Rust on-ramp, used **only for a cold start**: minting the
   very first `beta_x64_windows.exe` when no beta exists yet. Normal use never touches it;
   once beta exists it rebuilds itself (see `selfhost.sh`).
