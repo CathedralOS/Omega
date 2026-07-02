@@ -195,6 +195,26 @@ machine uart_put(uart: &mut MmioRegion<Uart16550>, byte: u8)
 }
 ```
 
+**What `MmioRegion<Dev>` actually is — a ticket, not a buffer.** It is
+`{base: addr, len: count}` living in OUR RAM; the device's bytes never appear
+inside any Omega value, because they are outside the compiler's memory model
+entirely (device registers are I/O that happens to be *addressed* like memory).
+File-descriptor analogy: the region is the fd, the volatile operators are
+`read()`/`write()`, and the optional typed overlay (a stated plan for `Dev`)
+is a schema for offsets. Three consequences:
+- **Volatility is the access path, not a field property** — every access to
+  device space goes through the operators because no other way in exists; the
+  question "which fields are volatile" dissolves.
+- **The untyped floor is first-class**: a device you don't understand is a
+  ticket plus raw offset reads; structure is never required.
+- **The typed overlay is a gated claim** (datasheet-audited, *unvalidatable* —
+  you cannot probe a device to check a layout; reading has side effects), vs
+  firmware tables which are *checked* (CRC/signature mints). And no borrow of
+  device space can exist even in principle: a borrow requires the
+  no-invisible-writer premise, and the device is a concurrent writer the
+  aliasing model cannot see (hoisted polling loads, elided FIFO reads, merged
+  register writes are all *licensed* optimizations under `&mut`).
+
 **Forces the language to decide:**
 - The operator surface: one generic `read8/write8` pair over `MmioRegion<Dev>`
   (above) vs per-register typed operators generated from a device description.
@@ -410,19 +430,25 @@ loader), keeping it independently testable.
 
 What it costs, honestly: the **bounded C-ABI export table** — implementing
 UEFI puts Omega on the *provider* side of a C function-pointer table (~40
-compile-time-known entries a foreign loader calls at MS-x64). This is the
-bounded version of the callback problem the extern brief deliberately scoped
-out: a static export table (a `provides` mapping in reverse — each entry = one
-Omega machine + a declared C-ABI contract + a compiler-emitted thunk), not
-general first-class function pointers. Plus boot-time storage drivers on our
-side, and a firmware fork's maintenance tail. DRAM init stays a vendor blob on
-x86 regardless; ME/PSP sit below everything either way.
+compile-time-known entries a foreign loader calls at MS-x64). The design now
+exists (extern brief §12): **entry stubs** — the code address is a link-time
+constant to a compiler-emitted stub; lifetime discipline attaches to the
+*state* via a registration guard, never to the code. Entry stubs are one
+design shared with interrupt entry (sample 6) — both are **foreign-initiated
+activation**: a raw convention (CPU-pushed frame / MS-x64 registers) enters a
+stub that establishes Omega's environment and mints typed values. The open
+part is the lowering (frame provenance for a foreign-initiated activation),
+not the shape. Plus boot-time storage drivers on our side, and a firmware
+fork's maintenance tail. DRAM init stays a vendor blob on x86 regardless;
+ME/PSP sit below everything either way.
 
 ## Status
 
 THEORETICAL samples; the world-facts deflation, the evidence-token blessing,
 and the firmware-seam direction are SETTLED (2026-07-02). Feeds Tier-1 item 7
 in `cathedral_alignment.md`. Remaining open: no-host target + entry spelling,
-lowering-contract vocabulary, interrupt-entry convention, the bounded C-ABI
-export table (extern-brief adjacent), and — Cathedral-side, un-owned by any
-chapter — the ACPI/AML question on the commodity path.
+lowering-contract vocabulary, the **entry-stub lowering** (one design for
+interrupt entry, the UEFI export table, and outbound callbacks — shape settled
+in extern brief §12; frame provenance under foreign-initiated activation is
+the open part), and — Cathedral-side, un-owned by any chapter — the ACPI/AML
+question on the commodity path.

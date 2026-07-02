@@ -44,6 +44,13 @@ pub const STANDARD_EFFECT_NAMES: &[&str] = &[
     "device_io",
     "memory_map",
     "dynamic_link",
+    // The implicit effect of calling ANY boundary-trait method that declares
+    // no effect row: a boundary trait is the foreign surface, so its calls
+    // interact with the host by construction. This is what makes the
+    // decision-12 transitive surface see `console.write_line(..)` without
+    // per-signature declarations -- the build-time evaluation gates (const
+    // array lengths, layout plan()) reject on it statically.
+    "host_boundary",
 ];
 
 pub fn is_standard_effect_name(name: &str) -> bool {
@@ -630,7 +637,15 @@ fn direct_effects_for_signature_symbol(program: &TypedTrees, symbol: SymbolHandl
     for trait_definition in program.traits() {
         for signature in program.trait_machine_signatures(trait_definition) {
             if signature.symbol == symbol {
-                return signature_effects(program, signature);
+                let mut effects = signature_effects(program, signature);
+                // A BOUNDARY trait is the foreign surface: its methods reach
+                // the host by construction, so an undeclared-effect boundary
+                // signature carries the implicit `host_boundary` effect. (A
+                // declared row, when signatures grow them, replaces this.)
+                if trait_definition.is_boundary && effects.is_empty() {
+                    effects.insert_name("host_boundary");
+                }
+                return effects;
             }
         }
     }

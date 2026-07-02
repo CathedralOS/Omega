@@ -8,6 +8,12 @@
 > are additionally legal in *type position* (generalizing §8's structural
 > zero-copy). §7's validate/materialize split, forget-on-boundary-write, and
 > the never-import-foreign-concepts rule all stand unchanged.
+>
+> **AMENDED 2026-07-02 (second pass, same session): §3's provisional RHS
+> spelling is replaced by the `Binding` sum (§12)** — no `syscall` contextual
+> keyword, no DLL-as-module-path; mechanisms are case constructions. §12 also
+> adds the **foreign-pointer taxonomy** and closes §11's WndProc dodge via
+> entry stubs + registration guards.
 
 > **For:** Omega maintainer · **Status:** SETTLED (chat session 2026-07-01, Zach) —
 > spellings marked *open* below are the only undecided parts. · **Driver:** Tier-2
@@ -54,20 +60,21 @@ data Main {
 
 ## 3. The DLL binding lives in `provides` mappings
 
-The parser already accepts `<target> provides <trait> { machine -> syscall N }`
-(`syscall` is contextual). The import form is the same shape with a **path** on the
-right — mapping kind inferred from shape, zero new keywords:
+REVISED 2026-07-02 (the original `machine -> syscall N` contextual-keyword form
+and the `gdi32::Sym` pseudo-path both die — see §12 for why): the mapping table
+keeps its shape (`name -> value` arms, transition-arm grammar), and the RHS
+becomes an **ordinary case construction of the compiler-known `Binding` sum**:
 
 ```
 // omega/host/targets/windows/surface.omg
 windows_x64 provides omega::host::contracts::Surface {
-    present    -> gdi32::StretchDIBits
-    tick_count -> kernel32::GetTickCount64
+    present    -> DllImport("gdi32", "StretchDIBits")
+    tick_count -> DllImport("kernel32", "GetTickCount64")
 }
 
 // omega/host/targets/linux/stdout.omg
 linux_x64 provides omega::host::contracts::Stdout {
-    write_line -> syscall 1
+    write_line -> Syscall(1)        // Linux's stable ABI IS the number table
 }
 ```
 
@@ -254,5 +261,108 @@ encoder (marshal N args, shadow space, rax return) **proven by re-expressing the
 existing 5 kernel32 ops through it with no behavior change**; multi-DLL import
 descriptors in `omega-image-pe/imports.rs`; `provides` path-mapping parse; PE
 subsystem GUI toggle; opaque handle domains; wire-data format codecs (win32 first).
-Callbacks (WndProc) stay out of scope — DefWindowProcW + PeekMessageW poll +
-StretchDIBits blit avoids machine-as-C-function-pointer entirely.
+Callbacks (WndProc) stay out of the *rendering ladder's* scope — DefWindowProcW +
+PeekMessageW poll + StretchDIBits blit avoids machine-as-C-function-pointer for
+Tier-2. The general answer now exists as design: §12's entry stubs +
+registration guards.
+
+## 12. Foreign pointers & the `Binding` sum (added 2026-07-02)
+
+### 12.1 The `Binding` sum — mechanisms are data
+
+The §3 RHS forms were pseudocode (`syscall 1` needed a contextual keyword;
+`gdi32::StretchDIBits` pretends a DLL is an Omega module path — it isn't; a DLL
+name is a string in the world, not a namespace in the language). Fix: binding
+mechanisms are a **compiler-known, closed sum** — same discipline as
+`FieldPlan` (the compiler must know how to *lower* each mechanism; new
+mechanism = new case + new lowering, never user-invented):
+
+```
+data Binding {
+    case Syscall(number: count);                    // Linux stable ABI = the number table
+    case DllImport(module: Text, symbol: Text);     // Windows stable ABI = named exports
+    case VtableSlot(index: count);                  // COM/UEFI = per-object dispatch
+}
+```
+
+The mapping block needs zero new grammar: `name -> value` arms (transition-arm
+shape) whose RHS is ordinary expression syntax. One honest distinction:
+`Syscall`/`DllImport` are **static** bindings (resolved at build/link time);
+`VtableSlot` is a **dispatch recipe parameterized by the call's first
+argument** — deref `this`, read the vtable pointer, read slot N, call at the
+declared convention. A third *kind* of mechanism, not a third instance of the
+same kind.
+
+```
+boundary trait ISum {                      // the contracts ARE machine signatures
+    machine query_interface(this: ComPtr, iid: &Guid, out: &mut ComPtr) -> HResult;
+    machine add_ref(this: ComPtr) -> u32;
+    machine release(this: ComPtr) -> u32;
+    machine add(this: ComPtr, a: i32, b: i32) -> i32;
+}
+
+windows_x64 provides ISum {
+    query_interface -> VtableSlot(0)
+    add_ref         -> VtableSlot(1)
+    release         -> VtableSlot(2)
+    add             -> VtableSlot(3)
+}
+```
+
+Native `dyn` never touches foreign layouts in either direction: Omega's trait
+objects keep their private representation; foreign vtables are provides-bound
+dispatch, all the way down. (Precedent: windows-rs models COM exactly this way
+— generated vtable structs + raw calls, never Rust `dyn`.)
+
+### 12.2 The foreign-pointer taxonomy — four cases, no fifth primitive
+
+The unifying rule: **the boundary converts the foreign representation into a
+native discipline-carrying value once, at the mint — downstream code never
+sees an address.** Same pattern as bytes (validate → refined borrow →
+materialize), applied to pointers.
+
+1. **Call-scoped pointer arguments** (`ReadFile(handle, buffer, …)`) —
+   SHIPPED. A borrow already *is* a pointer: `&mut [u8]` lowers to
+   address+length; the call encoder passes the address of a buffer the caller
+   legally holds. `&mut`-across-a-boundary forgets domains (the OS scribbled);
+   re-enter via mint.
+2. **Retained pointer arguments** (OVERLAPPED async IO, anything stashing your
+   buffer past the return) — the KNOWN GAP, already met in another costume:
+   ch20's zero-copy-decode rejection ("borrow facts cannot see a call output
+   retaining a borrow of another argument"). Tracked in TASKS. Interim pattern
+   that works today: **ownership transfer** — move the buffer in, get a
+   completion token, the completion machine returns the buffer. No loan, no
+   gap.
+3. **Returned data pointers** — two flavors:
+   - *Opaque* (`HWND`, module handles): **gated-domain tokens** — no memory
+     operations exist on them; pass-back only.
+   - *Dereferenceable* (`HeapAlloc`, mapped views): the binding mints an
+     **owned value with foreign backing** (extent = the provider's audited
+     axiom; drop = the release call), and ordinary borrows flow from the owner.
+   - **Borrowability rule**: a borrow requires the *no-invisible-writer*
+     premise. RAM you own → borrow. Device registers → never (access-as-event
+     semantics; volatile operators only — a register can be mutated under you
+     by the device, so `&mut`'s exclusivity claim would be a lie the optimizer
+     exploits: hoisted polling loads, elided FIFO reads, merged register
+     writes). In-flight DMA buffers → RAM but device-mutable: **move, don't
+     borrow** (ownership transfer to the transfer, returned at completion).
+4. **Function pointers, both directions:**
+   - *Inbound* (`GetProcAddress`, COM vtables, UEFI tables): boundary-trait
+     machines are the contracts; `VtableSlot`/`DllImport` mappings bind them;
+     the win64 call encoder at a runtime pointer is the (tracked) lowering
+     work. The minted callable **borrows from its owner** (module token, COM
+     object) so it cannot outlive `FreeLibrary`/`Release`.
+   - *Outbound* (WndProc, COM implementations, the UEFI export table): the
+     code address is a **link-time constant to a compiler-emitted entry stub**
+     (code is immutable and `'static` — nothing to borrow); the lifetime
+     discipline attaches to the *state* via a **registration guard** —
+     `register(stub_for(M), &mut state) -> Guard`, drop = unregister *before*
+     the loan ends. Stale-callback-into-freed-state becomes unwritable.
+     Entry stubs are one design shared with interrupt entry (foreign-initiated
+     activation; see the boot brief) — bounded static tables, never
+     first-class runtime function-pointer values in Omega semantics.
+
+Summary line: every foreign data pointer is a borrow you gave out, a token you
+can't deref, or a mint with a named axiom; every foreign call target is a
+declared contract on a provides-bound slot; every callback we hand out is a
+static stub plus a guard on its state.
