@@ -24,6 +24,7 @@ machine Game::initialize(
 }
 
 machine Game::run_game_loop(&mut self) {
+    self.console.write_line("dungeon_crawler_cli: an interactive dungeon crawl -- type commands to explore");
     self.view.render_title(&mut self.console);
 
     transition {
@@ -268,6 +269,7 @@ machine Game::run_game_loop(&mut self) {
     }
 
     state finished(&mut self) {
+        self.console.write_line("the crawl has ended -- goodbye (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);

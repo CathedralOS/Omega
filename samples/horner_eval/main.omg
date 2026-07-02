@@ -24,6 +24,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("horner_eval: evaluating x^4+2x^3+3x^2+4x+5 at x=2 by Horner's method");
     self.coeffs[0] = 1;
     self.coeffs[1] = 2;
     self.coeffs[2] = 3;
@@ -59,11 +60,15 @@ machine Main::main(&mut self) {
         }
     }
     state good(&mut self) {
+        self.console.write_line("PASS: p(2) == 57 (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
     state bad(&mut self) {
+        self.console.write_line("FAIL: p(2) != 57 (exits the wrong value it computed)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(self.r);
     }
 }

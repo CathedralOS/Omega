@@ -101,6 +101,7 @@ machine Main::exec(&mut self, tok: Token) {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("token_interpreter: mixed guard shapes run a literal/add/clamp token script");
     // Scripted token sequence:
     // Literal(10) -> acc=10; Add -> acc=20; Literal(5) -> acc=25;
     // Clamp(30) -> acc=25 (no clamp); Add -> acc=50; Literal(20) -> acc=70.
@@ -117,12 +118,16 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: the token script left the accumulator at 70 (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad(&mut self) {
+        self.console.write_line("FAIL: the final accumulator was not 70 (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

@@ -47,6 +47,7 @@ machine Main::step(&mut self, d: Dir) {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("grid_walk: an enum-dispatched walk (E,E,E,S,S) accumulating a 2D position");
     self.px = 0;
     self.py = 0;
 
@@ -62,6 +63,7 @@ machine Main::main(&mut self) {
 
     state report(&mut self) {
         self.px = self.px * 10 + self.py;
+        self.console.write_line("result: x*10+y, 32 for this walk (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.px);

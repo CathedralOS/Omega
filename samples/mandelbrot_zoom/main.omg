@@ -34,6 +34,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("mandelbrot_zoom: 12 animated frames zooming into seahorse valley");
     self.palette = " .:-=+*#";
     self.row = "................................................";
     self.home = "XXX";
@@ -121,9 +122,15 @@ machine Main::main(&mut self) {
         transition { _ -> frame_loop() }
     }
     state finish(&mut self) {
+        self.console.write_line("PASS: 12 zoom frames rendered (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
-    state bad(&mut self) { self.console.exit_process(1); }
+    state bad(&mut self) {
+        self.console.write_line("FAIL: internal bounds check failed (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(1);
+    }
 }

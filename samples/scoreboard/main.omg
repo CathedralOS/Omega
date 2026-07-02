@@ -28,6 +28,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("scoreboard: sums three player records stored in an array of structs");
     self.players[0].id = 1;
     self.players[0].score = 30;
     self.players[1].id = 2;
@@ -40,6 +41,7 @@ machine Main::main(&mut self) {
     transition { _ -> done() }
 
     state done(&mut self) {
+        self.console.write_line("PASS: scores 30+25+15 total 70 (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.total);

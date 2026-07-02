@@ -28,6 +28,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("popcount: counting the set bits of 0xDEADBEEF by shift-and-mask");
     self.x = 3735928559; // 0xDEADBEEF
     self.count = 0;
 
@@ -55,6 +56,7 @@ machine Main::main(&mut self) {
 
     state done(&mut self) {
         self.result = self.count as i32;
+        self.console.write_line("result: the population count, 24 for 0xDEADBEEF (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.result);

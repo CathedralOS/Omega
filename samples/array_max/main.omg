@@ -25,6 +25,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("array_max: scan [4, 15, 8, 42, 16, 23] with a runtime-indexed bounded loop to find the maximum");
     self.nums[0] = 4;
     self.nums[1] = 15;
     self.nums[2] = 8;
@@ -79,6 +80,7 @@ machine Main::main(&mut self) {
     }
 
     state done(&mut self) {
+        self.console.write_line("result: the maximum, 42 for this dataset (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.max);

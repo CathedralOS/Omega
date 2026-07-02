@@ -37,6 +37,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("string_hash: FNV-1a hashes the bytes of the string omega");
     self.text = "omega";
     self.hash = 2166136261;
     self.i = 0;
@@ -75,6 +76,7 @@ machine Main::main(&mut self) {
     state done(&mut self) {
         self.digest = self.hash & 255;
         self.out = self.digest as i32;
+        self.console.write_line("result: the digest's low byte, 40 for omega (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.out);

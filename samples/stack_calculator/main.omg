@@ -35,6 +35,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("stack_calculator: evaluates (3 + 4) * 5 with an explicit operand stack");
     self.sp = 0;
 
     transition self.sp >= 0 && self.sp < 8 {
@@ -100,11 +101,15 @@ machine Main::main(&mut self) {
     }
 
     state done(&mut self) {
+        self.console.write_line("result: (3 + 4) * 5 = 35 at the bottom of the stack (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.stack[0]);
     }
     state bad(&mut self) {
+        self.console.write_line("FAIL: a stack-pointer bounds guard tripped (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

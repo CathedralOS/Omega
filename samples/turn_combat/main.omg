@@ -28,6 +28,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("turn_combat: hero (30hp/7atk) and monster (25hp/5atk) trade blows");
     self.hero.hp = 30;
     self.hero.attack = 7;
     self.monster.hp = 25;
@@ -52,9 +53,15 @@ machine Main::main(&mut self) {
     }
 
     state hero_wins(&mut self) {
+        self.console.write_line("PASS: the hero out-damaged the monster and won (exit 1)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
-    state monster_wins(&mut self) { self.console.exit_process(2); }
+    state monster_wins(&mut self) {
+        self.console.write_line("result: the monster won this fight (exit 2)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(2);
+    }
 }

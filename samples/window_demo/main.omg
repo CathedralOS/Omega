@@ -44,6 +44,7 @@ data Main {
     pause: String;
 }
 machine Main::main(&mut self) {
+    self.console.write_line("window_demo: 60 frames of software-rendered wash in a real window");
     // "STATIC\0" -- the built-in window class; no registration needed.
     self.cls[0] = 83;
     self.cls[1] = 84;
@@ -120,11 +121,15 @@ machine Main::main(&mut self) {
         transition { _ -> frame_loop() }
     }
     state finish(&mut self) {
+        self.console.write_line("PASS: 60 frames blitted (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {
+        self.console.write_line("FAIL: window/DC creation or a blit assertion failed (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
 }

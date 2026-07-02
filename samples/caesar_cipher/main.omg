@@ -31,6 +31,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("caesar_cipher: shift each byte of HELLO by 3 -- expecting KHOOR");
     self.text = "HELLO";
     self.out = ".....";
     self.i = 0;
@@ -64,12 +65,16 @@ machine Main::main(&mut self) {
     }
 
     state ok(&mut self) {
+        self.console.write_line("PASS: ciphertext starts with 'K' -- shift applied correctly (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
 
     state wrong(&mut self) {
+        self.console.write_line("FAIL: out[0] != 'K' -- byte shift wrong (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
 }

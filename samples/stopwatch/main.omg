@@ -44,6 +44,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("stopwatch: replays tick/lap/split commands against a stopwatch machine");
     self.send(Command::Tick { n: 10 });
     self.send(Command::Split);
     self.send(Command::Tick { n: 20 });
@@ -80,14 +81,35 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: total=70, split=40, lap=30, elapsed=40 all verified (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
-    state bad_total(&mut self) { self.console.exit_process(71); }
-    state bad_split(&mut self) { self.console.exit_process(72); }
-    state bad_lap(&mut self) { self.console.exit_process(73); }
-    state bad_elapsed(&mut self) { self.console.exit_process(74); }
+    state bad_total(&mut self) {
+        self.console.write_line("FAIL: total was not 70 after the command script (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
+    state bad_split(&mut self) {
+        self.console.write_line("FAIL: last split was not 40 (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(72);
+    }
+    state bad_lap(&mut self) {
+        self.console.write_line("FAIL: last lap was not 30 (exit 73)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(73);
+    }
+    state bad_elapsed(&mut self) {
+        self.console.write_line("FAIL: elapsed was not 40 (exit 74)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(74);
+    }
 }
 
 // Apply a command to the stopwatch.

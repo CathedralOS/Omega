@@ -21,6 +21,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("leap_year: classifying 2024 with the div-4/100/400 compound rule");
     self.year = 2024;
 
     transition self.year % 4 == 0 && self.year % 100 != 0 || self.year % 400 == 0 {
@@ -29,9 +30,15 @@ machine Main::main(&mut self) {
     }
 
     state leap(&mut self) {
+        self.console.write_line("PASS: 2024 is a leap year (exit 1)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
-    state common(&mut self) { self.console.exit_process(0); }
+    state common(&mut self) {
+        self.console.write_line("FAIL: 2024 misclassified as a common year (exit 0)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(0);
+    }
 }

@@ -34,6 +34,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("roman_numeral: parses MCMXCIV with the subtractive-pair look-back rule");
     self.text = "MCMXCIV";
     self.i = 0;
     self.prev = 0;
@@ -84,10 +85,21 @@ machine Main::main(&mut self) {
         transition self.total == 1994 { true -> ok() _ -> mismatch() }
     }
     state ok(&mut self) {
+        self.console.write_line("PASS: MCMXCIV parsed to 1994 (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
-    state mismatch(&mut self) { self.console.exit_process(71); }
-    state bad(&mut self) { self.console.exit_process(99); }
+    state mismatch(&mut self) {
+        self.console.write_line("FAIL: parse total did not equal 1994 (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
+    state bad(&mut self) {
+        self.console.write_line("FAIL: unknown symbol or index guard tripped (exit 99)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(99);
+    }
 }

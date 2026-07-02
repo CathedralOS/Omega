@@ -33,6 +33,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("mandelbrot: escape-time fractal rendered as 64x28 ASCII");
     self.palette = " .:-=+*#";
     self.row = "................................................................";
     self.y = 0;
@@ -100,9 +101,15 @@ machine Main::main(&mut self) {
         transition { _ -> row_loop() }
     }
     state done(&mut self) {
+        self.console.write_line("PASS: 28 rows rendered (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
-    state bad(&mut self) { self.console.exit_process(1); }
+    state bad(&mut self) {
+        self.console.write_line("FAIL: internal bounds check failed (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(1);
+    }
 }

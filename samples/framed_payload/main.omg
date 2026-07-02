@@ -29,6 +29,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("framed_payload: subslicing the payload out of a framed message and summing it");
     self.frame.bytes[0] = 255;
     self.frame.bytes[1] = 10;
     self.frame.bytes[2] = 20;
@@ -37,6 +38,7 @@ machine Main::main(&mut self) {
 
     let full: &[i32 in Wrapping] = self.frame.bytes.as_slice();
     let checksum: i32 = self.frame.sum(full[1..4], 0);
+    self.console.write_line("result: the payload checksum, 60 for this frame (the exit code)");
     self.console.write_line("[press Enter to close]");
     self.console.read_line(&mut self.pause);
     self.console.exit_process(checksum);

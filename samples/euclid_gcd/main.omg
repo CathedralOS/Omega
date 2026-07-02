@@ -29,6 +29,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("euclid_gcd: Euclid's algorithm on (48, 36) via the remainder loop");
     self.state.a = 48;
     self.state.b = 36;
 
@@ -53,6 +54,7 @@ machine Main::main(&mut self) {
     }
 
     state done(&mut self) {
+        self.console.write_line("result: the GCD, 12 for (48, 36) (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.state.a);

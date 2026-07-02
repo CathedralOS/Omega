@@ -28,6 +28,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("parse_number: reading the two-digit text 25 back into an integer");
     self.text = "25";
 
     self.tens = (self.text[0] as i32) % 256;
@@ -39,6 +40,7 @@ machine Main::main(&mut self) {
     transition { _ -> done() }
 
     state done(&mut self) {
+        self.console.write_line("result: the parsed value, 25 for this text (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.value);

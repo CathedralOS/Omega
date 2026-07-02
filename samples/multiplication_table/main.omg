@@ -29,6 +29,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("multiplication_table: the 9x9 times table, space-padded numeric text");
     self.line = "                            ";
     self.i = 1;
     transition { _ -> row_loop() }
@@ -92,11 +93,15 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("PASS: 9 rows rendered (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {
+        self.console.write_line("FAIL: internal bounds check failed (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
 }

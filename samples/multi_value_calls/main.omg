@@ -51,6 +51,7 @@ machine Main::clamp_low(&mut self, n: i32 in Saturating, min_val: i32 in Saturat
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("multi_value_calls: three value-returning calls combined into one total");
     // Set up a field to test that it doesn't interfere with call results.
     self.offset = 38;
 
@@ -67,7 +68,12 @@ machine Main::main(&mut self) {
         _ -> bad_total()
     }
 
-    state bad_total(&mut self) { self.console.exit_process(71); }
+    state bad_total(&mut self) {
+        self.console.write_line("FAIL: wrong combined total (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
 
     state check_r1(&mut self) {
         transition r1 == 30 {
@@ -76,7 +82,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_r1(&mut self) { self.console.exit_process(72); }
+    state bad_r1(&mut self) {
+        self.console.write_line("FAIL: double_val(15) != 30 (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(72);
+    }
 
     state check_r2(&mut self) {
         transition r2 == 22 {
@@ -85,7 +96,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_r2(&mut self) { self.console.exit_process(73); }
+    state bad_r2(&mut self) {
+        self.console.write_line("FAIL: add3(5,10,7) != 22 (exit 73)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(73);
+    }
 
     state check_r3(&mut self) {
         transition r3 == 20 {
@@ -94,9 +110,15 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_r3(&mut self) { self.console.exit_process(74); }
+    state bad_r3(&mut self) {
+        self.console.write_line("FAIL: clamp_low(18,20) != 20 (exit 74)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(74);
+    }
 
     state good(&mut self) {
+        self.console.write_line("PASS: 30 + 22 - 20 + 38 = 70, all results intact (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);

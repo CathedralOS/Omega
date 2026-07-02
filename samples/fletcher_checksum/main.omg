@@ -38,6 +38,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("fletcher_checksum: fletcher-16 position-sensitive checksum over [1..6]");
     self.adder.bytes[0] = 1;
     self.adder.bytes[1] = 2;
     self.adder.bytes[2] = 3;
@@ -47,6 +48,7 @@ machine Main::main(&mut self) {
 
     let s: &[i32 in Wrapping] = self.adder.bytes.as_slice();
     let checksum: i32 = self.adder.fletcher(s, 0, 0);
+    self.console.write_line("result: the checksum high byte sum2, 56 for this data (the exit code)");
     self.console.write_line("[press Enter to close]");
     self.console.read_line(&mut self.pause);
     self.console.exit_process(checksum);

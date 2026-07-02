@@ -56,6 +56,7 @@ machine Calc::add5(&mut self, n: i32 in Saturating) -> i32 in Saturating {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("value_call_in_expr: value-call results used inline in arithmetic expressions");
     self.base = 10;
 
     // Verify double_val standalone = 12 (passes).
@@ -65,7 +66,12 @@ machine Main::main(&mut self) {
         _ -> bad_dv6()
     }
 
-    state bad_dv6(&mut self) { self.console.exit_process(76); }
+    state bad_dv6(&mut self) {
+        self.console.write_line("FAIL: standalone double_val(6) did not return 12 (exit 76)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(76);
+    }
 
     state check_r1(&mut self) {
         // MISCOMPILE: inline value-call in arithmetic.
@@ -78,7 +84,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_r1(&mut self) { self.console.exit_process(72); }
+    state bad_r1(&mut self) {
+        self.console.write_line("FAIL: base + double_val(6) * 3 did not equal 46 (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(72);
+    }
 
     state check_r2(&mut self, r1: i32 in Saturating) {
         // r1 - add5(2) + 1 = 46 - 7 + 1 = 40.
@@ -89,7 +100,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_r2(&mut self) { self.console.exit_process(73); }
+    state bad_r2(&mut self) {
+        self.console.write_line("FAIL: r1 - add5(2) + 1 did not equal 40 (exit 73)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(73);
+    }
 
     state check_inner(&mut self, r1: i32 in Saturating, r2: i32 in Saturating) {
         let inner: i32 in Saturating = self.calc.add5(7);
@@ -99,7 +115,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_inner(&mut self) { self.console.exit_process(74); }
+    state bad_inner(&mut self) {
+        self.console.write_line("FAIL: add5(7) did not return 12 (exit 74)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(74);
+    }
 
     state check_r3(&mut self, r1: i32 in Saturating, r2: i32 in Saturating, inner: i32 in Saturating) {
         let r3: i32 in Saturating = r2 + self.calc.double_val(inner);
@@ -109,7 +130,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_r3(&mut self) { self.console.exit_process(75); }
+    state bad_r3(&mut self) {
+        self.console.write_line("FAIL: r2 + double_val(inner) did not equal 64 (exit 75)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(75);
+    }
 
     state compute_final(&mut self, r1: i32 in Saturating, r2: i32 in Saturating, r3: i32 in Saturating) {
         let result: i32 in Saturating = r3 + self.calc.add5(1);
@@ -119,9 +145,15 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_result(&mut self) { self.console.exit_process(71); }
+    state bad_result(&mut self) {
+        self.console.write_line("FAIL: r3 + add5(1) did not equal 70 (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
 
     state good(&mut self) {
+        self.console.write_line("PASS: every inline value-call expression computed correctly (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);

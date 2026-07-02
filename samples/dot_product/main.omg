@@ -30,6 +30,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("dot_product: [1,2,3] . [4,5,6] via inline indexed multiply-accumulate");
     self.a[0] = 1;
     self.a[1] = 2;
     self.a[2] = 3;
@@ -59,6 +60,7 @@ machine Main::main(&mut self) {
     }
 
     state done(&mut self) {
+        self.console.write_line("result: the dot product, 32 for these vectors (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.sum);

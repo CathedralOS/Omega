@@ -94,6 +94,7 @@ machine Main::apply_command(&mut self, cmd: Command) {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("nested_case_payload: case-payload commands feeding a nested integer dispatch");
     self.apply_command(Command::Run { op: 0, n: 10 });
     self.apply_command(Command::Noop);
     self.apply_command(Command::Run { op: 2, n: 3 });
@@ -109,12 +110,16 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: accumulator reached 70 after 8 commands (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad(&mut self) {
+        self.console.write_line("FAIL: wrong accumulator value (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 }

@@ -29,6 +29,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("format_number: rendering the number 25 into a text carrier digit by digit");
     self.buffer = "00";
     self.value = 25;
 
@@ -49,9 +50,15 @@ machine Main::main(&mut self) {
     }
 
     state ok(&mut self) {
+        self.console.write_line("PASS: buffer matches '25' (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
-    state bad(&mut self) { self.console.exit_process(71); }
+    state bad(&mut self) {
+        self.console.write_line("FAIL: formatted text mismatch (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
 }

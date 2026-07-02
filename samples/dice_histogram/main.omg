@@ -31,6 +31,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("dice_histogram: 60 xorshift32 dice rolls tallied into a labeled bar chart");
     self.counts = [0, 0, 0, 0, 0, 0];
     self.line = "                        ";
     self.st = 1;
@@ -96,11 +97,15 @@ machine Main::main(&mut self) {
     }
 
     state finish(&mut self) {
+        self.console.write_line("done: all 6 face frequencies charted (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
     state bad(&mut self) {
+        self.console.write_line("FAIL: a rolled face left the 0..5 range (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
 }

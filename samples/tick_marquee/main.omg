@@ -22,6 +22,7 @@ data Main {
     pause: String;
 }
 machine Main::main(&mut self) {
+    self.console.write_line("tick_marquee: a # sweeps 24 frames, then real elapsed time is asserted");
     self.t_start = self.clock.tick_count();
     self.frame = 0;
     transition { _ -> frame_loop() }
@@ -46,9 +47,15 @@ machine Main::main(&mut self) {
         transition self.elapsed >= 100 { true -> ok() _ -> bad() }
     }
     state ok(&mut self)  {
+        self.console.write_line("PASS: 24 frames drawn and elapsed time >= 100ms (exit 0)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(0);
     }
-    state bad(&mut self) { self.console.exit_process(1); }
+    state bad(&mut self) {
+        self.console.write_line("FAIL: elapsed time came in under 100ms (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(1);
+    }
 }

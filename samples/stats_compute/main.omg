@@ -70,6 +70,7 @@ machine Main::add_weighted(&mut self, x: f64, w: f64) {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("stats_compute: f64 mean, variance, and weighted sum over 8 samples");
     // Phase 1: accumulate the 8 data values.
     self.add(2.0);
     self.add(4.0);
@@ -114,7 +115,12 @@ machine Main::main(&mut self) {
         _ -> bad_mean_low()
     }
 
-    state bad_mean_low(&mut self) { self.console.exit_process(71); }
+    state bad_mean_low(&mut self) {
+        self.console.write_line("FAIL: mean fell below 4.9, expected 5.0 (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
 
     state check_mean_upper(&mut self) {
         transition self.s.mean < 5.1 {
@@ -123,7 +129,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_mean_high(&mut self) { self.console.exit_process(72); }
+    state bad_mean_high(&mut self) {
+        self.console.write_line("FAIL: mean rose above 5.1, expected 5.0 (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(72);
+    }
 
     // Verify variance: should be 4.0.
     state check_var_low(&mut self) {
@@ -133,7 +144,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_var_low(&mut self) { self.console.exit_process(73); }
+    state bad_var_low(&mut self) {
+        self.console.write_line("FAIL: variance fell below 3.9, expected 4.0 (exit 73)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(73);
+    }
 
     state check_var_high(&mut self) {
         transition self.s.variance < 4.1 {
@@ -142,7 +158,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_var_high(&mut self) { self.console.exit_process(74); }
+    state bad_var_high(&mut self) {
+        self.console.write_line("FAIL: variance rose above 4.1, expected 4.0 (exit 74)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(74);
+    }
 
     // Verify weighted sum: should be 82.5.
     state check_weighted(&mut self) {
@@ -152,7 +173,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_weighted_low(&mut self) { self.console.exit_process(75); }
+    state bad_weighted_low(&mut self) {
+        self.console.write_line("FAIL: weighted sum fell below 82.0, expected 82.5 (exit 75)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(75);
+    }
 
     state check_weighted_high(&mut self) {
         transition self.s.weighted_sum < 83.0 {
@@ -161,9 +187,15 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_weighted_high(&mut self) { self.console.exit_process(76); }
+    state bad_weighted_high(&mut self) {
+        self.console.write_line("FAIL: weighted sum rose above 83.0, expected 82.5 (exit 76)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(76);
+    }
 
     state good(&mut self) {
+        self.console.write_line("PASS: mean=5.0, variance=4.0, weighted sum=82.5 all in tolerance (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);

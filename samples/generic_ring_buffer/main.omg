@@ -223,6 +223,7 @@ machine Main::read_slot(&mut self, idx: i32 in Saturating) {
 // main: run the scripted sequence, then verify the expected final state.
 // ---------------------------------------------------------------------------
 machine Main::main(&mut self) {
+    self.console.write_line("generic_ring_buffer: pushes and pops through a fixed 8-slot ring");
     self.push(20);
     self.push(30);
     self.push(40);
@@ -257,20 +258,30 @@ machine Main::main(&mut self) {
     }
 
     state good(&mut self) {
+        self.console.write_line("PASS: size=3, last pop 40, remaining sum 70 (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);
     }
 
     state bad_size(&mut self) {
+        self.console.write_line("FAIL: wrong ring size (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(71);
     }
 
     state bad_pop(&mut self) {
+        self.console.write_line("FAIL: wrong last-popped value (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
     }
 
     state bad_sum(&mut self) {
+        self.console.write_line("FAIL: wrong sum of remaining slots (exit 73)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
         self.console.exit_process(73);
     }
 }

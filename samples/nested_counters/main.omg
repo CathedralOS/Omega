@@ -102,6 +102,7 @@ machine Main::set_multiplier(&mut self, m: i32 [0..=100]) {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("nested_counters: mutating struct-in-struct fields across sub-machine calls");
     self.set_value(10);
     self.set_bonus(20);
     self.increment_count();
@@ -115,7 +116,12 @@ machine Main::main(&mut self) {
         _ -> bad_value()
     }
 
-    state bad_value(&mut self) { self.console.exit_process(71); }
+    state bad_value(&mut self) {
+        self.console.write_line("FAIL: wrong nested value field (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
 
     state check_bonus(&mut self) {
         transition self.state.inner.bonus == 20 {
@@ -124,7 +130,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_bonus(&mut self) { self.console.exit_process(72); }
+    state bad_bonus(&mut self) {
+        self.console.write_line("FAIL: wrong nested bonus field (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(72);
+    }
 
     state check_count(&mut self) {
         transition self.state.count == 2 {
@@ -133,7 +144,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_count(&mut self) { self.console.exit_process(73); }
+    state bad_count(&mut self) {
+        self.console.write_line("FAIL: wrong counter value (exit 73)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(73);
+    }
 
     state compute_result(&mut self) {
         // result = inner.value + inner.bonus + count * multiplier
@@ -146,9 +162,15 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_result(&mut self) { self.console.exit_process(74); }
+    state bad_result(&mut self) {
+        self.console.write_line("FAIL: wrong combined result (exit 74)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(74);
+    }
 
     state good(&mut self) {
+        self.console.write_line("PASS: 40 + 20 + 2*5 = 70 from nested fields (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);

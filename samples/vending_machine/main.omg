@@ -33,6 +33,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("vending_machine: folds insert/insert/press events through a coin register");
     // Three events: insert 50c, insert 25c, press slot 1 (price 75c).
     self.apply(Event::Insert { cents: 50 });
     self.apply(Event::Insert { cents: 25 });
@@ -42,14 +43,29 @@ machine Main::main(&mut self) {
     // dispensed; encode "balance 0 and dispensed 75" as exit 70.
     transition self.register.balance == 0 {
         true -> check_dispensed()
-        false -> report(71)
+        false -> bad_balance()
     }
 
     state check_dispensed(&mut self) {
         transition self.register.dispensed == 75 {
-            true -> report(70)
-            false -> report(72)
+            true -> good_verdict()
+            false -> bad_dispensed()
         }
+    }
+
+    state good_verdict(&mut self) {
+        self.console.write_line("PASS: balance spent and 75c dispensed (exit 70)");
+        transition { _ -> report(70) }
+    }
+
+    state bad_balance(&mut self) {
+        self.console.write_line("FAIL: the balance was not fully spent (exit 71)");
+        transition { _ -> report(71) }
+    }
+
+    state bad_dispensed(&mut self) {
+        self.console.write_line("FAIL: dispensed total was not 75 cents (exit 72)");
+        transition { _ -> report(72) }
     }
 
     state report(&mut self, code: i32 in Saturating) {

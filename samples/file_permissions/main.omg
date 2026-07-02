@@ -27,6 +27,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("file_permissions: unix-style permission bits built with bitwise and/or/xor");
     self.mode = 4 | 2;          // READ | WRITE          -> 6
     self.mode = self.mode | 1;  // + EXEC                -> 7
     self.mode = self.mode & 6;  // revoke EXEC (mask ~1) -> 6
@@ -36,6 +37,7 @@ machine Main::main(&mut self) {
     transition { _ -> emit() }
 
     state emit(&mut self) {
+        self.console.write_line("result: the final mode bits r-- +s, 12 for this sequence (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.mode);

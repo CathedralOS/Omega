@@ -71,6 +71,7 @@ machine Main::offset_add(&mut self, n: i32) -> i32 {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("self_mutation_between_calls: value calls must see freshly mutated self fields");
     // Interleave self mutations with value-call reads.
     self.st.multiplier = 3;
     let r1: i32 = self.scale(5);      // = 5 * 3 = 15
@@ -90,7 +91,12 @@ machine Main::main(&mut self) {
         _ -> bad_r1()
     }
 
-    state bad_r1(&mut self) { self.console.exit_process(71); }
+    state bad_r1(&mut self) {
+        self.console.write_line("FAIL: scale(5) with multiplier 3 did not return 15 (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
 
     state check_r2(&mut self) {
         transition r2 == 28 {
@@ -99,7 +105,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_r2(&mut self) { self.console.exit_process(72); }
+    state bad_r2(&mut self) {
+        self.console.write_line("FAIL: scale(4) with multiplier 7 did not return 28 (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(72);
+    }
 
     state check_r3(&mut self) {
         transition r3 == 12 {
@@ -108,7 +119,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_r3(&mut self) { self.console.exit_process(73); }
+    state bad_r3(&mut self) {
+        self.console.write_line("FAIL: offset_add(10) with addend 2 did not return 12 (exit 73)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(73);
+    }
 
     state check_r4(&mut self) {
         transition r4 == 15 {
@@ -117,7 +133,12 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_r4(&mut self) { self.console.exit_process(74); }
+    state bad_r4(&mut self) {
+        self.console.write_line("FAIL: offset_add(0) with addend 15 did not return 15 (exit 74)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(74);
+    }
 
     state compute_total(&mut self) {
         // total = r1 + r2 + r3 + r4 = 15 + 28 + 12 + 15 = 70.
@@ -128,9 +149,15 @@ machine Main::main(&mut self) {
         }
     }
 
-    state bad_total(&mut self) { self.console.exit_process(75); }
+    state bad_total(&mut self) {
+        self.console.write_line("FAIL: results did not total 70 (exit 75)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(75);
+    }
 
     state good(&mut self) {
+        self.console.write_line("PASS: every call observed the freshly mutated self state (exit 70)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(70);

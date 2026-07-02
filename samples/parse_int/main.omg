@@ -37,6 +37,7 @@ data Main {
 }
 
 machine Main::main(&mut self) {
+    self.console.write_line("parse_int: atoi over a text carrier, digit by digit");
     self.text = "150";
     self.result = 0;
     self.i = 0;
@@ -76,6 +77,7 @@ machine Main::main(&mut self) {
     }
 
     state done(&mut self) {
+        self.console.write_line("result: the parsed value of the text 150 (the exit code)");
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(self.result);
