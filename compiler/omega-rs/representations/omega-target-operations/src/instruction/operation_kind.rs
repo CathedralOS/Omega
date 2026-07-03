@@ -288,6 +288,12 @@ pub enum TargetOperationKind {
         argument_index: u8,
         byte_offset: usize,
     },
+    /// Entry prologue: bind `args: &[u8]` as {ptr -> frame+spill, len}.
+    WriteEntryArgumentsSliceDescriptor {
+        descriptor_offset: usize,
+        spill_offset: usize,
+        byte_length: usize,
+    },
     WriteRuntimePointeeInteger {
         pointer_byte_offset: usize,
         field_byte_offset: usize,

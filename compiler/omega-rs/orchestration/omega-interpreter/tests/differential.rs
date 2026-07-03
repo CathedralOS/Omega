@@ -705,6 +705,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
 /// `(relative path under canaries/pass, reason for exclusion)`.
 const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
     (
+        "targets/entry_run_args_bytes",
+        "NATIVE-ONLY: the entry prologue binds `args: &[u8]` over the spilled platform argument registers; the interpreter has no entry-argument notion yet",
+    ),
+    (
         "arithmetic/runtime_trapping_overflow_traps",
         "the suite asserts the process DIES (a negative crash status from the ud2 trap, assert_ne 70); there is no clean exit code for the differential to match",
     ),

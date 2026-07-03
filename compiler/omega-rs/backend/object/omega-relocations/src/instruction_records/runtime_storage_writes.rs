@@ -23,10 +23,12 @@ pub(super) fn collect_runtime_storage_write_relocations(
             context.insert_data_address_at_instruction_start(symbol);
             true
         }
-        SelectedInstructionKind::WriteEntryArgumentRegister { .. } => {
+        SelectedInstructionKind::WriteEntryArgumentRegister { .. }
+        | SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor { .. } => {
             // The entry prologue's `mov r15, imm64` materializes the RUNTIME
-            // FRAME base (the entry parameters are frame slots), anchored at the
-            // instruction start like every other storage write.
+            // FRAME base (the entry parameters + the argument spill are frame
+            // storage), anchored at the instruction start like every other
+            // storage write.
             let symbol = context.runtime_frame_symbol_handle();
             context.insert_data_address_at_instruction_start(symbol);
             true

@@ -85,6 +85,35 @@ pub fn encode_entry_argument_register_write_bytes(
     Ok(bytes)
 }
 
+pub fn entry_arguments_slice_descriptor_write_width() -> usize {
+    // mov r15,imm64(frame base, relocated at +2) (10) + lea rax,[r15+spill] (7)
+    // + mov [r15+desc],rax (7) + mov qword [r15+desc+8],imm32(len) (11).
+    35
+}
+
+/// The bytes-handoff half of the entry prologue: bind `args: &[u8]` as a view
+/// over the entry-argument spill -- write the slice descriptor
+/// {ptr @ desc+0 = frame+spill_offset, len @ desc+8 = byte_length}.
+pub fn encode_entry_arguments_slice_descriptor_write_bytes(
+    descriptor_offset: usize,
+    spill_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(entry_arguments_slice_descriptor_write_width());
+    append_mov_r15_imm64(&mut bytes, 0); // relocated to the runtime-frame region base
+    bytes.extend([0x49, 0x8d, 0x87]); // lea rax, [r15 + disp32]
+    bytes.extend(disp32(spill_offset)?.to_le_bytes());
+    bytes.extend([0x49, 0x89, 0x87]); // mov [r15 + disp32], rax
+    bytes.extend(disp32(descriptor_offset)?.to_le_bytes());
+    bytes.extend([0x49, 0xc7, 0x87]); // mov qword [r15 + disp32], imm32
+    bytes.extend(disp32(descriptor_offset + 8)?.to_le_bytes());
+    let length = i32::try_from(byte_length)
+        .map_err(|_| Diagnostic::error("entry-argument slice length exceeds an imm32"))?;
+    bytes.extend(length.to_le_bytes());
+    debug_assert_eq!(bytes.len(), entry_arguments_slice_descriptor_write_width());
+    Ok(bytes)
+}
+
 /// Relocation imm offset (pre-`+2`) of the frame base loaded for the target slot
 /// store in `encode_runtime_frame_base_indexed_address_to_runtime_frame_write`.
 pub const FRAME_BASE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET: usize = 34;

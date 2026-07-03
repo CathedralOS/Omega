@@ -431,8 +431,17 @@ item 7; design in `design_briefs/freestanding_boot_and_hardware_facts.md`,
 > prologue op stores RCX/RDX/R8/R9 into the parameter frame slots, `.reloc`-fixed
 > at the arbitrary base). Differential boot proof: the same program returns 4
 > without the stub (params zero) and 5 with it (firmware's nonzero ImageHandle
-> arrived through RCX). Milestone-1's remaining delta: the validate mint over
-> the SystemTable, the VtableSlot console call, and utf16 text.
+> arrived through RCX). THEN THE ENTRY WAS RE-CUT to Zach's canonical shape
+> (2026-07-03c): **`machine Main::run(&self, args: &[u8])`** — Main's members
+> are the program's statics, and `args` is the platform handoff as RAW BYTES
+> (the prologue spills RCX/RDX/R8/R9 into a reserved frame region and binds
+> `args` = {ptr, len 32}; cast/mint what you trust). BOOT-VERIFIED: the
+> canonical program's `args.len == 32` guard returned 5 under OVMF. `Main::main`
+> stays accepted and PREFERRED while present (7 corpus programs have `Main::run`
+> HELPERS — canonical-first silently made them entries; legacy-priority keeps
+> every existing meaning until the migration sweep). Milestone-1's remaining
+> delta: the validate mint over the SystemTable bytes, the VtableSlot console
+> call, and utf16 text.
 
 1. **No-host target + EFI entry** — a target with an EMPTY host-provider set
    whose entry has the EFI signature: firmware calls it MS-x64 (ImageHandle in

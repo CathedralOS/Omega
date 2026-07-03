@@ -29,8 +29,9 @@ use omega_runtime_dispatch_loop::{
     RuntimeDispatchLoopContext, build_runtime_dispatch_loop_plan_with_workers,
 };
 use omega_runtime_storage::{
-    RuntimeStorageContext, build_runtime_storage_plan_with_workers, reserve_wire_nested_scratch,
-    runtime_frame_storage_alignment, runtime_frame_storage_size,
+    RuntimeStorageContext, build_runtime_storage_plan_with_workers,
+    reserve_entry_argument_spill, reserve_wire_nested_scratch, runtime_frame_storage_alignment,
+    runtime_frame_storage_size,
 };
 use omega_runtime_text::build_runtime_text_plan;
 use omega_state_calls::{
@@ -255,6 +256,11 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     // replaying it (length varint + copy) into the caller's out buffer, and
     // the decoder keeps the sub-region end bound in the same slots.
     reserve_wire_nested_scratch(&mut backend_plan.runtime_storage, &program);
+    // Reserve the entry-argument spill (the bytes handoff `run(&self, args:
+    // &[u8])`) ABOVE every other reservation -- args's slice descriptor points
+    // at the spilled registers for the program's whole life, so nothing may
+    // reuse those bytes.
+    reserve_entry_argument_spill(&mut backend_plan.runtime_storage, backend_plan.entry_key);
     // Observability: dump the absolute frame-slot layout (which logical slot lives
     // at which runtime byte offset) to stderr when OMEGA_DUMP_SLOTS is set. Inert
     // by default -- env unset is zero output and zero behavior change. Mirrors the

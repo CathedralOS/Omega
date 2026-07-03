@@ -83,6 +83,15 @@ pub fn entry_argument_register_write_width(architecture: Architecture) -> usize 
     }
 }
 
+/// Width of the entry prologue's `args: &[u8]` descriptor write (x86_64 only;
+/// aarch64 rejects at encode, so 0 keeps the layout honest).
+pub fn entry_arguments_slice_descriptor_write_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => x86_64::entry_arguments_slice_descriptor_write_width(),
+    }
+}
+
 pub fn dispatch_loop_enter_width(architecture: Architecture) -> usize {
     match architecture {
         Architecture::Aarch64 => aarch64::dispatch_loop_enter_width(),

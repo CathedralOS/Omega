@@ -214,15 +214,64 @@ fn select_entry_argument_register_writes(
     input: &InstructionSelectionInput<'_>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    // THE BYTES HANDOFF -- `run(&self, args: &[u8])`: when the entry's sole
+    // declared parameter is a byte slice, the prologue SPILLS the platform's
+    // four argument registers into the reserved spill region and binds `args`
+    // as a {ptr -> spill, len 32} view over them. The handoff is FOREIGN BYTES;
+    // the program casts/mints what it trusts (UEFI: bytes 0..8 = ImageHandle
+    // from RCX, 8..16 = SystemTable* from RDX).
+    if input.runtime_storage.entry_argument_spill_size > 0 {
+        let spill_base = input.runtime_storage.entry_argument_spill_base;
+        let descriptor_offset = input
+            .runtime_storage
+            .frame_slots
+            .iter()
+            .find_map(|(_, slot)| {
+                (matches!(
+                    slot.kind,
+                    omega_runtime_storage::RuntimeFrameSlotKind::Parameter
+                ) && slot.source_key == input.entry_key)
+                .then_some(slot.byte_offset)
+            });
+        let Some(descriptor_offset) = descriptor_offset else {
+            return;
+        };
+        for index in 0..4u8 {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteEntryArgumentRegister {
+                    argument_index: index,
+                    byte_offset: spill_base + usize::from(index) * 8,
+                },
+                source_key: input.entry_key,
+                source_statement: 0,
+            });
+        }
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor {
+                descriptor_offset,
+                spill_offset: spill_base,
+                byte_length: input.runtime_storage.entry_argument_spill_size,
+            },
+            source_key: input.entry_key,
+            source_statement: 0,
+        });
+        return;
+    }
+
+    // TYPED entry parameters: each declared non-self parameter receives its
+    // argument register directly (`main(handle: addr, table: addr)`).
     let mut parameter_slots: Vec<(usize, usize)> = input
         .runtime_storage
         .frame_slots
         .iter()
         .filter_map(|(_, slot)| {
+            // EXACT key match (segment included): case-payload bindings are
+            // Parameter slots in LATER SEGMENTS of the entry state and are NOT
+            // platform entry arguments.
             (matches!(
                 slot.kind,
                 omega_runtime_storage::RuntimeFrameSlotKind::Parameter
-            ) && state_key_matches_statement_source(slot.source_key, input.entry_key))
+            ) && slot.source_key == input.entry_key)
             .then_some((slot.byte_offset, slot.byte_size))
         })
         .collect();
