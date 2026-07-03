@@ -198,6 +198,23 @@ Toward abort-as-an-effect (#65): trapping should eventually be visible at main. 
 - **7 samples migrated FULLY EXACT** (no Wrapping added; modular_exponentiation
   dropped 2 Trapping fields). The MODULAR-COUNTER idiom is the one
   Exact-provable bounded counter today: `c: i32 [0..=N]` + `c = (c + 1) % (N+1)`.
+- **Narrowing store obligation** (2026-07-02, decision-17 completion): a value
+  whose proven range does not fit the DESTINATION integer type is a silent
+  truncation and now a compile error at every value-binding boundary --
+  assignment, `let x: T =`, terminal return, and transition-value return. Was a
+  pervasive silent hole: `self.i32 = 3000000123` (exit 123, truncated), `let x:
+  i8 = 300` (44), `self.i32 = someI64` all compiled + wrapped. The check reuses
+  the S4 interval machinery: flag when the source interval, INTERSECTED WITH the
+  source type's range (so a `u32 in Wrapping` sum stays a u32 -- no false
+  positive -- while a flow-proven `[7,7]` still narrows into i8), is fully
+  bounded and not contained in the target range. Widening + explicit `as` stay
+  fine; unbounded unknowns (call results, `u64`/`usize` high) stay permissive,
+  exactly as the exact-arith check leaves them. Blast radius across the whole
+  corpus: ONE canary (a usize->u32 count round-trip; migrated to count in u32) +
+  ZERO samples. Fail canaries arithmetic/narrowing_{literal_wider_than_target,
+  wide_local_unproven}. REMAINING: transition-value returns still skip the
+  ARITHMETIC overflow check (a pre-existing gap, distinct from narrowing --
+  narrowing IS now enforced there via a throwaway-buffered analysis).
 
 **THE DE-TRAPPING KEYSTONE -- LANDED (same day):** the bounded-place
 obligations (omega-proof checker) now refine `<place> +/- K` values by the

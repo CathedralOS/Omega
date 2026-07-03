@@ -18352,6 +18352,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/guard_invalidated_by_prior_write_rejected",
     "arithmetic/struct_field_arithmetic_unproven",
     "arithmetic/transition_arg_unguarded_overflow",
+    "arithmetic/narrowing_literal_wider_than_target",
+    "arithmetic/narrowing_wide_local_unproven",
     "domains/type_constraint_unknown_domain",
     "domains/domain_carrier_mismatch",
     "domains/domain_param_requires_membership",
