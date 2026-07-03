@@ -374,16 +374,11 @@ fn parse_host_provider_definition<'tokens, 'source>(
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (machine, rest) = input.take_identifier()?;
         let rest = rest.take_punctuation(PunctuationKind::Arrow, "->")?;
-        let rest = rest.take_contextual("syscall")?;
-        let (value, rest) = rest.take_integer()?;
+        let (binding, rest) = parse_host_provider_binding(rest)?;
         let rest = take_optional_semicolon(rest)?;
         let handle = syntax_trees
             .items
-            .append_host_provider_mapping(HostProviderMapping {
-                machine,
-                kind: HostProviderMappingKind::Syscall,
-                value,
-            });
+            .append_host_provider_mapping(HostProviderMapping { machine, binding });
         if mapping_count == 0 {
             mapping_start = handle;
         }
@@ -407,6 +402,43 @@ fn parse_host_provider_definition<'tokens, 'source>(
         },
         input,
     ))
+}
+
+/// The RHS of a `provides` arm: a case construction of the compiler-known,
+/// CLOSED `Binding` sum (extern brief §12.1) -- `Syscall(n)`,
+/// `DllImport("module", "symbol")`, or `VtableSlot(n)`. Parsed directly (the
+/// sum is closed, so the case names are compiler-known, not user identifiers to
+/// resolve later); an unknown case is a guided error.
+fn parse_host_provider_binding<'tokens, 'source>(
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, HostProviderMappingKind> {
+    let (case, input) = input.take_identifier()?;
+    match case.as_str() {
+        "Syscall" => {
+            let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+            let (number, input) = input.take_integer()?;
+            let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
+            Ok((HostProviderMappingKind::Syscall { number }, input))
+        }
+        "VtableSlot" => {
+            let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+            let (index, input) = input.take_integer()?;
+            let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
+            Ok((HostProviderMappingKind::VtableSlot { index }, input))
+        }
+        "DllImport" => {
+            let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
+            let (module, input) = input.take_string()?;
+            let input = input.take_punctuation(PunctuationKind::Comma, ",")?;
+            let (symbol, input) = input.take_string()?;
+            let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
+            Ok((HostProviderMappingKind::DllImport { module, symbol }, input))
+        }
+        other => Err(input.error_here(format!(
+            "unknown `provides` binding `{other}`: the compiler-known Binding sum is \
+             `Syscall(n)`, `DllImport(\"module\", \"symbol\")`, or `VtableSlot(n)`"
+        ))),
+    }
 }
 
 fn parse_module_declaration<'tokens, 'source>(

@@ -521,8 +521,7 @@ impl SyntaxTrees {
             other.items.host_provider_mappings(span),
             |_this, mapping| HostProviderMapping {
                 machine: mapping.machine.clone(),
-                kind: mapping.kind,
-                value: mapping.value,
+                binding: mapping.binding.clone(),
             },
             |this, mapping| this.items.append_host_provider_mapping(mapping),
         )
