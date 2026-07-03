@@ -171,3 +171,16 @@ pub fn evaluate_build_time_machine(
 ) -> Result<BuildTimeValue, String> {
     evaluator::run_build_time_machine(program, machine_name, arguments)
 }
+
+/// The AUGMENTING-MACHINE build-time entry (build_and_package_model.md): run
+/// the effect-free machine and read back the FINAL argument values -- the
+/// `machine build(b: &mut Build)` shape, where the machine's output IS its
+/// augmented arguments. A unit terminal is accepted. The caller owns the
+/// legality gate, exactly as for [`evaluate_build_time_machine`].
+pub fn evaluate_build_time_machine_arguments(
+    program: &omega_typed_trees::TypedTrees,
+    machine_name: &str,
+    arguments: Vec<BuildTimeValue>,
+) -> Result<Vec<BuildTimeValue>, String> {
+    evaluator::run_build_time_machine_arguments(program, machine_name, arguments)
+}
