@@ -344,8 +344,20 @@ def symexec(tape):
         init + trip*delta (trip = R). Mutates MEM to the post-loop state; returns exit_pc, or None if the loop
         is outside the summarizable class (caller then bails)."""
         kind, L, Rb = cond[1], cond[2], cond[3]
+        if kind == 'ne':
+            # Over ℕ with a unit-stride counter, != is <: one side must be the literal 0 — `i != n` from 0
+            # (L is the counter's concrete entry 0) hits n exactly, and `i != 0` maps to the 0 < i down shape.
+            # The counter checks below enforce exactly the entry/stride conditions the exact-hit needs; a
+            # stride that could SKIP the bound (the machine diverges) fails the ±1 checks and refuses.
+            if L == 0:
+                kind = 'lt'
+            elif Rb == 0:
+                kind, L, Rb = 'lt', 0, L
         if kind not in ('lt', 'le') or not isinstance(L, int):
             return None                                 # `counter < bound` / `counter <= bound`, counter concrete at entry
+        if L != 0:
+            return None                                 # trip = Rb assumes the counter ENTERS at 0 (beta requires
+                                                        # entry 0 too); a nonzero start needs trip = Rb - L: refused
         header = next((h for h, j in backedges.items() if h <= cont_pc <= j), None)
         if header is None:
             return None

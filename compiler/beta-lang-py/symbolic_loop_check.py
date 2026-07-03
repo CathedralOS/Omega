@@ -60,6 +60,11 @@ SUMMARIZABLE = [
      lambda n, a, b: n * a),
     ("(n > i) n*a  (≡ i<n)",    loop("n > i",  "total = total + a"),               lambda n, a, b: n * a),
     ("(n >= i) (n+1)*a (≡ i<=n)", loop("n >= i", "total = total + a"),             lambda n, a, b: (n + 1) * a),
+    # != guards: over ℕ with a unit-stride counter, != IS < (exact hit, no overshoot) — normalized likewise.
+    ("(i != n) n*a  (≡ i<n)",   loop("i != n", "total = total + a"),               lambda n, a, b: n * a),
+    ("(n != i) n*a  (≡ i<n)",   loop("n != i", "total = total + a"),               lambda n, a, b: n * a),
+    ("↓ (i != 0) n*a (≡ 0<i)",  downloop("total = total + a").replace('0 < i', 'i != 0'),
+     lambda n, a, b: n * a),
     ("↓ Σi   (total += i)",     downloop("total = total + i"),                     lambda n, a, b: n * (n + 1) // 2),
     ("↓ -Σi  (total -= i)",     downloop("total = total - i"),                     lambda n, a, b: (-(n * (n + 1) // 2)) % 256),
     ("↓ a·Σi (total += a*i)",   downloop("total = total + (a * i)"),               lambda n, a, b: a * (n * (n + 1) // 2)),
@@ -70,6 +75,9 @@ MUST_REFUSE = [
     ("total += (a*total) (nonlinear)", loop("i < n", "total = total + (a * total)")),
     ("total = (total-1)*2 (scaling)", loop("i < n", "total = ((total - 1) * 2)")),
     ("↓ total += (i*i) (counter²)",   downloop("total = total + (i * i)")),
+    # != with a stride that can SKIP the bound: i jumps over n when n is odd and the machine diverges — the
+    # unit-stride requirement refuses it, which is exactly what makes the != ≡ < normalization sound.
+    ("(i != n) stride 2 (skips!)",    loop("i != n", "total = total + a").replace('i = i + 1', 'i = i + 2')),
 ]
 
 def main():

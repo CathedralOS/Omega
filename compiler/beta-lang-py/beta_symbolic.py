@@ -302,6 +302,19 @@ class SymInterp:
             return False
         if cond[0] == 'bin' and cond[1] in ('>', '>='):     # (a > b) ≡ (b < a): normalize to the < forms, the
             cond = ('bin', {'>': '<', '>=': '<='}[cond[1]], cond[3], cond[2])   # same swap bc does in codegen
+        if cond[0] == 'bin' and cond[1] == '!=':
+            # Over ℕ with a UNIT-stride counter, != is <: `i != n` from 0 by +1 hits n exactly (i < n), and
+            # `i != 0` by -1 drains to 0 exactly (0 < i). The < / down branches below enforce precisely the
+            # entry/stride conditions that make this exact-hit argument sound; any other != loop is refused
+            # (e.g. stride 2 can SKIP the bound — the machine diverges — and _canon(delta) != 1 refuses it).
+            if cond[2] == ('num', 0):                       # (0 != i)  ≡ (0 < i)
+                cond = ('bin', '<', ('num', 0), cond[3])
+            elif cond[3] == ('num', 0):                     # (i != 0)  ≡ (0 < i)
+                cond = ('bin', '<', ('num', 0), cond[2])
+            elif cond[2][0] == 'var' and cond[2][1] in loop_vars:   # (i != n) ≡ (i < n)  [entry 0, +1 below]
+                cond = ('bin', '<', cond[2], cond[3])
+            elif cond[3][0] == 'var' and cond[3][1] in loop_vars:   # (n != i) ≡ (i < n) — the counter is the
+                cond = ('bin', '<', cond[3], cond[2])               # side that is a LOOP var
         if cond[0] != 'bin' or cond[1] not in ('<', '<='):
             return False
         down = False
