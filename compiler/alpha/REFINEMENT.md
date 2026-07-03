@@ -70,7 +70,8 @@ certificate (`REC_PRELUDE`); the checker accepts a recurrence applied to a *symb
 | Composition (pre-loop arith → loop → post-loop arith) | the summarized loop result flows through further terms |
 | Straight-line subtraction `a - b` (may underflow) | a **ℤ difference-pair** `(k 5 pos neg) = pos - neg` (see below) |
 | Subtracting loop accumulators `acc = acc - δ` (δ linear in `i`) | the pair's pos/neg components follow **independent additive recurrences** — each summarizes as its own series |
-| **Down-counting loops** `i = n; while (0 < i): …; i -= 1` | exactly `n` trips (the counter drains by the ℤ pair −1); deltas must be loop-invariant — the counter's value is `n−k`, not `k` |
+| **Down-counting loops** `i = n; while (0 < i): …; i -= 1` | exactly `n` trips (the counter drains by the ℤ pair −1) |
+| — counter-dependent deltas under a down-counter | `i ↦ n−k`: the linear part folds into the invariant coefficient, the triangular part flips sign across the pair (`total += i` ↓ → `n² − g(n)` = `n(n+1)/2`) |
 
 Linear-in-counter deltas (`a·i`, `a+i`, `(a·i)+b`, …) refine **end to end**. Both engines decompose the
 per-iteration delta into `a0 + a1·i` (via `_lin_decompose` + `_series_closed`): `beta_symbolic` reads the delta
@@ -104,12 +105,13 @@ Peano rendering is unbuildable) — it is routed to the placeholder path instead
 Down-counting needs no new guard operator: `while (0 < i)` puts the concrete 0 on the compare's left, which
 both recognizers already accept; the counter is the slot stepping by the pair −1 whose entry value is the
 guard's right side, and the trip count is that entry value. `0 <= i` with a −1 step never terminates and is
-not recognized; counter-dependent deltas under a down-counter are refused (the counter's value at iteration
-`k` is `n−k`, so the up-count series would be wrong — a later slice can substitute `i ↦ n−k`).
+not recognized. Counter-dependent deltas work through the substitution `i ↦ n−k`: a component `a0 + a1·i`
+sums to `(a0 + a1·n)·t − a1·g(t)`, so `_down_series` folds the linear part into the invariant coefficient
+and routes each component's `g` cross-term to the *other* side of the pair (shared recipe in both engines).
 
 **Deliberately out of scope** (each conservatively *refused* — never mis-summarized): scaling recurrences
-(`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`); counter-dependent
-deltas under a down-counter; ℤ-pair trip counts; byte-granular memory; nested / multi-loop recurrences.
+(`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`, up or down);
+ℤ-pair trip counts; byte-granular memory; nested / multi-loop recurrences.
 
 ## How data-dependent loops are summarized (the interesting part)
 

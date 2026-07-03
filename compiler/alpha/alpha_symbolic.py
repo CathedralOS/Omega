@@ -221,6 +221,14 @@ def _series_closed(init, a0, a1, trip):
             r = ('p', r, p)
     return r
 
+def _down_series(p0, n0, a0p, a1p, a0n, a1n, trip):
+    """Closed ℤ pair for a DOWN-counting loop (counter value n-k at iteration k, trip = n). A pair-delta with
+    components a0p + a1p·i and a0n + a1n·i sums, after i ↦ n-k, to (a0x + a1x·n)·t - a1x·g(t) per component —
+    the linear part joins the invariant coefficient and the triangular part FLIPS SIGN, crossing to the other
+    component. Same recipe as beta_symbolic._down_series so the forms stay byte-identical."""
+    return ('zz', _series_closed(p0, _canon(_sum2(a0p, _scale2(a1p, trip))), _canon(a1n), trip),
+                  _series_closed(n0, _canon(_sum2(a0n, _scale2(a1n, trip))), _canon(a1p), trip))
+
 # ---- general linear-in-counter delta extraction (placeholder path, mirrors beta_symbolic) --------------
 # When the finite differences can't classify a delta (a·i, a+i, …), run one body iteration with every frame
 # slot set to a ('slot', addr) placeholder, read each accumulator's delta as a symbolic term over those
@@ -410,11 +418,12 @@ def symexec(tape):
                 dp, dn = _lin_decompose(P, ctr), _lin_decompose(N, ctr)
                 if dp is None or dn is None:
                     return None
-                if down and (_canon(dp[1]) != 0 or _canon(dn[1]) != 0):
-                    return None                         # a down-counter's value is I-k, not k: only invariant δ
                 p0, n0 = _as_zz(MEM[a])
-                updates[a] = ('zz', _series_closed(p0, _canon(dp[0]), _canon(dp[1]), trip),
-                                    _series_closed(n0, _canon(dn[0]), _canon(dn[1]), trip))
+                if down:                                # i ↦ n-k: linear parts fold into the invariant
+                    updates[a] = _down_series(p0, n0, dp[0], dp[1], dn[0], dn[1], trip)
+                else:                                   # coefficient, g cross-terms swap components
+                    updates[a] = ('zz', _series_closed(p0, _canon(dp[0]), _canon(dp[1]), trip),
+                                        _series_closed(n0, _canon(dn[0]), _canon(dn[1]), trip))
                 continue
             sub = _subst_slots(d, MEM, invariant)       # δ = a0 + a1·counter
             if _has_zz(sub):
@@ -422,8 +431,10 @@ def symexec(tape):
             dec = _lin_decompose(sub, ctr)
             if dec is None:
                 return None                             # δ not linear in the counter (i·i, cross-accumulator, …)
-            if down and _canon(dec[1]) != 0:
-                return None                             # counter-dependent δ under a down-counter: later
+            if down and _canon(dec[1]) != 0:            # counter-dependent plain δ under a down-counter:
+                p0, n0 = _as_zz(MEM[a])                 # the -a1·g(t) cross-term makes the result a ℤ pair
+                updates[a] = _down_series(p0, n0, dec[0], dec[1], 0, 0, trip)
+                continue
             updates[a] = _series_closed(MEM[a], _canon(dec[0]), _canon(dec[1]), trip)
         MEM.update(updates)
         return exit_pc

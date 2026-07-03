@@ -52,13 +52,18 @@ SUMMARIZABLE = [
     ("↓ n*a  (0<i, total+=a)",  downloop("total = total + a"),                     lambda n, a, b: n * a),
     ("↓ -n*a (0<i, total-=a)",  downloop("total = total - a"),                     lambda n, a, b: (-n * a) % 256),
     ("↓ ret i (drained counter)", downloop("total = total + a", ret='i'),          lambda n, a, b: 0),
+    # counter-DEPENDENT deltas under a down-counter: i ↦ n-k folds the linear part into the invariant
+    # coefficient and flips the triangular part's sign across the pair — Σ of i for i=n..1 is n² - g(n).
+    ("↓ Σi   (total += i)",     downloop("total = total + i"),                     lambda n, a, b: n * (n + 1) // 2),
+    ("↓ -Σi  (total -= i)",     downloop("total = total - i"),                     lambda n, a, b: (-(n * (n + 1) // 2)) % 256),
+    ("↓ a·Σi (total += a*i)",   downloop("total = total + (a * i)"),               lambda n, a, b: a * (n * (n + 1) // 2)),
 ]
 # loops the recognizer must REFUSE (genuinely non-linear in the counter) -> beta_symbolic raises Unsupported
 MUST_REFUSE = [
     ("total += (i*i) (counter²)",     loop("i < n", "total = total + (i * i)")),
     ("total += (a*total) (nonlinear)", loop("i < n", "total = total + (a * total)")),
     ("total = (total-1)*2 (scaling)", loop("i < n", "total = ((total - 1) * 2)")),
-    ("↓ total += i (counter-dep δ)",  downloop("total = total + i")),   # down-counter value is n-k, not k
+    ("↓ total += (i*i) (counter²)",   downloop("total = total + (i * i)")),
 ]
 
 def main():
