@@ -37,15 +37,20 @@ impl BuiltinType {
 pub enum BuiltinFunction {
     Max,
     Min,
+    /// `sqrt(x)`: a UNARY float intrinsic. It reuses the binary float
+    /// value-write path with both operands set to `x` (the encoder's Sqrt
+    /// arm reads the first SSE register only).
+    Sqrt,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 2;
+    pub const COUNT: usize = 3;
 
     pub fn name(self) -> &'static str {
         match self {
             Self::Max => "max",
             Self::Min => "min",
+            Self::Sqrt => "sqrt",
         }
     }
 
@@ -53,6 +58,7 @@ impl BuiltinFunction {
         match self {
             Self::Max => 0,
             Self::Min => 1,
+            Self::Sqrt => 2,
         }
     }
 }
@@ -115,6 +121,10 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
         (
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::Min.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::Sqrt.name()),
         ),
     ]
 }

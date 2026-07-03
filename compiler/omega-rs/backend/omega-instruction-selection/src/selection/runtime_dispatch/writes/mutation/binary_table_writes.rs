@@ -276,10 +276,19 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
                 binary.right,
             ),
             ExpressionNode::Call(call) => {
-                let operator = builtin_runtime_call_operator_in_table(input, call)?;
-                let left = expressions.expression_handle_at_offset(call.arguments, 0);
-                let right = expressions.expression_handle_at_offset(call.arguments, 1);
-                (operator, None, left, right)
+                // `sqrt(x)` (a unary builtin) rides the binary float path with
+                // BOTH operands = x; the encoder's Sqrt arm reads xmm0 only.
+                if let Some(operator) =
+                    super::operators::builtin_runtime_unary_call_operator_in_table(input, call)
+                {
+                    let x = expressions.expression_handle_at_offset(call.arguments, 0);
+                    (operator, None, x, x)
+                } else {
+                    let operator = builtin_runtime_call_operator_in_table(input, call)?;
+                    let left = expressions.expression_handle_at_offset(call.arguments, 0);
+                    let right = expressions.expression_handle_at_offset(call.arguments, 1);
+                    (operator, None, left, right)
+                }
             }
             _ => return None,
         };
@@ -687,10 +696,19 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_bin
                 binary.right,
             ),
             ExpressionNode::Call(call) => {
-                let operator = builtin_runtime_call_operator_in_table(input, call)?;
-                let left = expressions.expression_handle_at_offset(call.arguments, 0);
-                let right = expressions.expression_handle_at_offset(call.arguments, 1);
-                (operator, None, left, right)
+                // `sqrt(x)` (a unary builtin) rides the binary float path with
+                // BOTH operands = x; the encoder's Sqrt arm reads xmm0 only.
+                if let Some(operator) =
+                    super::operators::builtin_runtime_unary_call_operator_in_table(input, call)
+                {
+                    let x = expressions.expression_handle_at_offset(call.arguments, 0);
+                    (operator, None, x, x)
+                } else {
+                    let operator = builtin_runtime_call_operator_in_table(input, call)?;
+                    let left = expressions.expression_handle_at_offset(call.arguments, 0);
+                    let right = expressions.expression_handle_at_offset(call.arguments, 1);
+                    (operator, None, left, right)
+                }
             }
             _ => return None,
         };
