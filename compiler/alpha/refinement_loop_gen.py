@@ -13,17 +13,23 @@
 # constants + few inputs keep values well under the 2^64 wrap and the write/halt mod-256 truncation.
 import sys, random
 
+def _inv(rng, data):                   # a loop-INVARIANT atom: a data input or a small constant
+    return rng.choice(data) if (data and rng.random() < 0.55) else str(rng.randint(1, 3))
+
 def _delta(rng, data):
-    # ~30% of accumulators use the bare counter `i` -> an arithmetic-series (Σi) loop, summarized to the
-    # triangular recurrence g(trip); the rest use a loop-INVARIANT increment (over inputs + small constants).
-    # `i` must appear BARE, never inside an expression: `i*a`/`i+c` are counter-dependent deltas both sides
-    # deliberately refuse, so they'd fail the gate rather than exercise it.
-    if rng.random() < 0.3:
-        return 'i'
-    base = rng.choice(data) if (data and rng.random() < 0.55) else str(rng.randint(1, 3))
+    # ~35% of accumulators use a COUNTER-LINEAR increment a1·i + a0 (a1,a0 loop-invariant) — bare `i` (Σi),
+    # `a·i` (→ a·g(n)), `a+i` (→ n·a + g(n)), `(a·i)+b`, … all degree-1 in the counter so both sides summarize.
+    # The counter must stay degree ≤ 1: `i·i` etc. are genuinely non-linear and are (correctly) refused, so the
+    # generator never emits them. The remaining ~65% use a loop-invariant increment.
+    if rng.random() < 0.35:
+        coef = None if rng.random() < 0.45 else _inv(rng, data)          # a1 (None means 1)
+        term = 'i' if coef is None else '(%s * i)' % coef
+        if rng.random() < 0.5:
+            term = '(%s + %s)' % (term, _inv(rng, data))                 # + a0
+        return term
+    base = _inv(rng, data)
     if rng.random() < 0.4:
-        other = rng.choice(data + [str(rng.randint(1, 3))]) if data else str(rng.randint(1, 3))
-        return '(%s %s %s)' % (base, rng.choice(['+', '*']), other)
+        return '(%s %s %s)' % (base, rng.choice(['+', '*']), _inv(rng, data))
     return base
 
 def program(seed):

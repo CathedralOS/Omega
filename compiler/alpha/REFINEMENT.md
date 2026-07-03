@@ -69,10 +69,12 @@ certificate (`REC_PRELUDE`); the checker accepts a recurrence applied to a *symb
 | — accumulator `acc += a0 + a1·i` (linear in the counter) | `init + a0·trip + a1·g(trip)` — covers invariant deltas, `acc += i` (Σi), `a·i`, `a+i`, weighted/offset series |
 | Composition (pre-loop arith → loop → post-loop arith) | the summarized loop result flows through further terms |
 
-Linear-in-counter deltas (`a·i`, `a+i`, …) are handled **source-side** (`beta_symbolic`) via `_lin_decompose`
-+ `_series_closed`; the **bytecode side** currently summarizes only invariant and pure-Σi deltas (its
-three-iteration finite differences can't extract `a·i`), so an `a·i` program bails on the alpha side and is
-not yet certified end-to-end — a placeholder-increment slice away.
+Linear-in-counter deltas (`a·i`, `a+i`, `(a·i)+b`, …) refine **end to end**. Both engines decompose the
+per-iteration delta into `a0 + a1·i` (via `_lin_decompose` + `_series_closed`): `beta_symbolic` reads the delta
+symbolically off one placeholder body run; `alpha_symbolic` uses three-iteration finite differences for the
+invariant / pure-Σi fast path, falling back to a **placeholder body iteration** (every frame slot set to a
+`('slot', addr)` marker, invariant slots substituted back, the rest decomposed over the counter's marker) for
+the general case. The shared `_canon` normalizer keeps both engines' coefficient forms byte-identical.
 
 **Deliberately out of scope** (each conservatively *refused* — never mis-summarized): symbolic subtraction
 (needs the ZZ / difference-pair integers — Peano has no negatives and alpha's `sub` wraps mod 2⁶⁴);
