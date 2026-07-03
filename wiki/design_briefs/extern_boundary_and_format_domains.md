@@ -14,6 +14,14 @@
 > keyword, no DLL-as-module-path; mechanisms are case constructions. §12 also
 > adds the **foreign-pointer taxonomy** and closes §11's WndProc dodge via
 > entry stubs + registration guards.
+>
+> **AMENDED 2026-07-02 (third pass): the RECAST settles** — see
+> [`programmable_layouts.md`](programmable_layouts.md) §5b. Borrows under a
+> second stated shape (`&mut gdt as &mut GdtRaw`, `&x as &f32`) subsume this
+> brief's structural-domain zero-copy case and give inline asm / fixed-layout
+> FFI structs their byte-access story with no builtin. §7's mints-only rule is
+> untouched: a recast may weaken facts, never strengthen — `as` into a domain
+> still does not exist.
 
 > **For:** Omega maintainer · **Status:** SETTLED (chat session 2026-07-01, Zach) —
 > spellings marked *open* below are the only undecided parts. · **Driver:** Tier-2

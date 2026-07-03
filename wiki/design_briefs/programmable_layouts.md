@@ -192,10 +192,63 @@ msg:  Protobuf<Save>;                  // ERROR: Dynamic plan cannot be a value 
 - **The no-op boundary theorem**: a `&CLayout<T>` *is* `&[u8] in CLayout<T>` —
   its bytes are conformant by construction, so handing it across an FFI/firmware
   edge is a borrow, not an encode. (Generalizes the extern brief's structural-
-  domain zero-copy case: a policy can *make* representations coincide.)
+  domain zero-copy case: a policy can *make* representations coincide. With
+  §5b's recast this stops being a separate theorem: it is the read-only corner
+  of the recast judgment.)
 - Serialization stays a carrier phenomenon: a value has exactly **one**
   in-memory form; multi-format is expressed by encoding into differently-
   refined carriers, never by multiplying value layouts.
+
+## 5b. Recast: borrows under a second stated shape (settled 2026-07-02, chat)
+
+**There is no reinterpret cast, no `bytes()` builtin, and no implicit borrow
+coercion. A recast is a borrow spelled with `as`, and its legality is a
+static judgment between two stated layouts.** `as` on a VALUE converts
+(`x as f32` → `4000.0`); `as` on a BORROW re-views (`&x as &f32` → the bit
+pattern) — a borrow is a place, and a place is never converted, only revealed
+under another shape.
+
+```omega
+let int_bytes: i32 = 4000;
+let as_float = &int_bytes as &f32;        // scalar pun, explicit, checked
+
+data GdtRaw {                             // a second shape over Gdt's footprint
+    head: [u8; 8];                        // relaxed: no facts here in Gdt either
+    flags: u8 [0..=15];                   // KEPT verbatim: the fact-carrying region
+    tail: [u8; 8];
+}
+let raw = &mut self.gdt as &mut GdtRaw;   // struct recast; nothing runs
+let bytes = &mut self.gdt as &mut [u8; 24]; // the degenerate shape: [u8; N] IS a
+                                            // (trivially) stated layout — legal iff
+                                            // Gdt declares no facts anywhere
+```
+
+The judgment (all static, plan-level — same family as plan validation; a bad
+relation is a compile error, never unsafety):
+
+1. **Same footprint** — the target's plan tiles the source's plan exactly.
+2. **Fact implication per overlapping region** — a `&` recast needs
+   source-facts ⟹ target-facts; a `&mut` recast needs BOTH directions
+   (anything writable through the target must leave the source valid at
+   release). Fact-free regions are free; regions kept verbatim are free.
+3. **Both types stated** — primitives and `[u8; N]` are trivially stated
+   (target-public representations); records must be plan-laid. Sovereign
+   layout stays sovereign: no recast can observe it.
+4. **A recast may WEAKEN facts, never STRENGTHEN them.** `&mut ranged as
+   &mut f32` rejects (a write could break the range); `&bytes as
+   &([u8] in Utf8)` rejects absolutely — the extern brief's §7 trapdoor
+   stays shut. Establishing a fact is a MINT's job: fallible,
+   case-returning, forced-dispatch.
+5. **Untyped sources annotate first** — recasting a local whose type came
+   from literal inference is an error until the type is spelled.
+
+Consequences: borrow exclusivity gives fact-suspension for free (while the
+recast borrow lives, the source is inaccessible as its typed self); inline
+asm consumes recast views and speaks contracts over the STATED shape (the
+interrupt frame is the same story inbound); and the derived codec surface
+shrinks to its honest core — **re-views are `as`, transforms are derived
+machines**, and a grammar needs derivation exactly when it is not
+fixed-layout (the tagged evolution grammar and nothing else).
 
 ## 6. Bits: bit-addressable fields, no bit-width types
 
