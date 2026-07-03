@@ -42,15 +42,26 @@ def program(seed):
     for acc in accs:
         init = rng.choice(['0', str(rng.randint(0, 3))] + data)     # accumulator start: 0, a const, or an input
         lines.append('    let %s = %s' % (acc, init))
-    lines.append('    let i = 0')
     ret = rng.choice(accs + ['i'])                                  # return an accumulator or the counter
-    guard = rng.choice(['<', '<='])                                 # both lower to a recognized compare idiom
-    lines.append('    state loop { to body when (i %s n)  return %s }' % (guard, ret))
+    # ~20% DOWN-counting: i drains n -> 0 under (0 < i), stepping by the ℤ pair -1 — exactly n trips. Deltas
+    # must be loop-INVARIANT there (the counter's value is n-k, not k; counter-linear δ is refused), so the
+    # down mode draws from _inv only. Up mode keeps the full linear-in-i delta space.
+    down = rng.random() < 0.20
+    lines.append('    let i = %s' % ('n' if down else '0'))
+    if down:
+        lines.append('    state loop { to body when (0 < i)  return %s }' % ret)
+        step = 'i = i - 1'
+        delta = lambda: _inv(rng, data)
+    else:
+        guard = rng.choice(['<', '<='])                             # both lower to a recognized compare idiom
+        lines.append('    state loop { to body when (i %s n)  return %s }' % (guard, ret))
+        step = 'i = i + 1'
+        delta = lambda: _delta(rng, data)
     # ~25% of accumulators SUBTRACT their delta (acc = acc - δ): the value goes negative in ℤ and is carried
     # as a difference pair whose pos/neg components summarize independently (observable mod 256 stays exact).
-    body = '  '.join('%s = %s %s %s' % (acc, acc, '-' if rng.random() < 0.25 else '+', _delta(rng, data))
+    body = '  '.join('%s = %s %s %s' % (acc, acc, '-' if rng.random() < 0.25 else '+', delta())
                      for acc in accs)
-    lines.append('    state body { %s  i = i + 1  to loop }' % body)
+    lines.append('    state body { %s  %s  to loop }' % (body, step))
     lines.append('}')
     return '\n'.join(lines) + '\n'
 

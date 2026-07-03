@@ -206,6 +206,9 @@ def _canon(x):                         # canonicalize a concrete coefficient to 
     c = _concnat(x)
     return c if c is not None else x
 
+def _is_negone(d):                     # is delta d the ℤ pair -1 (pos 0, neg 1)? the down-counter's stride
+    return isinstance(d, tuple) and d[0] == 'zz' and _canon(d[1]) == 0 and _canon(d[2]) == 1
+
 def _series_closed(init, a0, a1, trip):
     """init + a0·trip + a1·g(trip), canonical (same construction as beta_symbolic._series_closed → refl-equal)."""
     def scaled(coef, base):
@@ -383,9 +386,18 @@ def symexec(tape):
             raw[a] = d
         invariant = {a for a in frame if raw[a] == 0}   # slots unchanged this iteration hold loop-invariant values
         moved = [a for a in frame if raw[a] != 0]
+        down = False
         counters = [a for a in moved if _canon(raw[a]) == 1 and MEM[a] == L]
         if not counters:
-            return None
+            # DOWN-count: guard `0 < i` (L the concrete 0, Rb the counter's symbolic entry value) with a slot
+            # stepping by the ℤ pair -1 — it drains I, I-1, …, 1, so exactly trip = Rb iterations. `0 <= i`
+            # with -1 never terminates and is not recognized. A ℤ-pair entry value can't be a trip count yet.
+            if kind != 'lt' or L != 0 or (isinstance(Rb, tuple) and Rb[0] == 'zz'):
+                return None
+            counters = [a for a in moved if _is_negone(raw[a]) and MEM[a] == Rb]
+            if not counters:
+                return None
+            down = True
         ctr = ('slot', counters[0])
         updates = {}
         for a in moved:
@@ -398,6 +410,8 @@ def symexec(tape):
                 dp, dn = _lin_decompose(P, ctr), _lin_decompose(N, ctr)
                 if dp is None or dn is None:
                     return None
+                if down and (_canon(dp[1]) != 0 or _canon(dn[1]) != 0):
+                    return None                         # a down-counter's value is I-k, not k: only invariant δ
                 p0, n0 = _as_zz(MEM[a])
                 updates[a] = ('zz', _series_closed(p0, _canon(dp[0]), _canon(dp[1]), trip),
                                     _series_closed(n0, _canon(dn[0]), _canon(dn[1]), trip))
@@ -408,6 +422,8 @@ def symexec(tape):
             dec = _lin_decompose(sub, ctr)
             if dec is None:
                 return None                             # δ not linear in the counter (i·i, cross-accumulator, …)
+            if down and _canon(dec[1]) != 0:
+                return None                             # counter-dependent δ under a down-counter: later
             updates[a] = _series_closed(MEM[a], _canon(dec[0]), _canon(dec[1]), trip)
         MEM.update(updates)
         return exit_pc

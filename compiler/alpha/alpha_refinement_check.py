@@ -74,6 +74,7 @@ AUTO_SAMPLES = [
     ("weighted  (LINEAR δ a*i+b)", "refinement-samples/weighted.beta"),
     ("diff      (SUBTRACTION (a-b)*c)", "refinement-samples/diff.beta"),
     ("drain     (SUBTRACTING LOOP n*a -= a)", "refinement-samples/drain.beta"),
+    ("countdown (DOWN-COUNT LOOP 0<i, i-=1 →n*a)", "refinement-samples/countdown.beta"),
     ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
     ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
     ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),
