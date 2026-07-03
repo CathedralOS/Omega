@@ -7,7 +7,7 @@
 # straight-line engines.
 #
 # Shape (the recognized linear class): a unit-stride counter `i` from 0 with guard `i < n` (n an input), one
-# or two accumulators each updated `acc = acc + <loop-invariant delta>` per iteration, and a returned
+# or two accumulators each updated `acc = acc ± <delta linear in i>` per iteration, and a returned
 # accumulator or the counter. Deltas are invariant expressions over the DATA inputs and small constants with
 # `+`/`*` (never an accumulator or the counter — that would be nonlinear / Σi, outside the class). Small
 # constants + few inputs keep values well under the 2^64 wrap and the write/halt mod-256 truncation.
@@ -46,7 +46,10 @@ def program(seed):
     ret = rng.choice(accs + ['i'])                                  # return an accumulator or the counter
     guard = rng.choice(['<', '<='])                                 # both lower to a recognized compare idiom
     lines.append('    state loop { to body when (i %s n)  return %s }' % (guard, ret))
-    body = '  '.join('%s = %s + %s' % (acc, acc, _delta(rng, data)) for acc in accs)
+    # ~25% of accumulators SUBTRACT their delta (acc = acc - δ): the value goes negative in ℤ and is carried
+    # as a difference pair whose pos/neg components summarize independently (observable mod 256 stays exact).
+    body = '  '.join('%s = %s %s %s' % (acc, acc, '-' if rng.random() < 0.25 else '+', _delta(rng, data))
+                     for acc in accs)
     lines.append('    state body { %s  i = i + 1  to loop }' % body)
     lines.append('}')
     return '\n'.join(lines) + '\n'

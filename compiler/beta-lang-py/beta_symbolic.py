@@ -182,10 +182,13 @@ def _series_closed(init, a0, a1, trip):
 def _mentions(t, ph):                  # does the placeholder `ph` occur in term `t`?
     if t == ph:
         return True
-    return isinstance(t, tuple) and t[0] in ('s', 'p', 'm') and any(_mentions(x, ph) for x in t[1:])
+    return isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'zz') and any(_mentions(x, ph) for x in t[1:])
 
 def _lin_delta(expr, ph):
-    """expr = ph + D or D + ph (D free of ph) -> D (the per-iteration increment); expr == ph -> 0; else None."""
+    """expr = ph + D or D + ph (D free of ph) -> D (the per-iteration increment); expr == ph -> 0; else None.
+    A zz pair ('zz', P, N) with P = ph + Dp and N free of ph is a SUBTRACTING accumulator: since +/- distribute
+    componentwise over difference pairs, its pos/neg components follow independent additive recurrences — the
+    delta is ('zz', Dp, N) and each component summarizes with the ordinary linear machinery."""
     if expr == ph:
         return 0
     if isinstance(expr, tuple) and expr[0] == 'p':
@@ -194,13 +197,17 @@ def _lin_delta(expr, ph):
             return b
         if b == ph and not _mentions(a, ph):
             return a
+    if isinstance(expr, tuple) and expr[0] == 'zz' and not _mentions(expr[2], ph):
+        dp = _lin_delta(expr[1], ph)
+        if dp is not None:
+            return ('zz', dp, expr[2])
     return None
 
 def _mentions_loopvar(t, names):       # does term `t` mention any ('loopvar', v) with v in names?
     if isinstance(t, tuple):
         if t[0] == 'loopvar':
             return t[1] in names
-        if t[0] in ('s', 'p', 'm'):
+        if t[0] in ('s', 'p', 'm', 'zz'):
             return any(_mentions_loopvar(x, names) for x in t[1:])
     return False
 
@@ -294,11 +301,23 @@ class SymInterp:
         except Unsupported:
             return False
         trip = bound if cond[1] == '<' else _add(bound, 1)      # iterations: 0..bound-1 (<) or 0..bound (<=)
+        closed = {}
         for v in loop_vars:                             # each δ = a0 + a1·counter -> init + a0·trip + a1·g(trip)
-            dec = _lin_decompose(deltas[v], counter, loop_vars)
+            d = deltas[v]
+            if isinstance(d, tuple) and d[0] == 'zz':   # subtracting accumulator: summarize pos/neg independently
+                dp = _lin_decompose(d[1], counter, loop_vars)
+                dn = _lin_decompose(d[2], counter, loop_vars)
+                if dp is None or dn is None:
+                    return False
+                p0, n0 = _as_zz(entry[v])
+                closed[v] = ('zz', _series_closed(p0, _canon(dp[0]), _canon(dp[1]), trip),
+                                   _series_closed(n0, _canon(dn[0]), _canon(dn[1]), trip))
+                continue
+            dec = _lin_decompose(d, counter, loop_vars)
             if dec is None:
                 return False                            # δ not linear in the counter (i·i, cross-loopvar): later
-            env[v] = _series_closed(entry[v], _canon(dec[0]), _canon(dec[1]), trip)
+            closed[v] = _series_closed(entry[v], _canon(dec[0]), _canon(dec[1]), trip)
+        env.update(closed)
         return True
 
     def run(self, proc, argvals):
