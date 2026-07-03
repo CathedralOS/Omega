@@ -1223,6 +1223,45 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             return;
         }
 
+        // A member read through a REFERENCE-typed slot on the RHS is a DEREF,
+        // not a flat fold: `self.c = table.con_out` (or a `let` lifted to
+        // machine storage) with `table: &EfiSystemTable` reads
+        // [*(slot) + 64]. Tried BEFORE the flat resolver below, which would
+        // read the frame bytes past the pointer slot (shared-ref-param-field-
+        // read gap). The generalized pointee copy lands in the target region.
+        if let Some(pointee) = resolve_runtime_pointee_slot_offset(
+            input,
+            dispatch_index,
+            resolved_value.source_key,
+            &resolved_value.expression,
+        ) && let Some(target_place) = resolve_runtime_storage_place(
+            input,
+            dispatch_index,
+            target_source_key,
+            source_machine,
+            source_state,
+            resolved_target,
+        ) && matches!(
+            target_place.region,
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
+                | omega_abstract_operations::RuntimeStorageRegion::Machine
+        ) && pointee.pointee_byte_size == target_place.byte_count
+            && pointee.pointee_byte_size > 0
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+                    target_region: target_place.region,
+                    pointer_byte_offset: pointee.pointer_byte_offset,
+                    field_byte_offset: pointee.field_byte_offset,
+                    target_offset: target_place.byte_offset,
+                    byte_count: target_place.byte_count,
+                },
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
+
         if let Some(target_place) = resolve_runtime_storage_place(
             input,
             dispatch_index,
