@@ -454,12 +454,30 @@ brief rules addr→borrow = strengthening = a mint):**
    walks the cases (At-only in the fixed slice, tagged/bit = clear error until
    the deriver). Positional entries v1; the brief's name-keyed `[FieldEntry]`
    arrives with the deriver. L4 plan-laid consumers unchanged.
-2. **Plan-walking validate DERIVER**: `validate` derived for ANY schema by
-   walking its Plan — retires the hardcoded tagged codec (and would-be
-   hardcoded UEFI walk).
-3. **Foreign-backed views**: the minted view whose base is a runtime `addr`
-   (validate is the ONLY door), projections lowering to the EXISTING pointee
-   ops; `table.con_out` = a pointee read at the plan's offset.
+2. **Plan-walking deriver — DONE (rungs 2a/2b/2c, tasks #35):** the wire codec
+   is PLAN-DRIVEN end to end. 2a: `WirePlacement` arena + `WireSchemaPlan`
+   spans on TypedTrees; the codec's tags come from the derived plan (byte-
+   identical, agreement-asserted). 2b: an Omega `CompactBinary::plan` policy
+   AUTHORS the plan (L0-evaluated against materialized facts incl. the new
+   `FieldKind`), agreement with the codec REQUIRED (divergence = compile
+   error). 2c: nested child tags plan-driven (child schema's own plan). The
+   Grammar law demonstrated end-to-end (canaries + the wire_protocol sample's
+   explicit policy). Remaining: std-source the policy (needs `use omega::…` in
+   temp programs) + retire the Rust agreement walk once the policy is sole
+   author.
+3. **Foreign-backed views — RECON DONE, DESIGN-GATED (needs a Zach nod).** The
+   minted view whose base is a runtime `addr` (validate is the ONLY door);
+   `table.con_out` = a read at `[base + plan offset]`. THE MECHANISM MAP: every
+   pointee read today dereferences a pointer STORED IN A FRAME SLOT (the
+   `&mut`-alias shape, `CopyRuntimePointeeToRuntimeFrame`); NO path dereferences
+   a bare `addr` scalar. So the design choice DETERMINES the mechanism — if
+   `validate` stages the base into a frame slot, field projection reuses the
+   EXISTING pointee reads with ZERO new backend; only a bare-addr view needs a
+   new instruction. THE FORK (not settled): view base rep (stage-into-slot
+   [rec] vs bare addr); `validate` surface (compiler-synthesized like
+   encode/decode [rec] vs Omega machine); the view TYPE spelling + borrow/
+   lifetime over foreign memory + mutability + `Valid` payload. Settled by
+   briefs: extern §12.2 (addr scalars), plan-laid offset baking (views reuse).
 4. **Fact establishment** (task #22's second half): `Valid` MEANS every
    declared fact holds — CheckWireScalarRange through both encoders,
    differential-verified.
