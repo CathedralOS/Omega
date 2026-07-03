@@ -27,6 +27,9 @@ PROVER = os.path.join(HERE, '..', 'delta', 'prover.py')
 CHECK = sys.argv[1]
 BC = sys.argv[2] if len(sys.argv) > 2 else None       # bc.exe — enables the real-bc-output samples
 ASM = sys.argv[3] if len(sys.argv) > 3 else None      # the beta assembler exe
+# The recurrence prelude: user-Nat (data 2=Z, 3=S) + the triangular-sum fun g(0)=0, g(s k)=g(k)+k (fun 90),
+# which alpha_symbolic/beta_symbolic emit as ('f',90,t) for `acc += i` loops. Prepended to a cert that mentions it.
+REC_PRELUDE = '(data 2 0 0 0) (data 3 1 1 0) (fun 90 2 (k 2)) (fun 90 3 (p (rec 0) (v 0)))'
 
 # ---- a minimal raw-byte Alpha assembler (encoding per alpha_ref.py) ---------------------------------
 def imm(d, k): return bytes([0x01, d]) + int(k).to_bytes(8, 'little')
@@ -66,6 +69,7 @@ AUTO_SAMPLES = [
     ("muln      (DATA-DEP LOOP →n*a)", "refinement-samples/muln.beta"),
     ("muln_le   (DATA-DEP LOOP i<=n →(n+1)*a)", "refinement-samples/muln_le.beta"),
     ("countn    (DATA-DEP LOOP →n)",   "refinement-samples/countn.beta"),
+    ("tri       (Σi LOOP total+=i →g(n))", "refinement-samples/tri.beta"),
     ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
     ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
     ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),
@@ -113,14 +117,21 @@ def prove_equiv(label, text, tape, ok_msg, quiet_perturb=False, trials=40, teeth
             print("  FAIL %-26s : alpha_symbolic ≠ bytecode (sym=%s vm=%s at %s)\n%s" % (label, vc, va, env, text)); return False
         if vm % 256 != vb:
             print("  FAIL %-26s : beta_symbolic ≠ source interp (sym=%s interp=%s at %s)\n%s" % (label, vm, vb, env, text)); return False
-    def univ(rhs):
-        g = '(= %s %s)' % (S.render(C), rhs)
+    cterm = S.render(C)
+    def prove_eq(rhs):
+        g = '(= %s %s)' % (cterm, rhs)
         for _ in range(nC):
             g = '(All %s)' % g
-        return g
-    if not prove(univ(B.render(M))):                   # bc output ≡ source meaning, ∀ inputs
+        if '(f ' in g:                                 # a recurrence ('f' user-fun): prover.py can't parse it,
+            proof = '(refl %s)' % cterm                # so emit a direct refl cert (valid iff C conv rhs) + the
+            for _ in range(nC):                        # recurrence's (fun ..) prelude, and let check.beta decide
+                proof = '(gen %s)' % proof
+            cert = '%s %s %s' % (REC_PRELUDE, g, proof)
+            return subprocess.run([CHECK], input=cert, capture_output=True, text=True).stdout.strip() == 'accept'
+        return prove(g)                                # Peano goal: prover.py searches, check.beta validates
+    if not prove_eq(B.render(M)):                      # bc output ≡ source meaning, ∀ inputs
         print("  FAIL %-26s : could not prove code ≡ source meaning\n%s" % (label, text)); return False
-    if teeth and prove(univ('(s %s)' % B.render(M))):  # teeth: a perturbed meaning must NOT be provable
+    if teeth and prove_eq('(s %s)' % B.render(M)):     # teeth: a perturbed meaning must NOT be provable
         print("  FAIL %-26s : proved a WRONG (perturbed) meaning\n%s" % (label, text)); return False
     if not quiet_perturb:
         print("  ok   %-26s : %s" % (label, ok_msg))

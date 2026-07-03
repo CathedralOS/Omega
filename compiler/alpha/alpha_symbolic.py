@@ -25,6 +25,10 @@ NAT_CAP = 1 << 20                      # refuse to materialize absurdly large co
 class Unsupported(Exception):
     pass
 
+# TRI_ID: the triangular-sum recurrence g(0)=0, g(s k)=g(k)+k (so g(n)=Σ_{j<n} j). A loop `acc += i` over trip
+# count t computes g(t); it stays a checker-accepted closed FORM as ('f', TRI_ID, t) (refl on a symbolic input).
+TRI_ID = 90
+
 # ---- symbolic Peano terms: ('z',) | ('s',t) | ('p',a,b)=plus | ('m',a,b)=times | ('v',i)=input var --------
 def nat(k):                            # a concrete natural as s^k z
     if k < 0 or k > NAT_CAP:
@@ -39,6 +43,7 @@ def render(t):                         # -> check.beta / prover term syntax
     if h == 'z':  return 'z'
     if h == 's':  return '(s %s)' % render(t[1])
     if h == 'v':  return '(v %d)' % t[1]
+    if h == 'f':  return '(f %d %s)' % (t[1], render(t[2]))
     return '(%s %s %s)' % (h, render(t[1]), render(t[2]))
 
 def evaluate(t, env):                  # concrete integer value under env: {var_index: int}
@@ -46,6 +51,11 @@ def evaluate(t, env):                  # concrete integer value under env: {var_
     if h == 'z':  return 0
     if h == 's':  return 1 + evaluate(t[1], env)
     if h == 'v':  return env[t[1]]
+    if h == 'f':                       # a user-function recurrence; TRI_ID is the triangular sum g(n)=Σ_{j<n} j
+        if t[1] != TRI_ID:
+            raise Unsupported('unknown recurrence fun %d' % t[1])
+        a = evaluate(t[2], env)
+        return a * (a - 1) // 2
     if h == 'p':  return evaluate(t[1], env) + evaluate(t[2], env)
     return evaluate(t[1], env) * evaluate(t[2], env)     # m
 
@@ -192,22 +202,33 @@ def symexec(tape):
         header = next((h for h, j in backedges.items() if h <= cont_pc <= j), None)
         if header is None:
             return None
-        try:
-            MEM1 = _run_body_once(tape, cont_pc, header, MEM, R, sp)
+        try:                                            # run THREE body iterations from the concrete header state
+            S1 = _run_body_once(tape, cont_pc, header, MEM, R, sp)
+            S2 = _run_body_once(tape, cont_pc, header, S1, R, sp)
+            S3 = _run_body_once(tape, cont_pc, header, S2, R, sp)
         except Unsupported:
             return None
         r15 = R.get(15, 0)                              # frame locals sit at/above the data-stack top
-        carried = {a: (MEM.get(a, 0), MEM1[a]) for a in MEM if isinstance(a, int) and a >= r15 and MEM1.get(a) != MEM.get(a)}
-        deltas = {a: _slot_delta(s0, s1) for a, (s0, s1) in carried.items()}
-        if any(d is None or (isinstance(d, tuple) and d[0] == 'cmp') for d in deltas.values()):
-            return None                                 # a non-linear / boolean update -> not summarizable
-        # a unit-stride counter starting at the guard's left operand L must exist (it makes the loop run R times);
-        # its own closed form init + R*1 = R falls out of the same formula, so no special-case is needed.
-        if not any(deltas[a] == 1 and s0 == L for a, (s0, s1) in carried.items()):
-            return None
+        carried = [a for a in MEM if isinstance(a, int) and a >= r15
+                   and (S1.get(a) != MEM[a] or S2.get(a) != MEM[a] or S3.get(a) != MEM[a])]
         trip = Rb if kind == 'lt' else _add(Rb, 1)      # `<`: 0..R-1 = R iters ; `<=`: 0..R = R+1 iters
-        for a, (s0, s1) in carried.items():
-            MEM[a] = _add(s0, _mul(trip, deltas[a]))    # closed form: init + trip*delta  (counter: 0 + R*1 = R)
+        updates = {}; have_counter = False
+        for a in carried:
+            s0 = MEM[a]
+            d1, d2, d3 = _slot_delta(s0, S1[a]), _slot_delta(S1[a], S2[a]), _slot_delta(S2[a], S3[a])
+            if any(d is None or (isinstance(d, tuple) and d[0] == 'cmp') for d in (d1, d2, d3)):
+                return None
+            if d1 == d2 == d3:                          # constant per-iteration increment -> init + trip*delta
+                if d1 == 1 and s0 == L:
+                    have_counter = True                 # a unit-stride counter from L makes the loop run `trip` times
+                updates[a] = _add(s0, _mul(trip, d1))   # (counter's own 0 + trip*1 = trip falls out here)
+            elif (d1, d2, d3) == (0, 1, 2):             # increment(k) == k  ->  Σ_{k<trip} k = g(trip)
+                updates[a] = _add(s0, ('f', TRI_ID, trip))
+            else:
+                return None                             # a delta not (yet) summarizable
+        if not have_counter:
+            return None
+        MEM.update(updates)
         return exit_pc
     while True:
         steps += 1
