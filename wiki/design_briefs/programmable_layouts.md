@@ -226,11 +226,17 @@ let bytes = &mut self.gdt as &mut [u8; 24]; // the degenerate shape: [u8; N] IS 
 The judgment (all static, plan-level — same family as plan validation; a bad
 relation is a compile error, never unsafety):
 
-1. **Same footprint** — the target's plan tiles the source's plan exactly.
-2. **Fact implication per overlapping region** — a `&` recast needs
-   source-facts ⟹ target-facts; a `&mut` recast needs BOTH directions
-   (anything writable through the target must leave the source valid at
-   release). Fact-free regions are free; regions kept verbatim are free.
+1. **Same total size, and target alignment ≤ source alignment.** Field
+   boundaries need NOT line up: the judgment is BYTE-granular, so two
+   fact-free 22-byte shapes recast freely however their fields carve the
+   bytes (padding included — ZII + deterministic writes mean even padding
+   has defined content; "weird" is permitted, "undefined" does not exist).
+2. **Fact implication per byte** — a `&` recast needs source-facts ⟹
+   target-facts; a `&mut` recast needs BOTH directions (anything writable
+   through the target must leave the source valid at release). Fact-free
+   bytes are free; a fact-carrying region in practice forces a matching
+   field on the other side, verbatim. Rejections name the byte region and
+   the fact.
 3. **Both types stated** — primitives and `[u8; N]` are trivially stated
    (target-public representations); records must be plan-laid. Sovereign
    layout stays sovereign: no recast can observe it.
