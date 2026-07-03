@@ -1,0 +1,26 @@
+// `utf16"..."` -- UTF-16 text sugar for UEFI/Windows CHAR16 data (the
+// milestone-1 greeting is `utf16"Hello from Omega\r\n\0"`). Desugars AT PARSE
+// to the ordinary integer array literal of the string's UTF-16 code units, so
+// it fits any `[u16; N]` context, both backends and the interpreter see plain
+// integers, and escapes ride the existing string decoder. Verifies 'H' = 72 at
+// [0], '\n' = 10 at [17], and the NUL terminator at [18].
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; msg: [u16; 19]; a: u16; b: u16; c: u16; }
+machine Main::main(&mut self) {
+    self.msg = utf16"Hello from Omega\r\n\0";
+    self.a = self.msg[0];
+    self.b = self.msg[17];
+    self.c = self.msg[18];
+    transition self.a == 72 {
+        true -> check_nl()
+        false -> bad()
+    }
+    state check_nl(&mut self) {
+        transition self.b == 10 { true -> check_nul() false -> bad() }
+    }
+    state check_nul(&mut self) {
+        transition self.c == 0 { true -> good() false -> bad() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

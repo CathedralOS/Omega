@@ -174,6 +174,32 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
         ));
     }
 
+    // `utf16"..."`: UTF-16 text sugar for UEFI/Windows CHAR16 data. Desugars in
+    // the PARSER to the ordinary integer ARRAY LITERAL of the string's UTF-16
+    // code units (surrogate pairs for non-BMP), so it fits every `[u16; N]`
+    // context an array literal fits -- no new tree node, no backend work. The
+    // prefix is contextual: a bare identifier followed by a string literal is
+    // never otherwise valid, so `utf16` stays usable as an ordinary name.
+    if input.at_contextual("utf16") && input.at_contextual_then_string("utf16") {
+        let input = input.take_contextual("utf16")?;
+        let (value, input) = input.take_string()?;
+        let units: Vec<_> = value
+            .encode_utf16()
+            .map(|unit| {
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Integer(i64::from(unit)))
+            })
+            .collect();
+        let units = syntax_trees.expressions.insert_expression_handles(units);
+        return Ok((
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::ArrayLiteral(units)),
+            input,
+        ));
+    }
+
     if input
         .tokens
         .first()

@@ -148,6 +148,22 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
     /// the contextual keyword `name` -- a 2-token peek for identifier-led items
     /// like `<target> provides <Trait> { ... }` (extern brief §3), which have no
     /// leading keyword to dispatch on. Consumes nothing.
+    /// True when the input leads with the contextual keyword `name` IMMEDIATELY
+    /// followed (past trivia) by a string literal -- the prefixed-string shape
+    /// (`utf16"..."`). A bare identifier followed by a string literal is never
+    /// otherwise valid, so the peek cannot shadow user code. Consumes nothing.
+    pub(super) fn at_contextual_then_string(&self, name: &str) -> bool {
+        let Some((first, rest)) = self.tokens.split_first() else {
+            return false;
+        };
+        if !(matches!(first.kind, TokenKind::Identifier) && first.lexeme.as_str() == name) {
+            return false;
+        }
+        skip_non_semantic_tokens(rest)
+            .first()
+            .is_some_and(|token| token.kind == TokenKind::StringLiteral)
+    }
+
     pub(super) fn at_identifier_then_contextual(&self, name: &str) -> bool {
         // `self.tokens[0]` is semantic (leading trivia was skipped in `new`), but
         // trivia between it and the next token is retained, so skip past it before

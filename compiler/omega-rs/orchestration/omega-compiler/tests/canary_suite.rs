@@ -17391,6 +17391,36 @@ fn entry_run_args_bytes_canary_runs() {
 }
 
 #[test]
+fn runtime_utf16_literal_exit_canary_runs() {
+    // `utf16"Hello from Omega"` (CR LF NUL escaped) desugars at parse to the integer array
+    // literal of its UTF-16 code units: 'H'=72 at [0], newline=10 at [17], NUL at
+    // [18] (exit 70). Native must match the interpreter (both see plain
+    // integers -- the sugar is gone before resolution).
+    let canary = pass_canary("text/runtime_utf16_literal_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-utf16-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("utf16 literal canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("utf16 literal canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the utf16 greeting's code units to verify (exit 70); got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     for canary_name in ACTIVE_FAIL_CANARIES {
         let canary = fail_canary(canary_name);
