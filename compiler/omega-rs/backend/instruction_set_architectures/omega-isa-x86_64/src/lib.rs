@@ -6459,6 +6459,12 @@ fn append_runtime_float_binary_operation(
         StateGuardOperator::Subtract => 0x5c, // subsd/subss
         StateGuardOperator::Multiply => 0x59, // mulsd/mulss
         StateGuardOperator::Divide => 0x5e,   // divsd/divss
+        // `maxsd a, b` / `minsd a, b` return b on unordered (NaN) or equal, so
+        // they realize `if a > b { a } else { b }` (and the min mirror) --
+        // which the interpreter's float min/max matches exactly. This is what
+        // makes float min/max, and hence abs/clamp over floats, lower.
+        StateGuardOperator::Max => 0x5f, // maxsd/maxss
+        StateGuardOperator::Min => 0x5d, // minsd/minss
         // sqrt is UNARY, carried with both operands = x: `sqrtsd xmm0, xmm1`
         // computes sqrt(xmm1) = sqrt(x) into xmm0, so the shared final line
         // below (op on xmm0, xmm1) already produces the right result.

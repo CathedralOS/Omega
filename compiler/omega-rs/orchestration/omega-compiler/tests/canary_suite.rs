@@ -17229,6 +17229,39 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
 }
 
 #[test]
+fn runtime_float_min_max_abs_clamp_exit_canary_runs() {
+    // Float min/max on SSE (maxsd/minsd), plus abs/clamp over floats which
+    // desugar to them: max(3,7)+min(3,7)+abs(-12)+clamp(300,0,200) = 222.
+    let canary = pass_canary("arithmetic/runtime_float_min_max_abs_clamp_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float-minmax-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float min/max/abs/clamp canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float min/max/abs/clamp canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected float max/min/abs/clamp to sum to 222 (exit 70); exit 71 = maxsd/minsd \
+         disagreed with the interpreter. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_clamp_desugar_exit_canary_runs() {
     // `clamp(x, lo, hi)` = `min(max(x, lo), hi)`: 300->255, -5->0, 128->128.
     let canary = pass_canary("arithmetic/runtime_clamp_desugar_exit");
@@ -17743,6 +17776,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_abs_desugar_exit",
     "arithmetic/runtime_sqrt_builtin_exit",
     "arithmetic/runtime_clamp_desugar_exit",
+    "arithmetic/runtime_float_min_max_abs_clamp_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
     "concurrency/runtime_spawn_struct_result_exit",

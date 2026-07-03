@@ -3191,10 +3191,18 @@ impl<'program> Evaluator<'program> {
             let r = right
                 .as_float()
                 .ok_or_else(|| Halt::Trap("min/max float".to_owned()))?;
+            // Match the native SSE semantics exactly: `maxsd a, b` returns b
+            // when the values are unordered (any NaN) or equal, and the larger
+            // otherwise -- i.e. `if a > b { a } else { b }` (partial `>` is
+            // false for NaN). `minsd` is the mirror. Rust's `f64::max`/`min`
+            // differ (they return the non-NaN operand), which would diverge
+            // from the backend on a NaN second operand.
             return Ok(Value::Float(if name == "max" {
-                l.max(r)
+                if l > r { l } else { r }
+            } else if l < r {
+                l
             } else {
-                l.min(r)
+                r
             }));
         }
         let l = left
