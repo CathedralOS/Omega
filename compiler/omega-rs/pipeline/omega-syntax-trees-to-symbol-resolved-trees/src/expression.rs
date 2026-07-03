@@ -122,6 +122,43 @@ fn lower_expression_node_into_table(
                     arguments,
                 })));
             }
+            // `clamp(x, lo, hi)` desugars to `min(max(x, lo), hi)` -- also
+            // pure min/max reuse. Each argument appears EXACTLY ONCE (no
+            // shared subtree), so a call argument is safe here (no double-eval
+            // reject needed, unlike abs). Same narrow reservation: receiver-
+            // less, exactly three arguments.
+            if !call.receiver.is_valid()
+                && call.target.as_str() == "clamp"
+                && call.arguments.count() == 3
+            {
+                let argument_handles = syntax_trees
+                    .expressions
+                    .expression_handles(call.arguments)
+                    .to_vec();
+                let x = lower_expression_into_table(syntax_trees, expressions, argument_handles[0])?;
+                let lo =
+                    lower_expression_into_table(syntax_trees, expressions, argument_handles[1])?;
+                let hi =
+                    lower_expression_into_table(syntax_trees, expressions, argument_handles[2])?;
+                let max_arguments = expressions.reserve_expression_handles(2);
+                expressions.set_expression_handle_at_offset(max_arguments, 0, x);
+                expressions.set_expression_handle_at_offset(max_arguments, 1, lo);
+                let max_call = expressions.insert(ExpressionNode::Call(TableCallExpression {
+                    receiver: ExpressionHandle::invalid(),
+                    target_symbol: SymbolHandle::invalid(),
+                    target: DiagnosticName::new("max", call.target.source_span()),
+                    arguments: max_arguments,
+                }));
+                let min_arguments = expressions.reserve_expression_handles(2);
+                expressions.set_expression_handle_at_offset(min_arguments, 0, max_call);
+                expressions.set_expression_handle_at_offset(min_arguments, 1, hi);
+                return Ok(expressions.insert(ExpressionNode::Call(TableCallExpression {
+                    receiver: ExpressionHandle::invalid(),
+                    target_symbol: SymbolHandle::invalid(),
+                    target: DiagnosticName::new("min", call.target.source_span()),
+                    arguments: min_arguments,
+                })));
+            }
 
             let receiver = if call.receiver.is_valid() {
                 lower_expression_into_table(syntax_trees, expressions, call.receiver)?
