@@ -441,55 +441,60 @@ end-to-end freestanding proof, and most of the machinery already exists.
 - **provides-table PARSE** (Binding sum RHS + identifier-led form) — awaiting
   consumption.
 
-**THE MINT ARC — the driving ladder (m1's projection `table.con_out` is a
-foreign-memory read, and mints are the only door; recast is NOT it — its own
-brief rules addr→borrow = strengthening = a mint):**
-1. **Case-vocabulary Plan — DONE (task #34):** `Plan { fields: [FieldPlan; 32] }`
-   with the brief's closed sum (`At(offset)` | `Bits(container, container_width,
-   lsb, width)` | `Varint(tag)` | `LengthPrefixed(tag)`) replacing the flat
-   offsets array. std/layout.omg + the CLayout/Spread16/Streamy policies write
-   `At` cases in their loops (runtime-indexed case-element writes verified
-   native==interp — the old "not writable" blocker was stale, canary
-   collections/runtime_case_array_element_write_exit); compute_layout_plan
-   walks the cases (At-only in the fixed slice, tagged/bit = clear error until
-   the deriver). Positional entries v1; the brief's name-keyed `[FieldEntry]`
-   arrives with the deriver. L4 plan-laid consumers unchanged.
-2. **Plan-walking deriver — DONE (rungs 2a/2b/2c, tasks #35):** the wire codec
-   is PLAN-DRIVEN end to end. 2a: `WirePlacement` arena + `WireSchemaPlan`
-   spans on TypedTrees; the codec's tags come from the derived plan (byte-
-   identical, agreement-asserted). 2b: an Omega `CompactBinary::plan` policy
-   AUTHORS the plan (L0-evaluated against materialized facts incl. the new
-   `FieldKind`), agreement with the codec REQUIRED (divergence = compile
-   error). 2c: nested child tags plan-driven (child schema's own plan). The
-   Grammar law demonstrated end-to-end (canaries + the wire_protocol sample's
-   explicit policy). Remaining: std-source the policy (needs `use omega::…` in
-   temp programs) + retire the Rust agreement walk once the policy is sole
-   author.
-3. **Foreign-backed views — RECON DONE, DESIGN-GATED (needs a Zach nod).** The
-   minted view whose base is a runtime `addr` (validate is the ONLY door);
-   `table.con_out` = a read at `[base + plan offset]`. THE MECHANISM MAP: every
-   pointee read today dereferences a pointer STORED IN A FRAME SLOT (the
-   `&mut`-alias shape, `CopyRuntimePointeeToRuntimeFrame`); NO path dereferences
-   a bare `addr` scalar. So the design choice DETERMINES the mechanism — if
-   `validate` stages the base into a frame slot, field projection reuses the
-   EXISTING pointee reads with ZERO new backend; only a bare-addr view needs a
-   new instruction. THE FORK (not settled): view base rep (stage-into-slot
-   [rec] vs bare addr); `validate` surface (compiler-synthesized like
-   encode/decode [rec] vs Omega machine); the view TYPE spelling + borrow/
-   lifetime over foreign memory + mutability + `Valid` payload. Settled by
-   briefs: extern §12.2 (addr scalars), plan-laid offset baking (views reuse).
-4. **Fact establishment** (task #22's second half): `Valid` MEANS every
-   declared fact holds — CheckWireScalarRange through both encoders,
-   differential-verified.
+**SETTLED 2026-07-04 (chat, Zach) — THE BOOT PATH RE-CUT: the boundary vouches.**
+The entry is an EXPORTED CALLABLE — `boundary machine Main::run(&self,
+handoff: EfiHandoff) -> EfiStatus` — whose parameter list is the
+boundary-trusted shape over the arrival bytes (recast AT the boundary, never
+in code; raw `&[u8]` stays first-class). Vouching is TRANSITIVE through
+declared shapes: `handoff.table` is a foreign-backed reference laid by the
+Uefi policy, so `table.con_out` reads at a plan offset with NO per-read mint —
+the validate-mint is NOT the boot door (it remains the trusted-side promotion
+tool, tasks #21/#22, de-scoped from m1). Calling plans are PROGRAMMABLE
+(closed placement vocabulary + policy-authored plans, `calling_plans.md` §7);
+inference from the image subsystem is the norm, `boundary(<Plan>)` the
+override spelling (first customer: interrupt frames, m3). Image facts live in
+**build.omg** — an interpreted `machine build(b: &mut Build)` over a ZII
+`Build { subsystem: Subsystem (Console|Gui|EfiApplication|Unspecified(u16),
+zero=Console); freestanding: bool }` — and the in-source `target { subsystem }`
+block DIES (`build_and_package_model.md` addendum).
 
-**Riding the arc's top (not separate features):** provides CONSUMPTION
-(parsed Binding table → HostAbiPlan; VtableSlot lowering onto
-`append_call_register`) gives the console call; then the greeting boots.
-**Adjacent, not blocking:** recast (#21) as the args-extraction cleanup
-(`args as &EfiHandoff`); top-level consts (the Cathedral source's
-`GREETING: [u16] = ...` / `pub EFI_SUCCESS: ...` don't parse — surface TBD);
-the free `machine main(sys)` param-field boundary-call resolution gap;
-entry computed-terminal returns; >4-arg platforms (Linux argc/argv via stack).
+**THE ENGINEERING LADDER to the greeting (all settled mechanism, in order):**
+1. **build.omg v1**: Build/Subsystem types; interpret `build(b: &mut Build)`
+   (purity-gated; needs the &mut out-param read-back in build-time eval);
+   consumption replaces `resolved_target_subsystem`; target block parse dies;
+   ~6 canaries/samples migrate; boot re-verified.
+2. **`boundary machine` parse** + exported-callable registration; the entry is
+   the boundary machine; shape-fits-arrival check against the subsystem's
+   compiler-known handoff (EFI: 16 bytes / 2 registers).
+3. **Typed-handoff entry**: `handoff: EfiHandoff` materialized from the spill
+   (the landed unmarshal, struct-shaped); `handoff.table` a foreign-backed
+   reference param (frame-slot pointer — the existing pointee machinery).
+4. **Plan-offset projection**: `table.con_out` lowers to the existing pointee
+   read at the Uefi plan's baked offset (zero new backend per the rung-3
+   recon; the plan comes from the L4 machinery).
+5. **provides CONSUMPTION + VtableSlot call**: parsed Binding table →
+   HostAbiPlan for the selected image; `output_string -> VtableSlot(1)` lowers
+   onto `append_call_register` (deref this, read slot, marshal MS-x64).
+6. **The greeting**: `table.con_out.output_string(&utf16 greeting)` under
+   QEMU/OVMF — milestone 1 closes.
+
+**THE MINT ARC (re-scoped: the language ladder, no longer boot-blocking):**
+1. **Case-vocabulary Plan — DONE (task #34).** 2. **Plan-walking deriver —
+DONE (rungs 2a/2b/2c, task #35):** the wire codec is plan-driven end to end;
+an Omega `CompactBinary::plan` policy authors the plan, agreement-gated;
+nested child tags plan-driven. Remaining: std-source the policy; retire the
+Rust agreement walk. 3. **Foreign-backed views** (recon done): now the
+LIBRARY-GRADE sibling of ladder step 3 — `validate`-minted views for bytes
+code chooses to check (network/disk), riding the same pointee machinery.
+4. **Fact establishment** (#22's second half): `Valid` MEANS every declared
+fact holds (CheckWireScalarRange through both encoders, differential).
+**Calling plans' maturation** joins the arc: hardcoded MS-x64 → `MsX64` as a
+STATED plan with the agreement oracle (the wire-codec playbook; its §6
+start-moment arrived with the boot-verified entry stubs) → policy-authored.
+
+**Adjacent, not blocking:** recast (#21) as the args-extraction cleanup;
+top-level consts; the free `machine main(sys)` resolution gap; entry
+computed-terminal returns; >4-arg platforms.
 
 Milestone 2 (GetMemoryMap → ExitBootServices → first Region mint) needs **no new
 language features** beyond these — it is Cathedral-side code over the same

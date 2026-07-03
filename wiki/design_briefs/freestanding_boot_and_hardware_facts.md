@@ -65,15 +65,31 @@ Cpu::LongMode`, `ensures paging_active(Identity)`) — wishcasts: there is no
 machine-checkable things downstream are mints on structures, invariants on
 values, and tokens for transitions (see the roll-up).
 
-**Forces the language to decide:**
-- The target-declaration shape for "no host" — how a build names an entry
-  provider instead of a host package.
-- The form of the entry axiom list: prose in the provider declaration,
-  enumerated in the boundary report like unchecked-assembly obligations —
-  probably no new mechanism beyond a doc-comment convention the artifact
-  surfaces.
-- Whether `entry()` is a machine at all — nothing calls it; hardware does. The
-  same question as interrupt entry (sample 6) in its simplest form.
+**Forces the language to decide:** *(all three DECIDED — chat 2026-07-03/04,
+Zach; the sketch above is superseded in shape, kept for the axiom-list
+reasoning, which stands)*
+- ~~The target-declaration shape for "no host"~~ → **`build.omg`:
+  `b.freestanding = true`** (an orthogonal `Build` field; no target block, no
+  entry-provider declaration — see `build_and_package_model.md` addendum).
+- ~~Whether `entry()` is a machine~~ → **there is no `entry()` and no
+  `Uefi64Entry` trait.** The entry is an ordinary **exported callable**:
+  `boundary machine Main::run(&self, handoff: EfiHandoff) -> EfiStatus`.
+  `boundary machine` = "we export this as a callable surface"; the platform
+  calls it; the parameter list IS the shape imposed over the arrival bytes
+  (the boundary performs the recast — never a cast expression in code; a raw
+  `&[u8]` parameter stays first-class). The calling plan is INFERRED from the
+  image's subsystem; `boundary(<Plan>)` states an override (sample 6's
+  interrupt entry = `boundary(InterruptFrame)` — the same construct,
+  re-entrant). See `calling_plans.md` §7.
+- The axiom list survives as designed: prose audited against the spec,
+  surfaced by the artifact next to the exported callable — no typed ensures.
+- **The trust story** (supersedes "the structure is minted, sample 2" for the
+  BOOT path): the boundary declaration is the vouching site, and vouching is
+  TRANSITIVE through declared shapes — `handoff.table` is a foreign-backed
+  reference whose layout the Uefi policy lays; reading `con_out` through it
+  needs no mint because the boundary already vouched for the declared shape.
+  `validate` remains the trusted-side promotion tool for bytes code CHOOSES
+  to check (network, disk) — it is no longer the boot path's door.
 
 ## Sample 2 — the memory map: untrusted bytes, a vouched meaning, and the exit dance
 

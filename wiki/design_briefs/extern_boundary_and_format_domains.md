@@ -27,6 +27,18 @@
 > typed context (never argc/argv) on a non-Cathedral host: a per-target inbound
 > entry stub materializes it from the OS's startup convention (GetCommandLineW /
 > the ELF stack), the inbound sibling of §12's outbound stubs.
+>
+> **AMENDED 2026-07-04: the entry is an exported callable.** The launch surface
+> is `boundary machine Main::run(&self, handoff: <Shape>)` — "we export this as
+> a callable surface." The parameter list IS the boundary-trusted shape over
+> the arrival bytes (recast at the declared surface, never in code; raw `&[u8]`
+> stays first-class); vouching is TRANSITIVE through declared shapes (a
+> foreign-backed reference field is readable at its plan-laid offsets because
+> the boundary vouched for the shape — no per-read mint). Calling plans are
+> programmable policies inferred from the image subsystem, stated as
+> `boundary(<Plan>)` on override (`calling_plans.md` §7). Image facts
+> (subsystem, freestanding) live in `build.omg`, not target blocks
+> (`build_and_package_model.md` addendum).
 
 > **For:** Omega maintainer · **Status:** SETTLED (chat session 2026-07-01, Zach) —
 > spellings marked *open* below are the only undecided parts. · **Driver:** Tier-2
