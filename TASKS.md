@@ -507,6 +507,52 @@ feature 1 exists.
 
 ## Outstanding (pick up next)
 
+> **CURRENT OPEN WORK (2026-07-04, post-MILESTONE-1).** "Hello from Omega" boots
+> under QEMU/OVMF (ea51376cd); the whole first-boot ladder is done + sampled
+> (`samples/uefi_hello`). The Cathedral OS work (calling-plan lowering as stated
+> policies, hardware facts, milestone 2 = GetMemoryMap/ExitBootServices/first
+> Region mint) is a SEPARATE agent's track over this same machinery — coordinate
+> before touching the ABI/boundary layer. The compiler-language backlog, by
+> leverage:
+>
+> **Soundness (correctness-first):**
+> - **#37 guard-subject deref through entry ref-params** — CONFIRMED silent
+>   wrong-read (`transition r.c == 0`, `r: &Struct` flat-folds `slot+field`, no
+>   deref). Value/let/mutation routings deref correctly now; only guards miss it.
+>   Needs a `StateGuardOperandStorage::Pointee` vertical slice (state-guards +
+>   selection + a both-arch deref-compare encoder) OR a routed hard error.
+>   Workaround proven (let-bind then guard). Dedicated fire, not loop-sized.
+> - **Backend miscompile fences** — a cluster of `clean error` gaps to complete:
+>   nested-runtime-indexed write (`grid[*][i]`), array-of-structs as a binary
+>   operand, boolean guard nesting `(a||b)&&c`, `arr[i]=arr[j]` both-runtime,
+>   computed-index `arr[k+1]` double-gate, u64 literals > i64::MAX (i128
+>   refactor). Fenced (safe) but block real programs. One-fence-per-fire.
+>
+> **Mint arc remainder (library-grade; the boot path used the boundary-vouch
+> shortcut):**
+> - **#22 validate-mint** — the GENERAL `Schema::validate(&bytes) -> Valid(view)
+>   | Invalid` deriver (copy-out cut settled; the borrowed-view half re-opens
+>   view-lifetime questions — surface, don't settle, if hit).
+> - **#21 recast** — `as` weaken-only re-view + the plan-implication validator.
+> - **Rung-2 finish** — std-source the `CompactBinary` policy; retire the Rust
+>   agreement walk once the policy is the sole author.
+>
+> **Big structural unlocks (multi-fire, design settled):**
+> - **Generics runtime boundary** — per-instance monomorphization (composite
+>   (definition, arg-signature) key through descriptors/layout/dispatch). Zach
+>   settled 2026-07-02 (no unification ever). **Unblocks containers, Store<T>,
+>   Grammar conformances** — highest single leverage.
+> - **String/encoding #66** — retire builtin `string`/`String` (~185-file
+>   migration, ~57 canaries; recipe in string_retirement_execution.md; worktree
+>   big-bang).
+> - **`usize` retirement** — design-dead (count/addr model settled); impl queued.
+>
+> **Ergonomics / completions:** #26 auto-hoist pure-builtin guard subjects;
+> sin/cos (numerical mini-project, must match interp); layouts-ladder remainder
+> (mint rung, Packed grammar, layout plan-walking deriver).
+
+<details><summary>Historical snapshot (2026-06-19/22 wave — kept for provenance)</summary>
+
 Snapshot refreshed 2026-06-19. Decisions 8-17 implemented (stage 1+); harness
 canary suite 303, differential oracle fully matched (11), `cargo test
 --workspace` green, tree clean. Ordered roughly by leverage.
@@ -1488,6 +1534,8 @@ stay visible, not because they're next):**
 - [ ] **Text/string proof domains.** `String::Utf8`/`NoNul` as
   boundary-established carried facts without a byte-level proof tax (frozen
   direction in decision 5; the domains themselves unbuilt).
+
+</details>
 
 ## Resolved Design Decisions (frozen)
 
