@@ -106,7 +106,15 @@ Down-counting needs no new guard operator: `while (0 < i)` puts the concrete 0 o
 both recognizers already accept; the counter is the slot stepping by the pair −1 whose entry value is the
 guard's right side, and the trip count is that entry value. The `>`/`>=` spellings also work: `(a > b)` ≡
 `(b < a)` — bc's codegen swaps the operands into the same `jlt` idiom (so the bytecode recognizer never sees
-`>` at all) and `beta_symbolic` normalizes the source guard the same way before recognition. `0 <= i` with a −1 step never terminates and is
+`>` at all) and `beta_symbolic` normalizes the source guard the same way before recognition.
+
+`!=` guards normalize too, because over ℕ with a **unit-stride** counter `!=` *is* `<`: `i != n` from 0 by
++1 hits `n` exactly (never skips), and `i != 0` by −1 drains to 0 exactly. The counter checks the normalized
+branches already enforce (entry 0, stride ±1) are precisely what makes the exact-hit argument sound — a
+stride that could skip the bound (`i += 2`, where the machine diverges for odd `n`) fails them and refuses.
+The up-count path also requires the counter to **enter at 0** on both sides now (`trip = bound` is only
+correct from 0; alpha previously accepted any concrete entry, a wrong-summary latent bug the differential
+pin would have caught downstream). `0 <= i` with a −1 step never terminates and is
 not recognized. Counter-dependent deltas work through the substitution `i ↦ n−k`: a component `a0 + a1·i`
 sums to `(a0 + a1·n)·t − a1·g(t)`, so `_down_series` folds the linear part into the invariant coefficient
 and routes each component's `g` cross-term to the *other* side of the pair (shared recipe in both engines).

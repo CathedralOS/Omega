@@ -49,12 +49,13 @@ def program(seed):
     down = rng.random() < 0.20
     lines.append('    let i = %s' % ('n' if down else '0'))
     if down:
-        lines.append('    state loop { to body when (0 < i)  return %s }' % ret)
+        guard = rng.choice(['(0 < i)', '(i > 0)', '(i != 0)'])      # equivalent spellings, all normalized
+        lines.append('    state loop { to body when %s  return %s }' % (guard, ret))
         step = 'i = i - 1'
         delta = lambda: _delta(rng, data)
     else:
-        guard = rng.choice(['<', '<='])                             # both lower to a recognized compare idiom
-        lines.append('    state loop { to body when (i %s n)  return %s }' % (guard, ret))
+        guard = rng.choice(['i < n', 'i <= n', 'n > i', 'n >= i', 'i != n'])    # all lower to recognized idioms
+        lines.append('    state loop { to body when (%s)  return %s }' % (guard, ret))
         step = 'i = i + 1'
         delta = lambda: _delta(rng, data)
     # ~25% of accumulators SUBTRACT their delta (acc = acc - δ): the value goes negative in ℤ and is carried
