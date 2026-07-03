@@ -68,6 +68,45 @@ def _concrete(v, why):
         raise Unsupported(why)
     return v
 
+ONE = ('s', ('z',))
+
+# ---- linear-loop analysis: read a per-iteration increment off ONE symbolic body execution ----------
+def _mentions(t, ph):                  # does the placeholder `ph` occur in term `t`?
+    if t == ph:
+        return True
+    return isinstance(t, tuple) and t[0] in ('s', 'p', 'm') and any(_mentions(x, ph) for x in t[1:])
+
+def _lin_delta(expr, ph):
+    """expr = ph + D or D + ph (D free of ph) -> D (the per-iteration increment); expr == ph -> 0; else None."""
+    if expr == ph:
+        return 0
+    if isinstance(expr, tuple) and expr[0] == 'p':
+        a, b = expr[1], expr[2]
+        if a == ph and not _mentions(b, ph):
+            return b
+        if b == ph and not _mentions(a, ph):
+            return a
+    return None
+
+def _mentions_loopvar(t, names):       # does term `t` mention any ('loopvar', v) with v in names?
+    if isinstance(t, tuple):
+        if t[0] == 'loopvar':
+            return t[1] in names
+        if t[0] in ('s', 'p', 'm'):
+            return any(_mentions_loopvar(x, names) for x in t[1:])
+    return False
+
+def _expr_uses(e, names):              # does AST expression `e` reference any of the given variable names?
+    if e[0] == 'var':
+        return e[1] in names
+    if e[0] == 'bin':
+        return _expr_uses(e[2], names) or _expr_uses(e[3], names)
+    if e[0] == 'call':
+        return any(_expr_uses(a, names) for a in e[2])
+    if e[0] == 'mem':
+        return _expr_uses(e[2], names)
+    return False
+
 class SymInterp:
     def __init__(self, procs):
         self.procs = {p[1]: p for p in procs}
@@ -105,6 +144,57 @@ class SymInterp:
                          '==': x == y, '!=': x != y}[op] else 0
         raise Unsupported('expression form %s' % k)     # 'mem' (byte[]/word[]) not modelled yet
 
+    def _summarize_loop(self, header_pc, body_label, cond, env, blocks, labels):
+        """Recognize a linear counter loop  `state H { to B when (i<n) <exit> } state B { <lin updates> to H }`
+        and replace it by the closed form of its accumulators, so a SYMBOLIC trip count is handled WITHOUT
+        unrolling. The per-iteration increments are read off ONE exact symbolic body execution (each loop var
+        set to a fresh placeholder); an accumulator with a loop-invariant delta d over trip count t becomes
+        init + t*d. Returns True (env mutated to the post-loop state) iff the strict pattern matched; else the
+        caller re-raises Unsupported. Non-unit strides, self-referential deltas (Σi), and non-zero counter
+        starts are out of scope here — deliberately narrow so the closed form is exactly built-in +/*."""
+        if body_label not in labels:
+            return False
+        body = blocks[labels[body_label]]
+        if not body or body[-1][0] != 'goto' or body[-1][2] is not None or labels.get(body[-1][1]) != header_pc:
+            return False                                # body must end with an unconditional jump back here
+        updates = body[:-1]
+        if any(s[0] not in ('let', 'assign') for s in updates):
+            return False                                # body is straight-line assignments only
+        loop_vars = [s[1] for s in updates]
+        entry = {v: env.get(v, 0) for v in loop_vars}
+        saved = dict(env)                               # read deltas off one body run with fresh placeholders
+        for v in loop_vars:
+            env[v] = ('loopvar', v)
+        try:
+            for s in updates:
+                env[s[1]] = self.ev(s[2], env)
+            deltas = {v: _lin_delta(env[v], ('loopvar', v)) for v in loop_vars}
+        except Unsupported:
+            deltas = None
+        env.clear(); env.update(saved)                  # restore the entry state
+        if deltas is None or any(d is None for d in deltas.values()):
+            return False
+        if cond[0] != 'bin' or cond[1] not in ('<', '<=') or cond[2][0] != 'var':
+            return False
+        counter = cond[2][1]
+        if counter not in loop_vars or deltas[counter] != ONE or entry[counter] != 0:
+            return False                                # counter: a unit-stride loop var starting at 0
+        if _expr_uses(cond[3], loop_vars):
+            return False                                # the bound must be loop-invariant
+        try:
+            bound = self.ev(cond[3], env)
+        except Unsupported:
+            return False
+        trip = bound if cond[1] == '<' else _add(bound, 1)      # iterations: 0..bound-1 (<) or 0..bound (<=)
+        for v in loop_vars:
+            if v == counter:
+                env[v] = trip
+            elif _mentions_loopvar(deltas[v], loop_vars):
+                return False                            # Σi-style delta (depends on another loop var): later slice
+            else:
+                env[v] = _add(entry[v], _mul(trip, deltas[v]))
+        return True
+
     def run(self, proc, argvals):
         _, name, params, body = proc
         env = {p: (argvals[i] if i < len(argvals) else 0) for i, p in enumerate(params)}
@@ -129,7 +219,16 @@ class SymInterp:
                 elif k == 'callstmt':
                     self.ev(st[1], env)
                 elif k == 'goto':
-                    if st[2] is None or _concrete(self.ev(st[2], env), 'branch on symbolic value') != 0:
+                    take = st[2] is None
+                    if st[2] is not None:
+                        try:
+                            take = _concrete(self.ev(st[2], env), 'branch on symbolic value') != 0
+                        except Unsupported:            # symbolic guard: try to summarize a data-dependent loop
+                            if self._summarize_loop(pc, st[1], st[2], env, blocks, labels):
+                                take = False           # loop replaced by its closed form; fall to the exit
+                            else:
+                                raise
+                    if take:
                         pc = labels[st[1]]; jumped = True; break
                 else:
                     raise Unsupported('statement form %s' % k)   # memset/emit not modelled yet
