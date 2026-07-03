@@ -47,6 +47,44 @@ pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width() -> usiz
     51
 }
 
+pub fn entry_argument_register_write_width() -> usize {
+    // mov r15,imm64(frame base, relocated at +2) (10) + mov [r15+disp32],reg (7).
+    17
+}
+
+/// The ENTRY PROLOGUE's inbound unmarshal: store an incoming MS-x64 argument
+/// register (0=RCX 1=RDX 2=R8 3=R9 -- the order firmware/OS passes the entry's
+/// arguments) into the entry parameter's runtime-frame slot. Runs BEFORE
+/// anything else at the entry (the argument registers are volatile); this is
+/// how a UEFI `main(image_handle, system_table)` receives RCX/RDX
+/// (calling_plans.md, the entry stub = the calling plan's inbound direction).
+pub fn encode_entry_argument_register_write_bytes(
+    argument_index: u8,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(entry_argument_register_write_width());
+    append_mov_r15_imm64(&mut bytes, 0); // relocated to the runtime-frame region base
+    // mov [r15 + disp32], reg -- REX.W + REX.B (base r15), ModRM mod=10 rm=111,
+    // reg = the argument register (r8/r9 add REX.R).
+    let (rex, modrm) = match argument_index {
+        0 => (0x49, 0x8f), // mov [r15+disp32], rcx
+        1 => (0x49, 0x97), // mov [r15+disp32], rdx
+        2 => (0x4d, 0x87), // mov [r15+disp32], r8
+        3 => (0x4d, 0x8f), // mov [r15+disp32], r9
+        other => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 entry prologue supports at most 4 register arguments \
+                 (argument index {other}); stack-passed entry arguments are not \
+                 implemented"
+            )));
+        }
+    };
+    bytes.extend([rex, 0x89, modrm]);
+    bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    debug_assert_eq!(bytes.len(), entry_argument_register_write_width());
+    Ok(bytes)
+}
+
 /// Relocation imm offset (pre-`+2`) of the frame base loaded for the target slot
 /// store in `encode_runtime_frame_base_indexed_address_to_runtime_frame_write`.
 pub const FRAME_BASE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET: usize = 34;

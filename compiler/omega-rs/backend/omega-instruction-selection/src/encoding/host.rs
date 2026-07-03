@@ -85,6 +85,25 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
     }
 }
 
+/// The entry prologue's inbound argument unmarshal (`mov [frame+off], rcx/rdx/
+/// r8/r9`). x86_64 only; an aarch64 entry with parameters is a clean error
+/// until its stub (x0-x3) exists.
+pub fn encode_entry_argument_register_write_bytes(
+    architecture: Architecture,
+    argument_index: u8,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "AArch64 MVP encoder cannot unmarshal entry arguments yet (the entry \
+             prologue register store is x86_64-only)",
+        )),
+        Architecture::X86_64 => {
+            x86_64::encode_entry_argument_register_write_bytes(argument_index, byte_offset)
+        }
+    }
+}
+
 pub fn encode_return_register_integer_write_bytes(
     architecture: Architecture,
     byte_size: usize,

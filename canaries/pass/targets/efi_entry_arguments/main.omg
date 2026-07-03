@@ -1,0 +1,25 @@
+// The ENTRY PROLOGUE's argument unmarshal -- BOOT-VERIFIED under QEMU/OVMF
+// (2026-07-03): without the stub this program returned 4 ("Warn Buffer Too
+// Small", params read zero); with it, firmware's nonzero ImageHandle arrives
+// through RCX into `handle` and it returns 5 ("Warning Stale Data").
+//
+// `main`'s declared non-self parameters map 1:1 to the platform's incoming
+// argument registers (MS-x64: RCX, RDX, R8, R9) -- `&mut self` is the machine's
+// static storage and takes no register. The prologue stores each register into
+// the parameter's frame slot before anything else runs. This is the calling
+// plan's INBOUND direction: typed entry parameters replace argc/argv.
+target uefi_boot {
+    subsystem efi_application
+}
+
+data Main { h: addr; }
+
+machine Main::main(&mut self, handle: addr, table: addr) -> i32 {
+    self.h = handle;
+    transition self.h == 0 {
+        true -> was_zero()
+        false -> was_set()
+    }
+    state was_zero(&mut self) -> i32 { transition { _ -> (4) } }
+    state was_set(&mut self) -> i32 { transition { _ -> (5) } }
+}

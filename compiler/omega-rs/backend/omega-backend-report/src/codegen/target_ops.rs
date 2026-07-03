@@ -92,6 +92,10 @@ fn selected_instruction_name(
             ..
         } => format!("atomic compare_exchange {target_region:?}[{target_offset}] ({byte_size}B)"),
         TargetOperationKind::EnterFunction => "enter function".to_owned(),
+        TargetOperationKind::WriteEntryArgumentRegister {
+            argument_index,
+            byte_offset,
+        } => format!("entry prologue: arg register #{argument_index} -> Frame[{byte_offset}]"),
         TargetOperationKind::EnterDispatchLoop {
             entry_dispatch_index,
             terminal_dispatch_index,

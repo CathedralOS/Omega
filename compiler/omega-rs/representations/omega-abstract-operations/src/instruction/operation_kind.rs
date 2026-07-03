@@ -355,6 +355,16 @@ pub enum AbstractOperationKind {
         byte_size: usize,
         value: i64,
     },
+    /// The ENTRY PROLOGUE's inbound calling plan: store the platform's incoming
+    /// argument register (MS-x64: 0=RCX 1=RDX 2=R8 3=R9) into the entry state's
+    /// parameter frame slot at `byte_offset`. Emitted once per declared entry
+    /// parameter, BEFORE anything else at the entry (registers are volatile) --
+    /// this is how a UEFI `main(image_handle, system_table)` receives the
+    /// firmware handoff (calling_plans.md, the entry-stub inbound direction).
+    WriteEntryArgumentRegister {
+        argument_index: u8,
+        byte_offset: usize,
+    },
     WriteRuntimePointeeInteger {
         pointer_byte_offset: usize,
         field_byte_offset: usize,

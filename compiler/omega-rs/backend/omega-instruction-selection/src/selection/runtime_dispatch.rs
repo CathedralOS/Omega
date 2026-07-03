@@ -199,12 +199,56 @@ fn entry_machine_field_initial_value(
     None
 }
 
+/// Emit the ENTRY PROLOGUE's argument unmarshal: one register store per declared
+/// entry parameter, mapping the parameter's frame slot (in declaration = offset
+/// order) to the platform's incoming argument register (MS-x64: RCX, RDX, R8,
+/// R9). This is the calling plan's INBOUND direction -- how a UEFI
+/// `main(image_handle, system_table)` receives the firmware handoff. Emitted
+/// FIRST at the entry (before the field-default writes) because the argument
+/// registers are volatile. `&mut self` takes no frame slot (the machine's static
+/// storage), so declared non-self parameters map 1:1 to the argument registers.
+/// Parameters past the fourth would arrive on the stack -- not implemented; they
+/// stay unpopulated exactly as ALL entry parameters were before this stub, and
+/// the x86_64 encoder rejects an explicit 5th register index.
+fn select_entry_argument_register_writes(
+    input: &InstructionSelectionInput<'_>,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let mut parameter_slots: Vec<(usize, usize)> = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .filter_map(|(_, slot)| {
+            (matches!(
+                slot.kind,
+                omega_runtime_storage::RuntimeFrameSlotKind::Parameter
+            ) && state_key_matches_statement_source(slot.source_key, input.entry_key))
+            .then_some((slot.byte_offset, slot.byte_size))
+        })
+        .collect();
+    parameter_slots.sort_unstable();
+    for (index, (byte_offset, _)) in parameter_slots.into_iter().enumerate().take(4) {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteEntryArgumentRegister {
+                argument_index: index as u8,
+                byte_offset,
+            },
+            source_key: input.entry_key,
+            source_statement: 0,
+        });
+    }
+}
+
 pub(super) fn select_runtime_dispatch_loop_instructions(
     input: &InstructionSelectionInput<'_>,
     operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    // The entry prologue's argument unmarshal runs FIRST (the incoming argument
+    // registers are volatile; anything else emitted here may clobber them).
+    select_entry_argument_register_writes(input, selected_instructions);
+
     // Initialize the entry machine's data-field defaults (`data Main { x: i32 = 5 }`)
     // before the dispatch loop, so a field starts at its declared value rather than
     // zero. Runs once at program entry.

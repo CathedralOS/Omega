@@ -42,6 +42,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::AtomicCompareExchange { .. }
             | Self::WriteRuntimeMachineInteger { .. }
             | Self::WriteRuntimeStorageInteger { .. }
+            | Self::WriteEntryArgumentRegister { .. }
             | Self::WriteRuntimePointeeInteger { .. }
             | Self::WriteRuntimeStorageBinary { .. }
             | Self::WriteRuntimeStorageConvert { .. }

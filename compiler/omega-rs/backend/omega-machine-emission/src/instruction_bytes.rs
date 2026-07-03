@@ -371,6 +371,20 @@ fn insert_fixed_machine_instruction_bytes(
             }
             Ok(true)
         }
+        SelectedInstructionKind::WriteEntryArgumentRegister {
+            argument_index,
+            byte_offset,
+        } => {
+            let bytes = omega_instruction_selection::encode_entry_argument_register_write_bytes(
+                emission_context.target.architecture,
+                *argument_index,
+                *byte_offset,
+            )?;
+            for byte in bytes {
+                inserter.insert(byte);
+            }
+            Ok(true)
+        }
         SelectedInstructionKind::TerminateDispatch => {
             let bytes = omega_instruction_selection::encode_dispatch_state_write_bytes(
                 emission_context.target.architecture,

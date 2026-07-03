@@ -484,6 +484,13 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 byte_size: *byte_size,
                 value: *value,
             },
+            omega_abstract_operations::AbstractOperationKind::WriteEntryArgumentRegister {
+                argument_index,
+                byte_offset,
+            } => Self::WriteEntryArgumentRegister {
+                argument_index: *argument_index,
+                byte_offset: *byte_offset,
+            },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimePointeeInteger {
                 pointer_byte_offset,
                 field_byte_offset,
