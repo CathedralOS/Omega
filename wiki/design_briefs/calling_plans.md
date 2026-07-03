@@ -1,8 +1,7 @@
 # Design Brief — Calling Plans (conventions as stated layouts over registers)
 
-> **For:** Omega maintainer · **Status:** DIRECTION SETTLED (chat 2026-07-02,
-> Zach) — vocabulary spellings provisional; the mechanism decisions are the
-> settled part. · **Driver:** the UEFI/QEMU first-boot ladder needs a
+> **For:** Omega maintainer · **Status:** SETTLED (chat 2026-07-02 mechanism;
+> chat 2026-07-04 programmability + spelling, Zach) — see §7. · **Driver:** the UEFI/QEMU first-boot ladder needs a
 > runtime-pointer call *now* and entry stubs *soon*; Linux syscalls and
 > kernel32 calls already exist as hardcoded conventions in the backend; COM,
 > AAPCS, and the interrupt frame are queued behind them. · **Sibling of:**
@@ -110,3 +109,45 @@ implicitly hardcoded; making both plans stated kills the special-casing).
 Differential validation comes free at that point: call known-good libc/kernel
 functions from plan-derived adapters and compare against clang-compiled
 callers — the house oracle style, applied to ABI conformance.
+
+## 7. SETTLED 2026-07-04 (chat, Zach): programmable; `boundary(<Plan>)`; inference the norm
+
+**Programmable, with the augmentation boundary at MEANING, not values.** The
+question "programmable or compiler-defined?" resolves the way layouts and
+grammars did: the placement VOCABULARY and the derivers are compiler-owned
+(closed; a new placement kind or a new architecture = a compiler release);
+the PLANS are policy-authored data over that vocabulary. The acceptance test
+is the UEFI counterfactual: a platform the compiler never heard of, on a known
+architecture, must be reachable with zero compiler changes — a stated
+`CallPlan` policy + a `provides` table + layout policies + `build.omg` config.
+Only new KINDS of thing (ISA, placement species, call mechanism, object
+format) may require the compiler.
+
+**The spelling.** Conventions exist only at boundaries (§4), so the plan
+parameterizes the boundary marker itself — no clause keyword, no `abi` string:
+
+```omega
+boundary machine Main::run(&self, h: EfiHandoff) -> EfiStatus { ... }        // inferred (the norm)
+boundary(InterruptFrame) machine on_timer(&self, frame: TrapFrame) { ... }   // stated: overrides
+boundary(MsX64) machine wnd_proc(&self, msg: WindowMessage) -> i64 { ... }   // per-callable; one image
+                                                                              //   may export MANY surfaces
+```
+
+Inference: a bare `boundary machine`'s plan follows from the image's
+subsystem/format (`build.omg`); the explicit form exists for callables whose
+convention differs from the image default (the interrupt frame is the first
+real customer). `requires`/`ensures` stay reserved for value contracts.
+
+**`boundary machine` itself is the EXPORTED-CALLABLE construct** (settled in
+the same chat): "we are exporting this as a callable surface — here is how you
+call me." Its parameter list IS the boundary-trusted shape imposed over the
+raw arrival bytes (the recast happens at the declared surface, never as a cast
+expression in code; a raw `&[u8]` parameter remains first-class for programs
+that want unclaimed bytes). `&self` binds the machine's statics. The entry is
+simply the exported callable the platform calls — not a special form.
+
+**Maturation path** (the twice-proven playbook — wire codec rungs 2a/2b):
+hardcoded MS-x64 encoder → `MsX64` as a STATED plan validated byte-for-byte
+against the hardcoded encoder (the agreement oracle) → policy-authored plans
+via build-time evaluation. §6's start-moment condition ("when entry stubs
+land") was met 2026-07-03: the entry-argument unmarshal is boot-verified.

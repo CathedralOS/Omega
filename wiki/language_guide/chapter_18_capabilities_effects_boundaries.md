@@ -555,18 +555,27 @@ audited inline-assembly subset
 vehicle for many of these providers -- the asm instruction contracts ARE
 hardware-fact declarations in small form.
 
-A freestanding target also needs an entry contract: who calls `Main::main`,
-in what machine state (which firmware handoff, what is mapped, what is
-zeroed), expressed as the entry provider's declared guarantees rather than
-ambient assumption.[^freestanding-open]
+A freestanding target also needs an entry contract: who calls the entry, in
+what machine state (which firmware handoff, what is mapped, what is zeroed).
+SETTLED (chat 2026-07-03/04): the entry is an ordinary **exported callable** --
+`boundary machine Main::run(&self, handoff: EfiHandoff) -> EfiStatus`. A
+`boundary machine` declares "we export this as a callable surface": its
+parameter list is the shape imposed over the platform's arrival bytes (the
+boundary performs the recast; a raw `&[u8]` parameter stays first-class for
+programs that want unclaimed bytes), `&self` binds the machine's statics, and
+its calling plan is inferred from the image's subsystem -- stated explicitly as
+`boundary(<Plan>)` only when a callable's convention differs from the image
+default (interrupt handlers). "No host" is `b.freestanding = true` in
+`build.omg` (an orthogonal `Build` field; the `target { subsystem }` block is
+retired -- see `design_briefs/build_and_package_model.md`). The machine-state
+guarantees remain an audited axiom list surfaced by the build artifact, not
+typed clauses.[^freestanding-open]
 
-[^freestanding-open]: Largely undesigned; this section records direction, not
-decisions. Open: the target-declaration shape for "no host" (today every
-target block names a host package); the entry-provider contract spelling
-(UEFI handoff vs multiboot vs bare reset vector); how hardware facts compose
-with domains (is "paging enabled" a fact a provider establishes and later
-providers require?); interrupt-handler entry into a machine graph (calling
-convention, what `&mut self` means when hardware preempts); and how image
+[^freestanding-open]: Still open: how hardware facts compose with domains (is
+"paging enabled" a fact a provider establishes and later providers require?);
+interrupt-handler entry into a machine graph (what `&mut self` means when
+hardware preempts -- the `boundary(InterruptFrame)` calling plan names the
+convention; the preemption/borrow interaction is the open part); and how image
 emission grows section/physical-address placement control for boot layouts.
 
 ## Invariant Parameters

@@ -1,8 +1,8 @@
 # Design Brief — Build & Package Model (`build.omg`, reach, and pinned closures)
 
-> **For:** Omega maintainer · **Status:** SETTLED — model (chat session
-> 2026-07-02, Zach); the `Build` type's schema and surface details are the
-> only open parts. · **Driver:** Cathedral is starting on boot and needs the
+> **For:** Omega maintainer · **Status:** SETTLED — model (chat 2026-07-02);
+> `Build` v1 schema + the target-block retirement SETTLED (chat 2026-07-04,
+> Zach) — see the addendum at the end. · **Driver:** Cathedral is starting on boot and needs the
 > per-package boundary manifest that `separate_compilation.md` calls for — this
 > settles what that manifest is. · **Depends on:**
 > [`build_time_evaluation.md`](build_time_evaluation.md) (pure build-time eval),
@@ -191,3 +191,53 @@ authority this model forbids.
 - **The resolver change** — making `chapter_14` name resolution gate on the
   declared dependency set (the import-side gate); interim enforcement is the
   graph check (`imports ⊆ declared deps`, build-failing).
+
+
+## Addendum — SETTLED 2026-07-04 (chat, Zach): `Build` v1 and the target-block retirement
+
+**The in-source `target <name> { subsystem ... }` block dies.** It was a block
+dialect — exactly the invented-config-grammar disease §2 forbids — that landed
+as a stopgap before this brief's model was executable. Image facts live in
+`build.omg`; the block's canaries/samples migrate; the parse is removed.
+
+**`Build` v1 — only what the pipeline consumes today, true ZII:**
+
+```omega
+data Subsystem {
+    case Console;                    // ZII zero case = the default, for free
+    case Gui;
+    case EfiApplication;
+    case Unspecified(value: u16);    // the voila hatch: any loader value a
+}                                    //   platform invents, with NO compiler release
+
+data Build {
+    subsystem: Subsystem;            // PE loader METADATA (a header u16 the
+                                     //   loader branches on; the compiler only
+                                     //   copies it -- it does NOT select the
+                                     //   emitter; PE-vs-ELF is the target
+                                     //   OS/arch; ELF has no such field)
+    freestanding: bool;              // "trust no host packages" -- previously
+                                     //   FUSED into the EfiApplication name;
+                                     //   now stated as itself, orthogonal
+}
+```
+
+Design rulings inside that shape:
+- **Named cases + `Unspecified(u16)` beat a raw `u16`** because the ZII zero
+  case is `Console` — the correct default falls out of the type, where a raw
+  number's zero is `IMAGE_SUBSYSTEM_UNKNOWN` (a wrong default needing a fixup).
+  The escape case preserves full programmability: a new loader value is data.
+- **Decompose fused facts.** `efi_application ⇒ freestanding` was two facts in
+  one name; `Build` states each. The compiler branches on `freestanding`
+  (empty host-ABI plan), and passes `subsystem` through.
+- **Absent `build.omg` ≡ empty `build` machine ≡ zero `Build`** — three
+  spellings of the console default. Nothing is required until overridden.
+- Fields arrive WITH their features (`entry`, `stack`, `depend` when their
+  machinery lands), never speculatively.
+
+**Entry-shape checking moves here too:** the platform's arrival contract
+(what registers/bytes the subsystem's convention delivers to the entry) is
+compiler-known; the exported `boundary machine`'s declared parameter shape is
+checked to FIT it per built target — a loud per-target error, no target-side
+entry declaration (that was a third statement of information already present;
+see `calling_plans.md` §7).
