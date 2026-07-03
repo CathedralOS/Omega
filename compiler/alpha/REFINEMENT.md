@@ -66,15 +66,18 @@ certificate (`REC_PRELUDE`); the checker accepts a recurrence applied to a *symb
 | Function calls, recursion (concrete depth) | inlined / unrolled during symbolic execution |
 | Concrete-bounded loops (`state` machines) | unrolled — control flow is data-independent |
 | **Data-dependent counter loops** `i < n` / `i <= n` | **summarized** to a closed form without unrolling |
-| — accumulator `acc += <loop-invariant>` | `init + trip · delta` (built-in `+`/`*`) |
-| — accumulator `acc += i` (arithmetic series) | `init + g(trip)` (the triangular recurrence) |
+| — accumulator `acc += a0 + a1·i` (linear in the counter) | `init + a0·trip + a1·g(trip)` — covers invariant deltas, `acc += i` (Σi), `a·i`, `a+i`, weighted/offset series |
 | Composition (pre-loop arith → loop → post-loop arith) | the summarized loop result flows through further terms |
 
+Linear-in-counter deltas (`a·i`, `a+i`, …) are handled **source-side** (`beta_symbolic`) via `_lin_decompose`
++ `_series_closed`; the **bytecode side** currently summarizes only invariant and pure-Σi deltas (its
+three-iteration finite differences can't extract `a·i`), so an `a·i` program bails on the alpha side and is
+not yet certified end-to-end — a placeholder-increment slice away.
+
 **Deliberately out of scope** (each conservatively *refused* — never mis-summarized): symbolic subtraction
-(needs the ZZ / difference-pair integers — Peano has no negatives and alpha's `sub` wraps mod 2⁶⁴); general
-counter-dependent deltas `a·i` / `a+i` (the per-iteration increments are not additively related structurally,
-so the finite-difference extraction can't converge the two evaluators' forms without a shared normalizer);
-byte-granular memory; nested / multi-loop recurrences; `>` / `>=` guards (down-counting needs subtraction).
+(needs the ZZ / difference-pair integers — Peano has no negatives and alpha's `sub` wraps mod 2⁶⁴);
+*genuinely* non-linear counter deltas (`i·i`, `i·total`); byte-granular memory; nested / multi-loop
+recurrences; `>` / `>=` guards (down-counting needs subtraction).
 
 ## How data-dependent loops are summarized (the interesting part)
 
