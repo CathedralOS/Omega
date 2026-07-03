@@ -1,0 +1,15 @@
+// The narrowing store obligation is a RANGE rule, not a crude type-width rule:
+// a value PROVEN in range narrows fine, and widening is always fine. This locks
+// the intersection-with-source-range behaviour that keeps proven-small values
+// (and `in Wrapping` sums) permissive -- a future over-strict check that rejected
+// these would break real code. All three stores below are sound and must compile.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: i8; b: i64; r: i32; s: i8; }
+machine Main::main(&mut self) {
+    self.a = 5;
+    self.b = self.a;   // widening i8 -> i64 (always sound)
+    self.r = self.b;   // b is proven {5}, so it narrows into i32 (range rule)
+    let x: i32 = 7;
+    self.s = x;        // x is proven {7}, so it narrows into i8
+    self.console.exit_process(self.r);
+}
