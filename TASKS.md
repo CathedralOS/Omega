@@ -359,12 +359,13 @@ The ladder, smallest-landable-first; layouts need NO general const positions
   this is front-end sugar, but the surface is a language-design call.
 - **[ENGINEERING]** `arr[i] = <binary>` (a computed value into a runtime-indexed
   target) is unselectable; forces the `tmp = arr[i]+v; arr[i] = tmp` idiom.
-- **[ENGINEERING]** numeric intrinsics: min / max / abs / sqrt DONE. abs =
-  frontend desugar `abs(x)` -> `max(x, 0 - x)`; sqrt = unary float builtin
-  riding the BINARY SSE value-write path with both operands = x (2026-07-02,
-  x86_64 sqrtsd/sqrtss; aarch64 = clean fence until fsqrt). sin / cos remain
-  -- the same unary-via-binary lane (one StateGuardOperator variant + one
-  opcode arm each); needs a periodic-range-reduction or libm-shaped body.
+- **[ENGINEERING]** numeric intrinsics: min / max / abs / sqrt / clamp DONE.
+  abs = `max(x, 0 - x)`, clamp = `min(max(x, lo), hi)` (frontend desugars);
+  sqrt = unary float builtin riding the BINARY SSE value-write path with both
+  operands = x (x86_64 sqrtsd/sqrtss; aarch64 = clean fence until fsqrt).
+  sin / cos remain -- NOT one opcode (no single SSE instruction): they need
+  range reduction (mod 2pi) + a minimax/Taylor polynomial whose precision
+  matches the interpreter; a genuine numerical mini-project, not a quick lane.
 - **[RESEARCH — sidesteppable]** nonlinear index `pixels[y*W+x]` is not provable
   in-bounds (the interval/ordering prover has no product-bound fact). Route around
   with a single linear `0..W*H` counter until/unless a `y<H && x<W => y*W+x<W*H`
