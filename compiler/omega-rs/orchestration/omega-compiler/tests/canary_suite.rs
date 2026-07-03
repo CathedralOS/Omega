@@ -17546,6 +17546,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "comptime/runtime_const_array_length_exit",
     "layouts/runtime_plan_laid_value_field_exit",
     "wire/runtime_wire_layout_domain_roundtrip_exit",
+    "control_flow/runtime_compare_pair_dispatch_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
     "concurrency/runtime_spawn_struct_result_exit",
@@ -18095,6 +18096,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "layouts/plan_laid_dynamic_plan",
     "layouts/plan_laid_policy_without_plan_machine",
+    "control_flow/transition_fall_through_bool",
+    "control_flow/transition_fall_through_value_match",
     "wire/layout_domain_schema_mismatch",
     "wire/layout_domain_grammar_not_implemented",
     "wire/layout_domain_unnumbered_schema",

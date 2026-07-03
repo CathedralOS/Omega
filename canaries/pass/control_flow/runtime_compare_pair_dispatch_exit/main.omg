@@ -1,0 +1,19 @@
+// The complement-pair closure: `x == k ->` plus `x != k ->` over one subject
+// and value is TOTAL, so the dispatch provably closes without `_` (the
+// dungeon's resolve_navigation shape). Exits 70 through the `!=` arm.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    x: i32;
+}
+machine Main::main(&mut self) {
+    self.x = 5;
+    transition {
+        self.x == 3 -> bad()
+        self.x != 3 -> good()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
