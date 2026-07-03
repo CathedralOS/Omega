@@ -142,6 +142,15 @@ fn build_schema_value(field_sizes: &[(i64, i64)]) -> BuildTimeValue {
                 ("size".to_owned(), BuildTimeValue::Int(size)),
                 ("align".to_owned(), BuildTimeValue::Int(align)),
                 ("number".to_owned(), BuildTimeValue::Int(-1)),
+                // The SHAPE fact (grammar policies choose framing by it); the
+                // layout path's schemas are primitive-only records.
+                (
+                    "kind".to_owned(),
+                    BuildTimeValue::Case {
+                        variant: "Scalar".to_owned(),
+                        payload: Vec::new(),
+                    },
+                ),
             ],
         });
     }

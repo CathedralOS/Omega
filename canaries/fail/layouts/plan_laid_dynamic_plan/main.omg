@@ -5,10 +5,12 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {
     size: i64 [0..=4096];
     align: i64 [1..=16];
     number: i64;
+    kind: FieldKind;
 }
 data Schema {
     fields: [SchemaField; 32];

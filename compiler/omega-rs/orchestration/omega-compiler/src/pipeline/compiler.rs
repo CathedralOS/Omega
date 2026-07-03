@@ -118,7 +118,7 @@ impl Compiler {
         // WIRE PLANS (mint arc rung 2a): derive each numbered schema's
         // placement plan; the wire codec selection consumes it (tag + framing
         // from the plan, asserted against its own walk).
-        crate::pipeline::wire_plans::compute_wire_plans(&mut typed);
+        crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
         write_typed_snapshot(&self.options, &typed)?;
         crate::pipeline::wire_report::write_wire_protocol_report(&self.options, &typed)?;
 

@@ -25,10 +25,21 @@ data SchemaField {
     size: i64 [0..=4096];
     align: i64 [1..=16];
     number: i64;
+    kind: FieldKind;
 }
 
 // A schema: the fields of one data definition, in declaration order. At most
 // 32 fields in the pilot slice (plan validation rejects more).
+// A schema field's SHAPE fact -- what a grammar policy needs to choose a
+// placement (a scalar varint-encodes; text/nested/repeated payloads are
+// length-prefixed). ZII: the zero case is Scalar.
+data FieldKind {
+    case Scalar;
+    case Text;
+    case Nested;
+    case Repeated;
+}
+
 data Schema {
     fields: [SchemaField; 32];
     field_count: i64 [0..=32];
