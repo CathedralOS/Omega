@@ -56,7 +56,11 @@ enum WireFieldContent {
     },
     /// A nested message: the child's fields in field-number order, staged
     /// through the wire scratch region before the length-prefixed replay.
-    Nested { children: Vec<WireFieldAppend> },
+    Nested {
+        /// The child schema (its own plan supplies the child tags).
+        schema: SymbolHandle,
+        children: Vec<WireFieldAppend>,
+    },
     /// A repeated field: `min(count, max_count)` packed element varints,
     /// staged through the wire scratch region (guarded appends, one per
     /// unrolled element index) before the length-prefixed replay.
@@ -322,7 +326,29 @@ pub(super) fn select_wire_encode_call(
                     written_offset: written_place.byte_offset,
                 });
             }
-            WireFieldContent::Nested { children } => {
+            WireFieldContent::Nested {
+                schema: child_schema,
+                children,
+            } => {
+                // RUNG 2c: the CHILD schema's own plan supplies the child
+                // tags -- same agreement discipline as the top level (children
+                // are scalar-only by collection's gate, so every placement
+                // must be a Varint at the child's number).
+                let child_plan = input.program.wire_schema_plan(*child_schema);
+                if let Some(placements) = child_plan {
+                    let agrees = placements.len() == children.len()
+                        && placements.iter().zip(children.iter()).all(|(placement, child)| {
+                            placement.tag() == child.number
+                                && matches!(placement, WirePlacement::Varint { .. })
+                        });
+                    if !agrees {
+                        debug_assert!(
+                            false,
+                            "derived child wire plan disagrees with the schema walk"
+                        );
+                        return false;
+                    }
+                }
                 // The planner reserved the wire scratch from the same
                 // worst-case math validation budgeted with; if the staging
                 // buffer cannot hold this child's worst case, the plan
@@ -365,8 +391,12 @@ pub(super) fn select_wire_encode_call(
                     byte_size: 8,
                     value: 0,
                 });
-                for child in children {
-                    for byte in wire_varint_bytes(child.number as u64) {
+                for (child_index, child) in children.iter().enumerate() {
+                    let child_tag = child_plan
+                        .and_then(|placements| placements.get(child_index))
+                        .map(|placement| placement.tag())
+                        .unwrap_or(child.number);
+                    for byte in wire_varint_bytes(child_tag as u64) {
                         push(SelectedInstructionKind::AppendWireLiteralByte {
                             out_region: RuntimeStorageRegion::RuntimeFrame,
                             out_offset: staging_offset,
@@ -528,7 +558,10 @@ fn collect_field_appends(
             }
             fields.push(WireFieldAppend {
                 number: field.number,
-                content: WireFieldContent::Nested { children },
+                content: WireFieldContent::Nested {
+                    schema: child.symbol,
+                    children,
+                },
             });
             continue;
         }

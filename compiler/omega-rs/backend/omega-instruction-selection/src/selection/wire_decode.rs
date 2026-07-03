@@ -51,7 +51,11 @@ enum WireReadContent {
         encoding: WireScalarEncoding,
         place: RuntimeStoragePlace,
     },
-    Nested { children: Vec<WireFieldRead> },
+    Nested {
+        /// The child schema (its own plan supplies the expected child tags).
+        schema: SymbolHandle,
+        children: Vec<WireFieldRead>,
+    },
     /// A borrowed `&[u8]` field: a byte-LENGTH varint then a fat `{ptr, len}`
     /// descriptor viewing the buffer content, stored zero-copy into `place`.
     ByteSlice { place: RuntimeStoragePlace },
@@ -293,7 +297,27 @@ pub(super) fn select_wire_decode_call(
                     target_offset: place.byte_offset,
                 });
             }
-            WireReadContent::Nested { children } => {
+            WireReadContent::Nested {
+                schema: child_schema,
+                children,
+            } => {
+                // RUNG 2c: the child schema's plan supplies the EXPECTED child
+                // tags (see wire_encode.rs -- same agreement discipline).
+                let child_plan = input.program.wire_schema_plan(*child_schema);
+                if let Some(placements) = child_plan {
+                    let agrees = placements.len() == children.len()
+                        && placements.iter().zip(children.iter()).all(|(placement, child)| {
+                            placement.tag() == child.number
+                                && matches!(placement, WirePlacement::Varint { .. })
+                        });
+                    if !agrees {
+                        debug_assert!(
+                            false,
+                            "derived child wire plan disagrees with the schema walk"
+                        );
+                        return false;
+                    }
+                }
                 // LENGTH varint into the end-bound slot, then OPEN turns it
                 // into the absolute sub-region bound (and bounds-checks it),
                 // the child's fields decode WITHOUT an era discriminator, and
@@ -323,8 +347,12 @@ pub(super) fn select_wire_decode_call(
                     end_region: RuntimeStorageRegion::RuntimeFrame,
                     end_offset,
                 });
-                for child in children {
-                    for byte in wire_varint_bytes(child.number as u64) {
+                for (child_index, child) in children.iter().enumerate() {
+                    let child_tag = child_plan
+                        .and_then(|placements| placements.get(child_index))
+                        .map(|placement| placement.tag())
+                        .unwrap_or(child.number);
+                    for byte in wire_varint_bytes(child_tag as u64) {
                         push(expected_byte_kind(byte));
                     }
                     let WireReadContent::Scalar { encoding, place } = &child.content else {
@@ -522,7 +550,10 @@ fn collect_field_reads(
             )?;
             fields.push(WireFieldRead {
                 number: field.number,
-                content: WireReadContent::Nested { children },
+                content: WireReadContent::Nested {
+                    schema: child.symbol,
+                    children,
+                },
             });
             continue;
         }
