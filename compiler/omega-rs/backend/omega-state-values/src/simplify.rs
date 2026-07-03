@@ -21,6 +21,7 @@ use omega_checked_trees::machine::Machine;
 use omega_checked_trees::state::State;
 use omega_checked_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 use omega_core::arena::Arena;
+use omega_core::symbols::SymbolHandle;
 use std::sync::Arc;
 
 pub fn simplify_expression(
@@ -287,7 +288,79 @@ fn simplify_binary_expression(
         );
     }
 
+    if let Some(folded) = reflexive_comparison_fold(program, binary.operator, &left, &right) {
+        return folded;
+    }
+
     fold_binary_expression(binary.operator, left, right)
+}
+
+/// The TYPE-GATED reflexive fold: `x == x -> true` / `x != x -> false` for
+/// structurally-equal operands -- valid ONLY when the operand provably cannot
+/// be NaN. For floats the identity is IEEE-false (`NaN != NaN` is TRUE; the
+/// canonical isNaN idiom `f != f` used to fold silently to `false` here), so
+/// a float-typed or untypeable operand falls through to a REAL runtime
+/// compare (the ucomis* path handles NaN correctly).
+fn reflexive_comparison_fold(
+    program: &CheckedTrees,
+    operator: omega_checked_trees::expression::BinaryOperator,
+    left: &Expression,
+    right: &Expression,
+) -> Option<Expression> {
+    use omega_checked_trees::expression::BinaryOperator::{Equal, NotEqual};
+
+    if !matches!(operator, Equal | NotEqual) || left != right {
+        return None;
+    }
+    if !reflexive_operand_provably_not_nan(program, left) {
+        return None;
+    }
+    Some(Expression::Boolean(matches!(operator, Equal)))
+}
+
+/// Whether a structurally-self-compared operand provably cannot be NaN:
+/// non-float literals; a FLOAT LITERAL (a concrete spelled value is never
+/// NaN); or a data-FIELD member path whose declared primitive type is
+/// non-float (resolved by the member's field SYMBOL). Anything else -- float
+/// fields, locals, params, indexed elements, calls -- stays a runtime
+/// compare: correct for every type, merely unfolded.
+fn reflexive_operand_provably_not_nan(program: &CheckedTrees, operand: &Expression) -> bool {
+    match operand {
+        Expression::Boolean(_)
+        | Expression::Integer(_)
+        | Expression::String(_)
+        | Expression::Float(_) => true,
+        Expression::Member(member) => member_field_primitive(program, member.member_symbol)
+            .is_some_and(|primitive| {
+                !matches!(
+                    primitive,
+                    omega_checked_trees::types::PrimitiveType::F32
+                        | omega_checked_trees::types::PrimitiveType::F64
+                )
+            }),
+        _ => false,
+    }
+}
+
+/// The declared primitive type of the data FIELD a member symbol names, or
+/// `None` when the symbol is not a data field (or not primitive-typed).
+fn member_field_primitive(
+    program: &CheckedTrees,
+    member_symbol: SymbolHandle,
+) -> Option<omega_checked_trees::types::PrimitiveType> {
+    if !member_symbol.is_valid() {
+        return None;
+    }
+    for data in program.data_definitions() {
+        for member in program.data_members(data) {
+            if let omega_checked_trees::data::DataMember::Field(field) = member
+                && field.symbol == member_symbol
+            {
+                return program.primitive_type_reference(field.type_reference);
+            }
+        }
+    }
+    None
 }
 
 fn simplify_call_expression(
