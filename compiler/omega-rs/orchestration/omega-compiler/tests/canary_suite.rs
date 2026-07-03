@@ -17480,6 +17480,35 @@ fn runtime_wire_policy_authored_plan_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_wire_policy_authored_nested_exit_canary_runs() {
+    // RUNG 2c: nested CHILD tags come from the child schema's own authored
+    // plan -- the byte-pinned nested roundtrip holds exactly with the inline
+    // `CompactBinary::plan` policy evaluated for both parent and child.
+    let canary = pass_canary("wire/runtime_wire_policy_authored_nested_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-wire-policy-nested-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("policy-authored nested wire plan canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("policy-authored nested wire plan canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the policy-authored NESTED roundtrip to hold byte-for-byte (exit 70); got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     for canary_name in ACTIVE_FAIL_CANARIES {
         let canary = fail_canary(canary_name);
