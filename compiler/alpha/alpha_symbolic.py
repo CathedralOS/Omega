@@ -189,6 +189,16 @@ def _run_body_once(tape, start_pc, header, MEM, R, sp):
         elif op == 0x05: d = tape[pc + 1]; R[d] = _mul(reg(d), reg(tape[pc + 2])); pc += 3
         elif op == 0x0A: a = _concrete(reg(tape[pc + 2]), 'load'); R[tape[pc + 1]] = MEM.get(a, 0); pc += 3
         elif op == 0x0B: a = _concrete(reg(tape[pc + 1]), 'store'); MEM[a] = reg(tape[pc + 2]); pc += 3
+        elif op in (0x0D, 0x0E):                        # jz / jnz on a CONCRETE value — an inner loop with a
+            c = _concrete(reg(tape[pc + 1]),            # concrete bound unrolls right here; a symbolic inner
+                          'symbolic branch inside a summarized loop body')   # guard refuses (a later slice)
+            taken = (c == 0) if op == 0x0D else (c != 0)
+            pc = _le8(tape, pc + 2) if taken else pc + 10
+        elif op in (0x0F, 0x10):                        # jlt / jeq, both operands concrete
+            x = _concrete(reg(tape[pc + 1]), 'symbolic compare inside a summarized loop body')
+            y = _concrete(reg(tape[pc + 2]), 'symbolic compare inside a summarized loop body')
+            hit = (_s64(x) < _s64(y)) if op == 0x0F else (x == y)
+            pc = _le8(tape, pc + 3) if hit else pc + 11
         else:
             raise Unsupported('loop body opcode 0x%02x (only straight-line +/*/mem summarizable)' % op)
 
@@ -300,6 +310,25 @@ def _lin_decompose(delta, ctr):        # delta = a0 + a1·ctr over ('slot',*) ma
         return None
     return dec(delta)
 
+def _peel(s1, s0t):
+    """s1 = an additive spine containing the entry term s0t -> the spine with s0t removed (the per-iteration
+    delta, preserving the tree's shape so both engines build identical terms). Left-first when ambiguous —
+    accumulator chains grow leftward, so the entry sits on the leftmost spine. An UNROLLED inner concrete
+    loop leaves exactly this shape: ((s0 + a) + a) + a -> (a + a) + a."""
+    if s1 == s0t:
+        return 0
+    if isinstance(s1, tuple) and s1[0] == 'p':
+        side = 1 if _occurs(s1[1], s0t) else 2 if _occurs(s1[2], s0t) else 0
+        if side:
+            d = _peel(s1[side], s0t)
+            other = s1[3 - side]
+            if d is None:
+                return None
+            if d == 0:
+                return other
+            return ('p', d, other) if side == 1 else ('p', other, d)
+    return None
+
 def _slot_delta(s0, s1):
     """per-iteration increment given a slot's entry value s0 and its value s1 after one body run (s1 = s0 + d).
     A DECREASING slot (concrete s1 < s0, or s1 a zz pair) never yields a plain delta here: the concrete case
@@ -310,11 +339,14 @@ def _slot_delta(s0, s1):
         return (s1 - s0) if s1 >= s0 else None
     if s1 == s0:
         return 0
-    if isinstance(s1, tuple) and s1[0] == 'p':          # s1 = (p s0 d) or (p d s0)  ->  d
+    if isinstance(s1, tuple) and s1[0] == 'p':          # s1 = (p s0 d) / (p d s0), or a deeper additive spine
         if s1[1] == _term(s0):
             return s1[2]
         if s1[2] == _term(s0):
             return s1[1]
+        d = _peel(s1, _term(s0))
+        if d is not None:
+            return d
     if isinstance(s1, tuple) and s1[0] == 'zz' and not _occurs(s1[2], s0):
         dp = _slot_delta(s0, s1[1])
         if dp is not None and not (isinstance(dp, tuple) and dp[0] == 'zz'):

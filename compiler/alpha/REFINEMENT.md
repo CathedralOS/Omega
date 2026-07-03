@@ -119,9 +119,20 @@ not recognized. Counter-dependent deltas work through the substitution `i ↦ n�
 sums to `(a0 + a1·n)·t − a1·g(t)`, so `_down_series` folds the linear part into the invariant coefficient
 and routes each component's `g` cross-term to the *other* side of the pair (shared recipe in both engines).
 
+### Nested loops with a concrete inner bound
+
+`while (i < n) { 3× total += a }` certifies without new closed-form theory: the outer body's single
+placeholder run **unrolls the inner loop concretely** (alpha's `_run_body_once` gained concrete-only
+conditional branches; beta's summarizer walks the multi-state body *region* with the same semantics as its
+main interpreter), leaving the additive spine `((total + a) + a) + a`. The shared `_peel` extracts the
+per-iteration delta `(a + a) + a` from any such spine — left-first, preserving tree shape so both engines
+build identical terms — and the ordinary series machinery does the rest: `n · ((a+a)+a)`. Body-introduced
+vars (the inner counter `j`) are kept after the loop only if their value is iteration-independent.
+
 **Deliberately out of scope** (each conservatively *refused* — never mis-summarized): scaling recurrences
 (`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`, up or down);
-ℤ-pair trip counts; byte-granular memory; nested / multi-loop recurrences.
+ℤ-pair trip counts; byte-granular memory; nested loops with a **symbolic** inner bound (needs recursive
+summarization — the next mountain); loop bodies containing calls or returns.
 
 ## How data-dependent loops are summarized (the interesting part)
 

@@ -28,6 +28,16 @@ def downloop(updates, ret='total'):    # i drains n -> 0 under (0 < i): exactly 
             "    state loop { to body when (0 < i)  return %s }\n"
             "    state body { %s  i = i - 1  to loop }\n}\n") % (ret, updates)
 
+def nestedloop(inner_bound):           # outer i < n (symbolic trip); inner j < inner_bound; total += a inside
+    return ("proc main() {\n"
+            "    let n = read_byte()\n    let a = read_byte()\n    let b = read_byte()\n"
+            "    let total = 0\n    let i = 0\n"
+            "    state outer { to obody when (i < n)  return total }\n"
+            "    state obody { let j = 0  to inner }\n"
+            "    state inner { to ibody when (j < %s)  to onext }\n"
+            "    state ibody { total = total + a  j = j + 1  to inner }\n"
+            "    state onext { i = i + 1  to outer }\n}\n") % inner_bound
+
 # (name, source, expected closed-form value fn(n,a,b))  — summarizable linear loops
 SUMMARIZABLE = [
     ("n*a   (i<n, total+=a)",   loop("i < n",  "total = total + a"),              lambda n, a, b: n * a),
@@ -65,6 +75,9 @@ SUMMARIZABLE = [
     ("(n != i) n*a  (≡ i<n)",   loop("n != i", "total = total + a"),               lambda n, a, b: n * a),
     ("↓ (i != 0) n*a (≡ 0<i)",  downloop("total = total + a").replace('0 < i', 'i != 0'),
      lambda n, a, b: n * a),
+    # NESTED, inner bound concrete: the outer body's placeholder run UNROLLS the inner loop, leaving an
+    # additive spine ((total+a)+a)+a whose delta peels to (a+a)+a — closed form n·3a without new theory.
+    ("nested ×3 (inner concrete)", nestedloop("3"),                                lambda n, a, b: 3 * n * a),
     ("↓ Σi   (total += i)",     downloop("total = total + i"),                     lambda n, a, b: n * (n + 1) // 2),
     ("↓ -Σi  (total -= i)",     downloop("total = total - i"),                     lambda n, a, b: (-(n * (n + 1) // 2)) % 256),
     ("↓ a·Σi (total += a*i)",   downloop("total = total + (a * i)"),               lambda n, a, b: a * (n * (n + 1) // 2)),
@@ -78,6 +91,7 @@ MUST_REFUSE = [
     # != with a stride that can SKIP the bound: i jumps over n when n is odd and the machine diverges — the
     # unit-stride requirement refuses it, which is exactly what makes the != ≡ < normalization sound.
     ("(i != n) stride 2 (skips!)",    loop("i != n", "total = total + a").replace('i = i + 1', 'i = i + 2')),
+    ("nested SYMBOLIC inner (j < b)",  nestedloop("b")),   # symbolic inner trip: a later slice — must refuse
 ]
 
 def main():
