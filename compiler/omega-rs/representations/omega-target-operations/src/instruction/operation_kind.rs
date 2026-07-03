@@ -617,6 +617,7 @@ pub enum TargetOperationKind {
         byte_count: usize,
     },
     CopyRuntimePointeeToRuntimeFrame {
+        target_region: RuntimeStorageRegion,
         pointer_byte_offset: usize,
         field_byte_offset: usize,
         target_offset: usize,

@@ -910,6 +910,7 @@ pub(super) fn encode_machine_instruction_bytes(
             *byte_count,
         ),
         SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+            target_region: _,
             pointer_byte_offset,
             field_byte_offset,
             target_offset,

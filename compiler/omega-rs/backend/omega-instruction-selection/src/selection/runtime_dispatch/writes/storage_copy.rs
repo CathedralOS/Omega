@@ -34,6 +34,33 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_copy(
         source_state,
         target,
     )?;
+
+    // A member read through a REFERENCE-typed slot is a DEREF, never a flat
+    // offset: `table.con_out` with `table: &EfiSystemTable` reads
+    // [*(frame+slot) + 64]. Without this arm the flat resolver below folded
+    // slot_base + field_offset and read frame garbage silently
+    // (shared-ref-param-field-read gap). The generalized pointee copy lands
+    // in either region.
+    if matches!(
+        target_place.region,
+        RuntimeStorageRegion::RuntimeFrame | RuntimeStorageRegion::Machine
+    ) && let Some(pointee) = resolve_runtime_pointee_slot_offset(
+        input,
+        dispatch_index,
+        value_source_key,
+        value,
+    ) && pointee.pointee_byte_size == target_place.byte_count
+        && pointee.pointee_byte_size > 0
+    {
+        return Some(SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+            target_region: target_place.region,
+            pointer_byte_offset: pointee.pointer_byte_offset,
+            field_byte_offset: pointee.field_byte_offset,
+            target_offset: target_place.byte_offset,
+            byte_count: target_place.byte_count,
+        });
+    }
+
     let source_place = resolve_runtime_storage_place(
         input,
         dispatch_index,
