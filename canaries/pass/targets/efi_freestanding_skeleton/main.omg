@@ -1,0 +1,21 @@
+// The milestone-1 FREESTANDING skeleton -- the first Omega image booted under
+// real UEFI firmware (QEMU/OVMF, 2026-07-03: "Image Return Status = Success",
+// and returning 5 printed "Warning Stale Data" -- the return value flows
+// through RAX to the firmware).
+//
+// `subsystem efi_application` makes the target FREESTANDING: it trusts no host
+// boundary packages (absence = denial), so the backend builds against an empty
+// host ABI plan -- zero bindings, zero import thunks, and the PE emitter's
+// empty-import-table path produces a clean import-free PE32+ subsystem-10
+// image. With no data fields the image also has zero absolute fixups, so an
+// arbitrary-base load (OVMF) is trivially sound. The entry's literal terminal
+// lands in EAX and `ret` returns it to the firmware as the EFI_STATUS.
+target uefi_boot {
+    subsystem efi_application
+}
+
+data Main { }
+
+machine Main::main(&mut self) -> i32 {
+    transition { _ -> (0) }
+}

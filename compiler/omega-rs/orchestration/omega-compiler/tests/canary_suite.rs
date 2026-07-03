@@ -17254,6 +17254,54 @@ fn pass_canaries_compile() {
 }
 
 #[test]
+fn efi_freestanding_skeleton_emits_importless_subsystem_10_pe() {
+    // The first-boot milestone-1 skeleton (BOOTED under QEMU/OVMF 2026-07-03:
+    // "Image Return Status = Success"; returning 5 printed "Warning Stale
+    // Data"). `subsystem efi_application` = FREESTANDING: empty host ABI plan,
+    // so the emitted PE32+ must have subsystem 10 and NO import directory/IAT
+    // (services arrive via the entry's parameters, never imports). This pins
+    // the emitted HEADER FACTS so a regression that re-populates host bindings
+    // for the EFI target (or loses the empty-import path) fails here, without
+    // needing QEMU in CI.
+    let canary = pass_canary("targets/efi_freestanding_skeleton");
+    let build_dir = std::env::temp_dir().join(format!("omega-efi-skeleton-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("EFI freestanding skeleton should compile");
+
+    let image = fs::read(build_dir.join(executable_name())).expect("emitted image should exist");
+    let e_lfanew = u32::from_le_bytes(image[0x3c..0x40].try_into().unwrap()) as usize;
+    let optional_header = e_lfanew + 4 + 20;
+    let magic = u16::from_le_bytes(image[optional_header..optional_header + 2].try_into().unwrap());
+    assert_eq!(magic, 0x20b, "expected a PE32+ optional header");
+    let subsystem = u16::from_le_bytes(
+        image[optional_header + 68..optional_header + 70]
+            .try_into()
+            .unwrap(),
+    );
+    assert_eq!(subsystem, 10, "expected subsystem EFI_APPLICATION (10)");
+    // Data directories: import = index 1, IAT = index 12 (each 8 bytes at
+    // optional_header + 112 + index*8 for PE32+).
+    let directory = |index: usize| -> (u32, u32) {
+        let offset = optional_header + 112 + index * 8;
+        (
+            u32::from_le_bytes(image[offset..offset + 4].try_into().unwrap()),
+            u32::from_le_bytes(image[offset + 4..offset + 8].try_into().unwrap()),
+        )
+    };
+    assert_eq!(directory(1), (0, 0), "expected NO import directory");
+    assert_eq!(directory(12), (0, 0), "expected NO import address table");
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     for canary_name in ACTIVE_FAIL_CANARIES {
         let canary = fail_canary(canary_name);
@@ -17897,6 +17945,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/acquires_filesystem_authority",
     "capabilities/stores_capability",
     "capabilities/host_provides_binding_forms",
+    "targets/efi_freestanding_skeleton",
     "arithmetic/narrowing_flow_and_widen_permitted",
     "comptime/runtime_const_array_length_exit",
     "layouts/runtime_plan_laid_value_field_exit",

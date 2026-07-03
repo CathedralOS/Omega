@@ -289,6 +289,24 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
     plan
 }
 
+/// The FREESTANDING (no-host) ABI plan: an EFI application trusts no host
+/// boundary packages -- services arrive through the entry's parameters (the
+/// UEFI SystemTable), never through host bindings or an import table
+/// ("a target = the boundary packages it trusts; absence = denial", extern
+/// brief §4). Zero bindings means zero import thunks, so the PE emitter's
+/// empty-import-table path produces a clean import-free image; a boundary
+/// call in such a program fails with the ordinary missing-lowering
+/// diagnostic rather than silently binding to an OS that will not be there.
+pub fn build_freestanding_abi_plan(target: NativeTarget) -> HostAbiPlan {
+    HostAbiPlan {
+        target,
+        bindings: Arena::new(),
+        host_operations: Arena::new(),
+        platform_call_lowerings: Arena::new(),
+        boundary_policies: Arena::new(),
+    }
+}
+
 impl HostAbiPlan {
     pub fn allows_boundary_policy(&self, policy: &str) -> bool {
         self.boundary_policies

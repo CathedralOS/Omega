@@ -420,12 +420,16 @@ The four features, smallest-landable-first (mirrors `wiki/cathedral_alignment.md
 item 7; design in `design_briefs/freestanding_boot_and_hardware_facts.md`,
 `calling_plans.md`, `build_and_package_model.md`).
 
-> **STATUS (2026-07-02, updated): feature 2 essentially LANDED, so feature 1 is
-> now the clear gate.** `subsystem efi_application` (623706b96) + PE `.reloc` /
-> DYNAMICBASE position-independent images (61c7fe246) shipped — the "verify the
-> arbitrary-base assumption early" worry is resolved. Feature 3 rides the live
-> L4/L5 layouts arc; feature 4 is a small variant of the existing encoder. The
-> critical path is now feature 1 (the no-host target + EFI entry model).
+> **STATUS (2026-07-03): FIRST BOOT.** An Omega-emitted image booted under real
+> UEFI firmware (QEMU/OVMF): `subsystem efi_application` now means FREESTANDING
+> (empty host ABI plan → zero imports), and the 1 KiB skeleton
+> (`main -> i32 { 0 }`, zero fixups) loaded at an arbitrary base
+> (`ConvertPages` refused our preferred base; OVMF placed it at 0xDD52000),
+> executed, and returned — **"Image Return Status = Success"**, and a variant
+> returning 5 printed **"Warning Stale Data"** (the return value flows through
+> RAX to the firmware). Milestone-1's remaining delta is the CONTENT of the app
+> (SystemTable arg unmarshal + the validate mint + the VtableSlot console call
+> + utf16 text), not the boot mechanics.
 
 1. **No-host target + EFI entry** — a target with an EMPTY host-provider set
    whose entry has the EFI signature: firmware calls it MS-x64 (ImageHandle in

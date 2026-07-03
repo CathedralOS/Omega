@@ -128,9 +128,24 @@ impl Compiler {
         let control_flow = state_graph_to_control_flow(state_graph, &mut timings)?;
         write_control_flow_snapshot(&self.options, &control_flow)?;
 
+        // The selected target's declared image subsystem (`subsystem
+        // console|gui|efi_application`, ch: target blocks); console when the
+        // target declares none. PE consumes it; other formats ignore it.
+        // Resolved BEFORE the backend build because `efi_application` also
+        // means FREESTANDING: the target trusts no host boundary packages, so
+        // the backend builds against an empty host ABI plan (no bindings, no
+        // import thunks -- services arrive via the entry's parameters).
+        let subsystem = resolved_target_subsystem(
+            &syntax_trees,
+            self.options.target_name.as_deref(),
+        );
+        const EFI_APPLICATION: u16 = 10;
+        let freestanding = subsystem == EFI_APPLICATION;
+
         let backend = control_flow_to_backend_plan(
             checked,
             self.options.target_name.as_deref(),
+            freestanding,
             control_flow,
             workers.handle(),
             &mut timings,
@@ -139,13 +154,6 @@ impl Compiler {
             write_backend_report(&self.options, &backend_surface, &backend.plan)?;
         }
 
-        // The selected target's declared image subsystem (`subsystem
-        // console|gui|efi_application`, ch: target blocks); console when the
-        // target declares none. PE consumes it; other formats ignore it.
-        let subsystem = resolved_target_subsystem(
-            &syntax_trees,
-            self.options.target_name.as_deref(),
-        );
         let (emission_plan, emitted) =
             backend_plan_to_native_image_payload(&backend, subsystem, &mut timings)?;
 

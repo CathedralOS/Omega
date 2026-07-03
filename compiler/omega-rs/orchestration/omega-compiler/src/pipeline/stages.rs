@@ -162,6 +162,7 @@ pub(super) fn state_graph_to_control_flow(
 pub(super) fn control_flow_to_backend_plan(
     checked: CheckedProgramSurface,
     target_name: Option<&str>,
+    freestanding: bool,
     control_flow: ControlFlowPlan,
     workers: omega_core::parallel::WorkerPoolHandle,
     timings: &mut CompileTimings,
@@ -172,6 +173,7 @@ pub(super) fn control_flow_to_backend_plan(
     let plan = omega_backend_pipeline::build_backend_plan_from_control_flow_with_workers(
         checked.program,
         target,
+        freestanding,
         Arc::new(control_flow),
         workers,
     )
