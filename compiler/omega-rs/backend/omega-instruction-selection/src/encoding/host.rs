@@ -6,6 +6,21 @@ use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
 use omega_target_operations::InstructionOperandLike;
 
+/// A VtableSlot call (provides-sourced, per-object dispatch). x86_64 only; an
+/// aarch64 vtable call awaits its stub.
+pub fn encode_vtable_call_sequence<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    index: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "AArch64 vtable-slot dispatch is not implemented (x86_64 only)",
+        )),
+        Architecture::X86_64 => x86_64::encode_win64_vtable_call(operands, index),
+    }
+}
+
 pub fn encode_host_call_sequence<T: InstructionOperandLike>(
     architecture: Architecture,
     operation_key: HostOperationKey,

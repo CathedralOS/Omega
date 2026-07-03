@@ -23,7 +23,7 @@ pub use dispatch::{
 pub use host::{
     encode_entry_argument_register_write_bytes,
     encode_entry_arguments_slice_descriptor_write_bytes, encode_function_enter_bytes,
-    encode_host_call_sequence, encode_return_bytes,
+    encode_host_call_sequence, encode_return_bytes, encode_vtable_call_sequence,
     encode_return_register_integer_write_bytes,
     encode_runtime_storage_copy_to_return_register_bytes, encode_syscall_sequence,
 };

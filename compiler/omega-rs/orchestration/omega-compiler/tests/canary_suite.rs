@@ -17571,6 +17571,32 @@ fn efi_struct_handoff_prologue_spreads_registers() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[cfg(windows)]
+#[test]
+fn efi_vtable_call_emits_indirect_dispatch() {
+    // The provides-sourced VtableSlot(1) call lowers to `mov rax, [rcx+8];
+    // call rax` -- read OutputString from the con_out protocol struct and
+    // dispatch. Pins those bytes in .text (the whole selection->encode chain;
+    // the live boot awaits the reference-param projection routing fix).
+    let canary = pass_canary("targets/efi_vtable_call");
+    let build_dir = std::env::temp_dir().join(format!("omega-vtable-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("vtable-call canary should compile");
+    let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
+    let needle = [0x48u8, 0x8b, 0x81, 0x08, 0x00, 0x00, 0x00, 0xff, 0xd0];
+    assert!(
+        bytes.windows(needle.len()).any(|window| window == needle),
+        "expected `mov rax, [rcx+8]; call rax` (VtableSlot(1) dispatch) in .text"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     for canary_name in ACTIVE_FAIL_CANARIES {
@@ -18219,6 +18245,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "targets/efi_entry_arguments",
     "targets/entry_run_args_bytes",
     "targets/efi_struct_handoff",
+    "targets/efi_vtable_call",
     "targets/efi_conout_projection",
     "arithmetic/narrowing_flow_and_widen_permitted",
     "comptime/runtime_const_array_length_exit",

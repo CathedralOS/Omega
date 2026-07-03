@@ -29,6 +29,9 @@ pub(super) fn collect_data_address_relocations(
     let is_syscall = operation_key
         .and_then(|key| find_host_binding(input, key))
         .is_some_and(|binding| matches!(binding.mechanism, HostBindingMechanism::Syscall { .. }));
+    let is_vtable = operation_key
+        .and_then(|key| find_host_binding(input, key))
+        .is_some_and(|binding| matches!(binding.mechanism, HostBindingMechanism::VtableSlot { .. }));
 
     for (operand_index, operand) in operands.iter().enumerate() {
         if let Some(data) = operand.data_address() {
@@ -51,6 +54,7 @@ pub(super) fn collect_data_address_relocations(
                     selected_text_offset,
                     operand_index,
                     is_syscall,
+                    is_vtable,
                 ),
                 symbol,
             );
@@ -93,6 +97,7 @@ pub(super) fn collect_data_address_relocations(
                     selected_text_offset,
                     operand_index,
                     is_syscall,
+                    is_vtable,
                 ),
                 symbol,
             );

@@ -1135,13 +1135,6 @@ fn append_add_rsp(bytes: &mut Vec<u8>, reserve: usize) {
 /// emission a `VtableSlot` dispatch will use (extern brief §12.4). `reg` is the
 /// x86_64 register number 0..=15 (0=rax..7=rdi, 8=r8..15=r15).
 ///
-/// FOUNDATION ONLY: the byte emission is complete and oracle-tested
-/// (`call_encoding_tests`), but nothing SELECTS it yet -- the caller (a
-/// runtime-pointer-call operand + its instruction-selection) lands with the EFI
-/// entry surface (first-boot ladder item 2), which also fixes the target-operand
-/// shape (a projected SystemTable field). Wired then; `#[allow(dead_code)]` marks
-/// the gap deliberately rather than papering a half-slice into the live path.
-#[allow(dead_code)]
 fn append_call_register(bytes: &mut Vec<u8>, reg: u8) {
     debug_assert!(reg < 16, "x86_64 register number out of range");
     if reg >= 8 {
@@ -1242,6 +1235,60 @@ fn immediate_imm32<T: InstructionOperandLike>(
 /// immediate, a runtime-storage scalar (loaded through the relocated r15 region
 /// base), or a runtime-storage ADDRESS (`lea` through the same base -- the
 /// pointer-argument shape: buffers, OS structs, C strings).
+/// Marshal MS-x64 call arguments `operands[arg_start..]` into RCX/RDX/R8/R9
+/// (staged runtime loads/leas through the relocated r15 region base, or plain
+/// immediates) and the shadow-space stack home for args past the fourth.
+/// Shared by the import call and the vtable call (their only difference is how
+/// the callee address is obtained: a relocated `call rel32` vs `call rax`).
+fn append_win64_call_arguments<T: InstructionOperandLike>(
+    bytes: &mut Vec<u8>,
+    operands: &[T],
+    arg_start: usize,
+) -> Result<(), Diagnostic> {
+    let arg_count = operands.len() - arg_start;
+    for index in 0..arg_count {
+        let operand = &operands[arg_start + index];
+        if index < 4 {
+            let (imm_opcode, load_opcode) = WIN64_ARG_REGISTERS[index];
+            if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
+                append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
+                bytes.extend_from_slice(load_opcode);
+                bytes.extend(disp32(byte_offset)?.to_le_bytes());
+            } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
+                append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
+                bytes.extend_from_slice(WIN64_ARG_LEA_OPCODES[index]);
+                bytes.extend(disp32(byte_offset)?.to_le_bytes());
+            } else {
+                let argument = immediate_imm32(operands, arg_start + index, "call argument")?;
+                bytes.extend_from_slice(imm_opcode);
+                bytes.extend(argument.to_le_bytes());
+            }
+        } else {
+            let stack_offset = WIN64_STACK_ARG_HOME + 8 * (index - 4);
+            let stack_disp8 = u8::try_from(stack_offset)
+                .ok()
+                .filter(|_| stack_offset <= 127)
+                .ok_or_else(|| Diagnostic::error("X86_64 call supports at most 16 arguments"))?;
+            if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
+                append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
+                bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15+disp32]
+                bytes.extend(disp32(byte_offset)?.to_le_bytes());
+                bytes.extend([0x48, 0x89, 0x44, 0x24, stack_disp8]); // mov [rsp+o], rax
+            } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
+                append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
+                bytes.extend([0x49, 0x8d, 0x87]); // lea rax, [r15+disp32]
+                bytes.extend(disp32(byte_offset)?.to_le_bytes());
+                bytes.extend([0x48, 0x89, 0x44, 0x24, stack_disp8]); // mov [rsp+o], rax
+            } else {
+                let argument = immediate_imm32(operands, arg_start + index, "call argument")?;
+                bytes.extend([0x48, 0xc7, 0x44, 0x24, stack_disp8]); // mov qword [rsp+o], imm32
+                bytes.extend(argument.to_le_bytes());
+            }
+        }
+    }
+    Ok(())
+}
+
 fn encode_win64_import_call<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
@@ -1257,48 +1304,7 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
     let reserve = win64_import_reserve(arg_count);
     let mut bytes = Vec::with_capacity(win64_import_call_width(operands, returns_value));
     append_sub_rsp(&mut bytes, reserve);
-    for index in 0..arg_count {
-        let operand = &operands[arg_start + index];
-        if index < 4 {
-            let (imm_opcode, load_opcode) = WIN64_ARG_REGISTERS[index];
-            if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
-                append_mov_r15_imm64(&mut bytes, 0); // relocated to the argument's region base
-                bytes.extend_from_slice(load_opcode);
-                bytes.extend(disp32(byte_offset)?.to_le_bytes());
-            } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
-                append_mov_r15_imm64(&mut bytes, 0); // relocated to the argument's region base
-                bytes.extend_from_slice(WIN64_ARG_LEA_OPCODES[index]);
-                bytes.extend(disp32(byte_offset)?.to_le_bytes());
-            } else {
-                let argument = immediate_imm32(operands, arg_start + index, "import argument")?;
-                bytes.extend_from_slice(imm_opcode);
-                bytes.extend(argument.to_le_bytes());
-            }
-        } else {
-            let stack_offset = WIN64_STACK_ARG_HOME + 8 * (index - 4);
-            let stack_disp8 = u8::try_from(stack_offset)
-                .ok()
-                .filter(|_| stack_offset <= 127)
-                .ok_or_else(|| {
-                    Diagnostic::error("X86_64 import call supports at most 16 arguments")
-                })?;
-            if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
-                append_mov_r15_imm64(&mut bytes, 0); // relocated to the argument's region base
-                bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15+disp32]
-                bytes.extend(disp32(byte_offset)?.to_le_bytes());
-                bytes.extend([0x48, 0x89, 0x44, 0x24, stack_disp8]); // mov [rsp+o], rax
-            } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
-                append_mov_r15_imm64(&mut bytes, 0); // relocated to the argument's region base
-                bytes.extend([0x49, 0x8d, 0x87]); // lea rax, [r15+disp32]
-                bytes.extend(disp32(byte_offset)?.to_le_bytes());
-                bytes.extend([0x48, 0x89, 0x44, 0x24, stack_disp8]); // mov [rsp+o], rax
-            } else {
-                let argument = immediate_imm32(operands, arg_start + index, "import argument")?;
-                bytes.extend([0x48, 0xc7, 0x44, 0x24, stack_disp8]); // mov qword [rsp+o], imm32
-                bytes.extend(argument.to_le_bytes());
-            }
-        }
-    }
+    append_win64_call_arguments(&mut bytes, operands, arg_start)?;
     bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 (relocated)
     append_add_rsp(&mut bytes, reserve);
     if returns_value {
@@ -1369,6 +1375,88 @@ fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
             byte_width: 8,
             kind: X86_64RelocationSiteKind::Absolute64,
         });
+    }
+    sites
+}
+
+/// A VtableSlot call (extern brief §12.1): marshal the declared args MS-x64
+/// (this -> RCX, then RDX/R8/R9), then read the callee from the RECEIVER --
+/// `mov rax, [rcx + index*8]; call rax`. The protocol struct IS the vtable
+/// (UEFI SimpleTextOutput: OutputString at slot 1 = +8). No result store
+/// (void), no import thunk, no call relocation (the target is a runtime
+/// pointer). The receiver (arg 0) must already sit in RCX -- so it is a plain
+/// register arg like any other; the `mov rax, [rcx..]` reads it back.
+pub fn encode_win64_vtable_call<T: InstructionOperandLike>(
+    operands: &[T],
+    index: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    if operands.is_empty() {
+        return Err(Diagnostic::error(
+            "cannot encode X86_64 vtable call: the receiver (arg 0) did not lower to an operand",
+        ));
+    }
+    let arg_count = operands.len();
+    let reserve = win64_import_reserve(arg_count);
+    let mut bytes = Vec::with_capacity(win64_vtable_call_width(operands, index));
+    append_sub_rsp(&mut bytes, reserve);
+    append_win64_call_arguments(&mut bytes, operands, 0)?;
+    // Read the callee from the receiver (still in RCX) and call it.
+    let slot_disp = i32::try_from(index.checked_mul(8).ok_or_else(|| {
+        Diagnostic::error("vtable slot index overflows a byte offset")
+    })?)
+    .map_err(|_| Diagnostic::error("vtable slot offset exceeds an imm32"))?;
+    bytes.extend([0x48, 0x8b, 0x81]); // mov rax, [rcx + disp32]
+    bytes.extend(slot_disp.to_le_bytes());
+    append_call_register(&mut bytes, 0); // call rax
+    append_add_rsp(&mut bytes, reserve);
+    debug_assert_eq!(bytes.len(), win64_vtable_call_width(operands, index));
+    Ok(bytes)
+}
+
+pub fn win64_vtable_call_width<T: InstructionOperandLike>(operands: &[T], _index: i64) -> usize {
+    let arg_count = operands.len();
+    let reserve = win64_import_reserve(arg_count);
+    let mut width = rsp_adjust_width(reserve);
+    for index in 0..arg_count {
+        width += win64_import_arg_width(operands, 0, index);
+    }
+    width += 7; // mov rax, [rcx + disp32]
+    width += 2; // call rax (no REX.B for rax)
+    width += rsp_adjust_width(reserve);
+    width
+}
+
+/// The region-base fixup byte offset for vtable-call argument `operand_index`
+/// (the `mov r15, imm64` imm), matching `encode_win64_vtable_call`'s layout.
+pub fn vtable_call_data_relocation_byte_offset<T: InstructionOperandLike>(
+    operands: &[T],
+    operand_index: usize,
+) -> usize {
+    win64_vtable_call_relocation_sites(operands)
+        .into_iter()
+        .find(|site| site.operand_index == Some(operand_index))
+        .map(|site| site.byte_offset)
+        .unwrap_or(0)
+}
+
+/// Relocation sites for a vtable call: the staged-argument region bases only
+/// (no call relocation -- the callee is a runtime pointer read from RCX).
+pub fn win64_vtable_call_relocation_sites<T: InstructionOperandLike>(
+    operands: &[T],
+) -> Vec<X86_64RelocationSite> {
+    let reserve = win64_import_reserve(operands.len());
+    let mut sites = Vec::new();
+    let mut cursor = rsp_adjust_width(reserve);
+    for index in 0..operands.len() {
+        if win64_import_arg_is_staged(operands.get(index)) {
+            sites.push(X86_64RelocationSite {
+                operand_index: Some(index),
+                byte_offset: cursor + 2, // inside mov r15, imm64
+                byte_width: 8,
+                kind: X86_64RelocationSiteKind::Absolute64,
+            });
+        }
+        cursor += win64_import_arg_width(operands, 0, index);
     }
     sites
 }
@@ -7480,6 +7568,64 @@ mod call_encoding_tests {
         let mut r11 = Vec::new();
         append_call_register(&mut r11, 11);
         assert_eq!(r11, vec![0x41, 0xff, 0xd3], "call r11");
+    }
+}
+
+#[cfg(test)]
+mod vtable_call_encoding_tests {
+    use super::{encode_win64_vtable_call, win64_vtable_call_width};
+    use omega_target_operations::{InstructionOperandLike, RuntimeStorageRegion};
+
+    /// A minimal operand: either a runtime scalar (RCX = this from a field) or
+    /// a runtime storage address (RDX = &text field). Everything else None.
+    enum Op {
+        Scalar { region: RuntimeStorageRegion, offset: usize, size: usize },
+        Address { region: RuntimeStorageRegion, offset: usize },
+    }
+    impl InstructionOperandLike for Op {
+        fn data_address(&self) -> Option<omega_target_operations::TargetDataObjectHandle> { None }
+        fn runtime_string_pointer(&self) -> Option<(RuntimeStorageRegion, usize)> { None }
+        fn runtime_string_length(&self) -> Option<(RuntimeStorageRegion, usize)> { None }
+        fn runtime_string_is_bounded_buffer(&self) -> bool { false }
+        fn runtime_pointee_string_pointer(&self) -> Option<(RuntimeStorageRegion, usize)> { None }
+        fn runtime_pointee_string_length(&self) -> Option<(RuntimeStorageRegion, usize)> { None }
+        fn runtime_scalar_integer(&self) -> Option<(RuntimeStorageRegion, usize, usize)> {
+            match self {
+                Op::Scalar { region, offset, size } => Some((*region, *offset, *size)),
+                _ => None,
+            }
+        }
+        fn runtime_storage_address(&self) -> Option<(RuntimeStorageRegion, usize)> {
+            match self {
+                Op::Address { region, offset } => Some((*region, *offset)),
+                _ => None,
+            }
+        }
+        fn immediate_integer(&self) -> Option<i64> { None }
+        fn byte_length(&self) -> Option<usize> { None }
+    }
+
+    #[test]
+    fn output_string_marshals_this_and_text_then_calls_through_slot_1() {
+        // output_string(this: addr@machine+0, text: &field@machine+8) -> VtableSlot(1).
+        let operands = vec![
+            Op::Scalar { region: RuntimeStorageRegion::Machine, offset: 0, size: 8 },
+            Op::Address { region: RuntimeStorageRegion::Machine, offset: 8 },
+        ];
+        let bytes = encode_win64_vtable_call(&operands, 1).expect("encode");
+        assert_eq!(bytes.len(), win64_vtable_call_width(&operands, 1), "width matches");
+
+        // 2 register args -> reserve = 32 (padded to 40); sub rsp, 40 (imm8).
+        assert_eq!(&bytes[0..4], &[0x48, 0x83, 0xec, 40], "sub rsp, 40");
+        // arg 0 (this -> RCX): mov r15,imm64 (10) then mov rcx,[r15+0] (49 8b 8f + disp32 0).
+        assert_eq!(bytes[4], 0x49, "mov r15,imm64 opcode #0");
+        assert_eq!(&bytes[14..21], &[0x49, 0x8b, 0x8f, 0, 0, 0, 0], "rcx = [r15+0]");
+        // arg 1 (text -> RDX lea): mov r15,imm64 (10) then lea rdx,[r15+8] (49 8d 97 + disp32 8).
+        assert_eq!(&bytes[31..38], &[0x49, 0x8d, 0x97, 8, 0, 0, 0], "lea rdx, [r15+8]");
+        // the vtable read + indirect call, then restore.
+        assert_eq!(&bytes[38..45], &[0x48, 0x8b, 0x81, 8, 0, 0, 0], "mov rax, [rcx+8] (slot 1)");
+        assert_eq!(&bytes[45..47], &[0xff, 0xd0], "call rax");
+        assert_eq!(&bytes[47..51], &[0x48, 0x83, 0xc4, 40], "add rsp, 40");
     }
 }
 
