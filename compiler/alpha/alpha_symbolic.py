@@ -227,9 +227,22 @@ def _mentions_slot(t):
     if isinstance(t, tuple):
         if t[0] == 'slot':
             return True
-        if t[0] in ('s', 'p', 'm', 'f'):
+        if t[0] in ('s', 'p', 'm', 'f', 'zz'):
             return any(_mentions_slot(x) for x in t[1:])
     return False
+
+def _has_zz(t):                        # does a zz pair occur anywhere inside term `t`?
+    if isinstance(t, tuple):
+        if t[0] == 'zz':
+            return True
+        if t[0] in ('s', 'p', 'm', 'f'):
+            return any(_has_zz(x) for x in t[1:])
+    return False
+
+def _occurs(t, ph):                    # does the exact marker `ph` occur in term `t`?
+    if t == ph:
+        return True
+    return isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'f', 'zz') and any(_occurs(x, ph) for x in t[1:])
 
 def _subst_slots(t, MEM, invariant):   # ('slot', addr) -> MEM[addr] for loop-invariant addrs; recurse elsewhere
     if isinstance(t, tuple):
@@ -237,7 +250,7 @@ def _subst_slots(t, MEM, invariant):   # ('slot', addr) -> MEM[addr] for loop-in
             return MEM[t[1]] if t[1] in invariant else t
         if t[0] == 's':
             return ('s', _subst_slots(t[1], MEM, invariant))
-        if t[0] in ('p', 'm'):
+        if t[0] in ('p', 'm', 'zz'):
             return (t[0], _subst_slots(t[1], MEM, invariant), _subst_slots(t[2], MEM, invariant))
         if t[0] == 'f':
             return ('f', t[1], _subst_slots(t[2], MEM, invariant))
@@ -277,9 +290,13 @@ def _lin_decompose(delta, ctr):        # delta = a0 + a1·ctr over ('slot',*) ma
     return dec(delta)
 
 def _slot_delta(s0, s1):
-    """per-iteration increment given a slot's entry value s0 and its value s1 after one body run (s1 = s0 + d)."""
+    """per-iteration increment given a slot's entry value s0 and its value s1 after one body run (s1 = s0 + d).
+    A DECREASING slot (concrete s1 < s0, or s1 a zz pair) never yields a plain delta here: the concrete case
+    would otherwise wrap to a 2^64-ish coefficient whose Peano rendering is unbuildable, so both are pushed to
+    the caller's general placeholder path. There a zz s1 = ('zz', s0 + Dp, N) IS extractable — the pos/neg
+    components follow independent additive recurrences — as the pair-delta ('zz', Dp, N)."""
     if isinstance(s0, int) and isinstance(s1, int):
-        return (s1 - s0) & MASK
+        return (s1 - s0) if s1 >= s0 else None
     if s1 == s0:
         return 0
     if isinstance(s1, tuple) and s1[0] == 'p':          # s1 = (p s0 d) or (p d s0)  ->  d
@@ -287,6 +304,10 @@ def _slot_delta(s0, s1):
             return s1[2]
         if s1[2] == _term(s0):
             return s1[1]
+    if isinstance(s1, tuple) and s1[0] == 'zz' and not _occurs(s1[2], s0):
+        dp = _slot_delta(s0, s1[1])
+        if dp is not None and not (isinstance(dp, tuple) and dp[0] == 'zz'):
+            return ('zz', dp, s1[2])
     return None
 
 def symexec(tape):
@@ -332,7 +353,7 @@ def symexec(tape):
         for a in carried:
             s0 = MEM[a]
             d1, d2, d3 = _slot_delta(s0, S1[a]), _slot_delta(S1[a], S2[a]), _slot_delta(S2[a], S3[a])
-            if d1 == d2 == d3 and d1 is not None and not (isinstance(d1, tuple) and d1[0] == 'cmp'):
+            if d1 == d2 == d3 and d1 is not None and not (isinstance(d1, tuple) and d1[0] in ('cmp', 'zz')):
                 if _concnat(d1) == 1 and s0 == L:
                     have_counter = True                 # a unit-stride counter from L makes the loop run `trip` times
                 updates[a] = _series_closed(s0, _canon(d1), 0, trip)
@@ -368,7 +389,23 @@ def symexec(tape):
         ctr = ('slot', counters[0])
         updates = {}
         for a in moved:
-            dec = _lin_decompose(_subst_slots(raw[a], MEM, invariant), ctr)   # δ = a0 + a1·counter
+            d = raw[a]
+            if isinstance(d, tuple) and d[0] == 'zz':   # subtracting accumulator: pos/neg components follow
+                P = _subst_slots(d[1], MEM, invariant)  # independent additive recurrences — summarize each
+                N = _subst_slots(d[2], MEM, invariant)
+                if _has_zz(P) or _has_zz(N):
+                    return None                         # a zz value nested in a component: beta distributes
+                dp, dn = _lin_decompose(P, ctr), _lin_decompose(N, ctr)
+                if dp is None or dn is None:
+                    return None
+                p0, n0 = _as_zz(MEM[a])
+                updates[a] = ('zz', _series_closed(p0, _canon(dp[0]), _canon(dp[1]), trip),
+                                    _series_closed(n0, _canon(dn[0]), _canon(dn[1]), trip))
+                continue
+            sub = _subst_slots(d, MEM, invariant)       # δ = a0 + a1·counter
+            if _has_zz(sub):
+                return None                             # invariant zz feeding a plain delta: beta distributes
+            dec = _lin_decompose(sub, ctr)
             if dec is None:
                 return None                             # δ not linear in the counter (i·i, cross-accumulator, …)
             updates[a] = _series_closed(MEM[a], _canon(dec[0]), _canon(dec[1]), trip)

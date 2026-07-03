@@ -36,11 +36,17 @@ SUMMARIZABLE = [
     ("a·Σi  (total += a*i)",    loop("i < n",  "total = total + (a * i)"),         lambda n, a, b: a * (n * (n - 1) // 2)),
     ("n·a + Σi (total += a+i)", loop("i < n",  "total = total + (a + i)"),         lambda n, a, b: n * a + n * (n - 1) // 2),
     ("2i+3 (total += (2*i)+3)", loop("i < n",  "total = total + ((2 * i) + 3)"),   lambda n, a, b: 2 * (n * (n - 1) // 2) + 3 * n),
+    # SUBTRACTING accumulators: the value is a ℤ difference pair; its pos/neg components summarize as
+    # independent series, and the observable (mod 256) matches the interpreter's wrapped byte exactly.
+    ("-n*a  (total -= a, ℤ)",   loop("i < n",  "total = total - a"),               lambda n, a, b: (-n * a) % 256),
+    ("-Σi   (total -= i, ℤ)",   loop("i < n",  "total = total - i"),               lambda n, a, b: (-(n * (n - 1) // 2)) % 256),
+    ("n(a-1) (total += a then -1)", loop("i < n", "total = ((total + a) - 1)"),    lambda n, a, b: (n * (a - 1)) % 256),
 ]
 # loops the recognizer must REFUSE (genuinely non-linear in the counter) -> beta_symbolic raises Unsupported
 MUST_REFUSE = [
     ("total += (i*i) (counter²)",     loop("i < n", "total = total + (i * i)")),
     ("total += (a*total) (nonlinear)", loop("i < n", "total = total + (a * total)")),
+    ("total = (total-1)*2 (scaling)", loop("i < n", "total = ((total - 1) * 2)")),
 ]
 
 def main():

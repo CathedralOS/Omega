@@ -69,6 +69,7 @@ certificate (`REC_PRELUDE`); the checker accepts a recurrence applied to a *symb
 | — accumulator `acc += a0 + a1·i` (linear in the counter) | `init + a0·trip + a1·g(trip)` — covers invariant deltas, `acc += i` (Σi), `a·i`, `a+i`, weighted/offset series |
 | Composition (pre-loop arith → loop → post-loop arith) | the summarized loop result flows through further terms |
 | Straight-line subtraction `a - b` (may underflow) | a **ℤ difference-pair** `(k 5 pos neg) = pos - neg` (see below) |
+| Subtracting loop accumulators `acc = acc - δ` (δ linear in `i`) | the pair's pos/neg components follow **independent additive recurrences** — each summarizes as its own series |
 
 Linear-in-counter deltas (`a·i`, `a+i`, `(a·i)+b`, …) refine **end to end**. Both engines decompose the
 per-iteration delta into `a0 + a1·i` (via `_lin_decompose` + `_series_closed`): `beta_symbolic` reads the delta
@@ -91,9 +92,17 @@ nat (matching how `+`/`*` fold), an underflowing one becomes a small pair, and a
 pair path. The concrete-fold branch also serves alpha's frame addressing (base − offset via the `sub`
 opcode), which never underflows.
 
-**Deliberately out of scope** (each conservatively *refused* — never mis-summarized): subtraction *inside a
-loop delta* (the summarizer returns `None` and safely bails — a later slice); division; *genuinely* non-linear
-counter deltas (`i·i`, `i·total`); byte-granular memory; nested / multi-loop recurrences; `>` / `>=` guards.
+Inside a loop, a subtracting accumulator works because `+`/`-` distribute **componentwise** over difference
+pairs: after one placeholder body run the new value is `('zz', ph + Dp, N)`, so the pos component gains `Dp`
+and the neg component gains `N` each iteration — two independent additive recurrences, each summarized by the
+existing linear machinery (`drain`: `total = n·a` then `-= a` over `i<n` → `(k 5 (m n a) (p z (m n a)))`;
+`total -= i` → neg component `g(n)`). Both engines also refuse a zz value *nested inside* a delta component
+(forms would diverge), and a decreasing **concrete** slot no longer wraps to a 2⁶⁴-scale coefficient (whose
+Peano rendering is unbuildable) — it is routed to the placeholder path instead.
+
+**Deliberately out of scope** (each conservatively *refused* — never mis-summarized): scaling recurrences
+(`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`); byte-granular
+memory; nested / multi-loop recurrences; `>` / `>=` guards (down-counting trip detection — a later slice).
 
 ## How data-dependent loops are summarized (the interesting part)
 
