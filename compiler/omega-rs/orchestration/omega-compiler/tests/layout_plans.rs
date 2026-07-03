@@ -35,8 +35,14 @@ data Schema {
     fields: [SchemaField; 32];
     field_count: i64 [0..=32];
 }
+data FieldPlan {
+    case At(offset: i64);
+    case Bits(container: i64, container_width: i64, lsb: i64, width: i64);
+    case Varint(tag: i64);
+    case LengthPrefixed(tag: i64);
+}
 data Plan {
-    offsets: [i64; 32];
+    fields: [FieldPlan; 32];
     entry_count: i64;
     size_fixed: i64;
     size_is_dynamic: bool;
@@ -48,7 +54,7 @@ data Plan {
 // validation catches any garbage plan), and the padding uses the modulo form
 // ((a - offset % a) % a) so no division is needed.
 data CLayout {
-    offsets: [i64; 32];
+    plans: [FieldPlan; 32];
     index: i64 in Wrapping;
     offset: i64 in Wrapping;
     widest: i64 in Wrapping;
@@ -80,7 +86,7 @@ machine CLayout::plan(&mut self, schema: Schema) -> Plan {
         }
     }
     state place_field(&mut self, schema: Schema) {
-        self.offsets[self.index] = self.offset as i64;
+        self.plans[self.index] = FieldPlan::At { offset: self.offset as i64 };
         self.offset = self.offset + self.fsize;
         transition self.widest < self.falign {
             true -> widen(schema)
@@ -99,7 +105,7 @@ machine CLayout::plan(&mut self, schema: Schema) -> Plan {
         // Round the total size up to the struct alignment (the C tail rule).
         self.pad = (self.widest - self.offset % self.widest) % self.widest;
         Plan {
-            offsets: self.offsets,
+            fields: self.plans,
             entry_count: schema.field_count as i64,
             size_fixed: (self.offset + self.pad) as i64,
             size_is_dynamic: false,
@@ -188,12 +194,13 @@ fn effectful_policies_are_rejected_at_the_gate() {
         r#"
 data SchemaField { size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; }
 data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
-data Plan { offsets: [i64; 32]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
+data FieldPlan { case At(offset: i64); case Skip; }
+data Plan { fields: [FieldPlan; 32]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
 boundary trait Console { machine write_line(text: String); machine exit_process(return_code: i32); }
-data Chatty { console: Console; offsets: [i64; 32]; }
+data Chatty { console: Console; plans: [FieldPlan; 32]; }
 machine Chatty::plan(&mut self, schema: Schema) -> Plan {
     self.console.write_line("planning...");
-    Plan { offsets: self.offsets, entry_count: schema.field_count as i64,
+    Plan { fields: self.plans, entry_count: schema.field_count as i64,
            size_fixed: 0, size_is_dynamic: true, align: 1 }
 }
 data Simple { value: i32; }
@@ -217,11 +224,13 @@ fn overlapping_plans_are_rejected_by_validation() {
         r#"
 data SchemaField { size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; }
 data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
-data Plan { offsets: [i64; 32]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
-data Overlapper { offsets: [i64; 32]; }
+data FieldPlan { case At(offset: i64); case Skip; }
+data Plan { fields: [FieldPlan; 32]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
+data Overlapper { plans: [FieldPlan; 32]; }
 machine Overlapper::plan(&mut self, schema: Schema) -> Plan {
-    // Every field at offset 0: overlapping for any schema with 2+ fields.
-    Plan { offsets: self.offsets, entry_count: schema.field_count as i64,
+    // ZII: every placement is At(offset: 0) -- overlapping for any schema
+    // with 2+ fields.
+    Plan { fields: self.plans, entry_count: schema.field_count as i64,
            size_fixed: 8, size_is_dynamic: false, align: 1 }
 }
 data Pair { a: i32; b: i32; }

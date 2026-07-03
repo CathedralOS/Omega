@@ -416,86 +416,62 @@ manager against an empty ESP), so **"done" = that `.EFI` boots under QEMU/OVMF
 and the greeting appears on the serial console.** This is the smallest possible
 end-to-end freestanding proof, and most of the machinery already exists.
 
-The four features, smallest-landable-first (mirrors `wiki/cathedral_alignment.md`
-item 7; design in `design_briefs/freestanding_boot_and_hardware_facts.md`,
-`calling_plans.md`, `build_and_package_model.md`).
+> **STATUS (2026-07-03, reworked to the LONG VIEW):** the boot MECHANICS are
+> done and boot-verified; what remains is LANGUAGE READINESS, driven by the
+> MINT ARC below (Zach: "the point of the UEFI test is to test our language
+> readiness; if we're not there we should get there correctly").
 
-> **STATUS (2026-07-03): FIRST BOOT + THE HANDOFF ARRIVES.** An Omega-emitted
-> image booted under real UEFI firmware (QEMU/OVMF): `subsystem efi_application`
-> now means FREESTANDING (empty host ABI plan → zero imports), and the skeleton
-> loaded at an arbitrary base, executed, and returned — **"Image Return Status =
-> Success"**, and returning 5 printed **"Warning Stale Data"** (the return value
-> flows through RAX). THEN the **entry-argument unmarshal LANDED and
-> boot-verified**: `main(handle: addr, table: addr)`'s declared non-self params
-> map 1:1 to the MS-x64 argument registers (a `WriteEntryArgumentRegister`
-> prologue op stores RCX/RDX/R8/R9 into the parameter frame slots, `.reloc`-fixed
-> at the arbitrary base). Differential boot proof: the same program returns 4
-> without the stub (params zero) and 5 with it (firmware's nonzero ImageHandle
-> arrived through RCX). THEN THE ENTRY WAS RE-CUT to Zach's canonical shape
-> (2026-07-03c): **`machine Main::run(&self, args: &[u8])`** — Main's members
-> are the program's statics, and `args` is the platform handoff as RAW BYTES
-> (the prologue spills RCX/RDX/R8/R9 into a reserved frame region and binds
-> `args` = {ptr, len 32}; cast/mint what you trust). BOOT-VERIFIED: the
-> canonical program's `args.len == 32` guard returned 5 under OVMF. `Main::main`
-> stays accepted and PREFERRED while present (7 corpus programs have `Main::run`
-> HELPERS — canonical-first silently made them entries; legacy-priority keeps
-> every existing meaning until the migration sweep). Milestone-1's remaining
-> delta: the validate mint over the SystemTable bytes, the VtableSlot console
-> call, and utf16 text.
+**DONE (each boot-verified under QEMU/OVMF unless noted):**
+- **Freestanding emission**: `subsystem efi_application` = empty host ABI plan
+  (absence = denial) → import-free PE32+ subsystem-10 with `.reloc`;
+  arbitrary-base load verified live ("Image Return Status = Success").
+- **Return-to-firmware**: the entry's terminal value lands in RAX (returning 5
+  printed "Warning Stale Data"). Known gap: COMPUTED terminals miscompile at
+  the entry (place/literal fine; field-bind workaround canaried).
+- **THE CANONICAL ENTRY**: `machine Main::run(&self, args: &[u8])` — Main's
+  members are the program's statics; `args` is the platform handoff as RAW
+  BYTES ({ptr → 32-byte register spill, len 32}); `args.len == 32` returned 5
+  under OVMF. `Main::main` accepted + preferred-while-present (7 corpus
+  `Main::run` helpers; the retire-main sweep flips precedence later). Typed
+  entry params (`main(handle: addr, ...)`) also work (differential boot 4→5).
+- **`addr`** (naive pointer-width) + **`utf16"..."`** (parser desugar to the
+  integer array literal; the greeting's code units are a differential canary).
+- **`call r/m64` encoder** (`append_call_register`, byte-oracle-tested) —
+  awaiting the VtableSlot wiring at the top of the mint arc.
+- **provides-table PARSE** (Binding sum RHS + identifier-led form) — awaiting
+  consumption.
 
-1. **No-host target + EFI entry** — a target with an EMPTY host-provider set
-   whose entry has the EFI signature: firmware calls it MS-x64 (ImageHandle in
-   RCX, SystemTable* in RDX). **MODEL (A) RATIFIED (2026-07-03): `main` IS the
-   entry** — `main(image_handle, system_table) -> EfiStatus`; no `Uefi64Entry`
-   trait / `UefiHandoff` token (the validate-mint is the provenance). Zach:
-   "allowing this main sig = allowing ANY main sig" (typed entry params replace
-   argc/argv). `addr` type LANDED (d36cc718f) — the contract pointer fields work.
-   **Entry codegen state (probed 2026-07-03), split into two directions of the
-   inbound CallPlan, each caveated:**
-   - **RETURN** (`main -> EfiStatus` → exit/RAX): UNWIRED. A returning `main`
-     compiles + gives a coincidental leftover exit code — `{42}` exits 42 by
-     luck, `{self.a+100}` exits 100 not 200, `-> EfiStatus{code:55}` exits a
-     struct ADDRESS. The value-return machinery ITSELF is fine (a non-entry
-     `compute() -> i32 { base+100 }` returns 200 correctly), so the fix is
-     ENTRY-EPILOGUE routing (capture main's terminal return → EAX/RAX → the
-     process/firmware exit), NOT the fragile value-return path. Runnable on
-     Windows (entry `ret` → OS exit code). **GATE: needs the return→exit
-     semantics nod (model-A implies it, but it changes entry exit semantics).**
-   - **ARG-UNMARSHAL** (RCX/RDX → param slots): reconned (clean ~30-50 byte
-     prologue at offset 0, opt-in, no corpus risk) but NOT Windows-runnable (a
-     bare PE entry gets no register args — needs QEMU/OVMF), AND blocked on the
-     FREE `machine main(sys) {…}` form which currently FAILS resolution
-     ("unresolved state call through `console`" — a boundary call through a
-     PARAM's field, vs `self.<field>` which works; a non-trivial state-call
-     receiver-resolution gap in omega-state-calls).
-   Frontend already ACCEPTS a param'd/returning main (entry_point.rs checks
-   existence, not signature). Recon + specifics in the first-boot-ladder memory.
-   **THE GATE — blocked on the return-semantics nod + (for args) QEMU + the
-   free-machine param-field resolution fix.**
-2. **PE32+ `EFI_APPLICATION` emission** — **DONE.** subsystem toggle + `.reloc`
-   (623706b96, 61c7fe246) + **empty-import-table for no-host targets**: when there
-   are zero imports, `build_import_table` now emits NO import directory (RVA/size
-   0) rather than a lone null descriptor — a clean import-free PE32+ (mirrors the
-   `.reloc` has_reloc gating). Unit-tested (`imports::tests::no_host_target_emits_
-   no_import_directory` + a hosted-path regression); hosted corpus unaffected
-   (only the zero-import branch is new). Full end-to-end awaits a zero-import
-   program, which needs feature 1's entry surface.
-3. **Layout policies + validating mints over the UEFI structs** — the L0–L5
-   layouts arc IS this feature. `Uefi`/`CLayout` policy over `EfiSystemTable`,
-   `Uefi<EfiSystemTable>::validate` (the mint), and field projection
-   (`table.con_out`). Needs the L5-full remainder (validate/materialize decode
-   mint + plan-walking deriver). LARGELY IN FLIGHT.
-4. **Runtime-pointer MS-x64 call (`VtableSlot`)** — ENCODER PRIMITIVE LANDED,
-   wiring pending. Recon corrected the earlier "mostly done": the x86_64 backend
-   had NO register-indirect call anywhere — every call was `call rel32` (0xe8) to
-   an import thunk. `append_call_register` now emits the `FF /2` register-direct
-   near call (`FF D0`=call rax .. REX.B `41 FF D3`=call r11), byte-oracle-tested
-   (`call_encoding_tests`). REMAINING (the wiring, entangled with feature 1's
-   entry surface, so `#[allow(dead_code)]` for now): a runtime-pointer-call
-   OPERAND kind carrying the projected target (con_out's vtable slot read from a
-   struct field), its instruction-selection, and reusing `encode_win64_import_
-   call`'s marshaling with the final `call rel32` swapped for `append_call_
-   register`. (`extern_boundary §12` Binding=`VtableSlot`; `calling_plans.md`.)
+**THE MINT ARC — the driving ladder (m1's projection `table.con_out` is a
+foreign-memory read, and mints are the only door; recast is NOT it — its own
+brief rules addr→borrow = strengthening = a mint):**
+1. **Case-vocabulary Plan — DONE (task #34):** `Plan { fields: [FieldPlan; 32] }`
+   with the brief's closed sum (`At(offset)` | `Bits(container, container_width,
+   lsb, width)` | `Varint(tag)` | `LengthPrefixed(tag)`) replacing the flat
+   offsets array. std/layout.omg + the CLayout/Spread16/Streamy policies write
+   `At` cases in their loops (runtime-indexed case-element writes verified
+   native==interp — the old "not writable" blocker was stale, canary
+   collections/runtime_case_array_element_write_exit); compute_layout_plan
+   walks the cases (At-only in the fixed slice, tagged/bit = clear error until
+   the deriver). Positional entries v1; the brief's name-keyed `[FieldEntry]`
+   arrives with the deriver. L4 plan-laid consumers unchanged.
+2. **Plan-walking validate DERIVER**: `validate` derived for ANY schema by
+   walking its Plan — retires the hardcoded tagged codec (and would-be
+   hardcoded UEFI walk).
+3. **Foreign-backed views**: the minted view whose base is a runtime `addr`
+   (validate is the ONLY door), projections lowering to the EXISTING pointee
+   ops; `table.con_out` = a pointee read at the plan's offset.
+4. **Fact establishment** (task #22's second half): `Valid` MEANS every
+   declared fact holds — CheckWireScalarRange through both encoders,
+   differential-verified.
+
+**Riding the arc's top (not separate features):** provides CONSUMPTION
+(parsed Binding table → HostAbiPlan; VtableSlot lowering onto
+`append_call_register`) gives the console call; then the greeting boots.
+**Adjacent, not blocking:** recast (#21) as the args-extraction cleanup
+(`args as &EfiHandoff`); top-level consts (the Cathedral source's
+`GREETING: [u16] = ...` / `pub EFI_SUCCESS: ...` don't parse — surface TBD);
+the free `machine main(sys)` param-field boundary-call resolution gap;
+entry computed-terminal returns; >4-arg platforms (Linux argc/argv via stack).
 
 Milestone 2 (GetMemoryMap → ExitBootServices → first Region mint) needs **no new
 language features** beyond these — it is Cathedral-side code over the same

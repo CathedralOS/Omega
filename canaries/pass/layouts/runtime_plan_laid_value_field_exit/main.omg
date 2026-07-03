@@ -22,8 +22,14 @@ data Schema {
     fields: [SchemaField; 32];
     field_count: i64 [0..=32];
 }
+data FieldPlan {
+    case At(offset: i64);
+    case Bits(container: i64, container_width: i64, lsb: i64, width: i64);
+    case Varint(tag: i64);
+    case LengthPrefixed(tag: i64);
+}
 data Plan {
-    offsets: [i64; 32];
+    fields: [FieldPlan; 32];
     entry_count: i64;
     size_fixed: i64;
     size_is_dynamic: bool;
@@ -35,7 +41,7 @@ data Plan {
 // offset goes through a field temp because a computed VALUE in a
 // runtime-indexed write is a known gap.
 data Spread16 {
-    offsets: [i64; 32];
+    plans: [FieldPlan; 32];
     index: i64 in Wrapping;
     slot: i64 in Wrapping;
 }
@@ -57,13 +63,13 @@ machine Spread16::plan(&mut self, schema: Schema) -> Plan {
         }
     }
     state write_field(&mut self, schema: Schema) {
-        self.offsets[self.index] = self.slot as i64;
+        self.plans[self.index] = FieldPlan::At { offset: self.slot as i64 };
         self.index = self.index + 1;
         transition { _ -> fill_loop(schema) }
     }
     state done(&mut self, schema: Schema) -> Plan {
         Plan {
-            offsets: self.offsets,
+            fields: self.plans,
             entry_count: schema.field_count as i64,
             size_fixed: (schema.field_count * 16) as i64,
             size_is_dynamic: false,
