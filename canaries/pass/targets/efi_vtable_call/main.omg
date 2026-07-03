@@ -1,0 +1,33 @@
+// THE GREETING (in progress): an Omega UEFI app that prints "Hello from Omega"
+// via the firmware's SimpleTextOutput protocol. The FULL vtable-call chain is
+// here and emits correctly (a suite test pins `mov rax,[rcx+8]; call rax` in
+// .text): the boundary vouches for the SystemTable shape, output_string
+// dispatches through VtableSlot(1). NOT yet boot-runnable: `con_out =
+// table.con_out` reaches the vtable call through a routing where the
+// reference-param projection still FLAT-FOLDS (the machine-target/host-call
+// projection gap, shared-ref-param-field-read.md) -- con_out arrives as
+// firmware poison and the call #GPs. This canary guards the emitted chain;
+// the projection routing is the last blocker to the live greeting.
+boundary trait TextOutput {
+    machine output_string(this: addr, text: addr);
+}
+uefi_x64 provides TextOutput {
+    output_string -> VtableSlot(1);
+}
+data EfiSystemTable {
+    hdr_signature: u64; hdr_revision: u32; hdr_header_size: u32; hdr_crc: u32; hdr_reserved: u32;
+    firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;
+    console_in_handle: addr; con_in: addr; console_out_handle: addr; con_out: addr;
+}
+data Main {
+    out: TextOutput;
+    con_out: addr;
+    // "Hello from Omega\r\n\0" as UTF-16 (CHAR16) code units.
+    msg: [u16; 19];
+}
+boundary machine Main::run(&self, handle: addr, table: &EfiSystemTable) -> i32 {
+    self.msg = utf16"Hello from Omega\r\n\0";
+    self.con_out = table.con_out;
+    self.out.output_string(self.con_out, &self.msg);
+    transition { _ -> (0) }
+}

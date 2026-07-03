@@ -140,6 +140,28 @@ pub(super) fn select_host_operation_operands(
         (HostCapability::Gui, operation) => {
             select_gui_operation_operands(input, host_call, dispatch_index, operation, operands)
         }
+        // A provides-sourced call (VtableSlot etc.): the operation key falls
+        // OUTSIDE the closed catalog (Unknown), so there is no bespoke arm --
+        // marshal the DECLARED arguments in order (each a scalar value or an
+        // address-of), exactly as written. `this` lands in RCX, the rest
+        // follow MS-x64. Void: no result operand.
+        (HostCapability::Unknown, _) => {
+            let arity = input
+                .host_calls
+                .arguments
+                .span(host_call.arguments)
+                .map_or(0, |arguments| arguments.len());
+            let kinds: Option<Vec<InstructionOperandKind>> = (0..arity)
+                .map(|index| {
+                    scalar_argument_operand_at(input, host_call, dispatch_index, index)
+                        .or_else(|| address_argument_operand_at(input, host_call, dispatch_index, index))
+                })
+                .collect();
+            match kinds {
+                Some(kinds) => operands.insert_many(kinds.into_iter().map(operand)),
+                None => HandleSpan::empty(),
+            }
+        }
         (
             HostCapability::Process,
             HostOperation::Exit | HostOperation::ExitGroup | HostOperation::ExitProcess,

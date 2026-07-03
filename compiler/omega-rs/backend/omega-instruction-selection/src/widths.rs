@@ -9,6 +9,17 @@ use omega_target_operations::{
     StateGuardOperator,
 };
 
+pub fn vtable_call_sequence_width<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    index: i64,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => x86_64::win64_vtable_call_width(operands, index),
+    }
+}
+
 pub fn host_call_sequence_width<T: InstructionOperandLike>(
     architecture: Architecture,
     operation_key: HostOperationKey,

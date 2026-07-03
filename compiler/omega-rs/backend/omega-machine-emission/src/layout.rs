@@ -10,7 +10,7 @@ use omega_instruction_selection::{
     dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
     runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
     dispatch_loop_enter_width, dispatch_state_write_width, function_enter_width,
-    host_call_sequence_width, return_register_integer_write_width, return_width,
+    host_call_sequence_width, vtable_call_sequence_width, return_register_integer_write_width, return_width,
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
     runtime_frame_indexed_string_write_width, runtime_frame_string_write_width,
@@ -88,6 +88,9 @@ fn machine_instruction_width(
         let width = match host_binding_mechanism(input, host_operation.operation_key) {
             Some(HostBindingMechanism::Syscall { number, .. }) => {
                 syscall_sequence_width(input.target.architecture, operands, *number)
+            }
+            Some(HostBindingMechanism::VtableSlot { index }) => {
+                vtable_call_sequence_width(input.target.architecture, operands, *index)
             }
             _ => host_call_sequence_width(
                 input.target.architecture,
