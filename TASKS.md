@@ -341,6 +341,13 @@ The ladder, smallest-landable-first; layouts need NO general const positions
   plan-walking deriver (blocked on the case-vocabulary Plan = array-of-struct
   element construction), the validate/materialize decode mint, and
   refinement-as-obligation (unrefined buffers still work today).
+- **RECAST (settled 2026-07-02, programmable_layouts §5b): borrows under a
+  second stated shape, spelled `as`** (`&x as &f32`, `&mut gdt as &mut
+  GdtRaw`, `&mut gdt as &mut [u8; N]`). Engineering: the borrow-recast form
+  in the checker (borrows are same-type today) + the plan-tiling /
+  fact-implication validator (same footprint; `&` = src⟹tgt facts, `&mut` =
+  both directions; weaken-never-strengthen -- as-into-domain stays dead;
+  untyped sources annotate first). Queued behind the validate-mint rung.
 - **L6+: Bits placements + access classes (MMIO deriver); durability plan
   grades consumed by Store<T>-class APIs; publish-time predecessor diff.**
 
