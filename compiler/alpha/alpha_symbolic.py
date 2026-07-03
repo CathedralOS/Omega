@@ -101,9 +101,10 @@ def _back_edges(tape):
     return out
 
 def _cmp_idiom(tape, pc):
-    """Recognize bc's `i<n`-to-boolean lowering at a jlt/jeq:
-        jlt rX,rY,Ltrue ; imm rZ,0 ; jmp Lj ; Ltrue: imm rZ,1 ; Lj:
-    -> (rZ, Lj, 'lt'|'eq'), so rZ becomes the symbolic boolean [rX<rY]. None if it doesn't match."""
+    """Recognize bc's compare-to-boolean lowering at a jlt/jeq:
+        jlt rX,rY,Ltrue ; imm rZ,fv ; jmp Lj ; Ltrue: imm rZ,(1-fv) ; Lj:
+    so rZ becomes [rX<rY] (standard, fv=0) or ![rX<rY] (swapped, fv=1) — bc emits the swapped polarity with
+    operands reversed for `i<=n` (jlt n,i). Returns (rZ, Lj, op, fv) or None."""
     op = tape[pc]
     if op not in (0x0F, 0x10):
         return None
@@ -112,15 +113,16 @@ def _cmp_idiom(tape, pc):
     if tape[fall] != 0x01:
         return None
     rz = tape[fall + 1]
-    if _le8(tape, fall + 2) != 0:
+    fv = _le8(tape, fall + 2)
+    if fv not in (0, 1):
         return None
     jpc = fall + 10
     if tape[jpc] != 0x0C:
         return None
     lj = _le8(tape, jpc + 1)
-    if tape[ltrue] != 0x01 or tape[ltrue + 1] != rz or _le8(tape, ltrue + 2) != 1 or ltrue + 10 != lj:
+    if tape[ltrue] != 0x01 or tape[ltrue + 1] != rz or _le8(tape, ltrue + 2) != (1 - fv) or ltrue + 10 != lj:
         return None
-    return (rz, lj, 'lt' if op == 0x0F else 'eq')
+    return (rz, lj, op, fv)
 
 def _run_body_once(tape, start_pc, header, MEM, R, sp):
     """Speculatively execute ONE loop iteration (concrete control only) from start_pc until pc jumps back to
@@ -185,8 +187,8 @@ def symexec(tape):
         init + trip*delta (trip = R). Mutates MEM to the post-loop state; returns exit_pc, or None if the loop
         is outside the summarizable class (caller then bails)."""
         kind, L, Rb = cond[1], cond[2], cond[3]
-        if kind != 'lt' or not isinstance(L, int):
-            return None                                 # only `counter < bound`, counter concrete at entry (its init)
+        if kind not in ('lt', 'le') or not isinstance(L, int):
+            return None                                 # `counter < bound` / `counter <= bound`, counter concrete at entry
         header = next((h for h, j in backedges.items() if h <= cont_pc <= j), None)
         if header is None:
             return None
@@ -203,7 +205,7 @@ def symexec(tape):
         # its own closed form init + R*1 = R falls out of the same formula, so no special-case is needed.
         if not any(deltas[a] == 1 and s0 == L for a, (s0, s1) in carried.items()):
             return None
-        trip = Rb                                       # counter runs L(=0)..R-1  ->  R iterations
+        trip = Rb if kind == 'lt' else _add(Rb, 1)      # `<`: 0..R-1 = R iters ; `<=`: 0..R = R+1 iters
         for a, (s0, s1) in carried.items():
             MEM[a] = _add(s0, _mul(trip, deltas[a]))    # closed form: init + trip*delta  (counter: 0 + R*1 = R)
         return exit_pc
@@ -258,8 +260,14 @@ def symexec(tape):
                 idiom = _cmp_idiom(tape, pc)
                 if idiom is None:
                     raise Unsupported('symbolic comparison outside the recognized boolean idiom')
-                rz, lj, kind = idiom
-                R[rz] = ('cmp', kind, x, y); pc = lj
+                rz, lj, iop, fv = idiom
+                if iop == 0x0F and fv == 0:                # jlt standard: (x < y)   counter x, bound y
+                    R[rz] = ('cmp', 'lt', x, y)
+                elif iop == 0x0F and fv == 1:              # jlt swapped: (y <= x)   counter y, bound x  (i<=n)
+                    R[rz] = ('cmp', 'le', y, x)
+                else:                                      # jeq (==) / swapped (!=) — not a summarizable guard
+                    R[rz] = ('cmp', 'eq' if fv == 0 else 'ne', x, y)
+                pc = lj
             elif op == 0x0F:
                 pc = imm8(pc + 3) if _s64(x) < _s64(y) else pc + 11
             else:

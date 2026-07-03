@@ -32,7 +32,8 @@ def program(seed):
         lines.append('    let %s = %s' % (acc, init))
     lines.append('    let i = 0')
     ret = rng.choice(accs + ['i'])                                  # return an accumulator or the counter
-    lines.append('    state loop { to body when (i < n)  return %s }' % ret)
+    guard = rng.choice(['<', '<='])                                 # both lower to a recognized compare idiom
+    lines.append('    state loop { to body when (i %s n)  return %s }' % (guard, ret))
     body = '  '.join('%s = %s + %s' % (acc, acc, _delta(rng, data)) for acc in accs)
     lines.append('    state body { %s  i = i + 1  to loop }' % body)
     lines.append('}')
