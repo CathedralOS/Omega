@@ -2282,6 +2282,35 @@ fn runtime_linear_search_early_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_entry_return_field_exit_canary_runs() {
+    // An entry `main -> i32` returns its exit code via its terminal value (no
+    // exit_process): a PLACE/field terminal routes to the exit correctly. Locks
+    // the field-bind workaround for returning a computed value from main
+    // (a raw computed terminal `_ -> (a+100)` miscompiles at the entry today).
+    let canary = pass_canary("control_flow/runtime_entry_return_field_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-entry-return-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("entry return field canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("entry return field canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(200),
+        "expected main to return field r=200 as the exit code; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_loop_patterns_exit_canary_runs() {
     // Loop patterns via self-transition: a LARGE counting loop (1..10000) stays
     // iterative (no stack growth) and nested loops re-initialize the inner counter.
