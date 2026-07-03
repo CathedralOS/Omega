@@ -381,6 +381,56 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 - The four `samples/software_renderer_*` dirs are STALE husks (no `.omg` source,
   only build artifacts) — delete or rebuild; they prove nothing and mislead.
 
+## Cathedral first-boot ladder — the concrete freestanding consumer (2026-07-02)
+
+Cathedral has landed **real milestone-1 source** as the driving target for the
+freestanding backlog item: `../Cathedral/source/boot/uefi/main.omg` (a UEFI app
+that prints "Hello from Omega" via `con_out->OutputString` and returns) +
+`../Cathedral/source/contracts/uefi/uefi.omg` (the hand-off ABI as plain `data`
++ boundary traits). It does not compile yet — it is the pressure-test. **The
+QEMU/OVMF harness is already verified** on real hardware
+(`../Cathedral/tools/boot-harness`, QEMU 11.0 + split OVMF booted to the boot
+manager against an empty ESP), so **"done" = that `.EFI` boots under QEMU/OVMF
+and the greeting appears on the serial console.** This is the smallest possible
+end-to-end freestanding proof, and most of the machinery already exists.
+
+The four features, smallest-landable-first (mirrors `wiki/cathedral_alignment.md`
+item 7; design in `design_briefs/freestanding_boot_and_hardware_facts.md`,
+`calling_plans.md`, `build_and_package_model.md`):
+
+1. **No-host target + EFI entry** — a target with an EMPTY host-provider set
+   (current targets assume stdout/stdin/process caps) whose entry has the EFI
+   signature: firmware calls it MS-x64 (ImageHandle in RCX, SystemTable* in RDX).
+   The bounded-trivial case of the entry-stub problem — one entry, two args, no
+   re-entrancy. NOT STARTED. Likely the true gate.
+2. **PE32+ `EFI_APPLICATION` emission** — `omega-image-pe` already emits PE for
+   the Windows host; needs the EFI variant: subsystem 10, NO import table (EFI
+   apps import nothing — services arrive via the SystemTable argument), and a
+   `.reloc` section. **VERIFY EARLY:** OVMF loads the image at an arbitrary base;
+   a fixed-image-base assumption in the emitter is a silent blocker. PARTIAL
+   (PE machinery exists).
+3. **Layout policies + validating mints over the UEFI structs** — the L0–L5
+   layouts arc IS this feature. `Uefi`/`CLayout` policy over `EfiSystemTable`,
+   `Uefi<EfiSystemTable>::validate` (the mint), and field projection
+   (`table.con_out`). Needs the L5-full remainder (validate/materialize decode
+   mint + plan-walking deriver). LARGELY IN FLIGHT.
+4. **Runtime-pointer MS-x64 call (`VtableSlot`)** — MOSTLY DONE: the general
+   `encode_win64_import_call` (see the Gui section above) already does MS-x64
+   arg placement, shadow space, and result store. The delta is the call TARGET:
+   a pointer read from a struct field (con_out's vtable slot) instead of an
+   import-table symbol. A runtime-pointer-target variant of the existing
+   encoder, not new machinery. (`extern_boundary §12` Binding=`VtableSlot`;
+   `calling_plans.md`.)
+
+Milestone 2 (GetMemoryMap → ExitBootServices → first Region mint) needs **no new
+language features** beyond these — it is Cathedral-side code over the same
+machinery. Milestone 3 (interrupts, serial, staying alive) adds inline asm
+beyond `asm { jmp state(...) }` (cli/hlt/port-IO instruction contracts) + the
+real interrupt-entry stub (the re-entrant sibling of feature 1). A
+`canaries/pass/uefi/` entry pinning "emits a PE32+ subsystem-10 image with entry
+`main` that calls through a projected pointer" is the natural done-check once
+feature 1 exists.
+
 ## Outstanding (pick up next)
 
 Snapshot refreshed 2026-06-19. Decisions 8-17 implemented (stage 1+); harness
@@ -1284,7 +1334,11 @@ stay visible, not because they're next):**
 - [ ] **Freestanding target + hardware vocabulary.** No-host-bindings target,
   custom entry, linker/section/physical-address control, volatile/MMIO
   semantics, inline asm beyond `asm { jmp state(...) }` (CR3/MSR/port-IO
-  contracts).
+  contracts). **Concrete near-term driver: the Cathedral first-boot ladder** —
+  a landed milestone-1 UEFI hello-world with a verified QEMU/OVMF harness is
+  waiting; see the "Cathedral first-boot ladder" section above for the four
+  smallest-landable features (of which #3 rides the layouts arc and #4 is
+  mostly the existing win64 encoder).
 - [ ] **Build-time evaluation (const eval + trait generators).** Effect-free machines in
   constant positions; `default machine` bodies with `Self::fields` member
   reflection expanded per conformance. Direction frozen (no macros, no #run);
