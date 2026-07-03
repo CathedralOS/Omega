@@ -21,6 +21,13 @@ def loop(guard, updates, ret='total'):
             "    state loop { to body when (%s)  return %s }\n"
             "    state body { %s  i = i + 1  to loop }\n}\n") % (guard, ret, updates)
 
+def downloop(updates, ret='total'):    # i drains n -> 0 under (0 < i): exactly n trips
+    return ("proc main() {\n"
+            "    let n = read_byte()\n    let a = read_byte()\n    let b = read_byte()\n"
+            "    let total = 0\n    let s = 0\n    let i = n\n"
+            "    state loop { to body when (0 < i)  return %s }\n"
+            "    state body { %s  i = i - 1  to loop }\n}\n") % (ret, updates)
+
 # (name, source, expected closed-form value fn(n,a,b))  — summarizable linear loops
 SUMMARIZABLE = [
     ("n*a   (i<n, total+=a)",   loop("i < n",  "total = total + a"),              lambda n, a, b: n * a),
@@ -41,12 +48,17 @@ SUMMARIZABLE = [
     ("-n*a  (total -= a, ℤ)",   loop("i < n",  "total = total - a"),               lambda n, a, b: (-n * a) % 256),
     ("-Σi   (total -= i, ℤ)",   loop("i < n",  "total = total - i"),               lambda n, a, b: (-(n * (n - 1) // 2)) % 256),
     ("n(a-1) (total += a then -1)", loop("i < n", "total = ((total + a) - 1)"),    lambda n, a, b: (n * (a - 1)) % 256),
+    # DOWN-counting loops: guard (0 < i), i starts at n and steps by the ℤ pair -1 — exactly n trips.
+    ("↓ n*a  (0<i, total+=a)",  downloop("total = total + a"),                     lambda n, a, b: n * a),
+    ("↓ -n*a (0<i, total-=a)",  downloop("total = total - a"),                     lambda n, a, b: (-n * a) % 256),
+    ("↓ ret i (drained counter)", downloop("total = total + a", ret='i'),          lambda n, a, b: 0),
 ]
 # loops the recognizer must REFUSE (genuinely non-linear in the counter) -> beta_symbolic raises Unsupported
 MUST_REFUSE = [
     ("total += (i*i) (counter²)",     loop("i < n", "total = total + (i * i)")),
     ("total += (a*total) (nonlinear)", loop("i < n", "total = total + (a * total)")),
     ("total = (total-1)*2 (scaling)", loop("i < n", "total = ((total - 1) * 2)")),
+    ("↓ total += i (counter-dep δ)",  downloop("total = total + i")),   # down-counter value is n-k, not k
 ]
 
 def main():

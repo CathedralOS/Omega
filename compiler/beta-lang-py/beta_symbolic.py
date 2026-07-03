@@ -130,6 +130,9 @@ def _canon(x):                         # canonicalize a concrete coefficient to 
     c = _concnat(x)
     return c if c is not None else x
 
+def _is_negone(d):                     # is delta d the ℤ pair -1 (pos 0, neg 1)? the down-counter's stride
+    return isinstance(d, tuple) and d[0] == 'zz' and _canon(d[1]) == 0 and _canon(d[2]) == 1
+
 def _sum2(a, b):                       # a + b, dropping 0
     if a == 0: return b
     if b == 0: return a
@@ -289,18 +292,30 @@ class SymInterp:
         env.clear(); env.update(saved)                  # restore the entry state
         if deltas is None or any(d is None for d in deltas.values()):
             return False
-        if cond[0] != 'bin' or cond[1] not in ('<', '<=') or cond[2][0] != 'var':
+        if cond[0] != 'bin' or cond[1] not in ('<', '<='):
             return False
-        counter = cond[2][1]
-        if counter not in loop_vars or _canon(deltas[counter]) != 1 or entry[counter] != 0:
-            return False                                # counter: a unit-stride loop var starting at 0
-        if _expr_uses(cond[3], loop_vars):
-            return False                                # the bound must be loop-invariant
-        try:
-            bound = self.ev(cond[3], env)
-        except Unsupported:
+        down = False
+        if cond[2][0] == 'var':                         # UP-count: `i < bound` / `i <= bound`, i from 0 by +1
+            counter = cond[2][1]
+            if counter not in loop_vars or _canon(deltas[counter]) != 1 or entry[counter] != 0:
+                return False                            # counter: a unit-stride loop var starting at 0
+            if _expr_uses(cond[3], loop_vars):
+                return False                            # the bound must be loop-invariant
+            try:
+                bound = self.ev(cond[3], env)
+            except Unsupported:
+                return False
+            trip = bound if cond[1] == '<' else _add(bound, 1)  # iterations: 0..bound-1 (<) or 0..bound (<=)
+        elif cond[1] == '<' and cond[2] == ('num', 0) and cond[3][0] == 'var':
+            down = True                                 # DOWN-count: `0 < i`, i from I by -1 -> exactly I trips
+            counter = cond[3][1]                        # (`0 <= i` with -1 never terminates: not recognized)
+            if counter not in loop_vars or not _is_negone(deltas[counter]):
+                return False
+            trip = entry[counter]
+            if isinstance(trip, tuple) and trip[0] == 'zz':
+                return False                            # a ℤ-pair trip count: later
+        else:
             return False
-        trip = bound if cond[1] == '<' else _add(bound, 1)      # iterations: 0..bound-1 (<) or 0..bound (<=)
         closed = {}
         for v in loop_vars:                             # each δ = a0 + a1·counter -> init + a0·trip + a1·g(trip)
             d = deltas[v]
@@ -309,6 +324,8 @@ class SymInterp:
                 dn = _lin_decompose(d[2], counter, loop_vars)
                 if dp is None or dn is None:
                     return False
+                if down and (_canon(dp[1]) != 0 or _canon(dn[1]) != 0):
+                    return False                        # a down-counter's value is I-k, not k: only invariant δ
                 p0, n0 = _as_zz(entry[v])
                 closed[v] = ('zz', _series_closed(p0, _canon(dp[0]), _canon(dp[1]), trip),
                                    _series_closed(n0, _canon(dn[0]), _canon(dn[1]), trip))
@@ -316,6 +333,8 @@ class SymInterp:
             dec = _lin_decompose(d, counter, loop_vars)
             if dec is None:
                 return False                            # δ not linear in the counter (i·i, cross-loopvar): later
+            if down and _canon(dec[1]) != 0:
+                return False                            # counter-dependent δ under a down-counter: later
             closed[v] = _series_closed(entry[v], _canon(dec[0]), _canon(dec[1]), trip)
         env.update(closed)
         return True

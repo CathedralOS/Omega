@@ -70,6 +70,7 @@ certificate (`REC_PRELUDE`); the checker accepts a recurrence applied to a *symb
 | Composition (pre-loop arith → loop → post-loop arith) | the summarized loop result flows through further terms |
 | Straight-line subtraction `a - b` (may underflow) | a **ℤ difference-pair** `(k 5 pos neg) = pos - neg` (see below) |
 | Subtracting loop accumulators `acc = acc - δ` (δ linear in `i`) | the pair's pos/neg components follow **independent additive recurrences** — each summarizes as its own series |
+| **Down-counting loops** `i = n; while (0 < i): …; i -= 1` | exactly `n` trips (the counter drains by the ℤ pair −1); deltas must be loop-invariant — the counter's value is `n−k`, not `k` |
 
 Linear-in-counter deltas (`a·i`, `a+i`, `(a·i)+b`, …) refine **end to end**. Both engines decompose the
 per-iteration delta into `a0 + a1·i` (via `_lin_decompose` + `_series_closed`): `beta_symbolic` reads the delta
@@ -100,9 +101,15 @@ existing linear machinery (`drain`: `total = n·a` then `-= a` over `i<n` → `(
 (forms would diverge), and a decreasing **concrete** slot no longer wraps to a 2⁶⁴-scale coefficient (whose
 Peano rendering is unbuildable) — it is routed to the placeholder path instead.
 
+Down-counting needs no new guard operator: `while (0 < i)` puts the concrete 0 on the compare's left, which
+both recognizers already accept; the counter is the slot stepping by the pair −1 whose entry value is the
+guard's right side, and the trip count is that entry value. `0 <= i` with a −1 step never terminates and is
+not recognized; counter-dependent deltas under a down-counter are refused (the counter's value at iteration
+`k` is `n−k`, so the up-count series would be wrong — a later slice can substitute `i ↦ n−k`).
+
 **Deliberately out of scope** (each conservatively *refused* — never mis-summarized): scaling recurrences
-(`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`); byte-granular
-memory; nested / multi-loop recurrences; `>` / `>=` guards (down-counting trip detection — a later slice).
+(`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`); counter-dependent
+deltas under a down-counter; ℤ-pair trip counts; byte-granular memory; nested / multi-loop recurrences.
 
 ## How data-dependent loops are summarized (the interesting part)
 
