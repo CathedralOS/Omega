@@ -34,7 +34,7 @@ pub fn compile_to_checked(
     crate::pipeline::plan_laid::compute_plan_laid_layouts(&mut typed, &plan_laid_records)?;
     // WIRE PLANS (mint arc rung 2a): mirror the full pipeline so tests see
     // the same derived plans the codec selection consumes.
-    crate::pipeline::wire_plans::compute_wire_plans(&mut typed);
+    crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
     let checked = typed_trees_to_checked_trees(typed, &mut timings)?;
 
     // `typed_trees_to_checked_trees` wraps the program in an `Arc`; unwrap it for the

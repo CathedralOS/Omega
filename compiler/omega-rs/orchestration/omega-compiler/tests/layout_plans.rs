@@ -26,10 +26,12 @@ fn write_program(name: &str, source: &str) -> PathBuf {
 /// policy + a UEFI-ish schema. Inlined because temp-dir programs cannot
 /// resolve `use omega::...` library paths.
 const PILOT: &str = r#"
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
 data SchemaField {
     size: i64 [0..=4096];
     align: i64 [1..=16];
     number: i64;
+    kind: FieldKind;
 }
 data Schema {
     fields: [SchemaField; 32];
@@ -192,7 +194,8 @@ fn effectful_policies_are_rejected_at_the_gate() {
     let main_path = write_program(
         "effectful-policy",
         r#"
-data SchemaField { size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; }
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; kind: FieldKind; }
 data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
 data FieldPlan { case At(offset: i64); case Skip; }
 data Plan { fields: [FieldPlan; 32]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
@@ -222,7 +225,8 @@ fn overlapping_plans_are_rejected_by_validation() {
     let main_path = write_program(
         "overlap-policy",
         r#"
-data SchemaField { size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; }
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; kind: FieldKind; }
 data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
 data FieldPlan { case At(offset: i64); case Skip; }
 data Plan { fields: [FieldPlan; 32]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
