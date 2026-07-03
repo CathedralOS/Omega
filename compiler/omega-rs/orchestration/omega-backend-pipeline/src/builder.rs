@@ -54,6 +54,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     program: Arc<CheckedTrees>,
     target: NativeTarget,
     freestanding: bool,
+    provides_rows: &[omega_calling_conventions::ProvidesRow],
     control_flow: Arc<ControlFlowPlan>,
     workers: WorkerPoolHandle,
 ) -> Result<BackendPlan, Diagnostic> {
@@ -64,11 +65,15 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     // lowerings, and (downstream) no import thunks. Absence = denial.
     let host_abi = record_backend_phase(&mut phase_timings, "host abi", || {
         if freestanding {
-            omega_calling_conventions::build_freestanding_abi_plan(target)
+            // provides-sourced bindings (extern brief §12): the program
+            // AUTHORED its platform surface; the rows become bindings +
+            // call lowerings (VtableSlot for UEFI protocols).
+            omega_calling_conventions::build_freestanding_abi_plan(target, provides_rows)
         } else {
-            build_host_abi_plan(target)
+            Ok(build_host_abi_plan(target))
         }
-    });
+    })
+    .map_err(Diagnostic::error)?;
     let host_abi = Arc::new(host_abi);
     let host_call_program = Arc::clone(&program);
     let layout_program = Arc::clone(&program);
