@@ -1,5 +1,5 @@
 //! Selection of the synthesized wire decoder call (chapter 20, wire stage
-//! 2b): `Schema::decode(&mut value, &buffer, &mut read, &mut ok)` lowers
+//! 2b): `Schema::decode(&mut value, &buffer, &mut read, &mut verdict)` lowers
 //! into a straight-line sequence of wire-read operations -- zero the cursor,
 //! set the sticky ok flag, expect the CURRENT era discriminator bytes, then
 //! per field in field-number order the expected field-number varint bytes
@@ -152,7 +152,12 @@ pub(super) fn select_wire_decode_call(
     ) else {
         return false;
     };
-    if ok_place.byte_count != 1 {
+    // The verdict is a `WireVerdict` enum: a 4-byte tag with Invalid = 0 and
+    // Sound = 1, little-endian -- so the sticky mechanics are TAG-CORRECT as
+    // they stand: the initial full-width write below stores Sound (1), and
+    // every wire read's failure path ANDs the LOW byte to 0, which flips the
+    // whole tag to Invalid. (The remaining tag bytes start 0 and stay 0.)
+    if ok_place.byte_count != omega_layout::ENUM_TAG_BYTES {
         return false;
     }
 

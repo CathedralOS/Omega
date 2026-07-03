@@ -1640,7 +1640,7 @@ impl<'program> Evaluator<'program> {
         Ok(Some(Value::Unit))
     }
 
-    /// `Schema::decode(&mut value, &buffer, &mut read, &mut ok)` -- the
+    /// `Schema::decode(&mut value, &buffer, &mut read, &mut verdict)` -- the
     /// compact_binary v0 decoder the compiler synthesizes for a wire schema
     /// (chapter 20, wire stage 2b). The interpreter simulates the IDENTICAL
     /// operation sequence the native backends emit -- expected framing bytes
@@ -1971,7 +1971,13 @@ impl<'program> Evaluator<'program> {
         }
 
         *read_cell.borrow_mut() = Value::Int(cursor as i64);
-        *ok_cell.borrow_mut() = Value::Bool(ok);
+        // The verdict enum (`WireVerdict`): Sound on a clean decode, Invalid
+        // on the first violation -- mirrors the native tag write (Invalid = 0
+        // = the ZII zero case, Sound = 1).
+        *ok_cell.borrow_mut() = Value::Enum {
+            variant_name: if ok { "Sound" } else { "Invalid" }.to_owned(),
+            payload: Vec::new(),
+        };
 
         Ok(Some(Value::Unit))
     }

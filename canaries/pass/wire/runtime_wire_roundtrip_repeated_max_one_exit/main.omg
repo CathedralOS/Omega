@@ -29,12 +29,19 @@ data PingValue {
     flag: bool;
 }
 
+// The decode verdict: a dispatchable enum, not a forgettable flag. Invalid
+// is the ZII zero case, so an untouched verdict reads as failure.
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
 data Main {
     console: Console;
     buffer: [u8; 32];
     written: usize;
     read: usize;
-    ok: bool;
+    verdict: WireVerdict;
 }
 
 machine Main::main(&mut self) {
@@ -52,9 +59,9 @@ machine Main::main(&mut self) {
         flag: false
     };
 
-    Ping::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+    Ping::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
 
-    let matches: bool = self.ok
+    let matches: bool = self.verdict == WireVerdict::Sound
         && self.written == 6
         && self.read == 6
         && decoded.code[0] == 9

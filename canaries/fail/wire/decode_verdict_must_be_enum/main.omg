@@ -1,0 +1,23 @@
+// The decode verdict is a dispatchable ENUM, not a forgettable flag (settled
+// 2026-07-02): the fourth argument must be `&mut WireVerdict`. The old
+// `&mut ok: bool` spelling gets this guided error.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Msg {
+    0: v: u32;
+}
+data Val {
+    v: u32;
+}
+data Main {
+    console: Console;
+    buffer: [u8; 32];
+    read: usize;
+    ok: bool;
+}
+machine Main::main(&mut self) {
+    let decoded: Val = Val { v: 0 };
+    Msg::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+    self.console.exit_process(0);
+}

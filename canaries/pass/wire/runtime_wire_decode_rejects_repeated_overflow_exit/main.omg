@@ -30,12 +30,19 @@ data BurstValue {
     samples_count: usize;
 }
 
+// The decode verdict: a dispatchable enum, not a forgettable flag. Invalid
+// is the ZII zero case, so an untouched verdict reads as failure.
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
 data Main {
     console: Console;
     read_overflow: usize;
-    ok_overflow: bool;
+    verdict_overflow: WireVerdict;
     read_hostile: usize;
-    ok_hostile: bool;
+    verdict_hostile: WireVerdict;
     count_capped: bool;
 }
 
@@ -48,21 +55,21 @@ machine Main::main(&mut self) {
         samples_count: 0
     };
 
-    Burst::decode(&mut decoded, &overflow_payload, &mut self.read_overflow, &mut self.ok_overflow);
+    Burst::decode(&mut decoded, &overflow_payload, &mut self.read_overflow, &mut self.verdict_overflow);
     let capped: bool = decoded.samples_count == 2;
     self.count_capped = capped;
 
-    Burst::decode(&mut decoded, &hostile_payload, &mut self.read_hostile, &mut self.ok_hostile);
+    Burst::decode(&mut decoded, &hostile_payload, &mut self.read_hostile, &mut self.verdict_hostile);
 
-    transition self.ok_overflow {
-        true -> bad()
-        false -> check_hostile()
+    transition self.verdict_overflow {
+        WireVerdict::Sound -> bad()
+        WireVerdict::Invalid -> check_hostile()
     }
 
     state check_hostile(&mut self) {
-        transition self.ok_hostile {
-            true -> bad()
-            false -> check_cap()
+        transition self.verdict_hostile {
+            WireVerdict::Sound -> bad()
+            WireVerdict::Invalid -> check_cap()
         }
     }
 
