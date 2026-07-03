@@ -401,19 +401,26 @@ end-to-end freestanding proof, and most of the machinery already exists.
 
 The four features, smallest-landable-first (mirrors `wiki/cathedral_alignment.md`
 item 7; design in `design_briefs/freestanding_boot_and_hardware_facts.md`,
-`calling_plans.md`, `build_and_package_model.md`):
+`calling_plans.md`, `build_and_package_model.md`).
+
+> **STATUS (2026-07-02, updated): feature 2 essentially LANDED, so feature 1 is
+> now the clear gate.** `subsystem efi_application` (623706b96) + PE `.reloc` /
+> DYNAMICBASE position-independent images (61c7fe246) shipped — the "verify the
+> arbitrary-base assumption early" worry is resolved. Feature 3 rides the live
+> L4/L5 layouts arc; feature 4 is a small variant of the existing encoder. The
+> critical path is now feature 1 (the no-host target + EFI entry model).
 
 1. **No-host target + EFI entry** — a target with an EMPTY host-provider set
    (current targets assume stdout/stdin/process caps) whose entry has the EFI
    signature: firmware calls it MS-x64 (ImageHandle in RCX, SystemTable* in RDX).
    The bounded-trivial case of the entry-stub problem — one entry, two args, no
-   re-entrancy. NOT STARTED. Likely the true gate.
-2. **PE32+ `EFI_APPLICATION` emission** — `omega-image-pe` already emits PE for
-   the Windows host; needs the EFI variant: subsystem 10, NO import table (EFI
-   apps import nothing — services arrive via the SystemTable argument), and a
-   `.reloc` section. **VERIFY EARLY:** OVMF loads the image at an arbitrary base;
-   a fixed-image-base assumption in the emitter is a silent blocker. PARTIAL
-   (PE machinery exists).
+   re-entrancy. **NOT STARTED — THE GATE.**
+2. **PE32+ `EFI_APPLICATION` emission** — **subsystem toggle + `.reloc` DONE**
+   (623706b96, 61c7fe246): `subsystem efi_application` in the target block and
+   position-independent images with base relocations (OVMF loads at an arbitrary
+   base — resolved, not a silent blocker). REMAINING: confirm a freestanding EFI
+   app emits with NO import table (services arrive via the SystemTable argument,
+   not via imports) — the host PE path assumes DLL imports exist.
 3. **Layout policies + validating mints over the UEFI structs** — the L0–L5
    layouts arc IS this feature. `Uefi`/`CLayout` policy over `EfiSystemTable`,
    `Uefi<EfiSystemTable>::validate` (the mint), and field projection
