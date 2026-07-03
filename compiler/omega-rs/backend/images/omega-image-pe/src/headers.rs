@@ -14,6 +14,11 @@ pub(crate) struct PeHeaderInput {
     pub(crate) import_directory_size: usize,
     pub(crate) iat_rva: u32,
     pub(crate) iat_size: usize,
+    /// Base-relocation (`.reloc`) directory RVA + size; zero when absent.
+    pub(crate) reloc_directory_rva: u32,
+    pub(crate) reloc_directory_size: usize,
+    /// Whether a `.reloc` section is present (drives the DYNAMICBASE flag).
+    pub(crate) has_reloc: bool,
     /// PE optional-header Subsystem: console 3, gui 2, efi_application 10
     /// (`subsystem <word>` in the target block; console is the default).
     pub(crate) subsystem: u16,
@@ -58,7 +63,12 @@ pub(crate) fn write_pe_headers(bytes: &mut Vec<u8>, input: PeHeaderInput) {
     write_u32(bytes, input.size_of_headers as u32);
     write_u32(bytes, 0);
     write_u16(bytes, input.subsystem);
-    write_u16(bytes, 0x0100);
+    // DllCharacteristics: NX_COMPAT (0x0100) always; DYNAMICBASE (0x0040)
+    // when a `.reloc` section is present, which lets the loader place the
+    // image at any base (Windows ASLR; UEFI arbitrary base) -- and makes
+    // every run of a relocatable image a live check of the `.reloc` data.
+    let dll_characteristics: u16 = 0x0100 | if input.has_reloc { 0x0040 } else { 0 };
+    write_u16(bytes, dll_characteristics);
     write_u64(bytes, 0x100000);
     write_u64(bytes, 0x1000);
     write_u64(bytes, 0x100000);
@@ -71,6 +81,10 @@ pub(crate) fn write_pe_headers(bytes: &mut Vec<u8>, input: PeHeaderInput) {
             1 => {
                 write_u32(bytes, input.import_directory_rva);
                 write_u32(bytes, input.import_directory_size as u32);
+            }
+            5 => {
+                write_u32(bytes, input.reloc_directory_rva);
+                write_u32(bytes, input.reloc_directory_size as u32);
             }
             12 => {
                 write_u32(bytes, input.iat_rva);

@@ -55,6 +55,52 @@ fn windows_x64_cli_mvp_emits_runnable_pe() {
     );
 }
 
+// A Windows PE that bakes absolute VAs must ship a `.reloc` section and set
+// DYNAMICBASE, so the loader can place it at any base (Windows ASLR, UEFI's
+// arbitrary base). Asserted on the emitted header: the base-relocation
+// directory (index 5) is non-empty and DllCharacteristics carries 0x0040.
+// (The RUN tests already prove the .reloc DATA correct -- they execute under
+// ASLR, so a wrong entry would crash them.)
+#[cfg(windows)]
+#[test]
+fn windows_pe_ships_base_relocations_and_dynamicbase() {
+    let sample = repo_root().join("samples").join("cli_mvp");
+    let build_dir = std::env::temp_dir().join(format!("omega-reloc-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: sample.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("windows_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("cli_mvp should compile to a PE");
+
+    let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
+    let lfanew = u32::from_le_bytes([bytes[0x3c], bytes[0x3d], bytes[0x3e], bytes[0x3f]]) as usize;
+    let optional = lfanew + 4 + 20;
+    let dll_characteristics = u16::from_le_bytes([bytes[optional + 70], bytes[optional + 71]]);
+    assert_ne!(
+        dll_characteristics & 0x0040,
+        0,
+        "DYNAMICBASE must be set for a relocatable PE"
+    );
+    let dir5 = optional + 112 + 5 * 8;
+    let reloc_rva = u32::from_le_bytes([bytes[dir5], bytes[dir5 + 1], bytes[dir5 + 2], bytes[dir5 + 3]]);
+    let reloc_size = u32::from_le_bytes([
+        bytes[dir5 + 4],
+        bytes[dir5 + 5],
+        bytes[dir5 + 6],
+        bytes[dir5 + 7],
+    ]);
+    assert!(
+        reloc_rva != 0 && reloc_size != 0,
+        "the base-relocation directory must be populated (rva {reloc_rva:#x}, size {reloc_size})"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // The `subsystem` word in a target block reaches the PE optional header:
 // `subsystem gui` -> 2, no declaration -> console 3. Asserted on the emitted
 // bytes (the Subsystem u16 sits at e_lfanew + 4 (sig) + 20 (COFF) + 68).
