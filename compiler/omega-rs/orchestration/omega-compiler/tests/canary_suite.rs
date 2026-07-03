@@ -17229,6 +17229,37 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
 }
 
 #[test]
+fn runtime_abs_desugar_exit_canary_runs() {
+    // `abs(x)` desugars to `max(x, 0 - x)` (frontend-only; min/max are binary
+    // builtins). abs(-70)=70 and abs(12)=12; exit 70 confirms both.
+    let canary = pass_canary("arithmetic/runtime_abs_desugar_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-abs-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("abs desugar canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("abs desugar canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected abs(-70)=70 and abs(12)=12 (exit 70); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_float_self_compare_nan_exit_canary_runs() {
     // The canonical isNaN idiom `f != f` (and its `f == f` complement) on a
     // NaN operand: TRUE/FALSE per IEEE. Was silently folded to constants by
@@ -17648,6 +17679,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "layouts/runtime_plan_laid_value_field_exit",
     "control_flow/runtime_compare_pair_dispatch_exit",
     "arithmetic/runtime_float_self_compare_nan_exit",
+    "arithmetic/runtime_abs_desugar_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
     "concurrency/runtime_spawn_struct_result_exit",
@@ -18200,6 +18232,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/if_statement_retired",
     "control_flow/transition_fall_through_bool",
     "control_flow/transition_fall_through_value_match",
+    "calls/abs_call_argument_rejected",
     "targets/unknown_subsystem_word",
     "wire/decode_into_ranged_field",
     "wire/encode_wire_spelling_renamed",
