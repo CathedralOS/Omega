@@ -566,13 +566,18 @@ data BlobSample {
     bytes: &[u8];
 }
 
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
 data Main {
     console: Console;
     source: [u8; 4];
     buffer: [u8; 64];
     written: usize;
     read: usize;
-    ok: bool;
+    verdict: WireVerdict;
 }
 
 machine Main::main(&mut self) {
@@ -583,9 +588,9 @@ machine Main::main(&mut self) {
     Blob::encode(&sample, &mut self.buffer, &mut self.written);
 
     let decoded: BlobSample = BlobSample { bytes: self.source[0..2] };
-    Blob::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+    Blob::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
 
-    let matches: bool = self.ok && self.written == 5 && self.read == 5;
+    let matches: bool = self.verdict == WireVerdict::Sound && self.written == 5 && self.read == 5;
     transition matches {
         true -> good()
         false -> bad()

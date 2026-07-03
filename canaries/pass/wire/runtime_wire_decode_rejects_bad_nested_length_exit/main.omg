@@ -43,10 +43,17 @@ data RoomMessageValue {
     depth: i32;
 }
 
+// The decode verdict: a dispatchable enum, not a forgettable flag. Invalid
+// is the ZII zero case, so an untouched verdict reads as failure.
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
 data Main {
     console: Console;
     read: usize;
-    ok: bool;
+    verdict: WireVerdict;
 }
 
 machine Main::main(&mut self) {
@@ -60,11 +67,11 @@ machine Main::main(&mut self) {
         depth: 0
     };
 
-    RoomMessage::decode(&mut decoded, &buffer, &mut self.read, &mut self.ok);
+    RoomMessage::decode(&mut decoded, &buffer, &mut self.read, &mut self.verdict);
 
-    transition self.ok {
-        true -> bad()
-        false -> good()
+    transition self.verdict {
+        WireVerdict::Sound -> bad()
+        WireVerdict::Invalid -> good()
     }
 
     state good(&mut self) {

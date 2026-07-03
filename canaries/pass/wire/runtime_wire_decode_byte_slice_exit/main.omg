@@ -22,6 +22,13 @@ data BlobSample {
     bytes: &[u8];
 }
 
+// The decode verdict: a dispatchable enum, not a forgettable flag. Invalid
+// is the ZII zero case, so an untouched verdict reads as failure.
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
 data Main {
     console: Console;
     source: [u8; 4];
@@ -30,7 +37,7 @@ data Main {
     written: usize;
     written2: usize;
     read: usize;
-    ok: bool;
+    verdict: WireVerdict;
 }
 
 machine Main::main(&mut self) {
@@ -41,11 +48,11 @@ machine Main::main(&mut self) {
     Blob::encode(&sample, &mut self.buffer, &mut self.written);
 
     let decoded: BlobSample = BlobSample { bytes: self.source[0..2] };
-    Blob::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+    Blob::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
 
     Blob::encode(&decoded, &mut self.buffer2, &mut self.written2);
 
-    let matches: bool = self.ok
+    let matches: bool = self.verdict == WireVerdict::Sound
         && self.read == 5
         && self.written2 == 5
         && self.buffer2[2] == 2

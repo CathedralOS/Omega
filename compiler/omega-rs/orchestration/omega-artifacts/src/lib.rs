@@ -500,7 +500,7 @@ impl ArtifactWriter {
                 schema.name
             ));
             output.push_str(&format!(
-                "  machine {}::decode(&mut value, &buffer: [u8; N], &mut read: usize, &mut ok: bool)\n",
+                "  machine {}::decode(&mut value, &buffer: [u8; N], &mut read: usize, &mut verdict: WireVerdict)\n",
                 schema.name
             ));
 

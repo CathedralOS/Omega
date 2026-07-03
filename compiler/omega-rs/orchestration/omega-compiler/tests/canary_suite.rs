@@ -18060,6 +18060,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/transition_fall_through_value_match",
     "wire/decode_into_ranged_field",
     "wire/encode_wire_spelling_renamed",
+    "wire/decode_verdict_must_be_enum",
     "wire/layout_domain_on_stored_bytes",
     "wire/layout_domain_grammar_not_implemented",
     "wire/layout_domain_unnumbered_schema",

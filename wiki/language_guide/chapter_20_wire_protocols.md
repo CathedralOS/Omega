@@ -281,15 +281,17 @@ We took (b): encode-only is a smaller honest slice; zero-copy decode awaits
 borrow facts that can model it (tracked in TASKS).
 
 The matching decoder is
-`Schema::decode(&mut value, &buffer, &mut read, &mut ok)`: it reads the
+`Schema::decode(&mut value, &buffer, &mut read, &mut verdict)`: it reads the
 era varint, then per field the expected field-number varint and a value
 varint, un-zigzagging signed fields, and writes each value into the matching
-field of `value`. `read` receives the byte count consumed and `ok` the
-success flag. The decoder accepts the schema's CURRENT era only — a payload
+field of `value`. `read` receives the byte count consumed and `verdict` the
+result: a `WireVerdict` enum (`case Invalid; case Sound;` -- Invalid is the
+ZII zero case, so an untouched verdict reads as failure), dispatched with
+ordinary transition arms rather than remembered like a flag. The decoder accepts the schema's CURRENT era only — a payload
 carrying any other era discriminator fails on its first byte; decoding
 historical eras is deferred until the `Versioned<T>` container (chapter 21
 stage 3) is signed off, since ordinary values cannot carry an era tag.
-Failure semantics: `ok` is sticky — the first violation (wrong era, a tag
+Failure semantics: the verdict is sticky — the first violation (wrong era, a tag
 that is not the next expected field number, truncated input, or an overlong
 varint past ten groups) makes the decode report failure, and nothing can set
 the flag back. On failure the decoder guarantees only the flag: `read` and
@@ -334,9 +336,9 @@ The decoder reads the nested tag, reads the length varint into the scratch
 slot, then OPENS the sub-region: the length must fit the remaining buffer
 (checked both as a raw value and as the absolute end bound, so a huge length
 cannot wrap the 64-bit sum back inside the buffer), failure clearing the
-sticky `ok` as usual. The child's fields then decode with the ordinary
+sticky verdict as usual. The child's fields then decode with the ordinary
 expected-tag and value-varint reads — still bounds-checked against the full
-buffer for memory safety — and a CLOSE check fails `ok` unless the cursor
+buffer for memory safety — and a CLOSE check fails the verdict unless the cursor
 landed EXACTLY on the declared end: a length that disagrees with the content
 in either direction is a malformed payload, not a silent skew.
 

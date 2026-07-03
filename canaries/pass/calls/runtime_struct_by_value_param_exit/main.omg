@@ -19,6 +19,13 @@ data Coeffs {
     c: i32 in Wrapping;
 }
 
+// The decode verdict: a dispatchable enum, not a forgettable flag. Invalid
+// is the ZII zero case, so an untouched verdict reads as failure.
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
 data Main {
     console: Console;
 }

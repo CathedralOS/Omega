@@ -444,7 +444,7 @@ fn validate_adjacent_eras(
 
 /// Validate a call whose receiver names a wire schema: the synthesized
 /// `Schema::encode(&value, &mut out, &mut written)` encoder (wire stage
-/// 2a) or `Schema::decode(&mut value, &buffer, &mut read, &mut ok)`
+/// 2a) or `Schema::decode(&mut value, &buffer, &mut read, &mut verdict)`
 /// decoder (wire stage 2b). Returns `true` when the receiver names a wire
 /// schema (the call belongs to this module whether or not it validates).
 pub(crate) fn validate_wire_schema_call(
@@ -493,13 +493,13 @@ pub(crate) fn validate_wire_schema_call(
             diagnostics.push(Diagnostic::error(format!(
                 "`{}::{}` was renamed: the synthesized codec entries are `{}::encode(&value, \
                  &mut out, &mut written)` and `{}::decode(&mut value, &buffer, &mut read, \
-                 &mut ok)`",
+                 &mut verdict)`",
                 schema.name, call.target, schema.name, schema.name
             )));
         }
         _ => {
             diagnostics.push(Diagnostic::error(format!(
-                "data `{}` has no machine `{}`; the compiler only synthesizes `encode(&value, &mut out, &mut written)` and `decode(&mut value, &buffer, &mut read, &mut ok)` (wire stage 2)",
+                "data `{}` has no machine `{}`; the compiler only synthesizes `encode(&value, &mut out, &mut written)` and `decode(&mut value, &buffer, &mut read, &mut verdict)` (wire stage 2)",
                 schema.name, call.target
             )));
         }
@@ -871,7 +871,7 @@ fn validate_wire_encode_call(
 }
 
 /// Validate the synthesized wire decoder call
-/// `Schema::decode(&mut value, &buffer, &mut read, &mut ok)` (chapter
+/// `Schema::decode(&mut value, &buffer, &mut read, &mut verdict)` (chapter
 /// 20, wire stage 2b).
 ///
 /// The checks, mirroring the encoder's:
@@ -901,7 +901,7 @@ fn validate_wire_decode_call(
     let arguments = program.statement_table.expression_handles(call.arguments);
     if arguments.len() != 4 {
         diagnostics.push(Diagnostic::error(format!(
-            "`{}::decode` expects 4 arguments (&mut value, &buffer, &mut read, &mut ok), got {}",
+            "`{}::decode` expects 4 arguments (&mut value, &buffer, &mut read, &mut verdict), got {}",
             schema.name,
             arguments.len()
         )));
@@ -1186,18 +1186,56 @@ fn validate_wire_decode_call(
         )));
     }
 
-    // Ok argument: `&mut bool`.
-    if let Some(ok_type) =
+    // Verdict argument: `&mut WireVerdict` -- the dispatchable result enum
+    // (case Invalid = tag 0 = the ZII default, so an unexamined verdict reads
+    // as failure; case Sound = tag 1). Replaced the sticky `ok: bool` flag
+    // 2026-07-02: a flag can be forgotten, an enum is dispatched.
+    if let Some(verdict_type) =
         declared_place_type(program, current_machine, current_state, arguments[3])
-        && program.primitive_type_reference(ok_type)
-            != Some(omega_typed_trees::types::PrimitiveType::Bool)
+        && !type_is_wire_verdict(program, verdict_type)
     {
         diagnostics.push(Diagnostic::error(format!(
-            "`{}::decode` ok argument must be `&mut bool`, got `{}`",
+            "`{}::decode` verdict argument must be `&mut WireVerdict` (declare \
+             `data WireVerdict {{ case Invalid; case Sound; }}` -- Invalid is the zero \
+             case, so an untouched verdict reads as failure), got `{}`",
             schema.name,
-            program.display_type_reference(ok_type)
+            program.display_type_reference(verdict_type)
         )));
     }
+}
+
+/// The decode verdict contract: a data definition NAMED `WireVerdict` whose
+/// members are exactly the cases `Invalid` then `Sound` (declaration order is
+/// the tag order -- Invalid must be the ZII zero case).
+fn type_is_wire_verdict(program: &TypedTrees, type_reference: TypeReferenceHandle) -> bool {
+    let TypeReferenceNode::Named { name, .. } =
+        program.type_reference_table.type_reference(type_reference)
+    else {
+        return false;
+    };
+    if name.as_str() != "WireVerdict" {
+        return false;
+    }
+    let Some(data) = program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name.as_str() == "WireVerdict")
+    else {
+        return false;
+    };
+    let members = program.data_members(data);
+    let case_names: Vec<&str> = members
+        .iter()
+        .filter_map(|member| match member {
+            omega_typed_trees::data::DataMember::Variant(variant)
+                if variant.payload.is_empty() =>
+            {
+                Some(variant.name.as_str())
+            }
+            _ => None,
+        })
+        .collect();
+    members.len() == 2 && case_names == ["Invalid", "Sound"]
 }
 
 /// A nested message field's value member must be a (non-case-bearing) data
