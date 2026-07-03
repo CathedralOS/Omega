@@ -359,8 +359,11 @@ The ladder, smallest-landable-first; layouts need NO general const positions
   this is front-end sugar, but the surface is a language-design call.
 - **[ENGINEERING]** `arr[i] = <binary>` (a computed value into a runtime-indexed
   target) is unselectable; forces the `tmp = arr[i]+v; arr[i] = tmp` idiom.
-- **[ENGINEERING]** numeric intrinsics: sqrt / sin / cos / abs / min / max as
-  functions (no math library exists).
+- **[ENGINEERING]** numeric intrinsics: min / max DONE (binary builtins); abs
+  DONE (frontend desugar `abs(x)` -> `max(x, 0 - x)`, 2026-07-02 -- receiver-
+  less single-arg only; a call argument rejects to avoid double-eval). sqrt /
+  sin / cos still need the missing unary-value backend op (sqrt via `sqrtsd`
+  is the cleanest first slice; dedicated session).
 - **[RESEARCH — sidesteppable]** nonlinear index `pixels[y*W+x]` is not provable
   in-bounds (the interval/ordering prover has no product-bound fact). Route around
   with a single linear `0..W*H` counter until/unless a `y<H && x<W => y*W+x<W*H`

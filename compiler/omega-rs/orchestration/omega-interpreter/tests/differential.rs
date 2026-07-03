@@ -272,6 +272,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("comptime/runtime_const_array_length_exit", 70),
     ("layouts/runtime_plan_laid_value_field_exit", 70),
     ("arithmetic/runtime_float_self_compare_nan_exit", 70),
+    ("arithmetic/runtime_abs_desugar_exit", 70),
     ("comptime/runtime_const_array_length_transitive_exit", 70),
     ("comptime/runtime_const_array_length_bare_call_arm_exit", 70),
     ("borrow/runtime_view_of_view_chain_exit", 70),
