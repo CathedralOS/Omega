@@ -31,7 +31,7 @@ use omega_abstract_operations::{
 };
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::StatementNode;
-use omega_checked_trees::wire::{WireMember, WireScalarEncoding, wire_varint_bytes};
+use omega_checked_trees::wire::{WireMember, WireScalarEncoding, wire_varint_bytes, WirePlacement};
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 
@@ -251,8 +251,29 @@ pub(super) fn select_wire_decode_call(
         }
     };
 
-    for field in &fields {
-        for byte in wire_varint_bytes(field.number as u64) {
+    // MINT ARC RUNG 2a: the derived wire plan drives the EXPECTED tag bytes
+    // (see wire_encode.rs -- same agreement assertion, same fallback).
+    let plan = input.program.wire_schema_plan(schema.symbol);
+    if let Some(placements) = plan {
+        let agrees = placements.len() == fields.len()
+            && placements.iter().zip(fields.iter()).all(|(placement, field)| {
+                let field_is_varint =
+                    matches!(field.content, WireReadContent::Scalar { .. });
+                placement.tag() == field.number
+                    && matches!(placement, WirePlacement::Varint { .. }) == field_is_varint
+            });
+        if !agrees {
+            debug_assert!(false, "derived wire plan disagrees with the schema walk");
+            return false;
+        }
+    }
+
+    for (field_index, field) in fields.iter().enumerate() {
+        let tag = plan
+            .and_then(|placements| placements.get(field_index))
+            .map(|placement| placement.tag())
+            .unwrap_or(field.number);
+        for byte in wire_varint_bytes(tag as u64) {
             push(expected_byte_kind(byte));
         }
         match &field.content {

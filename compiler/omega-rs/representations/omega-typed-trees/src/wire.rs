@@ -3,6 +3,42 @@ use crate::types::TypeReferenceHandle;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 
+/// One wire field's DERIVED placement -- the plan the tagged codec walks
+/// (mint arc rung 2a). The Rust-side mirror of the FieldPlan wire cases
+/// (`Varint(tag)` / `LengthPrefixed(tag)`, programmable_layouts §3): a scalar
+/// field encodes as tag varint + value varint; text/byte-slice/nested/repeated
+/// fields encode as tag varint + length varint + payload. Placements are
+/// stored SORTED BY TAG (the codec emits in field-number order).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WirePlacement {
+    Varint { tag: i64 },
+    LengthPrefixed { tag: i64 },
+}
+
+impl Default for WirePlacement {
+    /// The ZII zero placement (arena slots initialize to it): a varint at
+    /// tag 0 -- meaningless until written, exactly like a zeroed offset.
+    fn default() -> Self {
+        Self::Varint { tag: 0 }
+    }
+}
+
+impl WirePlacement {
+    pub fn tag(self) -> i64 {
+        match self {
+            Self::Varint { tag } | Self::LengthPrefixed { tag } => tag,
+        }
+    }
+}
+
+/// A schema's derived wire plan: its placements as a span into the
+/// `TypedTrees` placement arena (arena + span ownership, no nested vectors).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct WireSchemaPlan {
+    pub schema: SymbolHandle,
+    pub placements: HandleSpan<WirePlacement>,
+}
+
 /// A `wire data` protocol schema carried through the typed stage: stable field
 /// numbers, reserved (retired) numbers, and historical version eras. Wire
 /// schemas are external-representation contracts, kept separate from runtime
