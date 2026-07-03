@@ -1,0 +1,36 @@
+// `clamp(x, lo, hi)` desugars to `min(max(x, lo), hi)` (pure min/max
+// reuse; each argument appears once, so no double-eval concern).
+// clamp(300,0,255)=255, clamp(-5,0,255)=0, clamp(128,0,255)=128;
+// exits 70 only when all three hold.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    a: i32;
+    b: i32;
+    c: i32;
+}
+machine Main::main(&mut self) {
+    self.a = clamp(300, 0, 255);
+    self.b = clamp(0 - 5, 0, 255);
+    self.c = clamp(128, 0, 255);
+    transition self.a == 255 {
+        true -> check_lo()
+        false -> bad()
+    }
+    state check_lo(&mut self) {
+        transition self.b == 0 {
+            true -> check_mid()
+            false -> bad()
+        }
+    }
+    state check_mid(&mut self) {
+        transition self.c == 128 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
