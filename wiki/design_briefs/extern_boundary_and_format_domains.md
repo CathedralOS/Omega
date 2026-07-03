@@ -424,13 +424,40 @@ brief); the inbound process entry is its host-OS instance.
   typed `Args` — a *library* (clap-shaped), never `main`'s signature.
 
 ```
-// The app declares what it receives; on Windows the entry stub fills it.
+// The app declares what it receives; on Windows the entry stub FILLS it (a
+// courier, not a parser): capability fields from providers, command_line as the
+// raw untrusted slice. The stub never parses.
 data Main {
-    console:      Console;    // capability — from the windows_x64 stdout provider
-    command_line: [u16];      // untrusted foreign DATA — from GetCommandLineW
+    console:      Console;    // capability — typed, from the windows_x64 stdout provider
+    command_line: [u16];      // untrusted foreign DATA — raw from GetCommandLineW
 }
-// `command_line` is parsed into a typed Args by a library. No argc/argv anywhere.
+
+machine Main::run(&self) -> ExitCode {
+    // The AUTHOR mints it — explicit, like any untrusted input. No runtime
+    // auto-parse; a parser is a library the author calls on the slice.
+    transition Args::parse(&self.command_line) {
+        Ok(args) -> go(args)
+        Bad(why) -> usage(why)
+    }
+}
 ```
+
+**The blob-and-length is NOT killed — only its C shape is.** You still receive
+"here is a blob, here is how much": a `[u16]`/`[u8]` *slice*, which is `{ptr,
+len}`, so the length (argc's whole job) is in the slice. What dies is `char**
+argv` — the array-of-pointers-to-NUL-terminated-strings with a separately-passed
+count — because a slice is strictly better (length built in, no NUL walk-off).
+And the ambient authority argv smuggled alongside is gone (§2–§4 providers). The
+bytes flow through; the container is honest.
+
+**The author does the recast, not the runtime.** The command line is just
+another untrusted input — it arrives as `[u8] in <Untrusted>` and the type
+system forces validate-into-typed before use, exactly like a network packet or a
+file's bytes. Handing `main` a pre-parsed typed `Args` would be the magic Omega
+rejects (nothing gets typed behind your back). So the stub delivers the raw
+slice; the author mints it, in the open. Fixed-layout binary launch inputs
+recast via `as` (§5b) / a mint; variable command-line text is parsed by an
+author-called library — both from the same `[u8]` slice.
 
 **Env vars** get the same treatment: absorbed at the boundary, never ambient
 (no `getenv`). An app that wants one reads it as an explicit untrusted input via
