@@ -14520,6 +14520,38 @@ fn runtime_u16_field_arith_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_addr_field_exit_canary_runs() {
+    // `addr` is a pointer-width ADDRESS type (distinct from usize/counts). Store
+    // two distinct addresses in struct fields (the UEFI EfiHandle/ConsolePtr
+    // shape), read one back via `.raw`, cast to i32: exit 88.
+    let canary = pass_canary("types/runtime_addr_field_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-addr-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("addr field canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("addr field canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(88),
+        "expected addr field round-trip (ConsolePtr.raw = 88, exit 88), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_isize_signed_arith_exit_canary_runs() {
     let canary = pass_canary("types/runtime_isize_signed_arith_exit");
     let main_path = canary.join("main.omg");

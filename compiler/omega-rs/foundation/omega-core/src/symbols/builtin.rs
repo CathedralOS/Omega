@@ -1,6 +1,6 @@
 use super::{SymbolKind, SymbolNameRef};
 
-pub const BUILTIN_TYPE_COUNT: usize = 27;
+pub const BUILTIN_TYPE_COUNT: usize = 28;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinType {
@@ -76,6 +76,11 @@ pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_
         (SymbolKind::BuiltinType, SymbolNameRef::Static("u32")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("u64")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("usize")),
+        // `addr` -- a pointer-width ADDRESS type, distinct from `usize`/counts
+        // (index_count_and_address_model brief: address and count are separate
+        // axes). Naive pointer-width for now (rides the 8-byte path); the
+        // in-region/aligned capability discipline is a later rung.
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("addr")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("f32")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("f64")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("String")),

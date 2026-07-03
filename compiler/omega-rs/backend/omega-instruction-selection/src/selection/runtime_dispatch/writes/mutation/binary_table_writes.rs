@@ -882,7 +882,8 @@ fn scalar_primitive_byte_size(primitive: PrimitiveType) -> Option<usize> {
         | PrimitiveType::I64
         | PrimitiveType::U64
         | PrimitiveType::Usize
-        | PrimitiveType::Isize => Some(8),
+        | PrimitiveType::Isize
+        | PrimitiveType::Addr => Some(8),
         PrimitiveType::String => None,
     }
 }

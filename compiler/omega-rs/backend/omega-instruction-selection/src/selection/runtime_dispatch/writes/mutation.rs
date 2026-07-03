@@ -2115,7 +2115,7 @@ fn saturating_integer_bounds(primitive: PrimitiveType) -> Option<(i64, i64)> {
         PrimitiveType::I32 => Some((i32::MIN as i64, i32::MAX as i64)),
         PrimitiveType::U32 => Some((0, u32::MAX as i64)),
         PrimitiveType::I64 | PrimitiveType::Isize => Some((i64::MIN, i64::MAX)),
-        PrimitiveType::U64 | PrimitiveType::Usize => Some((0, i64::MAX)),
+        PrimitiveType::U64 | PrimitiveType::Usize | PrimitiveType::Addr => Some((0, i64::MAX)),
         PrimitiveType::Bool
         | PrimitiveType::F32
         | PrimitiveType::F64
