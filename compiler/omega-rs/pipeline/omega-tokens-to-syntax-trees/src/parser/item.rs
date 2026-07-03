@@ -174,6 +174,15 @@ pub(super) fn parse_item<'tokens, 'source>(
         return Ok((Item::HostProvider(item), rest));
     }
 
+    // Identifier-led provides table -- `<target> provides <Trait> { ... }` (extern
+    // brief §3/§12, the settled + Cathedral surface; no `host` keyword). Detected
+    // by a 2-token peek so a bare target name doesn't shadow keyword-led items.
+    // The legacy `host <target> provides ...` form above stays accepted.
+    if input.at_identifier_then_contextual("provides") {
+        let (item, rest) = parse_host_provider_definition(syntax_trees, input)?;
+        return Ok((Item::HostProvider(item), rest));
+    }
+
     if input.at_keyword(KeywordKind::Platform) {
         let input = input.take_keyword(KeywordKind::Platform, "platform")?;
         let (item, rest) = parse_platform(syntax_trees, input)?;
