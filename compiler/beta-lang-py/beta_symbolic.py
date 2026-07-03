@@ -195,11 +195,31 @@ def _mentions(t, ph):                  # does the placeholder `ph` occur in term
         return True
     return isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'zz') and any(_mentions(x, ph) for x in t[1:])
 
+def _peel(expr, ph):
+    """expr = an additive spine containing ph -> the spine with ph removed (the per-iteration delta,
+    preserving the tree's shape so both engines build identical terms). Left-first when ambiguous —
+    accumulator chains grow leftward. An UNROLLED inner concrete loop leaves exactly this shape:
+    ((ph + a) + a) + a -> (a + a) + a. Mirror of alpha_symbolic._peel."""
+    if expr == ph:
+        return 0
+    if isinstance(expr, tuple) and expr[0] == 'p':
+        side = 1 if _mentions(expr[1], ph) else 2 if _mentions(expr[2], ph) else 0
+        if side:
+            d = _peel(expr[side], ph)
+            other = expr[3 - side]
+            if d is None:
+                return None
+            if d == 0:
+                return other
+            return ('p', d, other) if side == 1 else ('p', other, d)
+    return None
+
 def _lin_delta(expr, ph):
     """expr = ph + D or D + ph (D free of ph) -> D (the per-iteration increment); expr == ph -> 0; else None.
-    A zz pair ('zz', P, N) with P = ph + Dp and N free of ph is a SUBTRACTING accumulator: since +/- distribute
-    componentwise over difference pairs, its pos/neg components follow independent additive recurrences — the
-    delta is ('zz', Dp, N) and each component summarizes with the ordinary linear machinery."""
+    Deeper additive spines (an unrolled inner concrete loop) peel via _peel. A zz pair ('zz', P, N) with
+    P = ph + Dp and N free of ph is a SUBTRACTING accumulator: since +/- distribute componentwise over
+    difference pairs, its pos/neg components follow independent additive recurrences — the delta is
+    ('zz', Dp, N) and each component summarizes with the ordinary linear machinery."""
     if expr == ph:
         return 0
     if isinstance(expr, tuple) and expr[0] == 'p':
@@ -208,6 +228,9 @@ def _lin_delta(expr, ph):
             return b
         if b == ph and not _mentions(a, ph):
             return a
+        d = _peel(expr, ph)
+        if d is not None:
+            return d
     if isinstance(expr, tuple) and expr[0] == 'zz' and not _mentions(expr[2], ph):
         dp = _lin_delta(expr[1], ph)
         if dp is not None:
@@ -220,6 +243,26 @@ def _mentions_loopvar(t, names):       # does term `t` mention any ('loopvar', v
             return t[1] in names
         if t[0] in ('s', 'p', 'm', 'zz'):
             return any(_mentions_loopvar(x, names) for x in t[1:])
+    return False
+
+def _subst_loopvars(t, entry, invariant):   # ('loopvar', v) -> entry value for loop-INVARIANT v (raw, as
+    if isinstance(t, tuple):                # alpha's _subst_slots splices raw MEM values); recurse elsewhere
+        if t[0] == 'loopvar':
+            return entry[t[1]] if t[1] in invariant else t
+        if t[0] == 's':
+            return ('s', _subst_loopvars(t[1], entry, invariant))
+        if t[0] in ('p', 'm', 'zz'):
+            return (t[0], _subst_loopvars(t[1], entry, invariant), _subst_loopvars(t[2], entry, invariant))
+        if t[0] == 'f':
+            return ('f', t[1], _subst_loopvars(t[2], entry, invariant))
+    return t
+
+def _has_zz(t):                        # does a zz pair occur anywhere inside term `t`?
+    if isinstance(t, tuple):
+        if t[0] == 'zz':
+            return True
+        if t[0] in ('s', 'p', 'm', 'f'):
+            return any(_has_zz(x) for x in t[1:])
     return False
 
 def _expr_uses(e, names):              # does AST expression `e` reference any of the given variable names?
@@ -280,26 +323,26 @@ class SymInterp:
         starts are out of scope here — deliberately narrow so the closed form is exactly built-in +/*."""
         if body_label not in labels:
             return False
-        body = blocks[labels[body_label]]
-        if not body or body[-1][0] != 'goto' or body[-1][2] is not None or labels.get(body[-1][1]) != header_pc:
-            return False                                # body must end with an unconditional jump back here
-        updates = body[:-1]
-        if any(s[0] not in ('let', 'assign') for s in updates):
-            return False                                # body is straight-line assignments only
-        loop_vars = [s[1] for s in updates]
-        entry = {v: env.get(v, 0) for v in loop_vars}
-        saved = dict(env)                               # read deltas off one body run with fresh placeholders
-        for v in loop_vars:
-            env[v] = ('loopvar', v)
-        try:
-            for s in updates:
-                env[s[1]] = self.ev(s[2], env)
-            deltas = {v: _lin_delta(env[v], ('loopvar', v)) for v in loop_vars}
+        entry = dict(env)
+        ph_env = {v: ('loopvar', v) for v in env}       # EVERY var gets a placeholder (mirrors alpha, which
+        try:                                            # markers every frame slot); invariants subst back below
+            out = self._run_region_once(labels[body_label], header_pc, ph_env, blocks, labels)
         except Unsupported:
-            deltas = None
-        env.clear(); env.update(saved)                  # restore the entry state
-        if deltas is None or any(d is None for d in deltas.values()):
             return False
+        deltas = {}
+        for v in entry:                                 # per-var delta off the ONE placeholder region run
+            deltas[v] = _lin_delta(out[v], ('loopvar', v))
+            if deltas[v] is None:
+                return False
+        invariant = {v for v in entry if deltas[v] == 0}
+        loop_vars = [v for v in entry if deltas[v] != 0]
+        fresh = {}                                      # vars INTRODUCED by the body (e.g. an inner counter):
+        for v in out:                                   # keep only values identical on every iteration
+            if v not in entry:
+                fv = _subst_loopvars(out[v], entry, invariant)
+                if _mentions_loopvar(fv, set(entry)):
+                    return False                        # depends on a moved var — differs per iteration
+                fresh[v] = fv
         if cond[0] == 'bin' and cond[1] in ('>', '>='):     # (a > b) ≡ (b < a): normalize to the < forms, the
             cond = ('bin', {'>': '<', '>=': '<='}[cond[1]], cond[3], cond[2])   # same swap bc does in codegen
         if cond[0] == 'bin' and cond[1] == '!=':
@@ -343,8 +386,12 @@ class SymInterp:
         for v in loop_vars:                             # each δ = a0 + a1·counter -> init + a0·trip + a1·g(trip)
             d = deltas[v]
             if isinstance(d, tuple) and d[0] == 'zz':   # subtracting accumulator: summarize pos/neg independently
-                dp = _lin_decompose(d[1], counter, loop_vars)
-                dn = _lin_decompose(d[2], counter, loop_vars)
+                P = _subst_loopvars(d[1], entry, invariant)
+                N = _subst_loopvars(d[2], entry, invariant)
+                if _has_zz(P) or _has_zz(N):
+                    return False                        # a zz value nested in a component: alpha refuses too
+                dp = _lin_decompose(P, counter, loop_vars)
+                dn = _lin_decompose(N, counter, loop_vars)
                 if dp is None or dn is None:
                     return False
                 p0, n0 = _as_zz(entry[v])
@@ -354,7 +401,10 @@ class SymInterp:
                     closed[v] = ('zz', _series_closed(p0, _canon(dp[0]), _canon(dp[1]), trip),
                                        _series_closed(n0, _canon(dn[0]), _canon(dn[1]), trip))
                 continue
-            dec = _lin_decompose(d, counter, loop_vars)
+            sub = _subst_loopvars(d, entry, invariant)
+            if _has_zz(sub):
+                return False                            # an invariant zz value spliced into a plain delta
+            dec = _lin_decompose(sub, counter, loop_vars)
             if dec is None:
                 return False                            # δ not linear in the counter (i·i, cross-loopvar): later
             if down and _canon(dec[1]) != 0:            # counter-dependent plain δ under a down-counter:
@@ -363,7 +413,40 @@ class SymInterp:
                 continue
             closed[v] = _series_closed(entry[v], _canon(dec[0]), _canon(dec[1]), trip)
         env.update(closed)
+        env.update(fresh)                               # body-introduced vars with iteration-independent values
         return True
+
+    def _run_region_once(self, start_idx, header_pc, env, blocks, labels):
+        """Execute the loop-body REGION once on a placeholder env, following CONCRETE control only — an inner
+        loop with a concrete bound unrolls right here, mirroring alpha's _run_body_once — until control jumps
+        back to the outer header. Mutates and returns env. Symbolic branches (a nested SYMBOLIC loop — a
+        later slice), returns, and call statements all refuse via Unsupported."""
+        pc = start_idx
+        steps = 0
+        while True:
+            jumped = False
+            for st in blocks[pc]:
+                steps += 1
+                if steps > 200000:
+                    raise Unsupported('loop body region too long to summarize')
+                k = st[0]
+                if k in ('let', 'assign'):
+                    env[st[1]] = self.ev(st[2], env)
+                elif k == 'goto':
+                    take = st[2] is None
+                    if st[2] is not None:
+                        take = _concrete(self.ev(st[2], env),
+                                         'symbolic branch inside a summarized loop body') != 0
+                    if take:
+                        if labels.get(st[1]) == header_pc:
+                            return env                  # one full iteration: control returned to the header
+                        pc = labels[st[1]]; jumped = True; break
+                else:
+                    raise Unsupported('statement %s inside a summarized loop body' % k)
+            if not jumped:
+                pc += 1
+                if pc >= len(blocks):
+                    raise Unsupported('loop body region fell off the program')
 
     def run(self, proc, argvals):
         _, name, params, body = proc
