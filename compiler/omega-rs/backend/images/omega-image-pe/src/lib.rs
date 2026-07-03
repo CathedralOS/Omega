@@ -7,6 +7,7 @@ mod entry;
 mod headers;
 mod imports;
 mod layout;
+mod relocations;
 mod sections;
 
 use constants::TEXT_RVA;
@@ -25,10 +26,21 @@ pub fn emit_pe_x86_64_executable(
     let sections = plan_pe_sections(&image, import_table.bytes.len());
     let layout = sections.final_image_layout();
 
+    // The `.reloc` bytes are built from the relocation table BEFORE
+    // relocations are applied (the sites' offsets, not their values, are what
+    // it lists), so the section is base-independent.
+    let base_relocations = relocations::build_base_relocations(&image);
+
     patch_import_thunks(&mut image, &layout, &import_thunks, &import_table.iat_rvas)?;
     apply_x86_64_relocations(&mut image, &layout, "PE direct executable")?;
 
     let entry_rva = pe_entry_rva(&image)?;
+
+    let (reloc_directory_rva, reloc_directory_size) = if sections.has_reloc {
+        (sections.reloc_rva, sections.reloc_virtual_size)
+    } else {
+        (0, 0)
+    };
 
     let mut bytes = Vec::new();
     write_dos_header(&mut bytes);
@@ -45,6 +57,9 @@ pub fn emit_pe_x86_64_executable(
             import_directory_size: import_table.import_directory_size,
             iat_rva: import_table.iat_rva,
             iat_size: import_table.iat_size,
+            reloc_directory_rva,
+            reloc_directory_size,
+            has_reloc: sections.has_reloc,
             subsystem,
         },
     );
@@ -77,6 +92,19 @@ pub fn emit_pe_x86_64_executable(
             0xc000_0040,
         );
     }
+    if sections.has_reloc {
+        // INITIALIZED_DATA | DISCARDABLE | READ (the loader consumes `.reloc`
+        // then discards it).
+        write_section_header(
+            &mut bytes,
+            ".reloc",
+            sections.reloc_virtual_size,
+            sections.reloc_rva,
+            sections.reloc_raw_size,
+            sections.reloc_raw,
+            0x4200_0040,
+        );
+    }
     if sections.has_bss {
         write_section_header(
             &mut bytes,
@@ -99,6 +127,11 @@ pub fn emit_pe_x86_64_executable(
         bytes.resize(sections.data_raw, 0);
         bytes.extend(&image.memory.data);
         bytes.resize(sections.data_raw + sections.data_raw_size, 0);
+    }
+    if sections.has_reloc {
+        bytes.resize(sections.reloc_raw, 0);
+        bytes.extend(&base_relocations.bytes);
+        bytes.resize(sections.reloc_raw + sections.reloc_raw_size, 0);
     }
 
     Ok(ExecutableImageOutput {
