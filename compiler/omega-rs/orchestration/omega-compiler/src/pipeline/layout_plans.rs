@@ -203,16 +203,37 @@ fn validate_plan(
         return Err(fail(format!("alignment {align} is not a positive power of two")));
     }
 
-    let BuildTimeValue::Array(offset_cells) = field("offsets")? else {
-        return Err(fail("plan `offsets` is not an array".to_owned()));
+    // The STRUCTURED placement vocabulary (FieldPlan cases). The fixed pilot
+    // slice walks `At(offset)`; a tagged/bit placement in a fixed plan is a
+    // clear error until the plan-walking deriver rungs land.
+    let BuildTimeValue::Array(placement_cells) = field("fields")? else {
+        return Err(fail("plan `fields` is not an array of FieldPlan cases".to_owned()));
+    };
+    let case_name = |variant: &str| -> String {
+        variant.rsplit("::").next().unwrap_or(variant).to_owned()
     };
     let mut offsets = Vec::with_capacity(field_sizes.len());
     for (index, _) in field_sizes.iter().enumerate() {
-        match offset_cells.get(index) {
-            Some(BuildTimeValue::Int(offset)) => offsets.push(*offset),
+        match placement_cells.get(index) {
+            Some(BuildTimeValue::Case { variant, payload }) if case_name(variant) == "At" => {
+                match payload.iter().find(|(name, _)| name == "offset") {
+                    Some((_, BuildTimeValue::Int(offset))) => offsets.push(*offset),
+                    other => {
+                        return Err(fail(format!(
+                            "placement {index} `At` carries no integer offset: {other:?}"
+                        )));
+                    }
+                }
+            }
+            Some(BuildTimeValue::Case { variant, .. }) => {
+                return Err(fail(format!(
+                    "placement {index} is `{}`: only `At` placements are walkable in the                      fixed pilot slice (tagged/bit placements arrive with the plan-walking                      deriver)",
+                    case_name(variant)
+                )));
+            }
             other => {
                 return Err(fail(format!(
-                    "offset entry {index} is missing or non-integer: {other:?}"
+                    "placement entry {index} is missing or not a FieldPlan case: {other:?}"
                 )));
             }
         }

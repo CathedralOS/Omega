@@ -34,12 +34,27 @@ data Schema {
     field_count: i64 [0..=32];
 }
 
-// A validated placement plan. `offsets[i]` is the byte offset of schema field
-// i (positions past `entry_count` are meaningless); `size_fixed` is the total
-// size when `size_is_dynamic` is false. The compiler checks entry bounds,
-// overlap, and size/alignment consistency before anything trusts the plan.
+// One field's PLACEMENT -- the closed vocabulary the compiler knows how to
+// read and lower (programmable_layouts §3). Policies CHOOSE placements from
+// this sum; a new placement KIND is a compiler release, never user-invented.
+// The pilot slice WALKS `At` (byte-aligned fixed offsets); the tagged and bit
+// placements are declared so plans can carry them, and the plan-walking
+// deriver rungs teach the compiler to consume them.
+data FieldPlan {
+    case At(offset: i64);
+    case Bits(container: i64, container_width: i64, lsb: i64, width: i64);
+    case Varint(tag: i64);
+    case LengthPrefixed(tag: i64);
+}
+
+// A validated placement plan. `fields[i]` is the PLACEMENT of schema field i
+// (positional in the pilot slice; the brief's name-keyed `[FieldEntry]`
+// arrives with the deriver). Positions past `entry_count` are meaningless;
+// `size_fixed` is the total size when `size_is_dynamic` is false. The
+// compiler checks entry bounds, overlap, and size/alignment consistency
+// before anything trusts the plan.
 data Plan {
-    offsets: [i64; 32];
+    fields: [FieldPlan; 32];
     entry_count: i64;
     size_fixed: i64;
     size_is_dynamic: bool;

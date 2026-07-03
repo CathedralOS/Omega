@@ -14,8 +14,14 @@ data Schema {
     fields: [SchemaField; 32];
     field_count: i64 [0..=32];
 }
+data FieldPlan {
+    case At(offset: i64);
+    case Bits(container: i64, container_width: i64, lsb: i64, width: i64);
+    case Varint(tag: i64);
+    case LengthPrefixed(tag: i64);
+}
 data Plan {
-    offsets: [i64; 32];
+    fields: [FieldPlan; 32];
     entry_count: i64;
     size_fixed: i64;
     size_is_dynamic: bool;
@@ -23,17 +29,17 @@ data Plan {
 }
 
 data Streamy {
-    offsets: [i64; 32];
+    plans: [FieldPlan; 32];
 }
 machine Streamy::plan(&mut self, schema: Schema) -> Plan {
     // Distinct offsets so placement VALIDATION passes; the plan is rejected
     // in type position purely for being dynamic.
-    self.offsets[1] = 4;
+    self.plans[1] = FieldPlan::At { offset: 4 };
     transition { _ -> done(schema) }
 
     state done(&mut self, schema: Schema) -> Plan {
         Plan {
-            offsets: self.offsets,
+            fields: self.plans,
             entry_count: schema.field_count as i64,
             size_fixed: 0,
             size_is_dynamic: true,
