@@ -223,6 +223,11 @@ pub enum HostBindingMechanism {
         number_register: u8,
         supervisor_call: u16,
     },
+    /// COM/UEFI per-object dispatch (extern brief §12.1): the callee address
+    /// is read from the RECEIVER at call time -- `mov rax, [this + index*8];
+    /// call rax`. The protocol struct IS the vtable (UEFI SimpleTextOutput:
+    /// OutputString at slot 1 = +8). No import thunk, no relocation.
+    VtableSlot { index: i64 },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -297,14 +302,95 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
 /// empty-import-table path produces a clean import-free image; a boundary
 /// call in such a program fails with the ordinary missing-lowering
 /// diagnostic rather than silently binding to an OS that will not be there.
-pub fn build_freestanding_abi_plan(target: NativeTarget) -> HostAbiPlan {
-    HostAbiPlan {
+/// One parsed `provides` arm, threaded from the program source (the extern
+/// brief's Binding sum): `<target> provides <Trait> { <method> -> <Binding> }`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProvidesRow {
+    pub trait_name: String,
+    pub method: String,
+    pub binding: ProvidesBindingKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProvidesBindingKind {
+    Syscall { number: i64 },
+    DllImport { module: String, symbol: String },
+    VtableSlot { index: i64 },
+}
+
+/// The boundary-policy path provides-sourced bindings live under: the program
+/// AUTHORED the binding, so the policy is its own declaration.
+pub const PROVIDES_BOUNDARY_POLICY: &str = "omega::host::provides";
+
+pub fn build_freestanding_abi_plan(
+    target: NativeTarget,
+    provides: &[ProvidesRow],
+) -> Result<HostAbiPlan, String> {
+    let mut plan = HostAbiPlan {
         target,
         bindings: Arena::new(),
         host_operations: Arena::new(),
         platform_call_lowerings: Arena::new(),
         boundary_policies: Arena::new(),
+    };
+    if provides.is_empty() {
+        return Ok(plan);
     }
+    plan.boundary_policies.insert(HostBoundaryPolicy {
+        path: PROVIDES_BOUNDARY_POLICY.into(),
+        checked: true,
+    });
+
+    // KNOWN DEBT: HostOperationKey is a CLOSED enum pair; provides names
+    // outside the catalog map to (Unknown, Unknown). One such row is fine --
+    // the key just has to be stable between the binding and the call site --
+    // but TWO would collide silently, so collide loudly instead. The
+    // generalization is string-interned operation keys.
+    let mut seen_unknown: Option<(String, String)> = None;
+    for row in provides {
+        let key = HostOperationKey::from_names(&row.trait_name, &row.method);
+        if key.capability_name() == "Unknown" {
+            if let Some((prior_trait, prior_method)) = &seen_unknown
+                && (prior_trait != &row.trait_name || prior_method != &row.method)
+            {
+                return Err(format!(
+                    "provides rows `{}::{}` and `{}::{}` both fall outside the closed                      operation catalog and would collide; string-keyed operations are                      not built yet",
+                    prior_trait, prior_method, row.trait_name, row.method
+                ));
+            }
+            seen_unknown = Some((row.trait_name.clone(), row.method.clone()));
+        }
+        let mechanism = match &row.binding {
+            ProvidesBindingKind::VtableSlot { index } => {
+                HostBindingMechanism::VtableSlot { index: *index }
+            }
+            ProvidesBindingKind::DllImport { module, symbol } => HostBindingMechanism::Import {
+                library: module.as_str().into(),
+                symbol: symbol.as_str().into(),
+            },
+            ProvidesBindingKind::Syscall { .. } => {
+                return Err(format!(
+                    "provides `{}::{}`: Syscall bindings on a freestanding target are not                      wired yet (no syscall plan without a host)",
+                    row.trait_name, row.method
+                ));
+            }
+        };
+        plan.bindings.insert(HostBinding {
+            operation_key: key,
+            mechanism,
+            boundary_policy: PROVIDES_BOUNDARY_POLICY.into(),
+        });
+        // The call-site lowering: the receiver's boundary-trait name is the
+        // platform, the method name is the state; one operation per call.
+        insert_platform_lowering(
+            &mut plan,
+            "*",
+            &row.method,
+            [host_operation(&row.trait_name, &row.method)],
+            PlatformCallData::None,
+        );
+    }
+    Ok(plan)
 }
 
 impl HostAbiPlan {

@@ -321,6 +321,9 @@ pub fn encode_runtime_text_line_read(
                     *number_register,
                     *supervisor_call,
                 ),
+                HostBindingMechanism::VtableSlot { .. } => Err(Diagnostic::error(
+                    "read_line cannot be vtable-bound",
+                )),
             }
         }
         Architecture::X86_64 => match binding {
@@ -346,6 +349,9 @@ pub fn encode_runtime_text_line_read(
                     )
                 }
             }
+            HostBindingMechanism::VtableSlot { .. } => Err(Diagnostic::error(
+                "read_line cannot be vtable-bound",
+            )),
         },
     }
 }

@@ -42,6 +42,51 @@ fn validate_boundary_providers(
     }
 }
 
+/// Parsed `provides` arms -> the calling-convention rows the freestanding ABI
+/// builder consumes (`<target> provides <Trait> { method -> VtableSlot(1) }`).
+fn extract_provides_rows(
+    syntax_trees: &omega_syntax_trees::SyntaxTrees,
+) -> Vec<omega_calling_conventions::ProvidesRow> {
+    use omega_calling_conventions::{ProvidesBindingKind, ProvidesRow};
+    use omega_syntax_trees::item::HostProviderMappingKind;
+
+    let mut rows = Vec::new();
+    for item in syntax_trees.root_items() {
+        let omega_syntax_trees::item::Item::HostProvider(provider) = item else {
+            continue;
+        };
+        let trait_name = syntax_trees
+            .items
+            .identifier_path_members(provider.boundary_trait)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::");
+        for mapping in syntax_trees.items.host_provider_mappings(provider.mappings) {
+            let binding = match &mapping.binding {
+                HostProviderMappingKind::Syscall { number } => {
+                    ProvidesBindingKind::Syscall { number: *number }
+                }
+                HostProviderMappingKind::DllImport { module, symbol } => {
+                    ProvidesBindingKind::DllImport {
+                        module: module.clone(),
+                        symbol: symbol.clone(),
+                    }
+                }
+                HostProviderMappingKind::VtableSlot { index } => {
+                    ProvidesBindingKind::VtableSlot { index: *index }
+                }
+            };
+            rows.push(ProvidesRow {
+                trait_name: trait_name.clone(),
+                method: mapping.machine.as_str().to_owned(),
+                binding,
+            });
+        }
+    }
+    rows
+}
+
 pub struct Compiler {
     options: CompileOptions,
 }
@@ -120,11 +165,15 @@ impl Compiler {
         // in-source `target { subsystem }` word is retired.
         let _ = build_machine_present;
         let (subsystem, freestanding) = (build_config.subsystem, build_config.freestanding);
+        // provides-sourced bindings (extern brief §12): parsed rows become
+        // the freestanding target's authored platform surface.
+        let provides_rows = extract_provides_rows(&syntax_trees);
 
         let backend = control_flow_to_backend_plan(
             checked,
             self.options.target_name.as_deref(),
             freestanding,
+            &provides_rows,
             control_flow,
             workers.handle(),
             &mut timings,

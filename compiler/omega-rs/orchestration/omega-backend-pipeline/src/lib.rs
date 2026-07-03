@@ -21,6 +21,7 @@ pub fn build_backend_plan_from_control_flow_with_workers(
     program: Arc<CheckedTrees>,
     target: NativeTarget,
     freestanding: bool,
+    provides_rows: &[omega_calling_conventions::ProvidesRow],
     control_flow: Arc<ControlFlowPlan>,
     workers: WorkerPoolHandle,
 ) -> Result<BackendPlan, Diagnostic> {
@@ -28,6 +29,7 @@ pub fn build_backend_plan_from_control_flow_with_workers(
         program,
         target,
         freestanding,
+        provides_rows,
         control_flow,
         workers,
     )
