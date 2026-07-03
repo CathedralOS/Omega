@@ -55,6 +55,21 @@ pub(crate) struct PeImportTable {
 }
 
 pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> PeImportTable {
+    // No-host / EFI targets import NOTHING -- services arrive through a parameter
+    // (the UEFI SystemTable), never the import table. Emit no import directory at
+    // all (RVA/size 0) rather than a lone null descriptor, so the image is a clean
+    // import-free PE32+. Mirrors the `.reloc` has_reloc gating in lib.rs; the
+    // header threads these zeros straight through.
+    if imports.is_empty() {
+        return PeImportTable {
+            bytes: Vec::new(),
+            iat_rvas: Vec::new(),
+            import_directory_rva: 0,
+            import_directory_size: 0,
+            iat_rva: 0,
+            iat_size: 0,
+        };
+    }
     // MULTI-DLL import table: thunks are grouped by their catalog library
     // (default KERNEL32.dll -- the historical single-DLL behavior for symbols
     // outside the Windows catalog). Layout, all offsets relative to rdata_rva:
@@ -179,4 +194,45 @@ pub(crate) fn patch_import_thunks(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PeImportThunk, build_import_table};
+
+    #[test]
+    fn no_host_target_emits_no_import_directory() {
+        // A no-host / EFI target imports nothing: the directory must be absent
+        // (RVA/size 0) and no import bytes emitted, so the PE header threads
+        // zeros -- a clean import-free PE32+, not a lone null descriptor.
+        let table = build_import_table(&[], 0x3000);
+        assert!(table.bytes.is_empty());
+        assert!(table.iat_rvas.is_empty());
+        assert_eq!(table.import_directory_rva, 0);
+        assert_eq!(table.import_directory_size, 0);
+        assert_eq!(table.iat_rva, 0);
+        assert_eq!(table.iat_size, 0);
+    }
+
+    #[test]
+    fn hosted_target_still_builds_a_directory() {
+        // Regression: with imports present the directory is non-empty and the
+        // per-thunk IAT rvas are returned in input order.
+        let thunks = vec![
+            PeImportThunk {
+                symbol: "ExitProcess".to_owned(),
+                text_offset: 0,
+            },
+            PeImportThunk {
+                symbol: "GetStdHandle".to_owned(),
+                text_offset: 6,
+            },
+        ];
+        let table = build_import_table(&thunks, 0x3000);
+        assert!(!table.bytes.is_empty());
+        assert_eq!(table.iat_rvas.len(), 2);
+        assert_eq!(table.import_directory_rva, 0x3000);
+        assert!(table.import_directory_size > 0);
+        assert!(table.iat_size > 0);
+    }
 }

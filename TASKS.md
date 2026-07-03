@@ -432,24 +432,30 @@ item 7; design in `design_briefs/freestanding_boot_and_hardware_facts.md`,
    signature: firmware calls it MS-x64 (ImageHandle in RCX, SystemTable* in RDX).
    The bounded-trivial case of the entry-stub problem — one entry, two args, no
    re-entrancy. **NOT STARTED — THE GATE.**
-2. **PE32+ `EFI_APPLICATION` emission** — **subsystem toggle + `.reloc` DONE**
-   (623706b96, 61c7fe246): `subsystem efi_application` in the target block and
-   position-independent images with base relocations (OVMF loads at an arbitrary
-   base — resolved, not a silent blocker). REMAINING: confirm a freestanding EFI
-   app emits with NO import table (services arrive via the SystemTable argument,
-   not via imports) — the host PE path assumes DLL imports exist.
+2. **PE32+ `EFI_APPLICATION` emission** — **DONE.** subsystem toggle + `.reloc`
+   (623706b96, 61c7fe246) + **empty-import-table for no-host targets**: when there
+   are zero imports, `build_import_table` now emits NO import directory (RVA/size
+   0) rather than a lone null descriptor — a clean import-free PE32+ (mirrors the
+   `.reloc` has_reloc gating). Unit-tested (`imports::tests::no_host_target_emits_
+   no_import_directory` + a hosted-path regression); hosted corpus unaffected
+   (only the zero-import branch is new). Full end-to-end awaits a zero-import
+   program, which needs feature 1's entry surface.
 3. **Layout policies + validating mints over the UEFI structs** — the L0–L5
    layouts arc IS this feature. `Uefi`/`CLayout` policy over `EfiSystemTable`,
    `Uefi<EfiSystemTable>::validate` (the mint), and field projection
    (`table.con_out`). Needs the L5-full remainder (validate/materialize decode
    mint + plan-walking deriver). LARGELY IN FLIGHT.
-4. **Runtime-pointer MS-x64 call (`VtableSlot`)** — MOSTLY DONE: the general
-   `encode_win64_import_call` (see the Gui section above) already does MS-x64
-   arg placement, shadow space, and result store. The delta is the call TARGET:
-   a pointer read from a struct field (con_out's vtable slot) instead of an
-   import-table symbol. A runtime-pointer-target variant of the existing
-   encoder, not new machinery. (`extern_boundary §12` Binding=`VtableSlot`;
-   `calling_plans.md`.)
+4. **Runtime-pointer MS-x64 call (`VtableSlot`)** — ENCODER PRIMITIVE LANDED,
+   wiring pending. Recon corrected the earlier "mostly done": the x86_64 backend
+   had NO register-indirect call anywhere — every call was `call rel32` (0xe8) to
+   an import thunk. `append_call_register` now emits the `FF /2` register-direct
+   near call (`FF D0`=call rax .. REX.B `41 FF D3`=call r11), byte-oracle-tested
+   (`call_encoding_tests`). REMAINING (the wiring, entangled with feature 1's
+   entry surface, so `#[allow(dead_code)]` for now): a runtime-pointer-call
+   OPERAND kind carrying the projected target (con_out's vtable slot read from a
+   struct field), its instruction-selection, and reusing `encode_win64_import_
+   call`'s marshaling with the final `call rel32` swapped for `append_call_
+   register`. (`extern_boundary §12` Binding=`VtableSlot`; `calling_plans.md`.)
 
 Milestone 2 (GetMemoryMap → ExitBootServices → first Region mint) needs **no new
 language features** beyond these — it is Cathedral-side code over the same
