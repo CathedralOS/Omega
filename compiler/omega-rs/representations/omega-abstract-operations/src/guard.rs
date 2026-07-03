@@ -34,6 +34,9 @@ pub enum StateGuardOperator {
     Min,
     And,
     Or,
+    /// `sqrt(x)`: a UNARY float op carried on the binary value-write path with
+    /// both operands = `x`; the encoder reads the first SSE register only.
+    Sqrt,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

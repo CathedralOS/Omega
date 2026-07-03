@@ -26,12 +26,6 @@ pub(crate) struct BaseRelocations {
     pub(crate) bytes: Vec<u8>,
 }
 
-impl BaseRelocations {
-    pub(crate) fn is_empty(&self) -> bool {
-        self.bytes.is_empty()
-    }
-}
-
 /// Build the `.reloc` section from the image's `X86_64Absolute64` relocations
 /// (all of which patch `.text`, so each site's RVA is `TEXT_RVA + offset`).
 /// Entries are grouped into per-4KiB-page blocks in ascending RVA order, and

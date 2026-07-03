@@ -6459,6 +6459,10 @@ fn append_runtime_float_binary_operation(
         StateGuardOperator::Subtract => 0x5c, // subsd/subss
         StateGuardOperator::Multiply => 0x59, // mulsd/mulss
         StateGuardOperator::Divide => 0x5e,   // divsd/divss
+        // sqrt is UNARY, carried with both operands = x: `sqrtsd xmm0, xmm1`
+        // computes sqrt(xmm1) = sqrt(x) into xmm0, so the shared final line
+        // below (op on xmm0, xmm1) already produces the right result.
+        StateGuardOperator::Sqrt => 0x51, // sqrtsd/sqrtss
         _ => {
             return Err(Diagnostic::error(format!(
                 "X86_64 runtime float binary operator `{operator:?}` is not implemented yet"

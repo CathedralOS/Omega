@@ -56,6 +56,27 @@ pub(super) fn builtin_runtime_call_operator(
     builtin_runtime_call_operator_by_symbol(input, call.target_symbol)
 }
 
+/// A single-argument builtin call (`sqrt(x)`) that lowers on the binary
+/// value-write path with both operands set to the one argument. `None` for a
+/// receiver-ful or non-unary call, or a non-unary-builtin target.
+pub(super) fn builtin_runtime_unary_call_operator_in_table(
+    input: &InstructionSelectionInput<'_>,
+    call: &TableCallExpression,
+) -> Option<StateGuardOperator> {
+    if call.receiver.is_valid() || call.arguments.count() != 1 {
+        return None;
+    }
+    if Some(call.target_symbol)
+        == input
+            .program
+            .symbols
+            .builtin_function_symbol(BuiltinFunction::Sqrt)
+    {
+        return Some(StateGuardOperator::Sqrt);
+    }
+    None
+}
+
 fn builtin_runtime_call_operator_by_symbol(
     input: &InstructionSelectionInput<'_>,
     target_symbol: omega_core::symbols::SymbolHandle,

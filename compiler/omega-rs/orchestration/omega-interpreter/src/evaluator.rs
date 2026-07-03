@@ -2300,6 +2300,23 @@ impl<'program> Evaluator<'program> {
                 return self.eval_min_max(target, left, right);
             }
         }
+        // Builtin: sqrt over a single float operand (the reference for the
+        // native sqrtsd/sqrtss lowering).
+        if target == "sqrt" && call.receiver == ExpressionHandle::invalid() {
+            let args = self
+                .program
+                .expression_table
+                .expression_handles(call.arguments)
+                .to_vec();
+            if args.len() == 1 {
+                return match self.eval_expression(args[0], frame)? {
+                    Value::Float(value) => Ok(Value::Float(value.sqrt())),
+                    other => Err(Halt::Trap(format!(
+                        "sqrt expects a float argument, got {other:?}"
+                    ))),
+                };
+            }
+        }
 
         // Slice/array view builtins on an array-valued receiver. `.as_slice()` /
         // `.as_mut_slice()` produce a slice that SHARES the array's element cells (so a

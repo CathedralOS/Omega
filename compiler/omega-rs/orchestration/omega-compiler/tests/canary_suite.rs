@@ -17229,6 +17229,37 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
 }
 
 #[test]
+fn runtime_sqrt_builtin_exit_canary_runs() {
+    // `sqrt(x)` unary float builtin: f64 sqrt(64)=8, f32 sqrt(9)=3, via the
+    // native sqrtsd/sqrtss path (both operands = x on the binary SSE lane).
+    let canary = pass_canary("arithmetic/runtime_sqrt_builtin_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-sqrt-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sqrt builtin canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sqrt builtin canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected sqrt(64.0)=8.0 and sqrt(9.0f32)=3.0 (exit 70); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_abs_desugar_exit_canary_runs() {
     // `abs(x)` desugars to `max(x, 0 - x)` (frontend-only; min/max are binary
     // builtins). abs(-70)=70 and abs(12)=12; exit 70 confirms both.
@@ -17680,6 +17711,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_compare_pair_dispatch_exit",
     "arithmetic/runtime_float_self_compare_nan_exit",
     "arithmetic/runtime_abs_desugar_exit",
+    "arithmetic/runtime_sqrt_builtin_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
     "concurrency/runtime_spawn_struct_result_exit",

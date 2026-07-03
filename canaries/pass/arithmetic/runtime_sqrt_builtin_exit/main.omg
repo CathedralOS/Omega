@@ -1,0 +1,32 @@
+// `sqrt(x)` is a UNARY float builtin lowered on the binary SSE path with
+// both operands = x: `sqrtsd xmm0, xmm1` computes sqrt(xmm1)=sqrt(x).
+// f64 sqrt(64)=8 and f32 sqrt(9)=3; exits 70 only when both hold
+// (native sqrtsd/sqrtss == the interpreter's f.sqrt()).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    x: f64;
+    r: f64;
+    y: f32;
+    s: f32;
+}
+machine Main::main(&mut self) {
+    self.x = 64.0;
+    self.r = sqrt(self.x);
+    self.y = 9.0;
+    self.s = sqrt(self.y);
+    transition self.r == 8.0 {
+        true -> check_f32()
+        false -> bad()
+    }
+    state check_f32(&mut self) {
+        transition self.s == 3.0 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
