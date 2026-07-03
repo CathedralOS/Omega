@@ -1,0 +1,4 @@
+machine build(b: &mut Build) {
+    b.subsystem = Subsystem::EfiApplication;
+    b.freestanding = true;
+}
