@@ -554,27 +554,39 @@ settled. Both are mechanical migrations across the corpus + Cathedral source:
   files are members by location and don't re-declare it. Remove the `package X`
   header from source files; the parser stops requiring/accepting it.
 
-## OPEN DESIGN — foreign vtable dispatch model (raise before M2 ask #2 lands)
+## TASK — foreign vtable dispatch: the FIELD MODEL (decided 2026-07-04, Zach)
 
-How a `provides` binding names *which* function pointer to call in a foreign
-table (UEFI BootServices, COM vtable). Two spellings; **security is identical**
-(both are the same boundary-gated `provides` dispatch — no new callable surface,
-quarantined to the FFI audit files), so this is ergonomics/auditability only,
-and **low-stakes because it is rare** (boot tables + FFI shims; Cathedral's
-steady state is capability IPC, zero vtable dispatch).
+A `provides` binding names *which* function pointer to call in a foreign table
+(UEFI BootServices/protocols, COM vtable) by binding the trait method to a
+**named fn-ptr FIELD of a declared table `data` struct** — not a magic slot
+index. `VtableSlot(index)` is retired. Rationale: no magic numbers, header
+handling is free (a header is just leading fields), and the FFI audit surface
+reads by NAME instead of by count. (Security unchanged — still the same
+boundary-gated `provides` dispatch; this was always spelling only.)
 
-- **`VtableSlot(index)` + a base offset** — terse (`exit_boot_services ->
-  VtableSlot(26)`); the index + header size are magic numbers transcribed from
-  the spec; auditor cross-checks by *counting*; header/prefixed tables need the
-  base. Least implementation.
-- **Named fn-ptr field of a declared table struct** — declare the table as a
-  `data` struct (header + fn-ptr fields), bind the *field*; offset is computed,
-  header-agnostic, no magic number; auditor cross-checks by *name*; but you must
-  declare every preceding field (BootServices = ~27 to reach ExitBootServices).
+Proposed spelling (refine while implementing):
+```
+data TextOutputProtocol { reset: addr; output_string: addr; }   // fn-ptr fields
+boundary trait SimpleTextOutput {
+    machine output_string(console: &TextOutputProtocol, string: &[u16]) -> EfiStatus;
+}
+uefi_x64 provides SimpleTextOutput over TextOutputProtocol {
+    output_string -> output_string      // bind the method to the fn-ptr FIELD
+}
+```
+The table is a plain `data` struct (header + fn-ptr `addr` fields, in spec
+order); the layout policy computes each field's offset; dispatch lowers to
+"deref the object as `&Table`, read the fn-ptr field at its plan offset, call it
+at the edge's calling plan." This **subsumes the header-offset case** (M2 ask #2)
+with no special variant — `BootServices`' fields simply start after the
+`EFI_TABLE_HEADER` fields.
 
-Both require the spec's field ORDER (index = a count of it; fields = a listing
-of it) — neither escapes it. Zach to decide; not blocking (VtableSlot+base is the
-zero-risk interim).
+Scope: implement `provides Trait over Struct { method -> field }`; retire
+`VtableSlot(index)`. Milestone-1 (con_out) and milestone-2 (BootServices) both
+move to it. The Cathedral source is being updated to the field model in
+parallel (declares the table structs + field bindings), so it is the target.
+Cost is a one-time transcription of each table struct's fields in spec order
+(BootServices ≈ 27 to reach ExitBootServices) — the auditability the model buys.
 
 ## Outstanding (pick up next)
 
