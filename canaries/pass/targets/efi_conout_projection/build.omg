@@ -1,5 +1,3 @@
-data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
-data Build { subsystem: Subsystem; freestanding: bool; }
 machine build(b: &mut Build) {
     b.subsystem = Subsystem::EfiApplication;
     b.freestanding = true;

@@ -1,19 +1,5 @@
 // window_app is a REAL windowed application: the GUI subsystem keeps Windows from
 // attaching a console box (PE Subsystem 2).
-// The settled build model (build_and_package_model.md): image facts come
-// from this AUGMENTING MACHINE over a ZII Build -- interpreted at build time,
-// never an invented config grammar. Absent build.omg == empty build == zero
-// Build == hosted console.
-data Subsystem {
-    case Console;
-    case Gui;
-    case EfiApplication;
-    case Unspecified(value: u16);
-}
-data Build {
-    subsystem: Subsystem;
-    freestanding: bool;
-}
 machine build(b: &mut Build) {
     b.subsystem = Subsystem::Gui;
 }
