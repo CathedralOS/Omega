@@ -44,8 +44,9 @@ fn emit_macho_aarch64_executable(
 fn emit_pe_x86_64_executable(
     input: ExecutableImageInput<'_>,
 ) -> Result<EmittedImageOutput, Diagnostic> {
+    let subsystem = input.subsystem;
     let image = build_final_image(input);
-    let output = omega_image_pe::emit_pe_x86_64_executable(image)?;
+    let output = omega_image_pe::emit_pe_x86_64_executable(image, subsystem)?;
     Ok(emitted_direct_executable_output(output))
 }
 

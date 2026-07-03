@@ -15,6 +15,7 @@ pub(super) fn parse_target_definition<'tokens, 'source>(
     let (name, mut input) = input.take_identifier()?;
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut host = None;
+    let mut subsystem = None;
     let mut boundary_policy_start = Handle::invalid();
     let mut boundary_policy_count = 0u32;
 
@@ -23,6 +24,23 @@ pub(super) fn parse_target_definition<'tokens, 'source>(
             input = input.take_keyword(KeywordKind::Host, "host")?;
             let (value, rest) = parse_target_host(syntax_trees, input)?;
             host = Some(value);
+            input = rest;
+        } else if input.at_contextual("subsystem") {
+            // The image subsystem the target's executable declares (a closed
+            // word set; PE consumes it -- console 3, gui 2, efi_application
+            // 10 -- other formats ignore it). One declaration per target.
+            input = input.take_contextual("subsystem")?;
+            let (value, rest) = input.take_identifier()?;
+            if subsystem.is_some() {
+                return Err(rest.error_here("target declares `subsystem` twice"));
+            }
+            if !matches!(value.as_str(), "console" | "gui" | "efi_application") {
+                return Err(rest.error_here(format!(
+                    "unknown subsystem `{value}`; the subsystems are `console`, `gui`, and \
+                     `efi_application`"
+                )));
+            }
+            subsystem = Some(value);
             input = rest;
         } else if input.at_contextual("boundary") {
             input = input.take_contextual("boundary")?;
@@ -50,6 +68,7 @@ pub(super) fn parse_target_definition<'tokens, 'source>(
         TargetDefinition {
             name,
             host,
+            subsystem,
             boundary_policies,
         },
         input,
