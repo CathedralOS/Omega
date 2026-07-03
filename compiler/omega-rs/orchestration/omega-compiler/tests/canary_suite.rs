@@ -17123,6 +17123,41 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
 }
 
 #[test]
+fn runtime_float_self_compare_nan_exit_canary_runs() {
+    // The canonical isNaN idiom `f != f` (and its `f == f` complement) on a
+    // NaN operand: TRUE/FALSE per IEEE. Was silently folded to constants by
+    // the untyped reflexive fold; the fold is TYPE-GATED now and float
+    // self-compares lower to the real ucomis* runtime compare.
+    let canary = pass_canary("arithmetic/runtime_float_self_compare_nan_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nan-self-compare-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("NaN self-compare canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("NaN self-compare canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `f != f` TRUE and `f == f` FALSE for NaN (exit 70); exit 71 = a reflexive \
+         fold collapsed the float self-compare to a constant. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn plan_laid_value_field_exit_canary_runs() {
     // PLAN-LAID VALUE TYPES (layouts L4): `gdt: Spread16<Gdtish>` places every
     // field on its own 16-byte slot -- deliberately NOT the native packing --
@@ -17506,6 +17541,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "comptime/runtime_const_array_length_exit",
     "layouts/runtime_plan_laid_value_field_exit",
     "control_flow/runtime_compare_pair_dispatch_exit",
+    "arithmetic/runtime_float_self_compare_nan_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
     "concurrency/runtime_spawn_struct_result_exit",

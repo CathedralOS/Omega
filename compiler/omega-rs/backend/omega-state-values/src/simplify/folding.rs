@@ -20,12 +20,17 @@ pub(super) fn fold_binary_expression(
                 let positive = matches!(operator, Op::Equal) == flag;
                 return if positive { right } else { boolean_not(right) };
             }
+            // NOTE: the REFLEXIVE fold (structurally-equal non-literal
+            // operands) is NOT here -- it lives in
+            // `simplify_binary_expression`, TYPE-GATED, because
+            // `x == x -> true` / `x != x -> false` is an INVALID identity for
+            // floats (IEEE: NaN != NaN is TRUE; the canonical isNaN idiom
+            // `f != f` was silently folded to `false` before the gate).
             match operator {
                 Op::Equal => match (&left, &right) {
                     (Expression::Boolean(a), Expression::Boolean(b)) => Expression::Boolean(a == b),
                     (Expression::Integer(a), Expression::Integer(b)) => Expression::Boolean(a == b),
                     (Expression::String(a), Expression::String(b)) => Expression::Boolean(a == b),
-                    _ if left == right => Expression::Boolean(true),
                     _ => Expression::Binary(Box::new(BinaryExpression {
                         left,
                         operator,
@@ -36,7 +41,6 @@ pub(super) fn fold_binary_expression(
                     (Expression::Boolean(a), Expression::Boolean(b)) => Expression::Boolean(a != b),
                     (Expression::Integer(a), Expression::Integer(b)) => Expression::Boolean(a != b),
                     (Expression::String(a), Expression::String(b)) => Expression::Boolean(a != b),
-                    _ if left == right => Expression::Boolean(false),
                     _ => Expression::Binary(Box::new(BinaryExpression {
                         left,
                         operator,
