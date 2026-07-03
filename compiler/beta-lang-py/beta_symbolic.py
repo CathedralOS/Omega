@@ -34,11 +34,17 @@ def nat(k):
         t = ('s', t)
     return t
 
+# TRI_ID names the triangular-sum recurrence  g(0)=0, g(s k)=g(k)+k  (so g(n) = Σ_{0<=j<n} j). A loop that
+# does `acc += i` per iteration over trip count t computes g(t); expressed as ('f', TRI_ID, t) it stays a
+# closed FORM the checker accepts by refl on a symbolic input (the recurrence body is prepended as (fun ..)).
+TRI_ID = 90
+
 def render(t):
     h = t[0]
     if h == 'z':  return 'z'
     if h == 's':  return '(s %s)' % render(t[1])
     if h == 'v':  return '(v %d)' % t[1]
+    if h == 'f':  return '(f %d %s)' % (t[1], render(t[2]))
     return '(%s %s %s)' % (h, render(t[1]), render(t[2]))
 
 def evaluate(t, env):                  # concrete value under {var_index: int}
@@ -46,6 +52,11 @@ def evaluate(t, env):                  # concrete value under {var_index: int}
     if h == 'z':  return 0
     if h == 's':  return 1 + evaluate(t[1], env)
     if h == 'v':  return env[t[1]]
+    if h == 'f':                       # a user-function recurrence; TRI_ID is the triangular sum g(n)=Σ_{j<n} j
+        if t[1] != TRI_ID:
+            raise Unsupported('unknown recurrence fun %d' % t[1])
+        a = evaluate(t[2], env)
+        return a * (a - 1) // 2
     if h == 'p':  return evaluate(t[1], env) + evaluate(t[2], env)
     return evaluate(t[1], env) * evaluate(t[2], env)
 
@@ -189,8 +200,10 @@ class SymInterp:
         for v in loop_vars:
             if v == counter:
                 env[v] = trip
+            elif deltas[v] == ('loopvar', counter):     # `acc += i`: Σ_{j<trip} j = g(trip), the triangular sum
+                env[v] = _add(entry[v], ('f', TRI_ID, trip))
             elif _mentions_loopvar(deltas[v], loop_vars):
-                return False                            # Σi-style delta (depends on another loop var): later slice
+                return False                            # other counter-dependent deltas (i*a, i+i, …): later slice
             else:
                 env[v] = _add(entry[v], _mul(trip, deltas[v]))
         return True
