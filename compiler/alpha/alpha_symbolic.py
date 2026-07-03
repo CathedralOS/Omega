@@ -38,19 +38,25 @@ def nat(k):                            # a concrete natural as s^k z
         t = ('s', t)
     return t
 
+# ZZ_CID: a ℤ difference-pair value ('zz', pos, neg) = pos - neg (see beta_symbolic). The observable is mod 256
+# and 256 | 2^64, so ℤ arithmetic mod 256 == alpha's mod-2^64 arithmetic mod 256 — this soundly models `sub`.
+ZZ_CID = 5
+
 def render(t):                         # -> check.beta / prover term syntax
     h = t[0]
     if h == 'z':  return 'z'
     if h == 's':  return '(s %s)' % render(t[1])
     if h == 'v':  return '(v %d)' % t[1]
     if h == 'f':  return '(f %d %s)' % (t[1], render(t[2]))
+    if h == 'zz': return '(k %d %s %s)' % (ZZ_CID, render(t[1]), render(t[2]))
     return '(%s %s %s)' % (h, render(t[1]), render(t[2]))
 
-def evaluate(t, env):                  # concrete integer value under env: {var_index: int}
+def evaluate(t, env):                  # concrete integer value (ℤ; the gate observes it mod 256)
     h = t[0]
     if h == 'z':  return 0
     if h == 's':  return 1 + evaluate(t[1], env)
     if h == 'v':  return env[t[1]]
+    if h == 'zz': return evaluate(t[1], env) - evaluate(t[2], env)
     if h == 'f':                       # a user-function recurrence; TRI_ID is the triangular sum g(n)=Σ_{j<n} j
         if t[1] != TRI_ID:
             raise Unsupported('unknown recurrence fun %d' % t[1])
@@ -59,27 +65,52 @@ def evaluate(t, env):                  # concrete integer value under env: {var_
     if h == 'p':  return evaluate(t[1], env) + evaluate(t[2], env)
     return evaluate(t[1], env) * evaluate(t[2], env)     # m
 
-# ---- the dual value model: Python int = concrete, tuple = symbolic Peano term -----------------------
+# ---- the dual value model: Python int = concrete, tuple = symbolic Peano term (or a ('zz',pos,neg) ℤ pair) --
 def _term(v):                          # coerce a value to a Peano term (concretes become s^k z)
     return nat(v) if isinstance(v, int) else v
 
 def _s64(x):                           # a concrete 64-bit word as signed
     return x - (1 << 64) if x >= (1 << 63) else x
 
+_ZERO = ('z',)
+def _is_zz(v):  return isinstance(v, tuple) and v[0] == 'zz'
+def _as_zz(v):  return (v[1], v[2]) if _is_zz(v) else (_term(v), _ZERO)
+def _padd(x, y):
+    if x == _ZERO: return y
+    if y == _ZERO: return x
+    return ('p', x, y)
+def _pmul(x, y):
+    if x == _ZERO or y == _ZERO: return _ZERO
+    if x == ('s', _ZERO): return y
+    if y == ('s', _ZERO): return x
+    return ('m', x, y)
+
 def _add(a, b):
+    if _is_zz(a) or _is_zz(b):
+        (pa, na), (pb, nb) = _as_zz(a), _as_zz(b)
+        return ('zz', _padd(pa, pb), _padd(na, nb))
     if isinstance(a, int) and isinstance(b, int):
         return (a + b) & MASK
     return ('p', _term(a), _term(b))
 
 def _mul(a, b):
+    if _is_zz(a) or _is_zz(b):          # (pa-na)(pb-nb) = (pa·pb + na·nb) - (pa·nb + na·pb)
+        (pa, na), (pb, nb) = _as_zz(a), _as_zz(b)
+        return ('zz', _padd(_pmul(pa, pb), _pmul(na, nb)), _padd(_pmul(pa, nb), _pmul(na, pb)))
     if isinstance(a, int) and isinstance(b, int):
         return (a * b) & MASK
     return ('m', _term(a), _term(b))
 
 def _sub(a, b):
     if isinstance(a, int) and isinstance(b, int):
-        return (a - b) & MASK          # address / stack-pointer arithmetic
-    raise Unsupported('symbolic subtraction (needs ZZ integers)')
+        if a >= b:
+            return (a - b) & MASK      # exact: concrete address/offset arithmetic, or a non-underflowing literal
+        # a < b: a DATA underflow (addresses never underflow — a base is always ≥ its offset). Model the true
+        # ℤ result as a small difference pair so it renders (0-1 → (k 5 z (s z)) = 255) instead of 2^64-1.
+        (pa, na), (pb, nb) = _as_zz(a), _as_zz(b)
+        return ('zz', _padd(pa, nb), _padd(na, pb))
+    (pa, na), (pb, nb) = _as_zz(a), _as_zz(b)      # symbolic: ℤ difference pair  (pa+nb) - (na+pb)
+    return ('zz', _padd(pa, nb), _padd(na, pb))
 
 def _concrete(v, why):
     if not isinstance(v, int):
