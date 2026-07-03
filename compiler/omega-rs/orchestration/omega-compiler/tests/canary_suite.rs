@@ -17358,6 +17358,39 @@ fn efi_entry_arguments_prologue_unmarshals_rcx_rdx() {
 }
 
 #[test]
+fn entry_run_args_bytes_canary_runs() {
+    // The canonical entry `Main::run(&self, args: &[u8])`: the prologue binds
+    // `args` as a 32-byte view over the spilled argument registers, so
+    // `args.len == 32` holds deterministically (exit 5) regardless of what the
+    // OS passed in the registers. NATIVE-ONLY (the interpreter has no entry-
+    // argument notion yet, so this is not a differential canary). The
+    // efi_application twin of this program was boot-verified under QEMU/OVMF
+    // ("Warning Stale Data" = the same 5).
+    let canary = pass_canary("targets/entry_run_args_bytes");
+    let build_dir = std::env::temp_dir().join(format!("omega-run-args-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("entry run-args canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("entry run-args canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(5),
+        "expected args.len == 32 (the bytes handoff bound, exit 5); got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     for canary_name in ACTIVE_FAIL_CANARIES {
         let canary = fail_canary(canary_name);
@@ -18003,6 +18036,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/host_provides_binding_forms",
     "targets/efi_freestanding_skeleton",
     "targets/efi_entry_arguments",
+    "targets/entry_run_args_bytes",
     "arithmetic/narrowing_flow_and_widen_permitted",
     "comptime/runtime_const_array_length_exit",
     "layouts/runtime_plan_laid_value_field_exit",

@@ -71,6 +71,8 @@ pub fn build_runtime_storage_plan_with_workers(
             frame_scratch_size: _,
             wire_scratch_base: _,
             wire_scratch_size: _,
+            entry_argument_spill_base: _,
+            entry_argument_spill_size: _,
         } = body_plan;
         plan.frame_slots.insert_many(frame_slots.into_items());
         for write in writes.into_items() {
@@ -157,6 +159,45 @@ pub fn reserve_wire_nested_scratch(
     plan.wire_scratch_size = 16 + staging_bytes;
 }
 
+/// Reserve the ENTRY-ARGUMENT SPILL region when the entry state declares the
+/// bytes-handoff signature (`run(&self, args: &[u8])` -- exactly one non-self
+/// parameter whose frame slot is the 16-byte `&[u8]` slice descriptor). The
+/// entry prologue spills the platform's four argument registers here and binds
+/// `args` = {ptr -> spill, len 32}; the region lives ABOVE every other
+/// reservation so nothing later clobbers bytes `args` still references.
+pub fn reserve_entry_argument_spill(
+    plan: &mut RuntimeStoragePlan,
+    entry_key: omega_control_flow::StateKey,
+) {
+    // EXACT key match (segment included): case-payload bindings are Parameter
+    // slots in later segments of the entry state, not platform entry arguments.
+    let mut entry_parameters = plan.frame_slots.iter().filter(|(_, slot)| {
+        matches!(slot.kind, crate::RuntimeFrameSlotKind::Parameter)
+            && slot.source_key == entry_key
+    });
+    let Some((_, only)) = entry_parameters.next() else {
+        return;
+    };
+    if entry_parameters.next().is_some()
+        || only.byte_size != 16
+        || only.type_name.as_ref() != "&[u8]"
+    {
+        return;
+    }
+
+    let occupied_extent = (plan.wire_scratch_base + plan.wire_scratch_size)
+        .max(plan.frame_scratch_base + plan.frame_scratch_size)
+        .max(
+            plan.frame_slots
+                .iter()
+                .map(|(_, slot)| slot.byte_offset + slot.byte_size)
+                .max()
+                .unwrap_or(0),
+        );
+    plan.entry_argument_spill_base = align_to(occupied_extent.max(8), 8);
+    plan.entry_argument_spill_size = 32;
+}
+
 pub fn runtime_frame_storage_size(plan: &RuntimeStoragePlan) -> usize {
     let slots_extent = plan
         .frame_slots
@@ -170,6 +211,7 @@ pub fn runtime_frame_storage_size(plan: &RuntimeStoragePlan) -> usize {
     slots_extent
         .max(plan.frame_scratch_base + plan.frame_scratch_size)
         .max(plan.wire_scratch_base + plan.wire_scratch_size)
+        .max(plan.entry_argument_spill_base + plan.entry_argument_spill_size)
 }
 
 pub fn runtime_frame_storage_alignment(plan: &RuntimeStoragePlan) -> usize {

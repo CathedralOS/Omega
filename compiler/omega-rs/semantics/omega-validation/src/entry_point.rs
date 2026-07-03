@@ -3,12 +3,18 @@ use omega_core::symbols::SymbolKind;
 use omega_typed_trees::TypedTrees;
 
 pub(crate) fn validate_entry_point(program: &TypedTrees, diagnostics: &mut Vec<Diagnostic>) {
-    if has_entry_point(program, "Main::main", "main") || has_entry_point(program, "main", "entry") {
+    // Canonical: `machine Main::run(&self, args: &[u8])` -- Main's members are
+    // the program's statics, args is the platform handoff as raw bytes.
+    // `Main::main` is the accepted legacy spelling during migration.
+    if has_entry_point(program, "Main::run", "run")
+        || has_entry_point(program, "Main::main", "main")
+        || has_entry_point(program, "main", "entry")
+    {
         return;
     }
 
     diagnostics.push(Diagnostic::error(
-        "missing runtime entry point `Main::main`",
+        "missing runtime entry point `Main::run`",
     ));
 }
 

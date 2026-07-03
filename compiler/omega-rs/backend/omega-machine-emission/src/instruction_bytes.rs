@@ -385,6 +385,23 @@ fn insert_fixed_machine_instruction_bytes(
             }
             Ok(true)
         }
+        SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor {
+            descriptor_offset,
+            spill_offset,
+            byte_length,
+        } => {
+            let bytes =
+                omega_instruction_selection::encode_entry_arguments_slice_descriptor_write_bytes(
+                    emission_context.target.architecture,
+                    *descriptor_offset,
+                    *spill_offset,
+                    *byte_length,
+                )?;
+            for byte in bytes {
+                inserter.insert(byte);
+            }
+            Ok(true)
+        }
         SelectedInstructionKind::TerminateDispatch => {
             let bytes = omega_instruction_selection::encode_dispatch_state_write_bytes(
                 emission_context.target.architecture,

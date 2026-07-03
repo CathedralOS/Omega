@@ -96,6 +96,13 @@ fn selected_instruction_name(
             argument_index,
             byte_offset,
         } => format!("entry prologue: arg register #{argument_index} -> Frame[{byte_offset}]"),
+        TargetOperationKind::WriteEntryArgumentsSliceDescriptor {
+            descriptor_offset,
+            spill_offset,
+            byte_length,
+        } => format!(
+            "entry prologue: args descriptor Frame[{descriptor_offset}] = {{ptr Frame[{spill_offset}], len {byte_length}}}"
+        ),
         TargetOperationKind::EnterDispatchLoop {
             entry_dispatch_index,
             terminal_dispatch_index,

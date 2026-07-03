@@ -32,6 +32,13 @@ pub struct RuntimeStoragePlan {
     pub wire_scratch_base: usize,
     /// Size of the reserved wire scratch region (0 if none).
     pub wire_scratch_size: usize,
+    /// Byte offset of the reserved ENTRY-ARGUMENT SPILL region: the entry
+    /// prologue stores the platform's four incoming argument registers here,
+    /// and the entry's `args: &[u8]` slice descriptor points at it (the bytes
+    /// handoff -- `run(&self, args: &[u8])`). 0 means no spill reserved.
+    pub entry_argument_spill_base: usize,
+    /// Size of the reserved entry-argument spill (0 if none; 32 when present).
+    pub entry_argument_spill_size: usize,
 }
 
 impl RuntimeStoragePlan {
@@ -50,10 +57,12 @@ impl RuntimeStoragePlan {
             frame_scratch_size: 0,
             wire_scratch_base: 0,
             wire_scratch_size: 0,
+            entry_argument_spill_base: 0,
+            entry_argument_spill_size: 0,
         }
     }
 
-    fn source_matches(expected: StateKey, actual: StateKey) -> bool {
+    pub(crate) fn source_matches(expected: StateKey, actual: StateKey) -> bool {
         expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
     }
 

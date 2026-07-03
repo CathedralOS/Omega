@@ -491,6 +491,15 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 argument_index: *argument_index,
                 byte_offset: *byte_offset,
             },
+            omega_abstract_operations::AbstractOperationKind::WriteEntryArgumentsSliceDescriptor {
+                descriptor_offset,
+                spill_offset,
+                byte_length,
+            } => Self::WriteEntryArgumentsSliceDescriptor {
+                descriptor_offset: *descriptor_offset,
+                spill_offset: *spill_offset,
+                byte_length: *byte_length,
+            },
             omega_abstract_operations::AbstractOperationKind::WriteRuntimePointeeInteger {
                 pointer_byte_offset,
                 field_byte_offset,

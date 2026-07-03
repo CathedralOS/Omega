@@ -43,6 +43,7 @@ impl OperationSemanticQuery for TargetOperationKind {
             | Self::WriteRuntimeMachineInteger { .. }
             | Self::WriteRuntimeStorageInteger { .. }
             | Self::WriteEntryArgumentRegister { .. }
+            | Self::WriteEntryArgumentsSliceDescriptor { .. }
             | Self::WriteRuntimePointeeInteger { .. }
             | Self::WriteRuntimeStorageBinary { .. }
             | Self::WriteRuntimeStorageConvert { .. }

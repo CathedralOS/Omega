@@ -365,6 +365,15 @@ pub enum AbstractOperationKind {
         argument_index: u8,
         byte_offset: usize,
     },
+    /// The bytes-handoff half of the entry prologue: bind the entry's
+    /// `args: &[u8]` parameter as a view over the ENTRY-ARGUMENT SPILL (where
+    /// the prologue stored the platform's argument registers). Writes the
+    /// 16-byte slice descriptor {ptr @ +0 -> frame+spill_offset, len @ +8}.
+    WriteEntryArgumentsSliceDescriptor {
+        descriptor_offset: usize,
+        spill_offset: usize,
+        byte_length: usize,
+    },
     WriteRuntimePointeeInteger {
         pointer_byte_offset: usize,
         field_byte_offset: usize,
