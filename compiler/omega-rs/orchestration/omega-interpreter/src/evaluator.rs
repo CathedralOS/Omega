@@ -111,6 +111,36 @@ pub(crate) fn run_build_time_machine(
     })
 }
 
+/// The AUGMENTING-MACHINE build-time entry (build_and_package_model.md):
+/// evaluate `machine_name` with the given arguments and read back the FINAL
+/// argument values -- the `machine build(b: &mut Build)` shape, where the
+/// machine augments a passed-in value and returns nothing. The terminal value
+/// (if any) is discarded; a unit machine is fine.
+pub(crate) fn run_build_time_machine_arguments(
+    program: &TypedTrees,
+    machine_name: &str,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+) -> Result<Vec<crate::build_time::BuildTimeValue>, String> {
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(256 * 1024 * 1024)
+            .spawn_scoped(scope, || {
+                let mut evaluator = Evaluator::new(program, &[]);
+                evaluator.step_budget = CONST_EVAL_STEP_BUDGET;
+                match evaluator.run_build_time_machine_arguments(machine_name, arguments) {
+                    Ok(values) => Ok(values),
+                    Err(Halt::Exit(code)) => Err(format!(
+                        "the machine attempted to exit the process (code {code}) instead of returning"
+                    )),
+                    Err(Halt::Unsupported(message)) | Err(Halt::Trap(message)) => Err(message),
+                }
+            })
+            .expect("spawn build-time evaluation worker thread")
+            .join()
+            .unwrap_or_else(|_| Err("build-time evaluator thread panicked".to_owned()))
+    })
+}
+
 fn run_on_current_thread(checked: &TypedTrees, stdin: &[u8]) -> InterpretOutcome {
     let mut evaluator = Evaluator::new(checked, stdin);
     match evaluator.run_entry() {
@@ -370,6 +400,62 @@ impl<'program> Evaluator<'program> {
             )));
         }
         Ok(crate::build_time::BuildTimeValue::from_value(&value))
+    }
+
+    /// The augmenting-machine variant: run and read back the FINAL argument
+    /// values (a `&mut` parameter aliases its argument cell, so mutations land
+    /// there). A unit terminal is accepted -- the machine's OUTPUT is its
+    /// arguments.
+    fn run_build_time_machine_arguments(
+        &mut self,
+        machine_name: &str,
+        arguments: Vec<crate::build_time::BuildTimeValue>,
+    ) -> EvalResult<Vec<crate::build_time::BuildTimeValue>> {
+        let machine = self
+            .find_machine_by_name(machine_name)
+            .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?
+            .clone();
+        let entry_state_name = self.machine_entry_state_name(&machine).ok_or_else(|| {
+            Halt::Trap(format!(
+                "machine `{machine_name}` has no states to evaluate"
+            ))
+        })?;
+        let parameter_count = self
+            .find_state(&machine, &entry_state_name)
+            .map(|state| {
+                self.program
+                    .state_parameters(state)
+                    .iter()
+                    .filter(|parameter| parameter.name.as_str() != "self")
+                    .count()
+            })
+            .unwrap_or(0);
+        if parameter_count != arguments.len() {
+            return Err(Halt::Trap(format!(
+                "machine `{machine_name}` takes {parameter_count} argument(s); the build-time position supplied {}",
+                arguments.len()
+            )));
+        }
+
+        let instance = self.instantiate_machine(&machine)?;
+        let argument_cells: Vec<Cell> = arguments
+            .into_iter()
+            .map(|argument| argument.into_value().cell())
+            .collect();
+        // Keep the cells: a `&mut` parameter aliases its cell, so the run's
+        // mutations are visible here afterward.
+        let kept: Vec<Cell> = argument_cells.clone();
+        let _terminal =
+            self.run_state_collect(&machine, &entry_state_name, instance, argument_cells)?;
+        if self.host_boundary_touched {
+            return Err(Halt::Trap(format!(
+                "machine `{machine_name}` is not effect-free: it drove a host-boundary call during build-time evaluation"
+            )));
+        }
+        Ok(kept
+            .iter()
+            .map(|cell| crate::build_time::BuildTimeValue::from_value(&cell.borrow()))
+            .collect())
     }
 
     // ---- machine / data instantiation --------------------------------------

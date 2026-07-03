@@ -119,6 +119,15 @@ impl Compiler {
         // placement plan; the wire codec selection consumes it (tag + framing
         // from the plan, asserted against its own walk).
         crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
+        // BUILD CONFIG (build_and_package_model.md): image facts from
+        // build.omg's augmenting `build(b: &mut Build)` machine, evaluated at
+        // build time. When present it is AUTHORITATIVE; the legacy in-source
+        // `target { subsystem }` word is the fallback until its removal.
+        let build_config = crate::pipeline::build_config::compute_build_config(&typed)?;
+        let build_machine_present = typed
+            .machines()
+            .iter()
+            .any(|machine| machine.name.as_str() == "build");
         write_typed_snapshot(&self.options, &typed)?;
         crate::pipeline::wire_report::write_wire_protocol_report(&self.options, &typed)?;
 
@@ -139,12 +148,16 @@ impl Compiler {
         // means FREESTANDING: the target trusts no host boundary packages, so
         // the backend builds against an empty host ABI plan (no bindings, no
         // import thunks -- services arrive via the entry's parameters).
-        let subsystem = resolved_target_subsystem(
-            &syntax_trees,
-            self.options.target_name.as_deref(),
-        );
-        const EFI_APPLICATION: u16 = 10;
-        let freestanding = subsystem == EFI_APPLICATION;
+        let (subsystem, freestanding) = if build_machine_present {
+            (build_config.subsystem, build_config.freestanding)
+        } else {
+            let subsystem = resolved_target_subsystem(
+                &syntax_trees,
+                self.options.target_name.as_deref(),
+            );
+            const EFI_APPLICATION: u16 = 10;
+            (subsystem, subsystem == EFI_APPLICATION)
+        };
 
         let backend = control_flow_to_backend_plan(
             checked,
