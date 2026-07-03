@@ -568,10 +568,10 @@ report is milestone 3 (survives the console teardown).
 >   agreement walk once the policy is the sole author.
 >
 > **Big structural unlocks (multi-fire, design settled):**
-> - **Generics runtime boundary** — per-instance monomorphization (composite
->   (definition, arg-signature) key through descriptors/layout/dispatch). Zach
->   settled 2026-07-02 (no unification ever). **Unblocks containers, Store<T>,
->   Grammar conformances** — highest single leverage.
+> - **Generics runtime boundary** — per-instance monomorphization. Highest
+>   single leverage (unblocks containers, Store<T>, Grammar conformances). Zach
+>   settled 2026-07-02 (per-instance mono; NO unification; instances always
+>   spelled). Recon map 2026-07-04 (agent a87aee3d) -- PHASED PLAN below.
 > - **String/encoding #66** — retire builtin `string`/`String` (~185-file
 >   migration, ~57 canaries; recipe in string_retirement_execution.md; worktree
 >   big-bang).
@@ -580,6 +580,40 @@ report is milestone 3 (survives the console teardown).
 > **Ergonomics / completions:** #26 auto-hoist pure-builtin guard subjects;
 > sin/cos (numerical mini-project, must match interp); layouts-ladder remainder
 > (mint rung, Packed grammar, layout plan-walking deriver).
+>
+> **GENERICS / MONOMORPHIZATION -- phased plan (recon a87aee3d, 2026-07-04).**
+> Today: type-check-only. Stage-1 monomorphization (typed-trees-to-checked-trees/
+> monomorphization.rs) infers args at return/param position + substitutes IN
+> PLACE; the LAYOUT builder (omega-layout/builder.rs ~760) keys per-DEFINITION
+> and POISONS on a 2nd distinct instantiation (`Box<i32>` + `Box<bool>` in one
+> program = the poison invalidates the record -> clean "needs lowering" error).
+> Sizes are computed correctly per-use; only per-instance IDENTITY is missing.
+> The fence: fence_generic_value_callee (validation/calls.rs:801). Discovery
+> PRECEDENT to mirror: plan_laid.rs (pre-resolution synthesizes `Policy<Schema>`
+> instance records + rewrites field spellings). No new arena types needed --
+> follow plan_laid's slug-named synthetic instances (ZII: synthetic symbol +
+> per-instance DataLayout keyed by (definition, canonical-args)).
+>   - **Phase 1 -- generic DATA, scalar T** (the vertical slice): discovery walk
+>     collects distinct `Generic{base,args}`; synthesize a per-instance symbol
+>     (slug like plan_laid); rewrite the `Generic` type refs to `Named{synthetic}`;
+>     key data_layouts by the synthetic symbol (kill the poison); field-offset
+>     resolution follows the synthetic symbol. Canary: `data Box<T>{value:T}`
+>     used as `Box<i32>` AND `Box<bool>` in one program, both fields read.
+>   - **Phase 2 -- generic MACHINES**: synthesize one Machine per instantiation
+>     (copy states, substitute T); value-call targets rewrite to the synthetic
+>     symbol; StateKey.machine carries it automatically; the fence becomes a
+>     no-op. Canary: `machine id<T>(x:T)->T` called at i32 + bool.
+>   - **Phase 3 -- nested generics** (`Store<T>` containing `Item<T>`): recursive
+>     discovery; layout cascade (inner instance recorded before outer).
+>   - **Phase 4 -- generic trait conformances / containers**: `Store<T> satisfies
+>     Container<T>`. DESIGN QUESTION (Zach, when reached, far off): generic-trait
+>     dispatch = static specialization (one stamped impl per instance) vs a
+>     vtable. Phases 1-3 need no such decision.
+>   - **Phase 5 -- const type params** (`Vec<T, N: u32>`): extend the
+>     FixedArrayLength::ConstParameter machinery to data/machine params.
+>   Implementation choices (mine, not design): synthetic-name slug scheme
+>   (follow plan_laid); instance identity = synthetic SymbolHandle (no new key
+>   struct).
 
 <details><summary>Historical snapshot (2026-06-19/22 wave — kept for provenance)</summary>
 
