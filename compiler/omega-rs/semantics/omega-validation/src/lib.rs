@@ -182,16 +182,29 @@ fn validate_state_statement_node(
                 assignment.target,
             )
             .and_then(|handle| program.primitive_type_reference(handle));
-            let interval = arithmetic_domains::validate_arithmetic_domains(
+            let owner = format!("machine `{}` state `{state_name}` assignment", machine.name);
+            let before = diagnostics.len();
+            let (interval, source_primitive) = arithmetic_domains::validate_value_range(
                 program,
                 machine,
                 machine_symbols.state(state_name),
                 assignment.value,
                 value_env,
                 assignment_target_primitive,
-                &format!("machine `{}` state `{state_name}` assignment", machine.name),
+                &owner,
                 diagnostics,
             );
+            // Only a CLEANLY-analyzed RHS reaches the narrowing check -- an RHS that
+            // already erred (its own overflow, a type error) is not re-flagged.
+            if diagnostics.len() == before {
+                arithmetic_domains::check_narrowing_assignment(
+                    assignment_target_primitive,
+                    interval,
+                    source_primitive,
+                    &owner,
+                    diagnostics,
+                );
+            }
             arithmetic_domains::record_assignment(
                 value_env,
                 arithmetic_domains::place_path(program, assignment.target),
@@ -241,16 +254,29 @@ fn validate_state_statement_node(
                 "machine `{}` state `{state_name}` terminal expression",
                 machine.name
             );
-            let return_interval = arithmetic_domains::validate_arithmetic_domains(
+            let return_primitive = program.primitive_type_reference(state.return_type);
+            let before = diagnostics.len();
+            let (return_interval, source_primitive) = arithmetic_domains::validate_value_range(
                 program,
                 machine,
                 Some(state),
                 *expression,
                 value_env,
-                program.primitive_type_reference(state.return_type),
+                return_primitive,
                 &owner,
                 diagnostics,
             );
+            // A cleanly-analyzed return value that cannot fit the declared return
+            // type is a silent narrowing (`-> i8 { 300 }`), same as a store.
+            if diagnostics.len() == before {
+                arithmetic_domains::check_narrowing_assignment(
+                    return_primitive,
+                    return_interval,
+                    source_primitive,
+                    &owner,
+                    diagnostics,
+                );
+            }
             // S4: enforce a declared return `[a..=b]` so call-site narrowing
             // that trusts it stays sound (the interval is already computed above).
             arithmetic_domains::enforce_declared_return_range(
@@ -274,20 +300,35 @@ fn validate_state_statement_node(
                     generic_depth: 0,
                 },
             );
-            let interval = arithmetic_domains::validate_arithmetic_domains(
+            let local_target_primitive =
+                program.primitive_type_reference(local_data.type_reference);
+            let owner = format!(
+                "machine `{}` state `{state_name}` local `{}`",
+                machine.name,
+                local_data.name.as_str()
+            );
+            let before = diagnostics.len();
+            let (interval, source_primitive) = arithmetic_domains::validate_value_range(
                 program,
                 machine,
                 machine_symbols.state(state_name),
                 local_data.initial_value,
                 value_env,
-                program.primitive_type_reference(local_data.type_reference),
-                &format!(
-                    "machine `{}` state `{state_name}` local `{}`",
-                    machine.name,
-                    local_data.name.as_str()
-                ),
+                local_target_primitive,
+                &owner,
                 diagnostics,
             );
+            // A cleanly-analyzed initializer whose value cannot fit the declared
+            // local type is a silent narrowing (`let x: i8 = 300`).
+            if local_data.initial_value.is_valid() && diagnostics.len() == before {
+                arithmetic_domains::check_narrowing_assignment(
+                    local_target_primitive,
+                    interval,
+                    source_primitive,
+                    &owner,
+                    diagnostics,
+                );
+            }
             if local_data.initial_value.is_valid() {
                 arithmetic_domains::record_assignment(
                     value_env,

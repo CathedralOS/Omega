@@ -270,10 +270,7 @@ pub(crate) fn validate_arithmetic_domains(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Interval {
-    if !expression.is_valid() {
-        return Interval::UNBOUNDED;
-    }
-    analyze(
+    validate_value_range(
         program,
         machine,
         state,
@@ -283,7 +280,40 @@ pub(crate) fn validate_arithmetic_domains(
         owner,
         diagnostics,
     )
-    .interval
+    .0
+}
+
+/// Like [`validate_arithmetic_domains`] but also returns the expression's source
+/// integer primitive (the `None`-for-unknown result). The narrowing check needs
+/// it: a value produced by a typed source is ALWAYS within that type's range (a
+/// `u32 in Wrapping` sum is a u32 even when its mathematical interval spills past
+/// `u32`), so the sound value range is `interval ∩ primitive_range(source)` --
+/// intersecting keeps a flow-proven tighter interval while clamping a
+/// domain-wrapped over-approximation back to the type.
+pub(crate) fn validate_value_range(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    env: &ValueEnv,
+    target_primitive: Option<PrimitiveType>,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Interval, Option<PrimitiveType>) {
+    if !expression.is_valid() {
+        return (Interval::UNBOUNDED, None);
+    }
+    let analysis = analyze(
+        program,
+        machine,
+        state,
+        expression,
+        env,
+        target_primitive,
+        owner,
+        diagnostics,
+    );
+    (analysis.interval, analysis.primitive)
 }
 
 /// The straight-line place path an expression denotes (`self.v`, `count`), for
@@ -540,6 +570,54 @@ fn pair(left: Option<i64>, right: Option<i64>, op: fn(i64, i64) -> Option<i64>) 
     match (left, right) {
         (Some(a), Some(b)) => op(a, b),
         _ => None,
+    }
+}
+
+/// Decision 17 at a VALUE-BINDING boundary (`self.f = v`, `let x: T = v`): a
+/// value whose proven range does not fit the destination integer type is a
+/// SILENT NARROWING (truncation). Storing a wider value into a narrower slot is
+/// the same proof obligation as an overflowing `+` -- prove it fits or opt into
+/// an explicit `as` cast. Flagged ONLY when the source interval is fully bounded
+/// AND provably escapes the target range: an unbounded end (a call result, a
+/// param, a `u64` high) stays permissive, exactly as exact arithmetic leaves
+/// unbounded unknowns unchecked. A `Cast` re-ranges to the target (its interval
+/// is the target's own range), so `v as i32` always fits -- the escape hatch.
+/// Signedness falls out for free: `i32 -> u32` is caught on the negative half,
+/// `u32 -> i32` on the upper half. `target` is `None` (non-primitive or
+/// non-integer destination) => nothing to prove.
+pub(crate) fn check_narrowing_assignment(
+    target: Option<PrimitiveType>,
+    value: Interval,
+    source: Option<PrimitiveType>,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(primitive) = target else {
+        return;
+    };
+    let Some(range) = primitive_range(primitive) else {
+        return;
+    };
+    // The value produced by a typed source is always WITHIN that type's range
+    // (even a `Wrapping`/`Saturating` result), so intersect the mathematical
+    // interval with the source type's range: a flow-proven `[7, 7]` survives
+    // (tighter than the type), while a domain-wrapped over-approximation is
+    // clamped back to the source type -- which, if it fits the target, is no
+    // narrowing at all.
+    let effective = match source.and_then(primitive_range) {
+        Some(source_range) => value.intersect(source_range),
+        None => value,
+    };
+    // Only a fully-bounded source can be PROVEN out of range; leave an unbounded
+    // (unknown) end permissive rather than turn "unknown" into a spurious error.
+    if effective.low().is_some() && effective.high().is_some() && !range.contains(effective) {
+        diagnostics.push(Diagnostic::error(format!(
+            "narrowing assignment in {owner} may not fit `{}`: the value is not provably \
+             in range (decision 17 -- a narrowing store is a proof obligation, like exact \
+             arithmetic). Truncate explicitly with an `as` cast, or constrain the source's \
+             range.",
+            primitive_name(primitive),
+        )));
     }
 }
 
@@ -1120,20 +1198,49 @@ pub(crate) fn validate_return_value_range(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if range_constraint_interval(program, state.return_type).is_none() {
+    let return_primitive = program.primitive_type_reference(state.return_type);
+    if range_constraint_interval(program, state.return_type).is_some() {
+        // Range-constrained return: analyze (emitting any overflow obligation, as
+        // before), enforce the declared `[a..=b]`, and -- on a clean value -- the
+        // narrowing store obligation too. A value proven within `[a..=b]` already
+        // fits the type, so the narrowing check adds no rejection here; it is
+        // present only for uniformity with the unconstrained branch.
+        let before = diagnostics.len();
+        let (interval, source) = validate_value_range(
+            program,
+            machine,
+            Some(state),
+            return_expression,
+            env,
+            return_primitive,
+            owner,
+            diagnostics,
+        );
+        if diagnostics.len() == before {
+            check_narrowing_assignment(return_primitive, interval, source, owner, diagnostics);
+        }
+        enforce_declared_return_range(program, state.return_type, interval, owner, diagnostics);
         return;
     }
-    let interval = validate_arithmetic_domains(
+    // Unconstrained return: this boundary does NOT overflow-check its expression
+    // today (a pre-existing gap, distinct from narrowing), so analyze into a
+    // THROWAWAY buffer to preserve that behavior, and add ONLY the narrowing
+    // store obligation -- a value that cleanly fits its source type but not the
+    // return type (`-> i8 { transition { _ -> (300) } }`) is a silent truncation.
+    let mut throwaway = Vec::new();
+    let (interval, source) = validate_value_range(
         program,
         machine,
         Some(state),
         return_expression,
         env,
-        program.primitive_type_reference(state.return_type),
+        return_primitive,
         owner,
-        diagnostics,
+        &mut throwaway,
     );
-    enforce_declared_return_range(program, state.return_type, interval, owner, diagnostics);
+    if throwaway.is_empty() {
+        check_narrowing_assignment(return_primitive, interval, source, owner, diagnostics);
+    }
 }
 
 /// A type-constraint range bound as an i64, when it is a literal integer (the
