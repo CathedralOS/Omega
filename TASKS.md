@@ -518,11 +518,15 @@ in new shapes. The specific asks, smallest-first:
 1. **`&mut` params through a vtable call.** `get_memory_map` has five out-params;
    the MS-x64 lowering passes their *addresses* (like `output_string`'s value
    args, but by-reference). A small delta on the VtableSlot arg encoder.
-2. **Header-offset VtableSlot.** BootServices' fn pointers begin after a 24-byte
-   `EFI_TABLE_HEADER`, so `VtableSlot(N)` here must lower to `*(bs + 24 + N*8)`,
-   not `*(bs + N*8)` (con_out was a header-less protocol struct). The binding
-   needs a base offset (or a `HeaderVtableSlot` variant) — the one genuinely new
-   bit.
+2. **Header-offset vtable dispatch.** BootServices' fn pointers begin after a
+   24-byte `EFI_TABLE_HEADER`, so dispatch must reach `*(bs + 24 + N*8)`, not
+   `*(bs + N*8)` (con_out was a header-less protocol struct). **Exact spelling is
+   the OPEN "foreign vtable dispatch model" decision** (below): `VtableSlot(index)`
+   + a base offset, or bind a named fn-ptr *field* of a declared table struct
+   (offset computed, header-agnostic). Security identical either way (same
+   boundary-gated `provides` dispatch) — this is spelling, low-stakes because
+   vtable dispatch is rare (boot tables + FFI shims only; Cathedral steady state
+   has none).
 3. **Recast at a runtime offset.** `&self.map_buf[offset] as &EfiMemoryDescriptor`
    is the §5b borrow-recast, indexed by a runtime `offset` strided by the runtime
    `desc_size`. Needs the bounds fact `offset + sizeof <= map_size`; recast
@@ -534,6 +538,43 @@ in new shapes. The specific asks, smallest-first:
 Done-check: boot under QEMU/OVMF, print the greeting, ExitBootServices succeeds,
 no crash after exit (the machine is ours and idling). A serial "Owned N MiB"
 report is milestone 3 (survives the console teardown).
+
+## Surface spelling cleanups (settled 2026-07-04, Zach)
+
+Vestiges from early spelling, now that `build.omg` and the `::` convention have
+settled. Both are mechanical migrations across the corpus + Cathedral source:
+
+- **`::` for static name paths, `.` for value access** (ch14 updated). `use
+  a::b::C` and `module a::b` (not `.`); `::` is already used for type-scoped
+  machines (`Main::run`), now uniform for all compile-time name resolution;
+  `.` is reserved for runtime field/method access. Migrate `use x.Y` /
+  `mod a.b` / `pkg.Type` → `::` across canaries, samples, and stdlib.
+- **Drop the per-file `package X` line** (ch14 updated). Package identity lives
+  in `build.omg` / the directory (one dir = one package = one build.omg); source
+  files are members by location and don't re-declare it. Remove the `package X`
+  header from source files; the parser stops requiring/accepting it.
+
+## OPEN DESIGN — foreign vtable dispatch model (raise before M2 ask #2 lands)
+
+How a `provides` binding names *which* function pointer to call in a foreign
+table (UEFI BootServices, COM vtable). Two spellings; **security is identical**
+(both are the same boundary-gated `provides` dispatch — no new callable surface,
+quarantined to the FFI audit files), so this is ergonomics/auditability only,
+and **low-stakes because it is rare** (boot tables + FFI shims; Cathedral's
+steady state is capability IPC, zero vtable dispatch).
+
+- **`VtableSlot(index)` + a base offset** — terse (`exit_boot_services ->
+  VtableSlot(26)`); the index + header size are magic numbers transcribed from
+  the spec; auditor cross-checks by *counting*; header/prefixed tables need the
+  base. Least implementation.
+- **Named fn-ptr field of a declared table struct** — declare the table as a
+  `data` struct (header + fn-ptr fields), bind the *field*; offset is computed,
+  header-agnostic, no magic number; auditor cross-checks by *name*; but you must
+  declare every preceding field (BootServices = ~27 to reach ExitBootServices).
+
+Both require the spec's field ORDER (index = a count of it; fields = a listing
+of it) — neither escapes it. Zach to decide; not blocking (VtableSlot+base is the
+zero-risk interim).
 
 ## Outstanding (pick up next)
 
