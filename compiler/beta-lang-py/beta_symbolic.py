@@ -300,6 +300,8 @@ class SymInterp:
         env.clear(); env.update(saved)                  # restore the entry state
         if deltas is None or any(d is None for d in deltas.values()):
             return False
+        if cond[0] == 'bin' and cond[1] in ('>', '>='):     # (a > b) ≡ (b < a): normalize to the < forms, the
+            cond = ('bin', {'>': '<', '>=': '<='}[cond[1]], cond[3], cond[2])   # same swap bc does in codegen
         if cond[0] != 'bin' or cond[1] not in ('<', '<='):
             return False
         down = False

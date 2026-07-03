@@ -76,6 +76,7 @@ AUTO_SAMPLES = [
     ("drain     (SUBTRACTING LOOP n*a -= a)", "refinement-samples/drain.beta"),
     ("countdown (DOWN-COUNT LOOP 0<i, i-=1 →n*a)", "refinement-samples/countdown.beta"),
     ("tri_down  (DOWN-COUNT Σi →n²-g(n))", "refinement-samples/tri_down.beta"),
+    ("gtguard   (>-SPELLED GUARD i>0 →n*a)", "refinement-samples/gtguard.beta"),
     ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
     ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
     ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),

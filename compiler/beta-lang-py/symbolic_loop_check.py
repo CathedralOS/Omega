@@ -54,6 +54,12 @@ SUMMARIZABLE = [
     ("↓ ret i (drained counter)", downloop("total = total + a", ret='i'),          lambda n, a, b: 0),
     # counter-DEPENDENT deltas under a down-counter: i ↦ n-k folds the linear part into the invariant
     # coefficient and flips the triangular part's sign across the pair — Σ of i for i=n..1 is n² - g(n).
+    # swapped-operand guard spellings: (a > b) ≡ (b < a), normalized before recognition (bc's codegen does
+    # the same swap, so the bytecode side never sees > at all).
+    ("↓ (i > 0) n*a",           downloop("total = total + a").replace('0 < i', 'i > 0'),
+     lambda n, a, b: n * a),
+    ("(n > i) n*a  (≡ i<n)",    loop("n > i",  "total = total + a"),               lambda n, a, b: n * a),
+    ("(n >= i) (n+1)*a (≡ i<=n)", loop("n >= i", "total = total + a"),             lambda n, a, b: (n + 1) * a),
     ("↓ Σi   (total += i)",     downloop("total = total + i"),                     lambda n, a, b: n * (n + 1) // 2),
     ("↓ -Σi  (total -= i)",     downloop("total = total - i"),                     lambda n, a, b: (-(n * (n + 1) // 2)) % 256),
     ("↓ a·Σi (total += a*i)",   downloop("total = total + (a * i)"),               lambda n, a, b: a * (n * (n + 1) // 2)),

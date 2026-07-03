@@ -104,7 +104,9 @@ Peano rendering is unbuildable) — it is routed to the placeholder path instead
 
 Down-counting needs no new guard operator: `while (0 < i)` puts the concrete 0 on the compare's left, which
 both recognizers already accept; the counter is the slot stepping by the pair −1 whose entry value is the
-guard's right side, and the trip count is that entry value. `0 <= i` with a −1 step never terminates and is
+guard's right side, and the trip count is that entry value. The `>`/`>=` spellings also work: `(a > b)` ≡
+`(b < a)` — bc's codegen swaps the operands into the same `jlt` idiom (so the bytecode recognizer never sees
+`>` at all) and `beta_symbolic` normalizes the source guard the same way before recognition. `0 <= i` with a −1 step never terminates and is
 not recognized. Counter-dependent deltas work through the substitution `i ↦ n−k`: a component `a0 + a1·i`
 sums to `(a0 + a1·n)·t − a1·g(t)`, so `_down_series` folds the linear part into the invariant coefficient
 and routes each component's `g` cross-term to the *other* side of the pair (shared recipe in both engines).
