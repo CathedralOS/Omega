@@ -1,6 +1,7 @@
 // Wire protocol sample: encode a sensor packet containing a nested header,
 // a repeated (packed) sample array, and a scalar depth field; then decode
-// it back and verify all fields round-trip correctly.
+// it back and verify all fields round-trip correctly. The wire format is
+// AUTHORED by an explicit `CompactBinary::plan` grammar policy (see below).
 //
 // Wire schema:
 //   RoomHeader  { 0: room_id: u32 }
@@ -117,5 +118,72 @@ machine Main::main(&mut self) {
         self.console.write_line("[press Enter to close]");
         self.console.read_line(&mut self.pause);
         self.console.exit_process(72);
+    }
+}
+
+// --- THE GRAMMAR POLICY (mint arc rung 2b/2c) ----------------------------
+// The wire format above is not hand-wired in the compiler -- it is AUTHORED by
+// this `CompactBinary::plan` policy. Because it exists, the compiler evaluates
+// it at build time against each schema's facts (field number + FieldKind) and
+// derives the placement of every field: a scalar varint-encodes (`Varint`),
+// while a text/nested/repeated payload is length-prefixed (`LengthPrefixed`).
+// The policy is AGREEMENT-CHECKED against the codec -- a plan that disagreed
+// would be a compile error -- so this block cannot change the bytes above; it
+// makes the grammar EXPLICIT and programmable (the Grammar law: policies
+// author plan(), everything else is derived). The std layout vocabulary is
+// inlined because temp/sample programs do not resolve `use omega::...` paths.
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
+data FieldPlan {
+    case At(offset: i64);
+    case Bits(container: i64, container_width: i64, lsb: i64, width: i64);
+    case Varint(tag: i64);
+    case LengthPrefixed(tag: i64);
+}
+data Plan { fields: [FieldPlan; 32]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
+
+data CompactBinary {
+    plans: [FieldPlan; 32];
+    index: i64 in Wrapping;
+    tag: i64;
+}
+machine CompactBinary::plan(&mut self, schema: Schema) -> Plan {
+    self.index = 0;
+    transition { _ -> fill(schema) }
+
+    state fill(&mut self, schema: Schema) {
+        transition self.index >= 0 && self.index < 32 && self.index < schema.field_count {
+            true -> classify(schema)
+            _ -> done(schema)
+        }
+    }
+    state classify(&mut self, schema: Schema) {
+        self.tag = schema.fields[self.index].number;
+        transition schema.fields[self.index].kind {
+            FieldKind::Scalar -> put_varint(schema)
+            FieldKind::Text -> put_blob(schema)
+            FieldKind::Nested -> put_blob(schema)
+            FieldKind::Repeated -> put_blob(schema)
+        }
+    }
+    state put_varint(&mut self, schema: Schema) {
+        self.plans[self.index] = FieldPlan::Varint { tag: self.tag };
+        self.index = self.index + 1;
+        transition { _ -> fill(schema) }
+    }
+    state put_blob(&mut self, schema: Schema) {
+        self.plans[self.index] = FieldPlan::LengthPrefixed { tag: self.tag };
+        self.index = self.index + 1;
+        transition { _ -> fill(schema) }
+    }
+    state done(&mut self, schema: Schema) -> Plan {
+        Plan {
+            fields: self.plans,
+            entry_count: schema.field_count as i64,
+            size_fixed: 0,
+            size_is_dynamic: true,
+            align: 1,
+        }
     }
 }
