@@ -6,16 +6,17 @@
 # delta). That interaction is where the two summarization mechanisms meet, so it is the most valuable thing to
 # fuzz. The refinement gate proves bc's output ≡ the source meaning for each, ∀ inputs.
 #
-# Shape: read n + 1-2 data inputs; an optional pre-loop `let` (invariant arithmetic over the inputs); a
-# unit-stride counter loop `i < n` / `i <= n` with 1-2 accumulators whose deltas are loop-invariant (over the
-# inputs / the pre-loop let / small constants); then `state done { return <arith over the accumulators + inputs
-# + constants> }`. Small constants and few inputs keep values under the 2^64 wrap and the mod-256 truncation.
+# Shape: read n + 1-2 data inputs; an optional pre-loop `let` (invariant +/* arithmetic over the inputs — no
+# `-`: a ℤ-pair invariant feeding a loop delta is a known conservative refusal); a unit-stride counter loop
+# (up `i < n` / `i <= n`, or ~20% down `i > 0` from n) with 1-2 accumulators updated `acc = acc ± δ`; then
+# `state done { return <+/-/* arith over the accumulators + inputs + constants> }` — summarized loop results,
+# possibly ℤ pairs, flowing through further terms. Small constants keep values under the mod-256 truncation.
 import sys, random
 
-def _expr(rng, names, depth):
+def _expr(rng, names, depth, ops=('+', '*')):
     if depth <= 0 or rng.random() < 0.5:
         return rng.choice(names) if (names and rng.random() < 0.7) else str(rng.randint(0, 3))
-    return '(%s %s %s)' % (_expr(rng, names, depth - 1), rng.choice(['+', '*']), _expr(rng, names, depth - 1))
+    return '(%s %s %s)' % (_expr(rng, names, depth - 1, ops), rng.choice(ops), _expr(rng, names, depth - 1, ops))
 
 def _body_delta(rng, invariants):
     # ~35% a COUNTER-LINEAR increment a1·i + a0 (bare i / a·i / a+i / (a·i)+b), degree ≤ 1 in the counter so
@@ -42,12 +43,22 @@ def program(seed):
     accs = ['acc%d' % i for i in range(rng.randint(1, 2))]
     for acc in accs:
         lines.append('    let %s = %s' % (acc, rng.choice(['0', str(rng.randint(0, 3))] + data)))
-    lines.append('    let i = 0')
-    guard = rng.choice(['<', '<='])
-    lines.append('    state loop { to body when (i %s n)  to done }' % guard)
-    body = '  '.join('%s = %s + %s' % (acc, acc, _body_delta(rng, invariants)) for acc in accs)
-    lines.append('    state body { %s  i = i + 1  to loop }' % body)
-    lines.append('    state done { return %s }' % _expr(rng, accs + data, 2))   # POST-loop arithmetic
+    # ~20% DOWN-counting (i drains n -> 0 under `i > 0`, exercising the >-guard normalization); else up-count.
+    down = rng.random() < 0.20
+    lines.append('    let i = %s' % ('n' if down else '0'))
+    if down:
+        lines.append('    state loop { to body when (i > 0)  to done }')
+        step = 'i = i - 1'
+    else:
+        guard = rng.choice(['<', '<='])
+        lines.append('    state loop { to body when (i %s n)  to done }' % guard)
+        step = 'i = i + 1'
+    # ~25% of accumulators SUBTRACT their delta (a ℤ pair flowing into the post-loop arithmetic).
+    body = '  '.join('%s = %s %s %s' % (acc, acc, '-' if rng.random() < 0.25 else '+',
+                                        _body_delta(rng, invariants)) for acc in accs)
+    lines.append('    state body { %s  %s  to loop }' % (body, step))
+    # POST-loop arithmetic may also subtract: summarized results (possibly ℤ pairs) flow through +/-/*.
+    lines.append('    state done { return %s }' % _expr(rng, accs + data, 2, ops=('+', '-', '*')))
     lines.append('}')
     return '\n'.join(lines) + '\n'
 
