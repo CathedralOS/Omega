@@ -41,6 +41,9 @@ pub(super) struct BackendPlanningSurface {
 
 pub(super) struct EmittedProgram {
     pub(super) target: NativeTarget,
+    /// PE optional-header Subsystem resolved from the selected target's
+    /// `subsystem <word>` (console 3 by default); non-PE formats ignore it.
+    pub(super) subsystem: u16,
     pub(super) planned_text_bytes: usize,
     pub(super) object: omega_object_file::ObjectPlan,
     pub(super) relocations: omega_object_file::RelocationPlan,
@@ -245,6 +248,7 @@ pub(super) fn ensure_emission_ready(
 
 pub(super) fn backend_plan_to_native_image_payload(
     backend: &BackendPlanningSurface,
+    subsystem: u16,
     timings: &mut CompileTimings,
 ) -> Result<(omega_artifacts::EmissionPlan, EmittedProgram), Vec<Diagnostic>> {
     timings.record(BACKEND_PLAN_TO_NATIVE_IMAGE_PAYLOAD, || {
@@ -254,6 +258,7 @@ pub(super) fn backend_plan_to_native_image_payload(
         let text_bytes = plan.encoded_machine.code.bytes.storage_slice().to_vec();
         let emitted = EmittedProgram {
             target: plan.target,
+            subsystem,
             planned_text_bytes: object_text_size(&plan.object),
             object: plan.object.clone(),
             relocations: plan.relocations.clone(),

@@ -42,6 +42,38 @@ fn validate_boundary_providers(
     }
 }
 
+/// The PE optional-header Subsystem value the SELECTED target declares
+/// (`subsystem console|gui|efi_application` in its target block; the word set
+/// is validated at parse). Console (3) when no target is selected or the
+/// selected target declares no subsystem.
+fn resolved_target_subsystem(
+    syntax_trees: &omega_syntax_trees::SyntaxTrees,
+    target_name: Option<&str>,
+) -> u16 {
+    const CONSOLE: u16 = 3;
+    let mut targets = syntax_trees.root_items().filter_map(|item| match item {
+        omega_syntax_trees::item::Item::Target(target) => Some(target),
+        _ => None,
+    });
+    let selected = match target_name {
+        Some(target_name) => targets.find(|target| target.name.as_str() == target_name),
+        // No target named on the command line: a program declaring exactly
+        // ONE target states what it is; ambiguity falls back to console.
+        None => match (targets.next(), targets.next()) {
+            (Some(only), None) => Some(only),
+            _ => None,
+        },
+    };
+    match selected
+        .and_then(|target| target.subsystem.as_ref())
+        .map(|word| word.as_str())
+    {
+        Some("gui") => 2,
+        Some("efi_application") => 10,
+        _ => CONSOLE,
+    }
+}
+
 pub struct Compiler {
     options: CompileOptions,
 }
@@ -107,8 +139,15 @@ impl Compiler {
             write_backend_report(&self.options, &backend_surface, &backend.plan)?;
         }
 
+        // The selected target's declared image subsystem (`subsystem
+        // console|gui|efi_application`, ch: target blocks); console when the
+        // target declares none. PE consumes it; other formats ignore it.
+        let subsystem = resolved_target_subsystem(
+            &syntax_trees,
+            self.options.target_name.as_deref(),
+        );
         let (emission_plan, emitted) =
-            backend_plan_to_native_image_payload(&backend, &mut timings)?;
+            backend_plan_to_native_image_payload(&backend, subsystem, &mut timings)?;
 
         if self.options.write_output {
             let output_path = write_output(&self.options, emitted)?;

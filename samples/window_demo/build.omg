@@ -1,0 +1,5 @@
+// window_demo is the short-lived asserted variant of window_app; same GUI
+// subsystem so neither shows a console box.
+target windows_x64 {
+    subsystem gui
+}

@@ -1,0 +1,5 @@
+// window_app is a REAL windowed application: the GUI subsystem keeps Windows
+// from attaching a console box to it (`subsystem gui` -> PE Subsystem 2).
+target windows_x64 {
+    subsystem gui
+}

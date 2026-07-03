@@ -17,6 +17,7 @@ use sections::plan_pe_sections;
 
 pub fn emit_pe_x86_64_executable(
     mut image: FinalImage,
+    subsystem: u16,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
     let import_thunks = install_import_thunks(&mut image);
     let initial_sections = plan_pe_sections(&image, 0);
@@ -44,6 +45,7 @@ pub fn emit_pe_x86_64_executable(
             import_directory_size: import_table.import_directory_size,
             iat_rva: import_table.iat_rva,
             iat_size: import_table.iat_size,
+            subsystem,
         },
     );
     write_section_header(

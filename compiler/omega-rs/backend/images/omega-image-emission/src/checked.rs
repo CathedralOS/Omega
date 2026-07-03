@@ -45,6 +45,7 @@ mod tests {
                 relocations: &relocations,
                 text_bytes: &[0xaa, 0xbb],
                 data_bytes: &[],
+                subsystem: 3,
             },
             4,
         )

@@ -55,6 +55,66 @@ fn windows_x64_cli_mvp_emits_runnable_pe() {
     );
 }
 
+// The `subsystem` word in a target block reaches the PE optional header:
+// `subsystem gui` -> 2, no declaration -> console 3. Asserted on the emitted
+// bytes (the Subsystem u16 sits at e_lfanew + 4 (sig) + 20 (COFF) + 68).
+#[cfg(windows)]
+#[test]
+fn target_subsystem_word_reaches_the_pe_header() {
+    let read_subsystem = |bytes: &[u8]| -> u16 {
+        let lfanew =
+            u32::from_le_bytes([bytes[0x3c], bytes[0x3d], bytes[0x3e], bytes[0x3f]]) as usize;
+        let at = lfanew + 4 + 20 + 68;
+        u16::from_le_bytes([bytes[at], bytes[at + 1]])
+    };
+    let program = |subsystem_line: &str| {
+        format!(
+            r#"
+target windows_x64 {{
+    {subsystem_line}
+}}
+boundary trait Console {{
+    machine exit_process(return_code: i32);
+}}
+data Main {{
+    console: Console;
+}}
+machine Main::main(&mut self) {{
+    self.console.exit_process(0);
+}}
+"#
+        )
+    };
+
+    for (line, expected) in [("subsystem gui", 2u16), ("", 3u16)] {
+        let dir = std::env::temp_dir().join(format!(
+            "omega-subsystem-{}-{}",
+            expected,
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("create subsystem canary dir");
+        fs::write(dir.join("main.omg"), program(line)).expect("write subsystem canary");
+
+        compile(CompileOptions {
+            root_path: dir.join("main.omg"),
+            build_dir: Some(dir.join("build")),
+            target_name: Some("windows_x64".to_owned()),
+            write_output: true,
+        })
+        .expect("subsystem canary should compile");
+
+        let bytes =
+            fs::read(dir.join("build").join("omega-program.exe")).expect("read emitted PE");
+        assert_eq!(
+            read_subsystem(&bytes),
+            expected,
+            "PE Subsystem for target line {line:?}"
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+}
+
 // Cross-compile cli_mvp to a linux_x64 ELF and verify its structure + syscall
 // sequences. No execution (the suite host is Windows): the x86_64 Linux System V
 // syscall host-call path + ELF emission are validated by the emitted bytes. Guards
@@ -18094,6 +18154,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/if_statement_retired",
     "control_flow/transition_fall_through_bool",
     "control_flow/transition_fall_through_value_match",
+    "targets/unknown_subsystem_word",
     "wire/decode_into_ranged_field",
     "wire/encode_wire_spelling_renamed",
     "wire/decode_verdict_must_be_enum",

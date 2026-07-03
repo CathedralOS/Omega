@@ -14,6 +14,9 @@ pub(crate) struct PeHeaderInput {
     pub(crate) import_directory_size: usize,
     pub(crate) iat_rva: u32,
     pub(crate) iat_size: usize,
+    /// PE optional-header Subsystem: console 3, gui 2, efi_application 10
+    /// (`subsystem <word>` in the target block; console is the default).
+    pub(crate) subsystem: u16,
 }
 
 pub(crate) fn write_dos_header(bytes: &mut Vec<u8>) {
@@ -54,7 +57,7 @@ pub(crate) fn write_pe_headers(bytes: &mut Vec<u8>, input: PeHeaderInput) {
     write_u32(bytes, input.size_of_image);
     write_u32(bytes, input.size_of_headers as u32);
     write_u32(bytes, 0);
-    write_u16(bytes, 3);
+    write_u16(bytes, input.subsystem);
     write_u16(bytes, 0x0100);
     write_u64(bytes, 0x100000);
     write_u64(bytes, 0x1000);
