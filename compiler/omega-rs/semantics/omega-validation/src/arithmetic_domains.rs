@@ -634,7 +634,7 @@ fn primitive_range(primitive: PrimitiveType) -> Option<Interval> {
         PrimitiveType::I32 => (Some(i32::MIN as i64), Some(i32::MAX as i64)),
         PrimitiveType::U32 => (Some(0), Some(u32::MAX as i64)),
         PrimitiveType::I64 | PrimitiveType::Isize => (Some(i64::MIN), Some(i64::MAX)),
-        PrimitiveType::U64 | PrimitiveType::Usize => (Some(0), None),
+        PrimitiveType::U64 | PrimitiveType::Usize | PrimitiveType::Addr => (Some(0), None),
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
             return None;
         }
@@ -1277,6 +1277,7 @@ fn primitive_name(primitive: PrimitiveType) -> &'static str {
         PrimitiveType::U64 => "u64",
         PrimitiveType::Isize => "isize",
         PrimitiveType::Usize => "usize",
+        PrimitiveType::Addr => "addr",
         PrimitiveType::Bool => "bool",
         PrimitiveType::F32 => "f32",
         PrimitiveType::F64 => "f64",

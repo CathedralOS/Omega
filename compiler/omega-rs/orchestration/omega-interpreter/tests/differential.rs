@@ -661,6 +661,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("types/runtime_i16_signed_arith_exit", 70),
     ("types/runtime_isize_signed_arith_exit", 70),
     ("types/runtime_u8_field_arith_exit", 70),
+    ("types/runtime_addr_field_exit", 88),
     ("types/runtime_u16_field_arith_exit", 70),
     ("versioning/runtime_version_migration_exit", 70),
     ("versioning/runtime_versioned_era_query_exit", 70),

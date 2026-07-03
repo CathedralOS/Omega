@@ -174,7 +174,7 @@ fn primitive_layout(context: &RuntimeStorageContext, primitive_type: PrimitiveTy
             size: 8,
             alignment: 8,
         },
-        PrimitiveType::Usize | PrimitiveType::Isize => TypeLayout {
+        PrimitiveType::Usize | PrimitiveType::Isize | PrimitiveType::Addr => TypeLayout {
             size: context.target.pointer_size,
             alignment: context.target.pointer_alignment,
         },

@@ -1,0 +1,15 @@
+// `addr` -- a pointer-width ADDRESS type, distinct from `usize`/counts. Mirrors
+// the UEFI contract shapes (`EfiHandle { raw: addr }`, `ConsolePtr { raw: addr }`):
+// store two distinct addresses in struct fields, read one back through `.raw`,
+// and cast to i32 for the exit code. Naive pointer-width (rides the 8-byte path);
+// native must match the interpreter.
+boundary trait Console { machine exit_process(return_code: i32); }
+data EfiHandle { raw: addr; }
+data ConsolePtr { raw: addr; }
+data Main { console: Console; h: EfiHandle; c: ConsolePtr; r: i32; }
+machine Main::main(&mut self) {
+    self.h = EfiHandle { raw: 4096 };
+    self.c = ConsolePtr { raw: 88 };
+    self.r = self.c.raw as i32;
+    self.console.exit_process(self.r);
+}

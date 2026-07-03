@@ -3451,9 +3451,11 @@ fn wrap_to_width(raw: i64, ty: PrimitiveType) -> i64 {
         PrimitiveType::U32 => raw as u32 as i64,
         // 64-bit and pointer-width types keep the full value (unsigned reinterpretation of a
         // u64 is still represented by the same bit pattern in i64).
-        PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Isize | PrimitiveType::Usize => {
-            raw
-        }
+        PrimitiveType::I64
+        | PrimitiveType::U64
+        | PrimitiveType::Isize
+        | PrimitiveType::Usize
+        | PrimitiveType::Addr => raw,
         // Non-integer primitives do not reach this path.
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
             raw
