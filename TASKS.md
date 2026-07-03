@@ -505,6 +505,36 @@ real interrupt-entry stub (the re-entrant sibling of feature 1). A
 `main` that calls through a projected pointer" is the natural done-check once
 feature 1 exists.
 
+## Cathedral MILESTONE-2 ladder — own the machine (2026-07-04)
+
+Milestone 1 booted; milestone 2 is the memory-map dance → `ExitBootServices` →
+the first `Region` mint (the origin of Cathedral's authority graph). The target
+is landed Cathedral-side: `../Cathedral/source/boot/uefi/own_machine.omg` +
+`../Cathedral/source/core/region.omg` (the first `Region` + `mint_region`).
+**No fundamentally new language features** — it exercises the M1 machinery
+(boundary calls, transitive vouching, VtableSlot dispatch, state-machine loops)
+in new shapes. The specific asks, smallest-first:
+
+1. **`&mut` params through a vtable call.** `get_memory_map` has five out-params;
+   the MS-x64 lowering passes their *addresses* (like `output_string`'s value
+   args, but by-reference). A small delta on the VtableSlot arg encoder.
+2. **Header-offset VtableSlot.** BootServices' fn pointers begin after a 24-byte
+   `EFI_TABLE_HEADER`, so `VtableSlot(N)` here must lower to `*(bs + 24 + N*8)`,
+   not `*(bs + N*8)` (con_out was a header-less protocol struct). The binding
+   needs a base offset (or a `HeaderVtableSlot` variant) — the one genuinely new
+   bit.
+3. **Recast at a runtime offset.** `&self.map_buf[offset] as &EfiMemoryDescriptor`
+   is the §5b borrow-recast, indexed by a runtime `offset` strided by the runtime
+   `desc_size`. Needs the bounds fact `offset + sizeof <= map_size`; recast
+   itself is the RECAST arc (already queued).
+4. **A larger static buffer field** (`[u8; 16384]`) inside a `data` value.
+5. **A machine that never returns** — `own_machine` idles (busy self-re-entering
+   state) after exit; `hlt` is milestone 3.
+
+Done-check: boot under QEMU/OVMF, print the greeting, ExitBootServices succeeds,
+no crash after exit (the machine is ours and idling). A serial "Owned N MiB"
+report is milestone 3 (survives the console teardown).
+
 ## Outstanding (pick up next)
 
 > **CURRENT OPEN WORK (2026-07-04, post-MILESTONE-1).** "Hello from Omega" boots
