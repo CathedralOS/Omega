@@ -29,10 +29,14 @@ SUMMARIZABLE = [
     ("n*(a+b) (i<n, +=a +=b)",  loop("i < n",  "total = total + a  s = s + b", 'total'),
      lambda n, a, b: n * a),                                                       # returns total = n*a (s unused in ret)
     ("n*a + init (total0=... )", loop("i < n", "total = total + a"),              lambda n, a, b: n * a),
+    ("Σi  (i<n, total+=i)",     loop("i < n",  "total = total + i"),              lambda n, a, b: n * (n - 1) // 2),
+    ("Σi  (i<=n, total+=i)",    loop("i <= n", "total = total + i"),              lambda n, a, b: n * (n + 1) // 2),
+    ("Σi + n*a (two accum)",    loop("i < n",  "total = total + i  s = s + a", 'total'),
+     lambda n, a, b: n * (n - 1) // 2),
 ]
-# loops the recognizer must REFUSE (not in the linear-invariant-delta class) -> beta_symbolic raises Unsupported
+# loops the recognizer must REFUSE (not yet in the summarizable class) -> beta_symbolic raises Unsupported
 MUST_REFUSE = [
-    ("total += i (triangular)", loop("i < n", "total = total + i")),
+    ("total += (i*a) (counter*inv)", loop("i < n", "total = total + (i * a)")),
     ("total += (a*total) (nonlinear)", loop("i < n", "total = total + (a * total)")),
 ]
 
