@@ -17516,6 +17516,61 @@ fn runtime_wire_policy_authored_nested_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[cfg(windows)]
+#[test]
+fn efi_struct_handoff_prologue_spreads_registers() {
+    // Ladder step 3: the boundary entry's sole struct parameter receives the
+    // argument registers spread across its 8-byte chunks. Pins the prologue:
+    // store #0 = mov r15,imm64 + mov [r15+0],rcx (49 89 8F disp 0); store #1 =
+    // mov r15,imm64 + mov [r15+8],rdx (49 89 97 disp 8).
+    let canary = pass_canary("targets/efi_struct_handoff");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-struct-handoff-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct-handoff canary should compile");
+    let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
+    let lfanew =
+        u32::from_le_bytes([bytes[0x3c], bytes[0x3d], bytes[0x3e], bytes[0x3f]]) as usize;
+    let opt = lfanew + 4 + 20;
+    let opt_size = u16::from_le_bytes([bytes[lfanew + 4 + 16], bytes[lfanew + 4 + 17]]) as usize;
+    let section_count = u16::from_le_bytes([bytes[lfanew + 6], bytes[lfanew + 7]]) as usize;
+    let mut text_raw = None;
+    for section in 0..section_count {
+        let header = opt + opt_size + section * 40;
+        if &bytes[header..header + 5] == b".text" {
+            text_raw = Some(u32::from_le_bytes([
+                bytes[header + 20],
+                bytes[header + 21],
+                bytes[header + 22],
+                bytes[header + 23],
+            ]) as usize);
+        }
+    }
+    let text = text_raw.expect(".text section");
+    // store #0: [10-byte mov r15,imm64] 49 89 8F <disp32 0>
+    assert_eq!(&bytes[text..text + 2], &[0x49, 0xbf], "frame-base mov #0");
+    assert_eq!(
+        &bytes[text + 10..text + 17],
+        &[0x49, 0x89, 0x8f, 0, 0, 0, 0],
+        "rcx -> handoff.handle @ +0"
+    );
+    // store #1 immediately follows: 49 BF ... 49 89 97 08 00 00 00
+    let second = text + 17;
+    assert_eq!(&bytes[second..second + 2], &[0x49, 0xbf], "frame-base mov #1");
+    assert_eq!(
+        &bytes[second + 10..second + 17],
+        &[0x49, 0x89, 0x97, 8, 0, 0, 0],
+        "rdx -> handoff.table @ +8"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     for canary_name in ACTIVE_FAIL_CANARIES {
@@ -18163,6 +18218,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "targets/efi_freestanding_skeleton",
     "targets/efi_entry_arguments",
     "targets/entry_run_args_bytes",
+    "targets/efi_struct_handoff",
     "arithmetic/narrowing_flow_and_widen_permitted",
     "comptime/runtime_const_array_length_exit",
     "layouts/runtime_plan_laid_value_field_exit",
