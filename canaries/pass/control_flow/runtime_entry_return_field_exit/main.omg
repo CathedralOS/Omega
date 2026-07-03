@@ -1,0 +1,12 @@
+// An entry `main -> i32` returns its exit code via its terminal value (no
+// exit_process needed) -- the return->exit mechanism dungeon_crawler_cli relies
+// on. A PLACE/field terminal routes correctly; a raw COMPUTED terminal
+// (`_ -> (self.a + 100)`) currently miscompiles at the entry (bug), so the sound
+// pattern is to compute into a field first, then return that field. This locks
+// the working path + the field-bind workaround. Exit = 200, native==interp.
+data Main { a: i32; r: i32; }
+machine Main::main(&mut self) -> i32 {
+    self.a = 100;
+    self.r = self.a + 100;      // compute into a field (the workaround)
+    transition { _ -> (self.r) } // return the field -- routes to exit correctly
+}
