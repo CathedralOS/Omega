@@ -428,10 +428,34 @@ item 7; design in `design_briefs/freestanding_boot_and_hardware_facts.md`,
 > critical path is now feature 1 (the no-host target + EFI entry model).
 
 1. **No-host target + EFI entry** — a target with an EMPTY host-provider set
-   (current targets assume stdout/stdin/process caps) whose entry has the EFI
-   signature: firmware calls it MS-x64 (ImageHandle in RCX, SystemTable* in RDX).
-   The bounded-trivial case of the entry-stub problem — one entry, two args, no
-   re-entrancy. **NOT STARTED — THE GATE.**
+   whose entry has the EFI signature: firmware calls it MS-x64 (ImageHandle in
+   RCX, SystemTable* in RDX). **MODEL (A) RATIFIED (2026-07-03): `main` IS the
+   entry** — `main(image_handle, system_table) -> EfiStatus`; no `Uefi64Entry`
+   trait / `UefiHandoff` token (the validate-mint is the provenance). Zach:
+   "allowing this main sig = allowing ANY main sig" (typed entry params replace
+   argc/argv). `addr` type LANDED (d36cc718f) — the contract pointer fields work.
+   **Entry codegen state (probed 2026-07-03), split into two directions of the
+   inbound CallPlan, each caveated:**
+   - **RETURN** (`main -> EfiStatus` → exit/RAX): UNWIRED. A returning `main`
+     compiles + gives a coincidental leftover exit code — `{42}` exits 42 by
+     luck, `{self.a+100}` exits 100 not 200, `-> EfiStatus{code:55}` exits a
+     struct ADDRESS. The value-return machinery ITSELF is fine (a non-entry
+     `compute() -> i32 { base+100 }` returns 200 correctly), so the fix is
+     ENTRY-EPILOGUE routing (capture main's terminal return → EAX/RAX → the
+     process/firmware exit), NOT the fragile value-return path. Runnable on
+     Windows (entry `ret` → OS exit code). **GATE: needs the return→exit
+     semantics nod (model-A implies it, but it changes entry exit semantics).**
+   - **ARG-UNMARSHAL** (RCX/RDX → param slots): reconned (clean ~30-50 byte
+     prologue at offset 0, opt-in, no corpus risk) but NOT Windows-runnable (a
+     bare PE entry gets no register args — needs QEMU/OVMF), AND blocked on the
+     FREE `machine main(sys) {…}` form which currently FAILS resolution
+     ("unresolved state call through `console`" — a boundary call through a
+     PARAM's field, vs `self.<field>` which works; a non-trivial state-call
+     receiver-resolution gap in omega-state-calls).
+   Frontend already ACCEPTS a param'd/returning main (entry_point.rs checks
+   existence, not signature). Recon + specifics in the first-boot-ladder memory.
+   **THE GATE — blocked on the return-semantics nod + (for args) QEMU + the
+   free-machine param-field resolution fix.**
 2. **PE32+ `EFI_APPLICATION` emission** — **DONE.** subsystem toggle + `.reloc`
    (623706b96, 61c7fe246) + **empty-import-table for no-host targets**: when there
    are zero imports, `build_import_table` now emits NO import directory (RVA/size
