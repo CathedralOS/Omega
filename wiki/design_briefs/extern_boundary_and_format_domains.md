@@ -306,37 +306,53 @@ mechanism = new case + new lowering, never user-invented):
 data Binding {
     case Syscall(number: count);                    // Linux stable ABI = the number table
     case DllImport(module: Text, symbol: Text);     // Windows stable ABI = named exports
-    case VtableSlot(index: count);                  // COM/UEFI = per-object dispatch
+    case VtableField(field: Symbol);                 // COM/UEFI = a fn-ptr field of a table struct
 }
 ```
 
 The mapping block needs zero new grammar: `name -> value` arms (transition-arm
 shape) whose RHS is ordinary expression syntax. One honest distinction:
 `Syscall`/`DllImport` are **static** bindings (resolved at build/link time);
-`VtableSlot` is a **dispatch recipe parameterized by the call's first
-argument** — deref `this`, read the vtable pointer, read slot N, call at the
-declared convention. A third *kind* of mechanism, not a third instance of the
-same kind. Each Binding kind also **implies the edge's calling convention**
-(`Syscall` → the target's syscall plan; `DllImport`/`VtableSlot` → its C
-plan) — conventions are stated layouts over registers, one plan feeding both
-the call encoder and the entry stub (see
+`VtableField` is a **dispatch recipe parameterized by the call's first
+argument** — deref `this` as the table struct, read the named fn-ptr field, call
+it at the declared convention. A third *kind* of mechanism, not a third instance
+of the same kind. Each Binding kind also **implies the edge's calling
+convention** (`Syscall` → the target's syscall plan; `DllImport`/`VtableField`
+→ its C plan) — conventions are stated layouts over registers, one plan feeding
+both the call encoder and the entry stub (see
 [`calling_plans.md`](calling_plans.md)); nobody names one in the common case.
 
+**Field model, not slot index (decided 2026-07-04).** A foreign vtable is a
+`data` struct whose fields are function pointers, in spec order; the `provides`
+binding names the fn-ptr **field**, and the layout policy computes its offset.
+This replaces an earlier `VtableSlot(index)` (a magic count + a header base for
+prefixed tables): the field model has no magic numbers, handles a header for
+free (the header is just leading fields), and makes the FFI audit surface
+checkable **by name** rather than by counting. Cost is declaring the table
+struct's fields in order (a one-time transcription). `provides … over <Struct>`
+names which struct's fields the bindings index.
+
 ```
+data ISumVtable {                          // the COM vtable as a struct of fn ptrs
+    query_interface: addr;
+    add_ref:         addr;
+    release:         addr;
+    add:             addr;
+}
 boundary trait ISum {                      // the contracts ARE machine signatures
-    machine query_interface(this: ComPtr, iid: &Guid, out: &mut ComPtr) -> HResult;
-    machine add_ref(this: ComPtr) -> u32;
-    machine release(this: ComPtr) -> u32;
-    machine add(this: ComPtr, a: i32, b: i32) -> i32;
+    machine query_interface(this: &ISumVtable, iid: &Guid, out: &mut ComPtr) -> HResult;
+    machine add(this: &ISumVtable, a: i32, b: i32) -> i32;
 }
 
-windows_x64 provides ISum {
-    query_interface -> VtableSlot(0)
-    add_ref         -> VtableSlot(1)
-    release         -> VtableSlot(2)
-    add             -> VtableSlot(3)
+windows_x64 provides ISum over ISumVtable {
+    query_interface -> query_interface     // bind the method to the fn-ptr FIELD
+    add             -> add
 }
 ```
+
+For a header-prefixed table (UEFI `BootServices`) the struct simply begins with
+the `EFI_TABLE_HEADER` fields, then the fn-ptr fields — the header offset falls
+out of the layout, no special case.
 
 Native `dyn` never touches foreign layouts in either direction: Omega's trait
 objects keep their private representation; foreign vtables are provides-bound
@@ -377,9 +393,9 @@ materialize), applied to pointers.
      borrow** (ownership transfer to the transfer, returned at completion).
 4. **Function pointers, both directions:**
    - *Inbound* (`GetProcAddress`, COM vtables, UEFI tables): boundary-trait
-     machines are the contracts; `VtableSlot`/`DllImport` mappings bind them;
-     the win64 call encoder at a runtime pointer is the (tracked) lowering
-     work. The minted callable **borrows from its owner** (module token, COM
+     machines are the contracts; `VtableField`/`DllImport` mappings bind them
+     (the vtable is a `data` struct of fn-ptr fields; the binding names a field);
+     the win64 call encoder at a runtime pointer is the (tracked) lowering work. The minted callable **borrows from its owner** (module token, COM
      object) so it cannot outlive `FreeLibrary`/`Release`.
    - *Outbound* (WndProc, COM implementations, the UEFI export table): the
      code address is a **link-time constant to a compiler-emitted entry stub**
