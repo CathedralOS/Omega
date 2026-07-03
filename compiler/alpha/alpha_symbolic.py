@@ -187,6 +187,64 @@ def _series_closed(init, a0, a1, trip):
             r = ('p', r, p)
     return r
 
+# ---- general linear-in-counter delta extraction (placeholder path, mirrors beta_symbolic) --------------
+# When the finite differences can't classify a delta (a·i, a+i, …), run one body iteration with every frame
+# slot set to a ('slot', addr) placeholder, read each accumulator's delta as a symbolic term over those
+# markers, substitute the loop-INVARIANT slots' placeholders back to their values, and decompose what remains
+# over the COUNTER slot's marker into a0 + a1·counter.
+def _mentions_slot(t):
+    if isinstance(t, tuple):
+        if t[0] == 'slot':
+            return True
+        if t[0] in ('s', 'p', 'm', 'f'):
+            return any(_mentions_slot(x) for x in t[1:])
+    return False
+
+def _subst_slots(t, MEM, invariant):   # ('slot', addr) -> MEM[addr] for loop-invariant addrs; recurse elsewhere
+    if isinstance(t, tuple):
+        if t[0] == 'slot':
+            return MEM[t[1]] if t[1] in invariant else t
+        if t[0] == 's':
+            return ('s', _subst_slots(t[1], MEM, invariant))
+        if t[0] in ('p', 'm'):
+            return (t[0], _subst_slots(t[1], MEM, invariant), _subst_slots(t[2], MEM, invariant))
+        if t[0] == 'f':
+            return ('f', t[1], _subst_slots(t[2], MEM, invariant))
+    return t
+
+def _sum2(a, b):
+    if a == 0: return b
+    if b == 0: return a
+    if isinstance(a, int) and isinstance(b, int): return a + b
+    return ('p', _term(a), _term(b))
+
+def _scale2(coef, x):
+    if x == 0 or coef == 0: return 0
+    if isinstance(coef, int) and isinstance(x, int): return coef * x
+    if x == 1: return coef
+    if coef == 1: return x
+    return ('m', _term(coef), _term(x))
+
+def _lin_decompose(delta, ctr):        # delta = a0 + a1·ctr over ('slot',*) markers; None if not linear in ctr
+    def dec(t):
+        if t == ctr:
+            return (0, 1)
+        if not _mentions_slot(t):
+            return (t, 0)                                # loop-invariant (no slot markers left after substitution)
+        if isinstance(t, tuple):
+            if t[0] == 'p':
+                l, r = dec(t[1]), dec(t[2])
+                return None if l is None or r is None else (_sum2(l[0], r[0]), _sum2(l[1], r[1]))
+            if t[0] == 'm':
+                inv, oth = ((t[1], t[2]) if not _mentions_slot(t[1]) else
+                            (t[2], t[1]) if not _mentions_slot(t[2]) else (None, None))
+                if inv is None:
+                    return None                          # counter·counter or counter·another-slot: non-linear
+                d = dec(oth)
+                return None if d is None else (_scale2(inv, d[0]), _scale2(inv, d[1]))
+        return None
+    return dec(delta)
+
 def _slot_delta(s0, s1):
     """per-iteration increment given a slot's entry value s0 and its value s1 after one body run (s1 = s0 + d)."""
     if isinstance(s0, int) and isinstance(s1, int):
@@ -238,23 +296,51 @@ def symexec(tape):
         carried = [a for a in MEM if isinstance(a, int) and a >= r15
                    and (S1.get(a) != MEM[a] or S2.get(a) != MEM[a] or S3.get(a) != MEM[a])]
         trip = Rb if kind == 'lt' else _add(Rb, 1)      # `<`: 0..R-1 = R iters ; `<=`: 0..R = R+1 iters
-        updates = {}; have_counter = False
+        # FAST PATH — finite differences over the 3 iterations (invariant + pure-Σi deltas)
+        updates = {}; have_counter = False; general = False
         for a in carried:
             s0 = MEM[a]
             d1, d2, d3 = _slot_delta(s0, S1[a]), _slot_delta(S1[a], S2[a]), _slot_delta(S2[a], S3[a])
-            if any(d is None or (isinstance(d, tuple) and d[0] == 'cmp') for d in (d1, d2, d3)):
-                return None
-            if d1 == d2 == d3:                          # constant per-iteration increment δ -> init + trip·δ
+            if d1 == d2 == d3 and d1 is not None and not (isinstance(d1, tuple) and d1[0] == 'cmp'):
                 if _concnat(d1) == 1 and s0 == L:
                     have_counter = True                 # a unit-stride counter from L makes the loop run `trip` times
-                updates[a] = _series_closed(s0, _canon(d1), 0, trip)   # (counter's 0 + trip·1 = trip falls out)
+                updates[a] = _series_closed(s0, _canon(d1), 0, trip)
             elif (_concnat(d1), _concnat(d2), _concnat(d3)) == (0, 1, 2):   # increment(k)==k -> Σ_{k<trip}k = g(trip)
                 updates[a] = _series_closed(s0, 0, 1, trip)
             else:
-                return None                             # a counter-dependent δ the finite differences can't extract
-                                                        # (a·i, a+i, …) — beta handles these; alpha side is a later slice
-        if not have_counter:
+                general = True; break                   # a·i / a+i / … -> the general placeholder path below
+        if not general:
+            if not have_counter:
+                return None
+            MEM.update(updates)
+            return exit_pc
+        # GENERAL PATH — one placeholder iteration: read each δ as a term over ('slot',*) markers, then decompose
+        frame = [a for a in MEM if isinstance(a, int) and a >= r15]
+        PMEM = dict(MEM)
+        for a in frame:
+            PMEM[a] = ('slot', a)
+        try:
+            PS = _run_body_once(tape, cont_pc, header, PMEM, R, sp)
+        except Unsupported:
             return None
+        raw = {}
+        for a in frame:
+            d = _slot_delta(('slot', a), PS.get(a, ('slot', a)))
+            if d is None or (isinstance(d, tuple) and d[0] == 'cmp'):
+                return None
+            raw[a] = d
+        invariant = {a for a in frame if raw[a] == 0}   # slots unchanged this iteration hold loop-invariant values
+        moved = [a for a in frame if raw[a] != 0]
+        counters = [a for a in moved if _canon(raw[a]) == 1 and MEM[a] == L]
+        if not counters:
+            return None
+        ctr = ('slot', counters[0])
+        updates = {}
+        for a in moved:
+            dec = _lin_decompose(_subst_slots(raw[a], MEM, invariant), ctr)   # δ = a0 + a1·counter
+            if dec is None:
+                return None                             # δ not linear in the counter (i·i, cross-accumulator, …)
+            updates[a] = _series_closed(MEM[a], _canon(dec[0]), _canon(dec[1]), trip)
         MEM.update(updates)
         return exit_pc
     while True:
