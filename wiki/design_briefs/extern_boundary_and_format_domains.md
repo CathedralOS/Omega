@@ -424,23 +424,30 @@ brief); the inbound process entry is its host-OS instance.
   typed `Args` — a *library* (clap-shaped), never `main`'s signature.
 
 ```
-// The app declares what it receives; on Windows the entry stub FILLS it (a
-// courier, not a parser): capability fields from providers, command_line as the
-// raw untrusted slice. The stub never parses.
+// `self` is Main's STATIC DATA — the held capabilities and config the component
+// was constructed with at spawn (the entry stub fills these from providers). The
+// launch input is NOT part of self; it is a PARAMETER to the entry, because it
+// is a per-invocation input, not the component's persistent state.
 data Main {
-    console:      Console;    // capability — typed, from the windows_x64 stdout provider
-    command_line: [u16];      // untrusted foreign DATA — raw from GetCommandLineW
+    console: Console;    // held capability — static data, from the windows_x64 provider
 }
 
-machine Main::run(&self) -> ExitCode {
-    // The AUTHOR mints it — explicit, like any untrusted input. No runtime
-    // auto-parse; a parser is a library the author calls on the slice.
-    transition Args::parse(&self.command_line) {
-        Ok(args) -> go(args)
-        Bad(why) -> usage(why)
+machine Main::run(&self, command_line: &[u16]) -> ExitCode {
+    // command_line is the per-launch input, passed in (raw from GetCommandLineW).
+    // The AUTHOR mints it — explicit, like any untrusted input; no runtime
+    // auto-parse, a parser is a library the author calls on the slice.
+    transition Args::parse(command_line) {
+        Ok(args) -> self.go(args)
+        Bad(why) -> self.usage(why)
     }
 }
 ```
+
+`&self` is static data (the held capabilities/config); the launch input is a
+parameter. On a foreign OS the entry stub constructs `self` from the providers,
+then calls `run` with the raw command-line slice; on Cathedral the launcher
+constructs `self` and calls `run` with the typed launch input (`component_model`
+`main(context)` — the `context` is *the parameter*, never `self`).
 
 **The blob-and-length is NOT killed — only its C shape is.** You still receive
 "here is a blob, here is how much": a `[u16]`/`[u8]` *slice*, which is `{ptr,
