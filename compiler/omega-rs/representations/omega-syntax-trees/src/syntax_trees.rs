@@ -345,7 +345,6 @@ impl SyntaxTrees {
                 provider: self.copy_item_identifier_span(other, host.provider),
                 settings: self.copy_target_host_setting_span(other, host.settings),
             }),
-            subsystem: target.subsystem.clone(),
             boundary_policies: self.copy_boundary_policy_span(other, target.boundary_policies),
         }
     }

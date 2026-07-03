@@ -8,10 +8,6 @@
 // static storage and takes no register. The prologue stores each register into
 // the parameter's frame slot before anything else runs. This is the calling
 // plan's INBOUND direction: typed entry parameters replace argc/argv.
-target uefi_boot {
-    subsystem efi_application
-}
-
 data Main { h: addr; }
 
 machine Main::main(&mut self, handle: addr, table: addr) -> i32 {

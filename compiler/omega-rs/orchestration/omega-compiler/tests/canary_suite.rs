@@ -106,56 +106,64 @@ fn windows_pe_ships_base_relocations_and_dynamicbase() {
 // bytes (the Subsystem u16 sits at e_lfanew + 4 (sig) + 20 (COFF) + 68).
 #[cfg(windows)]
 #[test]
-fn target_subsystem_word_reaches_the_pe_header() {
+fn build_omg_subsystem_reaches_the_pe_header() {
+    // The settled build model: image facts come from build.omg's augmenting
+    // `build(b: &mut Build)` machine (interpreted at build time), never an
+    // in-source config word. Pins: Gui -> PE Subsystem 2; NO build.omg -> the
+    // ZII default (Console, 3).
     let read_subsystem = |bytes: &[u8]| -> u16 {
         let lfanew =
             u32::from_le_bytes([bytes[0x3c], bytes[0x3d], bytes[0x3e], bytes[0x3f]]) as usize;
         let at = lfanew + 4 + 20 + 68;
         u16::from_le_bytes([bytes[at], bytes[at + 1]])
     };
-    let program = |subsystem_line: &str| {
-        format!(
-            r#"
-target windows_x64 {{
-    {subsystem_line}
-}}
-boundary trait Console {{
+    const MAIN: &str = r#"
+boundary trait Console {
     machine exit_process(return_code: i32);
-}}
-data Main {{
+}
+data Main {
     console: Console;
-}}
-machine Main::main(&mut self) {{
+}
+machine Main::main(&mut self) {
     self.console.exit_process(0);
-}}
-"#
-        )
-    };
+}
+"#;
+    const BUILD_GUI: &str = r#"
+data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
+data Build { subsystem: Subsystem; freestanding: bool; }
+machine build(b: &mut Build) {
+    b.subsystem = Subsystem::Gui;
+}
+"#;
 
-    for (line, expected) in [("subsystem gui", 2u16), ("", 3u16)] {
+    for (build_omg, expected) in [(Some(BUILD_GUI), 2u16), (None, 3u16)] {
         let dir = std::env::temp_dir().join(format!(
-            "omega-subsystem-{}-{}",
+            "omega-buildomg-{}-{}",
             expected,
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).expect("create subsystem canary dir");
-        fs::write(dir.join("main.omg"), program(line)).expect("write subsystem canary");
+        fs::create_dir_all(&dir).expect("create build.omg canary dir");
+        fs::write(dir.join("main.omg"), MAIN).expect("write main.omg");
+        if let Some(build_source) = build_omg {
+            fs::write(dir.join("build.omg"), build_source).expect("write build.omg");
+        }
 
         compile(CompileOptions {
             root_path: dir.join("main.omg"),
             build_dir: Some(dir.join("build")),
-            target_name: Some("windows_x64".to_owned()),
+            target_name: None,
             write_output: true,
         })
-        .expect("subsystem canary should compile");
+        .expect("build.omg canary should compile");
 
         let bytes =
             fs::read(dir.join("build").join("omega-program.exe")).expect("read emitted PE");
         assert_eq!(
             read_subsystem(&bytes),
             expected,
-            "PE Subsystem for target line {line:?}"
+            "PE Subsystem with build.omg present={}",
+            build_omg.is_some()
         );
         let _ = fs::remove_dir_all(&dir);
     }
@@ -18719,7 +18727,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/transition_fall_through_bool",
     "control_flow/transition_fall_through_value_match",
     "calls/abs_call_argument_rejected",
-    "targets/unknown_subsystem_word",
+    "build/build_machine_wrong_arity",
     "wire/decode_into_ranged_field",
     "wire/encode_wire_spelling_renamed",
     "wire/decode_verdict_must_be_enum",
