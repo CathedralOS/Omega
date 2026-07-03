@@ -35,7 +35,7 @@ use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, Expressi
 use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
-use omega_checked_trees::wire::{WireFieldEncoding, WireMember, wire_varint_bytes};
+use omega_checked_trees::wire::{WireFieldEncoding, WireMember, WirePlacement, wire_varint_bytes};
 
 use super::storage_places::{RuntimeStoragePlace, resolve_runtime_storage_place_in_table};
 
@@ -187,8 +187,38 @@ pub(super) fn select_wire_encode_call(
         });
     }
 
-    for field in &fields {
-        for byte in wire_varint_bytes(field.number as u64) {
+    // MINT ARC RUNG 2a: the derived wire plan drives the tag bytes. The plan
+    // pass mirrors this walk exactly, so per-field agreement is asserted; a
+    // schema WITHOUT a plan (the pass was more conservative than the codec)
+    // falls back to the schema walk unchanged. Nested CHILD tags remain
+    // schema-driven in this rung (each child schema carries its own plan,
+    // exercised when it is encoded top-level).
+    let plan = input.program.wire_schema_plan(schema.symbol);
+    if let Some(placements) = plan {
+        let agrees = placements.len() == fields.len()
+            && placements.iter().zip(fields.iter()).all(|(placement, field)| {
+                let field_is_varint = matches!(
+                    field.content,
+                    WireFieldContent::Direct {
+                        encoding: WireFieldEncoding::Scalar(_),
+                        ..
+                    }
+                );
+                placement.tag() == field.number
+                    && matches!(placement, WirePlacement::Varint { .. }) == field_is_varint
+            });
+        if !agrees {
+            debug_assert!(false, "derived wire plan disagrees with the schema walk");
+            return false;
+        }
+    }
+
+    for (field_index, field) in fields.iter().enumerate() {
+        let tag = plan
+            .and_then(|placements| placements.get(field_index))
+            .map(|placement| placement.tag())
+            .unwrap_or(field.number);
+        for byte in wire_varint_bytes(tag as u64) {
             push(SelectedInstructionKind::AppendWireLiteralByte {
                 out_region: out_place.region,
                 out_offset: out_place.byte_offset,

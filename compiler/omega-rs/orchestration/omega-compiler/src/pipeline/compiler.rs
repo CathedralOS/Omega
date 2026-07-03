@@ -115,6 +115,10 @@ impl Compiler {
         // PLAN-LAID VALUE TYPES, plan half: evaluate + validate each policy
         // application and record the placements for the layout builder.
         crate::pipeline::plan_laid::compute_plan_laid_layouts(&mut typed, &plan_laid_records)?;
+        // WIRE PLANS (mint arc rung 2a): derive each numbered schema's
+        // placement plan; the wire codec selection consumes it (tag + framing
+        // from the plan, asserted against its own walk).
+        crate::pipeline::wire_plans::compute_wire_plans(&mut typed);
         write_typed_snapshot(&self.options, &typed)?;
         crate::pipeline::wire_report::write_wire_protocol_report(&self.options, &typed)?;
 

@@ -19,6 +19,11 @@ pub struct TypedTrees {
     /// instead of running its own packing. Empty for programs with no
     /// plan-laid fields.
     pub plan_laid_layouts: Vec<PlanLaidLayout>,
+    /// Derived wire placements (mint arc rung 2a): one arena for every
+    /// schema's placements, referenced by span from `wire_schema_plans` --
+    /// arena-backed storage, HandleSpan ownership.
+    pub wire_placements: Arena<wire::WirePlacement>,
+    pub wire_schema_plans: Vec<wire::WireSchemaPlan>,
 }
 
 /// One validated, FULLY-STATIC layout plan applied to a synthesized data
@@ -121,7 +126,35 @@ impl TypedTrees {
             tables,
             symbols,
             plan_laid_layouts: Vec::new(),
+            wire_placements: Arena::new(),
+            wire_schema_plans: Vec::new(),
         }
+    }
+
+    /// Record a schema's derived wire plan: placements land contiguously in
+    /// the placement arena; the plan holds their span.
+    pub fn record_wire_schema_plan(
+        &mut self,
+        schema: omega_core::symbols::SymbolHandle,
+        placements: impl IntoIterator<Item = wire::WirePlacement>,
+    ) {
+        let span = self.wire_placements.insert_many(placements);
+        self.wire_schema_plans.push(wire::WireSchemaPlan {
+            schema,
+            placements: span,
+        });
+    }
+
+    /// The derived wire plan for a schema, when one was computed -- the
+    /// placements in tag order. `None` for schemas the plan pass skipped.
+    pub fn wire_schema_plan(
+        &self,
+        schema: omega_core::symbols::SymbolHandle,
+    ) -> Option<&[wire::WirePlacement]> {
+        self.wire_schema_plans
+            .iter()
+            .find(|plan| plan.schema == schema)
+            .and_then(|plan| self.wire_placements.span(plan.placements))
     }
 
     pub fn push_data_definition(&mut self, data_definition: data::DataDefinition) {
