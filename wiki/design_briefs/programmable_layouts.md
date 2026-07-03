@@ -91,6 +91,44 @@ CLayout satisfies Layout {
   clean 90% UEFI/Win32 actually uses lives in the library; horror is refused
   rather than swallowed.
 
+## 2b. The codec surface is the trait's; the bodies are derived (settled 2026-07-02, chat)
+
+The trait carries the FULL contract — including the transform machines a
+dynamic grammar needs — and the law is: **policies author `plan()`; every
+other member is DERIVED from the plan, never hand-implemented.**
+
+```omega
+trait Grammar {
+    machine plan(schema: Schema) -> Plan;        // authored: the policy's one job
+    machine encode(value: &Schema::Value, out: &mut [u8], written: &mut count);
+    machine validate(bytes: &[u8]) -> Checked;   // the mint: Valid(view) | Invalid
+    // encode/validate: derived by the compiler from plan() — a policy
+    // conforms the way a data type conforms to Equatable: signature from the
+    // trait, body synthesized.
+}
+```
+
+- **Why derived-only**: the conformance theorem. A hand-written `encode`
+  could disagree with the plan; a computed one cannot. This is what the
+  anti-serde ruling was protecting — not the trait surface, the derivation.
+- **A protobuf-esque format is a LIBRARY policy**: its `plan()` speaks the
+  closed placement vocabulary (`Varint`, `LengthPrefixed`, tags-by-number)
+  and the one compiler deriver walks it. New format = new policy (library);
+  new placement KIND = compiler release. FieldPlan/Binding/CallPlan
+  discipline, fourth verse.
+- **`Save::encode` is not name-magic**: it is the tagged grammar's derived
+  conformance, instantiated at `Save` (monomorphization-by-instantiation,
+  the same shape as `OmegaLayout<Save>` and generic data). The contract is
+  READABLE — it lives here and in std, not in a validator's error strings.
+- **Recast is the degenerate case** (§5b): a fully static plan has no
+  transform, so its "encode" is a borrow and the trait's transform members
+  are irrelevant to it — re-views are `as`, transforms are derived machines,
+  and only non-fixed grammars have transforms.
+- **Gates before this is real**: the case-vocabulary `Plan` (blocked on
+  array-of-struct element construction) and instance typing for the
+  conformances. Until then the hardcoded tagged codec serves under these
+  names — same bytes, re-keyed beneath the trait when the deriver lands.
+
 ## 3. The Plan: a closed placement vocabulary, validated, then trusted
 
 ```omega
