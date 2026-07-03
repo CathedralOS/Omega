@@ -161,6 +161,16 @@ def _run_body_once(tape, start_pc, header, MEM, R, sp):
         else:
             raise Unsupported('loop body opcode 0x%02x (only straight-line +/*/mem summarizable)' % op)
 
+def _concnat(d):                       # the int value of a concrete delta (int OR a Peano nat s^k z), else None
+    if isinstance(d, int):
+        return d
+    if d == ('z',):
+        return 0
+    if isinstance(d, tuple) and d[0] == 's':
+        inner = _concnat(d[1])
+        return None if inner is None else inner + 1
+    return None
+
 def _slot_delta(s0, s1):
     """per-iteration increment given a slot's entry value s0 and its value s1 after one body run (s1 = s0 + d)."""
     if isinstance(s0, int) and isinstance(s1, int):
@@ -219,10 +229,10 @@ def symexec(tape):
             if any(d is None or (isinstance(d, tuple) and d[0] == 'cmp') for d in (d1, d2, d3)):
                 return None
             if d1 == d2 == d3:                          # constant per-iteration increment -> init + trip*delta
-                if d1 == 1 and s0 == L:
+                if _concnat(d1) == 1 and s0 == L:
                     have_counter = True                 # a unit-stride counter from L makes the loop run `trip` times
                 updates[a] = _add(s0, _mul(trip, d1))   # (counter's own 0 + trip*1 = trip falls out here)
-            elif (d1, d2, d3) == (0, 1, 2):             # increment(k) == k  ->  Σ_{k<trip} k = g(trip)
+            elif (_concnat(d1), _concnat(d2), _concnat(d3)) == (0, 1, 2):   # increment(k)==k -> Σ_{k<trip}k = g(trip)
                 updates[a] = _add(s0, ('f', TRI_ID, trip))
             else:
                 return None                             # a delta not (yet) summarizable

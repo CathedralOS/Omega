@@ -14,6 +14,12 @@
 import sys, random
 
 def _delta(rng, data):
+    # ~30% of accumulators use the bare counter `i` -> an arithmetic-series (Σi) loop, summarized to the
+    # triangular recurrence g(trip); the rest use a loop-INVARIANT increment (over inputs + small constants).
+    # `i` must appear BARE, never inside an expression: `i*a`/`i+c` are counter-dependent deltas both sides
+    # deliberately refuse, so they'd fail the gate rather than exercise it.
+    if rng.random() < 0.3:
+        return 'i'
     base = rng.choice(data) if (data and rng.random() < 0.55) else str(rng.randint(1, 3))
     if rng.random() < 0.4:
         other = rng.choice(data + [str(rng.randint(1, 3))]) if data else str(rng.randint(1, 3))
