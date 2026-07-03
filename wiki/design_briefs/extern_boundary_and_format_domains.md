@@ -22,6 +22,11 @@
 > FFI structs their byte-access story with no builtin. §7's mints-only rule is
 > untouched: a recast may weaken facts, never strengthen — `as` into a domain
 > still does not exist.
+>
+> **AMENDED 2026-07-03 (§13): the foreign-OS launch story** — how `main` gets a
+> typed context (never argc/argv) on a non-Cathedral host: a per-target inbound
+> entry stub materializes it from the OS's startup convention (GetCommandLineW /
+> the ELF stack), the inbound sibling of §12's outbound stubs.
 
 > **For:** Omega maintainer · **Status:** SETTLED (chat session 2026-07-01, Zach) —
 > spellings marked *open* below are the only undecided parts. · **Driver:** Tier-2
@@ -378,3 +383,63 @@ Summary line: every foreign data pointer is a borrow you gave out, a token you
 can't deref, or a mint with a named axiom; every foreign call target is a
 declared contract on a provides-bound slot; every callback we hand out is a
 static stub plus a guard on its state.
+
+## 13. The foreign-OS launch story — the inbound process entry (added 2026-07-03)
+
+§12 covers *outbound* entry stubs (we hand a foreign OS a callback). The
+symmetric case is the **inbound** one: a foreign OS starts our process and hands
+us its startup convention — argc/argv on Linux, `GetCommandLineW` on Windows.
+This is how `main` gets its context when the host is not Cathedral, and it is
+where **argc/argv is truly killed**.
+
+**The invariant: `main` never sees `int argc, char** argv`.** Omega `main`
+receives a typed launch context (Cathedral `component_model`: a `data Main { … }`
+of injected fields / `main(context)`), and a per-target **inbound entry stub**
+materializes that context from whatever the OS's process-startup convention
+provides. `main`'s shape is identical across every target; only *who fills it*
+differs:
+
+| Target | Who fills the context | How |
+|---|---|---|
+| Cathedral (SAS/CHERI) | the launcher | hands the context **directly** as a struct/borrow in-address-space — no stub, no marshalling, no command line |
+| UEFI | the entry stub | reads RCX/RDX → `(image_handle, system_table)` (the ratified boot entry) |
+| Windows | the entry stub (replaces `mainCRTStartup`) | `GetCommandLineW` (kernel32 boundary) for the command line; capabilities from the target's boundary providers |
+| Linux | the entry stub (replaces `crt0`) | reads `argc/argv/envp` off the `_start` stack; capabilities from boundary providers |
+
+argc/argv is thus a **Linux/Windows entry-stub implementation detail**,
+quarantined in the stub exactly as RCX/RDX are for firmware — never exposed to
+app code. The stub is the crt0 analog: a small, audited, per-target boundary
+blob. This is the same "foreign-initiated activation / entry stub" design shared
+with the UEFI entry (§calling_plans inbound) and interrupt entry (the boot
+brief); the inbound process entry is its host-OS instance.
+
+**What argv actually carried, split in two:**
+- **Ambient authority** (fd 0/1/2, env, implicit rights) — *already dead*.
+  Capabilities come from the target's **boundary providers** (§2–§4), never from
+  argv. This is the important kill, and it is the same on Windows as on
+  Cathedral; only the provider implementation differs.
+- **Command-line arguments** — genuine untrusted user input, the residual. It
+  enters as **untrusted foreign DATA** (`[u16]` from `GetCommandLineW`, the argv
+  array on Linux), a field the stub fills, which the app validates/parses into a
+  typed `Args` — a *library* (clap-shaped), never `main`'s signature.
+
+```
+// The app declares what it receives; on Windows the entry stub fills it.
+data Main {
+    console:      Console;    // capability — from the windows_x64 stdout provider
+    command_line: [u16];      // untrusted foreign DATA — from GetCommandLineW
+}
+// `command_line` is parsed into a typed Args by a library. No argc/argv anywhere.
+```
+
+**Env vars** get the same treatment: absorbed at the boundary, never ambient
+(no `getenv`). An app that wants one reads it as an explicit untrusted input via
+a boundary — the foreign-OS edge of Cathedral's env-vars-die stance.
+
+**SAS/CHERI is the clean end of one spectrum.** "Provide executables directly
+with structs/borrows" is the Cathedral case — the launcher hands a borrow
+in-address-space, zero marshalling. A foreign OS cannot (separate address
+spaces, no capability ISA), so the stub *materializes* the context instead. Same
+`main(context)` at the top; the launch mechanism degrades gracefully from
+hand-a-borrow (SAS) to materialize-from-argv-at-the-boundary (foreign), and
+argc/argv exists only inside the stub on the degraded path.
