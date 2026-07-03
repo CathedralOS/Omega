@@ -29,7 +29,7 @@ pub(crate) fn lower_machine_into(
         symbol: SymbolHandle::invalid(),
         name: machine_name,
         attached_data,
-        abi: machine.abi.clone(),
+        boundary: machine.boundary,
         storage: MachineStorage {
             type_parameters,
             contains: HandleSpan::empty(),

@@ -278,7 +278,6 @@ pub struct InvariantDefinitionSnapshot {
 pub struct MachineSnapshot {
     pub name: String,
     pub attached_data: Option<String>,
-    pub abi: Option<String>,
     pub type_parameters: Vec<String>,
     pub terminates: bool,
     pub decreases: Vec<ExpressionSnapshot>,
@@ -621,7 +620,6 @@ fn machine_snapshot(program: &SymbolResolvedTrees, machine: &Machine) -> Machine
     MachineSnapshot {
         name: machine.name.to_string(),
         attached_data: machine.attached_data.as_ref().map(ToString::to_string),
-        abi: machine.abi.clone(),
         type_parameters: program
             .machine_type_parameters(machine)
             .iter()

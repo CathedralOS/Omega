@@ -10,7 +10,7 @@
 // plan's INBOUND direction: typed entry parameters replace argc/argv.
 data Main { h: addr; }
 
-machine Main::main(&mut self, handle: addr, table: addr) -> i32 {
+boundary machine Main::main(&mut self, handle: addr, table: addr) -> i32 {
     self.h = handle;
     transition self.h == 0 {
         true -> was_zero()
