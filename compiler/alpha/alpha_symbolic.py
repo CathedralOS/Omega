@@ -76,6 +76,92 @@ def _concrete(v, why):
         raise Unsupported(why)
     return v
 
+# ---- data-dependent loop summarization (bytecode side) -----------------------------------------------
+# A value ('cmp', 'lt'|'eq', L, R) is a SYMBOLIC boolean produced when a comparison has a symbolic operand
+# (bc lowers `i < n` to jlt + an imm 0/1 dance feeding a jz). When such a boolean reaches a jz/jnz that guards
+# a loop, we summarize the loop instead of unrolling — the source-side mirror of beta_symbolic._summarize_loop.
+_ILEN = {0x00:2,0x01:10,0x02:3,0x03:3,0x04:3,0x05:3,0x06:3,0x07:3,0x08:3,0x09:3,0x0A:3,0x0B:3,
+         0x0C:9,0x0D:10,0x0E:10,0x0F:11,0x10:11,0x11:2,0x12:2,0x13:9,0x14:1}
+
+def _le8(tape, a):
+    return int.from_bytes(tape[a:a + 8], 'little')
+
+def _back_edges(tape):
+    """{header_pc: jmp_pc} for every direct `jmp @t` with t < its own address (a loop's back-edge)."""
+    out = {}; pc = 0
+    while pc < len(tape):
+        op = tape[pc]
+        if op not in _ILEN:
+            break
+        if op == 0x0C:
+            t = _le8(tape, pc + 1)
+            if t < pc:
+                out[t] = pc
+        pc += _ILEN[op]
+    return out
+
+def _cmp_idiom(tape, pc):
+    """Recognize bc's `i<n`-to-boolean lowering at a jlt/jeq:
+        jlt rX,rY,Ltrue ; imm rZ,0 ; jmp Lj ; Ltrue: imm rZ,1 ; Lj:
+    -> (rZ, Lj, 'lt'|'eq'), so rZ becomes the symbolic boolean [rX<rY]. None if it doesn't match."""
+    op = tape[pc]
+    if op not in (0x0F, 0x10):
+        return None
+    ltrue = _le8(tape, pc + 3)
+    fall = pc + 11
+    if tape[fall] != 0x01:
+        return None
+    rz = tape[fall + 1]
+    if _le8(tape, fall + 2) != 0:
+        return None
+    jpc = fall + 10
+    if tape[jpc] != 0x0C:
+        return None
+    lj = _le8(tape, jpc + 1)
+    if tape[ltrue] != 0x01 or tape[ltrue + 1] != rz or _le8(tape, ltrue + 2) != 1 or ltrue + 10 != lj:
+        return None
+    return (rz, lj, 'lt' if op == 0x0F else 'eq')
+
+def _run_body_once(tape, start_pc, header, MEM, R, sp):
+    """Speculatively execute ONE loop iteration (concrete control only) from start_pc until pc jumps back to
+    `header`; return the resulting memory. Operates on copies, so the caller's state is untouched. This is the
+    EXACT per-iteration transition — one iteration is straight-line, so no sampling is involved."""
+    MEM = dict(MEM); R = dict(R); pc = start_pc; steps = 0
+    def reg(i):
+        return R.get(i, 0)
+    while True:
+        steps += 1
+        if steps > 20000:
+            raise Unsupported('loop body too long to summarize')
+        op = tape[pc]
+        if op == 0x0C:
+            t = _le8(tape, pc + 1)
+            if t == header:
+                return MEM
+            pc = t; continue
+        if op == 0x01:   R[tape[pc + 1]] = _le8(tape, pc + 2); pc += 10
+        elif op == 0x02: R[tape[pc + 1]] = reg(tape[pc + 2]); pc += 3
+        elif op == 0x03: d = tape[pc + 1]; R[d] = _add(reg(d), reg(tape[pc + 2])); pc += 3
+        elif op == 0x04: d = tape[pc + 1]; R[d] = _sub(reg(d), reg(tape[pc + 2])); pc += 3
+        elif op == 0x05: d = tape[pc + 1]; R[d] = _mul(reg(d), reg(tape[pc + 2])); pc += 3
+        elif op == 0x0A: a = _concrete(reg(tape[pc + 2]), 'load'); R[tape[pc + 1]] = MEM.get(a, 0); pc += 3
+        elif op == 0x0B: a = _concrete(reg(tape[pc + 1]), 'store'); MEM[a] = reg(tape[pc + 2]); pc += 3
+        else:
+            raise Unsupported('loop body opcode 0x%02x (only straight-line +/*/mem summarizable)' % op)
+
+def _slot_delta(s0, s1):
+    """per-iteration increment given a slot's entry value s0 and its value s1 after one body run (s1 = s0 + d)."""
+    if isinstance(s0, int) and isinstance(s1, int):
+        return (s1 - s0) & MASK
+    if s1 == s0:
+        return 0
+    if isinstance(s1, tuple) and s1[0] == 'p':          # s1 = (p s0 d) or (p d s0)  ->  d
+        if s1[1] == _term(s0):
+            return s1[2]
+        if s1[2] == _term(s0):
+            return s1[1]
+    return None
+
 def symexec(tape):
     """Symbolically execute a loop-free Alpha tape. Returns (output_term, n_inputs), where inputs are
     (v 0)..(v n-1) in `read` order. Raises Unsupported on anything outside the loop-free, concrete-control,
@@ -88,8 +174,39 @@ def symexec(tape):
     pc = 0
     n_inputs = 0
     steps = 0
+    backedges = _back_edges(tape)
     def imm8(at):
         return int.from_bytes(tape[at:at + 8], 'little')
+
+    def summarize(cond, cont_pc, exit_pc):
+        """cond = ('cmp','lt'|'eq', L, R) guards a loop that continues to cont_pc and exits to exit_pc. Read the
+        per-iteration transition off ONE speculative body run, recognize a unit-stride counter `L < R` from 0
+        and loop-invariant accumulator deltas, and replace the loop by each accumulator's closed form
+        init + trip*delta (trip = R). Mutates MEM to the post-loop state; returns exit_pc, or None if the loop
+        is outside the summarizable class (caller then bails)."""
+        kind, L, Rb = cond[1], cond[2], cond[3]
+        if kind != 'lt' or not isinstance(L, int):
+            return None                                 # only `counter < bound`, counter concrete at entry (its init)
+        header = next((h for h, j in backedges.items() if h <= cont_pc <= j), None)
+        if header is None:
+            return None
+        try:
+            MEM1 = _run_body_once(tape, cont_pc, header, MEM, R, sp)
+        except Unsupported:
+            return None
+        r15 = R.get(15, 0)                              # frame locals sit at/above the data-stack top
+        carried = {a: (MEM.get(a, 0), MEM1[a]) for a in MEM if isinstance(a, int) and a >= r15 and MEM1.get(a) != MEM.get(a)}
+        deltas = {a: _slot_delta(s0, s1) for a, (s0, s1) in carried.items()}
+        if any(d is None or (isinstance(d, tuple) and d[0] == 'cmp') for d in deltas.values()):
+            return None                                 # a non-linear / boolean update -> not summarizable
+        # a unit-stride counter starting at the guard's left operand L must exist (it makes the loop run R times);
+        # its own closed form init + R*1 = R falls out of the same formula, so no special-case is needed.
+        if not any(deltas[a] == 1 and s0 == L for a, (s0, s1) in carried.items()):
+            return None
+        trip = Rb                                       # counter runs L(=0)..R-1  ->  R iterations
+        for a, (s0, s1) in carried.items():
+            MEM[a] = _add(s0, _mul(trip, deltas[a]))    # closed form: init + trip*delta  (counter: 0 + R*1 = R)
+        return exit_pc
     while True:
         steps += 1
         if steps > 500000:
@@ -119,16 +236,34 @@ def symexec(tape):
             raise Unsupported('byte memory not modelled yet')
         elif op == 0x0C:                                 # jmp a
             pc = imm8(pc + 1)
-        elif op == 0x0D:                                 # jz c, a  (concrete condition only)
-            c = _concrete(reg(tape[pc + 1]), 'branch on symbolic value'); pc = imm8(pc + 2) if c == 0 else pc + 10
-        elif op == 0x0E:                                 # jnz c, a
-            c = _concrete(reg(tape[pc + 1]), 'branch on symbolic value'); pc = imm8(pc + 2) if c != 0 else pc + 10
-        elif op == 0x0F:                                 # jlt a, b, a2  (signed)
-            x = _concrete(reg(tape[pc + 1]), 'branch on symbolic value'); y = _concrete(reg(tape[pc + 2]), 'branch on symbolic value')
-            pc = imm8(pc + 3) if _s64(x) < _s64(y) else pc + 11
-        elif op == 0x10:                                 # jeq a, b, a2
-            x = _concrete(reg(tape[pc + 1]), 'branch on symbolic value'); y = _concrete(reg(tape[pc + 2]), 'branch on symbolic value')
-            pc = imm8(pc + 3) if x == y else pc + 11
+        elif op == 0x0D or op == 0x0E:                   # jz / jnz c, a
+            c = reg(tape[pc + 1])
+            if isinstance(c, tuple) and c and c[0] == 'cmp':   # a symbolic loop guard -> summarize the loop
+                # jz exits (jumps) when c==0 i.e. NOT(L<R); jnz exits on fall-through. Continue = the other edge.
+                if op == 0x0D:
+                    exit_pc, cont_pc = imm8(pc + 2), pc + 10
+                else:
+                    exit_pc, cont_pc = pc + 10, imm8(pc + 2)
+                nxt = summarize(c, cont_pc, exit_pc)
+                if nxt is None:
+                    raise Unsupported('loop not in the summarizable linear class')
+                pc = nxt
+            else:
+                c = _concrete(c, 'branch on symbolic value')
+                taken = (c == 0) if op == 0x0D else (c != 0)
+                pc = imm8(pc + 2) if taken else pc + 10
+        elif op == 0x0F or op == 0x10:                   # jlt / jeq a, b, a2
+            x, y = reg(tape[pc + 1]), reg(tape[pc + 2])
+            if not (isinstance(x, int) and isinstance(y, int)):   # symbolic compare: try bc's boolean idiom
+                idiom = _cmp_idiom(tape, pc)
+                if idiom is None:
+                    raise Unsupported('symbolic comparison outside the recognized boolean idiom')
+                rz, lj, kind = idiom
+                R[rz] = ('cmp', kind, x, y); pc = lj
+            elif op == 0x0F:
+                pc = imm8(pc + 3) if _s64(x) < _s64(y) else pc + 11
+            else:
+                pc = imm8(pc + 3) if x == y else pc + 11
         elif op == 0x11:                                 # read d -> fresh input var
             R[tape[pc + 1]] = ('v', n_inputs); n_inputs += 1; pc += 2
         elif op == 0x13:                                 # call a — push return offset to the call stack

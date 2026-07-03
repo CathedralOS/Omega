@@ -61,6 +61,8 @@ AUTO_SAMPLES = [
     ("dbl       (a+a)",             "refinement-samples/dbl.beta"),
     ("affine    (a+a+a+1)",         "refinement-samples/affine.beta"),
     ("triple    (LOOP: +=a ×3)",    "refinement-samples/triple.beta"),
+    ("muln      (DATA-DEP LOOP →n*a)", "refinement-samples/muln.beta"),
+    ("countn    (DATA-DEP LOOP →n)",   "refinement-samples/countn.beta"),
     ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
     ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
     ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),
