@@ -276,6 +276,40 @@ fn select_entry_argument_register_writes(
         })
         .collect();
     parameter_slots.sort_unstable();
+
+    // THE STRUCT-SHAPED HANDOFF (ladder step 3, boundary machines): a BOUNDARY
+    // entry whose sole declared parameter is a multi-word struct receives the
+    // platform's argument registers SPREAD across its 8-byte chunks --
+    // `boundary machine Main::run(&self, handoff: EfiHandoff)` binds RCX to
+    // handoff.handle (+0) and RDX to handoff.table (+8). This is the boundary
+    // contract's shape-over-arrival-bytes, NOT general MS-x64 struct passing
+    // (which passes large aggregates by pointer; there is no caller here --
+    // the platform hands registers, the declaration shapes them).
+    let entry_is_boundary = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == input.entry_key.machine)
+        .is_some_and(|machine| machine.boundary);
+    if entry_is_boundary
+        && let [(byte_offset, byte_size)] = parameter_slots.as_slice()
+        && *byte_size > 8
+        && *byte_size % 8 == 0
+        && *byte_size <= 32
+    {
+        for index in 0..(*byte_size / 8) {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteEntryArgumentRegister {
+                    argument_index: index as u8,
+                    byte_offset: *byte_offset + index * 8,
+                },
+                source_key: input.entry_key,
+                source_statement: 0,
+            });
+        }
+        return;
+    }
+
     for (index, (byte_offset, _)) in parameter_slots.into_iter().enumerate().take(4) {
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteEntryArgumentRegister {
