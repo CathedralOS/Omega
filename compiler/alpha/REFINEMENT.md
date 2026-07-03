@@ -138,7 +138,9 @@ outer marker is "invariant here") and resolve at the outer level. This composes 
 loop machinery knows: `j < m` gives the invariant delta `m·a` → `n·(m·a)`; `total += j` inside gives
 `g(m)` → `n·g(m)`; and the **triangular** `j < i` (inner bound = outer counter) makes the outer delta
 counter-linear `a·i` → `a·g(n)`. `Σ g(i)` (inner `j < i, total += j`) is quadratic in the outer counter —
-refused on both sides.
+refused on both sides. `refinement_nested_gen.py` fuzzes this recursive machinery: random nested shapes over
+all four inner-bound kinds (concrete, input, the outer counter) with subtracting bodies and outer-step
+deltas, each proven against the compiled bytecode.
 
 **Deliberately out of scope** (each conservatively *refused* — never mis-summarized): scaling recurrences
 (`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`, tetrahedral `Σg`);

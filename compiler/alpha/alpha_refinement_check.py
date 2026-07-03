@@ -21,6 +21,7 @@ import beta_interp                                     # concrete Beta interpret
 import refinement_fuzz_gen                             # random straight-line arithmetic Beta programs
 import refinement_loop_gen                              # random data-dependent linear-loop Beta programs
 import refinement_compose_gen                           # random composed programs: pre-loop + loop + post-loop
+import refinement_nested_gen                            # random NESTED loops (recursive summarization)
 from bc2 import lex, Parser
 ALPHA_REF = os.path.join(HERE, 'alpha_ref.py')
 PROVER = os.path.join(HERE, '..', 'delta', 'prover.py')
@@ -168,6 +169,10 @@ def check_compose_fuzz(seed):
     text = refinement_compose_gen.program(seed)           # pre-loop + loop + post-loop: the summarizers COMPOSED
     return prove_equiv("compose seed %d" % seed, text, compile_beta_text(text), "", quiet_perturb=True, trials=8, teeth=False)
 
+def check_nested_fuzz(seed):
+    text = refinement_nested_gen.program(seed)            # nested loops: RECURSIVE summarization fuzzed
+    return prove_equiv("nested seed %d" % seed, text, compile_beta_text(text), "", quiet_perturb=True, trials=8, teeth=False)
+
 def run_ref(tape, stdin_bytes):
     with tempfile.NamedTemporaryFile(delete=False) as f:
         f.write(tape); path = f.name
@@ -249,6 +254,12 @@ def main():
         for seed in range(1, ncomp + 1):
             total += 1; ok = check_compose_fuzz(seed); passed += ok; cpass += ok
         print("   %d/%d random composed programs certified (loop result flows through further arithmetic)" % (cpass, ncomp))
+        nnest = int(os.environ.get('REFINE_NESTED_FUZZ', '8'))
+        print(" NESTED FUZZ: random nested loops (inner loop summarized recursively inside the outer, ∀ inputs):")
+        npass = 0
+        for seed in range(1, nnest + 1):
+            total += 1; ok = check_nested_fuzz(seed); passed += ok; npass += ok
+        print("   %d/%d random nested programs certified (recursive summarization matches the machine)" % (npass, nnest))
     else:
         print(" (real-bc samples skipped: bc.exe / assembler not provided)")
     print("%d/%d refinement checks passed" % (passed, total))
