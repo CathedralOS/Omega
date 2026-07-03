@@ -1,7 +1,7 @@
 # Design Brief — Build & Package Model (`build.omg`, reach, and pinned closures)
 
 > **For:** Omega maintainer · **Status:** SETTLED — model (chat session
-> 2026-07-02, Zach); the `BuildDescription` schema and surface syntax are the
+> 2026-07-02, Zach); the `Build` type's schema and surface details are the
 > only open parts. · **Driver:** Cathedral is starting on boot and needs the
 > per-package boundary manifest that `separate_compilation.md` calls for — this
 > settles what that manifest is. · **Depends on:**
@@ -17,12 +17,13 @@
 
 ## 1. Bottom line up front
 
-**The per-package build manifest is `build.omg` — an *effect-free Omega
-function returning a typed `BuildDescription`*, not a config file.** It is code
-(one language, real types, full power — no TOML to fight, no `build.rs` cliff),
-but because it declares no effects and is *interpreted* at build time, its
-output is plain inspectable data (the dependency set, targets, options). One
-mechanism spans "reads like config" to "computes the target matrix"; there is no
+**The per-package build manifest is `build.omg` — an *effect-free Omega machine
+that augments a mutable `Build`*, not a config file and not a config grammar.**
+It is code (one language, real types, full power — no TOML to fight, no
+`build.rs` cliff, and crucially no invented `depends { } target { }` block
+dialect), but because it declares no effects and is *interpreted* at build time,
+its result is plain inspectable data (the dependency set, targets, options). One
+mechanism spans "set a few fields" to "compute the target matrix"; there is no
 second, worse escape hatch.
 
 Four consequences settle long-standing questions:
@@ -40,7 +41,7 @@ Four consequences settle long-standing questions:
    `build.omg` declares; an undeclared package is not nameable. The build-time
    capability model.
 
-## 2. `build.omg` is code, not config
+## 2. `build.omg` is a machine, not a config grammar
 
 The config-as-data (Cargo) vs config-as-code (Jai/Zig) tension dissolves because
 Omega already has the two pieces that make code safe as config:
@@ -48,32 +49,44 @@ Omega already has the two pieces that make code safe as config:
 - **The effect system** guarantees a `build.omg` with no declared effects does
   no IO — it cannot fetch, read the environment, or be nondeterministic.
 - **Build-time evaluation** ([`build_time_evaluation.md`](build_time_evaluation.md))
-  means the compiler simply *runs* the pure function and gets back a value.
+  means the toolchain simply *runs* it and reads back a value.
 
-So `build.omg` is **code** (Zig/Jai's win — real types with real errors, and a
-target matrix is `match target { … }` instead of `[target.'cfg(…)']` string
-tables) whose **output is data** (Cargo's win — the dependency graph is
-inspectable without running an arbitrary program, and the effect system
-*proves* no IO snuck in). The simple case reads like config:
+The critical discipline — **no invented config grammar.** `build.omg` is not a
+`build { depends { … } target { … } }` block dialect (that would be a secret
+export language, exactly the Cargo-`.toml` disease). It is an **ordinary machine
+that augments a mutable `Build`** — machine calls and field assignment, the Zig
+`build.zig` shape in Omega. `build` is a conventionally-named entry machine the
+toolchain invokes with a fresh (ZII-default) `Build`, like `main`; `Build` is a
+toolchain-provided type (ordinary `data` + machines):
 
 ```omega
-// source/boot/uefi/build.omg — provisional syntax
-build boot_uefi {
-    depends {
-        contracts  = hash("b3:9f2a…"),   // alias -> pinned source
-        foundation = hash("b3:1c04…"),
-    }
-    target Uefi64 {
-        entry      = main,
-        subsystem  = EfiApplication,
-        stack      = 128 * KiB,
-    }
-    toolchain = hash("b3:7e55…"),
+// source/boot/uefi/build.omg — provisional syntax; every token is existing Omega
+machine build(b: &mut Build) {
+    b.depend("uefi", path("../../contracts/uefi"));   // machine call, appends to reach
+
+    let target = b.target(Uefi64);                    // ordinary value
+    target.entry     = main;                          // field assignment
+    target.subsystem = EfiApplication;
+    target.stack     = 128 * KiB;
 }
 ```
 
-…and the powerful case (`fn(target) -> BuildDescription` branching on the
-target) is the *same* mechanism scaled up, not a bolted-on imperative script.
+Nothing there is grammar — `path`, `hash`, `Uefi64`, `EfiApplication`, `KiB` are
+library *values*. The simple case reads almost like config (set a few fields);
+the powerful case (branch on the target, loop over a set) is the *same*
+mechanism scaled up, not a `build.rs`-style bolt-on.
+
+**Why augment-a-`Build` beats return-a-value.** Because it mutates a
+*passed-in local* (not an effect), it stays pure and analyzable — the toolchain
+runs `build`, reads the resulting `Build`, and the build report shows it as data
+(authored as code, consumed as data). But it also makes **composition and
+layering fall out**: a workspace `build` seeds shared defaults into a `Build` and
+passes it to each member's `build`, which augments it (org → package → local as
+ordinary sequential mutation — no `[workspace]` grammar, no invented precedence).
+This is the general Cathedral config stance — *all* config is an augmenting
+machine over a typed settings value, never a parsed file format (see
+`configuration_and_policy`: ZII defaults, `inherit` = fill-absent augmentation,
+`constrain` = a ceiling machine).
 
 ## 3. Pure plan, effectful executor
 
@@ -81,7 +94,7 @@ Building has effects — fetching a git dependency, invoking the backend, writin
 artifacts. `build.omg` has none of them, because it only *describes*:
 
 ```text
-tool-in-hand ── interprets ──▶ build.omg (pure) ──▶ BuildDescription (data)
+tool-in-hand ── interprets ──▶ build.omg (pure) ──▶ the augmented Build (data)
                                                         │
 package manager / toolchain ── executes the plan ──────┘   (fetch, compile, link — the effects)
 ```
@@ -169,7 +182,8 @@ authority this model forbids.
 
 ## 8. What is still open
 
-- **The `BuildDescription` schema** — the exact typed fields it carries (deps,
+- **The `Build` type's schema** — the exact typed fields and augmentation
+  machines it exposes (deps,
   targets, entry points/interfaces, stack sizes and other options, the toolchain
   pin, and whatever build-time capabilities the executor needs). Design when the
   first real `build.omg` lands, not before.
