@@ -1,4 +1,4 @@
-// Wire stage 2 (#43), borrowed `&[u8]` ZERO-COPY decode. `decode_wire` reads a
+// Wire stage 2 (#43), borrowed `&[u8]` ZERO-COPY decode. `decode` reads a
 // byte-LENGTH varint, bounds-checks it, then stores a fat `{ptr, len}`
 // descriptor VIEWING the decode buffer in place -- no allocator, no copy -- and
 // advances the cursor past the content. The decoded `&[u8]` borrows the buffer.
@@ -38,12 +38,12 @@ machine Main::main(&mut self) {
     self.source[1] = 105;
     let sample: BlobSample = BlobSample { bytes: self.source[0..2] };
 
-    Blob::encode_wire(&sample, &mut self.buffer, &mut self.written);
+    Blob::encode(&sample, &mut self.buffer, &mut self.written);
 
     let decoded: BlobSample = BlobSample { bytes: self.source[0..2] };
-    Blob::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+    Blob::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
 
-    Blob::encode_wire(&decoded, &mut self.buffer2, &mut self.written2);
+    Blob::encode(&decoded, &mut self.buffer2, &mut self.written2);
 
     let matches: bool = self.ok
         && self.read == 5

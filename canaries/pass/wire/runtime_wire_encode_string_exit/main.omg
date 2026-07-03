@@ -1,7 +1,7 @@
 domain [u8]::Utf8 when valid_utf8(self) {
 }
 
-// Wire stage 2a, &[u8] in Utf8 fields: `LabelMessage::encode_wire(&msg,
+// Wire stage 2a, &[u8] in Utf8 fields: `LabelMessage::encode(&msg,
 // &mut self.buffer, &mut self.written)` frames the schema's CURRENT era in
 // compact_binary v0. A &[u8] in Utf8 field rides as its tag varint, then a LENGTH
 // varint (byte count), then the raw UTF-8 bytes -- no NUL terminator, no
@@ -46,7 +46,7 @@ machine Main::main(&mut self) {
     msg.count = 7;
     msg.label = "hi";
 
-    LabelMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    LabelMessage::encode(&msg, &mut self.buffer, &mut self.written);
 
     transition self.written == 7 {
         true -> check_bytes()

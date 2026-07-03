@@ -57,7 +57,7 @@ machine Main::main(&mut self) {
     // follow-up assignments.
     let msg: LabelSample = LabelSample { count: 7, label: "hi" };
 
-    LabelMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    LabelMessage::encode(&msg, &mut self.buffer, &mut self.written);
 
     transition self.written == 7 {
         true -> check_bytes()

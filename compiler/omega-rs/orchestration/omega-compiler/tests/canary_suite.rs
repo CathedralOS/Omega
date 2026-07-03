@@ -3798,7 +3798,7 @@ fn runtime_shrinking_slice_recursion_exit_canary_runs() {
 
 #[test]
 fn runtime_wire_encode_primitive_exit_canary_runs() {
-    // Wire stage 2a: `CounterMessage::encode_wire(&msg, &mut self.buffer,
+    // Wire stage 2a: `CounterMessage::encode(&msg, &mut self.buffer,
     // &mut self.written)` frames the schema's CURRENT era in compact_binary
     // v0 -- era varint, then per field in field-number order a tag varint and
     // a value varint (LEB128; signed values zigzag; bool 0/1). The canary
@@ -3871,7 +3871,7 @@ fn runtime_wire_encode_era_discriminator_exit_canary_runs() {
 fn runtime_wire_roundtrip_primitive_exit_canary_runs() {
     // Wire stage 2b: encode { counter: 300, delta: -2, flag: true } into
     // [0x00, 0x00, 0xAC, 0x02, 0x01, 0x03, 0x02, 0x01] (hand-computed in the
-    // canary header), then `decode_wire(&mut decoded, &buffer, &mut read,
+    // canary header), then `decode(&mut decoded, &buffer, &mut read,
     // &mut ok)` reads the same 8 bytes back: ok = true, read = 8, and every
     // decoded field equals the original (zigzag round-trips -2). Exits 70 on
     // a full match.
@@ -4083,7 +4083,7 @@ fn runtime_wire_decode_rejects_wrong_era_exit_canary_runs() {
     assert_eq!(
         output.status.code(),
         Some(70),
-        "expected decode_wire to reject a non-current era discriminator (exit 70 on the failure path), got {:?}\nstderr:\n{}",
+        "expected decode to reject a non-current era discriminator (exit 70 on the failure path), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -4130,7 +4130,7 @@ fn runtime_wire_encode_string_exit_canary_runs() {
 fn runtime_wire_encode_byte_slice_exit_canary_runs() {
     // Wire stage 2 (#43), borrowed `&[u8]` fields: a fat-slice bytes field
     // constructed from a fixed-array subslice (`{ bytes: self.source[0..2] }`)
-    // materializes a `{ptr, len}` descriptor, and `encode_wire` frames it as RAW
+    // materializes a `{ptr, len}` descriptor, and `encode` frames it as RAW
     // bytes (length varint + the bytes) through the same text-bytes append a
     // String uses. The canary checks the five expected bytes + the written count
     // in-language; exits 70 when byte-exact.
@@ -4165,7 +4165,7 @@ fn runtime_wire_encode_byte_slice_exit_canary_runs() {
 
 #[test]
 fn runtime_wire_decode_byte_slice_exit_canary_runs() {
-    // Wire stage 2 (#43), borrowed `&[u8]` ZERO-COPY decode: `decode_wire` reads
+    // Wire stage 2 (#43), borrowed `&[u8]` ZERO-COPY decode: `decode` reads
     // a byte-length varint and stores a fat `{ptr, len}` descriptor viewing the
     // buffer in place (the `ReadWireByteSlice` op). The canary round-trips and
     // RE-ENCODES the decoded value to prove the view is content-correct (ptr +
@@ -18059,6 +18059,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/transition_fall_through_bool",
     "control_flow/transition_fall_through_value_match",
     "wire/decode_into_ranged_field",
+    "wire/encode_wire_spelling_renamed",
     "wire/layout_domain_on_stored_bytes",
     "wire/layout_domain_grammar_not_implemented",
     "wire/layout_domain_unnumbered_schema",

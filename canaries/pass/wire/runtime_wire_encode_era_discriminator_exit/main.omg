@@ -37,7 +37,7 @@ data Main {
 machine Main::main(&mut self) {
     let msg: VersionedSample = VersionedSample { counter: 7 };
 
-    VersionedMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    VersionedMessage::encode(&msg, &mut self.buffer, &mut self.written);
 
     transition self.written == 3 {
         true -> check_bytes()

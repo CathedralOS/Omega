@@ -48,11 +48,11 @@ machine Main::main(&mut self) {
         samples_count: 0
     };
 
-    Burst::decode_wire(&mut decoded, &overflow_payload, &mut self.read_overflow, &mut self.ok_overflow);
+    Burst::decode(&mut decoded, &overflow_payload, &mut self.read_overflow, &mut self.ok_overflow);
     let capped: bool = decoded.samples_count == 2;
     self.count_capped = capped;
 
-    Burst::decode_wire(&mut decoded, &hostile_payload, &mut self.read_hostile, &mut self.ok_hostile);
+    Burst::decode(&mut decoded, &hostile_payload, &mut self.read_hostile, &mut self.ok_hostile);
 
     transition self.ok_overflow {
         true -> bad()

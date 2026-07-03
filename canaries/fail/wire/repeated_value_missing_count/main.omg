@@ -28,7 +28,7 @@ machine Main::main(&mut self) {
         readings: [1, 2, 3, 4]
     };
 
-    Telemetry::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    Telemetry::encode(&msg, &mut self.buffer, &mut self.written);
 
     self.console.exit_process(70);
 }

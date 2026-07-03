@@ -24,7 +24,7 @@ machine Main::main(&mut self) {
     self.buffer[3] = 1;
 
     let decoded: Val = Val { v: 0 };
-    Msg::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+    Msg::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
 
     transition {
         self.ok && decoded.v == 200 -> broken()

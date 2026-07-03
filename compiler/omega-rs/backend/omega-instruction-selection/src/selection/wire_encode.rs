@@ -1,5 +1,5 @@
 //! Selection of the synthesized wire encoder call (chapter 20, wire stage
-//! 2a): `Schema::encode_wire(&value, &mut out, &mut written)` lowers into a
+//! 2a): `Schema::encode(&value, &mut out, &mut written)` lowers into a
 //! straight-line sequence of wire-append operations -- zero the cursor, emit
 //! the CURRENT era discriminator varint, then per field in field-number order
 //! a field-number varint (compile-time bytes) and a value varint (runtime
@@ -68,7 +68,7 @@ enum WireFieldContent {
     },
 }
 
-/// Lower a recognized `encode_wire` call statement; `true` when the statement
+/// Lower a recognized `encode` call statement; `true` when the statement
 /// produced its append sequence (the emission planner checks for the wire
 /// appends when it exempts the call from the unlowered-call blockers).
 pub(super) fn select_wire_encode_call(

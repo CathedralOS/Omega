@@ -45,7 +45,7 @@ machine Main::main(&mut self) {
         }
     };
 
-    Outer::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    Outer::encode(&msg, &mut self.buffer, &mut self.written);
 
     self.console.exit_process(70);
 }

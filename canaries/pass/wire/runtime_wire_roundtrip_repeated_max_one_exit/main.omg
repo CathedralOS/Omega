@@ -44,7 +44,7 @@ machine Main::main(&mut self) {
         flag: true
     };
 
-    Ping::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    Ping::encode(&msg, &mut self.buffer, &mut self.written);
 
     let decoded: PingValue = PingValue {
         code: [0],
@@ -52,7 +52,7 @@ machine Main::main(&mut self) {
         flag: false
     };
 
-    Ping::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+    Ping::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
 
     let matches: bool = self.ok
         && self.written == 6

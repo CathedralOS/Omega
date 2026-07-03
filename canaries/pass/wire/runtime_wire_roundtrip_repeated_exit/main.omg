@@ -55,7 +55,7 @@ machine Main::main(&mut self) {
         flag: true
     };
 
-    SensorReadings::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    SensorReadings::encode(&msg, &mut self.buffer, &mut self.written);
 
     let decoded: SensorSample = SensorSample {
         sensor_id: 0,
@@ -64,7 +64,7 @@ machine Main::main(&mut self) {
         flag: false
     };
 
-    SensorReadings::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+    SensorReadings::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
 
     let matches: bool = self.ok
         && self.written == 10

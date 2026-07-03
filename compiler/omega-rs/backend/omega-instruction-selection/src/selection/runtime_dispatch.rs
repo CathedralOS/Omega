@@ -288,7 +288,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
 
                 // The synthesized wire encoder/decoder calls surface as
                 // unresolved state calls (no real machine exists for
-                // `Schema::encode_wire` / `Schema::decode_wire`); lower them
+                // `Schema::encode` / `Schema::decode`); lower them
                 // into their append/read sequences before the state-call
                 // machinery skips them.
                 if super::wire_encode::select_wire_encode_call(

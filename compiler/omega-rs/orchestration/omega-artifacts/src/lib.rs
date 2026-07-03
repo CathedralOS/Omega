@@ -491,6 +491,19 @@ impl ArtifactWriter {
             ));
             output.push_str(&format!("current era: {}\n", schema.current_era));
 
+            // The synthesized codec surface (the derived Grammar-trait
+            // conformance, brief section 2b): readable HERE, not only in a
+            // validator's error strings.
+            output.push_str("synthesized:\n");
+            output.push_str(&format!(
+                "  machine {}::encode(&value, &mut out: [u8; N], &mut written: usize)\n",
+                schema.name
+            ));
+            output.push_str(&format!(
+                "  machine {}::decode(&mut value, &buffer: [u8; N], &mut read: usize, &mut ok: bool)\n",
+                schema.name
+            ));
+
             push_wire_field_table(&mut output, &schema.fields, &schema.reserved);
 
             for version in &schema.versions {

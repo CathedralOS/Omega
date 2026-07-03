@@ -42,7 +42,7 @@ machine Main::main(&mut self) {
         points_count: 3
     };
 
-    Polygon::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    Polygon::encode(&msg, &mut self.buffer, &mut self.written);
 
     self.console.exit_process(70);
 }
