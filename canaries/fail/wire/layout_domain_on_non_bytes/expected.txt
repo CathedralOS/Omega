@@ -1,1 +1,1 @@
-an OmegaLayout refinement lives on an owned byte carrier
+a layout domain lives on a borrowed byte view

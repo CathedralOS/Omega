@@ -512,12 +512,14 @@ fn validate_type_constraints_node(
     }
 }
 
-/// Validate one `OmegaLayout` instance in constraint position (ch20, wire
-/// stage: the layouts L5 spelling). The v0 slice: the carrier must be an
-/// owned `[u8; N]`, the schema argument must name an identity-numbered wire
-/// schema (the DERIVED grammar of a numbered schema is the tagged
-/// compact_binary encoding), and the grammar argument is not spellable yet
-/// (`Derived` is the default and the only implemented grammar).
+/// Validate one `OmegaLayout` instance in constraint position (ch20 §7,
+/// domain entry = MINTS ONLY). A layout domain is a fact about bytes that a
+/// mint (validate) or an encoder makes true -- it rides BORROWED VIEWS
+/// (`&[u8] in OmegaLayout<Save>`, the mint-result payload spelling). It is
+/// NEVER declared on owned storage: a stored `[u8; N]` is zero bytes at ZII,
+/// so a declared refinement would be a trivially-claimed membership -- false
+/// until the first encode. (Contrast `[u8; N] in Utf8`, whose zero state
+/// `{len: 0}` is genuinely valid and whose write ops preserve the invariant.)
 fn validate_layout_domain_constraint(
     program: &TypedTrees,
     base_type: TypeReferenceHandle,
@@ -530,19 +532,28 @@ fn validate_layout_domain_constraint(
         return;
     };
 
-    let carrier_is_byte_array = matches!(
-        program.type_reference_table.type_reference(base_type),
-        TypeReferenceNode::FixedArray { element_type, .. }
-            if program.primitive_type_reference(*element_type)
-                == Some(omega_typed_trees::types::PrimitiveType::U8)
-    );
-    if !carrier_is_byte_array {
-        diagnostics.push(Diagnostic::error(format!(
-            "{owner} uses `in {name}` on `{}`, but an OmegaLayout refinement lives on an \
-             owned byte carrier (`[u8; N] in OmegaLayout<{schema_name}>`)",
-            type_reference_label(program, base_type)
-        )));
-        return;
+    // Owned stored bytes: rejected outright (mints-only). Borrowed views
+    // (`&[u8]`, `&[u8; N]`) are the legal carrier.
+    match program.type_reference_table.type_reference(base_type) {
+        TypeReferenceNode::FixedArray { .. } => {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} declares `in {name}` on owned stored bytes; a layout domain is a \
+                 fact about bytes ESTABLISHED by validate/encode, never declared on storage \
+                 (a zeroed buffer holds no valid encoding). Hold the value (`{schema_name}`) \
+                 and encode at the edge, or carry the fact on a borrowed view \
+                 (`&[u8] in {name}`)"
+            )));
+            return;
+        }
+        TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => {}
+        _ => {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} uses `in {name}` on `{}`, but a layout domain lives on a borrowed \
+                 byte view (`&[u8] in OmegaLayout<{schema_name}>`)",
+                type_reference_label(program, base_type)
+            )));
+            return;
+        }
     }
     if let Some(grammar) = grammar {
         diagnostics.push(Diagnostic::error(format!(

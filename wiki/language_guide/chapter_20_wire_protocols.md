@@ -87,14 +87,22 @@ data CounterMessage {
 
 ## Grammars Are Layout Policies
 
-Encoding is chosen where the bytes live, not on the declaration:
+Encoding is chosen at the EDGE, not on the declaration — and you hold VALUES,
+not encoded bytes (settled 2026-07-02: a layout domain on owned storage would
+be a trivially-claimed membership; domains on bytes are MINTED facts riding
+borrowed views):
 
 ```omega
-a: [u8; 64] in OmegaLayout<CounterMessage>;          // grammar = Derived (default):
-                                                     //   numbered → tagged, unnumbered → packed
-b: [u8; 40] in OmegaLayout<CounterMessage, Packed>;  // explicit: ignore numbers, densest
-                                                     //   form — same-version bytes only
-c: [u8; 32] in OmegaLayout<Scratch>;                 // unnumbered → packed
+save: CounterMessage;                        // you own it: a VALUE, sovereign layout,
+                                             //   no bytes, no domain, nothing named
+// outbound: encode at the edge into plain scratch bytes
+CounterMessage::encode_wire(&save, &mut scratch, &mut written);
+// inbound: the validate MINT makes the fact true and hands you a refined VIEW
+//   case Valid(view: &[u8] in OmegaLayout<CounterMessage>)   — then materialize (total)
+// grammar is a defaulted build-time parameter of the instance name:
+//   OmegaLayout<CounterMessage>          — Derived (default): numbered → tagged
+//   OmegaLayout<CounterMessage, Packed>  — explicit: ignore numbers, densest form,
+//                                          same-version bytes only
 ```
 
 - `OmegaLayout` is the one Omega-native policy family. The grammar is an
@@ -229,16 +237,18 @@ hot-swap migration is a third thing with its own obligations
 ## The Implemented Encoding: `compact_binary` v0
 
 STATUS: the first implemented grammar — the **tagged grammar of
-`OmegaLayout`**. The carrier spelling is implemented (v0): a buffer declares
-`[u8; N] in OmegaLayout<Schema>` and the refinement is CHECKED — the schema
-must be identity-numbered (the packed grammar of an unnumbered schema is not
-implemented), an explicit grammar argument rejects (`Derived` is the default
-and only grammar), and every `encode_wire`/`decode_wire` call site must agree
-with the carrier's declared schema. The refinement records what the bytes
-hold and never changes what they are: the carrier stays a plain byte array
-(NOT the `{len, bytes}` text carrier), and the encoding is byte-identical to
-an unrefined buffer's. Unrefined `[u8; N]` buffers still work — the
-refinement is the stated form, not yet an obligation. The synthesized `Schema::encode_wire(&value, &mut out, &mut
+`OmegaLayout`**. The domain-instance spelling parses and validates
+(`OmegaLayout<Schema>`: the schema must be identity-numbered — the packed
+grammar of an unnumbered schema is not implemented; an explicit grammar
+argument rejects, `Derived` being the default and only grammar), and it obeys
+**mints-only** (§ "domain entry"): the domain rides BORROWED VIEWS
+(`&[u8] in OmegaLayout<Schema>`, the validate-mint's result payload — the
+mint itself is up-ladder), never owned storage. Declaring it on a stored
+`[u8; N]` is a compile error — a zeroed buffer holds no valid encoding, so a
+declared refinement would be a trivially-claimed membership. You hold the
+VALUE (`save: Save`) and encode at the edge; buffers are plain bytes. A
+refined view is a plain byte view to layout and codegen — never the
+`{len, bytes}` text carrier. The synthesized `Schema::encode_wire(&value, &mut out, &mut
 written)` encoder covers primitive integer fields (i32, i64, u32, u64, bool):
 the message's ERA DISCRIMINATOR varint comes first, then each current-era
 field in field-number order as a field-number varint followed by a value

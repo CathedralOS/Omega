@@ -11,7 +11,7 @@ data Plain {
 
 data Main {
     console: Console;
-    buffer: [u8; 64] in OmegaLayout<Plain>;
+    view: &[u8] in OmegaLayout<Plain>;
 }
 
 machine Main::main(&mut self) {

@@ -11,7 +11,7 @@ data CounterMessage {
 
 data Main {
     console: Console;
-    buffer: [u8; 64] in OmegaLayout<CounterMessage, Packed>;
+    view: &[u8] in OmegaLayout<CounterMessage, Packed>;
 }
 
 machine Main::main(&mut self) {
