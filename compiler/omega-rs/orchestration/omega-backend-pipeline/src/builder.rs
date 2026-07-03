@@ -52,13 +52,21 @@ use std::sync::Arc;
 pub(super) fn build_backend_plan_from_control_flow_with_workers(
     program: Arc<CheckedTrees>,
     target: NativeTarget,
+    freestanding: bool,
     control_flow: Arc<ControlFlowPlan>,
     workers: WorkerPoolHandle,
 ) -> Result<BackendPlan, Diagnostic> {
     let entry_point = resolve_backend_entry_point(&program)?;
     let mut phase_timings = Arena::new();
+    // A freestanding (no-host) target -- `subsystem efi_application` -- trusts no
+    // host boundary packages: EMPTY ABI plan, so no bindings, no platform
+    // lowerings, and (downstream) no import thunks. Absence = denial.
     let host_abi = record_backend_phase(&mut phase_timings, "host abi", || {
-        build_host_abi_plan(target)
+        if freestanding {
+            omega_calling_conventions::build_freestanding_abi_plan(target)
+        } else {
+            build_host_abi_plan(target)
+        }
     });
     let host_abi = Arc::new(host_abi);
     let host_call_program = Arc::clone(&program);
