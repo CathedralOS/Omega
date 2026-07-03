@@ -17,7 +17,7 @@ def _expr(rng, names, depth):
         if names and rng.random() < 0.7:
             return rng.choice(names)
         return str(rng.randint(0, 4))
-    op = rng.choice(['+', '*'])
+    op = rng.choice(['+', '-', '*'])
     return '(%s %s %s)' % (_expr(rng, names, depth - 1), op, _expr(rng, names, depth - 1))
 
 def program(seed):

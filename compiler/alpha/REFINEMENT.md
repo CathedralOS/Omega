@@ -68,6 +68,7 @@ certificate (`REC_PRELUDE`); the checker accepts a recurrence applied to a *symb
 | **Data-dependent counter loops** `i < n` / `i <= n` | **summarized** to a closed form without unrolling |
 | — accumulator `acc += a0 + a1·i` (linear in the counter) | `init + a0·trip + a1·g(trip)` — covers invariant deltas, `acc += i` (Σi), `a·i`, `a+i`, weighted/offset series |
 | Composition (pre-loop arith → loop → post-loop arith) | the summarized loop result flows through further terms |
+| Straight-line subtraction `a - b` (may underflow) | a **ℤ difference-pair** `(k 5 pos neg) = pos - neg` (see below) |
 
 Linear-in-counter deltas (`a·i`, `a+i`, `(a·i)+b`, …) refine **end to end**. Both engines decompose the
 per-iteration delta into `a0 + a1·i` (via `_lin_decompose` + `_series_closed`): `beta_symbolic` reads the delta
@@ -76,10 +77,23 @@ invariant / pure-Σi fast path, falling back to a **placeholder body iteration**
 `('slot', addr)` marker, invariant slots substituted back, the rest decomposed over the counter's marker) for
 the general case. The shared `_canon` normalizer keeps both engines' coefficient forms byte-identical.
 
-**Deliberately out of scope** (each conservatively *refused* — never mis-summarized): symbolic subtraction
-(needs the ZZ / difference-pair integers — Peano has no negatives and alpha's `sub` wraps mod 2⁶⁴);
-*genuinely* non-linear counter deltas (`i·i`, `i·total`); byte-granular memory; nested / multi-loop
-recurrences; `>` / `>=` guards (down-counting needs subtraction).
+### Straight-line subtraction via ℤ difference-pairs
+
+Peano has no negatives and alpha's `sub` opcode wraps mod 2⁶⁴, so `a - b` can't be a bare Peano term. Both
+engines instead carry a value as a **difference pair** `('zz', pos, neg)` meaning `pos - neg`, rendered
+`(k 5 pos neg)` and cert-checked by `refl` (prelude `(data 5 2 0 0)`). Arithmetic distributes over the pair
+(`(pa-na)+(pb-nb)`, `(pa-na)(pb-nb)`, `(pa-na)-(pb-nb)`); a value only becomes `zz` once a subtraction touches
+it, so pure `+`/`*`/loop paths are byte-for-byte unchanged. **Soundness:** the observable is mod 256 and
+256 | 2⁶⁴, so ℤ arithmetic reduced mod 256 equals alpha's mod-2⁶⁴ arithmetic reduced mod 256 — the pair and
+the wrapped machine value agree on every observed byte, including underflow (`0-1 → (k 5 z (s z))`, observed
+`255`). `_sub` is **identical in both engines**: a non-underflowing concrete literal difference folds to a
+nat (matching how `+`/`*` fold), an underflowing one becomes a small pair, and any symbolic operand takes the
+pair path. The concrete-fold branch also serves alpha's frame addressing (base − offset via the `sub`
+opcode), which never underflows.
+
+**Deliberately out of scope** (each conservatively *refused* — never mis-summarized): subtraction *inside a
+loop delta* (the summarizer returns `None` and safely bails — a later slice); division; *genuinely* non-linear
+counter deltas (`i·i`, `i·total`); byte-granular memory; nested / multi-loop recurrences; `>` / `>=` guards.
 
 ## How data-dependent loops are summarized (the interesting part)
 

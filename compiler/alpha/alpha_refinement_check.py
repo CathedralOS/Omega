@@ -30,6 +30,7 @@ ASM = sys.argv[3] if len(sys.argv) > 3 else None      # the beta assembler exe
 # The recurrence prelude: user-Nat (data 2=Z, 3=S) + the triangular-sum fun g(0)=0, g(s k)=g(k)+k (fun 90),
 # which alpha_symbolic/beta_symbolic emit as ('f',90,t) for `acc += i` loops. Prepended to a cert that mentions it.
 REC_PRELUDE = '(data 2 0 0 0) (data 3 1 1 0) (fun 90 2 (k 2)) (fun 90 3 (p (rec 0) (v 0)))'
+ZZ_PRELUDE = '(data 5 2 0 0)'                          # the ℤ difference-pair constructor (k 5 pos neg) = pos - neg
 
 # ---- a minimal raw-byte Alpha assembler (encoding per alpha_ref.py) ---------------------------------
 def imm(d, k): return bytes([0x01, d]) + int(k).to_bytes(8, 'little')
@@ -71,6 +72,7 @@ AUTO_SAMPLES = [
     ("countn    (DATA-DEP LOOP →n)",   "refinement-samples/countn.beta"),
     ("tri       (Σi LOOP total+=i →g(n))", "refinement-samples/tri.beta"),
     ("weighted  (LINEAR δ a*i+b)", "refinement-samples/weighted.beta"),
+    ("diff      (SUBTRACTION (a-b)*c)", "refinement-samples/diff.beta"),
     ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
     ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
     ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),
@@ -123,11 +125,12 @@ def prove_equiv(label, text, tape, ok_msg, quiet_perturb=False, trials=40, teeth
         g = '(= %s %s)' % (cterm, rhs)
         for _ in range(nC):
             g = '(All %s)' % g
-        if '(f ' in g:                                 # a recurrence ('f' user-fun): prover.py can't parse it,
-            proof = '(refl %s)' % cterm                # so emit a direct refl cert (valid iff C conv rhs) + the
-            for _ in range(nC):                        # recurrence's (fun ..) prelude, and let check.beta decide
+        if '(f ' in g or '(k ' in g:                   # user-fun recurrence and/or ℤ difference-pair: prover.py
+            prelude = (REC_PRELUDE if '(f ' in g else '') + (' ' + ZZ_PRELUDE if '(k ' in g else '')
+            proof = '(refl %s)' % cterm                # can't parse these, so emit a direct refl cert (valid iff
+            for _ in range(nC):                        # C conv rhs) with the needed decls prepended; check.beta decides
                 proof = '(gen %s)' % proof
-            cert = '%s %s %s' % (REC_PRELUDE, g, proof)
+            cert = '%s %s %s' % (prelude.strip(), g, proof)
             return subprocess.run([CHECK], input=cert, capture_output=True, text=True).stdout.strip() == 'accept'
         return prove(g)                                # Peano goal: prover.py searches, check.beta validates
     if not prove_eq(B.render(M)):                      # bc output ≡ source meaning, ∀ inputs

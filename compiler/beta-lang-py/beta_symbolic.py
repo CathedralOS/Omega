@@ -38,6 +38,12 @@ def nat(k):
 # does `acc += i` per iteration over trip count t computes g(t); expressed as ('f', TRI_ID, t) it stays a
 # closed FORM the checker accepts by refl on a symbolic input (the recurrence body is prepended as (fun ..)).
 TRI_ID = 90
+# ZZ_CID: a ℤ difference-pair value ('zz', pos, neg) means pos - neg (pos,neg Peano). Since the observable is
+# mod 256 and 256 | 2^64, ℤ arithmetic mod 256 == alpha's mod-2^64 arithmetic mod 256, so this soundly models
+# subtraction. Rendered as the constructor (k ZZ_CID pos neg); the checker accepts it by refl on symbolic pos/neg
+# (the (data ZZ_CID 2 0 0) decl is prepended to the cert). Peano stays Peano — a value becomes 'zz' only once a
+# subtraction touches it.
+ZZ_CID = 5
 
 def render(t):
     h = t[0]
@@ -45,13 +51,15 @@ def render(t):
     if h == 's':  return '(s %s)' % render(t[1])
     if h == 'v':  return '(v %d)' % t[1]
     if h == 'f':  return '(f %d %s)' % (t[1], render(t[2]))
+    if h == 'zz': return '(k %d %s %s)' % (ZZ_CID, render(t[1]), render(t[2]))
     return '(%s %s %s)' % (h, render(t[1]), render(t[2]))
 
-def evaluate(t, env):                  # concrete value under {var_index: int}
+def evaluate(t, env):                  # concrete value under {var_index: int} (ℤ; the gate observes it mod 256)
     h = t[0]
     if h == 'z':  return 0
     if h == 's':  return 1 + evaluate(t[1], env)
     if h == 'v':  return env[t[1]]
+    if h == 'zz': return evaluate(t[1], env) - evaluate(t[2], env)
     if h == 'f':                       # a user-function recurrence; TRI_ID is the triangular sum g(n)=Σ_{j<n} j
         if t[1] != TRI_ID:
             raise Unsupported('unknown recurrence fun %d' % t[1])
@@ -63,16 +71,40 @@ def evaluate(t, env):                  # concrete value under {var_index: int}
 def _term(v):
     return nat(v) if isinstance(v, int) else v
 
+# ---- ℤ difference-pair support (only engaged once a subtraction appears) -------------------------------
+_ZERO = ('z',)
+def _is_zz(v):  return isinstance(v, tuple) and v[0] == 'zz'
+def _as_zz(v):  return (v[1], v[2]) if _is_zz(v) else (_term(v), _ZERO)       # lift a Peano value to pos - 0
+def _padd(x, y):                       # Peano add of two terms, dropping an identity 0
+    if x == _ZERO: return y
+    if y == _ZERO: return x
+    return ('p', x, y)
+def _pmul(x, y):                       # Peano mul of two terms, dropping 0 and 1
+    if x == _ZERO or y == _ZERO: return _ZERO
+    if x == ONE: return y
+    if y == ONE: return x
+    return ('m', x, y)
+
 def _add(a, b):
+    if _is_zz(a) or _is_zz(b):
+        (pa, na), (pb, nb) = _as_zz(a), _as_zz(b)
+        return ('zz', _padd(pa, pb), _padd(na, nb))
     return (a + b) & MASK if isinstance(a, int) and isinstance(b, int) else ('p', _term(a), _term(b))
 
 def _mul(a, b):
+    if _is_zz(a) or _is_zz(b):          # (pa-na)(pb-nb) = (pa·pb + na·nb) - (pa·nb + na·pb)
+        (pa, na), (pb, nb) = _as_zz(a), _as_zz(b)
+        return ('zz', _padd(_pmul(pa, pb), _pmul(na, nb)), _padd(_pmul(pa, nb), _pmul(na, pb)))
     return (a * b) & MASK if isinstance(a, int) and isinstance(b, int) else ('m', _term(a), _term(b))
 
-def _sub(a, b):
+def _sub(a, b):                        # (pa-na) - (pb-nb) = (pa+nb) - (na+pb)
     if isinstance(a, int) and isinstance(b, int):
-        return (a - b) & MASK
-    raise Unsupported('symbolic subtraction (needs ZZ integers)')
+        if a >= b:
+            return (a - b) & MASK      # non-underflowing literal difference — fold to a concrete nat, as +/* do
+        (pa, na), (pb, nb) = _as_zz(a), _as_zz(b)   # underflow: a small ℤ pair, not a 2^64-1 wrap
+        return ('zz', _padd(pa, nb), _padd(na, pb))
+    (pa, na), (pb, nb) = _as_zz(a), _as_zz(b)
+    return ('zz', _padd(pa, nb), _padd(na, pb))
 
 def _concrete(v, why):
     if not isinstance(v, int):
