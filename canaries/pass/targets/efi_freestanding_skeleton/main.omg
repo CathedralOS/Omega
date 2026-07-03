@@ -10,10 +10,6 @@
 // image. With no data fields the image also has zero absolute fixups, so an
 // arbitrary-base load (OVMF) is trivially sound. The entry's literal terminal
 // lands in EAX and `ret` returns it to the firmware as the EFI_STATUS.
-target uefi_boot {
-    subsystem efi_application
-}
-
 data Main { }
 
 machine Main::main(&mut self) -> i32 {

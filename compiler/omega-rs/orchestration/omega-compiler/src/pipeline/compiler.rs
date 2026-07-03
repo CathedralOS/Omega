@@ -42,38 +42,6 @@ fn validate_boundary_providers(
     }
 }
 
-/// The PE optional-header Subsystem value the SELECTED target declares
-/// (`subsystem console|gui|efi_application` in its target block; the word set
-/// is validated at parse). Console (3) when no target is selected or the
-/// selected target declares no subsystem.
-fn resolved_target_subsystem(
-    syntax_trees: &omega_syntax_trees::SyntaxTrees,
-    target_name: Option<&str>,
-) -> u16 {
-    const CONSOLE: u16 = 3;
-    let mut targets = syntax_trees.root_items().filter_map(|item| match item {
-        omega_syntax_trees::item::Item::Target(target) => Some(target),
-        _ => None,
-    });
-    let selected = match target_name {
-        Some(target_name) => targets.find(|target| target.name.as_str() == target_name),
-        // No target named on the command line: a program declaring exactly
-        // ONE target states what it is; ambiguity falls back to console.
-        None => match (targets.next(), targets.next()) {
-            (Some(only), None) => Some(only),
-            _ => None,
-        },
-    };
-    match selected
-        .and_then(|target| target.subsystem.as_ref())
-        .map(|word| word.as_str())
-    {
-        Some("gui") => 2,
-        Some("efi_application") => 10,
-        _ => CONSOLE,
-    }
-}
-
 pub struct Compiler {
     options: CompileOptions,
 }
@@ -148,16 +116,10 @@ impl Compiler {
         // means FREESTANDING: the target trusts no host boundary packages, so
         // the backend builds against an empty host ABI plan (no bindings, no
         // import thunks -- services arrive via the entry's parameters).
-        let (subsystem, freestanding) = if build_machine_present {
-            (build_config.subsystem, build_config.freestanding)
-        } else {
-            let subsystem = resolved_target_subsystem(
-                &syntax_trees,
-                self.options.target_name.as_deref(),
-            );
-            const EFI_APPLICATION: u16 = 10;
-            (subsystem, subsystem == EFI_APPLICATION)
-        };
+        // Image facts come from build.omg (build_and_package_model.md); the
+        // in-source `target { subsystem }` word is retired.
+        let _ = build_machine_present;
+        let (subsystem, freestanding) = (build_config.subsystem, build_config.freestanding);
 
         let backend = control_flow_to_backend_plan(
             checked,

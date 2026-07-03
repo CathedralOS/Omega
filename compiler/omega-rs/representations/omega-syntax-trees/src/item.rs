@@ -331,11 +331,6 @@ impl Default for BoundaryLevel {
 pub struct TargetDefinition {
     pub name: Identifier,
     pub host: Option<TargetHost>,
-    /// The image subsystem the target's executable declares (`subsystem
-    /// console|gui|efi_application`; a closed word set validated at parse).
-    /// PE consumes it (3/2/10); other image formats ignore it. `None` =
-    /// console.
-    pub subsystem: Option<Identifier>,
     pub boundary_policies: HandleSpan<BoundaryPolicy>,
 }
 
