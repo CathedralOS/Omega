@@ -33,10 +33,13 @@ SUMMARIZABLE = [
     ("Σi  (i<=n, total+=i)",    loop("i <= n", "total = total + i"),              lambda n, a, b: n * (n + 1) // 2),
     ("Σi + n*a (two accum)",    loop("i < n",  "total = total + i  s = s + a", 'total'),
      lambda n, a, b: n * (n - 1) // 2),
+    ("a·Σi  (total += a*i)",    loop("i < n",  "total = total + (a * i)"),         lambda n, a, b: a * (n * (n - 1) // 2)),
+    ("n·a + Σi (total += a+i)", loop("i < n",  "total = total + (a + i)"),         lambda n, a, b: n * a + n * (n - 1) // 2),
+    ("2i+3 (total += (2*i)+3)", loop("i < n",  "total = total + ((2 * i) + 3)"),   lambda n, a, b: 2 * (n * (n - 1) // 2) + 3 * n),
 ]
-# loops the recognizer must REFUSE (not yet in the summarizable class) -> beta_symbolic raises Unsupported
+# loops the recognizer must REFUSE (genuinely non-linear in the counter) -> beta_symbolic raises Unsupported
 MUST_REFUSE = [
-    ("total += (i*a) (counter*inv)", loop("i < n", "total = total + (i * a)")),
+    ("total += (i*i) (counter²)",     loop("i < n", "total = total + (i * i)")),
     ("total += (a*total) (nonlinear)", loop("i < n", "total = total + (a * total)")),
 ]
 
