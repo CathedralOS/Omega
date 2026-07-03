@@ -112,12 +112,13 @@ pub(super) fn parse_item<'tokens, 'source>(
     }
 
     if input.at_contextual("abi") {
-        let input = input.take_contextual("abi")?;
-        let (abi, input) = input.take_string()?;
-        let input = input.take_keyword(KeywordKind::Machine, "machine")?;
-        let (mut item, rest) = parse_machine(syntax_trees, input)?;
-        item.abi = Some(abi);
-        return Ok((Item::Machine(item), rest));
+        // RETIRED (calling_plans.md): a string names nothing checkable. The
+        // exported-callable surface is `boundary machine ...`; its calling
+        // plan is inferred from the image subsystem (an explicit plan arrives
+        // as `boundary(<Plan>)` with the calling-plan vocabulary).
+        return Err(input.error_here(
+            "`abi \"...\"` is retired: declare the exported callable as `boundary machine ...` (calling plans are inferred from the image; see calling_plans.md)",
+        ));
     }
 
     if input.at_keyword(KeywordKind::Machine) {
@@ -196,6 +197,17 @@ pub(super) fn parse_item<'tokens, 'source>(
 
     if input.at_contextual("boundary") {
         let input = input.take_contextual("boundary")?;
+        // THE EXPORTED CALLABLE (settled 2026-07-04): `boundary machine ...`
+        // declares "we export this as a callable surface" -- the entry, a
+        // callback, an interrupt handler. Its parameter list is the
+        // boundary-trusted shape over the arrival bytes; its calling plan is
+        // inferred from the image subsystem.
+        if input.at_keyword(KeywordKind::Machine) {
+            let input = input.take_keyword(KeywordKind::Machine, "machine")?;
+            let (mut item, rest) = parse_machine(syntax_trees, input)?;
+            item.boundary = true;
+            return Ok((Item::Machine(item), rest));
+        }
         if input.at_contextual("operator") {
             let input = input.take_contextual("operator")?;
             let (item, rest) = parse_operator_definition(syntax_trees, input, true)?;

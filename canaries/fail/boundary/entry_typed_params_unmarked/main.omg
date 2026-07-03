@@ -1,0 +1,9 @@
+// FAIL (the MARKING LAW, settled 2026-07-04): an entry that imposes STRUCTURE
+// on the platform's arrival bytes -- any parameter beyond raw `&[u8]` -- is an
+// exported callable making a shape claim, and the claim must be declared
+// where lies can happen: `boundary machine`. Raw `&[u8]` carries no claim and
+// needs no marking.
+data Main { }
+machine Main::run(&self, handle: addr, table: addr) -> i32 {
+    transition { _ -> (0) }
+}

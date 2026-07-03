@@ -557,7 +557,10 @@ impl Default for ProofMembershipFact {
 pub struct Machine {
     pub name: Identifier,
     pub attached_data: Option<Identifier>,
-    pub abi: Option<String>,
+    /// The EXPORTED-CALLABLE marking (`boundary machine ...`): this machine
+    /// is a callable surface the platform (or a foreign caller) invokes; its
+    /// parameters are the boundary-trusted shape over the arrival bytes.
+    pub boundary: bool,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub satisfies: HandleSpan<Identifier>,
     pub terminates: bool,
