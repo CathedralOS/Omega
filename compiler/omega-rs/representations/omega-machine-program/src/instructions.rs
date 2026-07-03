@@ -86,6 +86,9 @@ pub enum MachineInstructionKind {
     DispatchStateWrite,
     ReturnRegisterIntegerWrite,
     RuntimeStorageCopyToReturnRegister,
+    /// Entry prologue: store an incoming argument register into the entry
+    /// parameter's frame slot (the calling plan's inbound direction).
+    EntryArgumentRegisterWrite,
     DispatchTerminate,
     DispatchCaseLeave,
     HostCallSequence,

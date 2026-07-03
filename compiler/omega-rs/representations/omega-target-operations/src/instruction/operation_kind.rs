@@ -282,6 +282,12 @@ pub enum TargetOperationKind {
         byte_size: usize,
         value: i64,
     },
+    /// Entry prologue: store the platform's incoming argument register
+    /// (MS-x64: 0=RCX 1=RDX 2=R8 3=R9) into the entry parameter's frame slot.
+    WriteEntryArgumentRegister {
+        argument_index: u8,
+        byte_offset: usize,
+    },
     WriteRuntimePointeeInteger {
         pointer_byte_offset: usize,
         field_byte_offset: usize,

@@ -17302,6 +17302,62 @@ fn efi_freestanding_skeleton_emits_importless_subsystem_10_pe() {
 }
 
 #[test]
+fn efi_entry_arguments_prologue_unmarshals_rcx_rdx() {
+    // The entry prologue's argument unmarshal (BOOT-VERIFIED under QEMU/OVMF:
+    // the same program returns 4 without the stub and 5 with it -- firmware's
+    // ImageHandle arrives through RCX). Pin the emitted OPCODE SKELETON at the
+    // very start of .text so CI needs no QEMU: for each of the two declared
+    // parameters, `mov r15, imm64` (49 BF <8-byte frame base, relocated>) then
+    // `mov [r15+disp32], rcx/rdx` (49 89 8F / 49 89 97 + disp32 0 / 8).
+    let canary = pass_canary("targets/efi_entry_arguments");
+    let build_dir = std::env::temp_dir().join(format!("omega-efi-args-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("EFI entry-arguments canary should compile");
+
+    let image = fs::read(build_dir.join(executable_name())).expect("emitted image should exist");
+    // Locate .text's raw offset from the section table.
+    let e_lfanew = u32::from_le_bytes(image[0x3c..0x40].try_into().unwrap()) as usize;
+    let optional_size =
+        u16::from_le_bytes(image[e_lfanew + 20..e_lfanew + 22].try_into().unwrap()) as usize;
+    let section_count = u16::from_le_bytes(image[e_lfanew + 6..e_lfanew + 8].try_into().unwrap());
+    let sections = e_lfanew + 4 + 20 + optional_size;
+    let text_raw = (0..section_count as usize)
+        .map(|index| sections + index * 40)
+        .find(|offset| &image[*offset..*offset + 6] == b".text\0")
+        .map(|offset| {
+            u32::from_le_bytes(image[offset + 20..offset + 24].try_into().unwrap()) as usize
+        })
+        .expect(".text section should exist");
+
+    let entry = &image[text_raw..text_raw + 34];
+    // Store 0: mov r15, imm64 ; mov [r15+0], rcx
+    assert_eq!(&entry[0..2], &[0x49, 0xbf], "store 0: mov r15, imm64");
+    assert_eq!(
+        &entry[10..13],
+        &[0x49, 0x89, 0x8f],
+        "store 0: mov [r15+disp32], rcx"
+    );
+    assert_eq!(&entry[13..17], &0u32.to_le_bytes(), "param 0 frame offset 0");
+    // Store 1: mov r15, imm64 ; mov [r15+8], rdx
+    assert_eq!(&entry[17..19], &[0x49, 0xbf], "store 1: mov r15, imm64");
+    assert_eq!(
+        &entry[27..30],
+        &[0x49, 0x89, 0x97],
+        "store 1: mov [r15+disp32], rdx"
+    );
+    assert_eq!(&entry[30..34], &8u32.to_le_bytes(), "param 1 frame offset 8");
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     for canary_name in ACTIVE_FAIL_CANARIES {
         let canary = fail_canary(canary_name);
@@ -17946,6 +18002,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/stores_capability",
     "capabilities/host_provides_binding_forms",
     "targets/efi_freestanding_skeleton",
+    "targets/efi_entry_arguments",
     "arithmetic/narrowing_flow_and_widen_permitted",
     "comptime/runtime_const_array_length_exit",
     "layouts/runtime_plan_laid_value_field_exit",

@@ -31,6 +31,7 @@ use omega_instruction_selection::{
     runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width,
     runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width,
     runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width,
+    entry_argument_register_write_width,
     runtime_storage_copy_to_return_register_width,
     runtime_storage_copy_to_runtime_frame_indexed_width,
     runtime_storage_copy_to_runtime_pointee_width, runtime_storage_copy_width,
@@ -977,6 +978,9 @@ fn machine_instruction_width(
             *byte_offset,
             *byte_size,
         ),
+        SelectedInstructionKind::WriteEntryArgumentRegister { .. } => {
+            entry_argument_register_write_width(input.target.architecture)
+        }
         SelectedInstructionKind::LeaveDispatchCase => {
             dispatch_case_leave_width(input.target.architecture)
         }
