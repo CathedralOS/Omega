@@ -18057,6 +18057,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "layouts/plan_laid_policy_without_plan_machine",
     "control_flow/transition_fall_through_bool",
     "control_flow/transition_fall_through_value_match",
+    "wire/decode_into_ranged_field",
     "wire/layout_domain_on_stored_bytes",
     "wire/layout_domain_grammar_not_implemented",
     "wire/layout_domain_unnumbered_schema",

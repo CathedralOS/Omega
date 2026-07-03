@@ -1,0 +1,37 @@
+// HOSTILE PAYLOAD vs DECLARED RANGE: the value field is u32 [0..=100]; the
+// hand-crafted payload carries 200. If decode stores it, a "proven" fact is
+// violated by wire input.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Msg {
+    0: v: u32;
+}
+data Val {
+    v: u32 [0..=100];
+}
+data Main {
+    console: Console;
+    buffer: [u8; 32];
+    read: usize;
+    ok: bool;
+}
+machine Main::main(&mut self) {
+    // era 0 -> 0x00; tag 0 -> 0x00; value 200 -> varint 0xC8 0x01
+    self.buffer[0] = 0;
+    self.buffer[1] = 0;
+    self.buffer[2] = 200;
+    self.buffer[3] = 1;
+
+    let decoded: Val = Val { v: 0 };
+    Msg::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+
+    transition {
+        self.ok && decoded.v == 200 -> broken()
+        self.ok -> in_range()
+        _ -> rejected()
+    }
+    state broken(&mut self)   { self.console.exit_process(66); }
+    state in_range(&mut self) { self.console.exit_process(70); }
+    state rejected(&mut self) { self.console.exit_process(71); }
+}

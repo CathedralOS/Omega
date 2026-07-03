@@ -6,6 +6,37 @@ use omega_typed_trees::TypedTrees;
 use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use omega_typed_trees::wire::{WireField, WireMember, WireReserved, WireSchema, WireVersion};
 
+/// Whether a declared type carries a RANGE fact, walking `&`/constraint
+/// shells. The decoder cannot yet ESTABLISH declared facts from untrusted
+/// bytes, so a ranged decode target is rejected (see the decode fence).
+fn declared_type_carries_range(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+    if !handle.is_valid() {
+        return false;
+    }
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            declared_type_carries_range(program, *referee)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            program
+                .type_reference_table
+                .constraints(*constraints)
+                .iter()
+                .any(|constraint| {
+                    matches!(
+                        constraint,
+                        omega_typed_trees::types::TypeConstraintNode::Range { .. }
+                    )
+                })
+                || declared_type_carries_range(program, *base_type)
+        }
+        _ => false,
+    }
+}
+
 /// Validates `wire data` protocol schemas (chapter 20): stable field numbers,
 /// reserved (retired) tags, version eras, resolvable field types, and the
 /// checkable compatibility rules along the VERSION CHAIN -- each declared era
@@ -1036,6 +1067,25 @@ fn validate_wire_decode_call(
                     program.display_type_reference(field.type_reference)
                 )));
             }
+            // SOUNDNESS FENCE (probed 2026-07-02: a hostile payload stored 200
+            // into a `u32 [0..=100]` field with ok = true): the decoder writes
+            // wire values STRAIGHT into fields, so it cannot yet establish a
+            // declared range fact -- and every downstream proof trusts that
+            // fact. Until decode validation checks ranges as part of the mint,
+            // a ranged decode target is a clean error.
+            if declared_type_carries_range(program, value_field.type_reference) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "`{}::decode_wire` value field `{}.{}` declares a range fact (`{}`), but \
+                     the decoder cannot yet establish declared facts from untrusted bytes -- \
+                     a hostile payload would violate the invariant downstream proofs trust. \
+                     Decode into an unconstrained field and guard the value into the ranged \
+                     place",
+                    schema.name,
+                    value_data.name,
+                    field.name,
+                    program.display_type_reference(value_field.type_reference)
+                )));
+            }
         }
         // A `&[u8]` schema field decodes into a `&[u8]` value field (a zero-copy
         // view of the buffer); the value's data field must match.
@@ -1220,6 +1270,21 @@ fn validate_nested_value_field(
                 schema.name, child_value_data.name, child_field.name, child.name, child_field.number
             )));
             continue;
+        };
+        // The decode soundness fence, one level down (see the top-level
+        // decode loop): a nested ranged field would take hostile bytes too.
+        if machine_name == "decode_wire"
+            && declared_type_carries_range(program, child_value_field.type_reference)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "`{}::decode_wire` nested value field `{}.{}` declares a range fact (`{}`), \
+                 but the decoder cannot yet establish declared facts from untrusted bytes. \
+                 Decode into an unconstrained field and guard the value into the ranged place",
+                schema.name,
+                child_value_data.name,
+                child_field.name,
+                program.display_type_reference(child_value_field.type_reference)
+            )));
         };
         if program.primitive_type_reference(child_value_field.type_reference)
             != program.primitive_type_reference(child_field.type_reference)
