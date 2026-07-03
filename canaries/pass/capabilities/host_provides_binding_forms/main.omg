@@ -1,14 +1,15 @@
-// Provides-table Binding sum (extern brief §12.1): each `provides` arm binds a
-// boundary-trait method to ONE mechanism of the compiler-known, CLOSED `Binding`
-// sum -- `Syscall(n)`, `DllImport("module", "symbol")`, or `VtableSlot(n)`. This
-// exercises all three RHS forms parsing in one target's provides table.
+// Provides-table Binding sum (extern brief §3/§12.1): a target's `provides` table
+// binds each boundary-trait method to ONE mechanism of the compiler-known, CLOSED
+// `Binding` sum -- `Syscall(n)`, `DllImport("module", "symbol")`, or
+// `VtableSlot(n)`. Uses the settled IDENTIFIER-LED form `<target> provides <Trait>`
+// (no `host` keyword, the Cathedral surface) and exercises all three RHS forms.
 boundary trait Mixed {
     machine via_syscall() effects stdout_io;
     machine via_import() effects stdout_io;
     machine via_vtable() effects stdout_io;
 }
 
-host demo_target provides Mixed {
+demo_target provides Mixed {
     via_syscall -> Syscall(1);
     via_import  -> DllImport("kernel32", "WriteFile");
     via_vtable  -> VtableSlot(2);
