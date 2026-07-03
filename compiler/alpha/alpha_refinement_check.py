@@ -20,6 +20,7 @@ import beta_symbolic as B                              # source-side symbolic ev
 import beta_interp                                     # concrete Beta interpreter (pins the source meaning)
 import refinement_fuzz_gen                             # random straight-line arithmetic Beta programs
 import refinement_loop_gen                              # random data-dependent linear-loop Beta programs
+import refinement_compose_gen                           # random composed programs: pre-loop + loop + post-loop
 from bc2 import lex, Parser
 ALPHA_REF = os.path.join(HERE, 'alpha_ref.py')
 PROVER = os.path.join(HERE, '..', 'delta', 'prover.py')
@@ -140,6 +141,10 @@ def check_loop_fuzz(seed):
     text = refinement_loop_gen.program(seed)              # a data-dependent loop: BOTH sides must summarize
     return prove_equiv("loop seed %d" % seed, text, compile_beta_text(text), "", quiet_perturb=True, trials=8, teeth=False)
 
+def check_compose_fuzz(seed):
+    text = refinement_compose_gen.program(seed)           # pre-loop + loop + post-loop: the summarizers COMPOSED
+    return prove_equiv("compose seed %d" % seed, text, compile_beta_text(text), "", quiet_perturb=True, trials=8, teeth=False)
+
 def run_ref(tape, stdin_bytes):
     with tempfile.NamedTemporaryFile(delete=False) as f:
         f.write(tape); path = f.name
@@ -215,6 +220,12 @@ def main():
         for seed in range(1, nloop + 1):
             total += 1; ok = check_loop_fuzz(seed); passed += ok; lpass += ok
         print("   %d/%d random loop programs certified (bc compiles counter loops correctly for all inputs)" % (lpass, nloop))
+        ncomp = int(os.environ.get('REFINE_COMPOSE_FUZZ', '10'))
+        print(" COMPOSE FUZZ: random pre-loop + loop + post-loop programs (summarizers composed, ∀ inputs):")
+        cpass = 0
+        for seed in range(1, ncomp + 1):
+            total += 1; ok = check_compose_fuzz(seed); passed += ok; cpass += ok
+        print("   %d/%d random composed programs certified (loop result flows through further arithmetic)" % (cpass, ncomp))
     else:
         print(" (real-bc samples skipped: bc.exe / assembler not provided)")
     print("%d/%d refinement checks passed" % (passed, total))
