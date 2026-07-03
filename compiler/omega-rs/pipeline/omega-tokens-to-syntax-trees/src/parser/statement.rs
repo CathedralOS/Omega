@@ -289,34 +289,19 @@ fn parse_relax_statement_handle<'tokens, 'source>(
     ))
 }
 
+/// RETIRED (settled 2026-07-02: "if isn't a thing"). The `if` STATEMENT had
+/// no `else` and never set a continuation, so its dispatch could always fall
+/// through -- unwritable since the no-silent-fall-through rule, and used
+/// exactly once in the whole corpus. Dispatch is `transition`. (The pattern
+/// guard `Type::Case { x } if x > 3 ->` inside a transition arm is a
+/// DIFFERENT surface and stays.)
 fn parse_if_transition_statement_handle<'tokens, 'source>(
-    syntax_trees: &mut SyntaxTrees,
+    _syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, StatementHandle> {
-    let input = input.take_keyword(KeywordKind::If, "if")?;
-    let (condition, input) = parse_expression_handle(syntax_trees, input)?;
-    let input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
-    let (target, input) = if input.at_punctuation(PunctuationKind::RightBrace) {
-        (
-            syntax_trees
-                .statements
-                .insert_transition_target(TransitionTargetNode::Terminal),
-            input,
-        )
-    } else {
-        parse_transition_block_target_handle(syntax_trees, input)?
-    };
-    let input = input.take_punctuation(PunctuationKind::RightBrace, "}")?;
-
-    Ok((
-        syntax_trees
-            .statements
-            .insert(StatementNode::Transition(TableTransition {
-                target,
-                continuation: TransitionTargetHandle::invalid(),
-                guard: TransitionGuardNode::When(condition),
-            })),
-        input,
+    Err(input.error_here(
+        "the `if` statement is retired; dispatch is `transition <guard> { true -> ... _ -> ... }` \
+         (every arm set must provably cover all cases)",
     ))
 }
 

@@ -1,0 +1,16 @@
+// "if isn't a thing" (settled 2026-07-02): the `if` statement is retired --
+// it had no `else` and no continuation, so its dispatch could always fall
+// through. Dispatch is `transition`, whose arms must provably cover.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    x: i32;
+}
+machine Main::main(&mut self) {
+    if self.x == 3 {
+        done()
+    }
+    state done(&mut self) { self.console.exit_process(0); }
+}
