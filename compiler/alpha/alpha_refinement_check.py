@@ -79,6 +79,8 @@ AUTO_SAMPLES = [
     ("gtguard   (>-SPELLED GUARD i>0 →n*a)", "refinement-samples/gtguard.beta"),
     ("neq       (!=-GUARDED LOOP i!=n →n*a)", "refinement-samples/neq.beta"),
     ("nested    (OUTER-SYM × INNER-CONCRETE →3na)", "refinement-samples/nested.beta"),
+    ("nested_sym (RECURSIVE SUMMARY j<m →n·m·a)", "refinement-samples/nested_sym.beta"),
+    ("tri_nested (TRIANGULAR j<i →a·g(n))", "refinement-samples/tri_nested.beta"),
     ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
     ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
     ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),

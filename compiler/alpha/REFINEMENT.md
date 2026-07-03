@@ -119,7 +119,7 @@ not recognized. Counter-dependent deltas work through the substitution `i ↦ n�
 sums to `(a0 + a1·n)·t − a1·g(t)`, so `_down_series` folds the linear part into the invariant coefficient
 and routes each component's `g` cross-term to the *other* side of the pair (shared recipe in both engines).
 
-### Nested loops with a concrete inner bound
+### Nested loops
 
 `while (i < n) { 3× total += a }` certifies without new closed-form theory: the outer body's single
 placeholder run **unrolls the inner loop concretely** (alpha's `_run_body_once` gained concrete-only
@@ -127,12 +127,22 @@ conditional branches; beta's summarizer walks the multi-state body *region* with
 main interpreter), leaving the additive spine `((total + a) + a) + a`. The shared `_peel` extracts the
 per-iteration delta `(a + a) + a` from any such spine — left-first, preserving tree shape so both engines
 build identical terms — and the ordinary series machinery does the rest: `n · ((a+a)+a)`. Body-introduced
-vars (the inner counter `j`) are kept after the loop only if their value is iteration-independent.
+vars (the inner counter `j`) are kept after the loop only if their value is iteration-independent; the rest
+are dropped, and a post-loop read of a dropped var refuses.
+
+A **symbolic** inner bound summarizes **recursively**: when the body run meets an inner symbolic guard, the
+same summarizer runs at depth+1 (both engines; depth capped at 8), and the inner closed form — expressed
+over the *outer* run's markers — becomes the outer per-iteration delta. Markers of slots the inner loop
+doesn't move pass through its decompose as opaque constants (`_lin_decompose` takes the *moved* set, so an
+outer marker is "invariant here") and resolve at the outer level. This composes with everything the single-
+loop machinery knows: `j < m` gives the invariant delta `m·a` → `n·(m·a)`; `total += j` inside gives
+`g(m)` → `n·g(m)`; and the **triangular** `j < i` (inner bound = outer counter) makes the outer delta
+counter-linear `a·i` → `a·g(n)`. `Σ g(i)` (inner `j < i, total += j`) is quadratic in the outer counter —
+refused on both sides.
 
 **Deliberately out of scope** (each conservatively *refused* — never mis-summarized): scaling recurrences
-(`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`, up or down);
-ℤ-pair trip counts; byte-granular memory; nested loops with a **symbolic** inner bound (needs recursive
-summarization — the next mountain); loop bodies containing calls or returns.
+(`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`, tetrahedral `Σg`);
+ℤ-pair trip counts; byte-granular memory; loop bodies containing calls or returns.
 
 ## How data-dependent loops are summarized (the interesting part)
 

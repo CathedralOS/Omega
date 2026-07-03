@@ -165,10 +165,12 @@ def _cmp_idiom(tape, pc):
         return None
     return (rz, lj, op, fv)
 
-def _run_body_once(tape, start_pc, header, MEM, R, sp):
-    """Speculatively execute ONE loop iteration (concrete control only) from start_pc until pc jumps back to
-    `header`; return the resulting memory. Operates on copies, so the caller's state is untouched. This is the
-    EXACT per-iteration transition — one iteration is straight-line, so no sampling is involved."""
+def _run_body_once(tape, backedges, start_pc, header, MEM, R, sp, depth=0):
+    """Speculatively execute ONE loop iteration from start_pc until pc jumps back to `header`; return the
+    resulting memory. Operates on copies, so the caller's state is untouched. Control must be concrete —
+    EXCEPT an inner loop guard: an inner loop with a concrete bound unrolls right here, and one with a
+    SYMBOLIC bound is summarized recursively via _summarize, its closed forms (over this run's slot markers)
+    flowing into the outer deltas. This is the EXACT per-iteration transition."""
     MEM = dict(MEM); R = dict(R); pc = start_pc; steps = 0
     def reg(i):
         return R.get(i, 0)
@@ -189,16 +191,38 @@ def _run_body_once(tape, start_pc, header, MEM, R, sp):
         elif op == 0x05: d = tape[pc + 1]; R[d] = _mul(reg(d), reg(tape[pc + 2])); pc += 3
         elif op == 0x0A: a = _concrete(reg(tape[pc + 2]), 'load'); R[tape[pc + 1]] = MEM.get(a, 0); pc += 3
         elif op == 0x0B: a = _concrete(reg(tape[pc + 1]), 'store'); MEM[a] = reg(tape[pc + 2]); pc += 3
-        elif op in (0x0D, 0x0E):                        # jz / jnz on a CONCRETE value — an inner loop with a
-            c = _concrete(reg(tape[pc + 1]),            # concrete bound unrolls right here; a symbolic inner
-                          'symbolic branch inside a summarized loop body')   # guard refuses (a later slice)
-            taken = (c == 0) if op == 0x0D else (c != 0)
-            pc = _le8(tape, pc + 2) if taken else pc + 10
-        elif op in (0x0F, 0x10):                        # jlt / jeq, both operands concrete
-            x = _concrete(reg(tape[pc + 1]), 'symbolic compare inside a summarized loop body')
-            y = _concrete(reg(tape[pc + 2]), 'symbolic compare inside a summarized loop body')
-            hit = (_s64(x) < _s64(y)) if op == 0x0F else (x == y)
-            pc = _le8(tape, pc + 3) if hit else pc + 11
+        elif op in (0x0D, 0x0E):                        # jz / jnz
+            c = reg(tape[pc + 1])
+            if isinstance(c, tuple) and c and c[0] == 'cmp':    # an INNER symbolic loop guard: recurse
+                if op == 0x0D:
+                    exit_pc, cont_pc = _le8(tape, pc + 2), pc + 10
+                else:
+                    exit_pc, cont_pc = pc + 10, _le8(tape, pc + 2)
+                nxt = _summarize(tape, backedges, c, cont_pc, exit_pc, MEM, R, sp, depth + 1)
+                if nxt is None:
+                    raise Unsupported('inner loop not in the summarizable linear class')
+                pc = nxt
+            else:
+                c = _concrete(c, 'symbolic branch inside a summarized loop body')
+                taken = (c == 0) if op == 0x0D else (c != 0)
+                pc = _le8(tape, pc + 2) if taken else pc + 10
+        elif op in (0x0F, 0x10):                        # jlt / jeq — concrete compares branch; a symbolic
+            x, y = reg(tape[pc + 1]), reg(tape[pc + 2])  # one becomes a boolean via bc's idiom (as in symexec)
+            if isinstance(x, int) and isinstance(y, int):
+                hit = (_s64(x) < _s64(y)) if op == 0x0F else (x == y)
+                pc = _le8(tape, pc + 3) if hit else pc + 11
+            else:
+                idiom = _cmp_idiom(tape, pc)
+                if idiom is None:
+                    raise Unsupported('symbolic comparison outside the recognized boolean idiom')
+                rz, lj, iop, fv = idiom
+                if iop == 0x0F and fv == 0:
+                    R[rz] = ('cmp', 'lt', x, y)
+                elif iop == 0x0F and fv == 1:
+                    R[rz] = ('cmp', 'le', y, x)
+                else:
+                    R[rz] = ('cmp', 'eq' if fv == 0 else 'ne', x, y)
+                pc = lj
         else:
             raise Unsupported('loop body opcode 0x%02x (only straight-line +/*/mem summarizable)' % op)
 
@@ -290,19 +314,30 @@ def _scale2(coef, x):
     if coef == 1: return x
     return ('m', _term(coef), _term(x))
 
-def _lin_decompose(delta, ctr):        # delta = a0 + a1·ctr over ('slot',*) markers; None if not linear in ctr
+def _mentions_marked(t, marked):       # does term `t` mention any marker in the `marked` set?
+    if t in marked:
+        return True
+    if isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'f', 'zz'):
+        return any(_mentions_marked(x, marked) for x in t[1:])
+    return False
+
+def _lin_decompose(delta, ctr, moved):
+    """delta = a0 + a1·ctr, a0/a1 free of every marker in `moved` (THIS loop's changing slots); None if not
+    linear in the counter. Markers NOT in `moved` are someone else's (an OUTER loop's placeholder context in a
+    nested summarization) and are loop-invariant HERE — they pass through as opaque constants, exactly as
+    beta_symbolic's decompose treats non-loop-var markers."""
     def dec(t):
         if t == ctr:
             return (0, 1)
-        if not _mentions_slot(t):
-            return (t, 0)                                # loop-invariant (no slot markers left after substitution)
+        if not _mentions_marked(t, moved):
+            return (t, 0)                                # invariant in THIS loop (outer markers stay opaque)
         if isinstance(t, tuple):
             if t[0] == 'p':
                 l, r = dec(t[1]), dec(t[2])
                 return None if l is None or r is None else (_sum2(l[0], r[0]), _sum2(l[1], r[1]))
             if t[0] == 'm':
-                inv, oth = ((t[1], t[2]) if not _mentions_slot(t[1]) else
-                            (t[2], t[1]) if not _mentions_slot(t[2]) else (None, None))
+                inv, oth = ((t[1], t[2]) if not _mentions_marked(t[1], moved) else
+                            (t[2], t[1]) if not _mentions_marked(t[2], moved) else (None, None))
                 if inv is None:
                     return None                          # counter·counter or counter·another-slot: non-linear
                 d = dec(oth)
@@ -353,6 +388,125 @@ def _slot_delta(s0, s1):
             return ('zz', dp, s1[2])
     return None
 
+def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
+    """cond = ('cmp', kind, L, R) guards a loop that continues to cont_pc and exits to exit_pc. Read the
+    per-iteration transition off ONE speculative body run, recognize a unit-stride counter from 0 (or a
+    down/!=-guarded equivalent) and linear-in-counter accumulator deltas, and replace the loop by each
+    accumulator's closed form. Mutates the GIVEN MEM to the post-loop state; returns exit_pc, or None if the
+    loop is outside the summarizable class (caller then bails). Module-level so _run_body_once can recurse
+    into it: an INNER loop with a symbolic bound met during a body run is summarized in place, its closed
+    forms (over the outer run's slot markers) flowing into the outer deltas."""
+    if depth > 8:
+        return None                                     # nesting depth guard (mutual recursion backstop)
+    kind, L, Rb = cond[1], cond[2], cond[3]
+    if kind == 'ne':
+        # Over ℕ with a unit-stride counter, != is <: one side must be the literal 0 — `i != n` from 0
+        # (L is the counter's concrete entry 0) hits n exactly, and `i != 0` maps to the 0 < i down shape.
+        # The counter checks below enforce exactly the entry/stride conditions the exact-hit needs; a
+        # stride that could SKIP the bound (the machine diverges) fails the ±1 checks and refuses.
+        if L == 0:
+            kind = 'lt'
+        elif Rb == 0:
+            kind, L, Rb = 'lt', 0, L
+    if kind not in ('lt', 'le') or not isinstance(L, int):
+        return None                                 # `counter < bound` / `counter <= bound`, counter concrete at entry
+    if L != 0:
+        return None                                 # trip = Rb assumes the counter ENTERS at 0 (beta requires
+                                                    # entry 0 too); a nonzero start needs trip = Rb - L: refused
+    header = next((h for h, j in backedges.items() if h <= cont_pc <= j), None)
+    if header is None:
+        return None
+    try:                                            # run THREE body iterations from the concrete header state
+        S1 = _run_body_once(tape, backedges, cont_pc, header, MEM, R, sp, depth)
+        S2 = _run_body_once(tape, backedges, cont_pc, header, S1, R, sp, depth)
+        S3 = _run_body_once(tape, backedges, cont_pc, header, S2, R, sp, depth)
+    except Unsupported:
+        return None
+    r15 = R.get(15, 0)                              # frame locals sit at/above the data-stack top
+    carried = [a for a in MEM if isinstance(a, int) and a >= r15
+               and (S1.get(a) != MEM[a] or S2.get(a) != MEM[a] or S3.get(a) != MEM[a])]
+    trip = Rb if kind == 'lt' else _add(Rb, 1)      # `<`: 0..R-1 = R iters ; `<=`: 0..R = R+1 iters
+    # FAST PATH — finite differences over the 3 iterations (invariant + pure-Σi deltas)
+    updates = {}; have_counter = False; general = False
+    for a in carried:
+        s0 = MEM[a]
+        d1, d2, d3 = _slot_delta(s0, S1[a]), _slot_delta(S1[a], S2[a]), _slot_delta(S2[a], S3[a])
+        if d1 == d2 == d3 and d1 is not None and not (isinstance(d1, tuple) and d1[0] in ('cmp', 'zz')):
+            if _concnat(d1) == 1 and s0 == L:
+                have_counter = True                 # a unit-stride counter from L makes the loop run `trip` times
+            updates[a] = _series_closed(s0, _canon(d1), 0, trip)
+        elif (_concnat(d1), _concnat(d2), _concnat(d3)) == (0, 1, 2):   # increment(k)==k -> Σ_{k<trip}k = g(trip)
+            updates[a] = _series_closed(s0, 0, 1, trip)
+        else:
+            general = True; break                   # a·i / a+i / … -> the general placeholder path below
+    if not general:
+        if not have_counter:
+            return None
+        MEM.update(updates)
+        return exit_pc
+    # GENERAL PATH — one placeholder iteration: read each δ as a term over ('slot',*) markers, then decompose
+    frame = [a for a in MEM if isinstance(a, int) and a >= r15]
+    PMEM = dict(MEM)
+    for a in frame:
+        PMEM[a] = ('slot', a)
+    try:
+        PS = _run_body_once(tape, backedges, cont_pc, header, PMEM, R, sp, depth)
+    except Unsupported:
+        return None
+    raw = {}
+    for a in frame:
+        d = _slot_delta(('slot', a), PS.get(a, ('slot', a)))
+        if d is None or (isinstance(d, tuple) and d[0] == 'cmp'):
+            return None
+        raw[a] = d
+    invariant = {a for a in frame if raw[a] == 0}   # slots unchanged this iteration hold loop-invariant values
+    moved = [a for a in frame if raw[a] != 0]
+    down = False
+    counters = [a for a in moved if _canon(raw[a]) == 1 and MEM[a] == L]
+    if not counters:
+        # DOWN-count: guard `0 < i` (L the concrete 0, Rb the counter's symbolic entry value) with a slot
+        # stepping by the ℤ pair -1 — it drains I, I-1, …, 1, so exactly trip = Rb iterations. `0 <= i`
+        # with -1 never terminates and is not recognized. A ℤ-pair entry value can't be a trip count yet.
+        if kind != 'lt' or L != 0 or (isinstance(Rb, tuple) and Rb[0] == 'zz'):
+            return None
+        counters = [a for a in moved if _is_negone(raw[a]) and MEM[a] == Rb]
+        if not counters:
+            return None
+        down = True
+    ctr = ('slot', counters[0])
+    movedset = {('slot', a) for a in moved}
+    updates = {}
+    for a in moved:
+        d = raw[a]
+        if isinstance(d, tuple) and d[0] == 'zz':   # subtracting accumulator: pos/neg components follow
+            P = _subst_slots(d[1], MEM, invariant)  # independent additive recurrences — summarize each
+            N = _subst_slots(d[2], MEM, invariant)
+            if _has_zz(P) or _has_zz(N):
+                return None                         # a zz value nested in a component: beta distributes
+            dp, dn = _lin_decompose(P, ctr, movedset), _lin_decompose(N, ctr, movedset)
+            if dp is None or dn is None:
+                return None
+            p0, n0 = _as_zz(MEM[a])
+            if down:                                # i ↦ n-k: linear parts fold into the invariant
+                updates[a] = _down_series(p0, n0, dp[0], dp[1], dn[0], dn[1], trip)
+            else:                                   # coefficient, g cross-terms swap components
+                updates[a] = ('zz', _series_closed(p0, _canon(dp[0]), _canon(dp[1]), trip),
+                                    _series_closed(n0, _canon(dn[0]), _canon(dn[1]), trip))
+            continue
+        sub = _subst_slots(d, MEM, invariant)       # δ = a0 + a1·counter
+        if _has_zz(sub):
+            return None                             # invariant zz feeding a plain delta: beta distributes
+        dec = _lin_decompose(sub, ctr, movedset)
+        if dec is None:
+            return None                             # δ not linear in the counter (i·i, cross-accumulator, …)
+        if down and _canon(dec[1]) != 0:            # counter-dependent plain δ under a down-counter:
+            p0, n0 = _as_zz(MEM[a])                 # the -a1·g(t) cross-term makes the result a ℤ pair
+            updates[a] = _down_series(p0, n0, dec[0], dec[1], 0, 0, trip)
+            continue
+        updates[a] = _series_closed(MEM[a], _canon(dec[0]), _canon(dec[1]), trip)
+    MEM.update(updates)
+    return exit_pc
+
 def symexec(tape):
     """Symbolically execute a loop-free Alpha tape. Returns (output_term, n_inputs), where inputs are
     (v 0)..(v n-1) in `read` order. Raises Unsupported on anything outside the loop-free, concrete-control,
@@ -370,118 +524,7 @@ def symexec(tape):
         return int.from_bytes(tape[at:at + 8], 'little')
 
     def summarize(cond, cont_pc, exit_pc):
-        """cond = ('cmp','lt'|'eq', L, R) guards a loop that continues to cont_pc and exits to exit_pc. Read the
-        per-iteration transition off ONE speculative body run, recognize a unit-stride counter `L < R` from 0
-        and loop-invariant accumulator deltas, and replace the loop by each accumulator's closed form
-        init + trip*delta (trip = R). Mutates MEM to the post-loop state; returns exit_pc, or None if the loop
-        is outside the summarizable class (caller then bails)."""
-        kind, L, Rb = cond[1], cond[2], cond[3]
-        if kind == 'ne':
-            # Over ℕ with a unit-stride counter, != is <: one side must be the literal 0 — `i != n` from 0
-            # (L is the counter's concrete entry 0) hits n exactly, and `i != 0` maps to the 0 < i down shape.
-            # The counter checks below enforce exactly the entry/stride conditions the exact-hit needs; a
-            # stride that could SKIP the bound (the machine diverges) fails the ±1 checks and refuses.
-            if L == 0:
-                kind = 'lt'
-            elif Rb == 0:
-                kind, L, Rb = 'lt', 0, L
-        if kind not in ('lt', 'le') or not isinstance(L, int):
-            return None                                 # `counter < bound` / `counter <= bound`, counter concrete at entry
-        if L != 0:
-            return None                                 # trip = Rb assumes the counter ENTERS at 0 (beta requires
-                                                        # entry 0 too); a nonzero start needs trip = Rb - L: refused
-        header = next((h for h, j in backedges.items() if h <= cont_pc <= j), None)
-        if header is None:
-            return None
-        try:                                            # run THREE body iterations from the concrete header state
-            S1 = _run_body_once(tape, cont_pc, header, MEM, R, sp)
-            S2 = _run_body_once(tape, cont_pc, header, S1, R, sp)
-            S3 = _run_body_once(tape, cont_pc, header, S2, R, sp)
-        except Unsupported:
-            return None
-        r15 = R.get(15, 0)                              # frame locals sit at/above the data-stack top
-        carried = [a for a in MEM if isinstance(a, int) and a >= r15
-                   and (S1.get(a) != MEM[a] or S2.get(a) != MEM[a] or S3.get(a) != MEM[a])]
-        trip = Rb if kind == 'lt' else _add(Rb, 1)      # `<`: 0..R-1 = R iters ; `<=`: 0..R = R+1 iters
-        # FAST PATH — finite differences over the 3 iterations (invariant + pure-Σi deltas)
-        updates = {}; have_counter = False; general = False
-        for a in carried:
-            s0 = MEM[a]
-            d1, d2, d3 = _slot_delta(s0, S1[a]), _slot_delta(S1[a], S2[a]), _slot_delta(S2[a], S3[a])
-            if d1 == d2 == d3 and d1 is not None and not (isinstance(d1, tuple) and d1[0] in ('cmp', 'zz')):
-                if _concnat(d1) == 1 and s0 == L:
-                    have_counter = True                 # a unit-stride counter from L makes the loop run `trip` times
-                updates[a] = _series_closed(s0, _canon(d1), 0, trip)
-            elif (_concnat(d1), _concnat(d2), _concnat(d3)) == (0, 1, 2):   # increment(k)==k -> Σ_{k<trip}k = g(trip)
-                updates[a] = _series_closed(s0, 0, 1, trip)
-            else:
-                general = True; break                   # a·i / a+i / … -> the general placeholder path below
-        if not general:
-            if not have_counter:
-                return None
-            MEM.update(updates)
-            return exit_pc
-        # GENERAL PATH — one placeholder iteration: read each δ as a term over ('slot',*) markers, then decompose
-        frame = [a for a in MEM if isinstance(a, int) and a >= r15]
-        PMEM = dict(MEM)
-        for a in frame:
-            PMEM[a] = ('slot', a)
-        try:
-            PS = _run_body_once(tape, cont_pc, header, PMEM, R, sp)
-        except Unsupported:
-            return None
-        raw = {}
-        for a in frame:
-            d = _slot_delta(('slot', a), PS.get(a, ('slot', a)))
-            if d is None or (isinstance(d, tuple) and d[0] == 'cmp'):
-                return None
-            raw[a] = d
-        invariant = {a for a in frame if raw[a] == 0}   # slots unchanged this iteration hold loop-invariant values
-        moved = [a for a in frame if raw[a] != 0]
-        down = False
-        counters = [a for a in moved if _canon(raw[a]) == 1 and MEM[a] == L]
-        if not counters:
-            # DOWN-count: guard `0 < i` (L the concrete 0, Rb the counter's symbolic entry value) with a slot
-            # stepping by the ℤ pair -1 — it drains I, I-1, …, 1, so exactly trip = Rb iterations. `0 <= i`
-            # with -1 never terminates and is not recognized. A ℤ-pair entry value can't be a trip count yet.
-            if kind != 'lt' or L != 0 or (isinstance(Rb, tuple) and Rb[0] == 'zz'):
-                return None
-            counters = [a for a in moved if _is_negone(raw[a]) and MEM[a] == Rb]
-            if not counters:
-                return None
-            down = True
-        ctr = ('slot', counters[0])
-        updates = {}
-        for a in moved:
-            d = raw[a]
-            if isinstance(d, tuple) and d[0] == 'zz':   # subtracting accumulator: pos/neg components follow
-                P = _subst_slots(d[1], MEM, invariant)  # independent additive recurrences — summarize each
-                N = _subst_slots(d[2], MEM, invariant)
-                if _has_zz(P) or _has_zz(N):
-                    return None                         # a zz value nested in a component: beta distributes
-                dp, dn = _lin_decompose(P, ctr), _lin_decompose(N, ctr)
-                if dp is None or dn is None:
-                    return None
-                p0, n0 = _as_zz(MEM[a])
-                if down:                                # i ↦ n-k: linear parts fold into the invariant
-                    updates[a] = _down_series(p0, n0, dp[0], dp[1], dn[0], dn[1], trip)
-                else:                                   # coefficient, g cross-terms swap components
-                    updates[a] = ('zz', _series_closed(p0, _canon(dp[0]), _canon(dp[1]), trip),
-                                        _series_closed(n0, _canon(dn[0]), _canon(dn[1]), trip))
-                continue
-            sub = _subst_slots(d, MEM, invariant)       # δ = a0 + a1·counter
-            if _has_zz(sub):
-                return None                             # invariant zz feeding a plain delta: beta distributes
-            dec = _lin_decompose(sub, ctr)
-            if dec is None:
-                return None                             # δ not linear in the counter (i·i, cross-accumulator, …)
-            if down and _canon(dec[1]) != 0:            # counter-dependent plain δ under a down-counter:
-                p0, n0 = _as_zz(MEM[a])                 # the -a1·g(t) cross-term makes the result a ℤ pair
-                updates[a] = _down_series(p0, n0, dec[0], dec[1], 0, 0, trip)
-                continue
-            updates[a] = _series_closed(MEM[a], _canon(dec[0]), _canon(dec[1]), trip)
-        MEM.update(updates)
-        return exit_pc
+        return _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp)
     while True:
         steps += 1
         if steps > 500000:

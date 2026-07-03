@@ -193,6 +193,8 @@ def _down_series(p0, n0, a0p, a1p, a0n, a1n, trip):
 def _mentions(t, ph):                  # does the placeholder `ph` occur in term `t`?
     if t == ph:
         return True
+    if isinstance(t, tuple) and t[0] == 'f':
+        return _mentions(t[2], ph)
     return isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'zz') and any(_mentions(x, ph) for x in t[1:])
 
 def _peel(expr, ph):
@@ -241,6 +243,8 @@ def _mentions_loopvar(t, names):       # does term `t` mention any ('loopvar', v
     if isinstance(t, tuple):
         if t[0] == 'loopvar':
             return t[1] in names
+        if t[0] == 'f':
+            return _mentions_loopvar(t[2], names)
         if t[0] in ('s', 'p', 'm', 'zz'):
             return any(_mentions_loopvar(x, names) for x in t[1:])
     return False
@@ -290,6 +294,8 @@ class SymInterp:
         if k == 'num':
             return e[1] & MASK
         if k == 'var':
+            if e[1] not in env:
+                raise Unsupported('read of a variable dropped by loop summarization (%s)' % e[1])
             return env[e[1]]
         if k == 'call':
             name = e[1]
@@ -323,6 +329,14 @@ class SymInterp:
         starts are out of scope here — deliberately narrow so the closed form is exactly built-in +/*."""
         if body_label not in labels:
             return False
+        self._sum_depth = getattr(self, '_sum_depth', 0) + 1
+        try:
+            return self._sum_depth <= 8 and self._summarize_loop_inner(header_pc, body_label, cond, env,
+                                                                       blocks, labels)
+        finally:
+            self._sum_depth -= 1
+
+    def _summarize_loop_inner(self, header_pc, body_label, cond, env, blocks, labels):
         entry = dict(env)
         ph_env = {v: ('loopvar', v) for v in env}       # EVERY var gets a placeholder (mirrors alpha, which
         try:                                            # markers every frame slot); invariants subst back below
@@ -337,12 +351,11 @@ class SymInterp:
         invariant = {v for v in entry if deltas[v] == 0}
         loop_vars = [v for v in entry if deltas[v] != 0]
         fresh = {}                                      # vars INTRODUCED by the body (e.g. an inner counter):
-        for v in out:                                   # keep only values identical on every iteration
-            if v not in entry:
-                fv = _subst_loopvars(out[v], entry, invariant)
-                if _mentions_loopvar(fv, set(entry)):
-                    return False                        # depends on a moved var — differs per iteration
-                fresh[v] = fv
+        for v in out:                                   # keep only values identical on every iteration; DROP
+            if v not in entry:                          # the rest (unknowable post-loop — a later read of a
+                fv = _subst_loopvars(out[v], entry, invariant)      # dropped var refuses via ev)
+                if not _mentions_loopvar(fv, set(entry)):
+                    fresh[v] = fv
         if cond[0] == 'bin' and cond[1] in ('>', '>='):     # (a > b) ≡ (b < a): normalize to the < forms, the
             cond = ('bin', {'>': '<', '>=': '<='}[cond[1]], cond[3], cond[2])   # same swap bc does in codegen
         if cond[0] == 'bin' and cond[1] == '!=':
@@ -435,8 +448,13 @@ class SymInterp:
                 elif k == 'goto':
                     take = st[2] is None
                     if st[2] is not None:
-                        take = _concrete(self.ev(st[2], env),
-                                         'symbolic branch inside a summarized loop body') != 0
+                        try:
+                            take = _concrete(self.ev(st[2], env),
+                                             'symbolic branch inside a summarized loop body') != 0
+                        except Unsupported:             # an INNER loop with a symbolic bound: summarize it
+                            if not self._summarize_loop(pc, st[1], st[2], env, blocks, labels):
+                                raise                   # recursively, its closed forms (over this run's
+                            take = False                # markers) flowing into the outer deltas
                     if take:
                         if labels.get(st[1]) == header_pc:
                             return env                  # one full iteration: control returned to the header
