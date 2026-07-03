@@ -12,6 +12,7 @@ machine Main::main(
 
     transition {
         room.exit_count > 0 -> append(room.exit_count)
+        _ -> {}
     }
 
     state append(

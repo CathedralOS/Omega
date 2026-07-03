@@ -49,20 +49,29 @@ pub(crate) fn validate_case_dispatch_exhaustiveness(
                 .bodies
                 .statements
                 .statements(state.statement_nodes);
+            let location = format!("{}::{}", machine.name, state.name);
 
             // Maximal runs of consecutive transitions: the statement-level
-            // shape every transition block desugars into.
+            // shape every transition block desugars into. A transition
+            // carrying a CONTINUATION (the `if`/`else` desugar) has a
+            // well-defined no-match path, so its run cannot fall through --
+            // it closes the dispatch like a `_` arm.
             let mut run = Vec::new();
+            let mut run_has_continuation = false;
             for statement in statements {
                 match statement {
-                    StatementNode::Transition(transition) => run.push(&transition.guard),
+                    StatementNode::Transition(transition) => {
+                        run.push(&transition.guard);
+                        run_has_continuation |= transition.continuation.is_valid();
+                    }
                     _ => {
-                        check_dispatch_run(program, &run)?;
+                        check_dispatch_run(program, &run, run_has_continuation, &location)?;
                         run.clear();
+                        run_has_continuation = false;
                     }
                 }
             }
-            check_dispatch_run(program, &run)?;
+            check_dispatch_run(program, &run, run_has_continuation, &location)?;
         }
     }
 
@@ -80,8 +89,23 @@ enum ArmShape {
     /// a marker membership, so the era an arm covers is still recognizable
     /// here.
     Version(VersionClaim),
-    /// No case-domain content (boolean guards, value compares, domains over
-    /// record types). Contributes nothing and decides nothing by itself.
+    /// A boolean compare against a literal (`subject == true` -- the desugar
+    /// of a `true ->` arm, or user-written). A `true` arm and a `false` arm
+    /// over ONE subject cover the whole boolean and close the dispatch.
+    Bool {
+        subject: ExpressionHandle,
+        value: bool,
+    },
+    /// An equality compare (`x == k` / `x != k`). A complementary PAIR over
+    /// one subject and one value (`x == k ->` plus `x != k ->`) is total and
+    /// closes the dispatch.
+    Compare {
+        left: ExpressionHandle,
+        right: ExpressionHandle,
+        negated: bool,
+    },
+    /// No countable content (value compares, arbitrary predicates, domains
+    /// over record types). Contributes nothing and decides nothing by itself.
     Opaque,
 }
 
@@ -127,6 +151,8 @@ enum LeafContribution {
 fn check_dispatch_run(
     program: &SymbolResolvedTrees,
     run: &[&TransitionGuardNode],
+    has_continuation: bool,
+    location: &str,
 ) -> Result<(), Diagnostic> {
     if run.is_empty() {
         return Ok(());
@@ -134,6 +160,8 @@ fn check_dispatch_run(
 
     let mut claims: Vec<CaseClaim> = Vec::new();
     let mut version_claims: Vec<VersionClaim> = Vec::new();
+    let mut bool_arms: Vec<(ExpressionHandle, bool)> = Vec::new();
+    let mut compare_arms: Vec<(ExpressionHandle, ExpressionHandle, bool)> = Vec::new();
     let mut has_opaque_arm = false;
 
     for guard in run {
@@ -143,11 +171,36 @@ fn check_dispatch_run(
             ArmShape::Default => return Ok(()),
             ArmShape::Claim(claim) => claims.push(claim),
             ArmShape::Version(claim) => version_claims.push(claim),
+            ArmShape::Bool { subject, value } => bool_arms.push((subject, value)),
+            ArmShape::Compare {
+                left,
+                right,
+                negated,
+            } => compare_arms.push((left, right, negated)),
             ArmShape::Opaque => has_opaque_arm = true,
         }
     }
 
-    check_version_dispatch_coverage(program, &version_claims, has_opaque_arm)?;
+    // A `true` arm AND a `false` arm over one subject cover the boolean.
+    let bool_pair_closes = bool_arms.iter().any(|(subject, value)| {
+        *value
+            && bool_arms.iter().any(|(other, other_value)| {
+                !*other_value && expressions_structurally_equal(program, *subject, *other)
+            })
+    });
+
+    // `x == k ->` plus `x != k ->` over one subject and value is total.
+    let compare_pair_closes = compare_arms.iter().any(|(left, right, negated)| {
+        !*negated
+            && compare_arms.iter().any(|(other_left, other_right, other_negated)| {
+                *other_negated
+                    && expressions_structurally_equal(program, *left, *other_left)
+                    && expressions_structurally_equal(program, *right, *other_right)
+            })
+    });
+
+    let version_closes =
+        check_version_dispatch_coverage(program, &version_claims, has_opaque_arm)?;
 
     // Check coverage per claimed sum type (one dispatch normally classifies
     // one subject; tuple dispatches can touch several).
@@ -203,6 +256,26 @@ fn check_dispatch_run(
         )));
     }
 
+    // NO SILENT FALL-THROUGH (settled 2026-07-02): a dispatch with no `_`
+    // arm must PROVABLY cover every case -- full case/version coverage or a
+    // true/false pair over one boolean subject. Anything else could reach
+    // runtime with no matching arm, and a no-match dispatch falls off the
+    // machine with an undefined exit (probed: the process exits with a
+    // leftover register value). That is a compile error, never a behavior.
+    let case_closes = !claims.is_empty();
+    if !case_closes
+        && !version_closes
+        && !bool_pair_closes
+        && !compare_pair_closes
+        && !has_continuation
+    {
+        return Err(Diagnostic::error(format!(
+            "transition dispatch in `{location}` can fall through: no arm matches when every \
+             guard is false, and no `_` arm exists; add a `_ ->` arm (or complete the \
+             `true`/`false` pair)"
+        )));
+    }
+
     Ok(())
 }
 
@@ -211,19 +284,24 @@ fn check_dispatch_run(
 /// of version arms with no `_` must cover every era. Diagnostics the typed
 /// lowering owns (unknown eras, mixed container types, plain subjects) make
 /// the run uncountable here and stand the check down.
+///
+/// Returns whether the run's version arms CLOSE the dispatch: `true` when a
+/// countable run covers every era, and also on every deferred path (the typed
+/// lowering owns those errors -- the fall-through check must not pile on);
+/// `false` only when there are no version arms at all.
 fn check_version_dispatch_coverage(
     program: &SymbolResolvedTrees,
     claims: &[VersionClaim],
     has_opaque_arm: bool,
-) -> Result<(), Diagnostic> {
+) -> Result<bool, Diagnostic> {
     if claims.is_empty() {
-        return Ok(());
+        return Ok(false);
     }
 
     // Any arm whose era cannot be resolved (unknown era name, type without
     // version blocks) defers to the typed lowering's own error.
     if claims.iter().any(|claim| claim.era.is_none()) {
-        return Ok(());
+        return Ok(true);
     }
 
     // Two version arms naming DIFFERENT types over one subject is a
@@ -234,7 +312,7 @@ fn check_version_dispatch_coverage(
             if claim.type_name != other.type_name
                 && expressions_structurally_equal(program, claim.subject, other.subject)
             {
-                return Ok(());
+                return Ok(true);
             }
         }
     }
@@ -311,7 +389,7 @@ fn check_version_dispatch_coverage(
         )));
     }
 
-    Ok(())
+    Ok(true)
 }
 
 /// Classify a version arm's marker membership: which payload type it names
@@ -398,10 +476,69 @@ fn classify_arm(program: &SymbolResolvedTrees, guard: &TransitionGuardNode) -> A
         {
             return ArmShape::Version(classify_version_arm(program, membership));
         }
-        return match classify_membership_union(program, conjunct) {
-            Some(claim) => ArmShape::Claim(claim),
-            None => ArmShape::Opaque,
-        };
+        if let Some(claim) = classify_membership_union(program, conjunct) {
+            return ArmShape::Claim(claim);
+        }
+        // A literal `true` guard is always satisfied (`transition { true ->
+        // main() }`); it closes the dispatch like `_`. A literal `false`
+        // never matches and contributes nothing.
+        if let ExpressionNode::Boolean(value) =
+            program.tables.bodies.expressions.expression(conjunct)
+        {
+            return if *value {
+                ArmShape::Default
+            } else {
+                ArmShape::Opaque
+            };
+        }
+        // `subject == true` / `subject == false` -- the desugar of boolean
+        // `true ->` / `false ->` arms (and the user-written equivalent). A
+        // complementary pair over one subject covers the whole boolean.
+        if let ExpressionNode::Binary(binary) =
+            program.tables.bodies.expressions.expression(conjunct)
+        {
+            if binary.operator == BinaryOperator::Equal {
+                // `true == true` (the desugar of `transition true { true ->
+                // .. }`) is constant and always satisfied: Default.
+                if let (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) = (
+                    program.tables.bodies.expressions.expression(binary.left),
+                    program.tables.bodies.expressions.expression(binary.right),
+                ) {
+                    return if left == right {
+                        ArmShape::Default
+                    } else {
+                        ArmShape::Opaque
+                    };
+                }
+                if let ExpressionNode::Boolean(value) =
+                    program.tables.bodies.expressions.expression(binary.right)
+                {
+                    return ArmShape::Bool {
+                        subject: binary.left,
+                        value: *value,
+                    };
+                }
+                if let ExpressionNode::Boolean(value) =
+                    program.tables.bodies.expressions.expression(binary.left)
+                {
+                    return ArmShape::Bool {
+                        subject: binary.right,
+                        value: *value,
+                    };
+                }
+            }
+            if matches!(
+                binary.operator,
+                BinaryOperator::Equal | BinaryOperator::NotEqual
+            ) {
+                return ArmShape::Compare {
+                    left: binary.left,
+                    right: binary.right,
+                    negated: binary.operator == BinaryOperator::NotEqual,
+                };
+            }
+        }
+        return ArmShape::Opaque;
     }
 
     // A conjunction (destructure arm with an `if` guard, or a tuple arm
