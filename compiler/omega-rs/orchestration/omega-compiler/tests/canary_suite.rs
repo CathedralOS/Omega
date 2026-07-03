@@ -17421,6 +17421,35 @@ fn runtime_utf16_literal_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_case_array_element_write_exit_canary_runs() {
+    // Array-of-CASE element writes (const + runtime index) with payload
+    // read-back -- the case-vocabulary Plan's foundation shape. At{8,4}+At{16,8}
+    // matched back = 12 + 24 = exit 36; native must match the interpreter (the
+    // interpreter is the L0 build-time engine).
+    let canary = pass_canary("collections/runtime_case_array_element_write_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-case-array-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("case-array element write canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("case-array element write canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(36),
+        "expected both case payloads to read back (exit 36); got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     for canary_name in ACTIVE_FAIL_CANARIES {
         let canary = fail_canary(canary_name);

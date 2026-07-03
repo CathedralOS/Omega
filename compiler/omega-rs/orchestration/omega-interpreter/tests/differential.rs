@@ -664,6 +664,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("types/runtime_u8_field_arith_exit", 70),
     ("types/runtime_addr_field_exit", 88),
     ("text/runtime_utf16_literal_exit", 70),
+    ("collections/runtime_case_array_element_write_exit", 36),
     ("types/runtime_u16_field_arith_exit", 70),
     ("versioning/runtime_version_migration_exit", 70),
     ("versioning/runtime_versioned_era_query_exit", 70),
