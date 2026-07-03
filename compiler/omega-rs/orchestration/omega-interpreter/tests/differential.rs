@@ -275,6 +275,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_abs_desugar_exit", 70),
     ("arithmetic/runtime_sqrt_builtin_exit", 70),
     ("arithmetic/runtime_clamp_desugar_exit", 70),
+    ("arithmetic/runtime_clamp_narrowing_exit", 100),
     ("arithmetic/runtime_float_min_max_abs_clamp_exit", 70),
     ("comptime/runtime_const_array_length_transitive_exit", 70),
     ("comptime/runtime_const_array_length_bare_call_arm_exit", 70),

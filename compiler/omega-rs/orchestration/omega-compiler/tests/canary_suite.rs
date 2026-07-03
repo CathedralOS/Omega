@@ -17292,6 +17292,39 @@ fn runtime_clamp_desugar_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_clamp_narrowing_exit_canary_runs() {
+    // clamp's [0,100] result interval flows to the decision-17 narrowing check,
+    // so `self.i8 = clamp(self.i32, 0, 100)` compiles AND the backend stores the
+    // clamped value: clamp(300,0,100)=100 lands in i8, read back = exit 100.
+    let canary = pass_canary("arithmetic/runtime_clamp_narrowing_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-clamp-narrow-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("clamp narrowing canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("clamp narrowing canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(100),
+        "expected clamp(300,0,100)=100 stored in i8 (exit 100); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_sqrt_builtin_exit_canary_runs() {
     // `sqrt(x)` unary float builtin: f64 sqrt(64)=8, f32 sqrt(9)=3, via the
     // native sqrtsd/sqrtss path (both operands = x on the binary SSE lane).
@@ -17778,6 +17811,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_abs_desugar_exit",
     "arithmetic/runtime_sqrt_builtin_exit",
     "arithmetic/runtime_clamp_desugar_exit",
+    "arithmetic/runtime_clamp_narrowing_exit",
     "arithmetic/runtime_float_min_max_abs_clamp_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
