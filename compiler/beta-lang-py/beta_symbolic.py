@@ -181,6 +181,14 @@ def _series_closed(init, a0, a1, trip):
             r = ('p', r, p)
     return r
 
+def _down_series(p0, n0, a0p, a1p, a0n, a1n, trip):
+    """Closed ℤ pair for a DOWN-counting loop (counter value n-k at iteration k, trip = n). A pair-delta with
+    components a0p + a1p·i and a0n + a1n·i sums, after i ↦ n-k, to (a0x + a1x·n)·t - a1x·g(t) per component —
+    the linear part joins the invariant coefficient and the triangular part FLIPS SIGN, crossing to the other
+    component. Shared recipe in both engines so the forms stay byte-identical."""
+    return ('zz', _series_closed(p0, _canon(_sum2(a0p, _scale2(a1p, trip))), _canon(a1n), trip),
+                  _series_closed(n0, _canon(_sum2(a0n, _scale2(a1n, trip))), _canon(a1p), trip))
+
 # ---- linear-loop analysis: read a per-iteration increment off ONE symbolic body execution ----------
 def _mentions(t, ph):                  # does the placeholder `ph` occur in term `t`?
     if t == ph:
@@ -324,17 +332,20 @@ class SymInterp:
                 dn = _lin_decompose(d[2], counter, loop_vars)
                 if dp is None or dn is None:
                     return False
-                if down and (_canon(dp[1]) != 0 or _canon(dn[1]) != 0):
-                    return False                        # a down-counter's value is I-k, not k: only invariant δ
                 p0, n0 = _as_zz(entry[v])
-                closed[v] = ('zz', _series_closed(p0, _canon(dp[0]), _canon(dp[1]), trip),
-                                   _series_closed(n0, _canon(dn[0]), _canon(dn[1]), trip))
+                if down:                                # i ↦ n-k: linear parts fold into the invariant
+                    closed[v] = _down_series(p0, n0, dp[0], dp[1], dn[0], dn[1], trip)
+                else:                                   # coefficient, g cross-terms swap components
+                    closed[v] = ('zz', _series_closed(p0, _canon(dp[0]), _canon(dp[1]), trip),
+                                       _series_closed(n0, _canon(dn[0]), _canon(dn[1]), trip))
                 continue
             dec = _lin_decompose(d, counter, loop_vars)
             if dec is None:
                 return False                            # δ not linear in the counter (i·i, cross-loopvar): later
-            if down and _canon(dec[1]) != 0:
-                return False                            # counter-dependent δ under a down-counter: later
+            if down and _canon(dec[1]) != 0:            # counter-dependent plain δ under a down-counter:
+                p0, n0 = _as_zz(entry[v])               # the -a1·g(t) cross-term makes the result a ℤ pair
+                closed[v] = _down_series(p0, n0, dec[0], dec[1], 0, 0, trip)
+                continue
             closed[v] = _series_closed(entry[v], _canon(dec[0]), _canon(dec[1]), trip)
         env.update(closed)
         return True
