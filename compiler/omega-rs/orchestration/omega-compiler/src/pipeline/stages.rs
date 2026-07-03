@@ -84,11 +84,74 @@ pub(super) fn source_files_to_syntax_trees(
         extend_source_storage(&mut source_storage, parsed)?;
     }
 
+    inject_build_prelude(&mut source_storage, timings)?;
+
     validate_selected_target(&source_storage, target_name)?;
     let source_file_count = source_storage.file_count();
     let syntax = assemble_syntax(source_storage)?;
 
     Ok((source_file_count, syntax))
+}
+
+/// The TOOLCHAIN-PROVIDED build vocabulary (build_and_package_model.md): a
+/// build.omg is just `machine build(b: &mut Build) { ... }` -- the `Build` /
+/// `Subsystem` types are CORE-DEFINED, never authored per file. When the
+/// program declares a `build` machine and no `Build` data of its own, the
+/// prelude is injected as a virtual source (a program-declared `Build` wins,
+/// which keeps migration and deliberate overrides possible).
+const BUILD_PRELUDE: &str = r#"
+// Toolchain-provided build vocabulary (virtual source; build_and_package_model.md).
+data Subsystem {
+    case Console;
+    case Gui;
+    case EfiApplication;
+    case Unspecified(value: u16);
+}
+data Build {
+    subsystem: Subsystem;
+    freestanding: bool;
+}
+"#;
+
+fn inject_build_prelude(
+    source_storage: &mut SourceStorage,
+    timings: &mut CompileTimings,
+) -> Result<(), Vec<Diagnostic>> {
+    let mut has_build_machine = false;
+    let mut has_build_data = false;
+    for (_, file) in source_storage.files.iter() {
+        for root_item in &file.root_items {
+            match source_storage.syntax_trees.root_item(*root_item) {
+                omega_syntax_trees::item::Item::Machine(machine)
+                    if machine.name.as_str() == "build" =>
+                {
+                    has_build_machine = true;
+                }
+                omega_syntax_trees::item::Item::Data(data) if data.name.as_str() == "Build" => {
+                    has_build_data = true;
+                }
+                _ => {}
+            }
+        }
+    }
+    if !has_build_machine || has_build_data {
+        return Ok(());
+    }
+
+    let first_source_id = source_storage.next_source_id();
+    let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
+        let sources = crate::pipeline::frontend::load_injected_source(
+            "<build-prelude>",
+            BUILD_PRELUDE,
+            first_source_id,
+        );
+        lex_sources(sources)
+    })?;
+    let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
+        parse_sources(lexed, &mut source_storage.syntax_trees)
+    })?;
+    extend_source_storage(source_storage, parsed)?;
+    Ok(())
 }
 
 fn assemble_syntax(sources: SourceStorage) -> Result<AssembledSyntax, Vec<Diagnostic>> {

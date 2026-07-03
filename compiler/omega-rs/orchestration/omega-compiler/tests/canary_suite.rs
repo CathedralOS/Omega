@@ -128,9 +128,9 @@ machine Main::main(&mut self) {
     self.console.exit_process(0);
 }
 "#;
+    // The Build/Subsystem vocabulary is TOOLCHAIN-INJECTED (a virtual
+    // prelude source) -- build.omg authors only the machine.
     const BUILD_GUI: &str = r#"
-data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
-data Build { subsystem: Subsystem; freestanding: bool; }
 machine build(b: &mut Build) {
     b.subsystem = Subsystem::Gui;
 }
