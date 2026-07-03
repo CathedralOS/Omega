@@ -171,6 +171,22 @@ def _concnat(d):                       # the int value of a concrete delta (int 
         return None if inner is None else inner + 1
     return None
 
+def _canon(x):                         # canonicalize a concrete coefficient to an int so 0/1 simplify identically
+    c = _concnat(x)
+    return c if c is not None else x
+
+def _series_closed(init, a0, a1, trip):
+    """init + a0·trip + a1·g(trip), canonical (same construction as beta_symbolic._series_closed → refl-equal)."""
+    def scaled(coef, base):
+        if coef == 0: return None
+        if coef == 1: return base
+        return ('m', base, _term(coef))
+    r = _term(init)
+    for p in (scaled(a0, trip), scaled(a1, ('f', TRI_ID, trip))):
+        if p is not None:
+            r = ('p', r, p)
+    return r
+
 def _slot_delta(s0, s1):
     """per-iteration increment given a slot's entry value s0 and its value s1 after one body run (s1 = s0 + d)."""
     if isinstance(s0, int) and isinstance(s1, int):
@@ -228,14 +244,15 @@ def symexec(tape):
             d1, d2, d3 = _slot_delta(s0, S1[a]), _slot_delta(S1[a], S2[a]), _slot_delta(S2[a], S3[a])
             if any(d is None or (isinstance(d, tuple) and d[0] == 'cmp') for d in (d1, d2, d3)):
                 return None
-            if d1 == d2 == d3:                          # constant per-iteration increment -> init + trip*delta
+            if d1 == d2 == d3:                          # constant per-iteration increment δ -> init + trip·δ
                 if _concnat(d1) == 1 and s0 == L:
                     have_counter = True                 # a unit-stride counter from L makes the loop run `trip` times
-                updates[a] = _add(s0, _mul(trip, d1))   # (counter's own 0 + trip*1 = trip falls out here)
+                updates[a] = _series_closed(s0, _canon(d1), 0, trip)   # (counter's 0 + trip·1 = trip falls out)
             elif (_concnat(d1), _concnat(d2), _concnat(d3)) == (0, 1, 2):   # increment(k)==k -> Σ_{k<trip}k = g(trip)
-                updates[a] = _add(s0, ('f', TRI_ID, trip))
+                updates[a] = _series_closed(s0, 0, 1, trip)
             else:
-                return None                             # a delta not (yet) summarizable
+                return None                             # a counter-dependent δ the finite differences can't extract
+                                                        # (a·i, a+i, …) — beta handles these; alpha side is a later slice
         if not have_counter:
             return None
         MEM.update(updates)

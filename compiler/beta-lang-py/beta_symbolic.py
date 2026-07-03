@@ -81,6 +81,71 @@ def _concrete(v, why):
 
 ONE = ('s', ('z',))
 
+# ---- linear-in-counter delta: decompose a per-iteration increment δ into a0 + a1·counter (a0,a1 invariant),
+# so the loop's accumulator has closed form  init + a0·trip + a1·g(trip)  (g = the triangular sum). This unifies
+# invariant deltas (a1=0), Σi (a0=0,a1=1), a·i (a0=0,a1=a), a+i (a0=a,a1=1), and combinations. ---------------
+def _concnat(d):                       # int value of a concrete delta (int OR a Peano nat s^k z), else None
+    if isinstance(d, int):
+        return d
+    if d == ('z',):
+        return 0
+    if isinstance(d, tuple) and d[0] == 's':
+        inner = _concnat(d[1])
+        return None if inner is None else inner + 1
+    return None
+
+def _canon(x):                         # canonicalize a concrete coefficient to an int so 0/1 simplify identically
+    c = _concnat(x)
+    return c if c is not None else x
+
+def _sum2(a, b):                       # a + b, dropping 0
+    if a == 0: return b
+    if b == 0: return a
+    if isinstance(a, int) and isinstance(b, int): return a + b
+    return ('p', _term(a), _term(b))
+
+def _scale2(coef, x):                  # coef · x, dropping 0 and 1
+    if x == 0 or coef == 0: return 0
+    if isinstance(coef, int) and isinstance(x, int): return coef * x
+    if x == 1: return coef
+    if coef == 1: return x
+    return ('m', _term(coef), _term(x))
+
+def _lin_decompose(delta, counter, loop_vars):
+    """delta over ('loopvar',*) placeholders -> (a0, a1) with delta == a0 + a1·(loopvar counter), a0/a1 free of
+    ALL loop vars; None if delta is not linear in the counter (e.g. i·i, or depends on another loop var)."""
+    ctr = ('loopvar', counter)
+    def dec(t):
+        if t == ctr:
+            return (0, 1)
+        if not _mentions_loopvar(t, loop_vars):
+            return (t, 0)                                # a loop-invariant summand -> all of it is a0
+        if isinstance(t, tuple):
+            if t[0] == 'p':
+                l, r = dec(t[1]), dec(t[2])
+                return None if l is None or r is None else (_sum2(l[0], r[0]), _sum2(l[1], r[1]))
+            if t[0] == 'm':
+                inv, oth = ((t[1], t[2]) if not _mentions_loopvar(t[1], loop_vars) else
+                            (t[2], t[1]) if not _mentions_loopvar(t[2], loop_vars) else (None, None))
+                if inv is None:
+                    return None                          # counter·counter (or counter·other-loopvar): non-linear
+                d = dec(oth)
+                return None if d is None else (_scale2(inv, d[0]), _scale2(inv, d[1]))
+        return None
+    return dec(delta)
+
+def _series_closed(init, a0, a1, trip):
+    """init + a0·trip + a1·g(trip), in a canonical form (both symbolic engines build this identically)."""
+    def scaled(coef, base):
+        if coef == 0: return None
+        if coef == 1: return base
+        return ('m', base, _term(coef))                  # base·coef  (matches the existing trip·delta ordering)
+    r = _term(init)
+    for p in (scaled(a0, trip), scaled(a1, ('f', TRI_ID, trip))):
+        if p is not None:
+            r = ('p', r, p)
+    return r
+
 # ---- linear-loop analysis: read a per-iteration increment off ONE symbolic body execution ----------
 def _mentions(t, ph):                  # does the placeholder `ph` occur in term `t`?
     if t == ph:
@@ -188,7 +253,7 @@ class SymInterp:
         if cond[0] != 'bin' or cond[1] not in ('<', '<=') or cond[2][0] != 'var':
             return False
         counter = cond[2][1]
-        if counter not in loop_vars or deltas[counter] != ONE or entry[counter] != 0:
+        if counter not in loop_vars or _canon(deltas[counter]) != 1 or entry[counter] != 0:
             return False                                # counter: a unit-stride loop var starting at 0
         if _expr_uses(cond[3], loop_vars):
             return False                                # the bound must be loop-invariant
@@ -197,15 +262,11 @@ class SymInterp:
         except Unsupported:
             return False
         trip = bound if cond[1] == '<' else _add(bound, 1)      # iterations: 0..bound-1 (<) or 0..bound (<=)
-        for v in loop_vars:
-            if v == counter:
-                env[v] = trip
-            elif deltas[v] == ('loopvar', counter):     # `acc += i`: Σ_{j<trip} j = g(trip), the triangular sum
-                env[v] = _add(entry[v], ('f', TRI_ID, trip))
-            elif _mentions_loopvar(deltas[v], loop_vars):
-                return False                            # other counter-dependent deltas (i*a, i+i, …): later slice
-            else:
-                env[v] = _add(entry[v], _mul(trip, deltas[v]))
+        for v in loop_vars:                             # each δ = a0 + a1·counter -> init + a0·trip + a1·g(trip)
+            dec = _lin_decompose(deltas[v], counter, loop_vars)
+            if dec is None:
+                return False                            # δ not linear in the counter (i·i, cross-loopvar): later
+            env[v] = _series_closed(entry[v], _canon(dec[0]), _canon(dec[1]), trip)
         return True
 
     def run(self, proc, argvals):
