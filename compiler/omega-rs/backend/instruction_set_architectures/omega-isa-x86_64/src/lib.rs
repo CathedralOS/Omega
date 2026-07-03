@@ -1059,6 +1059,31 @@ fn append_add_rsp(bytes: &mut Vec<u8>, reserve: usize) {
     }
 }
 
+/// Register-indirect near call -- `call r/m64` in the `FF /2` register-DIRECT
+/// form: optional `REX.B` (0x41) for r8-r15, `FF`, then ModRM `11 010 rrr`
+/// (`0xD0 | (reg & 7)`; mod=11 register-direct, reg=`/2`=010, rm=the register).
+/// The target is a POINTER VALUE already in `reg`, NOT an import relocation --
+/// this is the runtime-pointer call the first-boot path needs (UEFI
+/// `SystemTable -> ConOut -> OutputString` is three pointer hops) and the same
+/// emission a `VtableSlot` dispatch will use (extern brief §12.4). `reg` is the
+/// x86_64 register number 0..=15 (0=rax..7=rdi, 8=r8..15=r15).
+///
+/// FOUNDATION ONLY: the byte emission is complete and oracle-tested
+/// (`call_encoding_tests`), but nothing SELECTS it yet -- the caller (a
+/// runtime-pointer-call operand + its instruction-selection) lands with the EFI
+/// entry surface (first-boot ladder item 2), which also fixes the target-operand
+/// shape (a projected SystemTable field). Wired then; `#[allow(dead_code)]` marks
+/// the gap deliberately rather than papering a half-slice into the live path.
+#[allow(dead_code)]
+fn append_call_register(bytes: &mut Vec<u8>, reg: u8) {
+    debug_assert!(reg < 16, "x86_64 register number out of range");
+    if reg >= 8 {
+        bytes.push(0x41); // REX.B extends ModRM.rm into r8-r15
+    }
+    bytes.push(0xff);
+    bytes.push(0xd0 | (reg & 0x7)); // ModRM: mod=11 reg=/2(010) rm=reg
+}
+
 /// Whether a general-import argument operand marshals through the relocated r15
 /// region base (a runtime-storage scalar LOAD or a runtime-storage ADDRESS lea)
 /// rather than as a constant immediate.
@@ -7341,6 +7366,54 @@ fn append_lock_cmpxchg_r10_to_r14(
 /// Same layout as `lock_xadd_r10_to_r14_width` (only the opcode byte differs).
 fn lock_cmpxchg_r10_to_r14_width(byte_size: usize) -> usize {
     lock_xadd_r10_to_r14_width(byte_size)
+}
+
+#[cfg(test)]
+mod call_encoding_tests {
+    use super::append_call_register;
+
+    #[test]
+    fn low_registers_emit_ff_d0_through_ff_d7_without_rex() {
+        // `FF /2` register-direct: ModRM = 0xD0 | rm, no REX for rax..rdi.
+        // rax=D0 rcx=D1 rdx=D2 rbx=D3 rsp=D4 rbp=D5 rsi=D6 rdi=D7.
+        for reg in 0u8..8 {
+            let mut bytes = Vec::new();
+            append_call_register(&mut bytes, reg);
+            assert_eq!(
+                bytes,
+                vec![0xff, 0xd0 + reg],
+                "call r{reg} must be FF {:02X} with no REX",
+                0xd0 + reg
+            );
+        }
+    }
+
+    #[test]
+    fn extended_registers_take_a_rex_b_prefix() {
+        // r8..r15 need REX.B (0x41); ModRM low 3 bits wrap (r8 -> D0, r11 -> D3).
+        for reg in 8u8..16 {
+            let mut bytes = Vec::new();
+            append_call_register(&mut bytes, reg);
+            assert_eq!(
+                bytes,
+                vec![0x41, 0xff, 0xd0 | (reg & 0x7)],
+                "call r{reg} must be 41 FF {:02X}",
+                0xd0 | (reg & 0x7)
+            );
+        }
+    }
+
+    #[test]
+    fn canonical_targets_are_exact() {
+        // Spot-check the registers the first-boot path actually uses.
+        let mut rax = Vec::new();
+        append_call_register(&mut rax, 0);
+        assert_eq!(rax, vec![0xff, 0xd0], "call rax");
+
+        let mut r11 = Vec::new();
+        append_call_register(&mut r11, 11);
+        assert_eq!(r11, vec![0x41, 0xff, 0xd3], "call r11");
+    }
 }
 
 #[cfg(test)]
