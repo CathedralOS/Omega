@@ -78,6 +78,13 @@ SUMMARIZABLE = [
     # NESTED, inner bound concrete: the outer body's placeholder run UNROLLS the inner loop, leaving an
     # additive spine ((total+a)+a)+a whose delta peels to (a+a)+a — closed form n·3a without new theory.
     ("nested ×3 (inner concrete)", nestedloop("3"),                                lambda n, a, b: 3 * n * a),
+    # NESTED, inner bound SYMBOLIC: the inner loop is summarized RECURSIVELY during the outer body's
+    # placeholder run — its closed form (over the outer run's markers) becomes the outer delta. The
+    # triangular case (inner bound = the outer counter) yields the counter-linear delta a·i -> a·g(n).
+    ("nested n·b·a (inner j<b)",  nestedloop("b"),                                 lambda n, a, b: n * b * a),
+    ("nested triangular (j<i)",   nestedloop("i"),                                 lambda n, a, b: a * (n * (n - 1) // 2)),
+    ("nested n·g(b) (total+=j)",  nestedloop("b").replace('total = total + a', 'total = total + j'),
+     lambda n, a, b: n * (b * (b - 1) // 2)),
     ("↓ Σi   (total += i)",     downloop("total = total + i"),                     lambda n, a, b: n * (n + 1) // 2),
     ("↓ -Σi  (total -= i)",     downloop("total = total - i"),                     lambda n, a, b: (-(n * (n + 1) // 2)) % 256),
     ("↓ a·Σi (total += a*i)",   downloop("total = total + (a * i)"),               lambda n, a, b: a * (n * (n + 1) // 2)),
@@ -91,7 +98,9 @@ MUST_REFUSE = [
     # != with a stride that can SKIP the bound: i jumps over n when n is odd and the machine diverges — the
     # unit-stride requirement refuses it, which is exactly what makes the != ≡ < normalization sound.
     ("(i != n) stride 2 (skips!)",    loop("i != n", "total = total + a").replace('i = i + 1', 'i = i + 2')),
-    ("nested SYMBOLIC inner (j < b)",  nestedloop("b")),   # symbolic inner trip: a later slice — must refuse
+    # Σ of g: inner (j < i, total += j) makes the outer delta g(i) — quadratic in the outer counter
+    # (tetrahedral sum), genuinely outside the linear class on both sides.
+    ("nested Σg (j<i, total+=j)",     nestedloop("i").replace('total = total + a', 'total = total + j')),
 ]
 
 def main():
