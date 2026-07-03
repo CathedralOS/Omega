@@ -59,15 +59,33 @@ pub struct HostProviderDefinition {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HostProviderMapping {
+    /// The boundary-trait method this arm binds (the `output_string` in
+    /// `output_string -> VtableSlot(1)`).
     pub machine: Identifier,
-    pub kind: HostProviderMappingKind,
-    pub value: i64,
+    pub binding: HostProviderMappingKind,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+/// The compiler-known, CLOSED `Binding` sum (extern brief §12.1): each provides
+/// arm binds a boundary-trait method to ONE mechanism the compiler knows how to
+/// lower. A new mechanism = a new case + new lowering, never user-invented --
+/// same discipline as `FieldPlan`. Each kind also implies the edge's calling
+/// convention (`Syscall` -> the syscall plan; `DllImport`/`VtableSlot` -> the C
+/// plan), so nobody names a convention in the common case (`calling_plans.md`).
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostProviderMappingKind {
-    #[default]
-    Syscall,
+    /// Linux's stable ABI is the number table: `-> Syscall(1)`.
+    Syscall { number: i64 },
+    /// Windows' stable ABI is named DLL exports: `-> DllImport("kernel32", "ExitProcess")`.
+    DllImport { module: String, symbol: String },
+    /// COM/UEFI per-object dispatch: `-> VtableSlot(1)` (deref `this`, read the
+    /// vtable pointer, read slot N, call at the declared convention).
+    VtableSlot { index: i64 },
+}
+
+impl Default for HostProviderMappingKind {
+    fn default() -> Self {
+        Self::Syscall { number: 0 }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
