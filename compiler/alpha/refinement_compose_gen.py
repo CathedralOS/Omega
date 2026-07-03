@@ -17,6 +17,18 @@ def _expr(rng, names, depth):
         return rng.choice(names) if (names and rng.random() < 0.7) else str(rng.randint(0, 3))
     return '(%s %s %s)' % (_expr(rng, names, depth - 1), rng.choice(['+', '*']), _expr(rng, names, depth - 1))
 
+def _body_delta(rng, invariants):
+    # ~35% a COUNTER-LINEAR increment a1·i + a0 (bare i / a·i / a+i / (a·i)+b), degree ≤ 1 in the counter so
+    # both sides summarize; the rest a loop-invariant increment. The summarized accumulator (e.g. a·g(n)) then
+    # flows into the post-loop arithmetic — exercising the general-linear summarizer COMPOSED with more terms.
+    if rng.random() < 0.35:
+        coef = None if rng.random() < 0.45 else _expr(rng, invariants, 0)
+        term = 'i' if coef is None else '(%s * i)' % coef
+        if rng.random() < 0.5:
+            term = '(%s + %s)' % (term, _expr(rng, invariants, 0))
+        return term
+    return _expr(rng, invariants, 1)
+
 def program(seed):
     rng = random.Random(seed)
     data = ['x%d' % i for i in range(rng.randint(1, 2))]
@@ -33,7 +45,7 @@ def program(seed):
     lines.append('    let i = 0')
     guard = rng.choice(['<', '<='])
     lines.append('    state loop { to body when (i %s n)  to done }' % guard)
-    body = '  '.join('%s = %s + %s' % (acc, acc, _expr(rng, invariants, 1)) for acc in accs)
+    body = '  '.join('%s = %s + %s' % (acc, acc, _body_delta(rng, invariants)) for acc in accs)
     lines.append('    state body { %s  i = i + 1  to loop }' % body)
     lines.append('    state done { return %s }' % _expr(rng, accs + data, 2))   # POST-loop arithmetic
     lines.append('}')
