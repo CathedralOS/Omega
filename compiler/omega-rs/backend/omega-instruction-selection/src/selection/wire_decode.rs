@@ -1,5 +1,5 @@
 //! Selection of the synthesized wire decoder call (chapter 20, wire stage
-//! 2b): `Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)` lowers
+//! 2b): `Schema::decode(&mut value, &buffer, &mut read, &mut ok)` lowers
 //! into a straight-line sequence of wire-read operations -- zero the cursor,
 //! set the sticky ok flag, expect the CURRENT era discriminator bytes, then
 //! per field in field-number order the expected field-number varint bytes
@@ -68,7 +68,7 @@ enum WireReadContent {
     },
 }
 
-/// Lower a recognized `decode_wire` call statement; `true` when the statement
+/// Lower a recognized `decode` call statement; `true` when the statement
 /// produced its read sequence (the emission planner checks for the wire reads
 /// when it exempts the call from the unlowered-call blockers).
 pub(super) fn select_wire_decode_call(

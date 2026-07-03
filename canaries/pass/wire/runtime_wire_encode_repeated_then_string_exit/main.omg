@@ -52,7 +52,7 @@ machine Main::main(&mut self) {
     msg.samples_count = 2;
     msg.label = "hi";
 
-    Report::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    Report::encode(&msg, &mut self.buffer, &mut self.written);
 
     transition self.written == 10 {
         true -> check_bytes()

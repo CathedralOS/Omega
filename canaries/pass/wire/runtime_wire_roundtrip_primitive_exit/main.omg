@@ -1,5 +1,5 @@
-// Wire stage 2b: the compact_binary v0 round trip. `encode_wire` frames the
-// message, `decode_wire(&mut value, &buffer, &mut read, &mut ok)` reads it
+// Wire stage 2b: the compact_binary v0 round trip. `encode` frames the
+// message, `decode(&mut value, &buffer, &mut read, &mut ok)` reads it
 // back: the CURRENT era varint must match byte for byte, then per field in
 // field-number order the expected tag varint and a value varint (LEB128;
 // signed values un-zigzag ((n >> 1) ^ -(n & 1)); bool 0/1). `read` receives
@@ -47,7 +47,7 @@ machine Main::main(&mut self) {
         flag: true
     };
 
-    CounterMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    CounterMessage::encode(&msg, &mut self.buffer, &mut self.written);
 
     let decoded: CounterSample = CounterSample {
         counter: 0,
@@ -55,7 +55,7 @@ machine Main::main(&mut self) {
         flag: false
     };
 
-    CounterMessage::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+    CounterMessage::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
 
     let matches: bool = self.ok
         && self.written == 8

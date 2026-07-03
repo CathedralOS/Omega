@@ -536,8 +536,8 @@ machine Main::main(&mut self) -> i32 {
 
 // ---- wire zero-copy `&[u8]` borrowed-bytes field (#43) -----------------------
 
-/// A borrowed byte slice `&[u8]` wire field round-trips: `encode_wire` frames it
-/// as RAW bytes (length varint + the bytes) and `decode_wire` reads it back as a
+/// A borrowed byte slice `&[u8]` wire field round-trips: `encode` frames it
+/// as RAW bytes (length varint + the bytes) and `decode` reads it back as a
 /// buffer VIEW. This is the honest borrowed bytes/text field that replaced the
 /// retired `&string` -- a `&[u8]` is already a fat slice, and the raw-byte
 /// encoding is distinct from a `[u8; N]` repeated field (packed per-element
@@ -580,10 +580,10 @@ machine Main::main(&mut self) {
     self.source[1] = 105;
     let sample: BlobSample = BlobSample { bytes: self.source[0..2] };
 
-    Blob::encode_wire(&sample, &mut self.buffer, &mut self.written);
+    Blob::encode(&sample, &mut self.buffer, &mut self.written);
 
     let decoded: BlobSample = BlobSample { bytes: self.source[0..2] };
-    Blob::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+    Blob::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
 
     let matches: bool = self.ok && self.written == 5 && self.read == 5;
     transition matches {

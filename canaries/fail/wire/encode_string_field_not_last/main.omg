@@ -28,7 +28,7 @@ data Main {
 machine Main::main(&mut self) {
     let msg: LabelSample = LabelSample { label: "x", count: 1 };
 
-    LabelMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    LabelMessage::encode(&msg, &mut self.buffer, &mut self.written);
 
     self.console.exit_process(70);
 }

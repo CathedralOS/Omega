@@ -6,7 +6,7 @@ domain [u8]::Utf8 when valid_utf8(self) {
 // then the bytes -- distinct from a `[u8; N]` repeated field (packed
 // per-element varints). Constructing `BlobSample { bytes: self.source[0..2] }`
 // materializes a `{ptr -> &source[0], len = 2}` descriptor into the field, and
-// `encode_wire` frames it through the same text-bytes append a `&[u8] in Utf8` uses.
+// `encode` frames it through the same text-bytes append a `&[u8] in Utf8` uses.
 //
 // Encoded bytes for { bytes: [72, 105] }, hand-computed:
 //   era 0       -> 0x00   (no version blocks)
@@ -41,7 +41,7 @@ machine Main::main(&mut self) {
     self.source[1] = 105;
     let sample: BlobSample = BlobSample { bytes: self.source[0..2] };
 
-    Blob::encode_wire(&sample, &mut self.buffer, &mut self.written);
+    Blob::encode(&sample, &mut self.buffer, &mut self.written);
 
     let ok: bool = self.written == 5
         && self.buffer[0] == 0

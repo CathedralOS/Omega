@@ -60,7 +60,7 @@ machine Main::main(&mut self) {
         depth: 0
     };
 
-    RoomMessage::decode_wire(&mut decoded, &buffer, &mut self.read, &mut self.ok);
+    RoomMessage::decode(&mut decoded, &buffer, &mut self.read, &mut self.ok);
 
     transition self.ok {
         true -> bad()

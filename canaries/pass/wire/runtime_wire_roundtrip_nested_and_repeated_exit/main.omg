@@ -65,7 +65,7 @@ machine Main::main(&mut self) {
         depth: 0 - 64
     };
 
-    RoomPacket::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    RoomPacket::encode(&msg, &mut self.buffer, &mut self.written);
 
     let decoded: RoomPacketValue = RoomPacketValue {
         header: RoomHeaderValue {
@@ -76,7 +76,7 @@ machine Main::main(&mut self) {
         depth: 0
     };
 
-    RoomPacket::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+    RoomPacket::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
 
     let matches: bool = self.ok
         && self.written == 13

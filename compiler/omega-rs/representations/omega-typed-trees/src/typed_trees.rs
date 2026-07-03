@@ -368,9 +368,9 @@ impl TypedTrees {
     }
 
     /// Recognize the compiler-synthesized wire encoder call shape
-    /// `Schema::encode_wire(&value, &mut out, &mut written)` (chapter 20,
+    /// `Schema::encode(&value, &mut out, &mut written)` (chapter 20,
     /// wire stage 2a): a statement call whose receiver path is exactly one
-    /// member naming a wire schema and whose target is `encode_wire`.
+    /// member naming a wire schema and whose target is `encode`.
     pub fn wire_encode_call_schema(
         &self,
         call: &crate::statement::TableCall,
@@ -387,10 +387,10 @@ impl TypedTrees {
     }
 
     /// Recognize the compiler-synthesized wire decoder call shape
-    /// `Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)`
+    /// `Schema::decode(&mut value, &buffer, &mut read, &mut ok)`
     /// (chapter 20, wire stage 2b): a statement call whose receiver path is
     /// exactly one member naming a wire schema and whose target is
-    /// `decode_wire`.
+    /// `decode`.
     pub fn wire_decode_call_schema(
         &self,
         call: &crate::statement::TableCall,

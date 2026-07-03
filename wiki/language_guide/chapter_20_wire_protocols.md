@@ -96,7 +96,7 @@ borrowed views):
 save: CounterMessage;                        // you own it: a VALUE, sovereign layout,
                                              //   no bytes, no domain, nothing named
 // outbound: encode at the edge into plain scratch bytes
-CounterMessage::encode_wire(&save, &mut scratch, &mut written);
+CounterMessage::encode(&save, &mut scratch, &mut written);
 // inbound: the validate MINT makes the fact true and hands you a refined VIEW
 //   case Valid(view: &[u8] in OmegaLayout<CounterMessage>)   — then materialize (total)
 // grammar is a defaulted build-time parameter of the instance name:
@@ -248,7 +248,7 @@ mint itself is up-ladder), never owned storage. Declaring it on a stored
 declared refinement would be a trivially-claimed membership. You hold the
 VALUE (`save: Save`) and encode at the edge; buffers are plain bytes. A
 refined view is a plain byte view to layout and codegen — never the
-`{len, bytes}` text carrier. The synthesized `Schema::encode_wire(&value, &mut out, &mut
+`{len, bytes}` text carrier. The synthesized `Schema::encode(&value, &mut out, &mut
 written)` encoder covers primitive integer fields (i32, i64, u32, u64, bool):
 the message's ERA DISCRIMINATOR varint comes first, then each current-era
 field in field-number order as a field-number varint followed by a value
@@ -281,7 +281,7 @@ We took (b): encode-only is a smaller honest slice; zero-copy decode awaits
 borrow facts that can model it (tracked in TASKS).
 
 The matching decoder is
-`Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)`: it reads the
+`Schema::decode(&mut value, &buffer, &mut read, &mut ok)`: it reads the
 era varint, then per field the expected field-number varint and a value
 varint, un-zigzagging signed fields, and writes each value into the matching
 field of `value`. `read` receives the byte count consumed and `ok` the

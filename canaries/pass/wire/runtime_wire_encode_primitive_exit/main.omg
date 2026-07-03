@@ -1,5 +1,5 @@
 // Wire stage 2a: the compiler-synthesized compact_binary v0 encoder.
-// `CounterMessage::encode_wire(&msg, &mut self.buffer, &mut self.written)`
+// `CounterMessage::encode(&msg, &mut self.buffer, &mut self.written)`
 // frames the CURRENT era of the schema from a runtime value whose fields
 // match the schema's field names: era varint first, then per field in
 // field-number order a field-number varint and a value varint (LEB128;
@@ -44,7 +44,7 @@ machine Main::main(&mut self) {
         flag: true
     };
 
-    CounterMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    CounterMessage::encode(&msg, &mut self.buffer, &mut self.written);
 
     transition self.written == 8 {
         true -> check_bytes()

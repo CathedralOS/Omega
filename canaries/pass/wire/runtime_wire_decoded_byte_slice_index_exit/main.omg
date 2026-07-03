@@ -1,4 +1,4 @@
-// Consuming a decoded zero-copy `&[u8]`: after `decode_wire` stores a fat
+// Consuming a decoded zero-copy `&[u8]`: after `decode` stores a fat
 // {ptr,len} view into `decoded.bytes`, the bytes are read by INDEXING the view
 // (`data[i]`) under a length guard (`transition i < data.len`). The index is
 // the true-arm action -- a transition ARGUMENT -- so it must be materialized by
@@ -34,10 +34,10 @@ machine Main::main(&mut self) {
     self.source[0] = 72;
     self.source[1] = 105;
     let sample: BlobSample = BlobSample { bytes: self.source[0..2] };
-    Blob::encode_wire(&sample, &mut self.buffer, &mut self.written);
+    Blob::encode(&sample, &mut self.buffer, &mut self.written);
 
     let decoded: BlobSample = BlobSample { bytes: self.source[0..2] };
-    Blob::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+    Blob::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
 
     walk(decoded.bytes, 0);
 

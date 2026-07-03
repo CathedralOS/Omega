@@ -26,7 +26,7 @@ data Main {
 machine Main::main(&mut self) {
     let msg: SampleValue = SampleValue { count: 1, ratio: 0.5 };
 
-    SampleMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    SampleMessage::encode(&msg, &mut self.buffer, &mut self.written);
 
     self.console.exit_process(70);
 }

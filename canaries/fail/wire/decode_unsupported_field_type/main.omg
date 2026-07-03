@@ -29,7 +29,7 @@ data Main {
 machine Main::main(&mut self) {
     let value: LabelSample = LabelSample { count: 0, label: "x" };
 
-    LabelMessage::decode_wire(&mut value, &self.buffer, &mut self.read, &mut self.ok);
+    LabelMessage::decode(&mut value, &self.buffer, &mut self.read, &mut self.ok);
 
     self.console.exit_process(70);
 }

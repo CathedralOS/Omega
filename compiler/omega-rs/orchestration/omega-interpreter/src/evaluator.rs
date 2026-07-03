@@ -1320,7 +1320,7 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    /// `Schema::encode_wire(&value, &mut out, &mut written)` -- the
+    /// `Schema::encode(&value, &mut out, &mut written)` -- the
     /// compact_binary v0 encoder the compiler synthesizes for a wire schema
     /// (chapter 20, wire stage 2a). The interpreter implements the IDENTICAL
     /// framing the native backends emit: the CURRENT era discriminator
@@ -1415,7 +1415,7 @@ impl<'program> Evaluator<'program> {
             .expression_handles(call.arguments);
         let [value_argument, out_argument, written_argument] = arguments else {
             return Err(Halt::Trap(format!(
-                "`{schema_name}::encode_wire` expects 3 arguments, got {}",
+                "`{schema_name}::encode` expects 3 arguments, got {}",
                 arguments.len()
             )));
         };
@@ -1439,12 +1439,12 @@ impl<'program> Evaluator<'program> {
                     .map(|cell| self.deref_cell(Rc::clone(cell)))
                     .ok_or_else(|| {
                         Halt::Trap(format!(
-                            "`{schema_name}::encode_wire` value has no field `{field_name}`"
+                            "`{schema_name}::encode` value has no field `{field_name}`"
                         ))
                     })?,
                 _ => {
                     return Err(Halt::Trap(format!(
-                        "`{schema_name}::encode_wire` value argument is not a data value"
+                        "`{schema_name}::encode` value argument is not a data value"
                     )));
                 }
             };
@@ -1455,7 +1455,7 @@ impl<'program> Evaluator<'program> {
                         .as_int()
                         .ok_or_else(|| {
                             Halt::Trap(format!(
-                                "`{schema_name}::encode_wire` field `{field_name}` is not a scalar value"
+                                "`{schema_name}::encode` field `{field_name}` is not a scalar value"
                             ))
                         })?;
                     bytes.extend(wire_varint_bytes(wire_scalar_varint_value(raw, *scalar)?));
@@ -1474,18 +1474,18 @@ impl<'program> Evaluator<'program> {
                                 .map(|cell| self.deref_cell(Rc::clone(cell)))
                                 .ok_or_else(|| {
                                     Halt::Trap(format!(
-                                        "`{schema_name}::encode_wire` nested field `{field_name}` has no member `{child_name}`"
+                                        "`{schema_name}::encode` nested field `{field_name}` has no member `{child_name}`"
                                     ))
                                 })?,
                             _ => {
                                 return Err(Halt::Trap(format!(
-                                    "`{schema_name}::encode_wire` nested field `{field_name}` is not a data value"
+                                    "`{schema_name}::encode` nested field `{field_name}` is not a data value"
                                 )));
                             }
                         };
                         let child_raw = child_raw.borrow().as_int().ok_or_else(|| {
                             Halt::Trap(format!(
-                                "`{schema_name}::encode_wire` nested field `{field_name}.{child_name}` is not a scalar value"
+                                "`{schema_name}::encode` nested field `{field_name}.{child_name}` is not a scalar value"
                             ))
                         })?;
                         body.extend(wire_varint_bytes(wire_scalar_varint_value(
@@ -1509,18 +1509,18 @@ impl<'program> Evaluator<'program> {
                             .map(|cell| self.deref_cell(Rc::clone(cell)))
                             .ok_or_else(|| {
                                 Halt::Trap(format!(
-                                    "`{schema_name}::encode_wire` value has no field `{count_name}`"
+                                    "`{schema_name}::encode` value has no field `{count_name}`"
                                 ))
                             })?,
                         _ => {
                             return Err(Halt::Trap(format!(
-                                "`{schema_name}::encode_wire` value argument is not a data value"
+                                "`{schema_name}::encode` value argument is not a data value"
                             )));
                         }
                     };
                     let count = count_cell.borrow().as_int().ok_or_else(|| {
                         Halt::Trap(format!(
-                            "`{schema_name}::encode_wire` field `{count_name}` is not a scalar value"
+                            "`{schema_name}::encode` field `{count_name}` is not a scalar value"
                         ))
                     })? as u64;
                     let live = count.min(repeated.max_count as u64) as usize;
@@ -1532,7 +1532,7 @@ impl<'program> Evaluator<'program> {
                                     self.deref_cell(Rc::clone(element)).borrow().as_int().ok_or_else(
                                         || {
                                             Halt::Trap(format!(
-                                                "`{schema_name}::encode_wire` repeated field `{field_name}` element is not a scalar value"
+                                                "`{schema_name}::encode` repeated field `{field_name}` element is not a scalar value"
                                             ))
                                         },
                                     )?;
@@ -1544,7 +1544,7 @@ impl<'program> Evaluator<'program> {
                         }
                         _ => {
                             return Err(Halt::Trap(format!(
-                                "`{schema_name}::encode_wire` repeated field `{field_name}` is not a fixed array value"
+                                "`{schema_name}::encode` repeated field `{field_name}` is not a fixed array value"
                             )));
                         }
                     }
@@ -1558,7 +1558,7 @@ impl<'program> Evaluator<'program> {
                         Value::Str(text) => text.borrow().clone(),
                         _ => {
                             return Err(Halt::Trap(format!(
-                                "`{schema_name}::encode_wire` field `{field_name}` is not a String value"
+                                "`{schema_name}::encode` field `{field_name}` is not a String value"
                             )));
                         }
                     };
@@ -1581,7 +1581,7 @@ impl<'program> Evaluator<'program> {
                             Value::Array(elements) => elements.clone(),
                             _ => {
                                 return Err(Halt::Trap(format!(
-                                    "`{schema_name}::encode_wire` field `{field_name}` is not a byte-slice value"
+                                    "`{schema_name}::encode` field `{field_name}` is not a byte-slice value"
                                 )));
                             }
                         };
@@ -1593,7 +1593,7 @@ impl<'program> Evaluator<'program> {
                                 .as_int()
                                 .ok_or_else(|| {
                                     Halt::Trap(format!(
-                                        "`{schema_name}::encode_wire` byte-slice field `{field_name}` element is not a byte"
+                                        "`{schema_name}::encode` byte-slice field `{field_name}` element is not a byte"
                                     ))
                                 })?;
                             content.push(byte as u8);
@@ -1613,7 +1613,7 @@ impl<'program> Evaluator<'program> {
                     // covers every byte, so an overflow here is a compiler
                     // bug, not a program state -- trap loudly.
                     return Err(Halt::Trap(format!(
-                        "`{schema_name}::encode_wire` produced {} bytes into a {}-byte buffer",
+                        "`{schema_name}::encode` produced {} bytes into a {}-byte buffer",
                         bytes.len(),
                         elements.len()
                     )));
@@ -1627,7 +1627,7 @@ impl<'program> Evaluator<'program> {
             }
             _ => {
                 return Err(Halt::Trap(format!(
-                    "`{schema_name}::encode_wire` out argument is not a fixed byte array"
+                    "`{schema_name}::encode` out argument is not a fixed byte array"
                 )));
             }
         }
@@ -1640,7 +1640,7 @@ impl<'program> Evaluator<'program> {
         Ok(Some(Value::Unit))
     }
 
-    /// `Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)` -- the
+    /// `Schema::decode(&mut value, &buffer, &mut read, &mut ok)` -- the
     /// compact_binary v0 decoder the compiler synthesizes for a wire schema
     /// (chapter 20, wire stage 2b). The interpreter simulates the IDENTICAL
     /// operation sequence the native backends emit -- expected framing bytes
@@ -1722,7 +1722,7 @@ impl<'program> Evaluator<'program> {
             .expression_handles(call.arguments);
         let [value_argument, buffer_argument, read_argument, ok_argument] = arguments else {
             return Err(Halt::Trap(format!(
-                "`{schema_name}::decode_wire` expects 4 arguments, got {}",
+                "`{schema_name}::decode` expects 4 arguments, got {}",
                 arguments.len()
             )));
         };
@@ -1753,14 +1753,14 @@ impl<'program> Evaluator<'program> {
                         .map(|byte| byte as u8)
                         .ok_or_else(|| {
                             Halt::Trap(format!(
-                                "`{schema_name}::decode_wire` buffer element is not a byte"
+                                "`{schema_name}::decode` buffer element is not a byte"
                             ))
                         })
                 })
                 .collect::<Result<_, _>>()?,
             _ => {
                 return Err(Halt::Trap(format!(
-                    "`{schema_name}::decode_wire` buffer argument is not a fixed byte array"
+                    "`{schema_name}::decode` buffer argument is not a fixed byte array"
                 )));
             }
         };
@@ -1820,13 +1820,13 @@ impl<'program> Evaluator<'program> {
                 Value::Struct { fields, .. } => {
                     fields.get(field_name).map(Rc::clone).ok_or_else(|| {
                         Halt::Trap(format!(
-                            "`{schema_name}::decode_wire` value has no field `{field_name}`"
+                            "`{schema_name}::decode` value has no field `{field_name}`"
                         ))
                     })?
                 }
                 _ => {
                     return Err(Halt::Trap(format!(
-                        "`{schema_name}::decode_wire` value argument is not a data value"
+                        "`{schema_name}::decode` value argument is not a data value"
                     )));
                 }
             };
@@ -1883,13 +1883,13 @@ impl<'program> Evaluator<'program> {
                             Value::Struct { fields, .. } => {
                                 fields.get(child_name).map(Rc::clone).ok_or_else(|| {
                                     Halt::Trap(format!(
-                                        "`{schema_name}::decode_wire` nested field `{field_name}` has no member `{child_name}`"
+                                        "`{schema_name}::decode` nested field `{field_name}` has no member `{child_name}`"
                                     ))
                                 })?
                             }
                             _ => {
                                 return Err(Halt::Trap(format!(
-                                    "`{schema_name}::decode_wire` nested field `{field_name}` is not a data value"
+                                    "`{schema_name}::decode` nested field `{field_name}` is not a data value"
                                 )));
                             }
                         };
@@ -1927,12 +1927,12 @@ impl<'program> Evaluator<'program> {
                             .map(|cell| self.deref_cell(Rc::clone(cell)))
                             .ok_or_else(|| {
                                 Halt::Trap(format!(
-                                    "`{schema_name}::decode_wire` value has no field `{count_name}`"
+                                    "`{schema_name}::decode` value has no field `{count_name}`"
                                 ))
                             })?,
                         _ => {
                             return Err(Halt::Trap(format!(
-                                "`{schema_name}::decode_wire` value argument is not a data value"
+                                "`{schema_name}::decode` value argument is not a data value"
                             )));
                         }
                     };
@@ -1948,13 +1948,13 @@ impl<'program> Evaluator<'program> {
                             Value::Array(elements) => {
                                 elements.get(index).map(Rc::clone).ok_or_else(|| {
                                     Halt::Trap(format!(
-                                        "`{schema_name}::decode_wire` repeated field `{field_name}` has no element {index}"
+                                        "`{schema_name}::decode` repeated field `{field_name}` has no element {index}"
                                     ))
                                 })?
                             }
                             _ => {
                                 return Err(Halt::Trap(format!(
-                                    "`{schema_name}::decode_wire` repeated field `{field_name}` is not a fixed array value"
+                                    "`{schema_name}::decode` repeated field `{field_name}` is not a fixed array value"
                                 )));
                             }
                         };

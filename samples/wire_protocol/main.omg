@@ -60,7 +60,7 @@ machine Main::main(&mut self) {
         depth: 0 - 64
     };
 
-    SensorPacket::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    SensorPacket::encode(&msg, &mut self.buffer, &mut self.written);
 
     let decoded: SensorPacketValue = SensorPacketValue {
         header: RoomHeaderValue {
@@ -71,7 +71,7 @@ machine Main::main(&mut self) {
         depth: 0
     };
 
-    SensorPacket::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+    SensorPacket::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
 
     let ok_and_sizes: bool = self.ok && self.written == 13 && self.read == 13;
     transition ok_and_sizes {

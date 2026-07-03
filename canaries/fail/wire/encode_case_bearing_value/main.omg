@@ -26,7 +26,7 @@ data Main {
 machine Main::main(&mut self) {
     let event: RoomEvent = RoomEvent::Treasure { gold: 3 };
 
-    EventMessage::encode_wire(&event, &mut self.buffer, &mut self.written);
+    EventMessage::encode(&event, &mut self.buffer, &mut self.written);
 
     self.console.exit_process(70);
 }

@@ -57,16 +57,16 @@ pub struct WireVersion {
 }
 
 /// The synthesized encoder entry point a wire schema exposes (chapter 20,
-/// wire stage 2a): `Schema::encode_wire(&value, &mut out, &mut written)`.
-pub const WIRE_ENCODE_MACHINE_NAME: &str = "encode_wire";
+/// wire stage 2a): `Schema::encode(&value, &mut out, &mut written)`.
+pub const WIRE_ENCODE_MACHINE_NAME: &str = "encode";
 
 /// The synthesized decoder entry point a wire schema exposes (chapter 20,
 /// wire stage 2b):
-/// `Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)`.
+/// `Schema::decode(&mut value, &buffer, &mut read, &mut ok)`.
 /// `read` receives the byte count consumed, `ok` the success flag; decoding
 /// only accepts the schema's CURRENT era (historical eras await the stage 3
 /// `Versioned<T>` container).
-pub const WIRE_DECODE_MACHINE_NAME: &str = "decode_wire";
+pub const WIRE_DECODE_MACHINE_NAME: &str = "decode";
 
 /// How one primitive scalar rides compact_binary v0 (wire stage 2a): the
 /// runtime load width and whether the value zigzags before LEB128. The
