@@ -3905,46 +3905,6 @@ fn runtime_wire_roundtrip_primitive_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_wire_layout_domain_roundtrip_exit_canary_runs() {
-    // LAYOUTS L5, the carrier spelling: the same hand-computed 8-byte
-    // round-trip as the primitive canary, but the buffer is REFINED
-    // `in OmegaLayout<CounterMessage>`. Exit 70 pins BYTE IDENTITY (the
-    // refinement records what the bytes hold, never changes what they are)
-    // and that the refined carrier stayed a plain [u8; 64], not the
-    // {len, bytes} text carrier.
-    let canary = pass_canary("wire/runtime_wire_layout_domain_roundtrip_exit");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-wire-layout-domain-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("layout-domain roundtrip canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("layout-domain roundtrip canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the OmegaLayout-refined carrier to round-trip the identical 8-byte \
-         framing (exit 70); a failure means the refinement changed the carrier's layout \
-         or the codec's bytes. got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-#[test]
 fn runtime_wire_roundtrip_nested_exit_canary_runs() {
     // Wire nested message fields: encode { header: { room_id: 300, kind: -2 },
     // depth: -64 } into [0x00, 0x00, 0x05, 0x00, 0xAC, 0x02, 0x01, 0x03,
@@ -17545,7 +17505,6 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/stores_capability",
     "comptime/runtime_const_array_length_exit",
     "layouts/runtime_plan_laid_value_field_exit",
-    "wire/runtime_wire_layout_domain_roundtrip_exit",
     "control_flow/runtime_compare_pair_dispatch_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
@@ -18098,7 +18057,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "layouts/plan_laid_policy_without_plan_machine",
     "control_flow/transition_fall_through_bool",
     "control_flow/transition_fall_through_value_match",
-    "wire/layout_domain_schema_mismatch",
+    "wire/layout_domain_on_stored_bytes",
     "wire/layout_domain_grammar_not_implemented",
     "wire/layout_domain_unnumbered_schema",
     "wire/layout_domain_on_non_bytes",
