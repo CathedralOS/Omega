@@ -19,6 +19,7 @@ import alpha_symbolic as S
 import beta_symbolic as B                              # source-side symbolic evaluator (the auto-derived meaning)
 import beta_interp                                     # concrete Beta interpreter (pins the source meaning)
 import refinement_fuzz_gen                             # random straight-line arithmetic Beta programs
+import refinement_loop_gen                              # random data-dependent linear-loop Beta programs
 from bc2 import lex, Parser
 ALPHA_REF = os.path.join(HERE, 'alpha_ref.py')
 PROVER = os.path.join(HERE, '..', 'delta', 'prover.py')
@@ -134,6 +135,10 @@ def check_fuzz(seed):
     # teeth/perturbation is exercised by the curated samples; fuzz keeps it lean (positive proof + both pins)
     return prove_equiv("fuzz seed %d" % seed, text, compile_beta_text(text), "", quiet_perturb=True, trials=8, teeth=False)
 
+def check_loop_fuzz(seed):
+    text = refinement_loop_gen.program(seed)              # a data-dependent loop: BOTH sides must summarize
+    return prove_equiv("loop seed %d" % seed, text, compile_beta_text(text), "", quiet_perturb=True, trials=8, teeth=False)
+
 def run_ref(tape, stdin_bytes):
     with tempfile.NamedTemporaryFile(delete=False) as f:
         f.write(tape); path = f.name
@@ -203,6 +208,12 @@ def main():
         for seed in range(1, nfuzz + 1):
             total += 1; ok = check_fuzz(seed); passed += ok; fpass += ok
         print("   %d/%d random programs certified (bc compiles arithmetic correctly for all inputs)" % (fpass, nfuzz))
+        nloop = int(os.environ.get('REFINE_LOOP_FUZZ', '12'))
+        print(" LOOP FUZZ: random DATA-DEPENDENT loops (both sides summarize a symbolic trip count, ∀ inputs):")
+        lpass = 0
+        for seed in range(1, nloop + 1):
+            total += 1; ok = check_loop_fuzz(seed); passed += ok; lpass += ok
+        print("   %d/%d random loop programs certified (bc compiles counter loops correctly for all inputs)" % (lpass, nloop))
     else:
         print(" (real-bc samples skipped: bc.exe / assembler not provided)")
     print("%d/%d refinement checks passed" % (passed, total))
