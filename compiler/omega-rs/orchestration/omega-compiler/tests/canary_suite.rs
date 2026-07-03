@@ -18219,6 +18219,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "targets/efi_entry_arguments",
     "targets/entry_run_args_bytes",
     "targets/efi_struct_handoff",
+    "targets/efi_conout_projection",
     "arithmetic/narrowing_flow_and_widen_permitted",
     "comptime/runtime_const_array_length_exit",
     "layouts/runtime_plan_laid_value_field_exit",

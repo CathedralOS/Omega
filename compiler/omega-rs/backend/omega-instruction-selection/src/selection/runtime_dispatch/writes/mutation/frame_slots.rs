@@ -128,6 +128,7 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         && !matches!(expressions.expression(value), ExpressionNode::Mutable(_))
     {
         return Some(SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+            target_region: RuntimeStorageRegion::RuntimeFrame,
             pointer_byte_offset: pointee.pointer_byte_offset,
             field_byte_offset: pointee.field_byte_offset,
             target_offset: slot.byte_offset,
@@ -153,6 +154,7 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         && pointee.pointee_byte_size > 0
     {
         return Some(SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+            target_region: RuntimeStorageRegion::RuntimeFrame,
             pointer_byte_offset: pointee.pointer_byte_offset,
             field_byte_offset: pointee.field_byte_offset,
             target_offset: slot.byte_offset,

@@ -1045,11 +1045,13 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
                 byte_count: *byte_count,
             },
             omega_abstract_operations::AbstractOperationKind::CopyRuntimePointeeToRuntimeFrame {
+                target_region,
                 pointer_byte_offset,
                 field_byte_offset,
                 target_offset,
                 byte_count,
             } => Self::CopyRuntimePointeeToRuntimeFrame {
+                target_region: *target_region,
                 pointer_byte_offset: *pointer_byte_offset,
                 field_byte_offset: *field_byte_offset,
                 target_offset: *target_offset,

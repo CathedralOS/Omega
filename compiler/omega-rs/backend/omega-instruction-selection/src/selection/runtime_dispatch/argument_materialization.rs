@@ -306,6 +306,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         {
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+                    target_region: RuntimeStorageRegion::RuntimeFrame,
                     pointer_byte_offset: pointee.pointer_byte_offset,
                     field_byte_offset: pointee.field_byte_offset,
                     target_offset: slot.byte_offset,
