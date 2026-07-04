@@ -361,6 +361,19 @@ proc parse_args() {
     state none { return 0 }
 }
 
+proc is_len_at(o) {                    ; is the identifier at o exactly `len`?
+    state a { to b when (byte[2097152 + o] == 'l')  return 0 }
+    state b { to c when (byte[2097152 + o + 1] == 'e')  return 0 }
+    state c { to d when (byte[2097152 + o + 2] == 'n')  return 0 }
+    state d { to no when (is_idchar(byte[2097152 + o + 3]) == 1)  return 1 }
+    state no { return 0 }
+}
+
+proc lenpath(f, s) {                   ; multi-segment path whose LAST segment is `len`
+    state a { to b when (s > f)  return 0 }
+    state b { return is_len_at(s) }
+}
+
 proc parse_term() {
     skip_ws()
     let c = cbyte()
@@ -384,14 +397,22 @@ proc parse_term() {
         adv()                          ; consume ')'
         return alloc(4, lookup_machine(off), ch, 0)
     }
-    state selffield {                  ; self.PATH -> a field read (dotted paths ok), or self.arr[ix]
-        skip_ident()                   ; past "self"
+    state selffield {                  ; self.PATH -> a field read (dotted paths ok), or self.arr[ix],
+        skip_ident()                   ; past "self"                  or self.carrier.len (tag 7)
         adv()                          ; past '.'
         let foff = word[2097144]
-        skip_path()                    ; past the dotted path
+        let lseg = skip_path()         ; past the dotted path; lseg = its LAST segment
         skip_ws()
         to arrread when (cbyte() == '[')
+        to dolen when (lenpath(foff, lseg) == 1)
         return alloc(3, field_lookup(cur_pref(), foff), 0, 0)
+    }
+    state dolen {                      ; blank the `.len` so the carrier's path terminates for lookup
+        byte[2097152 + lseg - 1] = ' '
+        byte[2097152 + lseg] = ' '
+        byte[2097152 + lseg + 1] = ' '
+        byte[2097152 + lseg + 2] = ' '
+        return alloc(7, array_lookup(cur_pref(), foff), 0, 0)
     }
     state arrread {
         adv()                          ; consume '['
@@ -681,9 +702,28 @@ proc emit_write_line() {
     skip_ws()  adv()                   ; consume '('
     skip_ws()
     let n = 0
-    state wlck {                       ; the fragment supports STRING-LITERAL args only; anything else
+    state wlck {                       ; string-literal or bare self-path carrier args; anything else
         to wlstr when (cbyte() == '"')                    ; must REFUSE LOUDLY, not scan forever (the
-        to wlbad                                          ; old code spun at EOF on write_line(self.f))
+        to wlfld when (is_self() == 1)                    ; old code spun at EOF on write_line(self.f))
+        to wlbad
+    }
+    state wlfld {                      ; write_line(self.PATH): out' = (Cons 10 (rev CARRIER out)) —
+        skip_ident()                   ; rev peels the head first, so byte 0 lands deepest (written
+        adv()                          ; first) and the newline rides outermost (written last)
+        let wf = word[2097144]
+        skip_path()
+        skip_ws()
+        to wlemit when (cbyte() == ')')
+        to wlbad
+    }
+    state wlemit {
+        emit("(let t")  emit_dec(word[6000016])  emit(" (Cons 10 (rev ")
+        print_acurname(array_lookup(cur_pref(), wf))
+        write_byte(' ')  print_outname()  emit(")) ")
+        word[6480000] = 1              ; OUT_KIND = t
+        word[6490000] = word[6000016]
+        word[6000016] = word[6000016] + 1
+        to tcl
     }
     state wlbad {
         emit("E2G-UNSUPPORTED-write-line-arg ")           ; unparseable marker poisons the output: every
@@ -995,8 +1035,10 @@ proc print_expr(node) {
         to isfield when (word[node] == 3)
         to iscall when (word[node] == 4)
         to isaread when (word[node] == 6)
+        to islen when (word[node] == 7)
         to isbin
     }
+    state islen { emit("(len ")  print_acurname(word[node + 8])  write_byte(')')  return 0 }
     state isint { emit_dec(word[node + 8])  return 0 }
     state islocal { print_curname(word[node + 8])  return 0 }
     state isfield { print_fcurname(word[node + 8])  return 0 }
@@ -1147,6 +1189,49 @@ proc reset_curname(mi) {
 ; emit `(let t{fresh} <rhs-under-current-names> ` and rebind slot idx (in the kind/val arrays at kindb/
 ; valb) to t{fresh}. Leaves the let open; the block closes it after the terminal. CUR is before the '='.
 ; returns the number of `let`s opened (1 normally, 2 for a read_byte, which also rebinds the input slot).
+proc do_string_write(arr) {            ; CUR at the opening '"' (caller verified)
+    adv()
+    let n = 0
+    state srd {
+        to send when (cbyte() == '"')
+        to seof when (word[2097144] >= word[2097136])
+        byte[6900000 + n] = cbyte()
+        n = n + 1
+        adv()
+        to srd
+    }
+    state seof { emit("E2G-UNSUPPORTED-unterminated-string ")  return 0 }
+    state send {
+        adv()                          ; consume closing '"'
+        emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
+        let k = 0
+        to sopen
+    }
+    state sopen {                      ; (Cons b0 (Cons b1 .. Nil)) — first byte is the list head
+        to sclose when (k == n)
+        emit("(Cons ")  emit_dec(byte[6900000 + k])  write_byte(' ')
+        k = k + 1
+        to sopen
+    }
+    state sclose { emit("Nil")  let j = 0  to sparens }
+    state sparens { to sfin when (j == n)  write_byte(')')  j = j + 1  to sparens }
+    state sfin {
+        write_byte(' ')
+        word[6440000 + arr * 8] = 1    ; A_KIND = t
+        word[6450000 + arr * 8] = word[6000016]
+        word[6000016] = word[6000016] + 1
+        to ssemi
+    }
+    state ssemi {
+        to sdone when (word[2097144] >= word[2097136])
+        to seat when (cbyte() == ';')
+        adv()
+        to ssemi
+    }
+    state seat { adv()  return 1 }
+    state sdone { return 1 }
+}
+
 proc do_write_slot(kindb, valb, idx) {
     state toeq { to eat when (cbyte() == '=')  adv()  to toeq }
     state eat {
@@ -1393,7 +1478,16 @@ proc translate_block(mi, off) {
     state t_wbyte { depth = depth + emit_write_byte()  to loop }
     state t_wline { depth = depth + emit_write_line()  to loop }
     state t_awrite { do_array_write(array_lookup(cur_pref(), foff))  depth = depth + 1  to loop }
-    state t_fstore { depth = depth + do_write_slot(6420000, 6430000, field_lookup(cur_pref(), foff))  to loop }
+    state t_fstore {                   ; CUR at '=': peek the RHS — a string literal binds the ARRAY slot
+        let sav2 = word[2097144]
+        adv()
+        skip_ws()
+        to t_fstr when (cbyte() == '"')
+        word[2097144] = sav2
+        to t_fnorm
+    }
+    state t_fstr { depth = depth + do_string_write(array_lookup(cur_pref(), foff))  to loop }
+    state t_fnorm { depth = depth + do_write_slot(6420000, 6430000, field_lookup(cur_pref(), foff))  to loop }
     state close { let j = 0  to closed }
     state closed { to fin when (j == depth)  write_byte(')')  j = j + 1  to closed }
     state fin { return 0 }
@@ -1998,6 +2092,7 @@ proc render() {
     state arrhelp {
         emit("(def nth (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nth t (- k 1)))))) ")
         emit("(def setl (xs k v) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) (Cons v t) (Cons h (setl t (- k 1) v)))))) ")
+        emit("(def len (xs) (match xs (Nil 0) ((Cons h t) (+ 1 (len t))))) ")
         to outhelp
     }
     state outhelp {
