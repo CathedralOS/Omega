@@ -1,0 +1,22 @@
+// RUN CANARY (exit 70) + interpreter differential. An INTEGER argument is
+// wrapped to the param's declared width at the binding, matching the native
+// truncating store at the call boundary: `a + b` = 300 (u8 Wrapping) passed to a
+// u8 param reads back 44 (300 & 0xFF), not 300. Regression lock for the
+// interpreter bind_frame arg-coercion (apply_arithmetic_domain on Int args).
+// exit 71 = the interpreter carried the un-wrapped 300 into the u8 param.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: u8 in Wrapping; b: u8 in Wrapping; }
+machine Main::main(&mut self) {
+    self.a = 200;
+    self.b = 100;
+    transition { _ -> step(self.a + self.b) }   // 300 -> u8 param wraps to 44
+    state step(&mut self, x: u8 in Wrapping) {
+        transition x == 44 {
+            true  -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

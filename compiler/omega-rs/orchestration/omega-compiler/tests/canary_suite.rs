@@ -8900,6 +8900,47 @@ fn runtime_shift_right_signedness_canary_runs() {
 }
 
 #[test]
+fn int_transition_arg_width_wrap_canary_runs() {
+    // An integer argument is wrapped to the param's declared width at the binding
+    // (interpreter bind_frame apply_arithmetic_domain), matching native's
+    // truncating store at the call boundary: `a+b`=300 into a u8 param reads 44.
+    // exit 71 = the interpreter carried the un-wrapped 300 into the u8 param.
+    let canary = pass_canary("arithmetic/int_transition_arg_width_wrap");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("int transition-arg width canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (int arg wraps to u8 param width), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-int-transition-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("int transition-arg width canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("int transition-arg width canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected int arg to wrap to the u8 param width (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn f32_transition_arg_rounding_canary_runs() {
     // An f32 passed through a transition ARGUMENT rounds to f32 at the param
     // binding (interpreter bind_frame), not just at stores: accumulating via
@@ -19756,6 +19797,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/const_fold_cast_signedness",
     "arithmetic/f32_field_store_rounding",
     "arithmetic/f32_transition_arg_rounding",
+    "arithmetic/int_transition_arg_width_wrap",
     "arithmetic/runtime_signed_division_exit",
     "arithmetic/runtime_shift_right_signedness",
     "arithmetic/runtime_unsigned_division_exit",
