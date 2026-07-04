@@ -291,6 +291,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ),
     ("collections/runtime_dual_indexed_guard_equality_exit", 70),
     ("calls/runtime_same_type_contained_direct_fields_exit", 70),
+    ("collections/runtime_palindrome_two_pointer_exit", 70),
     ("arithmetic/runtime_float_self_compare_nan_exit", 70),
     ("arithmetic/runtime_abs_desugar_exit", 70),
     ("arithmetic/runtime_sqrt_builtin_exit", 70),
@@ -1031,7 +1032,11 @@ fn interpreter_matches_native_on_supported_canaries() {
 /// the interpreter and native agree there too.
 #[test]
 fn interpreter_matches_native_on_cli_mvp_sample() {
-    let main_path = repo_root().join("samples").join("cli_mvp").join("main.omg");
+    let main_path = repo_root()
+        .join("samples")
+        .join("cli")
+        .join("cli_mvp")
+        .join("main.omg");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "cli_mvp compile failed:\n{}",
@@ -1072,6 +1077,7 @@ fn interpreter_matches_native_on_cli_mvp_sample() {
 fn interpreter_matches_native_on_game_of_life_sample() {
     let main_path = repo_root()
         .join("samples")
+        .join("cli")
         .join("game_of_life")
         .join("main.omg");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
@@ -1108,6 +1114,7 @@ fn interpreter_matches_native_on_game_of_life_sample() {
 fn interpreter_matches_native_on_bouncing_ball_sample() {
     let main_path = repo_root()
         .join("samples")
+        .join("cli")
         .join("bouncing_ball")
         .join("main.omg");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
@@ -1144,6 +1151,7 @@ fn interpreter_matches_native_on_bouncing_ball_sample() {
 fn interpreter_matches_native_on_dual_accumulator_sample() {
     let main_path = repo_root()
         .join("samples")
+        .join("cli")
         .join("dual_accumulator_recursion")
         .join("main.omg");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
@@ -1192,6 +1200,7 @@ fn interpreter_matches_native_on_dual_accumulator_sample() {
 fn interpreter_matches_native_on_stack_vm_sample() {
     let main_path = repo_root()
         .join("samples")
+        .join("cli")
         .join("stack_vm")
         .join("main.omg");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
@@ -1259,6 +1268,7 @@ fn interpreter_matches_native_on_stack_vm_sample() {
 fn interpreter_matches_native_on_account_ledger_sample() {
     let main_path = repo_root()
         .join("samples")
+        .join("cli")
         .join("account_ledger")
         .join("main.omg");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
@@ -1313,6 +1323,7 @@ fn interpreter_matches_native_on_account_ledger_sample() {
 fn interpreter_matches_native_on_insertion_sort_sample() {
     let main_path = repo_root()
         .join("samples")
+        .join("cli")
         .join("insertion_sort")
         .join("main.omg");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
@@ -1357,6 +1368,7 @@ const DUNGEON_SCRIPT: &[u8] = b"north\r\nnorth\r\nnorth\r\nnorth\r\nquit\r\n";
 fn interpreter_dungeon_renders_depth_correct_rooms() {
     let main_path = repo_root()
         .join("samples")
+        .join("cli")
         .join("dungeon_crawler_cli")
         .join("main.omg");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
@@ -1422,6 +1434,7 @@ fn interpreter_dungeon_renders_depth_correct_rooms() {
 fn interpreter_matches_native_on_dungeon_sample() {
     let main_path = repo_root()
         .join("samples")
+        .join("cli")
         .join("dungeon_crawler_cli")
         .join("main.omg");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
