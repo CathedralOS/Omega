@@ -17968,6 +17968,40 @@ fn runtime_float_min_max_abs_clamp_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_same_type_contained_direct_fields_exit_canary_runs() {
+    // The SOUND pattern for two same-type contained machines: DIRECT field access
+    // (not method calls, which alias to the first field of the type). a -> 13,
+    // b -> 21 independently -> exit 70.
+    let canary = pass_canary("calls/runtime_same_type_contained_direct_fields_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sametype-direct-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("same-type contained direct-fields canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("same-type contained direct-fields canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected two same-type contained machines to be INDEPENDENT via direct field \
+         access (a=13, b=21 -> exit 70); exit 71 = they aliased. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_cross_array_indexed_guard_compare_exit_canary_runs() {
     // PROBE: `a[i] < b[j]` (two different arrays, both runtime indices) in a
     // guard. a[1]=20 < b[3]=4 is FALSE; reverse TRUE -> exit 70.
@@ -18736,6 +18770,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_dual_indexed_guard_compare_exit",
     "collections/runtime_cross_array_indexed_guard_compare_exit",
     "collections/runtime_dual_indexed_guard_equality_exit",
+    "calls/runtime_same_type_contained_direct_fields_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
     "concurrency/runtime_spawn_struct_result_exit",
