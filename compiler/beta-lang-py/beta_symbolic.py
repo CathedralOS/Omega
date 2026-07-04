@@ -142,6 +142,11 @@ def _concnat(d):                       # int value of a concrete delta (int OR a
     if isinstance(d, tuple) and d[0] == 's':
         inner = _concnat(d[1])
         return None if inner is None else inner + 1
+    if isinstance(d, tuple) and d[0] in ('p', 'm'):     # fold additive/multiplicative trees of concretes
+        l, r = _concnat(d[1]), _concnat(d[2])           # (a peeled multi-read position delta is (p (s z) (s z)))
+        if l is None or r is None:
+            return None
+        return l + r if d[0] == 'p' else l * r
     return None
 
 def _canon(x):                         # canonicalize a concrete coefficient to an int so 0/1 simplify identically
@@ -317,11 +322,37 @@ def _split_stream(d, rdmark):
             return (combined, coef)
     return (d, None) if not _has_stream(d) else (None, None)
 
-def _read_sum(rest_closed, base, trip, coef=1):    # rest-series + coef·Σ input[base .. base+trip)
-    ssum = ('ssum', _term(base), ('p', _term(base), trip))
+def _read_sum(rest_closed, base, trip, coef=1, width=1):
+    """rest-series + coef·Σ input[base .. base + width·trip). The upper end is exactly the read POSITION's
+    own series closure (delta `width` per iteration), so the forms stay byte-identical at width 1."""
+    ssum = ('ssum', _term(base), _series_closed(base, width, 0, trip))
     if _canon(coef) != 1:
         ssum = ('m', ssum, _term(coef))
     return ('p', _term(rest_closed), ssum)
+
+def _stream_offsets(d, rdmark):
+    """d ≡ rest + Σ_j (sv rdmark+off_j), every read atom coefficient 1 -> (rest, sorted offsets);
+    (None, None) if any stream part is not a bare offset atom. Offsets are per-iteration read positions."""
+    def atom_off(t):
+        if t == ('sv', rdmark):
+            return 0
+        if isinstance(t, tuple) and t[0] == 'sv' and isinstance(t[1], tuple):
+            d = _peel(t[1], rdmark)                     # index = rdmark + off, possibly a left-nested chain
+            return _concnat(d) if d is not None else None
+        return None
+    if not _has_stream(d):
+        return (d, [])
+    o = atom_off(d)
+    if o is not None:
+        return (0, [o])
+    if isinstance(d, tuple) and d[0] == 'p':
+        lr, lo = _stream_offsets(d[1], rdmark)
+        rr, ro = _stream_offsets(d[2], rdmark)
+        if lo is None or ro is None or None in (lo or []) or None in (ro or []):
+            return (None, None)
+        rest = rr if lr == 0 else lr if rr == 0 else ('p', _term(lr), _term(rr))
+        return (rest, lo + ro)
+    return (None, None)
 
 def _component_closed(init, comp_rest_dec, coef, base, trip, off):
     """Close one ℤ-pair component: the ordinary series over its rest (offset-folded), plus an optional
@@ -433,11 +464,11 @@ class SymInterp:
         finally:
             rd_after, self.rdpos = self.rdpos, rd_entry
         reads = 0
-        if rd_after != rd_mark:                         # the body consumed input
-            rdd = _lin_delta(rd_after, rd_mark)
-            if rdd is None or _canon(rdd) != 1 or isinstance(rd_entry, tuple):
-                return False                            # exactly ONE read per iteration, from a fixed position
-            reads = 1
+        if rd_after != rd_mark:                         # the body consumed input: R reads per iteration
+            rdd = _canon(_lin_delta(rd_after, rd_mark) or 0)
+            if not isinstance(rdd, int) or rdd < 1 or isinstance(rd_entry, tuple):
+                return False                            # a fixed per-iteration read count, from a fixed position
+            reads = rdd
         deltas = {}
         rewrite = set()                                 # REWRITE vars: fully overwritten each iteration (a
         for v in entry:                                 # temp t = a*i, …) — no additive delta exists. They
@@ -510,8 +541,14 @@ class SymInterp:
             if not (isinstance(d, tuple) and d[0] == 'zz') and (_has_stream(d)
                                                                 or _mentions(d, ('loopvar', '#rd'))):
                 rest, coef = _split_stream(d, ('loopvar', '#rd'))   # δ = rest + coef·read
-                if coef is None or reads != 1:
-                    return False                        # exactly one read per iteration
+                width = 1
+                if coef is None:                        # not a single coefficiented read: try the WIDE shape —
+                    rest, offs = _stream_offsets(d, ('loopvar', '#rd'))     # the acc consumes ALL R of the
+                    if offs is None or sorted(offs) != list(range(reads)) or reads < 1:
+                        return False                    # iteration's reads, each once -> Σ over base..base+R·t
+                    coef, width = 1, reads
+                elif reads != 1:
+                    return False                        # one-of-many reads: a STRIDED sum — refused
                 coef_s = _subst_loopvars(coef, entry, invariant) if isinstance(coef, tuple) else coef
                 if (_has_stream(coef_s) or _has_zz(coef_s) or _mentions_loopvar(coef_s, loop_vars)
                         or _mentions(coef_s, ('loopvar', '#rd'))):
@@ -525,8 +562,10 @@ class SymInterp:
                     dec = _lin_decompose(rest_s, counter, loop_vars)
                     if dec is None or (down and _canon(dec[1]) != 0):
                         return False
+                if down and _canon(dec[1]) != 0:
+                    return False                        # a counter-dependent rest under a down-counter
                 rest_closed = _series_closed(entry[v], _canon(_sum2(dec[0], _scale2(dec[1], off))), _canon(dec[1]), trip)
-                closed[v] = _read_sum(rest_closed, rd_entry, trip, coef_s)
+                closed[v] = _read_sum(rest_closed, rd_entry, trip, coef_s, width)
                 continue
             if isinstance(d, tuple) and d[0] == 'zz':   # subtracting accumulator: summarize pos/neg
                 comps = []                              # independently — each component may carry its OWN
