@@ -100,6 +100,8 @@ def evaluate(t, env):                  # concrete integer value (ℤ; the gate o
 
 # ---- the dual value model: Python int = concrete, tuple = symbolic Peano term (or a ('zz',pos,neg) ℤ pair) --
 def _term(v):                          # coerce a value to a Peano term (concretes become s^k z)
+    if isinstance(v, tuple) and v and v[0] == 'cmp':
+        raise Unsupported('a comparison used as a value (stored / arithmetic boolean) — not modelled yet')
     return nat(v) if isinstance(v, int) else v
 
 def _s64(x):                           # a concrete 64-bit word as signed
