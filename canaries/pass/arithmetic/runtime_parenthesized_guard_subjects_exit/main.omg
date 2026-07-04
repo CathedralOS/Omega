@@ -44,9 +44,24 @@ machine Main::main(&mut self) {
         transition (self.a + self.b) > 6 { true -> or_of_and() _ -> bad() }
     }
     state or_of_and(&mut self) {
-        // a top-level disjunction of conjunctions (DNF), with a parenthesized
-        // conjunction: (a > 0 && b > 0) || c > 100 -> (true && true) || false.
-        transition (self.a > 0 && self.b > 0) || self.c > 100 { true -> good() _ -> bad() }
+        // Or-of-And-leaf via the CONJUNCTION side: (a>0 && b>0) || c>100 ->
+        // (true && true) || false == true.
+        transition (self.a > 0 && self.b > 0) || self.c > 100 { true -> or_via_leaf() _ -> bad() }
+    }
+    state or_via_leaf(&mut self) {
+        // DISCRIMINATION: make the conjunction FALSE, so the disjunction can only
+        // be true via the LEAF. a := -1 (a>0 is false); c := 10 (c>0 is true) ->
+        // (false && ..) || true == true. A disjunction that dropped the leaf would
+        // take the false arm here.
+        self.a = 0 - 1;
+        self.c = 10;
+        transition (self.a > 0 && self.b > 0) || self.c > 0 { true -> or_all_false() _ -> bad() }
+    }
+    state or_all_false(&mut self) {
+        // Both sides FALSE now: a=-1 (a>0 false), c set to 0 (c>0 false) ->
+        // (false && ..) || false == false -> the FALSE arm is the CORRECT one.
+        self.c = 0;
+        transition (self.a > 0 && self.b > 0) || self.c > 0 { true -> bad() _ -> good() }
     }
 
     state good(&mut self) {
