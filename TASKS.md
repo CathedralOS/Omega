@@ -664,6 +664,17 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >   bare indexed read fails, both NeedsMachineOwnedWrite in the mutation emitter),
 >   computed-index `arr[k+1]` double-gate, u64 literals > i64::MAX (i128
 >   refactor). Fenced (safe) but block real programs. One-fence-per-fire.
+> - **SHIFT/CAST in a guard subject** (`transition self.x >> 1 == c`) -- still
+>   FENCED (fail canaries shift_in_guard_rejected / cast_in_guard_rejected). A
+>   frontend auto-hoist (materialize the bool subject) was attempted + REVERTED
+>   2026-07-03: it's UNSOUND for NEGATIVE signed shifts (the shift stays a
+>   comparison operand in the let-value, hitting the same `sar`-at-64-bit
+>   byte-width bug as the guard-direct path -- native gave `(-8>>1)==-4` FALSE).
+>   The sound fix is the BACKEND operand-width threading (run the `sar` at the
+>   operand width + sign-extend narrow operands), NOT a frontend hoist -- see
+>   bitwise-operators.md. (Cast-hoist tested sound but a nearby bare-field cast
+>   store miscompiles, so cast reverted too.) Parenthesized subjects are the
+>   separate boolean-guard-nesting parser gap.
 >
 > **Mint arc remainder (library-grade; the boot path used the boundary-vouch
 > shortcut):**
