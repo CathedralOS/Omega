@@ -2846,15 +2846,17 @@ exit.
   out-of-range domained constant. SEMANTIC Q for Zach already flagged in memory
   (target-domain fallback vs operand-driven purity; clamp-vs-error for an
   out-of-range literal store).
-- [~] ORACLE f32 store rounding — PARTLY FIXED 2026-07-04. The interpreter now
-  rounds a `Value::Float` to f32 at BOTH stores (Assignment + LocalData in
-  evaluator.rs) when the target primitive is F32, mirroring the integer
-  `apply_arithmetic_domain` width wrap. This kills the FIELD-ACCUMULATION
-  divergence: `a:f32; a=a+1; a=a+1` past 2^24 now plateaus at 16777216 in native
-  AND interp (was interp 16777218). Locked by canary
-  `arithmetic/f32_field_store_rounding` (run + differential, registered in
-  canary_suite AND interpreter RUN_CANARIES). Full suite + interp differential
-  green. REMAINING (still open): a fully-inline `let x:f32 = 16777216.0+1.0+1.0`
+- [~] ORACLE f32 rounding — PARTLY FIXED 2026-07-04. The interpreter now rounds a
+  `Value::Float` to f32 at THREE type-aware seams (evaluator.rs): the Assignment
+  store, the LocalData store, and the transition-arg param binding (`bind_frame`)
+  — each mirroring the integer `apply_arithmetic_domain`/`wrap_to_width` wrap.
+  This kills the FIELD-ACCUMULATION divergence (`a:f32; a=a+1; a=a+1` past 2^24
+  plateaus at 16777216 in native AND interp, was interp 16777218) AND the
+  transition-arg-accumulation divergence. Locked by canaries
+  `arithmetic/f32_field_store_rounding` + `arithmetic/f32_transition_arg_rounding`
+  (run + differential, in canary_suite AND interpreter RUN_CANARIES). Full suite +
+  interp differential green. REMAINING (still open): a fully-inline
+  `let x:f32 = 16777216.0+1.0+1.0`
   yields 16777218 — the host const-FOLDER folds the whole expression in f64 before
   the store rounds, losing intermediate f32 rounding. Native + interp now AGREE
   (no divergence — oracle reliable again) but both are imprecise vs true f32.

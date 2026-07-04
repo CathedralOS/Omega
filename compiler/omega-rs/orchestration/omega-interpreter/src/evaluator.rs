@@ -836,6 +836,25 @@ impl<'program> Evaluator<'program> {
                 .get(arg_index)
                 .cloned()
                 .unwrap_or_else(|| Value::Unit.cell());
+            // Round an f32 ARGUMENT to f32 width at the param binding, mirroring
+            // the Assignment/LocalData store rounding: an inline `+ 1.0` arg is
+            // evaluated in f64 but the f32 param must hold the f32 value native
+            // passes in an f32 register. A `&mut f32` arg carries a `Ref` place,
+            // not a `Float`, so it is left untouched (no match); a by-value f32 is
+            // a copy anyway, so a fresh rounded cell is correct.
+            let cell = match self.program.primitive_type_reference(parameter.type_reference) {
+                Some(PrimitiveType::F32) => {
+                    let rounded = match &*cell.borrow() {
+                        Value::Float(f) => Some(*f as f32 as f64),
+                        _ => None,
+                    };
+                    match rounded {
+                        Some(r) => Value::Float(r).cell(),
+                        None => cell,
+                    }
+                }
+                _ => cell,
+            };
             locals.insert(parameter.name.as_str().to_owned(), cell);
             arg_index += 1;
         }

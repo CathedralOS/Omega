@@ -8900,6 +8900,47 @@ fn runtime_shift_right_signedness_canary_runs() {
 }
 
 #[test]
+fn f32_transition_arg_rounding_canary_runs() {
+    // An f32 passed through a transition ARGUMENT rounds to f32 at the param
+    // binding (interpreter bind_frame), not just at stores: accumulating via
+    // inline `+ 1.0` args past 2^24 plateaus at 16777216, matching native.
+    // exit 71 = the interpreter carried f64 through params to 16777218.
+    let canary = pass_canary("arithmetic/f32_transition_arg_rounding");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("f32 transition-arg canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (f32 rounds at param binding), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-f32-transition-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f32 transition-arg canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f32 transition-arg canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected f32 transition-arg to round at param binding (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn f32_field_store_rounding_canary_runs() {
     // An f32 field/local rounds each stored result to f32 (interpreter store
     // rounding, matching native SSE): stepping past 2^24 by `+ 1.0` plateaus at
@@ -19714,6 +19755,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_copy_then_read_exit",
     "arithmetic/const_fold_cast_signedness",
     "arithmetic/f32_field_store_rounding",
+    "arithmetic/f32_transition_arg_rounding",
     "arithmetic/runtime_signed_division_exit",
     "arithmetic/runtime_shift_right_signedness",
     "arithmetic/runtime_unsigned_division_exit",
