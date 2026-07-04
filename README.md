@@ -1,68 +1,33 @@
 # Omega
 
-Omega is an experimental systems programming language centered around explicit
-state, proof-carrying behavior, capability-aware boundaries, and data-oriented
-execution.
+Omega is a systems programming language with zero-cost abstractions and no unsafe code, while still achieving C and Rust-like speeds. All code is modeled by data-oriented state machines, borrow-checked memory access, proof-carrying behavior, and capability-aware boundaries.
 
-The bet is pretty direct: state machines should not be a framework pattern
-hidden inside a branch-heavy language. They should be the shape of the program.
-Machines own data, states perform work, and transitions describe control-flow
-handoff in a form the compiler can inspect, prove, and eventually optimize hard.
+In other words:
+- No deadlocks.
+- No infinite loops.
+- No stack overflows.
+- No out-of-bounds indexing.
+- No divide-by-zero.
+- No unsafe memory access.
+- Inline assembly is allowed when **provably** safe.
+- Provable instruction/CPU budgets.
+- Full transparency over system effects, such as filesystem or network access. Ban libraries that use any capabilities that seem dangerous.
+- No panics in external libraries that have no reason to panic.
 
-Omega is not trying to be a safer C with prettier syntax, or a Rust clone with
-state machines bolted on afterward. The language is trying to make the scary
-systems-programming nouns first-class: places, values, facts, loans, moves,
-drops, calls, transitions, effects, authority flow, and boundary edges.
-
-Current status: Omega is very early, but no longer purely theoretical. The
-compiler can parse/check all current samples, emit small native macOS ARM64 CLI
-programs as direct executable images, and writes phase artifacts for every
-compiler stage. The native path is still intentionally narrow; when a feature is
-not supported, the compiler should say so instead of pretending.
-
-Tiny current program:
-
-```omega
-use omega::language::std::console;
-
-data Main {
-    console: Console;
-}
-
-machine Main::main(&mut self) {
-    self.console.write_line("Hello, Omega.");
-    self.console.exit_process(0);
-}
-```
+Omega is designed to be safe enough to control an airplane, and powers the [Cathedral](https://github.com/CathedralOS/Cathedral) operating system.
 
 ## Language Direction
 
 Omega is chasing a few connected ideas:
 
-- State machines are syntax, not library objects. `machine`, `state`, and
-  `transition` give control flow a durable graph shape instead of burying it in
-  arbitrary branches.
-- Proof is part of normal compilation. Contracts, domains, bounded values,
-  borrow facts, slice bounds, termination claims, and transition obligations are
-  meant to be checked before the backend gets to emit bytes.
-- Authority should flow through values. Effects stay coarse and readable, while
-  capabilities are tracked through values, domains, provenance, and boundary
-  calls so package reports can say what code accepts, uses, derives, stores,
-  returns, releases, or acquires.
-- Core collections are proof surfaces. Arrays, vectors, slices, strings, and
-  string views should expose browsable operators and measures such as
-  `Slice::Length`, while pointer/descriptor machinery stays behind explicit
-  compiler/runtime boundaries.
-- Data layout matters. Omega should bias toward owned data, dense arenas,
-  predictable access, SIMD-friendly transforms, and state graphs that can be
-  optimized because their semantics are visible.
-- Native output is a first-class goal. The compiler is growing its own path from
-  source to machine code, object data, linking, and final platform images
-  instead of treating executable construction as mysterious external glue.
+- State machines are syntax, not library objects. `machine`, `state`, and `transition` give control flow a durable graph shape instead of burying it in arbitrary branches.
+- Proof is part of normal compilation. Contracts, domains, bounded values, borrow facts, slice bounds, termination claims, and transition obligations are meant to be checked before the backend gets to emit bytes.
+- Authority should flow through values. Effects stay coarse and readable, while capabilities are tracked through values, domains, provenance, and boundary calls so package reports can say what code accepts, uses, derives, stores, returns, releases, or acquires.
+- Core collections are proof surfaces. Arrays, vectors, slices, strings, and string views should expose browsable operators and measures such as `Slice::Length`, while pointer/descriptor machinery stays behind explicit compiler/runtime boundaries.
+- Data layout matters. Omega should bias toward owned data, dense arenas, predictable access, SIMD-friendly transforms, and state graphs that can be optimized because their semantics are visible.
+- Native output is a first-class goal. The compiler is growing its own path from source to machine code, object data, linking, and final platform images instead of treating executable construction as mysterious external glue.
 
-The long-term pitch is ambitious on purpose: write programs as explicit state
-evolution, let the compiler challenge the facts, and then lower the surviving
-program into tight native code.
+The long-term pitch is ambitious on purpose: write programs as explicit state evolution, let the compiler challenge the facts, and then lower the surviving program into tight native code.
 
 ## Building
 
@@ -122,16 +87,9 @@ Important artifact files:
 The native path runs real programs on macOS ARM64, Windows x64, and Linux
 (x64 and ARM64 ELF), all as directly emitted executable images:
 
-- Runtime dispatch over machine/state graphs, including nested machine calls,
-  value-position calls, and guarded multi-arm transitions with payload-binding
-  case arms.
-- Integer arithmetic across widths and signedness (including division,
-  shifts, min/max), f32/f64 arithmetic and comparisons, and width-honest
-  casts — all verified against a reference interpreter as a differential
-  oracle (exit code and stdout must match exactly).
-- Console host calls on every target: stdout, stderr, line-disciplined stdin
-  (CRLF-correct), and process exit. The full `dungeon_crawler_cli` sample
-  runs its scripted loop byte-identically to the interpreter.
+- Runtime dispatch over machine/state graphs, including nested machine calls, value-position calls, and guarded multi-arm transitions with payload-binding case arms.
+- Integer arithmetic across widths and signedness (including division, shifts, min/max), f32/f64 arithmetic and comparisons, and width-honest casts — all verified against a reference interpreter as a differential oracle (exit code and stdout must match exactly).
+- Console host calls on every target: stdout, stderr, line-disciplined stdin (CRLF-correct), and process exit. The full `dungeon_crawler_cli` sample runs its scripted loop byte-identically to the interpreter.
 - Slices and fat descriptors: element reads/writes through views, subslicing
   (`items[1..]`), descriptor materialization, and runtime text building.
 - Case payload construction, tag dispatch, membership tests (`in`),
