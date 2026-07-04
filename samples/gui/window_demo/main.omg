@@ -1,7 +1,7 @@
 // A REAL WINDOW rendered by Omega native code -- the Tier-2 windowed-software-renderer
-// milestone. CreateWindowExA through the built-in "STATIC" class (no WNDCLASS, no WndProc,
-// with a per-frame message pump so the titlebar responds: drag, X-close), a TITLED app window
-// (WS_VISIBLE|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX = 0x10CA0000), then
+// milestone. CreateWindowExA through the predefined dialog class (no WNDCLASS, no WndProc,
+// with a per-frame message pump so the titlebar responds to dragging), a titled app window
+// (WS_VISIBLE|WS_OVERLAPPEDWINDOW = 0x10CF0000), then
 // 60 frames of an animated diagonal color wash: a 64x64 [i32] framebuffer filled per-cell
 // with a SINGLE linear counter (row = i >> 6, col = i & 63 -- no unprovable y*W+x index),
 // stretched 4x by StretchDIBits into the 256x256 client area, paced by Clock.sleep. The
@@ -55,13 +55,14 @@ data Main {
 }
 machine Main::main(&mut self) {
     self.console.write_line("window_demo: 60 frames of software-rendered wash in a real window");
-    // "STATIC\0" -- the built-in window class; no registration needed.
-    self.cls[0] = 83;
-    self.cls[1] = 84;
-    self.cls[2] = 65;
-    self.cls[3] = 84;
-    self.cls[4] = 73;
-    self.cls[5] = 67;
+    // "#32770\0" -- the predefined dialog class. Unlike the STATIC control
+    // class, this behaves like a draggable top-level app window in practice.
+    self.cls[0] = 35;
+    self.cls[1] = 51;
+    self.cls[2] = 50;
+    self.cls[3] = 55;
+    self.cls[4] = 55;
+    self.cls[5] = 48;
     self.cls[6] = 0;
     // "omega demo\0"
     self.title[0] = 111;
@@ -80,10 +81,10 @@ machine Main::main(&mut self) {
     self.info[1] = 64;
     self.info[2] = 0 - 64;
     self.info[3] = 2097153;
-    // WS_VISIBLE | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX (0x10CA0000): a real
-    // titled app window, not a naked popup. The outer size is padded (+16, +39)
+    // WS_VISIBLE | WS_OVERLAPPEDWINDOW (0x10CF0000): a real titled app window,
+    // not a naked popup. The outer size is padded (+16, +39)
     // so the CLIENT area is ~256x256 without an AdjustWindowRect import.
-    self.hwnd = self.gui.window_create(self.cls, self.title, 281542656, 200, 200, 272, 295);
+    self.hwnd = self.gui.window_create(self.cls, self.title, 282001408, 200, 200, 272, 295);
     transition self.hwnd > 0 { true -> dc() _ -> bad() }
     state dc(&mut self) {
         self.hdc = self.gui.get_dc(self.hwnd);
@@ -141,7 +142,7 @@ machine Main::main(&mut self) {
         self.pumped = self.pumped + 1;
         transition { _ -> pump_loop() }
     }
-    // --- liveness: the X button destroys the window; stop blitting into it ---
+    // --- liveness: if the window is destroyed, stop blitting into it ---
     state liveness(&mut self) {
         self.alive = self.gui.is_window(self.hwnd);
         transition self.alive > 0 { true -> next_frame() _ -> finish() }

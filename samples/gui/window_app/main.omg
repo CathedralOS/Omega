@@ -1,13 +1,11 @@
 // A GENUINE STANDALONE software-rendered APP -- it STAYS OPEN until you close it. Every frame:
 // drain the message queue (PeekMessageW -> TranslateMessage -> DispatchMessageW through the
-// built-in STATIC class's DefWindowProc -- this is what makes the window DRAGGABLE, gives it a
-// live titlebar, and makes the X button work: DefWindowProc turns WM_CLOSE into DestroyWindow),
-// then check liveness (IsWindow goes 0 after the X) and ESC (GetAsyncKeyState 27) as a second
-// quit path, then render: a 64x64 framebuffer animated diagonal wash stretched 4x into the
-// ~256x256 client area, paced at ~60fps. Closing the window or pressing ESC exits 0.
+// predefined dialog class's DefWindowProc), then check liveness and ESC (GetAsyncKeyState 27)
+// as quit paths, then render: a 64x64 framebuffer animated diagonal wash stretched 4x into the
+// ~256x256 client area, paced at ~60fps. Pressing ESC exits 0.
 //
 // This sample deliberately carries NO exit annotation for the harness: it is compiled but never
-// auto-run (it waits for a human to close the window). samples/window_demo is the short-lived,
+// auto-run (it waits for a human to close the window). samples/gui/window_demo is the short-lived,
 // exit-asserted variant of the same pipeline. Note: dragging pauses rendering (the modal move
 // loop runs inside DispatchMessageW) -- normal for a single-threaded pump.
 // (Careful wording: the harness's annotation parser substring-matches the annotation phrase
@@ -59,14 +57,15 @@ data Main {
     pause: String;
 }
 machine Main::main(&mut self) {
-    self.console.write_line("window_app: standalone software-rendered app -- drag the window; ESC or the X closes it");
-    // "STATIC\0"
-    self.cls[0] = 83;
-    self.cls[1] = 84;
-    self.cls[2] = 65;
-    self.cls[3] = 84;
-    self.cls[4] = 73;
-    self.cls[5] = 67;
+    self.console.write_line("window_app: standalone software-rendered app -- drag the window; ESC closes it");
+    // "#32770\0" -- the predefined dialog class. Unlike the STATIC control
+    // class, this behaves like a draggable top-level app window in practice.
+    self.cls[0] = 35;
+    self.cls[1] = 51;
+    self.cls[2] = 50;
+    self.cls[3] = 55;
+    self.cls[4] = 55;
+    self.cls[5] = 48;
     self.cls[6] = 0;
     // "omega app\0"
     self.title[0] = 111;
@@ -84,8 +83,8 @@ machine Main::main(&mut self) {
     self.info[1] = 64;
     self.info[2] = 0 - 64;
     self.info[3] = 2097153;
-    // WS_VISIBLE|WS_CAPTION|WS_SYSMENU|WS_MINIMIZEBOX; outer padded so client ~256x256.
-    self.hwnd = self.gui.window_create(self.cls, self.title, 281542656, 200, 200, 272, 295);
+    // WS_VISIBLE|WS_OVERLAPPEDWINDOW; outer padded so client is roughly 256x256.
+    self.hwnd = self.gui.window_create(self.cls, self.title, 282001408, 200, 200, 272, 295);
     transition self.hwnd > 0 { true -> dc() _ -> bad() }
     state dc(&mut self) {
         self.hdc = self.gui.get_dc(self.hwnd);
@@ -119,7 +118,7 @@ machine Main::main(&mut self) {
         self.pumped = self.pumped + 1;
         transition { _ -> pump_loop() }
     }
-    // --- quit paths: the X button (window destroyed by DefWindowProc) or ESC ---
+    // --- quit paths: closed/destroyed window detection or ESC ---
     state liveness(&mut self) {
         self.alive = self.gui.is_window(self.hwnd);
         transition self.alive > 0 { true -> esc_check() _ -> closed() }

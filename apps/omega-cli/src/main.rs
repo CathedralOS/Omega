@@ -7,13 +7,17 @@ use omega_core::allocations::CountingAllocator;
 static GLOBAL_ALLOCATOR: CountingAllocator = CountingAllocator::system();
 
 fn main() {
-    // `omega refresh-samples [samples-dir]`: compile EVERY samples/*/main.omg in
-    // place, in parallel, so each sample folder holds a current, runnable
-    // build/omega-program.exe. Cross-platform (no shell script) and links this
-    // binary's own compiler -- though the binary itself still needs a rebuild
-    // after compiler changes (apps/omega-cli is its own workspace).
+    // `omega refresh-samples [samples-dir]`: compile every sample main.omg
+    // under samples/, in place, in parallel, so each sample folder holds a
+    // current, runnable build/omega-program.exe. Cross-platform (no shell
+    // script) and links this binary's own compiler -- though the binary itself
+    // still needs a rebuild after compiler changes (apps/omega-cli is its own
+    // workspace).
     let mut raw_arguments = std::env::args_os().skip(1);
-    if raw_arguments.next().is_some_and(|first| first == "refresh-samples") {
+    if raw_arguments
+        .next()
+        .is_some_and(|first| first == "refresh-samples")
+    {
         let samples_root = raw_arguments
             .next()
             .map(PathBuf::from)
@@ -49,21 +53,18 @@ fn main() {
     };
 }
 
-/// Compile every `<samples_root>/*/main.omg` into its own `build/` directory,
+/// Compile every sample `main.omg` under `<samples_root>` into its own `build/` directory,
 /// fanned across the machine's cores (each sample owns a distinct build dir, so
 /// the parallel compiles never collide). Prints a summary and exits.
 fn refresh_samples(samples_root: &std::path::Path) -> ! {
-    let mut mains: Vec<PathBuf> = match std::fs::read_dir(samples_root) {
-        Ok(entries) => entries
-            .filter_map(|entry| entry.ok())
-            .map(|entry| entry.path().join("main.omg"))
-            .filter(|main_path| main_path.is_file())
-            .collect(),
-        Err(error) => {
-            eprintln!("cannot read samples dir {}: {error}", samples_root.display());
-            std::process::exit(2);
-        }
-    };
+    let mut mains = Vec::new();
+    if let Err(error) = collect_sample_mains(samples_root, &mut mains) {
+        eprintln!(
+            "cannot read samples dir {}: {error}",
+            samples_root.display()
+        );
+        std::process::exit(2);
+    }
     mains.sort();
     let total = mains.len();
     let workers = std::thread::available_parallelism()
@@ -122,6 +123,29 @@ fn refresh_samples(samples_root: &std::path::Path) -> ! {
         eprintln!("FAILED {failure}");
     }
     std::process::exit(1);
+}
+
+fn collect_sample_mains(
+    directory: &std::path::Path,
+    mains: &mut Vec<PathBuf>,
+) -> std::io::Result<()> {
+    if directory.join("main.omg").is_file() {
+        mains.push(directory.join("main.omg"));
+        return Ok(());
+    }
+
+    for entry in std::fs::read_dir(directory)? {
+        let path = entry?.path();
+        if !path.is_dir() {
+            continue;
+        }
+        if path.file_name().is_some_and(|name| name == "build") {
+            continue;
+        }
+        collect_sample_mains(&path, mains)?;
+    }
+
+    Ok(())
 }
 
 struct CliArguments {
