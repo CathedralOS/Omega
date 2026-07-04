@@ -566,23 +566,32 @@ enum reads back into the right case. Internal sums leave them off (tag identity
 stays the compiler's). Milestone-2 driver: `EfiMemoryType` in the memory-map
 walk.
 
-## STILL OPEN — named constants (Zach thinking; do not implement yet)
+## TASK — const + the static root (settled 2026-07-04, Zach; brief: static_root_and_constants.md, ch1 updated)
 
-The C `#define`-style free-floating constant does not exist in Omega (data lives
-under `data`). Foreign/systems code is constant-heavy (register maps, ABI codes,
-bit masks; a `drivers/facts/` file is nothing but named numbers). Options on the
-table (Zach undecided):
-- nullary effect-free machine in const position (works via build-time eval; call
-  syntax is noisy at facts-file volume);
-- a free `const NAME: T = expr` (a new top-level declaration kind — Zach resists);
-- **associated constants inside `data`** (`Type::NAME`) — leading candidate:
-  no new top-level kind, namespaced (reuses the `::` type-scoping already used
-  for `Main::run`), immutable (carries no authority — not an ambient global),
-  desugars to the same build-time eval. MUTABLE statics stay OUT (a
-  name-reachable mutable static is the ambient global the capability model
-  kills; persistent mutable state stays a field of a held instance).
-Not implement-ready — flagged so the Cathedral `EFI_SUCCESS`/`PAGE_SIZE`/uart-
-facts constants (currently invalid free-floating) get their home once decided.
+The three tangled holes (where const lives, where static lives, why main's &self
+looked like a hack) resolve into two:
+
+- **`const`** — a named compile-time PURE VALUE. Free-floating (package/module-
+  namespaced) by default, or `Type::`-scoped like a machine when it belongs to a
+  type; NEVER a `data` member, so excluded from `sizeof` by construction (Rust's
+  impl-const separation via the `::` rule). Build-time-evaluated. **Pure-value
+  restriction:** no cleanup obligation, no shared ownership, no interior
+  mutability (checked from the ch16 cleanup facts) — copied freely, trivially
+  borrowable, thread-safe; forbids Rust's interior-mut-in-const footgun. Not
+  authority → no capability concern. **Implement:** the `const` declaration +
+  the pure-value check.
+- **static** — NO `static` keyword, NO free-floating mutable static. Persistent
+  mutable state is `main`'s `&self` subtree, reached only by borrowing DOWN
+  (threaded as params) — the capability model at the storage layer. This makes
+  borrow-check over static LOCAL (no global name to grab) and thread-safety
+  ORDINARY (Send/Share over the subtree, not a bespoke static analysis). `main`'s
+  `&self` is the single static root the entry establishes before `main` runs —
+  document it as the bootstrap allocation, not magic. **Nothing to add** (it is
+  the absence of a feature); the entry-model doc names the root allocation.
+
+Cathedral's free-floating constants become `const`; EFI_MEMORY_TYPE tags stay
+named `const` u32s (robust to unknown firmware kinds; a full EfiMemoryType sum
+via case discriminants is the typed alternative if wanted).
 
 ## TASK — foreign vtable dispatch: the FIELD MODEL (decided 2026-07-04, Zach)
 
