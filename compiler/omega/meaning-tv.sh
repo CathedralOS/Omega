@@ -137,6 +137,7 @@ tv inventory_lookup
 tv text_greeting
 tv status_report
 tv traffic_light
+tv inventory_system
 tv digital_root
 tv collatz_sequence
 tv modular_exponentiation

@@ -94,6 +94,7 @@ om multi_value_calls          # 70 — slices v0 (params, [k..], .len, machine t
 om framed_payload            # 60 — bounded subslices x[a..b] via take(drop x a); fully proven
 om slice_maximum             # 9 — max/min builtins as conditional binaries
 om clamp_sum                 # 200 — min builtin + ℤ-mode clamped folds
+om inventory_system          # 70 — 3-field record array in a nested instance (mid-field write paren fix)
 om traffic_light             # 70 — case-valued nested field, zero-init normalized to the zero case
 om text_greeting             # 70 — string concatenation (listcat) + concat assignment to a carrier
 om status_report             # 70 — string building + comparison
