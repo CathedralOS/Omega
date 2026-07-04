@@ -798,11 +798,18 @@ proc emit_write_line() {
     state teof { return 1 }
 }
 
-; the entry's terminal: in output mode, RETURN the accumulated stdout `(rev out Nil)`; else the exit value.
+; the entry's terminal. Output mode returns BOTH observables: `(Pair <exit> (rev out Nil))` — the exit
+; code AND the accumulated stdout — so gates verify the two channels together (exit parsed from the
+; printed pair, stdout pinned byte-exact by the render check). Exit-only programs return the bare value.
 proc emit_exit_om() {
     state d { to omexit when (word[6000056] == 1)  to normal }   ; HAS_OUTPUT
     state normal { emit_exit()  return 0 }
-    state omexit { emit("(rev ")  print_outname()  emit(" Nil)")  return 0 }
+    state omexit {
+        emit("(Pair ")
+        emit_exit()
+        emit(" (rev ")  print_outname()  emit(" Nil))")
+        return 0
+    }
 }
 
 ; ---- self-methods: the program-wide UNIFIED self-state {fields, arrays, inp, out} threaded as a tuple ----
