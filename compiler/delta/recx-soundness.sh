@@ -14,17 +14,17 @@ SEED=../alpha/$ALPHA_SEED
 ASM=../beta/$BETA_SEED
 ( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null 2>&1 ) || { echo "recx seam FAIL — bc build"; exit 1; }
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-../beta-lang-rs/build/bc.exe < check.beta > "$T/c.asm" 2>/dev/null \
-  && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
-  && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1 \
-  || { echo "recx seam FAIL — build check.beta"; exit 1; }
+b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
+b check.beta        "$T/check.exe"  || { echo "recx seam FAIL — build check.beta"; exit 1; }
+b ../gamma/interp.beta "$T/interp.exe" || { echo "recx seam FAIL — build interp.beta"; exit 1; }
 
-python3 - "$T/check.exe" <<'EOF'
+python3 - "$T/check.exe" "$T/interp.exe" ../gamma/checker.gamma <<'EOF'
 import random
 import subprocess
 import sys
 
-check = sys.argv[1]
+check, interp, cgamma = sys.argv[1], sys.argv[2], sys.argv[3]
+defs = open(cgamma).read()
 random.seed(20260705)
 
 
@@ -49,7 +49,14 @@ def verdict(cert):
     a = subprocess.run([check], input=cert, capture_output=True, text=True, timeout=60).stdout.strip()
     b = subprocess.run(['python3', 'check_ref.py'], input=cert, capture_output=True,
                        text=True, timeout=60).stdout.strip()
-    return a, b
+    tr = subprocess.run(['python3', '../gamma/refcert_to_gamma.py'], input=cert,
+                        capture_output=True, text=True, timeout=60)
+    if tr.returncode != 0:
+        return a, b, 'untranslatable'
+    r = subprocess.run([interp], input=defs + '\n' + tr.stdout, capture_output=True, text=True, timeout=60)
+    g = 'accept' if (r.stdout.strip() == '1' and r.returncode == 1) else \
+        'reject' if (r.stdout.strip() == '0' and r.returncode == 0) else 'undecided'
+    return a, b, g
 
 
 ok = bad = 0
@@ -60,15 +67,15 @@ for case in range(30):
     lhs = '(f %d %s %s)' % (fid, ulist(xs), unat(acc))
     good = '%s (= %s %s) (refl %s)' % (PRE, lhs, unat(true), unat(true))
     liar = '%s (= %s %s) (refl %s)' % (PRE, lhs, unat(true + 1), unat(true + 1))
-    va, vb = verdict(good)
-    wa, wb = verdict(liar)
-    if va == vb == 'accept' and wa == wb == 'reject':
+    va, vb, vg = verdict(good)
+    wa, wb, wg = verdict(liar)
+    if va == vb == vg == 'accept' and wa == wb == wg == 'reject':
         ok += 1
     else:
         bad += 1
-        print('  FAIL case %d: xs=%s acc=%d fid=%d -> good=(%s,%s) liar=(%s,%s)'
-              % (case, xs, acc, fid, va, vb, wa, wb))
-print('recx seam (accumulator recursion vs independent evaluation; kernel AND check_ref agree): '
-      '%d ok, %d failed' % (ok, bad))
+        print('  FAIL case %d: xs=%s acc=%d fid=%d -> good=(%s,%s,%s) liar=(%s,%s,%s)'
+              % (case, xs, acc, fid, va, vb, vg, wa, wb, wg))
+print('recx seam (accumulator recursion vs independent evaluation; check.beta, check_ref AND '
+      'checker.gamma agree): %d ok, %d failed' % (ok, bad))
 sys.exit(1 if bad or not ok else 0)
 EOF

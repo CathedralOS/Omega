@@ -86,6 +86,7 @@
     ((Iv k) (if (eq k 0) a0 (if (eq k 1) a1 body)))
     ((Par k) extra)
     ((Reccall i) (let fld (if (eq i 0) a0 a1) (match extra (Bad (Fap tab gid fld)) (z (Fap tab gid (Fbundle fld extra))))))
+    ((Recx i e) (let fld (if (eq i 0) a0 a1) (Fap tab gid (Fbundle fld (finst2 e a0 a1 extra tab gid)))))
     ((Fcall g e) (Fap tab g (finst2 e a0 a1 extra tab gid)))
     ((Fcall2 g x y) (Fap tab g (Fbundle (finst2 x a0 a1 extra tab gid) (finst2 y a0 a1 extra tab gid))))
     (Ze Ze) ((Su x) (Su (finst2 x a0 a1 extra tab gid)))
@@ -150,7 +151,8 @@
     (Tnil (match b (Tnil 1) (z 0)))
     ((Trule g c bd) (match b ((Trule h d be) (if (eq g h) (if (eq c d) (nateq bd be) 0) 0)) (z 0)))
     ((Fcall g e) (match b ((Fcall h e2) (if (eq g h) (nateq e e2) 0)) (z 0)))
-    ((Fcall2 g x y) (match b ((Fcall2 h w v) (if (eq g h) (if (nateq x w) (nateq y v) 0) 0)) (z 0)))))
+    ((Fcall2 g x y) (match b ((Fcall2 h w v) (if (eq g h) (if (nateq x w) (nateq y v) 0) 0)) (z 0)))
+    ((Recx i e) (match b ((Recx j f) (if (eq i j) (nateq e f) 0)) (z 0)))))
 (def conveq (a b) (nateq (pnorm a) (pnorm b)))   ; definitional equality
 
 ; substitute closed individual term s for the var bound at depth d
