@@ -92,6 +92,8 @@ om dual_accumulator_recursion # 70 — slices v0 (params, [k..], .len, machine t
 om fletcher_checksum          # 56 — slices v0 (params, [k..], .len, machine tail-call arms)
 om multi_value_calls          # 70 — slices v0 (params, [k..], .len, machine tail-call arms)
 om framed_payload            # 60 — bounded subslices x[a..b] via take(drop x a); fully proven
+om slice_maximum             # 9 — max/min builtins as conditional binaries
+om clamp_sum                 # 200 — min builtin + ℤ-mode clamped folds
 om text_padding              # 6  — string-carrier fields: "ALERT temp" assignment, .len arithmetic, write_line(field); dual-channel
 om collatz_sequence          # 111 — hailstone steps for seed 27
 om dice_roller               # 70 — self-verified
