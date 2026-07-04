@@ -283,6 +283,8 @@ def mentions_ivar(p, k):                               # does Ivar k occur free 
         return term_has(p[2], k) or term_has(p[3], k)
     if h in ('All', 'Exists'):
         return mentions_ivar(p[1], k + 1)
+    if h == '=':                                       # an equation: its children are TERMS, not props
+        return term_has(p[1], k) or term_has(p[2], k)
     return mentions_ivar(p[1], k) or mentions_ivar(p[2], k)
 
 def term_has(t, k):
@@ -291,6 +293,12 @@ def term_has(t, k):
             return int(t[1]) == k
         if t[0] == 's':
             return term_has(t[1], k)
+        if t[0] in ('p', 'm', 'cons', 'app'):
+            return term_has(t[1], k) or term_has(t[2], k)
+        if t[0] == 'len':
+            return term_has(t[1], k)
+        if t[0] in ('f', 'k'):
+            return any(term_has(a, k) for a in t[2:])
     return False
 
 def infer(pf, ctx, idep=0):                            # ctx: list of (prop, push_idep)
