@@ -967,6 +967,26 @@ def _rules(sat, goal):
                 for p1, _ in sat:
                     if (p1[0] == "=" and p1[1][0] == "p" and p1[1][1] == A[1] and p1[2] == C[1]):  # fact (p X K)=Y
                         wits.append((("m", p1[1][2], A[2]), (_RDIST,)))
+            if A[0] == "p":                                        # ADDITIVE two-bound (non-strict mirror of the
+                X2, Y2, cn = A[1], A[2], nf(C)                     # `<` interval below)  a<=b & c<=d ⊢ a+c <= b+d :
+                xf = [(f[1][2], f[2]) for f, _ in sat              # goal ∃w.(p (p X Y) w)=C where C is CL+CR. (K, CL)
+                      if f[0] == "=" and f[1][0] == "p" and f[1][1] == X2]   # from a<=b (fact X+K=CL); (J, CR) from
+                yf = [(f[1][2], f[2]) for f, _ in sat             # c<=d (fact Y+J=CR). witness w = K+J: (X+Y)+(K+J) =
+                      if f[0] == "=" and f[1][0] == "p" and f[1][1] == Y2]   # (X+K)+(Y+J) = CL+CR = C (add-assoc +
+                for K, CL in xf:                                  # add-comm). This is `add_le_add` -- the sum of two
+                    for J, CR in yf:                              # bounded values is bounded by the sum of the bounds.
+                        if nf(("p", CL, CR)) == cn:
+                            wits.append((("p", K, J), (_ASSOC, _COMM)))
+            if C[0] == "p":                                        # ADDITIVE two-bound, LOWER form  LX<=X & LY<=Y ⊢
+                XX, YY, an = C[1], C[2], nf(A)                     # LX+LY <= X+Y : goal ∃w. A+w=(p X Y) where A is
+                xf = [(f[1][1], f[1][2]) for f, _ in sat          # LX+LY. (LX, K) from LX<=X (fact (p LX K)=X); (LY, J)
+                      if f[0] == "=" and f[1][0] == "p" and f[2] == XX]  # from LY<=Y (fact (p LY J)=Y). Dual of the
+                yf = [(f[1][1], f[1][2]) for f, _ in sat          # upper form above -- the SUM is the goal's RHS, so
+                      if f[0] == "=" and f[1][0] == "p" and f[2] == YY]  # it lower-bounds `LX+LY <= X+Y`. Needed for
+                for LX, K in xf:                                  # e.g. 1<=a & 1<=b ⊢ 2<=a+b (a range's lower bound).
+                    for LY, J in yf:                              # witness w = K+J: A+(K+J) = (LX+LY)+(K+J) =
+                        if nf(("p", LX, LY)) == an:               # (LX+K)+(LY+J) = X+Y (add-assoc + add-comm).
+                            wits.append((("p", K, J), (_ASSOC, _COMM)))
         elif slot == ("s", ("v", 0)):                              # < goal: ∃k. A+(s k) = C
             wits = []
             path = _slack_path(sat, A, C)

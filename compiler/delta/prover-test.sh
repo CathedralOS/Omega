@@ -152,6 +152,13 @@ no "(-> (Lt (v 0) (v 1)) (Lt (v 0) (v 2)))"            # a<b alone does NOT give
 # source (witness K*c, discharged by the banked right-distributivity: a*c + K*c = (a+K)*c = b*c).
 ok "(All (All (All (-> (Le (v 2) (v 1)) (Le (p (v 2) (v 0)) (p (v 1) (v 0)))))))"   # a<=b => a+c <= b+c
 ok "(All (All (All (-> (Le (v 2) (v 1)) (Le (p (v 0) (v 2)) (p (v 0) (v 1)))))))"   # a<=b => c+a <= c+b
+# TWO-bound additive monotonicity (add_le_add): combine TWO order facts under +. The sum-witness gains an
+# additive two-bound source in BOTH directions -- UPPER (the sum is the goal's LHS: a<=b & c<=d => a+c<=b+d)
+# and LOWER (the sum is the goal's RHS, so a CONSTANT lower-bounds it: 1<=a & 1<=b => 2<=a+b). These are the
+# range-contract building blocks (`x in lo..=hi` interval bounds compose additively).
+ok "(All (All (All (All (-> (Le (v 3) (v 2)) (-> (Le (v 1) (v 0)) (Le (p (v 3) (v 1)) (p (v 2) (v 0)))))))))" # a<=b & c<=d => a+c<=b+d  (two-bound UPPER)
+ok "(All (All (-> (Le (s z) (v 1)) (-> (Le (s z) (v 0)) (Le (s (s z)) (p (v 1) (v 0)))))))"                   # 1<=a & 1<=b => 2<=a+b   (two-bound LOWER: constant bounds a sum)
+no "(All (All (All (-> (Le (v 2) (v 1)) (Le (p (v 2) (v 0)) (v 1))))))"                                       # a<=b does NOT give a+c<=b (c>0)
 ok "(All (All (All (-> (Le (v 2) (v 1)) (Le (m (v 2) (v 0)) (m (v 1) (v 0)))))))"   # a<=b => a*c <= b*c  (mult-mono)
 no "(All (All (All (-> (Le (m (v 2) (v 0)) (m (v 1) (v 0))) (Le (v 2) (v 1))))))"   # a*c<=b*c does NOT give a<=b (c=0)
 # CANCELLATION (the INVERSE of additive monotonicity). SOUND for + (unlike *, which has the c=0 divisor above):
@@ -183,6 +190,11 @@ ok "(All (All (-> (Le (v 1) (v 0)) (Le (s (v 1)) (s (v 0))))))" # a<=b -> s a <=
 # refuted by chaining it into (Lt A A) (sum-witness) and applying the banked irreflexivity. See the order-cycle
 # rule in prover.py. The goal-directed rules alone can't reach it (combining two order facts is forward).
 ok "(All (All (-> (Lt (v 1) (v 0)) (-> (Lt (v 0) (v 1)) (bot)))))"  # a<b -> b<a -> bot  (strict order ASYMMETRIC)
+# ORDER-EQ (Nat.ne_of_lt): a STRICT fact plus an EQUALITY of its endpoints is absurd -- the equality collapses
+# a<b into a<a, refuted by the banked irreflexivity (the order-EQ rule in prover.py). Discharges the source
+# contract distinct_when_ordered (i<j -> i!=j). A forward combination the goal-directed rules alone can't reach.
+ok "(All (All (-> (Lt (v 1) (v 0)) (-> (= (v 1) (v 0)) (bot)))))"   # a<b -> a=b -> bot  (strict order + eq => absurd)
+no "(All (All (-> (Lt (v 1) (v 0)) (= (v 1) (v 0)))))"              # a<b does NOT give a=b
 no "(All (All (-> (Lt (v 1) (v 0)) (-> (Lt (v 1) (v 0)) (bot)))))"  # a<b -> a<b -> bot is FALSE (no cycle, just a<b)
 # ANTISYMMETRY (a<=b & b<=a -> a=b) -- the partial-order axiom. Forward orchestration on the two <= witnesses:
 # the additive cycle a+(k+j)=a gives k+j=0 (CANCEL0), hence k=0 (positivity), hence b=a+k=a+0=a. See the
