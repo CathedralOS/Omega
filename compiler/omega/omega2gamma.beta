@@ -486,6 +486,15 @@ proc is_strnode(node) {
     state yes { return 1 }
 }
 
+proc is_listnode(node) {               ; a list-valued operand: strlit, bare array field, or a listcat
+    state a { to yes when (word[node] == 19)  to b }
+    state b { to yes when (word[node] == 20)  to c }
+    state c { to yes when (word[node] == 15)  to d }
+    state d { to e when (word[node] == 2)  return 0 }
+    state e { to yes when (word[node + 8] == 67)  return 0 }   ; BIN with op 'C' (listcat)
+    state yes { return 1 }
+}
+
 proc parse_term() {
     skip_ws()
     let c = cbyte()
@@ -799,7 +808,15 @@ proc parse_sum() {
         to sub when (c == '-')
         return a
     }
-    state add { adv()  let bp = parse_product()  a = alloc(2, '+', a, bp)  to loop }
+    state add {
+        adv()
+        let bp = parse_product()
+        to addlist when (is_listnode(a) == 1)
+        to addlist when (is_listnode(bp) == 1)
+        a = alloc(2, '+', a, bp)
+        to loop
+    }
+    state addlist { a = alloc(2, 'C', a, bp)  to loop }   ; string/list concatenation
     state sub { adv()  let bs = parse_product()  a = alloc(2, '-', a, bs)  to loop }
 }
 
@@ -1565,6 +1582,7 @@ proc print_expr(node) {
         to c_min when (op == 'Y')
         to c_leq when (op == 'Q')
         to c_lne when (op == 'R')
+        to c_cat when (op == 'C')
         write_byte('(')
         write_byte(op)
         write_byte(' ')
@@ -1577,6 +1595,7 @@ proc print_expr(node) {
     state c_lt { emit("(lt ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
     state c_gt { emit("(lt ")  print_expr(word[node + 24])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
     state c_eq { emit("(eq ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
+    state c_cat { emit("(listcat ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
     state c_leq { emit("(listeq ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
     state c_lne { emit("(- 1 (listeq ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  emit("))")  return 0 }
     state c_le {
@@ -1754,6 +1773,23 @@ proc reset_curname(mi) {
 ; emit `(let t{fresh} <rhs-under-current-names> ` and rebind slot idx (in the kind/val arrays at kindb/
 ; valb) to t{fresh}. Leaves the let open; the block closes it after the terminal. CUR is before the '='.
 ; returns the number of `let`s opened (1 normally, 2 for a read_byte, which also rebinds the input slot).
+proc do_list_write(arr) {              ; CUR at '='; bind the array slot to a general LIST expression
+    state toeq { to eat when (cbyte() == '=')  adv()  to toeq }
+    state eat {
+        adv()                          ; consume '='
+        skip_ws()
+        let node = parse_cmp()
+        emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
+        print_expr(node)  write_byte(' ')
+        word[6440000 + arr * 8] = 1
+        word[6450000 + arr * 8] = word[6000016]
+        word[6000016] = word[6000016] + 1
+        to tosemi
+    }
+    state tosemi { to esemi when (cbyte() == ';')  adv()  to tosemi }
+    state esemi { adv()  return 1 }
+}
+
 proc do_string_write(arr) {            ; CUR at the opening '"' (caller verified)
     adv()
     let n = 0
@@ -2234,15 +2270,11 @@ proc translate_block(mi, off) {
     state t_wbyte { depth = depth + emit_write_byte()  to loop }
     state t_wline { depth = depth + emit_write_line()  to loop }
     state t_awrite { do_array_write(array_lookup(cur_pref(), foff))  depth = depth + 1  to loop }
-    state t_fstore {                   ; CUR at '=': peek the RHS — a string literal binds the ARRAY slot
-        let sav2 = word[2097144]
-        adv()
-        skip_ws()
-        to t_fstr when (cbyte() == '"')
-        word[2097144] = sav2
+    state t_fstore {                   ; self.PATH = ... : an ARRAY field takes a list expression;
+        to t_fstr when (array_exists(cur_pref(), foff) == 1)   ; a scalar field takes a scalar expression
         to t_fnorm
     }
-    state t_fstr { depth = depth + do_string_write(array_lookup(cur_pref(), foff))  to loop }
+    state t_fstr { depth = depth + do_list_write(array_lookup(cur_pref(), foff))  to loop }
     state t_fnorm { depth = depth + do_write_slot(6420000, 6430000, field_lookup(cur_pref(), foff))  to loop }
     state close { let j = 0  to closed }
     state closed { to fin when (j == depth)  write_byte(')')  j = j + 1  to closed }
@@ -3177,6 +3209,7 @@ proc render() {
         emit("(def drop (xs k) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) xs (drop t (- k 1)))))) ")
         emit("(def take (xs k) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) Nil (Cons h (take t (- k 1))))))) ")
         emit("(def listeq (a b) (match a (Nil (match b (Nil 1) ((Cons bh bt) 0))) ((Cons ah at) (match b (Nil 0) ((Cons bh bt) (if (eq ah bh) (listeq at bt) 0)))))) ")
+        emit("(def listcat (a b) (match a (Nil b) ((Cons h t) (Cons h (listcat t b))))) ")
         to outhelp
     }
     state outhelp {

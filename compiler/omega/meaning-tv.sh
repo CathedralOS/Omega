@@ -134,6 +134,8 @@ tv framed_payload
 tv slice_maximum
 tv clamp_sum
 tv inventory_lookup
+tv text_greeting
+tv status_report
 tv digital_root
 tv collatz_sequence
 tv modular_exponentiation
