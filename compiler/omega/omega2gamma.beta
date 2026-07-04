@@ -1229,8 +1229,25 @@ proc arm_arg_for(tgt, arm, i) {
 ; name, except slots that are the target's params with an arm argument — those get the arg expression.
 proc emit_call_state(tgt, arm) {
     let mi = word[6000032]
-    emit("(m")  emit_dec(mi)  emit("_s")  emit_dec(tgt)
-    let i = 0
+    state vchk { to visval when (word[6660000 + arm * 8] == 1)  to vcall }
+    state visval {                     ; a value arm: return the literal, method-paired like t_return
+        to vpm when (word[6010200 + mi * 8] == 2)
+        emit_dec(word[6670000 + arm * 8])
+        return 0
+    }
+    state vpm {
+        to vpb when (self_slot_count() > 0)
+        emit_dec(word[6670000 + arm * 8])
+        return 0
+    }
+    state vpb {
+        emit("(Pair ")  emit_dec(word[6670000 + arm * 8])  write_byte(' ')
+        emit_bundle()  write_byte(')')
+        return 0
+    }
+    state vcall { to vgo }
+    state vgo { emit("(m")  emit_dec(mi)  emit("_s")  emit_dec(tgt)  to vrest }
+    state vrest { let i = 0  to lloop }
     state lloop {
         to fields when (i == word[6010800 + mi * 8])       ; M_LCNT[mi]
         write_byte(' ')
@@ -1539,6 +1556,8 @@ proc emit_transition() {
         skip_ws()
         adv()  adv()                   ; consume '->'
         skip_ws()
+        word[6660000 + ac * 8] = 0     ; ARM_ISVAL = 0
+        to armval when (is_digit_at() == 1)
         let toff = word[2097144]
         skip_ident()
         word[6610000 + ac * 8] = lookup_state(toff)
@@ -1548,6 +1567,13 @@ proc emit_transition() {
         skip_ws()
         to armnoargs when (cbyte() == ')')
         to armargs
+    }
+    state armval {                     ; `_ -> 75`: the arm RETURNS the literal (a value-returning state)
+        word[6660000 + ac * 8] = 1
+        word[6670000 + ac * 8] = parse_number()
+        word[6630000 + ac * 8] = 0
+        ac = ac + 1
+        to armloop
     }
     state armargs {                    ; `target(e0, e1, ...)` — parse each arg expression
         word[6620000 + (ac * 4 + word[6630000 + ac * 8]) * 8] = parse_cmp()   ; ARM_ARG[ac][k]
