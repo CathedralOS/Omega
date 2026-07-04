@@ -88,6 +88,27 @@ data Command {
 }
 ```
 
+**Explicit discriminant values** (settled 2026-07-04). A payload-less case may
+pin its tag to a specific integer — required when the sum matches a *foreign
+ABI* whose tag values are fixed by a spec (firmware, hardware, a protocol):
+
+```omega
+data EfiMemoryType {           // UEFI EFI_MEMORY_TYPE — tags are the firmware's
+    case ReservedMemory = 0;
+    case LoaderCode     = 1;
+    case LoaderData     = 2;
+    case ConventionalMemory = 7;
+    // ...
+}
+```
+
+Rules: unspecified cases number sequentially from the previous (0-based by
+default), as in C; a mix of specified and unspecified is allowed; duplicate
+discriminants are a compile error. The discriminant is the on-the-wire /
+in-memory tag under a layout policy, so a foreign enum reads back into the right
+case. For a purely internal sum, leave them off — tag identity is the compiler's
+to assign.
+
 A declaration's shape follows from its members: only fields is a RECORD, only
 cases is a SUM, fields AND cases together is MIXED -- common fields shared by
 every case, plus a case part:

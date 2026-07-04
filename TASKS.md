@@ -554,6 +554,36 @@ settled. Both are mechanical migrations across the corpus + Cathedral source:
   files are members by location and don't re-declare it. Remove the `package X`
   header from source files; the parser stops requiring/accepting it.
 
+## TASK — explicit case discriminants (settled 2026-07-04, Zach; ch1 updated)
+
+A payload-less `case` may pin its tag to a specific integer (`case
+ConventionalMemory = 7`) — required for foreign-ABI enums whose tag values are
+fixed by a spec (UEFI EFI_MEMORY_TYPE, device/protocol enums). Unspecified cases
+number sequentially from the previous (0-based default), C-style; mixing
+specified/unspecified is allowed; duplicate discriminants are a compile error.
+The discriminant is the on-wire/in-memory tag under a layout policy, so a foreign
+enum reads back into the right case. Internal sums leave them off (tag identity
+stays the compiler's). Milestone-2 driver: `EfiMemoryType` in the memory-map
+walk.
+
+## STILL OPEN — named constants (Zach thinking; do not implement yet)
+
+The C `#define`-style free-floating constant does not exist in Omega (data lives
+under `data`). Foreign/systems code is constant-heavy (register maps, ABI codes,
+bit masks; a `drivers/facts/` file is nothing but named numbers). Options on the
+table (Zach undecided):
+- nullary effect-free machine in const position (works via build-time eval; call
+  syntax is noisy at facts-file volume);
+- a free `const NAME: T = expr` (a new top-level declaration kind — Zach resists);
+- **associated constants inside `data`** (`Type::NAME`) — leading candidate:
+  no new top-level kind, namespaced (reuses the `::` type-scoping already used
+  for `Main::run`), immutable (carries no authority — not an ambient global),
+  desugars to the same build-time eval. MUTABLE statics stay OUT (a
+  name-reachable mutable static is the ambient global the capability model
+  kills; persistent mutable state stays a field of a held instance).
+Not implement-ready — flagged so the Cathedral `EFI_SUCCESS`/`PAGE_SIZE`/uart-
+facts constants (currently invalid free-floating) get their home once decided.
+
 ## TASK — foreign vtable dispatch: the FIELD MODEL (decided 2026-07-04, Zach)
 
 A `provides` binding names *which* function pointer to call in a foreign table
