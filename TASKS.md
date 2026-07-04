@@ -2953,6 +2953,21 @@ exit.
   `matching_calls.peek().is_none()` path) — it needs a new planned expansion
   threaded through the planner AND the emitter, not just filling `Unplanned`.
 - [ ] Reduce duplicate descriptor assumptions remaining across backend crates.
+  PARTIAL 2026-07-04: added `PrimitiveType::scalar_byte_size()` as the single
+  source of truth for scalar byte widths and collapsed the two exact byte-size
+  duplicates onto it (`binary_table_writes.rs scalar_primitive_byte_size`,
+  `wire_plans.rs primitive_wire_size`). STILL DUPLICATED: three near-identical
+  `primitive -> TypeLayout` matches (`omega-layout/sizing.rs primitive_type_layout`,
+  `omega-instruction-selection/.../storage_places.rs primitive_layout`,
+  `omega-runtime-storage/layout.rs primitive_layout`). They agree on the scalar
+  1/2/4/8 cases but differ in ABI-context source (`target` vs `input.runtime_abi`
+  vs `context.target`) and in how the String/fat-descriptor layout is spelled
+  (slice_descriptor vs text_descriptor vs hardcoded `2*pointer`). Consolidating
+  needs a shared helper parameterized by (pointer_size, pointer_alignment, string
+  TypeLayout) -- NOT a route through `omega-layout` directly, which would add a
+  crate dependency the architecture-layer DAG likely forbids (probably why the
+  duplication exists). Focused refactor; verify the String spellings are truly
+  equivalent (they appear to be 2*pointer either way) while collapsing.
 - [ ] Strengthen assigned-target allocation toward a real register/stack
   allocation story with register classes, spills, and post-assignment cleanup.
 - [ ] Reduce host/runtime special-case lowering around stdin/stdout/process
