@@ -11,9 +11,12 @@
 # three ways first (encoder = interpreter run = documented intent), and a perturbed certificate (exit+1)
 # must be REJECTED, so acceptance is meaningful. Control decisions (if/match) are the encoder's, exactly
 # like tv-encode's unrolled loops: a wrong decision mis-states the meaning and fails the cross-check.
-# Scope: + * - / % (subtraction/div/mod via tv-encode's user-fun prelude, engaged only when needed so the
-# +/* samples keep kernel-native p/m forms). Outside: underflowing subtractions (usub is monus; interp
-# wraps), quotients past the reduction wall (collatz/digital_root), modexp (kernel reduction too slow).
+# Scope: + * - / % — subtraction/div/mod via tv-encode's user-fun prelude, engaged on demand; a sample whose
+# subtraction UNDERFLOWS transiently is re-encoded with ℤ DIFFERENCE-PAIR values ((pos, neg) components,
+# componentwise user-fun arithmetic) and the claim P = uadd(exit, N) makes the kernel verify pos - neg =
+# exit in ℤ — no negative ever materializes (the refinement pillar's move, replayed kernel-side).
+# Outside: quotients past the reduction wall (collatz/digital_root), modexp (kernel reduction too slow),
+# division over difference pairs, cli_mvp (a match gap).
 cd "$(dirname "$0")"
 command -v python3 >/dev/null 2>&1 || { echo "meaning-tv: skipped (python3 absent)"; exit 0; }
 . ../alpha/seed_env.sh
@@ -53,5 +56,9 @@ tv generic_ring_buffer
 tv insertion_sort
 tv calculator_rpn
 tv tic_tac_toe
+tv bank_ledger
+tv bouncing_ball
+tv turn_combat
+tv width_mixer
 echo "meaning-route TV (the kernel re-computes each covered sample's arithmetic): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] && [ "$PASS" -gt 0 ]
