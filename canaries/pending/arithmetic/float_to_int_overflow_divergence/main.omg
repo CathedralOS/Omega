@@ -1,0 +1,41 @@
+// PARKED REPRO (probe 2026-07-04): a float-to-int cast of an OUT-OF-RANGE value
+// DIVERGES native-vs-interp, and the semantics are UNDECIDED. Same class as the
+// shift-amount-out-of-range divergence.
+//
+// `1e20 as i32` (1e20 does not fit i32):
+//   native = 70 (n == 0): x86 cvttsd2si on out-of-range yields the i64 "integer
+//            indefinite" 0x8000000000000000; truncated to i32 that is 0.
+//   interp = 71 (n == -1): eval does `f.trunc() as i64` (Rust SATURATES to
+//            i64::MAX = 0x7FFFFFFFFFFFFFFF), truncated to i32 = -1.
+// Both are garbage (the value is out of range), but they differ.
+//
+// UNIFIED DESIGN QUESTION (with shift-amount-out-of-range-divergence): both are
+// UNDERSPECIFIED numeric-range operations -- a shift by >= the operand width, and
+// a float-to-int cast of an out-of-range value. Neither native nor interp is
+// "correct" because the behavior is undefined. The proof-carrying-consistent
+// answer, extending decision-17 (Exact arithmetic = proof obligation), is a PROOF
+// OBLIGATION that the value is provably in range -> an unprovable `f as i32` (or
+// `a << n`) is a COMPILE ERROR. Alternatives: define saturating (Rust-style),
+// or match-hardware. DESIGN CALL for Zach -- do NOT unilaterally pick. Until then
+// the oracle is unreliable for out-of-range float-to-int casts. In-range casts
+// agree + are correct.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; f: f64; }
+machine Main::main(&mut self) {
+    self.f = 100000000000000000000.0;   // 1e20, out of i32 range
+    let n: i32 = self.f as i32;
+    transition n == 0 {
+        true  -> native_zero()
+        false -> chk()
+    }
+    state chk(&mut self) {
+        transition n == 0 - 1 {
+            true  -> interp_neg_one()
+            false -> weird()
+        }
+    }
+    state native_zero(&mut self)     { self.console.exit_process(70); }
+    state interp_neg_one(&mut self)  { self.console.exit_process(71); }
+    state weird(&mut self)           { self.console.exit_process(99); }
+}
