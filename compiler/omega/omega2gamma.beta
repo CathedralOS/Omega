@@ -2042,9 +2042,11 @@ proc emit_ifchain(subj, ac) {
     let j = 0
     state cm {                         ; case dispatch: destructure ONCE, test the tag, extract payload
         to loop when (word[6000088] == 0)                 ; binders from pl at their use sites
-        emit("(match ")
+        emit("(match (match ")         ; NORMALIZE: a zero-init case field is scalar 0, not (Pair ..);
+        print_expr(subj)               ; coerce it to the zero case (Pair 0 0) so the destructure fits
+        emit(" ((Pair cza czb) ")
         print_expr(subj)
-        emit(" ((Pair tg pl) ")
+        emit(") (czj (Pair 0 0))) ((Pair tg pl) ")
         to loop
     }
     state loop {
@@ -2074,7 +2076,7 @@ proc emit_ifchain(subj, ac) {
         to cmclose when (word[6000088] == 1)
         return 0
     }
-    state cmclose { emit("))")  return 0 }   ; close the case-mode (match .. ((Pair tg pl) ..)) wrapper
+    state cmclose { emit("))")  return 0 }   ; close the case-mode (match <normalized> ((Pair tg pl) ..)) wrapper
 }
 
 proc emit_transition() {
