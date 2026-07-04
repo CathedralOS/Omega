@@ -156,7 +156,13 @@ def prove_equiv(label, text, tape, ok_msg, quiet_perturb=False, trials=40, teeth
             for _ in range(nC):                        # C conv rhs) with the needed decls prepended; check.beta decides
                 proof = '(gen %s)' % proof
             cert = '%s %s %s' % (prelude.strip(), g, proof)
-            return subprocess.run([CHECK], input=cert, capture_output=True, text=True).stdout.strip() == 'accept'
+            verdict = subprocess.run([CHECK], input=cert, capture_output=True, text=True).stdout.strip()
+            cdir = os.environ.get('REFINE_CERT_DIR')
+            if cdir:                                   # tee the cert + check.beta's verdict for the cert diamond
+                nc = len(os.listdir(cdir))
+                with open(os.path.join(cdir, 'cert-%03d-%s.beta' % (nc, verdict or 'reject')), 'w') as cf:
+                    cf.write(cert + '\n')
+            return verdict == 'accept'
         return prove(g)                                # Peano goal: prover.py searches, check.beta validates
     if not prove_eq(B.render(M)):                      # bc output ≡ source meaning, ∀ inputs
         print("  FAIL %-26s : could not prove code ≡ source meaning\n%s" % (label, text)); return False

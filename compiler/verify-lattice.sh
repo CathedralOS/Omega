@@ -99,6 +99,7 @@ step "omega meaning — real Omega samples run Rust-free; exits match documented
 step "translation validation — delta re-evaluates each compilation's result (+ - * < == / %, loops, gcd, cross-machine)" omega translation-validation.sh epsilon-rs delta gamma
 step "symbolic loops — beta_symbolic's data-dependent loop summaries (symbolic trip count -> closed form) pinned to the interpreter across an input grid" beta-lang-py symbolic-loops.sh
 step "refinement — bc's machine code proved to compute its Beta source meaning (instruction-level TV: both meanings auto-derived, equivalence kernel-checked, never run)" alpha refinement.sh delta beta beta-lang beta-lang-rs beta-lang-py
+step "refinement-cert diamond — every refl cert decided identically by check.beta AND check_ref.py" alpha refinement-cert-diamond.sh delta beta beta-lang beta-lang-rs beta-lang-py
 step "contracts — compiler discharges ensures; delta checks at build" epsilon-rs contracts.sh delta
 step "contracts — static discharge and runtime asserts agree (soundness)" epsilon-rs discharge-soundness.sh delta
 # untrusted proof elaborator (named binders -> raw certs); skipped if python3 is absent
