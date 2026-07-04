@@ -20,6 +20,12 @@
 # the gate string-compares against the interpreter's stdout: the structure is PINNED to the real run, not
 # just the exit code (which is always 0 for constructor-valued programs).
 #
+# VALUE MODES (chosen per sample by retry): kernel-native p/m over s/z nats (+/* only) -> user nats +
+# tv-encode's fun prelude (-,/,% appear) -> ℤ difference pairs (a subtraction underflowed: Under) ->
+# BINARY bit-spines (an intermediate exceeded the unary wall: Big). Heavy ops are WITNESSED (value-pin
+# certs + literal certs proving the defining property) so every certificate stays inside the measured
+# reduction envelope of the 64 MiB alpha image.
+#
 # stdout line 1: `<computed exit> <claim cert>`; line 2: the off-by-one NEGATIVE-control cert the kernel
 # must reject. The gate cross-checks the exit against both the interpreter run and the documented intent.
 import sys
@@ -55,7 +61,47 @@ USER_PRELUDE = (
 )
 
 
+# BINARY NUMERALS (the compound-values opener): samples whose intermediates exceed the unary wall re-encode
+# with little-endian bit-spine values — (k 70) zero, (k 71 x) = 2x, (k 72 x) = 2x+1, CANONICAL (the most
+# significant bit is always B1, zero is bare BNIL). Addition is carry-passing mutual recursion (the ult
+# swap trick peels both operands: badd0/badd1 dispatch the first arg's bit, then the aNrM helpers dispatch
+# the second's with the first's tail remembered); multiplication is shift-and-add. Every unfold run is
+# O(bits), so 72-million LCG states cost ~27 frames — exponentially inside the reduction envelope.
+BIN_PRELUDE = (
+    "(data 70 0 0 0) (data 71 1 1 0) (data 72 1 1 0) "
+    "(fun 80 70 (k 72 (k 70))) (fun 80 71 (k 72 (v 0))) (fun 80 72 (k 71 (f 80 (v 0)))) "   # inc
+    "(fun 81 70 (y 0)) (fun 81 71 (f 82 (y 0) (v 0))) (fun 81 72 (f 83 (y 0) (v 0))) "      # badd0
+    "(fun 82 70 (k 71 (y 0))) (fun 82 71 (k 71 (f 81 (v 0) (y 0)))) "                       # x-bit 0
+    "(fun 82 72 (k 72 (f 81 (v 0) (y 0)))) "
+    "(fun 83 70 (k 72 (y 0))) (fun 83 71 (k 72 (f 81 (v 0) (y 0)))) "                       # x-bit 1
+    "(fun 83 72 (k 71 (f 84 (v 0) (y 0)))) "
+    "(fun 84 70 (f 80 (y 0))) (fun 84 71 (f 85 (y 0) (v 0))) (fun 84 72 (f 86 (y 0) (v 0))) "  # badd1
+    "(fun 85 70 (k 72 (y 0))) (fun 85 71 (k 72 (f 81 (v 0) (y 0)))) "                       # carry, bit 0
+    "(fun 85 72 (k 71 (f 84 (v 0) (y 0)))) "
+    "(fun 86 70 (k 71 (f 80 (y 0)))) (fun 86 71 (k 71 (f 84 (v 0) (y 0)))) "                # carry, bit 1
+    "(fun 86 72 (k 72 (f 84 (v 0) (y 0)))) "
+    "(fun 87 70 (k 70)) (fun 87 71 (f 87 (v 0) (k 71 (y 0)))) "                             # bmul
+    "(fun 87 72 (f 81 (y 0) (f 87 (v 0) (k 71 (y 0)))))"
+)
+
+BIGMAX = 10 ** 12                      # sanity wall for binary mode (40 bits)
+
+
+def bin_lit(k):                        # canonical little-endian bit spine
+    if k < 0:
+        raise Out('negative value reached the binary encoder')
+    if k > BIGMAX:
+        raise Out('value %d exceeds the binary wall' % k)
+    if k == 0:
+        return '(k 70)'
+    return '(k %d %s)' % (72 if k & 1 else 71, bin_lit(k >> 1))
+
+
 class Out(Exception):
+    pass
+
+
+class Big(Exception):                  # an intermediate exceeded the unary wall: retry in binary mode
     pass
 
 
@@ -83,7 +129,7 @@ def nat(k):
     if k < 0:
         raise Out('negative value reached the term encoder')
     if k > MAXV:
-        raise Out('intermediate %d exceeds the unary wall' % k)
+        raise Big()
     return 'z' if k == 0 else '(s %s)' % nat(k - 1)
 
 
@@ -91,7 +137,7 @@ def unat(k):                           # user-nat literal (k 3 (k 3 ... (k 2)))
     if k < 0:
         raise Out('negative value reached the term encoder')
     if k > MAXV:
-        raise Out('intermediate %d exceeds the unary wall' % k)
+        raise Big()
     return '(k 2)' if k == 0 else '(k 3 %s)' % unat(k - 1)
 
 
@@ -111,12 +157,15 @@ class Under(Exception):                    # an underflowing subtraction: retry 
 def main():
     src = sys.stdin.read()
     try:
-        run(src, zpair=False)
-    except Under:
-        run(src, zpair=True)               # an underflow: re-encode with ℤ difference-pair values
+        try:
+            run(src, zpair=False)
+        except Under:
+            run(src, zpair=True)           # an underflow: re-encode with ℤ difference-pair values
+    except Big:
+        run(src, zpair=False, binary=True)  # an intermediate above the unary wall: binary bit-spines
 
 
-def run(src, zpair):
+def run(src, zpair, binary=False):
     forms = parse_all(src)
     # USER mode when -,/,% appear: values ride user nats and ops become kernel user-fun applications.
     # ZPAIR mode (an underflowing subtraction was hit): every value is a (pos, neg) pair of user nats —
@@ -124,7 +173,7 @@ def run(src, zpair):
     # kernel verify pos - neg = exit in ℤ, with no negative ever materializing (the refinement pillar's
     # difference-pair move, replayed kernel-side).
     user = zpair or any(('(%s ' % op) in src for op in ('-', '/', '%'))
-    lit = unat if user else nat
+    lit = bin_lit if binary else (unat if user else nat)
     Z0 = '(k 2)'
     defs = {}
     top = None
@@ -148,7 +197,7 @@ def run(src, zpair):
             if ar != arity:
                 raise Out('constructor %s used at two arities' % name)
             return cid
-        cid = 60 + len(ctors)
+        cid = 100 + len(ctors)
         ctors[name] = (cid, arity)
         return cid
 
@@ -169,7 +218,7 @@ def run(src, zpair):
     DIRECT_MUL = 2500                      # u*v at most this: one direct (f 23 min max) cert is in-envelope
 
     def pin(v):                            # kernel re-computes v's expression: (= v.t literal)
-        litv = unat(v.n)
+        litv = lit(v.n)
         if v.t != litv:
             vcs.append('(= %s %s) (refl %s)' % (v.t, litv, litv))
 
@@ -226,7 +275,13 @@ def run(src, zpair):
             raise Out('array access over a non-spine list or non-numeric index')
         if not user:
             raise Out('array access outside user mode')   # unreachable: nth/setl bodies contain `-`
-        if zpair:
+        if binary:                          # idx + (len-idx) = len with a positive addend: idx < len
+            if idx.n >= n:
+                raise Out('index %d outside spine length %d' % (idx.n, n))
+            pin(idx)
+            vcs.append('(= (f 81 %s %s) %s) (refl %s)'
+                       % (bin_lit(idx.n), bin_lit(n - idx.n), bin_lit(n), bin_lit(n)))
+        elif zpair:
             vcs.append('(= (f 28 %s %s) (k 2)) (refl (k 2))' % (idx.t, idx.nt))
             vcs.append('(= (f 28 %s (f 21 %s %s)) (k 3 (k 2))) (refl (k 3 (k 2)))' % (idx.t, unat(n), idx.nt))
         else:
@@ -248,10 +303,13 @@ def run(src, zpair):
         h = e[0]
         if h == '+':
             a, b = num(ev(e[1], env)), num(ev(e[2], env))
-            if abs(a.n) + abs(b.n) > MAXV:
-                raise Out('intermediate exceeds the unary wall')
+            if abs(a.n) + abs(b.n) > MAXV and not binary:
+                raise Big()
             if zpair:
                 return V(a.n + b.n, '(f 21 %s %s)' % (a.t, b.t), '(f 21 %s %s)' % (a.nt, b.nt))
+            if binary:
+                lo, hi = (a, b) if a.n <= b.n else (b, a)
+                return V(a.n + b.n, '(f 81 %s %s)' % (lo.t, hi.t))
             if not user:
                 return V(a.n + b.n, '(p %s %s)' % (a.t, b.t))
             lo, hi = (a, b) if a.n <= b.n else (b, a)      # uadd unfolds its FIRST arg's value: orient small
@@ -262,12 +320,18 @@ def run(src, zpair):
             return V(a.n + b.n, '(f 21 %s %s)' % (lo.t, hi.t))
         if h == '*':
             a, b = num(ev(e[1], env)), num(ev(e[2], env))
-            if abs(a.n * b.n) > MAXV:
-                raise Out('intermediate exceeds the unary wall')
+            if abs(a.n * b.n) > MAXV and not binary:
+                raise Big()
             if zpair:                       # (p1-n1)(p2-n2) = (p1p2+n1n2) - (p1n2+n1p2)
                 return V(a.n * b.n,
                          '(f 21 (f 23 %s %s) (f 23 %s %s))' % (a.t, b.t, a.nt, b.nt),
                          '(f 21 (f 23 %s %s) (f 23 %s %s))' % (a.t, b.nt, a.nt, b.t))
+            if binary:
+                if a.n == 0 or b.n == 0:
+                    pin(a), pin(b)         # a zero factor would shift junk bits: pin and take the literal
+                    return V(0, '(k 70)')
+                lo, hi = (a, b) if a.n <= b.n else (b, a)
+                return V(a.n * b.n, '(f 87 %s %s)' % (lo.t, hi.t))
             if not user:
                 return V(a.n * b.n, '(m %s %s)' % (a.t, b.t))
             if a.n * b.n <= DIRECT_MUL:
@@ -281,7 +345,15 @@ def run(src, zpair):
             if zpair:                       # (p1-n1) - (p2-n2) = (p1+n2) - (n1+p2)
                 return V(a.n - b.n, '(f 21 %s %s)' % (a.t, b.nt), '(f 21 %s %s)' % (a.nt, b.t))
             if a.n < b.n:
+                if binary:
+                    raise Out('underflow in binary mode')
                 raise Under()               # retry the whole sample with ℤ difference-pair values
+            if binary:
+                d = a.n - b.n
+                pin(a), pin(b)              # subtraction verified BY ADDITION: d + b = a
+                vcs.append('(= (f 81 %s %s) %s) (refl %s)'
+                           % (bin_lit(d), bin_lit(b.n), bin_lit(a.n), bin_lit(a.n)))
+                return V(d, bin_lit(d))
             if b.n <= 200 and a.n <= 3000:
                 return V(a.n - b.n, '(f 22 %s %s)' % (b.t, a.t))   # usub(b, a) = a - b, in-envelope
             pin(a), pin(b)                  # heavy: subtraction VERIFIED BY ADDITION — d + b = a
@@ -304,6 +376,15 @@ def run(src, zpair):
             if b.n == 0:
                 raise Out('division by zero')
             q, r = a.n // b.n, a.n % b.n
+            if binary:
+                pin(a), pin(b)
+                vcs.append('(= (f 81 %s %s) %s) (refl %s)'   # r + (b-r) = b: r < b and b nonzero
+                           % (bin_lit(r), bin_lit(b.n - r), bin_lit(b.n), bin_lit(b.n)))
+                if q:
+                    lo, hi = (q, b.n) if q <= b.n else (b.n, q)
+                    vcs.append('(= (f 81 (f 87 %s %s) %s) %s) (refl %s)'
+                               % (bin_lit(lo), bin_lit(hi), bin_lit(r), bin_lit(a.n), bin_lit(a.n)))
+                return V(q if h == '/' else r, bin_lit(q if h == '/' else r))
             if r > CHUNK:
                 raise Out('remainder %d exceeds the chunk envelope' % r)
             vcs.append('(= (f 24 %s) (k 2)) (refl (k 2))' % b.t)
@@ -396,9 +477,9 @@ def run(src, zpair):
             return '(%s)' % ' '.join([v[0]] + [render(x) for x in v[1:]])
 
         lhs, rhs = stt(r, False), stt(r, True)
-        pre = (USER_PRELUDE + ' ') if user else ''
+        pre = (BIN_PRELUDE + ' ') if binary else (USER_PRELUDE + ' ') if user else ''
         decls = ' '.join('(data %d %d 0 0)' % (cid, ar) for cid, ar in sorted(ctors.values()))
-        badcid = 60 + len(ctors)           # a fresh constructor nothing equals: the negative control
+        badcid = 100 + len(ctors)           # a fresh constructor nothing equals: the negative control
         print('0 %s%s (= %s %s) (refl %s)' % (pre, decls, lhs, rhs, rhs))
         print('%s%s (data %d 0 0 0) (= %s (k %d)) (refl (k %d))' % (pre, decls, badcid, lhs, badcid, badcid))
         for vc in dict.fromkeys(vcs):
@@ -417,10 +498,10 @@ def run(src, zpair):
         return
     exit_code = r.n & 0xFF
     good = lit(r.n)
-    pre = (USER_PRELUDE + ' ') if user else ''
-    wrap = '(k 3 %s)' if user else '(s %s)'
+    bad = lit(r.n + 1)                     # the off-by-one negative control, in the mode's encoding
+    pre = (BIN_PRELUDE + ' ') if binary else (USER_PRELUDE + ' ') if user else ''
     print('%d %s(= %s %s) (refl %s)' % (exit_code, pre, r.t, good, good))
-    print('%s(= %s %s) (refl %s)' % (pre, r.t, wrap % good, wrap % good))   # off-by-one negative control
+    print('%s(= %s %s) (refl %s)' % (pre, r.t, bad, bad))
     for vc in dict.fromkeys(vcs):          # lines 3+: the division-safety obligations, each kernel-checked
         print('%s%s' % (pre, vc))
 

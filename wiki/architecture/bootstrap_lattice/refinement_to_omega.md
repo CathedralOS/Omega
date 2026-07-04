@@ -49,7 +49,10 @@ shape with *its own trust story* — obligations discharged by certificates the 
    both engines derive the same conditional normal form.
 2. **Omega value families** in the meaning language, paired with `omega2gamma` (the Rust-free route) so the
    *gamma elaboration* is the thing symbolically executed — refinement at the γ level, reusing interp.beta
-   as the pin.
+   as the pin. *First summit camp reached: BINARY NUMERALS — a second value representation (bit-spine
+   constructors + carry-passing badd / shift-and-add bmul user funs), engaged per sample when unary
+   magnitudes overflow, O(bits) kernel reductions. With it, `meaning-tv.sh` proves ALL 19 omega-meaning
+   samples.*
 3. **Obligation-emitting elaboration**: port epsilon's certify-* pattern up to omega2gamma, one obligation
    class at a time, each with its three-checker diamond. *Status: two classes live in `meaning-tv.sh` —
    division safety (iszero(divisor) = 0 at every / and % site) and array bounds (ult(idx, len) = 1 at every
