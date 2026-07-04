@@ -2836,6 +2836,15 @@ exit.
   out-of-range domained constant. SEMANTIC Q for Zach already flagged in memory
   (target-domain fallback vs operand-driven purity; clamp-vs-error for an
   out-of-range literal store).
+- [ ] Native-emission gap (surfaced 2026-07-04, CLEAN error — interp supports it):
+  a state that CALLS another machine whose ENTRY is a branching (dispatching)
+  state, passing arguments, is refused: "state calls: `A.s` … calls branching
+  state `B.entry` with N argument(s); native emission needs guarded state-call
+  expansion". So chaining `state next { self.check_c(Rec::C{…}); }` into a
+  dispatch-entry machine works in the interpreter but not natively. Safe (clean
+  refusal, no miscompile); the fix is guarded state-call expansion at the call
+  site. Low priority — the workaround is to inline the second dispatch or make
+  the callee entry a non-branching state that transitions inward.
 - [ ] Reduce duplicate descriptor assumptions remaining across backend crates.
 - [ ] Strengthen assigned-target allocation toward a real register/stack
   allocation story with register classes, spills, and post-assignment cleanup.
