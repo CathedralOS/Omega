@@ -2863,6 +2863,20 @@ exit.
   Fully fixing needs per-OP f32 rounding, which needs the binary op's result type
   (same metadata-on-values gap as the integer const-fold class). Memory
   `float-f32-computed-in-f64`.
+- [ ] DESIGN Q + divergence (probe 2026-07-04): a shift by an amount >= the
+  operand WIDTH diverges native-vs-interp, and the semantics are UNDECIDED.
+  `i32 1 << 40`: native masks the count to the register width (x86 `shl`: 40 & 31
+  = 8 → 256); the interpreter does `(l as i64).wrapping_shl(40)` (masks to 64 →
+  1 << 40, truncated to i32 = 0). In-range shifts (amount < width) agree + are
+  correct — only out-of-range amounts diverge, so f32… no, INTEGER shift
+  differentials are unreliable for out-of-range amounts. QUESTION for Zach (per
+  design-discussion-protocol): what are shift-by->=width semantics? Most
+  proof-carrying-consistent = a PROOF OBLIGATION that the amount < width (like an
+  index bound) → compile error for unproven `a << n`. Alternatives: define as
+  mask-to-operand-width (match native; then fix the interpreter to mask to the
+  operand width, not i64) or shift-out-to-zero. Parked repro
+  `canaries/pending/arithmetic/shift_amount_at_or_above_width_divergence`; memory
+  `shift-amount-out-of-range-divergence`.
 - [ ] Native-emission gap (surfaced 2026-07-04, CLEAN error — interp supports it):
   a state that CALLS another machine whose ENTRY is a branching (dispatching)
   state, passing arguments, is refused: "state calls: `A.s` … calls branching

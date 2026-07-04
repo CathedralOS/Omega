@@ -8861,6 +8861,47 @@ fn runtime_unsigned_modulo_cast_operand_exit_canary_runs() {
 }
 
 #[test]
+fn saturating_signed_divide_min_by_neg_one_canary_runs() {
+    // Saturating signed divide/modulo of TYPE_MIN by -1: the same idiv #DE corner
+    // as the Wrapping case, but CLAMPED (INT_MIN / -1 -> INT_MAX, % -> 0).
+    // Verifies append_saturating_signed_divide_modulo's -1 guard. exit 72 = divide
+    // did not clamp; 73 = modulo not 0.
+    let canary = pass_canary("arithmetic/saturating_signed_divide_min_by_neg_one");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("saturating INT_MIN/-1 canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (INT_MIN/-1 clamps to INT_MAX, %0), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sat-div-min-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating INT_MIN/-1 canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating INT_MIN/-1 canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected INT_MIN/-1 to clamp to INT_MAX (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn wrapping_signed_divide_min_by_neg_one_canary_runs() {
     // Wrapping signed divide/modulo of TYPE_MIN by -1: x86 `idiv` raises #DE
     // (integer-overflow) for this corner, so the Wrapping domain guards it and
@@ -19963,6 +20004,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_copy_then_read_exit",
     "arithmetic/const_fold_cast_signedness",
     "arithmetic/wrapping_signed_divide_min_by_neg_one",
+    "arithmetic/saturating_signed_divide_min_by_neg_one",
     "arithmetic/f32_field_store_rounding",
     "arithmetic/f32_transition_arg_rounding",
     "arithmetic/int_transition_arg_width_wrap",
