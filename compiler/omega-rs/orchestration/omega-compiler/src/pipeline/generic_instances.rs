@@ -24,12 +24,15 @@
 //! `Store<u8 in Utf8>`) -- the substitution rides the argument's own type
 //! reference, so the domain follows the field for free. What it skips (later
 //! phases, or the pre-existing poison for a second such instantiation): generic
-//! ENUMS (`case` members), genuinely composite arguments (a nested generic,
-//! array, slice, reference, or a range-bounded type), and fields that NEST the
-//! parameter (`[T; N]`, `&T`, `Other<T>`). Scans every TYPE-REFERENCE position a
-//! generic-data spelling reaches: data FIELDS plus machine-body `let`-local,
-//! state PARAMETER, and RETURN type annotations (all poison the per-definition
-//! layout the same way on a 2nd distinct instantiation).
+//! ENUMS (`case` members), genuinely composite ARGUMENTS (`Box<[i32; 4]>`,
+//! `Box<&T>`, a range-bounded arg), and a field that nests the parameter under a
+//! NON-generic composite (`[T; N]`, `&T`). A field nesting the parameter under
+//! ANOTHER generic (`Pair<T> { a: Box<T> }`) IS handled (Phase 3): the desugar
+//! runs to a FIXPOINT, synthesizing the concrete `Box<i32>` a `Pair<i32>`
+//! produces. Scans every TYPE-REFERENCE position a generic-data spelling reaches:
+//! data FIELDS plus machine-body `let`-local, state PARAMETER, and RETURN type
+//! annotations; generic TEMPLATE bodies (defs/machines with type params) are
+//! skipped so their param-arg spellings are not mistaken for concrete instances.
 
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
@@ -114,23 +117,102 @@ pub(crate) fn desugar_generic_data_instances(
         return Ok(());
     }
 
-    // Collect every TYPE-REFERENCE position a generic-data spelling can appear in.
-    // Collection is separate from consideration so the syntax borrows stay simple.
-    // Data FIELDS were the original Phase-1 scope; a `Box<i32>` also poisons the
-    // per-definition layout on a 2nd distinct instantiation in a machine body --
-    // as a `let`-local, a state PARAMETER, or a RETURN type -- so those positions
-    // are monomorphized too (the "type positions" Phase-1 polish).
+    // FIXPOINT. Each round scans every type-reference position for a
+    // `Base<Args..>` spelling, synthesizes one concrete record per new distinct
+    // spelling, and rewrites the spellings to the instances' plain names. A
+    // NESTED generic (`Pair<T> { a: Box<T> }` used as `Pair<i32>`) synthesizes a
+    // `Pair<i32>` record whose `a` field is a fresh `Box<i32>` spelling -- picked
+    // up and monomorphized by the NEXT round. Terminates: each round rewrites
+    // >=1 Generic node to Named (permanent) or stops, and the distinct concrete
+    // spellings are finite.
+    let mut synthesized: std::collections::HashSet<String> = std::collections::HashSet::new();
+    loop {
+        let positions = collect_type_reference_positions(syntax);
+        let mut rewrites: Vec<PendingRewrite> = Vec::new();
+        let mut instantiations: Vec<Instantiation> = Vec::new();
+        for position in positions {
+            consider_generic_spelling(
+                syntax,
+                &generic_data,
+                position,
+                &mut rewrites,
+                &mut instantiations,
+            );
+        }
+        if rewrites.is_empty() {
+            break; // no more monomorphizable generic spellings
+        }
+        // Synthesize each not-yet-built instance: the base's members cloned with
+        // the type parameters substituted for the arguments.
+        for instance in &instantiations {
+            if !synthesized.insert(instance.synthetic_name.clone()) {
+                continue;
+            }
+            let base_info = &generic_data[&instance.base_name];
+            let substitution: HashMap<String, TypeReferenceHandle> = base_info
+                .parameter_names
+                .iter()
+                .cloned()
+                .zip(instance.argument_handles.iter().copied())
+                .collect();
+
+            let members: Vec<DataMember> = syntax
+                .tables
+                .items
+                .data_members(base_info.members)
+                .to_vec();
+            let properties = base_info.properties;
+            let mut first: Handle<DataMember> = Handle::invalid();
+            let mut count = 0u32;
+            for member in members {
+                let substituted = substitute_member(syntax, member, &substitution);
+                let handle = syntax.tables.items.append_data_member(substituted);
+                if count == 0 {
+                    first = handle;
+                }
+                count += 1;
+            }
+            syntax.push_root_item(Item::Data(DataDefinition {
+                name: Identifier::generated(instance.synthetic_name.as_str()),
+                type_parameters: HandleSpan::default(),
+                properties,
+                members: HandleSpan::from_parts(first, count),
+            }));
+        }
+
+        // Rewrite this round's spellings to the synthesized instances' plain names.
+        for rewrite in rewrites {
+            syntax.tables.type_references.replace_type_reference(
+                rewrite.type_reference,
+                TypeReferenceNode::Named(Identifier::generated(rewrite.synthetic_name)),
+            );
+        }
+    }
+
+    Ok(())
+}
+
+/// Every TYPE-REFERENCE position a generic-data spelling can appear in: data
+/// FIELDS plus machine-body `let`-local, state PARAMETER, and RETURN types. Run
+/// afresh each fixpoint round so newly-synthesized records' fields are seen.
+fn collect_type_reference_positions(syntax: &SyntaxTrees) -> Vec<TypeReferenceHandle> {
     let mut positions: Vec<TypeReferenceHandle> = Vec::new();
     for item in syntax.root_items() {
         match item {
-            Item::Data(definition) => {
+            // SKIP the bodies of GENERIC TEMPLATES (defs/machines with type
+            // parameters): their `Box<T>` fields carry the type PARAMETER as an
+            // argument, not a concrete instantiation -- monomorphizing them would
+            // synthesize a bogus `Box<T>` record and corrupt the template. Only
+            // concrete records (incl. synthesized instances) and non-generic
+            // machine bodies hold real `Box<i32>` spellings.
+            Item::Data(definition) if definition.type_parameters.is_empty() => {
                 for member in syntax.tables.items.data_members(definition.members) {
                     if let DataMember::Field(field) = member {
                         positions.push(field.type_reference);
                     }
                 }
             }
-            Item::Machine(machine) => {
+            Item::Machine(machine) if machine.type_parameters.is_empty() => {
                 for state_handle in syntax.tables.items.state_handles(machine.states) {
                     let state = syntax.tables.items.state(*state_handle);
                     positions.push(state.return_type);
@@ -155,62 +237,7 @@ pub(crate) fn desugar_generic_data_instances(
             _ => {}
         }
     }
-
-    let mut rewrites: Vec<PendingRewrite> = Vec::new();
-    let mut instantiations: Vec<Instantiation> = Vec::new();
-    for position in positions {
-        consider_generic_spelling(
-            syntax,
-            &generic_data,
-            position,
-            &mut rewrites,
-            &mut instantiations,
-        );
-    }
-    // No Phase-1 diagnostics: unhandled shapes are SKIPPED, not rejected.
-    // Synthesize one concrete record per distinct instantiation: the base's
-    // members cloned with the type parameters substituted for the arguments.
-    for instance in &instantiations {
-        let base_info = &generic_data[&instance.base_name];
-        let substitution: HashMap<String, TypeReferenceHandle> = base_info
-            .parameter_names
-            .iter()
-            .cloned()
-            .zip(instance.argument_handles.iter().copied())
-            .collect();
-
-        let members: Vec<DataMember> = syntax
-            .tables
-            .items
-            .data_members(base_info.members)
-            .to_vec();
-        let mut first: Handle<DataMember> = Handle::invalid();
-        let mut count = 0u32;
-        for member in members {
-            let substituted = substitute_member(syntax, member, &substitution);
-            let handle = syntax.tables.items.append_data_member(substituted);
-            if count == 0 {
-                first = handle;
-            }
-            count += 1;
-        }
-        syntax.push_root_item(Item::Data(DataDefinition {
-            name: Identifier::generated(instance.synthetic_name.as_str()),
-            type_parameters: HandleSpan::default(),
-            properties: base_info.properties,
-            members: HandleSpan::from_parts(first, count),
-        }));
-    }
-
-    // Rewrite the field spellings to the synthesized instances' plain names.
-    for rewrite in rewrites {
-        syntax.tables.type_references.replace_type_reference(
-            rewrite.type_reference,
-            TypeReferenceNode::Named(Identifier::generated(rewrite.synthetic_name)),
-        );
-    }
-
-    Ok(())
+    positions
 }
 
 /// If `type_reference` is a `Base<Args..>` spelling of a fully-monomorphizable
@@ -249,7 +276,7 @@ fn consider_generic_spelling(
     let Some(argument_names) = monomorphizable_argument_slugs(syntax, &argument_handles) else {
         return;
     };
-    if !base_is_fully_monomorphizable(syntax, base_info) {
+    if !base_is_fully_monomorphizable(syntax, generic_data, base_info) {
         return;
     }
 
@@ -324,11 +351,17 @@ fn constraint_slug(constraint: &TypeConstraintNode) -> Option<String> {
     }
 }
 
-/// Whether the base generic is a PLAIN RECORD each of whose fields is either
-/// exactly the parameter or parameter-free -- the shape Phase 1 substitutes
-/// soundly. A `case`/version member, or a field that nests the parameter,
-/// fails (leaving the generic for the existing path).
-fn base_is_fully_monomorphizable(syntax: &SyntaxTrees, base_info: &GenericData) -> bool {
+/// Whether the base generic is a PLAIN RECORD each of whose fields Phase 1/3 can
+/// substitute soundly. A `case`/version member fails. A field may be exactly the
+/// parameter, a concrete Named, a parameter-free composite, or a NESTED generic
+/// `Base<Args..>` of a KNOWN generic whose arguments are each a parameter or
+/// parameter-free (`Pair<T> { a: Box<T> }`) -- the fixpoint monomorphizes the
+/// concrete `Box<i32>` the substitution produces.
+fn base_is_fully_monomorphizable(
+    syntax: &SyntaxTrees,
+    generic_data: &HashMap<String, GenericData>,
+    base_info: &GenericData,
+) -> bool {
     let parameters: HashMap<String, TypeReferenceHandle> = base_info
         .parameter_names
         .iter()
@@ -346,32 +379,94 @@ fn base_is_fully_monomorphizable(syntax: &SyntaxTrees, base_info: &GenericData) 
             match syntax.tables.type_references.type_reference(field.type_reference) {
                 // exactly the parameter, or a concrete Named -> fine.
                 TypeReferenceNode::Named(_) => true,
+                // a nested generic of a KNOWN base whose args are each the
+                // parameter or parameter-free -> substitution yields a concrete
+                // `Base<concretes>` the fixpoint picks up.
+                TypeReferenceNode::Generic {
+                    base_name,
+                    arguments,
+                } => {
+                    generic_data.contains_key(base_name.as_str())
+                        && syntax
+                            .tables
+                            .type_references
+                            .type_reference_handles(*arguments)
+                            .iter()
+                            .all(|&argument| {
+                                matches!(
+                                    syntax.tables.type_references.type_reference(argument),
+                                    TypeReferenceNode::Named(_)
+                                ) || !type_reference_mentions_parameter(
+                                    syntax, argument, &parameters,
+                                )
+                            })
+                }
                 // any other node is fine only if it does NOT nest a parameter.
                 _ => !type_reference_mentions_parameter(syntax, field.type_reference, &parameters),
             }
         })
 }
 
-/// Clone a member with the type parameters substituted. Only reached for a
-/// base that `base_is_fully_monomorphizable` accepted, so every member is a
-/// plain field whose type is either exactly a parameter or parameter-free.
+/// Clone a member with the type parameters substituted. Only reached for a base
+/// `base_is_fully_monomorphizable` accepted. A field that IS a parameter points
+/// at the argument; a NESTED generic (`a: Box<T>`) becomes a fresh concrete
+/// spelling (`Box<i32>`) the fixpoint monomorphizes; a parameter-free field is
+/// shared unchanged.
 fn substitute_member(
-    syntax: &SyntaxTrees,
+    syntax: &mut SyntaxTrees,
     member: DataMember,
     substitution: &HashMap<String, TypeReferenceHandle>,
 ) -> DataMember {
     let DataMember::Field(mut field) = member else {
         return member;
     };
-    if let TypeReferenceNode::Named(name) = syntax
+    let node = syntax
         .tables
         .type_references
         .type_reference(field.type_reference)
-        && let Some(&argument) = substitution.get(name.as_str())
-    {
-        // The field IS the parameter: point it at the argument's type
-        // reference (already a concrete type in the same table).
-        field.type_reference = argument;
+        .clone();
+    match node {
+        TypeReferenceNode::Named(name) => {
+            if let Some(&argument) = substitution.get(name.as_str()) {
+                // The field IS the parameter: point it at the argument's type
+                // reference (already a concrete type in the same table).
+                field.type_reference = argument;
+            }
+        }
+        TypeReferenceNode::Generic {
+            base_name,
+            arguments,
+        } => {
+            let argument_handles: Vec<TypeReferenceHandle> = syntax
+                .tables
+                .type_references
+                .type_reference_handles(arguments)
+                .to_vec();
+            let substituted_arguments: Vec<TypeReferenceHandle> = argument_handles
+                .iter()
+                .map(|&argument| {
+                    match syntax.tables.type_references.type_reference(argument) {
+                        TypeReferenceNode::Named(name) => {
+                            substitution.get(name.as_str()).copied().unwrap_or(argument)
+                        }
+                        _ => argument,
+                    }
+                })
+                .collect();
+            let new_span = syntax
+                .tables
+                .type_references
+                .insert_type_reference_handles(substituted_arguments);
+            field.type_reference =
+                syntax
+                    .tables
+                    .type_references
+                    .insert(TypeReferenceNode::Generic {
+                        base_name,
+                        arguments: new_span,
+                    });
+        }
+        _ => {} // parameter-free composite: shared unchanged
     }
     DataMember::Field(field)
 }
