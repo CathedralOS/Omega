@@ -1,0 +1,989 @@
+// A persistent software-rendered windowed calculator.
+//
+// It deliberately combines the hardest currently-live Omega surfaces in one
+// small app: a real Windows GUI window, per-frame message pumping, keyboard
+// input through GetAsyncKeyState, a software framebuffer sent through
+// StretchDIBits, bounded render loops, calculator state, memory recall, and
+// explicit state-machine dispatch for every interaction.
+//
+// Keyboard:
+//   digits 0-9, numpad + - * /, Enter or =, Backspace, C, S for sign, M memory add,
+//   R memory recall, Escape to close.
+boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
+    machine exit_process(return_code: i32);
+}
+boundary trait Clock { machine sleep(milliseconds: u32); }
+boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
+boundary trait Gui {
+    machine window_create(class_name: [u8; 7], title: [u8; 18], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
+    machine get_dc(window: u64) -> u64;
+    machine blit(device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32;
+    machine msg_peek(message: [u64; 6]) -> u32;
+    machine msg_translate(message: [u64; 6]) -> u32;
+    machine msg_dispatch(message: [u64; 6]) -> u64;
+    machine is_window(window: u64) -> u32;
+    machine window_destroy(window: u64) -> u32;
+}
+
+data Main {
+    console: Console;
+    clock: Clock;
+    input: Input;
+    gui: Gui;
+
+    cls: [u8; 7];
+    title: [u8; 18];
+    message: [u64; 6];
+    pixels: [i32; 4096];
+    info: [i32; 11];
+    hwnd: u64;
+    hdc: u64;
+    copied: u32;
+    have: u32;
+    translated: u32;
+    dispatched: u64;
+    msg_code: u64;
+    alive: u32;
+    killed: u32;
+    key: u64;
+    pumped: i32 [0..=16];
+    frame: i32 [0..=16384];
+    i: i32 [0..=4096];
+
+    // Calculator model. Arithmetic is explicit Saturating arithmetic so this
+    // sample can focus on UI/state pressure instead of proving arbitrary user
+    // input cannot overflow.
+    current: i32 in Saturating;
+    accumulator: i32 in Saturating;
+    memory: i32 in Saturating;
+    pending: i32 [0..=4]; // 0 none, 1 add, 2 subtract, 3 multiply, 4 divide
+    typing: u32;
+    error: u32;
+    cooldown: i32 [0..=8];
+    last_key: i32 [0..=31];
+
+    // Render scratch.
+    row: i32 [0..=63];
+    col: i32 [0..=63];
+    px: i32;
+    display_value: i32 in Saturating;
+    display_work: i32 in Saturating;
+    sign: u32;
+    digit0: i32 in Saturating;
+    digit1: i32 in Saturating;
+    digit2: i32 in Saturating;
+    digit3: i32 in Saturating;
+    draw_digit: i32 in Saturating;
+    segment: i32 [0..=6];
+    local_x: i32 [-4..=11];
+    local_y: i32 [-1..=10];
+    button_row: i32 [0..=4];
+    button_col: i32 [0..=3];
+    button_code: i32 [0..=31];
+    button_lx: i32 [0..=15];
+    button_ly: i32 [0..=8];
+    shade: i32;
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("windowed_calculator: software-rendered calculator window");
+
+    // "#32770\0" -- the predefined dialog class. The earlier window samples
+    // used "STATIC\0", but that is a control class and does not behave like a
+    // real top-level app window in practice.
+    self.cls[0] = 35;
+    self.cls[1] = 51;
+    self.cls[2] = 50;
+    self.cls[3] = 55;
+    self.cls[4] = 55;
+    self.cls[5] = 48;
+    self.cls[6] = 0;
+
+    // "omega calculator\0"
+    self.title[0] = 111;
+    self.title[1] = 109;
+    self.title[2] = 101;
+    self.title[3] = 103;
+    self.title[4] = 97;
+    self.title[5] = 32;
+    self.title[6] = 99;
+    self.title[7] = 97;
+    self.title[8] = 108;
+    self.title[9] = 99;
+    self.title[10] = 117;
+    self.title[11] = 108;
+    self.title[12] = 97;
+    self.title[13] = 116;
+    self.title[14] = 111;
+    self.title[15] = 114;
+    self.title[16] = 0;
+    self.title[17] = 0;
+
+    // BITMAPINFOHEADER: 64x64 top-down 32bpp BI_RGB.
+    self.info[0] = 40;
+    self.info[1] = 64;
+    self.info[2] = 0 - 64;
+    self.info[3] = 2097153;
+
+    self.current = 0;
+    self.accumulator = 0;
+    self.memory = 0;
+    self.pending = 0;
+    self.typing = 1;
+    self.error = 0;
+    self.cooldown = 0;
+    self.last_key = 31;
+    self.frame = 0;
+
+    // WS_VISIBLE|WS_OVERLAPPEDWINDOW; client is approximately 512x512.
+    self.hwnd = self.gui.window_create(self.cls, self.title, 282001408, 160, 120, 528, 551);
+    transition self.hwnd > 0 { true -> dc() _ -> bad() }
+
+    state dc(&mut self) {
+        self.hdc = self.gui.get_dc(self.hwnd);
+        transition self.hdc > 0 { true -> frame_loop() _ -> bad() }
+    }
+
+    state frame_loop(&mut self) {
+        transition self.frame < 16384 { true -> pump_init() _ -> wrap_frame() }
+    }
+    state wrap_frame(&mut self) { self.frame = 0; transition { _ -> pump_init() } }
+
+    // Drain at most 16 messages so the title bar, move loop, and close button stay alive.
+    state pump_init(&mut self) { self.pumped = 0; transition { _ -> pump_loop() } }
+    state pump_loop(&mut self) {
+        self.have = self.gui.msg_peek(self.message);
+        transition self.have > 0 { true -> pump_check_close() _ -> liveness() }
+    }
+    state pump_check_close(&mut self) {
+        self.msg_code = self.message[1] % 65536;
+        transition self.msg_code == 16 { true -> quit_self() _ -> pump_check_syscommand() }
+    }
+    state pump_check_syscommand(&mut self) {
+        transition self.msg_code == 274 { true -> pump_check_sysclose() _ -> pump_handle() }
+    }
+    state pump_check_sysclose(&mut self) {
+        transition self.message[2] >= 61536 && self.message[2] < 61552 { true -> quit_self() _ -> pump_handle() }
+    }
+    state pump_handle(&mut self) {
+        self.translated = self.gui.msg_translate(self.message);
+        self.dispatched = self.gui.msg_dispatch(self.message);
+        transition self.pumped < 16 { true -> pump_next() _ -> liveness() }
+    }
+    state pump_next(&mut self) {
+        self.pumped = self.pumped + 1;
+        transition { _ -> pump_loop() }
+    }
+
+    state liveness(&mut self) {
+        self.alive = self.gui.is_window(self.hwnd);
+        transition self.alive > 0 { true -> input_escape() _ -> closed() }
+    }
+
+    // Input is deliberately serialized: one accepted key per frame, with a
+    // short repeat cooldown. This makes held keys visible but controlled.
+    state input_escape(&mut self) {
+        self.key = self.input.key_state(27);
+        transition self.key > 0 { true -> quit_self() _ -> input_cooldown() }
+    }
+    state input_cooldown(&mut self) {
+        transition self.cooldown > 0 { true -> input_cooldown_step() _ -> input_clear_key() }
+    }
+    state input_cooldown_step(&mut self) {
+        self.cooldown = self.cooldown - 1;
+        transition { _ -> render_prepare() }
+    }
+    state input_clear_key(&mut self) {
+        self.last_key = 31;
+        transition { _ -> poll_clear() }
+    }
+    state poll_clear(&mut self) {
+        self.key = self.input.key_state(67);
+        transition self.key > 0 { true -> hit_clear() _ -> poll_backspace() }
+    }
+    state poll_backspace(&mut self) {
+        self.key = self.input.key_state(8);
+        transition self.key > 0 { true -> hit_backspace() _ -> poll_enter() }
+    }
+    state poll_enter(&mut self) {
+        self.key = self.input.key_state(13);
+        transition self.key > 0 { true -> hit_equals() _ -> poll_equals_key() }
+    }
+    state poll_equals_key(&mut self) {
+        self.key = self.input.key_state(187);
+        transition self.key > 0 { true -> hit_equals() _ -> poll_plus() }
+    }
+    state poll_plus(&mut self) {
+        self.key = self.input.key_state(107);
+        transition self.key > 0 { true -> hit_plus() _ -> poll_minus() }
+    }
+    state poll_minus(&mut self) {
+        self.key = self.input.key_state(109);
+        transition self.key > 0 { true -> hit_minus() _ -> poll_multiply() }
+    }
+    state poll_multiply(&mut self) {
+        self.key = self.input.key_state(106);
+        transition self.key > 0 { true -> hit_multiply() _ -> poll_divide() }
+    }
+    state poll_divide(&mut self) {
+        self.key = self.input.key_state(111);
+        transition self.key > 0 { true -> hit_divide() _ -> poll_sign() }
+    }
+    state poll_sign(&mut self) {
+        self.key = self.input.key_state(83);
+        transition self.key > 0 { true -> hit_sign() _ -> poll_memory_add() }
+    }
+    state poll_memory_add(&mut self) {
+        self.key = self.input.key_state(77);
+        transition self.key > 0 { true -> hit_memory_add() _ -> poll_memory_recall() }
+    }
+    state poll_memory_recall(&mut self) {
+        self.key = self.input.key_state(82);
+        transition self.key > 0 { true -> hit_memory_recall() _ -> poll_digit0() }
+    }
+    state poll_digit0(&mut self) {
+        self.key = self.input.key_state(48);
+        transition self.key > 0 { true -> hit_digit0() _ -> poll_digit1() }
+    }
+    state poll_digit1(&mut self) {
+        self.key = self.input.key_state(49);
+        transition self.key > 0 { true -> hit_digit1() _ -> poll_digit2() }
+    }
+    state poll_digit2(&mut self) {
+        self.key = self.input.key_state(50);
+        transition self.key > 0 { true -> hit_digit2() _ -> poll_digit3() }
+    }
+    state poll_digit3(&mut self) {
+        self.key = self.input.key_state(51);
+        transition self.key > 0 { true -> hit_digit3() _ -> poll_digit4() }
+    }
+    state poll_digit4(&mut self) {
+        self.key = self.input.key_state(52);
+        transition self.key > 0 { true -> hit_digit4() _ -> poll_digit5() }
+    }
+    state poll_digit5(&mut self) {
+        self.key = self.input.key_state(53);
+        transition self.key > 0 { true -> hit_digit5() _ -> poll_digit6() }
+    }
+    state poll_digit6(&mut self) {
+        self.key = self.input.key_state(54);
+        transition self.key > 0 { true -> hit_digit6() _ -> poll_digit7() }
+    }
+    state poll_digit7(&mut self) {
+        self.key = self.input.key_state(55);
+        transition self.key > 0 { true -> hit_digit7() _ -> poll_digit8() }
+    }
+    state poll_digit8(&mut self) {
+        self.key = self.input.key_state(56);
+        transition self.key > 0 { true -> hit_digit8() _ -> poll_digit9() }
+    }
+    state poll_digit9(&mut self) {
+        self.key = self.input.key_state(57);
+        transition self.key > 0 { true -> hit_digit9() _ -> render_prepare() }
+    }
+
+    state hit_digit0(&mut self) { self.accept_digit(0, 0); transition { _ -> render_prepare() } }
+    state hit_digit1(&mut self) { self.accept_digit(1, 1); transition { _ -> render_prepare() } }
+    state hit_digit2(&mut self) { self.accept_digit(2, 2); transition { _ -> render_prepare() } }
+    state hit_digit3(&mut self) { self.accept_digit(3, 3); transition { _ -> render_prepare() } }
+    state hit_digit4(&mut self) { self.accept_digit(4, 4); transition { _ -> render_prepare() } }
+    state hit_digit5(&mut self) { self.accept_digit(5, 5); transition { _ -> render_prepare() } }
+    state hit_digit6(&mut self) { self.accept_digit(6, 6); transition { _ -> render_prepare() } }
+    state hit_digit7(&mut self) { self.accept_digit(7, 7); transition { _ -> render_prepare() } }
+    state hit_digit8(&mut self) { self.accept_digit(8, 8); transition { _ -> render_prepare() } }
+    state hit_digit9(&mut self) { self.accept_digit(9, 9); transition { _ -> render_prepare() } }
+    state hit_plus(&mut self) { self.accept_operator(1, 11); transition { _ -> render_prepare() } }
+    state hit_minus(&mut self) { self.accept_operator(2, 12); transition { _ -> render_prepare() } }
+    state hit_multiply(&mut self) { self.accept_operator(3, 13); transition { _ -> render_prepare() } }
+    state hit_divide(&mut self) { self.accept_operator(4, 14); transition { _ -> render_prepare() } }
+    state hit_equals(&mut self) { self.accept_equals(); transition { _ -> render_prepare() } }
+    state hit_clear(&mut self) { self.clear_all(22); transition { _ -> render_prepare() } }
+    state hit_backspace(&mut self) { self.backspace(); transition { _ -> render_prepare() } }
+    state hit_sign(&mut self) { self.toggle_sign(); transition { _ -> render_prepare() } }
+    state hit_memory_add(&mut self) { self.memory_add(); transition { _ -> render_prepare() } }
+    state hit_memory_recall(&mut self) { self.memory_recall(); transition { _ -> render_prepare() } }
+
+    // Turn the current display value into sign + four decimal digits before
+    // the framebuffer loop reads it.
+    state render_prepare(&mut self) {
+        transition self.typing > 0 { true -> prepare_current() _ -> prepare_accumulator() }
+    }
+    state prepare_current(&mut self) {
+        self.display_value = self.current;
+        transition { _ -> prepare_sign() }
+    }
+    state prepare_accumulator(&mut self) {
+        self.display_value = self.accumulator;
+        transition { _ -> prepare_sign() }
+    }
+    state prepare_sign(&mut self) {
+        transition self.display_value < 0 { true -> prepare_negative() _ -> prepare_positive() }
+    }
+    state prepare_negative(&mut self) {
+        self.sign = 1;
+        self.display_work = 0 - self.display_value;
+        transition { _ -> prepare_digits() }
+    }
+    state prepare_positive(&mut self) {
+        self.sign = 0;
+        self.display_work = self.display_value;
+        transition { _ -> prepare_digits() }
+    }
+    state prepare_digits(&mut self) {
+        self.display_work = self.display_work % 10000;
+        self.digit0 = self.display_work % 10;
+        self.display_work = self.display_work / 10;
+        self.digit1 = self.display_work % 10;
+        self.display_work = self.display_work / 10;
+        self.digit2 = self.display_work % 10;
+        self.display_work = self.display_work / 10;
+        self.digit3 = self.display_work % 10;
+        self.i = 0;
+        transition { _ -> fill_loop() }
+    }
+
+    state fill_loop(&mut self) {
+        transition self.i >= 0 && self.i < 4096 { true -> fill_cell() _ -> present() }
+    }
+    state fill_cell(&mut self) {
+        self.row = min(max(self.i / 64, 0), 63);
+        self.col = min(max(self.i % 64, 0), 63);
+        self.px = 1318440 + ((self.frame % 32) * 1024);
+        transition self.row < 16 { true -> display_pixel() _ -> keypad_region() }
+    }
+    state display_pixel(&mut self) {
+        self.px = 461325;
+        transition self.row >= 2 && self.row < 13 && self.col >= 28 && self.col < 60 {
+            true -> display_digit_slot()
+            _ -> display_sign()
+        }
+    }
+    state display_sign(&mut self) {
+        transition self.sign > 0 && self.row == 8 && self.col >= 20 && self.col <= 25 {
+            true -> display_mark()
+            _ -> display_error()
+        }
+    }
+    state display_error(&mut self) {
+        transition self.error > 0 && self.row >= 4 && self.row <= 10 && self.col >= 6 && self.col <= 14 {
+            true -> display_mark()
+            _ -> write_pixel_guard()
+        }
+    }
+    state display_mark(&mut self) {
+        self.px = 16759616;
+        transition { _ -> write_pixel_guard() }
+    }
+    state display_digit_slot(&mut self) {
+        self.local_x = (self.col - 28) % 8;
+        self.local_y = self.row - 2;
+        transition self.col < 36 { true -> use_digit3() _ -> display_digit_slot1() }
+    }
+    state display_digit_slot1(&mut self) {
+        transition self.col < 44 { true -> use_digit2() _ -> display_digit_slot2() }
+    }
+    state display_digit_slot2(&mut self) {
+        transition self.col < 52 { true -> use_digit1() _ -> use_digit0() }
+    }
+    state use_digit3(&mut self) { self.draw_digit = self.digit3; transition { _ -> segment_a() } }
+    state use_digit2(&mut self) { self.draw_digit = self.digit2; transition { _ -> segment_a() } }
+    state use_digit1(&mut self) { self.draw_digit = self.digit1; transition { _ -> segment_a() } }
+    state use_digit0(&mut self) { self.draw_digit = self.digit0; transition { _ -> segment_a() } }
+
+    state segment_a(&mut self) {
+        transition self.local_y == 0 && self.local_x >= 2 && self.local_x <= 5 {
+            true -> segment_set_a()
+            _ -> segment_b()
+        }
+    }
+    state segment_set_a(&mut self) { self.segment = 0; transition { _ -> segment_apply() } }
+    state segment_b(&mut self) {
+        transition self.local_x == 6 && self.local_y >= 1 && self.local_y <= 4 {
+            true -> segment_set_b()
+            _ -> segment_c()
+        }
+    }
+    state segment_set_b(&mut self) { self.segment = 1; transition { _ -> segment_apply() } }
+    state segment_c(&mut self) {
+        transition self.local_x == 6 && self.local_y >= 6 && self.local_y <= 9 {
+            true -> segment_set_c()
+            _ -> segment_d()
+        }
+    }
+    state segment_set_c(&mut self) { self.segment = 2; transition { _ -> segment_apply() } }
+    state segment_d(&mut self) {
+        transition self.local_y == 10 && self.local_x >= 2 && self.local_x <= 5 {
+            true -> segment_set_d()
+            _ -> segment_e()
+        }
+    }
+    state segment_set_d(&mut self) { self.segment = 3; transition { _ -> segment_apply() } }
+    state segment_e(&mut self) {
+        transition self.local_x == 1 && self.local_y >= 6 && self.local_y <= 9 {
+            true -> segment_set_e()
+            _ -> segment_f()
+        }
+    }
+    state segment_set_e(&mut self) { self.segment = 4; transition { _ -> segment_apply() } }
+    state segment_f(&mut self) {
+        transition self.local_x == 1 && self.local_y >= 1 && self.local_y <= 4 {
+            true -> segment_set_f()
+            _ -> segment_g()
+        }
+    }
+    state segment_set_f(&mut self) { self.segment = 5; transition { _ -> segment_apply() } }
+    state segment_g(&mut self) {
+        transition self.local_y == 5 && self.local_x >= 2 && self.local_x <= 5 {
+            true -> segment_set_g()
+            _ -> write_pixel_guard()
+        }
+    }
+    state segment_set_g(&mut self) { self.segment = 6; transition { _ -> segment_apply() } }
+
+    state segment_apply(&mut self) {
+        transition self.draw_digit == 0 { true -> digit0_segment() _ -> digit1_check() }
+    }
+    state digit1_check(&mut self) {
+        transition self.draw_digit == 1 { true -> digit1_segment() _ -> digit2_check() }
+    }
+    state digit2_check(&mut self) {
+        transition self.draw_digit == 2 { true -> digit2_segment() _ -> digit3_check() }
+    }
+    state digit3_check(&mut self) {
+        transition self.draw_digit == 3 { true -> digit3_segment() _ -> digit4_check() }
+    }
+    state digit4_check(&mut self) {
+        transition self.draw_digit == 4 { true -> digit4_segment() _ -> digit5_check() }
+    }
+    state digit5_check(&mut self) {
+        transition self.draw_digit == 5 { true -> digit5_segment() _ -> digit6_check() }
+    }
+    state digit6_check(&mut self) {
+        transition self.draw_digit == 6 { true -> digit6_segment() _ -> digit7_check() }
+    }
+    state digit7_check(&mut self) {
+        transition self.draw_digit == 7 { true -> digit7_segment() _ -> digit8_check() }
+    }
+    state digit8_check(&mut self) {
+        transition self.draw_digit == 8 { true -> digit8_segment() _ -> digit9_segment() }
+    }
+    state digit0_segment(&mut self) {
+        transition self.segment != 6 { true -> segment_on() _ -> write_pixel_guard() }
+    }
+    state digit1_segment(&mut self) {
+        transition self.segment == 1 || self.segment == 2 { true -> segment_on() _ -> write_pixel_guard() }
+    }
+    state digit2_segment(&mut self) {
+        transition self.segment == 0 || self.segment == 1 || self.segment == 6 || self.segment == 4 || self.segment == 3 {
+            true -> segment_on()
+            _ -> write_pixel_guard()
+        }
+    }
+    state digit3_segment(&mut self) {
+        transition self.segment == 0 || self.segment == 1 || self.segment == 2 || self.segment == 3 || self.segment == 6 {
+            true -> segment_on()
+            _ -> write_pixel_guard()
+        }
+    }
+    state digit4_segment(&mut self) {
+        transition self.segment == 5 || self.segment == 6 || self.segment == 1 || self.segment == 2 {
+            true -> segment_on()
+            _ -> write_pixel_guard()
+        }
+    }
+    state digit5_segment(&mut self) {
+        transition self.segment == 0 || self.segment == 5 || self.segment == 6 || self.segment == 2 || self.segment == 3 {
+            true -> segment_on()
+            _ -> write_pixel_guard()
+        }
+    }
+    state digit6_segment(&mut self) {
+        transition self.segment == 0 || self.segment == 5 || self.segment == 4 || self.segment == 3 || self.segment == 2 || self.segment == 6 {
+            true -> segment_on()
+            _ -> write_pixel_guard()
+        }
+    }
+    state digit7_segment(&mut self) {
+        transition self.segment == 0 || self.segment == 1 || self.segment == 2 { true -> segment_on() _ -> write_pixel_guard() }
+    }
+    state digit8_segment(&mut self) { transition { _ -> segment_on() } }
+    state digit9_segment(&mut self) {
+        transition self.segment != 4 { true -> segment_on() _ -> write_pixel_guard() }
+    }
+    state segment_on(&mut self) {
+        self.px = 52991;
+        transition { _ -> write_pixel_guard() }
+    }
+
+    state keypad_region(&mut self) {
+        transition self.row >= 18 && self.row < 63 { true -> button_prepare() _ -> write_pixel_guard() }
+    }
+    state button_prepare(&mut self) {
+        self.button_row = min(max((self.row - 18) / 9, 0), 4);
+        self.button_col = min(max(self.col / 16, 0), 3);
+        self.button_lx = self.col % 16;
+        self.button_ly = (self.row - 18) % 9;
+        transition self.button_row == 0 { true -> button_row0() _ -> button_row1_check() }
+    }
+    state button_row1_check(&mut self) {
+        transition self.button_row == 1 { true -> button_row1() _ -> button_row2_check() }
+    }
+    state button_row2_check(&mut self) {
+        transition self.button_row == 2 { true -> button_row2() _ -> button_row3_check() }
+    }
+    state button_row3_check(&mut self) {
+        transition self.button_row == 3 { true -> button_row3() _ -> button_row4() }
+    }
+    state button_row0(&mut self) {
+        transition self.button_col == 0 { true -> button_code_memory_add() _ -> button_row0_col1() }
+    }
+    state button_row0_col1(&mut self) {
+        transition self.button_col == 1 { true -> button_code_memory_recall() _ -> button_row0_col2() }
+    }
+    state button_row0_col2(&mut self) {
+        transition self.button_col == 2 { true -> button_code_clear() _ -> button_code_backspace() }
+    }
+    state button_row1(&mut self) {
+        transition self.button_col == 0 { true -> button_code7() _ -> button_row1_col1() }
+    }
+    state button_row1_col1(&mut self) {
+        transition self.button_col == 1 { true -> button_code8() _ -> button_row1_col2() }
+    }
+    state button_row1_col2(&mut self) {
+        transition self.button_col == 2 { true -> button_code9() _ -> button_code_divide() }
+    }
+    state button_row2(&mut self) {
+        transition self.button_col == 0 { true -> button_code4() _ -> button_row2_col1() }
+    }
+    state button_row2_col1(&mut self) {
+        transition self.button_col == 1 { true -> button_code5() _ -> button_row2_col2() }
+    }
+    state button_row2_col2(&mut self) {
+        transition self.button_col == 2 { true -> button_code6() _ -> button_code_multiply() }
+    }
+    state button_row3(&mut self) {
+        transition self.button_col == 0 { true -> button_code1() _ -> button_row3_col1() }
+    }
+    state button_row3_col1(&mut self) {
+        transition self.button_col == 1 { true -> button_code2() _ -> button_row3_col2() }
+    }
+    state button_row3_col2(&mut self) {
+        transition self.button_col == 2 { true -> button_code3() _ -> button_code_minus() }
+    }
+    state button_row4(&mut self) {
+        transition self.button_col == 0 { true -> button_code_sign() _ -> button_row4_col1() }
+    }
+    state button_row4_col1(&mut self) {
+        transition self.button_col == 1 { true -> button_code0() _ -> button_row4_col2() }
+    }
+    state button_row4_col2(&mut self) {
+        transition self.button_col == 2 { true -> button_code_equals() _ -> button_code_plus() }
+    }
+    state button_code0(&mut self) { self.button_code = 0; transition { _ -> button_paint() } }
+    state button_code1(&mut self) { self.button_code = 1; transition { _ -> button_paint() } }
+    state button_code2(&mut self) { self.button_code = 2; transition { _ -> button_paint() } }
+    state button_code3(&mut self) { self.button_code = 3; transition { _ -> button_paint() } }
+    state button_code4(&mut self) { self.button_code = 4; transition { _ -> button_paint() } }
+    state button_code5(&mut self) { self.button_code = 5; transition { _ -> button_paint() } }
+    state button_code6(&mut self) { self.button_code = 6; transition { _ -> button_paint() } }
+    state button_code7(&mut self) { self.button_code = 7; transition { _ -> button_paint() } }
+    state button_code8(&mut self) { self.button_code = 8; transition { _ -> button_paint() } }
+    state button_code9(&mut self) { self.button_code = 9; transition { _ -> button_paint() } }
+    state button_code_plus(&mut self) { self.button_code = 11; transition { _ -> button_paint() } }
+    state button_code_minus(&mut self) { self.button_code = 12; transition { _ -> button_paint() } }
+    state button_code_multiply(&mut self) { self.button_code = 13; transition { _ -> button_paint() } }
+    state button_code_divide(&mut self) { self.button_code = 14; transition { _ -> button_paint() } }
+    state button_code_sign(&mut self) { self.button_code = 15; transition { _ -> button_paint() } }
+    state button_code_equals(&mut self) { self.button_code = 16; transition { _ -> button_paint() } }
+    state button_code_memory_add(&mut self) { self.button_code = 20; transition { _ -> button_paint() } }
+    state button_code_memory_recall(&mut self) { self.button_code = 21; transition { _ -> button_paint() } }
+    state button_code_clear(&mut self) { self.button_code = 22; transition { _ -> button_paint() } }
+    state button_code_backspace(&mut self) { self.button_code = 23; transition { _ -> button_paint() } }
+
+    state button_paint(&mut self) {
+        self.px = 2171169;
+        transition self.button_code == self.last_key { true -> button_active() _ -> button_border() }
+    }
+    state button_active(&mut self) {
+        self.px = 5335039;
+        transition { _ -> button_border() }
+    }
+    state button_border(&mut self) {
+        transition self.button_lx == 0 || self.button_lx == 15 || self.button_ly == 0 || self.button_ly == 8 {
+            true -> button_border_paint()
+            _ -> button_label()
+        }
+    }
+    state button_border_paint(&mut self) {
+        self.px = 8421504;
+        transition { _ -> write_pixel_guard() }
+    }
+    state button_label(&mut self) {
+        transition self.button_code <= 9 { true -> button_digit_label() _ -> button_operator_label() }
+    }
+    state button_digit_label(&mut self) {
+        self.draw_digit = self.button_code;
+        self.local_x = self.button_lx - 4;
+        self.local_y = self.button_ly - 1;
+        transition { _ -> button_segment_a() }
+    }
+    state button_segment_a(&mut self) {
+        transition self.local_y == 0 && self.local_x >= 1 && self.local_x <= 5 {
+            true -> segment_set_a()
+            _ -> button_segment_b()
+        }
+    }
+    state button_segment_b(&mut self) {
+        transition self.local_x == 6 && self.local_y >= 1 && self.local_y <= 3 {
+            true -> segment_set_b()
+            _ -> button_segment_c()
+        }
+    }
+    state button_segment_c(&mut self) {
+        transition self.local_x == 6 && self.local_y >= 5 && self.local_y <= 6 {
+            true -> segment_set_c()
+            _ -> button_segment_d()
+        }
+    }
+    state button_segment_d(&mut self) {
+        transition self.local_y == 7 && self.local_x >= 1 && self.local_x <= 5 {
+            true -> segment_set_d()
+            _ -> button_segment_e()
+        }
+    }
+    state button_segment_e(&mut self) {
+        transition self.local_x == 0 && self.local_y >= 5 && self.local_y <= 6 {
+            true -> segment_set_e()
+            _ -> button_segment_f()
+        }
+    }
+    state button_segment_f(&mut self) {
+        transition self.local_x == 0 && self.local_y >= 1 && self.local_y <= 3 {
+            true -> segment_set_f()
+            _ -> button_segment_g()
+        }
+    }
+    state button_segment_g(&mut self) {
+        transition self.local_y == 4 && self.local_x >= 1 && self.local_x <= 5 {
+            true -> segment_set_g()
+            _ -> write_pixel_guard()
+        }
+    }
+    state button_operator_label(&mut self) {
+        transition self.button_code == 11 { true -> label_plus() _ -> label_minus_check() }
+    }
+    state label_minus_check(&mut self) {
+        transition self.button_code == 12 { true -> label_minus() _ -> label_multiply_check() }
+    }
+    state label_multiply_check(&mut self) {
+        transition self.button_code == 13 { true -> label_multiply() _ -> label_divide_check() }
+    }
+    state label_divide_check(&mut self) {
+        transition self.button_code == 14 { true -> label_divide() _ -> label_sign_check() }
+    }
+    state label_sign_check(&mut self) {
+        transition self.button_code == 15 { true -> label_sign() _ -> label_equals_check() }
+    }
+    state label_equals_check(&mut self) {
+        transition self.button_code == 16 { true -> label_equals() _ -> label_utility() }
+    }
+    state label_plus(&mut self) {
+        transition self.button_lx == 8 && self.button_ly >= 2 && self.button_ly <= 6 { true -> label_paint() _ -> label_plus_bar() }
+    }
+    state label_plus_bar(&mut self) {
+        transition self.button_ly == 4 && self.button_lx >= 5 && self.button_lx <= 11 { true -> label_paint() _ -> write_pixel_guard() }
+    }
+    state label_minus(&mut self) {
+        transition self.button_ly == 4 && self.button_lx >= 5 && self.button_lx <= 11 { true -> label_paint() _ -> write_pixel_guard() }
+    }
+    state label_multiply(&mut self) {
+        transition self.button_lx == self.button_ly + 4 && self.button_ly >= 2 && self.button_ly <= 6 { true -> label_paint() _ -> label_multiply_backslash() }
+    }
+    state label_multiply_backslash(&mut self) {
+        transition self.button_lx + self.button_ly == 12 && self.button_ly >= 2 && self.button_ly <= 6 { true -> label_paint() _ -> write_pixel_guard() }
+    }
+    state label_divide(&mut self) {
+        transition self.button_lx + self.button_ly == 12 && self.button_ly >= 2 && self.button_ly <= 6 { true -> label_paint() _ -> label_divide_dot_top() }
+    }
+    state label_divide_dot_top(&mut self) {
+        transition self.button_lx == 8 && self.button_ly == 2 { true -> label_paint() _ -> label_divide_dot_bottom() }
+    }
+    state label_divide_dot_bottom(&mut self) {
+        transition self.button_lx == 8 && self.button_ly == 6 { true -> label_paint() _ -> write_pixel_guard() }
+    }
+    state label_sign(&mut self) {
+        transition self.button_lx == 7 && self.button_ly >= 2 && self.button_ly <= 5 { true -> label_paint() _ -> label_sign_plus_bar() }
+    }
+    state label_sign_plus_bar(&mut self) {
+        transition self.button_ly == 4 && self.button_lx >= 5 && self.button_lx <= 9 { true -> label_paint() _ -> label_sign_minus_bar() }
+    }
+    state label_sign_minus_bar(&mut self) {
+        transition self.button_ly == 6 && self.button_lx >= 5 && self.button_lx <= 9 { true -> label_paint() _ -> write_pixel_guard() }
+    }
+    state label_equals(&mut self) {
+        transition self.button_ly == 3 && self.button_lx >= 5 && self.button_lx <= 11 { true -> label_paint() _ -> label_equals_bottom() }
+    }
+    state label_equals_bottom(&mut self) {
+        transition self.button_ly == 5 && self.button_lx >= 5 && self.button_lx <= 11 { true -> label_paint() _ -> write_pixel_guard() }
+    }
+    state label_utility(&mut self) {
+        transition self.button_lx >= 5 && self.button_lx <= 11 && self.button_ly >= 2 && self.button_ly <= 6 {
+            true -> label_paint()
+            _ -> write_pixel_guard()
+        }
+    }
+    state label_paint(&mut self) {
+        self.px = 15794175;
+        transition { _ -> write_pixel_guard() }
+    }
+
+    state write_pixel_guard(&mut self) {
+        transition self.i >= 0 && self.i < 4096 { true -> write_pixel() _ -> bad() }
+    }
+    state write_pixel(&mut self) {
+        self.pixels[self.i] = self.px;
+        self.i = self.i + 1;
+        transition self.col == 63 { true -> render_pump_peek() _ -> fill_loop() }
+    }
+    state render_pump_peek(&mut self) {
+        self.have = self.gui.msg_peek(self.message);
+        transition self.have > 0 { true -> render_pump_check_close() _ -> fill_loop() }
+    }
+    state render_pump_check_close(&mut self) {
+        self.msg_code = self.message[1] % 65536;
+        transition self.msg_code == 16 { true -> quit_self() _ -> render_pump_check_syscommand() }
+    }
+    state render_pump_check_syscommand(&mut self) {
+        transition self.msg_code == 274 { true -> render_pump_check_sysclose() _ -> render_pump_handle() }
+    }
+    state render_pump_check_sysclose(&mut self) {
+        transition self.message[2] >= 61536 && self.message[2] < 61552 { true -> quit_self() _ -> render_pump_handle() }
+    }
+    state render_pump_handle(&mut self) {
+        self.translated = self.gui.msg_translate(self.message);
+        self.dispatched = self.gui.msg_dispatch(self.message);
+        transition { _ -> render_pump_liveness() }
+    }
+    state render_pump_liveness(&mut self) {
+        self.alive = self.gui.is_window(self.hwnd);
+        transition self.alive > 0 { true -> fill_loop() _ -> closed() }
+    }
+
+    state present(&mut self) {
+        self.copied = self.gui.blit(self.hdc, 512, 512, 64, 64, self.pixels, self.info);
+        transition self.copied == 64 { true -> pace() _ -> present_failed() }
+    }
+    state present_failed(&mut self) {
+        self.alive = self.gui.is_window(self.hwnd);
+        transition self.alive > 0 { true -> bad() _ -> closed() }
+    }
+    state pace(&mut self) {
+        self.clock.sleep(16);
+        transition self.frame >= 0 && self.frame < 16384 { true -> advance() _ -> wrap_frame() }
+    }
+    state advance(&mut self) {
+        self.frame = self.frame + 1;
+        transition { _ -> frame_loop() }
+    }
+
+    state quit_self(&mut self) {
+        self.killed = self.gui.window_destroy(self.hwnd);
+        transition { _ -> closed() }
+    }
+    state closed(&mut self) {
+        self.console.write_line("windowed calculator closed (exit 0)");
+        self.console.exit_process(0);
+    }
+    state bad(&mut self) {
+        self.console.write_line("FAIL: windowed_calculator hit a renderer or host assertion (exit 1)");
+        self.console.exit_process(1);
+    }
+}
+
+machine Main::accept_digit(&mut self, digit: i32 [0..=9], key_code: i32 [0..=31]) {
+    self.last_key = key_code;
+    self.cooldown = 6;
+    transition self.error > 0 { true -> digit_after_error(digit) _ -> digit_dispatch(digit) }
+
+    state digit_after_error(&mut self, digit: i32 [0..=9]) {
+        self.error = 0;
+        self.pending = 0;
+        self.accumulator = 0;
+        self.current = digit;
+        self.typing = 1;
+    }
+    state digit_dispatch(&mut self, digit: i32 [0..=9]) {
+        transition self.typing > 0 { true -> digit_append(digit) _ -> digit_start(digit) }
+    }
+    state digit_start(&mut self, digit: i32 [0..=9]) {
+        self.current = digit;
+        self.typing = 1;
+    }
+    state digit_append(&mut self, digit: i32 [0..=9]) {
+        self.current = ((self.current * (10 as i32 in Saturating)) + (digit as i32 in Saturating)) % (10000 as i32 in Saturating);
+    }
+}
+
+machine Main::accept_operator(&mut self, op: i32 [0..=4], key_code: i32 [0..=31]) {
+    self.last_key = key_code;
+    self.cooldown = 6;
+    transition self.error > 0 { true -> done() _ -> operator_dispatch(op) }
+
+    state operator_dispatch(&mut self, op: i32 [0..=4]) {
+        transition self.pending == 0 { true -> store_first(op) _ -> evaluate_for_operator(op) }
+    }
+    state store_first(&mut self, op: i32 [0..=4]) {
+        self.accumulator = self.current;
+        self.current = 0;
+        self.typing = 0;
+        self.pending = op;
+    }
+    state evaluate_for_operator(&mut self, op: i32 [0..=4]) {
+        transition self.pending == 1 { true -> eval_add(op) _ -> eval_sub_check(op) }
+    }
+    state eval_sub_check(&mut self, op: i32 [0..=4]) {
+        transition self.pending == 2 { true -> eval_sub(op) _ -> eval_mul_check(op) }
+    }
+    state eval_mul_check(&mut self, op: i32 [0..=4]) {
+        transition self.pending == 3 { true -> eval_mul(op) _ -> eval_div_check(op) }
+    }
+    state eval_div_check(&mut self, op: i32 [0..=4]) {
+        transition self.pending == 4 { true -> eval_div_guard(op) _ -> finish_operator(op) }
+    }
+    state eval_add(&mut self, op: i32 [0..=4]) {
+        self.accumulator = self.accumulator + self.current;
+        transition { _ -> finish_operator(op) }
+    }
+    state eval_sub(&mut self, op: i32 [0..=4]) {
+        self.accumulator = self.accumulator - self.current;
+        transition { _ -> finish_operator(op) }
+    }
+    state eval_mul(&mut self, op: i32 [0..=4]) {
+        self.accumulator = self.accumulator * self.current;
+        transition { _ -> finish_operator(op) }
+    }
+    state eval_div_guard(&mut self, op: i32 [0..=4]) {
+        transition self.current == 0 { true -> divide_error() _ -> eval_div(op) }
+    }
+    state eval_div(&mut self, op: i32 [0..=4]) {
+        self.accumulator = self.accumulator / self.current;
+        transition { _ -> finish_operator(op) }
+    }
+    state finish_operator(&mut self, op: i32 [0..=4]) {
+        self.current = 0;
+        self.typing = 0;
+        self.pending = op;
+    }
+    state divide_error(&mut self) {
+        self.error = 1;
+        self.pending = 0;
+        self.typing = 0;
+    }
+    state done(&mut self) {}
+}
+
+machine Main::accept_equals(&mut self) {
+    self.last_key = 16;
+    self.cooldown = 6;
+    transition self.error > 0 { true -> done() _ -> equals_dispatch() }
+
+    state equals_dispatch(&mut self) {
+        transition self.pending == 0 { true -> finish_equals() _ -> evaluate_pending() }
+    }
+    state evaluate_pending(&mut self) {
+        transition self.pending == 1 { true -> eval_add() _ -> eval_sub_check() }
+    }
+    state eval_sub_check(&mut self) {
+        transition self.pending == 2 { true -> eval_sub() _ -> eval_mul_check() }
+    }
+    state eval_mul_check(&mut self) {
+        transition self.pending == 3 { true -> eval_mul() _ -> eval_div_check() }
+    }
+    state eval_div_check(&mut self) {
+        transition self.pending == 4 { true -> eval_div_guard() _ -> finish_equals() }
+    }
+    state eval_add(&mut self) {
+        self.accumulator = self.accumulator + self.current;
+        transition { _ -> finish_equals() }
+    }
+    state eval_sub(&mut self) {
+        self.accumulator = self.accumulator - self.current;
+        transition { _ -> finish_equals() }
+    }
+    state eval_mul(&mut self) {
+        self.accumulator = self.accumulator * self.current;
+        transition { _ -> finish_equals() }
+    }
+    state eval_div_guard(&mut self) {
+        transition self.current == 0 { true -> divide_error() _ -> eval_div() }
+    }
+    state eval_div(&mut self) {
+        self.accumulator = self.accumulator / self.current;
+        transition { _ -> finish_equals() }
+    }
+    state finish_equals(&mut self) {
+        self.current = self.accumulator;
+        self.pending = 0;
+        self.typing = 1;
+    }
+    state divide_error(&mut self) {
+        self.error = 1;
+        self.pending = 0;
+        self.typing = 0;
+    }
+    state done(&mut self) {}
+}
+
+machine Main::clear_all(&mut self, key_code: i32 [0..=31]) {
+    self.last_key = key_code;
+    self.cooldown = 6;
+    self.current = 0;
+    self.accumulator = 0;
+    self.pending = 0;
+    self.typing = 1;
+    self.error = 0;
+}
+
+machine Main::backspace(&mut self) {
+    self.last_key = 23;
+    self.cooldown = 6;
+    transition self.typing > 0 { true -> trim() _ -> done() }
+
+    state trim(&mut self) {
+        self.current = self.current / 10;
+    }
+    state done(&mut self) {}
+}
+
+machine Main::toggle_sign(&mut self) {
+    self.last_key = 15;
+    self.cooldown = 6;
+    transition self.typing > 0 { true -> sign_current() _ -> sign_accumulator() }
+
+    state sign_current(&mut self) {
+        self.current = 0 - self.current;
+    }
+    state sign_accumulator(&mut self) {
+        self.accumulator = 0 - self.accumulator;
+    }
+}
+
+machine Main::memory_add(&mut self) {
+    self.last_key = 20;
+    self.cooldown = 6;
+    transition self.typing > 0 { true -> add_current() _ -> add_accumulator() }
+
+    state add_current(&mut self) { self.memory = self.memory + self.current; }
+    state add_accumulator(&mut self) { self.memory = self.memory + self.accumulator; }
+}
+
+machine Main::memory_recall(&mut self) {
+    self.last_key = 21;
+    self.cooldown = 6;
+    self.current = self.memory;
+    self.typing = 1;
+    self.error = 0;
+}
