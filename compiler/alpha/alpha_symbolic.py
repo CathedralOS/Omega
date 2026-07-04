@@ -232,12 +232,13 @@ def _run_body_once(tape, backedges, start_pc, header, MEM, R, sp, depth=0):
         elif op == 0x0B: a = _concrete(reg(tape[pc + 1]), 'store'); MEM[a] = reg(tape[pc + 2]); pc += 3
         elif op in (0x0D, 0x0E):                        # jz / jnz
             c = reg(tape[pc + 1])
-            if isinstance(c, tuple) and c and c[0] == 'cmp':    # an INNER symbolic loop guard: recurse
-                if op == 0x0D:
+            if isinstance(c, tuple) and c and c[0] in ('blt', 'ble', 'beq', 'bne'):
+                if op == 0x0D:                                  # an INNER symbolic loop guard: recurse
                     exit_pc, cont_pc = _le8(tape, pc + 2), pc + 10
                 else:
                     exit_pc, cont_pc = pc + 10, _le8(tape, pc + 2)
-                nxt = _summarize(tape, backedges, c, cont_pc, exit_pc, MEM, R, sp, depth + 1)
+                kind = {'blt': 'lt', 'ble': 'le', 'beq': 'eq', 'bne': 'ne'}[c[0]]
+                nxt = _summarize(tape, backedges, ('cmp', kind, c[1], c[2]), cont_pc, exit_pc, MEM, R, sp, depth + 1)
                 if nxt is None:
                     raise Unsupported('inner loop not in the summarizable linear class')
                 pc = nxt
@@ -256,11 +257,11 @@ def _run_body_once(tape, backedges, start_pc, header, MEM, R, sp, depth=0):
                     raise Unsupported('symbolic comparison outside the recognized boolean idiom')
                 rz, lj, iop, fv = idiom
                 if iop == 0x0F and fv == 0:
-                    R[rz] = ('cmp', 'lt', x, y)
+                    R[rz] = ('blt', x, y)   # sides stay RAW (ints keep summarize's slot matching)
                 elif iop == 0x0F and fv == 1:
-                    R[rz] = ('cmp', 'le', y, x)
+                    R[rz] = ('ble', y, x)
                 else:
-                    R[rz] = ('cmp', 'eq' if fv == 0 else 'ne', x, y)
+                    R[rz] = ('beq' if fv == 0 else 'bne', x, y)
                 pc = lj
         elif op == 0x11:                                # read d — a stream element at the current position
             cur = MEM.get(RDV, 0)
@@ -769,20 +770,21 @@ def _exec(tape, backedges, pc, R, MEM, BMEM, sp, ncell, fork_depth):
             pc = imm8(pc + 1)
         elif op == 0x0D or op == 0x0E:                   # jz / jnz c, a
             c = reg(tape[pc + 1])
-            if isinstance(c, tuple) and c and c[0] == 'cmp':   # a symbolic loop guard -> summarize the loop
-                # jz exits (jumps) when c==0 i.e. NOT(L<R); jnz exits on fall-through. Continue = the other edge.
+            if isinstance(c, tuple) and c and c[0] in ('blt', 'ble', 'beq', 'bne'):
+                # a symbolic boolean guard — a direct comparison OR a STORED boolean flowing back into a
+                # branch. jz exits (jumps) when c==0; jnz exits on fall-through. Continue = the other edge.
                 if op == 0x0D:
                     exit_pc, cont_pc = imm8(pc + 2), pc + 10
                 else:
                     exit_pc, cont_pc = pc + 10, imm8(pc + 2)
-                nxt = summarize(c, cont_pc, exit_pc)
+                kind = {'blt': 'lt', 'ble': 'le', 'beq': 'eq', 'bne': 'ne'}[c[0]]
+                nxt = summarize(('cmp', kind, c[1], c[2]), cont_pc, exit_pc)
                 if nxt is None:                          # not a summarizable loop: FORK on the branch.
                     if fork_depth >= 8:                  # cont_pc is the guard-TRUE edge, exit_pc the false
                         raise Unsupported('too many data-dependent branches')
-                    b = ({'lt': 'blt', 'le': 'ble', 'eq': 'beq', 'ne': 'bne'}[c[1]], _term(c[2]), _term(c[3]))
                     tv = _exec(tape, backedges, cont_pc, dict(R), dict(MEM), dict(BMEM), sp, ncell, fork_depth + 1)
                     fv = _exec(tape, backedges, exit_pc, dict(R), dict(MEM), dict(BMEM), sp, ncell, fork_depth + 1)
-                    return ('cond', b, _term(tv), _term(fv))
+                    return ('cond', c, _term(tv), _term(fv))
                 pc = nxt
             else:
                 c = _concrete(c, 'branch on symbolic value')
@@ -796,11 +798,11 @@ def _exec(tape, backedges, pc, R, MEM, BMEM, sp, ncell, fork_depth):
                     raise Unsupported('symbolic comparison outside the recognized boolean idiom')
                 rz, lj, iop, fv = idiom
                 if iop == 0x0F and fv == 0:                # jlt standard: (x < y)   counter x, bound y
-                    R[rz] = ('cmp', 'lt', x, y)
+                    R[rz] = ('blt', x, y)   # sides stay RAW (ints keep summarize's slot matching)
                 elif iop == 0x0F and fv == 1:              # jlt swapped: (y <= x)   counter y, bound x  (i<=n)
-                    R[rz] = ('cmp', 'le', y, x)
+                    R[rz] = ('ble', y, x)
                 else:                                      # jeq (==) / swapped (!=) — not a summarizable guard
-                    R[rz] = ('cmp', 'eq' if fv == 0 else 'ne', x, y)
+                    R[rz] = ('beq' if fv == 0 else 'bne', x, y)
                 pc = lj
             elif op == 0x0F:
                 pc = imm8(pc + 3) if _s64(x) < _s64(y) else pc + 11
