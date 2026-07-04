@@ -131,6 +131,8 @@ tv dual_accumulator_recursion
 tv fletcher_checksum
 tv multi_value_calls
 tv framed_payload
+tv slice_maximum
+tv clamp_sum
 tv digital_root
 tv collatz_sequence
 tv modular_exponentiation

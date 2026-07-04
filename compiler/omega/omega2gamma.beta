@@ -25,6 +25,13 @@
 ; (- 0 1)) ((Cons h t) h))`, inp=tail `(match inp (Nil Nil) ((Cons h t) t))`. The stream's INITIAL value in
 ; the entry call is a `STDIN` placeholder (eps2gamma is a pure stdin->stdout filter, no env access); the
 ; runner/diamond substitutes the `(Cons b0 .. Nil)` byte list — the analog of the Rust route's EPS_GAMMA_INPUT.
+; FEATURE SET (grown over the 2026-07 producer arc; each lands with meaning-gate + termination-canary
+; coverage): scalars/arrays/record-arrays (Pair-tuple elements), string carriers (+ .len, write_line of
+; fields), case data (integer tags; (Pair tag payload) payloads with by-name field mapping), slices
+; (local .len/[i]/[a..]/[a..b] via nth/drop/take, as_slice + postfix), value calls (whole-RHS and
+; expression-embedded via hoist+source-rewrite), machine tail-call arms, value arms (literal/expression),
+; logical &&/|| layers, shifts as *2^k / /2^k, max/min builtins, terminates-clause skip, dual-channel
+; (Pair exit stdout) output convention. UNSUPPORTED constructs REFUSE with E2G-UNSUPPORTED markers.
 ; stdout: write_byte(e)/write_line("s") accumulate LAST list slot `out` (cons-front): write_byte -> `(Cons e
 ; out)`; write_line -> cons the string bytes + a trailing '\n'. In OUTPUT mode the entry terminal returns
 ; `(rev out Nil)` (the whole stdout) not the exit code; interp prints that list. `rev` prepended if outputs.
@@ -414,6 +421,22 @@ proc is_terminates_at(o) {
     state no { return 0 }
 }
 
+proc is_max_at(o) {                    ; the builtin `max` (3 chars)
+    state a { to b when (byte[2097152 + o] == 'm')  return 0 }
+    state b { to c when (byte[2097152 + o + 1] == 'a')  return 0 }
+    state c { to d when (byte[2097152 + o + 2] == 'x')  return 0 }
+    state d { to no when (is_idchar(byte[2097152 + o + 3]) == 1)  return 1 }
+    state no { return 0 }
+}
+
+proc is_min_at(o) {                    ; the builtin `min` (3 chars)
+    state a { to b when (byte[2097152 + o] == 'm')  return 0 }
+    state b { to c when (byte[2097152 + o + 1] == 'i')  return 0 }
+    state c { to d when (byte[2097152 + o + 2] == 'n')  return 0 }
+    state d { to no when (is_idchar(byte[2097152 + o + 3]) == 1)  return 1 }
+    state no { return 0 }
+}
+
 proc dotlen_here() {                   ; CUR at '.', followed by exactly `len`
     state a { to b when (cbyte() == '.')  return 0 }
     state b { return is_len_at(word[2097144] + 1) }
@@ -590,12 +613,32 @@ proc parse_term() {
     state cb1 { return alloc(9, tagn, e0, 0) }
     state cb2 { return alloc(9, tagn, alloc(9, e0, e1, 0), 0) }
     state cb3 { return alloc(9, tagn, alloc(9, e0, alloc(9, e1, e2, 0), 0), 0) }
-    state iscall {                     ; name( args ) -> a free-machine call
+    state iscall {                     ; name( args ) -> a free-machine call, or the max/min builtins
         adv()                          ; consume '('
+        to bmax when (is_max_at(off) == 1)
+        to bmin when (is_min_at(off) == 1)
         let ch = parse_args()
         skip_ws()
         adv()                          ; consume ')'
         return alloc(4, lookup_machine(off), ch, 0)
+    }
+    state bmax {
+        let ba = parse_cmp()
+        skip_ws()
+        adv()                          ; consume ','
+        let bb = parse_cmp()
+        skip_ws()
+        adv()                          ; consume ')'
+        return alloc(2, 'X', ba, bb)
+    }
+    state bmin {
+        let na2 = parse_cmp()
+        skip_ws()
+        adv()                          ; consume ','
+        let nb2 = parse_cmp()
+        skip_ws()
+        adv()                          ; consume ')'
+        return alloc(2, 'Y', na2, nb2)
     }
     state selffield {                  ; self.PATH -> a field read (dotted paths ok), or self.arr[ix],
         skip_ident()                   ; past "self"                  or self.carrier.len (tag 7)
@@ -1452,6 +1495,8 @@ proc print_expr(node) {
         to c_ne when (op == 'N')
         to c_and when (op == 'A')
         to c_or when (op == 'O')
+        to c_max when (op == 'X')
+        to c_min when (op == 'Y')
         write_byte('(')
         write_byte(op)
         write_byte(' ')
@@ -1477,6 +1522,16 @@ proc print_expr(node) {
     state c_ne { emit("(- 1 (eq ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  emit("))")  return 0 }
     state c_and { emit("(* ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
     state c_or { emit("(lt 0 (+ ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  emit("))")  return 0 }
+    state c_max {
+        emit("(if (eq (lt ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])
+        emit(") 1) ")  print_expr(word[node + 24])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')
+        return 0
+    }
+    state c_min {
+        emit("(if (eq (lt ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])
+        emit(") 1) ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')
+        return 0
+    }
 }
 
 ; does transition arm `arm` pass an argument for local slot `i` of target state `tgt`? -> the arg's
