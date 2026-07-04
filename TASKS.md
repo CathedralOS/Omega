@@ -428,6 +428,18 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     source. NOT a fire-tick edit; a focused backend pass.
 - u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
+- SILENT MISCOMPILE (found 2026-07-03, sum-type FIELD store): `self.tx =
+  Tx::Transfer { to: 3, amount: 40 }` (a variant STORED INTO A MACHINE FIELD)
+  then matched reads its payload fields SHIFTED BY ONE FIELD -- `to` reads 40,
+  `amount` reads 0 -- but ONLY when an earlier variant also carries a payload
+  (`Deposit(amount)` precedes `Transfer(to, amount)`). The variant TAG is
+  correct. Inline construction as a call arg works (canary
+  data/case_payload_shared_field_name_exit); field-store with NO earlier payload
+  works (data/runtime_case_payload_guard_read_exit). So the bug is the union
+  payload OFFSET on the field-store construction path (it appears to double-count
+  the preceding variant's payload). Focused fix, then the repro becomes a canary.
+  Per no-silent-anything, FIX (preferred, localized offset) or FENCE. Full
+  isolation in memory `sum-field-store-payload-offset-miscompile`.
 - Same-type contained-machine METHOD-CALL aliasing is a SILENT miscompile,
   re-confirmed on current code 2026-07-03: `a: Counter; b: Counter` +
   `self.b.increment()` mutates `self.a` (dispatch resolves the receiver region by
