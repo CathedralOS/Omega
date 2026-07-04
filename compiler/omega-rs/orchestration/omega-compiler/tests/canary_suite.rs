@@ -11792,6 +11792,37 @@ fn runtime_generic_two_instantiations_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_generic_domain_instantiations_exit_canary_runs() {
+    // Phase 1 domain-arg extension: two DOMAIN-CARRYING instantiations of
+    // `Box<T>` (`Box<i32 in Wrapping>` + `Box<u8 in Wrapping>`) coexist. Each
+    // argument carries an arithmetic domain, so before the slug extension both
+    // were skipped (non-plain-Named) and fell to the one-slot poison path. Now
+    // each slugs distinctly into its own synthetic record with the domain riding
+    // the substituted field. exit 42.
+    let canary = pass_canary("generics/runtime_generic_domain_instantiations_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gen-domain-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("domain-arg generic canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("domain-arg generic canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "expected two coexisting domain-carrying generic instances (exit 42), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_array_max_and_sum_exit_canary_runs() {
     // Find the max and the sum of an array in one pass: an indexed read bound to a local, a
     // reduction (`total += v`), and an element comparison via the sound local-bind pattern
