@@ -17968,6 +17968,72 @@ fn runtime_float_min_max_abs_clamp_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_cross_array_indexed_guard_compare_exit_canary_runs() {
+    // PROBE: `a[i] < b[j]` (two different arrays, both runtime indices) in a
+    // guard. a[1]=20 < b[3]=4 is FALSE; reverse TRUE -> exit 70.
+    let canary = pass_canary("collections/runtime_cross_array_indexed_guard_compare_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-cross-idx-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("cross-array indexed guard-compare canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("cross-array indexed guard-compare canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a[1]=20 < b[3]=4 FALSE and reverse TRUE (exit 70); exit 71 = base/index \
+         confusion across the two arrays. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_dual_indexed_guard_equality_exit_canary_runs() {
+    // PROBE: `arr[i] == arr[j]` (equality op, both runtime indices) in a guard.
+    // arr[0]=10 == arr[3]=10 TRUE; arr[0]=10 == arr[1]=20 FALSE -> exit 70.
+    let canary = pass_canary("collections/runtime_dual_indexed_guard_equality_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-dual-idx-eq-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dual-indexed guard-equality canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dual-indexed guard-equality canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected arr[0]==arr[3] TRUE and arr[0]==arr[1] FALSE (exit 70); exit 71 = the \
+         equality compared the wrong elements. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_dual_indexed_guard_compare_exit_canary_runs() {
     // PROBE: `arr[i] < arr[j]` (both runtime indices) in a guard. arr[1]=20 <
     // arr[3]=40 is TRUE -> exit 70. Exit 71 = silent miscompile.
@@ -18668,6 +18734,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_float_min_max_abs_clamp_exit",
     "arithmetic/runtime_float_running_min_max_fold_exit",
     "collections/runtime_dual_indexed_guard_compare_exit",
+    "collections/runtime_cross_array_indexed_guard_compare_exit",
+    "collections/runtime_dual_indexed_guard_equality_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
     "concurrency/runtime_spawn_struct_result_exit",
