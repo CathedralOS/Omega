@@ -532,6 +532,7 @@ def symexec(tape):
     non-negative-arithmetic fragment (symbolic branch/address/subtraction, div/mod, byte memory, real loops)."""
     R = {}                             # register -> value (int | term) ; unset = concrete 0
     MEM = {}                           # concrete word address -> value ; the data + return-address stacks
+    BMEM = {}                          # concrete BYTE address -> value ; the byte[..] intrinsic's memory
     def reg(i):
         return R.get(i, 0)
     sp = 0x04000000                    # the machine's call-stack pointer (return addresses); grows down
@@ -566,14 +567,31 @@ def symexec(tape):
         elif op == 0x06 or op == 0x07:                   # div / mod
             raise Unsupported('div/mod not modelled yet')
         elif op == 0x0A:                                 # load d, s  (word) — concrete address
-            a = _concrete(reg(tape[pc + 2]), 'load from symbolic address'); v = MEM.get(a, 0)
+            a = _concrete(reg(tape[pc + 2]), 'load from symbolic address')
+            if BMEM and any(a <= bb < a + 8 for bb in BMEM):
+                raise Unsupported('word access aliases a byte store')
+            v = MEM.get(a, 0)
             if v == ('poison',):
                 raise Unsupported('read of a slot dropped by loop summarization')
             R[tape[pc + 1]] = v; pc += 3
         elif op == 0x0B:                                 # store d, s (word) — concrete address
-            a = _concrete(reg(tape[pc + 1]), 'store to symbolic address'); MEM[a] = reg(tape[pc + 2]); pc += 3
-        elif op == 0x08 or op == 0x09:                   # loadb / storeb
-            raise Unsupported('byte memory not modelled yet')
+            a = _concrete(reg(tape[pc + 1]), 'store to symbolic address')
+            if BMEM and any(a <= bb < a + 8 for bb in BMEM):
+                raise Unsupported('word access aliases a byte store')
+            MEM[a] = reg(tape[pc + 2]); pc += 3
+        elif op == 0x08:                                 # loadb d, s — a byte read at a concrete address.
+            a = _concrete(reg(tape[pc + 2]), 'byte load from symbolic address')
+            if any(isinstance(w, int) and w <= a < w + 8 for w in MEM):
+                raise Unsupported('byte access aliases a word slot')
+            v = BMEM.get(a, tape[a] if a < len(tape) else 0)   # initial memory IS the tape image (alpha_ref)
+            R[tape[pc + 1]] = v; pc += 3
+        elif op == 0x09:                                 # storeb d, s — SYMBOLIC values are stored UNTRUNCATED:
+            a = _concrete(reg(tape[pc + 1]), 'byte store to symbolic address')     # the observable is mod 256
+            if any(isinstance(w, int) and w <= a < w + 8 for w in MEM):            # and +/-/* respect mod-256
+                raise Unsupported('byte access aliases a word slot')               # congruence, so every
+            v = reg(tape[pc + 2])                                                  # observed byte stays exact.
+            BMEM[a] = (v & 0xFF) if isinstance(v, int) else v
+            pc += 3
         elif op == 0x0C:                                 # jmp a
             pc = imm8(pc + 1)
         elif op == 0x0D or op == 0x0E:                   # jz / jnz c, a
