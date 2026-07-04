@@ -35,7 +35,9 @@ for b in reversed('''$vec'''.encode()):
     l = '(Cons %d %s)' % (b, l)
 print(l)")
     sed "s/STDIN/$list/" "$T/g" > "$T/gi"
-    "$T/interp.exe" < "$T/gi" > /dev/null 2>&1; got=$?
+    "$T/interp.exe" < "$T/gi" > "$T/iout" 2>&1; got=$?
+    case "$(head -c 6 "$T/iout")" in '(Pair ')          # dual-channel: exit rides the printed pair
+      got=$(head -1 "$T/iout" | sed 's/^(Pair \([0-9]*\) .*/\1/');; esac
     python3 gamma2claim.py < "$T/gi" > "$T/claims" 2>/dev/null || { echo "  FAIL $1 [\"$vec\"] : encoder refused"; exit 9; }
     l1=$(head -1 "$T/claims"); enc=${l1%% *}
     if [ "$enc" != "$got" ] || [ "$enc" != "$want" ]; then
@@ -44,11 +46,17 @@ print(l)")
     [ "$v" = accept ] || { echo "  FAIL $1 [\"$vec\"] : kernel rejected the claim"; exit 9; }
     v2=$(sed -n 2p "$T/claims" | "$T/check.exe")
     [ "$v2" = reject ] || { echo "  FAIL $1 [\"$vec\"] : perturbed claim NOT rejected"; exit 9; }
+    render=$(grep '^#render ' "$T/claims" | sed 's/^#render //')
+    if [ -n "$render" ]; then                           # the render pin: full stdout, byte-exact
+      [ "$render" = "$(head -1 "$T/iout")" ] \
+        || { echo "  FAIL $1 [\"$vec\"] : claimed structure differs from the interpreter's"; exit 9; }
+    fi
   done
   if [ $? -eq 9 ]; then FAIL=$((FAIL+1)); return; fi
   n=$(grep -A100 'INPUT-GRID:' "$src" | grep -cE '"[^"]*" -> [0-9]+')
   PASS=$((PASS+1)); echo "  ok   $1 : $n input vectors, each exit kernel-PROVEN (perturbed rejected)"
 }
 tv stdin_checksum
+tv stdin_upper
 echo "input-grid meaning TV (input-taking samples proven per documented input vector): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] && [ "$PASS" -gt 0 ]
