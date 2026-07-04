@@ -1,0 +1,30 @@
+// SILENT MISCOMPILE FIXED: a local initialized from a runtime-indexed read
+// (`let hi = self.arr[self.i]`) then used as a COMPARISON operand (`let over: bool
+// = hi > 5`) previously read hi as a folded default -- the alias-fold substituted
+// hi back to `arr[i] > 5` (the fenced direct form) but silently produced false
+// instead of erroring, so `over` was always false. A comparison reads its operand
+// as an unresolvable-without-a-slot runtime value exactly like an arithmetic
+// operand, so an indexed-read local used as a compare operand now keeps its slot
+// (local_data_requires_storage), the alias-fold is skipped, and the compare reads
+// the slot. DISCRIMINATING: arr[1]=20 so 20 > 5 is TRUE -> good (exit 70); the
+// pre-fix miscompile read `over` as false -> bad (exit 71). A const-index element
+// (arr[0]=3, 3 > 5 false) checks the other direction. Native must match interp.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; arr: [i32; 3]; i: i32; }
+machine Main::main(&mut self) {
+    self.arr[0] = 3;
+    self.arr[1] = 20;
+    self.arr[2] = 30;
+    self.i = 1;
+    let hi: i32 = self.arr[self.i];
+    let lo: i32 = self.arr[0];
+    let over: bool = hi > 5;
+    let low_over: bool = lo > 5;
+    transition over == low_over {
+        true -> bad()
+        false -> good()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+// Expected exit: 70
