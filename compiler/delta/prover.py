@@ -1041,6 +1041,25 @@ def _rules(sat, goal):
                         irr = prove([], _IRREFL)   # irreflexivity is CLOSED -- prove from a clean context so the
                         if irr is not None:        # cycle facts here don't re-trigger this rule (non-termination)
                             return ("app", ("inst", irr, base), pf_lt)
+    # ORDER-EQ refutation (ne_of_lt): a strict fact A<B together with an equality A=B (or B=A) is absurd --
+    # the equality collapses A<B into A<A, which the banked irreflexivity refutes. This is the eq-and-strict
+    # combination the plain ORDER-CYCLE (two strict facts) can't see; it discharges distinct_when_ordered
+    # (∀i∀j. i<j -> i!=j, i.e. i<j -> i=j -> ⊥). Like ORDER-CYCLE it fires only for ⊥ goals in phase 2
+    # (irreflexivity needs induction) and builds every cert via a recursive prove(): the (Lt A A) sub-goal
+    # closes because the strict fact's witness equation A+(s k)=B rewrites B->A through the equality.
+    if goal == ("bot",) and _induction_on[0]:
+        for p1, _ in sat:
+            ab = _strict_base(p1)
+            if ab is None or ab[0] == ab[1]:   # a self-strict A<A already refutes via irreflexivity directly
+                continue
+            A, B = ab
+            for p2, _ in sat:
+                if p2[0] == "=" and ((p2[1] == A and p2[2] == B) or (p2[1] == B and p2[2] == A)):
+                    pf_lt = prove(sat, ("ex", ("=", ("p", A, ("s", ("v", 0))), A)))   # (Lt A A)
+                    if pf_lt is not None:
+                        irr = prove([], _IRREFL)   # closed context: the strict/eq facts here don't re-fire this rule
+                        if irr is not None:
+                            return ("app", ("inst", irr, A), pf_lt)
     # le-ANTISYMMETRY: goal a=b with an additive cycle a+k=b, b+j=a (a<=b and b<=a) in context. Derive a=b via
     #   a+(k+j)=a [chain, both-orient add-assoc] -> k+j=0 [CANCEL0] -> k=0 [positivity]; then a=b closes by the
     #   existing rewrite (b->a+k, k->0, add-0). Forward orchestration; every cert built by a recursive prove().

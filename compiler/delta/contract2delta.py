@@ -89,6 +89,12 @@ def _two(inner):                                       # split "A B" (two balanc
 
 
 def falsify(prop):                                     # --perturb: turn the conclusion into a FALSE prop
+    # a disequality `A != B` is `(-> (= A B) (bot))`, TRUE under the requires (e.g. i<j); its false form is
+    # the plain equality `(= A B)` (false whenever the requires forces A<B). Handle this before the =/Lt/Le
+    # off-by-one succ, so the != negative control is not vacuous (it used to pass the true prop through).
+    mneq = re.fullmatch(r'\(-> \((= .*)\) \(bot\)\)', prop)
+    if mneq:
+        return '(%s)' % mneq.group(1)
     m = re.fullmatch(r'\((=|Lt|Le) (.*)\)', prop)
     if not m:
         return prop
