@@ -8861,6 +8861,48 @@ fn runtime_unsigned_modulo_cast_operand_exit_canary_runs() {
 }
 
 #[test]
+fn wrapping_signed_divide_min_by_neg_one_canary_runs() {
+    // Wrapping signed divide/modulo of TYPE_MIN by -1: x86 `idiv` raises #DE
+    // (integer-overflow) for this corner, so the Wrapping domain guards it and
+    // produces the wrapped result (INT_MIN / -1 -> INT_MIN, INT_MIN % -1 -> 0).
+    // Before the guard the native binary crashed with STATUS_INTEGER_OVERFLOW.
+    // exit 72 = divide did not wrap; 73 = modulo not 0.
+    let canary = pass_canary("arithmetic/wrapping_signed_divide_min_by_neg_one");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("wrapping INT_MIN/-1 canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (INT_MIN/-1 wraps to INT_MIN, %0), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-wrap-div-min-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wrapping INT_MIN/-1 canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("wrapping INT_MIN/-1 canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected INT_MIN/-1 to wrap (exit 70), got {:?} (a crash would be a large negative code = idiv #DE)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_signed_division_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_signed_division_exit");
     let main_path = canary.join("main.omg");
@@ -19920,6 +19962,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_chained_field_mutation_exit",
     "arithmetic/runtime_copy_then_read_exit",
     "arithmetic/const_fold_cast_signedness",
+    "arithmetic/wrapping_signed_divide_min_by_neg_one",
     "arithmetic/f32_field_store_rounding",
     "arithmetic/f32_transition_arg_rounding",
     "arithmetic/int_transition_arg_width_wrap",
