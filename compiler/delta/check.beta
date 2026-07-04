@@ -140,6 +140,7 @@ proc parse_nat() {
         adv()                    ; '('
         skip_ws()
         let op = cbyte()
+        let opx = byte[2097152 + word[2097144] + 3]   ; 'x' at +3 distinguishes recx from rec
         skip_ident()             ; consume the whole operator keyword
         to op_s when (op == 's')
         to op_m
@@ -167,8 +168,19 @@ proc parse_nat() {
     }
     state op_y { to do_y when (op == 'y')  to op_r }      ; (y k) — k-th extra arg in a fun body
     state do_y { skip_ws()  a = parse_number()  skip_ws()  adv()  return alloc(56, a, 0) }
-    state op_r { to do_r when (op == 'r')  to op_c }      ; (rec i) recursive call in a fun body
-    state do_r { skip_ws()  a = parse_number()  skip_ws()  adv()  return alloc(54, a, 0) }
+    state op_r { to do_r when (op == 'r')  to op_c }      ; (rec i) / (recx i E) in a fun body
+    state do_r {
+        to do_rx when (opx == 'x')
+        skip_ws()  a = parse_number()  skip_ws()  adv()
+        return alloc(54, a, 0)
+    }
+    state do_rx {                ; (recx i E): recursive call on field i, extra := E (accumulator
+        skip_ws()                ; recursion — still structurally decreasing on field i)
+        a = parse_number()
+        b = parse_nat()
+        skip_ws()  adv()
+        return alloc(55, a, b)
+    }
     state op_c { to do_c when (op == 'c')  to op_a }
     state do_c { a = parse_nat()  b = parse_nat()  skip_ws()  adv()  return alloc(36, a, b) }
     state op_a { to do_a when (op == 'a')  to op_k }
@@ -363,7 +375,15 @@ proc instantiate(t, fid, flds, extra) {
     state ret_a1 { return word[flds + 16] }
     state par { to do_par when (word[t] == 56)  to rc }    ; PAR (y k) — the extra argument
     state do_par { return extra }
-    state rc { to do_rc when (word[t] == 54)  to fapp }    ; RECCALL (rec 0)/(rec 1)
+    state rc { to do_rc when (word[t] == 54)  to rx }      ; RECCALL (rec 0)/(rec 1)
+    state rx { to do_rx2 when (word[t] == 55)  to fapp }   ; RECX (recx i E)
+    state do_rx2 {
+        to rx_stuck when (extra == 0)                       ; recx in a unary rule: malformed, stuck
+        to rx_f0 when (word[t + 8] == 0)
+        return alloc(52, fid, alloc(53, word[flds + 16], instantiate(word[t + 16], fid, flds, extra)))
+    }
+    state rx_stuck { return t }
+    state rx_f0 { return alloc(52, fid, alloc(53, word[flds + 8], instantiate(word[t + 16], fid, flds, extra))) }
     state do_rc {
         to rec_a0 when (word[t + 8] == 0)
         to rec_a1
@@ -407,7 +427,12 @@ proc nat_eq(a, b) {
     state ivcheck { to z when (word[a + 8] == word[b + 8])  return 0 }
     state suc { to child when (word[a] == 31)  to lenc }
     state child { return nat_eq(word[a + 8], word[b + 8]) }
-    state lenc { to child when (word[a] == 38)  to both }     ; len — unary
+    state lenc { to child when (word[a] == 38)  to recxq }    ; len — unary
+    state recxq { to recxchk when (word[a] == 55)  to both }  ; stuck RECX: index (int) + E (subtree)
+    state recxchk {
+        to bdiff when (word[a + 8] != word[b + 8])
+        return nat_eq(word[a + 16], word[b + 16])
+    }
     state both {
         to bdiff when (nat_eq(word[a + 8], word[b + 8]) == 0)
         return nat_eq(word[a + 16], word[b + 16])
