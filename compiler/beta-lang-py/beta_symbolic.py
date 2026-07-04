@@ -344,12 +344,15 @@ class SymInterp:
         except Unsupported:
             return False
         deltas = {}
-        for v in entry:                                 # per-var delta off the ONE placeholder region run
-            deltas[v] = _lin_delta(out[v], ('loopvar', v))
-            if deltas[v] is None:
-                return False
-        invariant = {v for v in entry if deltas[v] == 0}
-        loop_vars = [v for v in entry if deltas[v] != 0]
+        rewrite = set()                                 # REWRITE vars: fully overwritten each iteration (a
+        for v in entry:                                 # temp t = a*i, …) — no additive delta exists. They
+            d = _lin_delta(out[v], ('loopvar', v))      # are DROPPED post-loop (a later read refuses via ev);
+            if d is None:                               # any OTHER delta reading their stale value refuses.
+                rewrite.add(v)
+                continue
+            deltas[v] = d
+        invariant = {v for v in entry if deltas.get(v) == 0}
+        loop_vars = [v for v in entry if v in deltas and deltas[v] != 0]
         fresh = {}                                      # vars INTRODUCED by the body (e.g. an inner counter):
         for v in out:                                   # keep only values identical on every iteration; DROP
             if v not in entry:                          # the rest (unknowable post-loop — a later read of a
@@ -378,7 +381,7 @@ class SymInterp:
             counter = cond[2][1]
             if counter not in loop_vars or _canon(deltas[counter]) != 1 or entry[counter] != 0:
                 return False                            # counter: a unit-stride loop var starting at 0
-            if _expr_uses(cond[3], loop_vars):
+            if _expr_uses(cond[3], loop_vars) or _expr_uses(cond[3], rewrite):
                 return False                            # the bound must be loop-invariant
             try:
                 bound = self.ev(cond[3], env)
@@ -403,6 +406,8 @@ class SymInterp:
                 N = _subst_loopvars(d[2], entry, invariant)
                 if _has_zz(P) or _has_zz(N):
                     return False                        # a zz value nested in a component: alpha refuses too
+                if _mentions_loopvar(P, rewrite) or _mentions_loopvar(N, rewrite):
+                    return False                        # the delta reads a rewrite var's stale value
                 dp = _lin_decompose(P, counter, loop_vars)
                 dn = _lin_decompose(N, counter, loop_vars)
                 if dp is None or dn is None:
@@ -417,6 +422,8 @@ class SymInterp:
             sub = _subst_loopvars(d, entry, invariant)
             if _has_zz(sub):
                 return False                            # an invariant zz value spliced into a plain delta
+            if _mentions_loopvar(sub, rewrite):
+                return False                            # the delta reads a rewrite var's stale value
             dec = _lin_decompose(sub, counter, loop_vars)
             if dec is None:
                 return False                            # δ not linear in the counter (i·i, cross-loopvar): later
@@ -427,6 +434,8 @@ class SymInterp:
             closed[v] = _series_closed(entry[v], _canon(dec[0]), _canon(dec[1]), trip)
         env.update(closed)
         env.update(fresh)                               # body-introduced vars with iteration-independent values
+        for v in rewrite:
+            env.pop(v, None)                            # dropped: a post-loop read refuses via ev
         return True
 
     def _run_region_once(self, start_idx, header_pc, env, blocks, labels):

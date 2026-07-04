@@ -82,6 +82,8 @@ AUTO_SAMPLES = [
     ("nested    (OUTER-SYM × INNER-CONCRETE →3na)", "refinement-samples/nested.beta"),
     ("nested_sym (RECURSIVE SUMMARY j<m →n·m·a)", "refinement-samples/nested_sym.beta"),
     ("tri_nested (TRIANGULAR j<i →a·g(n))", "refinement-samples/tri_nested.beta"),
+    ("callloop  (PROC CALL IN LOOP →2·g(n))", "refinement-samples/callloop.beta"),
+    ("temploop  (REWRITE TEMP t=a*i →a·g(n))", "refinement-samples/temploop.beta"),
     ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
     ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
     ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),
@@ -177,7 +179,11 @@ def run_ref(tape, stdin_bytes):
     with tempfile.NamedTemporaryFile(delete=False) as f:
         f.write(tape); path = f.name
     try:
-        r = subprocess.run([sys.executable, ALPHA_REF, path], input=bytes(stdin_bytes), capture_output=True)
+        try:
+            r = subprocess.run([sys.executable, ALPHA_REF, path], input=bytes(stdin_bytes),
+                               capture_output=True, timeout=30)
+        except subprocess.TimeoutExpired:
+            return None                                # a DIVERGING tape: report as a differential mismatch
         return (r.stdout[0] if r.stdout else r.returncode) & 0xFF     # write -> byte ; halt -> exit code
     finally:
         os.unlink(path)

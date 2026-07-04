@@ -189,7 +189,11 @@ def _run_body_once(tape, backedges, start_pc, header, MEM, R, sp, depth=0):
         elif op == 0x03: d = tape[pc + 1]; R[d] = _add(reg(d), reg(tape[pc + 2])); pc += 3
         elif op == 0x04: d = tape[pc + 1]; R[d] = _sub(reg(d), reg(tape[pc + 2])); pc += 3
         elif op == 0x05: d = tape[pc + 1]; R[d] = _mul(reg(d), reg(tape[pc + 2])); pc += 3
-        elif op == 0x0A: a = _concrete(reg(tape[pc + 2]), 'load'); R[tape[pc + 1]] = MEM.get(a, 0); pc += 3
+        elif op == 0x0A:
+            a = _concrete(reg(tape[pc + 2]), 'load'); v = MEM.get(a, 0)
+            if v == ('poison',):
+                raise Unsupported('read of a slot dropped by loop summarization')
+            R[tape[pc + 1]] = v; pc += 3
         elif op == 0x0B: a = _concrete(reg(tape[pc + 1]), 'store'); MEM[a] = reg(tape[pc + 2]); pc += 3
         elif op in (0x0D, 0x0E):                        # jz / jnz
             c = reg(tape[pc + 1])
@@ -223,6 +227,10 @@ def _run_body_once(tape, backedges, start_pc, header, MEM, R, sp, depth=0):
                 else:
                     R[rz] = ('cmp', 'eq' if fv == 0 else 'ne', x, y)
                 pc = lj
+        elif op == 0x13:                                # call a — push the return offset, enter the callee
+            sp -= 8; MEM[sp] = pc + 9; pc = _le8(tape, pc + 1)
+        elif op == 0x14:                                # ret — pop the return offset
+            pc = _concrete(MEM.get(sp, 0), 'corrupt return address in a summarized loop body'); sp += 8
         else:
             raise Unsupported('loop body opcode 0x%02x (only straight-line +/*/mem summarizable)' % op)
 
@@ -454,13 +462,17 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
     except Unsupported:
         return None
     raw = {}
-    for a in frame:
-        d = _slot_delta(('slot', a), PS.get(a, ('slot', a)))
-        if d is None or (isinstance(d, tuple) and d[0] == 'cmp'):
+    rewrite = set()                                 # REWRITE slots: fully overwritten each iteration (a call
+    for a in frame:                                 # temp, t = a*i, …) — no additive delta exists. They are
+        d = _slot_delta(('slot', a), PS.get(a, ('slot', a)))    # dropped (poisoned) post-loop; any OTHER
+        if isinstance(d, tuple) and d[0] == 'cmp':  # delta that reads their stale value refuses below.
             return None
+        if d is None:
+            rewrite.add(a)
+            continue
         raw[a] = d
-    invariant = {a for a in frame if raw[a] == 0}   # slots unchanged this iteration hold loop-invariant values
-    moved = [a for a in frame if raw[a] != 0]
+    invariant = {a for a in frame if raw.get(a) == 0}   # slots unchanged this iteration are loop-invariant
+    moved = [a for a in frame if a in raw and raw[a] != 0]
     down = False
     counters = [a for a in moved if _canon(raw[a]) == 1 and MEM[a] == L]
     if not counters:
@@ -475,7 +487,10 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
         down = True
     ctr = ('slot', counters[0])
     movedset = {('slot', a) for a in moved}
+    rewriteset = {('slot', a) for a in rewrite}
     updates = {}
+    for a in rewrite:
+        updates[a] = ('poison',)                    # a post-loop LOAD of a dropped slot refuses
     for a in moved:
         d = raw[a]
         if isinstance(d, tuple) and d[0] == 'zz':   # subtracting accumulator: pos/neg components follow
@@ -483,6 +498,8 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
             N = _subst_slots(d[2], MEM, invariant)
             if _has_zz(P) or _has_zz(N):
                 return None                         # a zz value nested in a component: beta distributes
+            if _mentions_marked(P, rewriteset) or _mentions_marked(N, rewriteset):
+                return None                         # the delta reads a rewrite slot's stale value
             dp, dn = _lin_decompose(P, ctr, movedset), _lin_decompose(N, ctr, movedset)
             if dp is None or dn is None:
                 return None
@@ -496,6 +513,8 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
         sub = _subst_slots(d, MEM, invariant)       # δ = a0 + a1·counter
         if _has_zz(sub):
             return None                             # invariant zz feeding a plain delta: beta distributes
+        if _mentions_marked(sub, rewriteset):
+            return None                             # the delta reads a rewrite slot's stale value
         dec = _lin_decompose(sub, ctr, movedset)
         if dec is None:
             return None                             # δ not linear in the counter (i·i, cross-accumulator, …)
@@ -547,7 +566,10 @@ def symexec(tape):
         elif op == 0x06 or op == 0x07:                   # div / mod
             raise Unsupported('div/mod not modelled yet')
         elif op == 0x0A:                                 # load d, s  (word) — concrete address
-            a = _concrete(reg(tape[pc + 2]), 'load from symbolic address'); R[tape[pc + 1]] = MEM.get(a, 0); pc += 3
+            a = _concrete(reg(tape[pc + 2]), 'load from symbolic address'); v = MEM.get(a, 0)
+            if v == ('poison',):
+                raise Unsupported('read of a slot dropped by loop summarization')
+            R[tape[pc + 1]] = v; pc += 3
         elif op == 0x0B:                                 # store d, s (word) — concrete address
             a = _concrete(reg(tape[pc + 1]), 'store to symbolic address'); MEM[a] = reg(tape[pc + 2]); pc += 3
         elif op == 0x08 or op == 0x09:                   # loadb / storeb
