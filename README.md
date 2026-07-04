@@ -40,27 +40,27 @@ cargo test
 Check the smallest CLI sample:
 
 ```bash
-cargo run -p omega-cli -- --check samples/cli/cli_mvp/main.omg
+cargo run -p omega-cli -- --check samples/cli/basics/cli_mvp/main.omg
 ```
 
 Build the smallest CLI sample on macOS ARM64:
 
 ```bash
-cargo run -p omega-cli -- --target macos_arm64 samples/cli/cli_mvp/main.omg
-./samples/cli/cli_mvp/build/omega-program
+cargo run -p omega-cli -- --target macos_arm64 samples/cli/basics/cli_mvp/main.omg
+./samples/cli/basics/cli_mvp/build/omega-program
 ```
 
 Build the smallest CLI sample as a direct Linux ARM64 ELF image:
 
 ```bash
-cargo run -p omega-cli -- --target linux_arm64 samples/cli/cli_mvp/main.omg
-docker run --rm --platform linux/arm64 -v "$PWD:/work" -w /work alpine:3.20 ./samples/cli/cli_mvp/build/omega-program
+cargo run -p omega-cli -- --target linux_arm64 samples/cli/basics/cli_mvp/main.omg
+docker run --rm --platform linux/arm64 -v "$PWD:/work" -w /work alpine:3.20 ./samples/cli/basics/cli_mvp/build/omega-program
 ```
 
 Check the richer samples:
 
 ```bash
-cargo run -p omega-cli -- --check samples/cli/dungeon_crawler_cli/main.omg
+cargo run -p omega-cli -- --check samples/cli/games/dungeon_crawler_cli/main.omg
 ```
 
 Compile/check writes ignored phase artifacts under a `build/` directory next to the entrypoint unless `--build-dir <dir>` is provided.
@@ -117,7 +117,7 @@ Each sample is a copyable mini-project with its own `.gitignore`; local compiler
 
 Current samples:
 
-- `samples/cli/`: console and terminal-oriented programs, including `cli_mvp` and `dungeon_crawler_cli`.
+- `samples/cli/`: console and terminal-oriented programs grouped by domain, such as `basics/`, `games/`, `systems/`, and `probes/`.
 - `samples/gui/`: windowed host/UI experiments, including the software-rendered calculator.
 - `samples/uefi/`: firmware-targeted samples.
 
@@ -172,13 +172,13 @@ cargo test
 Check a sample:
 
 ```bash
-cargo run -p omega-cli -- --check samples/cli/cli_mvp/main.omg
+cargo run -p omega-cli -- --check samples/cli/basics/cli_mvp/main.omg
 ```
 
 Compile a sample on macOS ARM64:
 
 ```bash
-cargo run -p omega-cli -- --target macos_arm64 samples/cli/cli_mvp/main.omg
+cargo run -p omega-cli -- --target macos_arm64 samples/cli/basics/cli_mvp/main.omg
 ```
 
 Inspect canaries:

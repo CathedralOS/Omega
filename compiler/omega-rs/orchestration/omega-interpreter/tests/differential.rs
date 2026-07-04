@@ -294,6 +294,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_palindrome_two_pointer_exit", 70),
     ("collections/runtime_bracket_matcher_stack_exit", 70),
     ("collections/runtime_argmax_index_exit", 70),
+    ("control_flow/runtime_sum_field_store_payload_exit", 70),
     ("arithmetic/runtime_float_self_compare_nan_exit", 70),
     ("arithmetic/runtime_abs_desugar_exit", 70),
     ("arithmetic/runtime_sqrt_builtin_exit", 70),
@@ -1034,11 +1035,7 @@ fn interpreter_matches_native_on_supported_canaries() {
 /// the interpreter and native agree there too.
 #[test]
 fn interpreter_matches_native_on_cli_mvp_sample() {
-    let main_path = repo_root()
-        .join("samples")
-        .join("cli")
-        .join("cli_mvp")
-        .join("main.omg");
+    let main_path = cli_sample("basics/cli_mvp");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "cli_mvp compile failed:\n{}",
@@ -1077,11 +1074,7 @@ fn interpreter_matches_native_on_cli_mvp_sample() {
 /// checksum, so it pins interpreter==native agreement on a deep dispatch tree.
 #[test]
 fn interpreter_matches_native_on_game_of_life_sample() {
-    let main_path = repo_root()
-        .join("samples")
-        .join("cli")
-        .join("game_of_life")
-        .join("main.omg");
+    let main_path = cli_sample("simulation/game_of_life");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "game_of_life compile failed:\n{}",
@@ -1114,11 +1107,7 @@ fn interpreter_matches_native_on_game_of_life_sample() {
 /// After 8 steps: pos=6, exit=6+64=70. Exercises inequality guards and vel sign flip.
 #[test]
 fn interpreter_matches_native_on_bouncing_ball_sample() {
-    let main_path = repo_root()
-        .join("samples")
-        .join("cli")
-        .join("bouncing_ball")
-        .join("main.omg");
+    let main_path = cli_sample("rendering/bouncing_ball");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "bouncing_ball compile failed:\n{}",
@@ -1151,11 +1140,7 @@ fn interpreter_matches_native_on_bouncing_ball_sample() {
 /// not traverse) -- the binary then read garbage. Exit 70.
 #[test]
 fn interpreter_matches_native_on_dual_accumulator_sample() {
-    let main_path = repo_root()
-        .join("samples")
-        .join("cli")
-        .join("dual_accumulator_recursion")
-        .join("main.omg");
+    let main_path = cli_sample("probes/dual_accumulator_recursion");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "dual_accumulator_recursion compile failed:\n{}",
@@ -1200,11 +1185,7 @@ fn interpreter_matches_native_on_dual_accumulator_sample() {
 /// behavior and detect any regression or accidental fix.
 #[test]
 fn interpreter_matches_native_on_stack_vm_sample() {
-    let main_path = repo_root()
-        .join("samples")
-        .join("cli")
-        .join("stack_vm")
-        .join("main.omg");
+    let main_path = cli_sample("interpreters/stack_vm");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "stack_vm compile failed:\n{}",
@@ -1268,11 +1249,7 @@ fn interpreter_matches_native_on_stack_vm_sample() {
 /// native exit code to detect accidental fixes or regressions.
 #[test]
 fn interpreter_matches_native_on_account_ledger_sample() {
-    let main_path = repo_root()
-        .join("samples")
-        .join("cli")
-        .join("account_ledger")
-        .join("main.omg");
+    let main_path = cli_sample("systems/account_ledger");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "account_ledger compile failed:\n{}",
@@ -1323,11 +1300,7 @@ fn interpreter_matches_native_on_account_ledger_sample() {
 /// shows up as exit 71..76 (wrong slot written) rather than the correct exit 70.
 #[test]
 fn interpreter_matches_native_on_insertion_sort_sample() {
-    let main_path = repo_root()
-        .join("samples")
-        .join("cli")
-        .join("insertion_sort")
-        .join("main.omg");
+    let main_path = cli_sample("algorithms/insertion_sort");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "insertion_sort compile failed:\n{}",
@@ -1368,11 +1341,7 @@ const DUNGEON_SCRIPT: &[u8] = b"north\r\nnorth\r\nnorth\r\nnorth\r\nquit\r\n";
 /// against the interpreter only -- see `interpreter_matches_native_on_dungeon_sample`.
 #[test]
 fn interpreter_dungeon_renders_depth_correct_rooms() {
-    let main_path = repo_root()
-        .join("samples")
-        .join("cli")
-        .join("dungeon_crawler_cli")
-        .join("main.omg");
+    let main_path = cli_sample("games/dungeon_crawler_cli");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "dungeon compile to checked failed:\n{}",
@@ -1434,11 +1403,7 @@ fn interpreter_dungeon_renders_depth_correct_rooms() {
 /// first `should_carve` guard, so R03+ rendered the shallow description).
 #[test]
 fn interpreter_matches_native_on_dungeon_sample() {
-    let main_path = repo_root()
-        .join("samples")
-        .join("cli")
-        .join("dungeon_crawler_cli")
-        .join("main.omg");
+    let main_path = cli_sample("games/dungeon_crawler_cli");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "dungeon compile to checked failed:\n{}",
@@ -1571,6 +1536,10 @@ fn repo_root() -> PathBuf {
         .nth(4)
         .expect("interpreter crate should live under compiler/orchestration/omega-interpreter")
         .to_path_buf()
+}
+
+fn cli_sample(path: &str) -> PathBuf {
+    repo_root().join("samples/cli").join(path).join("main.omg")
 }
 
 fn pass_canary(path: &str) -> PathBuf {
