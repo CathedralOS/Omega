@@ -1,7 +1,7 @@
 # Rebuild the CLI (it is a SEPARATE workspace -- `cargo build --workspace` never
 # relinks it, so it silently runs stale compiler code), then compile every
 # sample in place, in parallel, via the cross-platform `omega refresh-samples`
-# subcommand. Result: every samples/<name>/build/omega-program.exe is current.
+# subcommand. Result: every samples/<domain>/<name>/build/omega-program.exe is current.
 $root = Split-Path -Parent $PSScriptRoot
 Push-Location (Join-Path $root "apps\omega-cli")
 cargo build

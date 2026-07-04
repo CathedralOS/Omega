@@ -1,0 +1,4 @@
+// windowed_calculator is a real GUI subsystem app: no attached console box.
+machine build(b: &mut Build) {
+    b.subsystem = Subsystem::Gui;
+}
