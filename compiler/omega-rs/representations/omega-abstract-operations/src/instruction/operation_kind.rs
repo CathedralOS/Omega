@@ -732,6 +732,27 @@ pub enum AbstractOperationKind {
         field_byte_offset: usize,
         byte_count: usize,
     },
+    /// The DUAL-indexed copy `arr[i] = arr[j]` (task #38): both the source and
+    /// the target are runtime-indexed elements of machine-owned inline arrays.
+    /// Composes the two halves above -- read the source element exactly as
+    /// `CopyRuntimeMachineIndexedToRuntimeStorage` does, then store it exactly
+    /// as `CopyRuntimeStorageToRuntimeMachineIndexed` does. Source and target
+    /// may be DIFFERENT arrays (`a[i] = b[j]`); both live off the one machine
+    /// base symbol. Only machine-resident indices are encodable today (the
+    /// same gate as the halves).
+    CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
+        source_base_byte_offset: usize,
+        source_index_offset: usize,
+        source_index_region: RuntimeStorageRegion,
+        source_element_byte_size: usize,
+        source_field_byte_offset: usize,
+        target_base_byte_offset: usize,
+        target_index_offset: usize,
+        target_index_region: RuntimeStorageRegion,
+        target_element_byte_size: usize,
+        target_field_byte_offset: usize,
+        byte_count: usize,
+    },
     CopyRuntimeStorageToRuntimePointee {
         source_region: RuntimeStorageRegion,
         source_offset: usize,

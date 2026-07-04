@@ -1062,6 +1062,40 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_stora
     }
 }
 
+pub fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+    architecture: Architecture,
+    source_base_byte_offset: usize,
+    source_index_offset: usize,
+    source_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_element_byte_size: usize,
+    source_field_byte_offset: usize,
+    target_base_byte_offset: usize,
+    target_index_offset: usize,
+    target_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_element_byte_size: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "aarch64 cannot encode a dual runtime-indexed copy (`arr[i] = arr[j]`) yet;              use a field temp",
+        )),
+        Architecture::X86_64 => x86_64::encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+            source_base_byte_offset,
+            source_index_offset,
+            source_index_region,
+            source_element_byte_size,
+            source_field_byte_offset,
+            target_base_byte_offset,
+            target_index_offset,
+            target_index_region,
+            target_element_byte_size,
+            target_field_byte_offset,
+            byte_count,
+        ),
+    }
+}
+
 pub fn encode_runtime_storage_copy_to_runtime_pointee(
     architecture: Architecture,
     source_offset: usize,

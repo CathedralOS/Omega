@@ -1525,6 +1525,38 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         target_source_key,
         resolved_target,
     ) {
+        // DUAL-indexed copy `arr[i] = arr[j]` (task #38): the VALUE is itself a
+        // runtime-indexed machine element. This must be tried BEFORE the
+        // storage-place source below -- `resolve_runtime_storage_place` on an
+        // indexed read resolves to the array BASE (dropping the index), which
+        // was the original silent miscompile this instruction closes.
+        if let Some(indexed_source) = resolve_runtime_machine_indexed_target(
+            input,
+            dispatch_index,
+            resolved_value.source_key,
+            &resolved_value.expression,
+        ) && indexed_source.byte_count == indexed_target.byte_count
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
+                    source_base_byte_offset: indexed_source.base_byte_offset,
+                    source_index_offset: indexed_source.index_offset,
+                    source_index_region: indexed_source.index_region,
+                    source_element_byte_size: indexed_source.element_byte_size,
+                    source_field_byte_offset: indexed_source.field_byte_offset,
+                    target_base_byte_offset: indexed_target.base_byte_offset,
+                    target_index_offset: indexed_target.index_offset,
+                    target_index_region: indexed_target.index_region,
+                    target_element_byte_size: indexed_target.element_byte_size,
+                    target_field_byte_offset: indexed_target.field_byte_offset,
+                    byte_count: indexed_target.byte_count,
+                },
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
+
         // Runtime-value source: `self.nums[self.j] = self.b`. The source field
         // resolves to a machine-resident storage place; the x86_64 encoder reads
         // the value, the index, and the target element all off the single shared

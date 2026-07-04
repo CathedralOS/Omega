@@ -1602,6 +1602,33 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_widt
     }
 }
 
+pub fn runtime_storage_copy_machine_indexed_to_machine_indexed_width(
+    architecture: Architecture,
+) -> usize {
+    match architecture {
+        // aarch64 has no dual-indexed-copy encoder yet; emission rejects the
+        // instruction with a clean diagnostic before any bytes are placed, so
+        // the width is never consumed.
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_machine_indexed_to_machine_indexed_width()
+        }
+    }
+}
+
+/// The second machine-base relocation offset inside the dual-indexed copy (the
+/// write part's `mov r15, imm64` immediate). x86_64 only, like the encoder.
+pub fn runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset(
+    architecture: Architecture,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset()
+        }
+    }
+}
+
 pub fn runtime_storage_copy_to_runtime_pointee_width(
     architecture: Architecture,
     source_offset: usize,

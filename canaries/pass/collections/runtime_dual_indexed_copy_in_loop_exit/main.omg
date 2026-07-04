@@ -1,9 +1,9 @@
-// A DUAL runtime-indexed copy inside a loop -- `a[i] = b[i]` where both the target and the value
-// are runtime-indexed -- MUST be rejected, not silently miscompiled. The static-assignment fast
-// path resolves the runtime-indexed value `b[i]` to the array BASE, so without the classifier guard
-// the write silently NO-OPS (a stays all-zero; the sum is 0 with no error). The top-level form is
-// caught by the dual-runtime-indexed mutation blocker; this in-loop form previously had no write
-// record at all and slipped through. Sound workaround: a field temp -- `t = b[i]; a[i] = t`.
+// The DUAL runtime-indexed copy IN A LOOP -- `a[i] = b[i]` element-wise (task
+// #38, the cross-array + loop face). Previously the classifier fenced it (the
+// static-assignment fast path used to resolve `b[i]` to the array base and
+// silently NO-OP); the copy now lowers through
+// CopyRuntimeMachineIndexedToRuntimeMachineIndexed. b=[10,20,40] copies into
+// a=[0,0,0]; the sum of a afterwards is 70 (a no-op loop exits 0).
 boundary trait Console {
     machine exit_process(return_code: i32);
 }

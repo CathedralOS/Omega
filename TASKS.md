@@ -405,27 +405,25 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 "provably correct native output," which it meets.
 
 ### Smaller open items / latent bugs surfaced
-- `arr[i] = arr[j]` (both runtime indices) is FENCED (a clean compile error --
-  "NeedsMachineOwnedWrite", NOT a silent miscompile; verified 2026-07-03).
-  Field-temp workaround. Sibling: `arr[i] = <bare local>` fails identically. Both
-  are a backend mutation-selection gap (a binary/literal/field source works, a
-  bare local or bare indexed read does not) -- a dual-indexed copy or a
-  bare-place source arm in the indexed-target mutation emitter, NOT a frontend
-  hoist (hoisting to a local does not help). See #38.
-  - SITE PINNED (2026-07-03): the fall-through is the machine-indexed copy arm
-    in `writes/mutation.rs`
-    (`select_runtime_resolved_target_value_source_mutation_writes`, the
-    `resolve_runtime_machine_indexed_target` block, ~line 1522). Its copy arm
-    (`CopyRuntimeStorageToRuntimeMachineIndexed`) is gated
-    `source_place.region == Machine` on purpose: the x86_64 encoder reads value,
-    index, and target element off the ONE shared machine base. So the gap is
-    ENCODER-level, two distinct sub-cases (each = new/extended instruction kind +
-    x86_64 AND aarch64 encoders + differential):
-    (1) `arr[i]=arr[j]`: source is a runtime-INDEXED read -> `resolve_runtime_-
-    storage_place` returns no fixed place -> needs a DUAL-index copy (source
-    index reg + target index reg). (2) `arr[i]=local`: source is a FRAME-region
-    place -> fails the `==Machine` gate -> needs the encoder to read a frame-base
-    source. NOT a fire-tick edit; a focused backend pass.
+- DONE 2026-07-03 (#38, the dual-indexed copy): `arr[i] = arr[j]` (both runtime
+  indices) now LOWERS FOR REAL -- new
+  `CopyRuntimeMachineIndexedToRuntimeMachineIndexed` instruction composing the
+  two proven halves (read the source element off the machine base by j exactly
+  as CopyRuntimeMachineIndexedToRuntimeStorage does, store by i exactly as
+  CopyRuntimeStorageToRuntimeMachineIndexed does; 68-byte x86_64 encoding, two
+  machine-base relocations at +2/+34, distinct index registers rax/r10;
+  aarch64 = clean error like sqrt). Selection tries the dual arm BEFORE the
+  storage-place source (which mis-resolves an indexed read to the array base --
+  the historic silent bug). The #40 stopgap blocker now stands down ONLY when
+  the dual copy is actually planned (any uncaught dual shape stays fenced).
+  Verified: top-level (canary runtime_dual_indexed_copy_exit, exits 50 =
+  element j), IN-LOOP element-wise a[i]=b[i] (runtime_dual_indexed_copy_in_loop_
+  exit, sum 70 -- the old classifier fence routes it to the write path where the
+  dual arm picks it up), CROSS-ARRAY a[i]=b[j], and an in-place swap; both fail
+  canaries converted to run canaries; 550 canaries + samples + differential 11/11
+  (native == interp). REMAINING sibling (still fenced, unchanged): `arr[i] =
+  <bare local>` -- a FRAME-region source needs the encoder to read a frame base;
+  same recipe, smaller.
 - u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
 - FIXED 2026-07-03 (sum-type FIELD store payload offset): `self.tx =

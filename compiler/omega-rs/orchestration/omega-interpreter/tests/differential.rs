@@ -290,6 +290,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         70,
     ),
     ("collections/runtime_dual_indexed_guard_equality_exit", 70),
+    ("collections/runtime_dual_indexed_copy_exit", 50),
+    ("collections/runtime_dual_indexed_copy_in_loop_exit", 70),
     ("calls/runtime_same_type_contained_direct_fields_exit", 70),
     ("collections/runtime_palindrome_two_pointer_exit", 70),
     ("collections/runtime_bracket_matcher_stack_exit", 70),

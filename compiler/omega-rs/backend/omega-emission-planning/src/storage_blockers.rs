@@ -62,7 +62,8 @@ pub(super) fn collect_state_storage_blockers(
             &input.state_storage.expressions,
             mutation.target,
             mutation.value,
-        ) {
+        ) && !dual_indexed_copy_is_planned(input, mutation.source_key, mutation.statement_index)
+        {
             let source_name = state_name(input, mutation.source_key);
             blockers.insert(blocker(
                 "state mutation",
@@ -293,6 +294,7 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimePointee { .. }
                     | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed { .. }
+                    | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. }
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
             )
         })
@@ -309,6 +311,30 @@ fn expression_is_runtime_indexed(expressions: &ExpressionTable, handle: Expressi
         index = *inner;
     }
     !matches!(expressions.expression(index), ExpressionNode::Integer(_))
+}
+
+/// True when selection planned the REAL dual-indexed copy instruction for this
+/// statement (task #38). Only then may the #40 stopgap below stand down: any
+/// dual shape the dual-copy arm does NOT catch would fall to the legacy path
+/// that silently copies the array base, so the fence must stay for those.
+fn dual_indexed_copy_is_planned(
+    input: &EmissionPlanningInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> bool {
+    input
+        .instructions
+        .code
+        .instructions
+        .iter()
+        .any(|(_, instruction)| {
+            state_key_matches_statement_source(instruction.source_key, source_key)
+                && instruction.source_statement == statement_index
+                && matches!(
+                    instruction.kind,
+                    SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. }
+                )
+        })
 }
 
 /// SOUNDNESS STOPGAP (#40): `arr[i] = arr[j]` with BOTH the target AND the value

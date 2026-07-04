@@ -30,6 +30,7 @@ use omega_instruction_selection::{
     runtime_storage_copy_from_runtime_frame_indexed_width,
     runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width,
     runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width,
+    runtime_storage_copy_machine_indexed_to_machine_indexed_width,
     runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width,
     entry_argument_register_write_width, entry_arguments_slice_descriptor_write_width,
     runtime_storage_copy_to_return_register_width,
@@ -937,6 +938,11 @@ fn machine_instruction_width(
         ),
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed { .. } => {
             runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
+                input.target.architecture,
+            )
+        }
+        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. } => {
+            runtime_storage_copy_machine_indexed_to_machine_indexed_width(
                 input.target.architecture,
             )
         }

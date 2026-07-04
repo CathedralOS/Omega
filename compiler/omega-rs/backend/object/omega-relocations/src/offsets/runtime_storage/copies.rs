@@ -79,6 +79,20 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_target_address_o
     }
 }
 
+/// Start of the WRITE part's `mov r15,imm64` inside the dual-indexed copy
+/// (`arr[i] = arr[j]`) -- the second machine-base relocation; the relocation
+/// planner adds the +2 immediate offset itself. x86_64 only (aarch64 has no
+/// dual-indexed encoder; emission rejects the instruction first).
+pub(crate) fn runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset(
+    architecture: Architecture,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        // The 34-byte read part (10+7+7+3+7) precedes it.
+        Architecture::X86_64 => 34,
+    }
+}
+
 pub(crate) fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_target_address_offset(
     architecture: Architecture,
 ) -> usize {
