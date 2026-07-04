@@ -915,36 +915,24 @@ impl<'program> Evaluator<'program> {
                 // 4464), Saturating clamps to the type range (a u8 Saturating field
                 // assigned a folded 10000 reads back 255, not the wrapped 16), and
                 // Trapping halts on overflow. Mirrors the LocalData store below.
+                // Coerce the stored SCALAR to the target's declared width +
+                // arithmetic domain, matching the native store -- for a FIELD from
+                // its type, for an ARRAY ELEMENT `arr[i]` from the element width +
+                // the array's domain (`[u8;N]` given `a+b`=300 reads 44,
+                // `[u8;N] in Saturating` clamps to 255). Integers truncate/clamp/
+                // trap (decision 17); an f32 target rounds to f32 (native keeps f32
+                // in the slot). Mirrors the LocalData store below.
                 let value = if let Value::Int(raw) = value {
-                    match self.assignment_target_type_reference(assignment.target, frame) {
-                        Some(type_reference) => {
-                            match self.program.primitive_type_reference(type_reference) {
-                                Some(primitive) => {
-                                    let domain = self
-                                        .program
-                                        .arithmetic_domain_for_type_reference(type_reference);
-                                    Value::Int(apply_arithmetic_domain(raw, primitive, domain)?)
-                                }
-                                None => value,
-                            }
+                    match self.assignment_target_coercion(assignment.target, frame) {
+                        Some((primitive, domain)) => {
+                            Value::Int(apply_arithmetic_domain(raw, primitive, domain)?)
                         }
                         None => value,
                     }
                 } else if let Value::Float(f) = value {
-                    // Round to the target field's float WIDTH: an f32 field rounds
-                    // each stored result to f32, matching the native truncating
-                    // store (SSE keeps f32 in the field). Without this the
-                    // interpreter keeps f64 and over-accumulates precision -- an
-                    // `f32` field stepped by `+ 1.0` past 2^24 would never plateau,
-                    // diverging from native. Mirrors the LocalData store below.
-                    let target_type =
-                        self.assignment_target_type_reference(assignment.target, frame);
-                    let target_primitive =
-                        target_type.and_then(|tr| self.program.primitive_type_reference(tr));
-                    if matches!(target_primitive, Some(PrimitiveType::F32)) {
-                        Value::Float(f as f32 as f64)
-                    } else {
-                        value
+                    match self.assignment_target_coercion(assignment.target, frame) {
+                        Some((PrimitiveType::F32, _)) => Value::Float(f as f32 as f64),
+                        _ => value,
                     }
                 } else {
                     value
@@ -2822,6 +2810,61 @@ impl<'program> Evaluator<'program> {
             }
             _ => false,
         }
+    }
+
+    /// The ELEMENT type of an owned fixed array `[T; N]` -- seeing THROUGH a
+    /// domain `Constrained` wrapper (`[u8; N] in Wrapping`). `None` for a slice,
+    /// scalar, or invalid reference. Used to wrap an array-element store to the
+    /// element's width/domain (the field-store truncation, for `arr[i] = v`).
+    fn fixed_array_element_type(
+        &self,
+        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    ) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
+        if !type_reference.is_valid() {
+            return None;
+        }
+        match self
+            .program
+            .type_reference_table
+            .type_reference(type_reference)
+        {
+            omega_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
+                Some(*element_type)
+            }
+            omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                self.fixed_array_element_type(*base_type)
+            }
+            _ => None,
+        }
+    }
+
+    /// The (primitive, arithmetic-domain) an assignment target coerces its stored
+    /// SCALAR to -- the decision-17 truncation/clamp/trap the interpreter applies
+    /// on a write to match the native store. For a FIELD/local place it is the
+    /// declared type's own primitive + domain. For an ARRAY ELEMENT `arr[i]` it
+    /// is the element's PRIMITIVE with the ARRAY's DOMAIN (`[u8;N] in Saturating`
+    /// clamps its elements). `None` for a non-scalar / unresolved target, which
+    /// is then left un-coerced.
+    fn assignment_target_coercion(
+        &mut self,
+        handle: ExpressionHandle,
+        frame: &Frame,
+    ) -> Option<(omega_typed_trees::types::PrimitiveType, ArithmeticDomain)> {
+        if let ExpressionNode::Indexed(indexed) =
+            self.program.expression_table.expression(handle).clone()
+        {
+            let array_type = self.assignment_target_type_reference(indexed.collection, frame)?;
+            let element_type = self.fixed_array_element_type(array_type)?;
+            let primitive = self.program.primitive_type_reference(element_type)?;
+            // The arithmetic domain lives on the ARRAY (`[T;N] in D`), not the
+            // bare element type, so read it from the array reference.
+            let domain = self.program.arithmetic_domain_for_type_reference(array_type);
+            return Some((primitive, domain));
+        }
+        let type_reference = self.assignment_target_type_reference(handle, frame)?;
+        let primitive = self.program.primitive_type_reference(type_reference)?;
+        let domain = self.program.arithmetic_domain_for_type_reference(type_reference);
+        Some((primitive, domain))
     }
 
     /// Declared integer primitive of an assignment target, when it is a FIELD whose
