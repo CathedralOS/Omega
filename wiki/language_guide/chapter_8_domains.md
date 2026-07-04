@@ -142,6 +142,15 @@ machine Scanner::scan(&mut self, bytes: &[u8]) -> Utf8Scan {
 }
 ```
 
+> **Surface status (2026-07-04).** This example illustrates the settled *model*.
+> The explicit `as`-mint to an **arithmetic** domain works today
+> (`x as u8 in Saturating`; see `expressions/arithmetic_domain_cast_exit`). The
+> `as`-mint to a **reference/encoding/layout** domain shown here
+> (`bytes as &[u8] in Utf8`) is the recast surface that is **not yet
+> implemented** — it is the pending work in the mint arc (`as` + the
+> invariant-prover's reach). The shape above is the intended spelling, not
+> currently compilable.
+
 The compiler generates none of this — and generates nothing at all for domain
 membership. Its only job is to accept or reject the `as`, by asking whether the
 domain's invariants are proven at that point. The reach of that prover is the
