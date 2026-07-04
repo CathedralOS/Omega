@@ -2814,6 +2814,28 @@ exit.
   carries no type; selection defaults to signed on the type-less literal). Parked
   repros: `canaries/pending/arithmetic/const_fold_{unsigned_shift_right,unsigned_divide}_miscompile`.
   Memory: `shift-right-signedness-const-fold`.
+  UNIFIED ROOT with the domain hole below: `Expression::Integer(i64)` is
+  metadata-free, so every const-substitution/fold strips BOTH the operand's
+  signedness/width (this entry) AND its arithmetic domain (next entry). A single
+  metadata-carrying-constant (or metadata-aware fold) fix closes both.
+- [ ] MISCOMPILE (decision-17 const-fold DOMAIN hole; re-confirmed 2026-07-04,
+  NOT tracked here before — memory `decision-17-const-fold-domain-hole`, task
+  number lost in a renumber). A Saturating/Trapping op whose BOTH operands are
+  compile-time constants and whose exact result overflows the width mis-evaluates:
+  the domained const local inlines to a DOMAINLESS integer literal, so
+  `combine(Exact,Exact)=Exact` → the Sat clamp / Trap check never lowers.
+  Saturating wraps instead of clamping (`100*100:u8` → 16 not 255); Trapping
+  silently continues instead of trapping. VERIFIED fresh 2026-07-04:
+  `let a:i32 in Trapping = 2000000000; let b = a + a` → native runs past the
+  overflow (no trap), interpreter (oracle) TRAPS. RUNTIME trapping is fine
+  (`arithmetic/runtime_trapping_overflow_traps` fires the ud2); only fully-const
+  operands slip past. Same metadata-erasure root as the signedness entry above.
+  FIX (memory has the full trace + fix sites): domain-aware constant folding —
+  bare constants carry an optional domain, `fold_binary_expression` applies
+  Saturating(clamp)/Trapping(trap) semantics, literal-store paths clamp/trap an
+  out-of-range domained constant. SEMANTIC Q for Zach already flagged in memory
+  (target-domain fallback vs operand-driven purity; clamp-vs-error for an
+  out-of-range literal store).
 - [ ] Reduce duplicate descriptor assumptions remaining across backend crates.
 - [ ] Strengthen assigned-target allocation toward a real register/stack
   allocation story with register classes, spills, and post-assignment cleanup.
