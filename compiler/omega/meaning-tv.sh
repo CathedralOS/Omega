@@ -11,7 +11,9 @@
 # three ways first (encoder = interpreter run = documented intent), and a perturbed certificate (exit+1)
 # must be REJECTED, so acceptance is meaningful. Control decisions (if/match) are the encoder's, exactly
 # like tv-encode's unrolled loops: a wrong decision mis-states the meaning and fails the cross-check.
-# Scope: the +/* fragment of omega2gamma output; -,/,% via the tv-encode user-fun route are the next slice.
+# Scope: + * - / % (subtraction/div/mod via tv-encode's user-fun prelude, engaged only when needed so the
+# +/* samples keep kernel-native p/m forms). Outside: underflowing subtractions (usub is monus; interp
+# wraps), quotients past the reduction wall (collatz/digital_root), modexp (kernel reduction too slow).
 cd "$(dirname "$0")"
 command -v python3 >/dev/null 2>&1 || { echo "meaning-tv: skipped (python3 absent)"; exit 0; }
 . ../alpha/seed_env.sh
@@ -43,5 +45,13 @@ tv() {
 }
 tv bounded_counter
 tv nested_counters
+tv euclid_gcd
+tv leap_year
+tv smallest_prime_factor
+tv number_guess
+tv generic_ring_buffer
+tv insertion_sort
+tv calculator_rpn
+tv tic_tac_toe
 echo "meaning-route TV (the kernel re-computes each covered sample's arithmetic): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] && [ "$PASS" -gt 0 ]
