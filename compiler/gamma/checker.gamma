@@ -54,11 +54,13 @@
     ((Fbundle x y) (Fbundle (finst x a0 a1 extra rA rB) (finst y a0 a1 extra rA rB)))
     ((Fapp a x y) (Fapp (finst a a0 a1 extra rA rB) x y))
     (z body)))
+(def rfind (cid r)                 ; search one rule position: an (Frule ..) leaf or an (Fmore r1 r2)
+  (match r                         ; chain (functions with MORE than two rules, e.g. 3-constructor
+    ((Frule ca ba) (if (eq cid ca) ba Bad))                        ; binary-numeral dispatch)
+    ((Fmore r1 r2) (let bd (rfind cid r1) (match bd (Bad (rfind cid r2)) (z bd))))
+    (z Bad)))
 (def frule (cid rA rB)             ; the rule body firing on cid, or Bad if no rule fires
-  (match rA ((Frule ca ba)
-    (if (eq cid ca) ba
-      (match rB ((Frule cb bb) (if (eq cid cb) bb Bad)) (z Bad))))
-            (z Bad)))
+  (let bd (rfind cid rA) (match bd (Bad (rfind cid rB)) (z bd))))
 (def freb (na extra rA rB)         ; reconstruct a STUCK application (unary or binary)
   (match extra (Bad (Fapp na rA rB)) (z (Fapp (Fbundle na extra) rA rB))))
 (def ffire (na extra rA rB)        ; na = normalized scrutinee — fire the matching rule, else STUCK
@@ -70,6 +72,40 @@
         ((Apply h2 a0) (match h2 ((Con cid) (let bd (frule cid rA rB) (match bd (Bad (freb na extra rA rB)) (z (pnorm (finst bd a0 x extra rA rB)))))) (z (freb na extra rA rB))))
         (z (freb na extra rA rB))))
     (z (freb na extra rA rB))))
+
+; ---- table-carrying user functions: (Fap tab gid arg) — the pure-functional analogue of check.beta's
+; GLOBAL (fid,cid) rule table, needed for MUTUALLY recursive families (binary-numeral badd/bmul), where
+; the inline-rules Fapp above would have to inline forever. tab = (Tcons (Trule gid cid body) rest)/Tnil
+; rides every application and is re-attached by Reccall (self) and Fcall/Fcall2 (cross-function) alike.
+(def tfind (tab gid cid)
+  (match tab
+    ((Tcons r rest) (match r ((Trule g c b) (if (eq g gid) (if (eq c cid) b (tfind rest gid cid)) (tfind rest gid cid))) (z Bad)))
+    (z Bad)))
+(def finst2 (body a0 a1 extra tab gid)
+  (match body
+    ((Iv k) (if (eq k 0) a0 (if (eq k 1) a1 body)))
+    ((Par k) extra)
+    ((Reccall i) (let fld (if (eq i 0) a0 a1) (match extra (Bad (Fap tab gid fld)) (z (Fap tab gid (Fbundle fld extra))))))
+    ((Fcall g e) (Fap tab g (finst2 e a0 a1 extra tab gid)))
+    ((Fcall2 g x y) (Fap tab g (Fbundle (finst2 x a0 a1 extra tab gid) (finst2 y a0 a1 extra tab gid))))
+    (Ze Ze) ((Su x) (Su (finst2 x a0 a1 extra tab gid)))
+    ((Pl a b) (Pl (finst2 a a0 a1 extra tab gid) (finst2 b a0 a1 extra tab gid)))
+    ((Mu a b) (Mu (finst2 a a0 a1 extra tab gid) (finst2 b a0 a1 extra tab gid)))
+    ((Con q) (Con q))
+    ((Apply f g) (Apply (finst2 f a0 a1 extra tab gid) (finst2 g a0 a1 extra tab gid)))
+    ((Fbundle x y) (Fbundle (finst2 x a0 a1 extra tab gid) (finst2 y a0 a1 extra tab gid)))
+    (z body)))
+(def freb2 (na extra tab gid)      ; reconstruct a STUCK table application (unary or binary)
+  (match extra (Bad (Fap tab gid na)) (z (Fap tab gid (Fbundle na extra)))))
+(def ffire2 (na extra tab gid)     ; na = normalized scrutinee — fire the (gid, cid) rule, else STUCK
+  (match na
+    ((Con cid) (let bd (tfind tab gid cid) (match bd (Bad (freb2 na extra tab gid)) (z (pnorm (finst2 bd Ze Ze extra tab gid))))))
+    ((Apply h x)
+      (match h
+        ((Con cid) (let bd (tfind tab gid cid) (match bd (Bad (freb2 na extra tab gid)) (z (pnorm (finst2 bd x Ze extra tab gid))))))
+        ((Apply h2 a0) (match h2 ((Con cid) (let bd (tfind tab gid cid) (match bd (Bad (freb2 na extra tab gid)) (z (pnorm (finst2 bd a0 x extra tab gid)))))) (z (freb2 na extra tab gid))))
+        (z (freb2 na extra tab gid))))
+    (z (freb2 na extra tab gid))))
 (def pnorm (t)                     ; Nat (Ze/Su/Pl/Mu), (Iv k) indiv var, Lists (Lnil/Lcons/Lapp)
   (match t
     (Ze Ze)
@@ -84,7 +120,11 @@
     ((Fapp arg rA rB)              ; (Fbundle x y) arg = BINARY (extra y); else unary
       (match arg
         ((Fbundle x y) (ffire (pnorm x) y rA rB))
-        (z (ffire (pnorm arg) Bad rA rB))))))
+        (z (ffire (pnorm arg) Bad rA rB))))
+    ((Fap tab gid arg)             ; table-carrying application: same shape, rules via tfind
+      (match arg
+        ((Fbundle x y) (ffire2 (pnorm x) y tab gid))
+        (z (ffire2 (pnorm arg) Bad tab gid))))))
 (def nateq (a b)                   ; structural — incl. stuck Pl/Mu (open normal forms)
   (match a
     (Ze (match b (Ze 1) (z 0)))
@@ -101,9 +141,16 @@
     ; requiring them equal is the same-or-stricter check). Rule bodies bring Reccall/Par/Fbundle along.
     ((Fapp a x y) (match b ((Fapp c w v) (if (nateq a c) (if (nateq x w) (nateq y v) 0) 0)) (z 0)))
     ((Frule ca ba) (match b ((Frule cb bb) (if (eq ca cb) (nateq ba bb) 0)) (z 0)))
+    ((Fmore x y) (match b ((Fmore w v) (if (nateq x w) (nateq y v) 0)) (z 0)))
     ((Reccall i) (match b ((Reccall j) (eq i j)) (z 0)))
     ((Par k) (match b ((Par j) (eq k j)) (z 0)))
-    ((Fbundle x y) (match b ((Fbundle w v) (if (nateq x w) (nateq y v) 0)) (z 0)))))
+    ((Fbundle x y) (match b ((Fbundle w v) (if (nateq x w) (nateq y v) 0)) (z 0)))
+    ((Fap t g a2) (match b ((Fap u h b2) (if (eq g h) (if (nateq a2 b2) (nateq t u) 0) 0)) (z 0)))
+    ((Tcons r rest) (match b ((Tcons s rest2) (if (nateq r s) (nateq rest rest2) 0)) (z 0)))
+    (Tnil (match b (Tnil 1) (z 0)))
+    ((Trule g c bd) (match b ((Trule h d be) (if (eq g h) (if (eq c d) (nateq bd be) 0) 0)) (z 0)))
+    ((Fcall g e) (match b ((Fcall h e2) (if (eq g h) (nateq e e2) 0)) (z 0)))
+    ((Fcall2 g x y) (match b ((Fcall2 h w v) (if (eq g h) (if (nateq x w) (nateq y v) 0) 0)) (z 0)))))
 (def conveq (a b) (nateq (pnorm a) (pnorm b)))   ; definitional equality
 
 ; substitute closed individual term s for the var bound at depth d

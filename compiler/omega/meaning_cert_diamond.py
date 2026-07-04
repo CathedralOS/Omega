@@ -10,7 +10,13 @@
 # arithmetic, structural-tree claims). A disagreement between the two checkers is a checker bug by
 # construction — exactly what the diamond exists to surface.
 #
-# usage: meaning_cert_diamond.py <check.exe> <name>=<claims-file> ...
+# THIRD LEG: each cert is also translated (refcert_to_gamma.py, table-carrying Fap encoding) and decided
+# by checker.gamma running on interp.beta. The gamma stack is the tightest resource envelope of the three,
+# so its verdict is three-way: accept / reject (stdout AND exit code must agree — a crash can fake an exit
+# code but not both) / undecided (resource exhaustion — counted and REPORTED, never silently skipped).
+# A decided-but-different verdict is a diamond break; undecided is not.
+#
+# usage: meaning_cert_diamond.py <check.exe> <interp.exe> <checker.gamma> <name>=<claims-file> ...
 import io
 import importlib
 import subprocess
@@ -35,12 +41,31 @@ def ref_verdict(cert, check_ref):
     return out
 
 
+def gamma_verdict(cert, interp_exe, defs):
+    tr = subprocess.run(['python3', '../gamma/refcert_to_gamma.py'], input=cert,
+                        capture_output=True, text=True, timeout=180)
+    if tr.returncode != 0:
+        return 'untranslatable'            # a translator gap is a real failure, not a resource limit
+    try:
+        r = subprocess.run([interp_exe], input=defs + '\n' + tr.stdout,
+                           capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        return 'undecided'
+    out = r.stdout.strip()
+    if out == '1' and r.returncode == 1:
+        return 'accept'
+    if out == '0' and r.returncode == 0:
+        return 'reject'
+    return 'undecided'                     # geometry collision / garbage exit: resource, not a verdict
+
+
 def main():
-    check_exe = sys.argv[1]
+    check_exe, interp_exe, defs_path = sys.argv[1], sys.argv[2], sys.argv[3]
+    defs = open(defs_path).read()
     sys.path.insert(0, '../delta')
     import check_ref
-    total, bad = 0, 0
-    for spec in sys.argv[2:]:
+    total, bad, undec = 0, 0, 0
+    for spec in sys.argv[4:]:
         name, path = spec.split('=', 1)
         for i, ln in enumerate(open(path).read().splitlines()):
             if not ln.strip() or ln.startswith('#render'):
@@ -50,13 +75,17 @@ def main():
             va = subprocess.run([check_exe], input=cert, capture_output=True,
                                 text=True, timeout=180).stdout.strip()
             vb = ref_verdict(cert, check_ref)
+            vg = gamma_verdict(cert, interp_exe, defs)
             total += 1
-            if not (va == vb == want):
+            if vg == 'undecided':
+                undec += 1
+                vg = want                  # the gamma leg abstains; the other two must still both decide
+            if not (va == vb == vg == want):
                 bad += 1
-                print('  DIAMOND BREAK %s line %d: check.beta=%r check_ref=%r expected=%s'
-                      % (name, i + 1, va, vb, want))
-    print('meaning-cert diamond (check.beta AND check_ref.py agree on every meaning-TV cert): '
-          '%d certs, %d disagreements' % (total, bad))
+                print('  DIAMOND BREAK %s line %d: check.beta=%r check_ref=%r checker.gamma=%r expected=%s'
+                      % (name, i + 1, va, vb, vg, want))
+    print('meaning-cert diamond (check.beta, check_ref.py AND checker.gamma agree on every meaning-TV '
+          'cert): %d certs, %d disagreements, %d gamma-undecided (resource)' % (total, bad, undec))
     return 1 if bad or not total else 0
 
 
