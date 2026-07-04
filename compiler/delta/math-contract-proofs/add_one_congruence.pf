@@ -1,0 +1,1 @@
+(gen a (gen b (lam h (= a b) (eqelim x (= (+ a 1) (+ x 1)) h (refl (+ a 1))))))

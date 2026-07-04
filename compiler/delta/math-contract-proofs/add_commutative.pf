@@ -1,0 +1,11 @@
+(have add0r (all a (= (+ a z) a))
+  (natind a (= (+ a z) a) (refl z) (gen a1 (lam ih (= (+ a1 z) a1) (eqelim x (= (s (+ a1 z)) (s x)) ih (refl (s (+ a1 z)))))))
+(have addsuc (all a (all b (= (+ a (s b)) (s (+ a b)))))
+  (natind a (all b (= (+ a (s b)) (s (+ a b)))) (gen b (refl (s b))) (gen a1 (lam ih (all b (= (+ a1 (s b)) (s (+ a1 b)))) (gen b (eqelim x (= (s (+ a1 (s b))) (s x)) (inst ih b) (refl (s (+ a1 (s b)))))))))
+  (natind a (all b (= (+ a b) (+ b a)))
+    (gen b (eqelim x (= x (+ b z)) (inst add0r b) (refl (+ b z))))
+    (gen a1 (lam ih (all b (= (+ a1 b) (+ b a1)))
+      (gen b
+        (have s1 (= (s (+ a1 b)) (s (+ b a1))) (eqelim x (= (s (+ a1 b)) (s x)) (inst ih b) (refl (s (+ a1 b))))
+        (have s2 (= (s (+ b a1)) (+ b (s a1))) (eqelim x (= x (+ b (s a1))) (inst* addsuc b a1) (refl (+ b (s a1))))
+          (eqelim x (= (s (+ a1 b)) x) s2 s1)))))))))
