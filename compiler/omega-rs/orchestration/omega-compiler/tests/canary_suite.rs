@@ -18077,8 +18077,12 @@ fn efi_ref_param_direct_faces_deref_not_flat() {
         "expected the firmware_revision DEREF (pointee frame@8 +32) in the report"
     );
     assert!(
+        report.contains("copy runtime pointee runtime_frame@8 +48"),
+        "expected the con_in DEREF (pointee frame@8 +48) feeding the transition arg"
+    );
+    assert!(
         !report.contains("frame_storage@72"),
-        "flat slot+field read (frame_storage@72) regressed -- the entry-ref-param          member folded flat instead of dereferencing"
+        "flat slot+field read (frame_storage@72 = con_out) regressed -- an          entry-ref-param member folded flat instead of dereferencing"
     );
     let _ = fs::remove_dir_all(&build_dir);
 }
