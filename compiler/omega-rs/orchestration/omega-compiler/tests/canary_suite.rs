@@ -11852,6 +11852,37 @@ fn runtime_indexed_guard_true_false_pair_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_indexed_field_local_operand_exit_canary_runs() {
+    // A local from a field read off a runtime-indexed element (`let a =
+    // self.ps[self.i].x`) used as an arithmetic operand was rejected -- the local
+    // alias-folded back to `arr[i].field`, which has no operand lowering. It now
+    // keeps its slot (local_data_requires_storage recognizes a Member-off-a-
+    // runtime-index initializer). Discriminating: ps[1].x=20 + ps[0].x=10 + 12 =
+    // 42 -> 70; a dropped operand (read 0) would mismatch.
+    let canary = pass_canary("collections/runtime_indexed_field_local_operand_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-idxfield-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed-field-local-operand canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed-field-local-operand canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected an indexed-field local used as an operand to keep its slot (exit 70), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_indexed_local_bitwise_exit_canary_runs() {
     // Silent miscompile fixed (sibling of the compare case): `let t = arr[i]; let
     // m = t & 6` read m as 0 -- a bitwise operand didn't force the indexed-read

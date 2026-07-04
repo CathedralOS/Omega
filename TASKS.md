@@ -658,7 +658,14 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >   Workaround proven (let-bind then guard). Dedicated fire, not loop-sized.
 > - **Backend miscompile fences** — a cluster of `clean error` gaps to complete:
 >   nested-runtime-indexed write (`grid[*][i]`), array-of-structs as a binary
->   operand, boolean guard nesting `(a||b)&&c`, `arr[i]=arr[j]` both-runtime
+>   operand (NARROWED 2026-07-03: the `let t = arr[i].field; use t` idiom now
+>   works -- local_data_requires_storage recognizes a Member-off-a-runtime-index
+>   initializer so the local keeps its slot instead of alias-folding; canary
+>   collections/runtime_indexed_field_local_operand_exit. The DIRECT
+>   `self.r = arr[i].field + 22` still errors -- the operand hoist handles bare
+>   `arr[i]` but not `arr[i].field`; needs is_runtime_indexed_read to accept
+>   Member-of-Indexed + infer_hoist_temp_type to type the field temp),
+>   boolean guard nesting `(a||b)&&c`, `arr[i]=arr[j]` both-runtime
 >   (#38 -- NARROWED 2026-07-03: this is the last BARE-source case into an indexed
 >   target; a binary/literal/field source already selects, only a bare local or
 >   bare indexed read fails, both NeedsMachineOwnedWrite in the mutation emitter),
