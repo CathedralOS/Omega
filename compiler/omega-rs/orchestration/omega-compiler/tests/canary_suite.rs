@@ -6588,6 +6588,48 @@ stderr:
 }
 
 #[test]
+fn sum_field_storage_roundtrip_canary_runs() {
+    // A sum value stored in a field, then read + dispatched across a machine call,
+    // carries its TAG and PAYLOAD intact through the storage round-trip: the Pong
+    // arm fires (not Ping) and both payload fields read back. Distinct from the
+    // construct-and-dispatch sum canaries. exit 71 = wrong variant; 72 = payload
+    // field read wrong.
+    let canary = pass_canary("control_flow/sum_field_storage_roundtrip");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("sum field-storage canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (sum tag+payload survive field round-trip), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sum-field-roundtrip-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sum field-storage canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sum field-storage canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected sum tag+payload to survive a field store round-trip (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn sum_mixed_width_payload_layout_canary_runs() {
     // Sum-type payload LAYOUT across mixed widths: variant B packs (i16, i16,
     // i64). Each destructured field must be read at the correct byte offset AND
@@ -19569,6 +19611,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/no_payload_case_variant_after_payload_dispatch_exit",
     "control_flow/case_payload_shared_field_name_exit",
     "control_flow/sum_mixed_width_payload_layout",
+    "control_flow/sum_field_storage_roundtrip",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
     "control_flow/runtime_straight_line_terminal_local_exit",
