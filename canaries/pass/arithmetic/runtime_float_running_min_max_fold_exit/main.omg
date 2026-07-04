@@ -1,0 +1,82 @@
+// RUN canary: a RUNNING float min/max fold across state edges. The existing
+// `runtime_float_min_max_abs_clamp_exit` drives min/max with CONSTANT operands
+// (max(3.0, 7.0)); this one drives `self.lo = min(self.lo, self.cur)` where an
+// accumulator FIELD is read, fed to minsd/maxsd, and written back every loop
+// iteration -- the float analogue of the int `array_max` scan. The interpreter
+// must agree with maxsd/minsd on the field-read-then-write-back path, not just
+// on constant folds.
+//
+// Over [5, 2, 8, 3]: lo folds to 2, hi folds to 8, lo + hi = 10 -> exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [f64; 4];
+    i: i32 [0..=4];
+    cur: f64;
+    lo: f64;
+    hi: f64;
+    total: i32;
+}
+
+machine Main::main(&mut self) {
+    self.nums[0] = 5.0;
+    self.nums[1] = 2.0;
+    self.nums[2] = 8.0;
+    self.nums[3] = 3.0;
+
+    self.lo = self.nums[0];
+    self.hi = self.nums[0];
+    self.i = 1;
+
+    transition {
+        _ -> step()
+    }
+
+    state step(&mut self) {
+        transition self.i < 4 {
+            true -> body()
+            _ -> done()
+        }
+    }
+
+    // Running fold: the extremes are read, min/max'd against the element, and
+    // written back -- the field-accumulator path the constant-operand canary
+    // does not reach.
+    state body(&mut self) {
+        self.cur = self.nums[self.i];
+        self.lo = min(self.lo, self.cur);
+        self.hi = max(self.hi, self.cur);
+        transition {
+            _ -> advance()
+        }
+    }
+
+    state advance(&mut self) {
+        transition self.i < 4 {
+            true -> bump()
+            _ -> step()
+        }
+    }
+
+    state bump(&mut self) {
+        self.i = self.i + 1;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state done(&mut self) {
+        self.total = (self.lo + self.hi) as i32;
+        transition self.total == 10 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

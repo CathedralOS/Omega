@@ -49,6 +49,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_inferred_return_range_exit", 70),
     ("arithmetic/runtime_fnv1a_hash_exit", 70),
     ("arithmetic/runtime_min_max_clamp_narrowing_exit", 70),
+    ("arithmetic/runtime_float_running_min_max_fold_exit", 70),
     ("arithmetic/runtime_min_max_signedness_exit", 70),
     ("arithmetic/runtime_modulo_div_narrowing_exit", 70),
     ("calls/runtime_min_max_guard_subject_hoist_exit", 70),

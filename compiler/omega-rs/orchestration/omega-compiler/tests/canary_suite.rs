@@ -17968,6 +17968,41 @@ fn runtime_float_min_max_abs_clamp_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_float_running_min_max_fold_exit_canary_runs() {
+    // A RUNNING float min/max fold across state edges: `self.lo = min(self.lo,
+    // self.cur)` reads an accumulator field, feeds minsd/maxsd, and writes it
+    // back each iteration (the constant-operand canary never reaches this
+    // field-read-then-write-back path). Over [5, 2, 8, 3]: lo->2, hi->8, sum 10.
+    let canary = pass_canary("arithmetic/runtime_float_running_min_max_fold_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float-minmax-fold-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float running min/max fold canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float running min/max fold canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected running float min/max fold over [5,2,8,3] to give lo=2,hi=8,sum=10 \
+         (exit 70); exit 71 = the field-accumulator min/max fold disagreed. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_clamp_desugar_exit_canary_runs() {
     // `clamp(x, lo, hi)` = `min(max(x, lo), hi)`: 300->255, -5->0, 128->128.
     let canary = pass_canary("arithmetic/runtime_clamp_desugar_exit");
@@ -18562,6 +18597,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_clamp_narrowing_exit",
     "arithmetic/runtime_negative_float_to_int_exit",
     "arithmetic/runtime_float_min_max_abs_clamp_exit",
+    "arithmetic/runtime_float_running_min_max_fold_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
     "concurrency/runtime_spawn_struct_result_exit",
