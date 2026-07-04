@@ -361,6 +361,31 @@ proc parse_args() {
     state none { return 0 }
 }
 
+proc is_tvar(o) {                      ; `t<digits>` and nothing else — the hoister's rewrite names
+    state a { to b when (byte[2097152 + o] == 't')  return 0 }
+    state b { to c when (is_digit(byte[2097152 + o + 1]) == 1)  return 0 }
+    state c { let k = o + 1  to d }
+    state d {
+        to d2 when (is_digit(byte[2097152 + k]) == 1)
+        to no when (is_idchar(byte[2097152 + k]) == 1)
+        return 1
+    }
+    state d2 { k = k + 1  to d }
+    state no { return 0 }
+}
+
+proc tvar_num(o) {
+    let v = 0
+    let k = o + 1
+    state loop {
+        to done when (is_digit(byte[2097152 + k]) == 0)
+        v = v * 10 + byte[2097152 + k] - 48
+        k = k + 1
+        to loop
+    }
+    state done { return v }
+}
+
 proc is_len_at(o) {                    ; is the identifier at o exactly `len`?
     state a { to b when (byte[2097152 + o] == 'l')  return 0 }
     state b { to c when (byte[2097152 + o + 1] == 'e')  return 0 }
@@ -385,6 +410,7 @@ proc parse_term() {
     state ident {
         to selffield when (is_self() == 1)
         let off = word[2097144]
+        to tvar when (is_tvar(off) == 1)    ; a hoisted call's bound t-variable
         skip_ident()
         to dcolon when (cbyte() == ':')     ; Type::Case — a case-constructor VALUE
         skip_ws()
@@ -395,6 +421,10 @@ proc parse_term() {
     state cbind {
         let bs = casebind_slot(off)
         return alloc(8, word[7000000 + bs * 8], word[7010000 + bs * 8], 0)
+    }
+    state tvar {
+        skip_ident()
+        return alloc(11, tvar_num(off), 0, 0)
     }
     state dcolon {
         to dcolon2 when (byte[2097152 + word[2097144] + 1] == ':')
@@ -1097,9 +1127,14 @@ proc emit_vcall(callee, kindb, valb, idx) {
     let ch = parse_args()
     skip_ws()
     adv()                              ; consume ')'
-    state tsemi { to eatsemi when (cbyte() == ';')  adv()  to tsemi }
-    state eatsemi {
-        adv()                          ; consume ';'
+    state tsemi {
+        to postsemi when (kindb == 0)  ; HOIST mode: the call sits mid-expression — no ';' to consume
+        to eatsemi when (cbyte() == ';')
+        adv()
+        to tsemi
+    }
+    state eatsemi { adv()  to postsemi }
+    state postsemi {
         let ns = self_slot_count()
         to vmany when (ns > 0)
         to vone
@@ -1110,10 +1145,12 @@ proc emit_vcall(callee, kindb, valb, idx) {
         emit("(let t")  emit_dec(f0)  write_byte(' ')
         emit_call_expr(callee, ch)
         write_byte(' ')
+        to vone_h when (kindb == 0)
         word[kindb + idx * 8] = 1
         word[valb + idx * 8] = f0
         return 1
     }
+    state vone_h { word[6000112] = f0  return 1 }
     state vmany {                      ; tuple = (Pair result <selfbundle>): ns+1 components, ns matches
         let rr = word[6000016]         ; component 0: the result -> the target slot
         let sbase = word[6000016] + 1  ; components 1..ns: the self slots
@@ -1147,8 +1184,14 @@ proc emit_vcall(callee, kindb, valb, idx) {
         to vbind
     }
     state vbind {                      ; bind the TARGET slot to the result LAST — if the target is itself
-        word[kindb + idx * 8] = 1      ; a self-field (self.w = self.m(...)), the self-slot rebinds above
-        word[valb + idx * 8] = rr      ; would otherwise CLOBBER the result with the threaded-through slot.
+        to vbind_h when (kindb == 0)   ; a self-field (self.w = self.m(...)), the self-slot rebinds above
+        word[kindb + idx * 8] = 1      ; would otherwise CLOBBER the result with the threaded-through slot.
+        word[valb + idx * 8] = rr
+        to vfin when (ns == 1)
+        return 2 * ns
+    }
+    state vbind_h {
+        word[6000112] = rr             ; HOIST mode: hand the result index back, no slot bind
         to vfin when (ns == 1)
         return 2 * ns
     }
@@ -1183,9 +1226,11 @@ proc print_expr(node) {
         to isbind when (word[node] == 8)
         to ispair when (word[node] == 9)
         to iselemf when (word[node] == 10)
+        to istvar when (word[node] == 11)
         to isbin
     }
     state islen { emit("(len ")  print_acurname(word[node + 8])  write_byte(')')  return 0 }
+    state istvar { emit("t")  emit_dec(word[node + 8])  return 0 }
     state iselemf {                    ; field of a struct-array element: extract from (nth aK ix)
         let efk = word[node + 24] / 8
         let efn = word[node + 24] - efk * 8
@@ -1442,6 +1487,86 @@ proc do_string_write(arr) {            ; CUR at the opening '"' (caller verified
     state sdone { return 1 }
 }
 
+proc hoist_calls() {
+    let dep = 0
+    let rst = word[2097144]            ; the RHS start: rescan from here after every hoist
+    state scan {
+        word[2097144] = rst
+        let cs = 0
+        to find
+    }
+    state find {                       ; find a self.PATH( whose args contain NO nested self-call
+        to hdone when (cbyte() == ';')
+        to hdone when (word[2097144] >= word[2097136])
+        to atself when (is_self() == 1)
+        adv()
+        to find
+    }
+    state atself {
+        cs = word[2097144]             ; call start (the `self`)
+        skip_ident()
+        to notcall when (cbyte() != '.')
+        adv()
+        let sg = skip_path()
+        skip_ws()
+        to notcall when (cbyte() != '(')
+        to notcall when (machine_exists(sg) == 0)
+        adv()                          ; consume '(' — scan the args for nested self-calls
+        let dpt = 1
+        let inner = 0
+        to argscan
+    }
+    state notcall { to find }
+    state argscan {
+        to hdone when (word[2097144] >= word[2097136])
+        to aclose when (cbyte() == ')')
+        to aopen when (cbyte() == '(')
+        to ainner when (is_self() == 1)
+        adv()
+        to argscan
+    }
+    state aopen { dpt = dpt + 1  adv()  to argscan }
+    state aclose {
+        dpt = dpt - 1
+        adv()
+        to argscan when (dpt > 0)
+        to clean when (inner == 0)
+        to find                        ; args contained a nested call: keep scanning (it comes first)
+    }
+    state ainner { inner = 1  skip_ident()  to argscan }
+    state clean {                      ; hoist THIS call: re-run from its '(' via emit_vcall hoist mode
+        word[2097144] = cs
+        skip_ident()                   ; past `self`
+        adv()                          ; past '.'
+        let sg2 = skip_path()
+        skip_ws()
+        dep = dep + emit_vcall(lookup_machine(sg2), 0, 0, 0)
+        to rewrite
+    }
+    state rewrite {                    ; overwrite [cs, CUR) with `t<K>` + spaces — the expression then
+        let ce = word[2097144]         ; parses the bound variable where the call stood
+        byte[2097152 + cs] = 't'
+        cs = cs + 1
+        let kv = word[6000112]
+        let dv = 10000
+        to rwd
+    }
+    state rwd {                        ; decimal digits of kv (leading zeros harmless: t00042 != ident? —
+        to rwsp when (dv == 0)         ; digits only, fine as an ident tail)
+        byte[2097152 + cs] = 48 + (kv / dv) - ((kv / dv) / 10) * 10
+        cs = cs + 1
+        dv = dv / 10
+        to rwd
+    }
+    state rwsp {
+        to scan when (cs >= ce)
+        byte[2097152 + cs] = ' '
+        cs = cs + 1
+        to rwsp
+    }
+    state hdone { word[2097144] = rst  return dep }
+}
+
 proc do_write_slot(kindb, valb, idx) {
     state toeq { to eat when (cbyte() == '=')  adv()  to toeq }
     state eat {
@@ -1468,6 +1593,7 @@ proc do_write_slot(kindb, valb, idx) {
     }
     state vcall { return emit_vcall(lookup_machine(moff), kindb, valb, idx) }
     state normal {
+        let hd = hoist_calls()         ; embedded value calls bind first; their spans now read as t-vars
         let node = parse_cmp()
         emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
         print_expr(node)
@@ -1493,7 +1619,7 @@ proc do_write_slot(kindb, valb, idx) {
     state rbsemi { to rbeat when (cbyte() == ';')  adv()  to rbsemi }
     state rbeat { adv()  return 2 }
     state tosemi { to esemi when (cbyte() == ';')  adv()  to tosemi }
-    state esemi { adv()  return 1 }
+    state esemi { adv()  return 1 + hd }
 }
 
 proc do_let() {
