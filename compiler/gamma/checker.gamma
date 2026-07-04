@@ -166,7 +166,9 @@
     (Lnil Lnil)
     ((Lcons a b) (Lcons (subt a s d) (subt b s d)))
     ((Lapp a b) (Lapp (subt a s d) (subt b s d)))
-    ((Llen a) (Llen (subt a s d))) ((Con q) (Con q)) ((Apply f g) (Apply (subt f s d) (subt g s d)))))
+    ((Llen a) (Llen (subt a s d))) ((Con q) (Con q)) ((Apply f g) (Apply (subt f s d) (subt g s d)))
+    ((Fap tab g a) (Fap tab g (subt a s d)))
+    ((Fbundle x y) (Fbundle (subt x s d) (subt y s d)))))
 (def subp (p s d)
   (match p
     ((Pred id t) (Pred id (subt t s d)))
@@ -191,7 +193,9 @@
     (Lnil 0)
     ((Lcons a b) (if (freet a d) 1 (freet b d)))
     ((Lapp a b) (if (freet a d) 1 (freet b d)))
-    ((Llen a) (freet a d)) ((Con q) 0) ((Apply f g) (if (freet f d) 1 (freet g d)))))
+    ((Llen a) (freet a d)) ((Con q) 0) ((Apply f g) (if (freet f d) 1 (freet g d)))
+    ((Fap tab g a) (freet a d))
+    ((Fbundle x y) (if (freet x d) 1 (freet y d)))))
 (def freep (p d)
   (match p
     ((Pred id t) (freet t d))
@@ -239,7 +243,9 @@
     (Lnil Lnil)
     ((Lcons a b) (Lcons (shiftt a d c) (shiftt b d c)))
     ((Lapp a b) (Lapp (shiftt a d c) (shiftt b d c)))
-    ((Llen a) (Llen (shiftt a d c))) ((Con q) (Con q)) ((Apply f g) (Apply (shiftt f d c) (shiftt g d c)))))
+    ((Llen a) (Llen (shiftt a d c))) ((Con q) (Con q)) ((Apply f g) (Apply (shiftt f d c) (shiftt g d c)))
+    ((Fap tab g a) (Fap tab g (shiftt a d c)))
+    ((Fbundle x y) (Fbundle (shiftt x d c) (shiftt y d c)))))
 ; shift free individual vars (>= c) up by d in a PROPOSITION — list induction lifts the
 ; motive's parameters past the extra h binder the step (forall h t. ...) introduces.
 (def shiftp (p d c)
@@ -302,7 +308,9 @@
     (Lnil Lnil)
     ((Lcons a b) (Lcons (subtk a s d) (subtk b s d)))
     ((Lapp a b) (Lapp (subtk a s d) (subtk b s d)))
-    ((Llen a) (Llen (subtk a s d))) ((Con q) (Con q)) ((Apply f g) (Apply (subtk f s d) (subtk g s d)))))
+    ((Llen a) (Llen (subtk a s d))) ((Con q) (Con q)) ((Apply f g) (Apply (subtk f s d) (subtk g s d)))
+    ((Fap tab g a) (Fap tab g (subtk a s d)))
+    ((Fbundle x y) (Fbundle (subtk x s d) (subtk y s d)))))
 (def subpk (p s d)
   (match p
     ((Pred id t) (Pred id (subtk t s d)))
