@@ -18232,6 +18232,41 @@ fn plan_laid_value_field_exit_canary_runs() {
 }
 
 #[test]
+fn plan_laid_value_by_value_param_exit_canary_runs() {
+    // PLAN-LAID VALUE TYPES across a BY-VALUE parameter (layouts L4): the same
+    // `Spread16<Gdtish>` spread placement must survive being handed to a state
+    // by value and threaded across further edges. Exit 71 = a callee copy
+    // recomputed native packing (a read landed in a padding gap).
+    let canary = pass_canary("layouts/runtime_plan_laid_value_by_value_param_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-plan-laid-byval-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("plan-laid by-value-param canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("plan-laid by-value-param canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected spread-placed fields (7/20/3/40) to survive a by-value param pass \
+         (exit 70); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn value_call_sequential_result_slots_exit_canary_runs() {
     // Two sequential value-position calls where callee 1 (`f`) has an internal
     // `let rr = r * r` binding and callee 2 (`g`) takes MORE arguments.
@@ -18589,6 +18624,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/narrowing_flow_and_widen_permitted",
     "comptime/runtime_const_array_length_exit",
     "layouts/runtime_plan_laid_value_field_exit",
+    "layouts/runtime_plan_laid_value_by_value_param_exit",
     "control_flow/runtime_compare_pair_dispatch_exit",
     "arithmetic/runtime_float_self_compare_nan_exit",
     "arithmetic/runtime_abs_desugar_exit",
