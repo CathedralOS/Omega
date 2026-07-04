@@ -584,22 +584,28 @@ block DIES (`build_and_package_model.md` addendum).
 6. **The greeting**: `table.con_out.output_string(&utf16 greeting)` under
    QEMU/OVMF — milestone 1 closes.
 
-**SETTLED 2026-07-04 (Zach) — DOMAIN MINTING IS `as` + USER CODE; THE COMPILER
-GENERATES NOTHING.** The ONLY primitive is `as`, licensed iff the invariant-prover
-can discharge the target domain's invariants AT THAT EXACT SPOT. Zero-invariant ->
-trivial (a borrow). Invariant-bearing -> you WRITE a conversion machine that guards
-the facts (guard-narrowing establishes them) and ends in an `as` the compiler
-accepts because, there, the invariants hold; if you want a Valid|Invalid result you
-DECLARE that enum yourself. NO compiler-derived `validate`, NO generated codec code,
-no builtin `Checked` -- "derived validate" DISSOLVES exactly like encode-as-builtin
-was rejected. Implicit domain-add (a `&[u8]` into an `&[u8] in OmegaLayout<X>` slot
-without `as`) = COMPILE ERROR: layout is the one domain with no downstream safety net
-(a forged range is caught at the index site; a forged layout is a silent OOB in any
-total reader). So #22-as-a-builtin is GONE; the real remaining compiler work is #21:
-`as` + how far the invariant-prover REACHES -- single-scalar range = the landed
-guard-narrowing keystone; whole-buffer-via-loop (utf8-style) = inductive/loop-
-invariant reasoning, the hard edge. OPEN SUB-Q (unsettled): does "force `as`" extend
-past layout to range/behaviour domains, which also allow implicit-add today.
+**SETTLED 2026-07-04 (Zach) — DOMAIN MINTING = `as`, ALL FACTS PROVEN, NO OUTS.**
+The language has NO unsafe / no assert-escape. `as` is the ONLY minter and is
+allowed ONLY when the invariant-prover discharges EVERY invariant of the target
+domain AT THAT SPOT (constant source = trivial; utf8 = prove the byte sequence
+valid; range off a socket = prove it). Can't prove it -> COMPILE ERROR; you
+restructure with guards until the proof exists -- there is NO out. Required for
+ALL domain minting -- layout, range, behaviour, encoding -- NOT layout-only
+(resolves the earlier open sub-q; the `let s: i32 in Saturating = e` and
+`let r: i32 [0..=100] = seed` that silently compile today are bugs to fence).
+SOLE exemption = a DECLARATION's ZII default: no `as`, but the compiler checks the
+ZERO value conforms (a declaration IS a mint of the ZII constant; `[1..=100]` on a
+ZII field is an error -- generalizes the ZII-range-excluding-0 ruling). CONSEQUENCE
+(load-bearing, not a hole): a domain is UN-MINTABLE at runtime until the prover can
+prove its invariant -- literals mint now (`"hi"` = compile-time utf8), runtime bytes
+-> `&[u8] in Utf8` is BLOCKED until the prover lifts "every byte guarded valid across
+a loop" to "the slice is utf8" (inductive/loop-invariant reasoning). Soundness-first,
+accepted even where the proof is hard. NO compiler-generated validate/codec, no
+builtin verdict type -- "#22 derived validate" DISSOLVES like encode-as-builtin. The
+entire remaining compiler surface = #21: `as` + the invariant-prover's REACH
+(single-scalar range = the landed guard-narrowing keystone; whole-buffer/loop = the
+hard edge). If you want a Valid|Invalid result, you DECLARE the enum and WRITE the
+machine yourself.
 
 **#22 RECON (2026-07-04, probe-verified; checklist in session memory):** the
 settled surface ALREADY compiles (`case Valid(view: &[u8] in
