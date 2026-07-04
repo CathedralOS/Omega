@@ -123,6 +123,11 @@ tv shapes_area
 tv stack_vm
 tv bit_shift
 tv value_call_in_expr
+tv recursive_sum
+tv subslice_sum
+tv dual_accumulator_recursion
+tv fletcher_checksum
+tv multi_value_calls
 tv digital_root
 tv collatz_sequence
 tv modular_exponentiation

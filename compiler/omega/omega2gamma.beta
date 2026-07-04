@@ -277,6 +277,19 @@ proc lookup_local(off) {
     state nomatch { return 0 }
 }
 
+proc state_exists(off) {
+    let mi = word[6000032]
+    let k = 0
+    state loop {
+        to no when (k == word[6011000 + mi * 8])
+        to yes when (name_eq2(off, word[6300000 + (mi * 16 + k) * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
 proc lookup_state(off) {
     let mi = word[6000032]
     let k = 0
@@ -386,6 +399,39 @@ proc tvar_num(o) {
     state done { return v }
 }
 
+proc is_terminates_at(o) {
+    state a { to b when (byte[2097152 + o] == 't')  return 0 }
+    state b { to c when (byte[2097152 + o + 1] == 'e')  return 0 }
+    state c { to d when (byte[2097152 + o + 2] == 'r')  return 0 }
+    state d { to e when (byte[2097152 + o + 3] == 'm')  return 0 }
+    state e { to f when (byte[2097152 + o + 4] == 'i')  return 0 }
+    state f { to g when (byte[2097152 + o + 5] == 'n')  return 0 }
+    state g { to h when (byte[2097152 + o + 6] == 'a')  return 0 }
+    state h { to i when (byte[2097152 + o + 7] == 't')  return 0 }
+    state i { to j when (byte[2097152 + o + 8] == 'e')  return 0 }
+    state j { to k when (byte[2097152 + o + 9] == 's')  return 0 }
+    state k { to no when (is_idchar(byte[2097152 + o + 10]) == 1)  return 1 }
+    state no { return 0 }
+}
+
+proc dotlen_here() {                   ; CUR at '.', followed by exactly `len`
+    state a { to b when (cbyte() == '.')  return 0 }
+    state b { return is_len_at(word[2097144] + 1) }
+}
+
+proc is_as_slice_at(o) {               ; `as_slice` (8 chars)
+    state a { to b when (byte[2097152 + o] == 'a')  return 0 }
+    state b { to c when (byte[2097152 + o + 1] == 's')  return 0 }
+    state c { to d when (byte[2097152 + o + 2] == '_')  return 0 }
+    state d { to e when (byte[2097152 + o + 3] == 's')  return 0 }
+    state e { to f when (byte[2097152 + o + 4] == 'l')  return 0 }
+    state f { to g when (byte[2097152 + o + 5] == 'i')  return 0 }
+    state g { to h when (byte[2097152 + o + 6] == 'c')  return 0 }
+    state h { to i when (byte[2097152 + o + 7] == 'e')  return 0 }
+    state i { to no when (is_idchar(byte[2097152 + o + 8]) == 1)  return 1 }
+    state no { return 0 }
+}
+
 proc is_len_at(o) {                    ; is the identifier at o exactly `len`?
     state a { to b when (byte[2097152 + o] == 'l')  return 0 }
     state b { to c when (byte[2097152 + o + 1] == 'e')  return 0 }
@@ -415,6 +461,8 @@ proc parse_term() {
         to dcolon when (cbyte() == ':')     ; Type::Case — a case-constructor VALUE
         skip_ws()
         to iscall when (cbyte() == '(')
+        to lidx when (cbyte() == '[')
+        to llen when (dotlen_here() == 1)
         to cbind when (casebind_slot(off) < word[6000080])   ; an arm's payload binder: an inline
         return alloc(1, lookup_local(off), 0, 0)              ; extraction from `pl` (tag 8)
     }
@@ -425,6 +473,25 @@ proc parse_term() {
     state tvar {
         skip_ident()
         return alloc(11, tvar_num(off), 0, 0)
+    }
+    state lidx {                       ; LOCAL[ix] / LOCAL[k..] — slice index or subslice on a local
+        adv()                          ; consume '['
+        let lx = parse_cmp()
+        skip_ws()
+        to lsub when (cbyte() == '.')
+        adv()                          ; consume ']'
+        return alloc(12, lookup_local(off), lx, 0)
+    }
+    state lsub {
+        adv()  adv()                   ; consume '..'
+        skip_ws()
+        adv()                          ; consume ']'
+        return alloc(13, lookup_local(off), lx, 0)
+    }
+    state llen {                       ; LOCAL.len
+        adv()                          ; consume '.'
+        skip_ident()                   ; past `len`
+        return alloc(14, lookup_local(off), 0, 0)
     }
     state dcolon {
         to dcolon2 when (byte[2097152 + word[2097144] + 1] == ':')
@@ -531,7 +598,22 @@ proc parse_term() {
         skip_ws()
         to arrread when (cbyte() == '[')
         to dolen when (lenpath(foff, lseg) == 1)
+        to doslice when (is_as_slice_at(lseg) == 1)
         return alloc(3, field_lookup(cur_pref(), foff), 0, 0)
+    }
+    state doslice {                    ; self.arr.as_slice() — the whole array slot as a list value
+        byte[2097152 + lseg - 1] = ' '                 ; blank `.as_slice` so the carrier path resolves
+        byte[2097152 + lseg] = ' '
+        byte[2097152 + lseg + 1] = ' '
+        byte[2097152 + lseg + 2] = ' '
+        byte[2097152 + lseg + 3] = ' '
+        byte[2097152 + lseg + 4] = ' '
+        byte[2097152 + lseg + 5] = ' '
+        byte[2097152 + lseg + 6] = ' '
+        byte[2097152 + lseg + 7] = ' '
+        skip_ws()
+        adv()  adv()                   ; consume '()'
+        return alloc(15, array_lookup(cur_pref(), foff), 0, 0)
     }
     state dolen {                      ; blank the `.len` so the carrier's path terminates for lookup
         byte[2097152 + lseg - 1] = ' '
@@ -596,7 +678,7 @@ proc parse_sum() {
     state sub { adv()  let bs = parse_product()  a = alloc(2, '-', a, bs)  to loop }
 }
 
-proc parse_cmp() {
+proc parse_cmp0() {
     let a = parse_sum()
     state loop {
         skip_ws()
@@ -656,6 +738,38 @@ proc parse_cmp() {
     state eqx { adv()  adv()  let beq = parse_sum()  a = alloc(2, '=', a, beq)  to loop }
     state nex { adv()  adv()  let bne = parse_sum()  a = alloc(2, 'N', a, bne)  to loop }
 }
+
+; logical layers over 0/1 comparison results: `&&` -> multiplication, `||` -> (lt 0 (+ a b)).
+; parse_cmp keeps its name as the public expression entry, so every call site gets logic for free.
+proc parse_and() {
+    let a = parse_cmp0()
+    state loop {
+        skip_ws()
+        to amp when (cbyte() == '&')
+        return a
+    }
+    state amp {
+        to aa when (byte[2097152 + word[2097144] + 1] == '&')
+        return a
+    }
+    state aa { adv()  adv()  let b = parse_cmp0()  a = alloc(2, 'A', a, b)  to loop }
+}
+
+proc parse_or() {
+    let a = parse_and()
+    state loop {
+        skip_ws()
+        to bar when (cbyte() == '|')
+        return a
+    }
+    state bar {
+        to oo when (byte[2097152 + word[2097144] + 1] == '|')
+        return a
+    }
+    state oo { adv()  adv()  let b = parse_and()  a = alloc(2, 'O', a, b)  to loop }
+}
+
+proc parse_cmp() { return parse_or() }
 
 ; ---- keyword detectors (bytes at CUR spell WORD, then a non-idchar boundary) ----
 
@@ -1227,10 +1341,18 @@ proc print_expr(node) {
         to ispair when (word[node] == 9)
         to iselemf when (word[node] == 10)
         to istvar when (word[node] == 11)
+        to islnth when (word[node] == 12)
+        to isldrop when (word[node] == 13)
+        to isllen when (word[node] == 14)
+        to isaslice when (word[node] == 15)
         to isbin
     }
     state islen { emit("(len ")  print_acurname(word[node + 8])  write_byte(')')  return 0 }
     state istvar { emit("t")  emit_dec(word[node + 8])  return 0 }
+    state islnth { emit("(nth ")  print_curname(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state isldrop { emit("(drop ")  print_curname(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state isllen { emit("(len ")  print_curname(word[node + 8])  write_byte(')')  return 0 }
+    state isaslice { print_acurname(word[node + 8])  return 0 }
     state iselemf {                    ; field of a struct-array element: extract from (nth aK ix)
         let efk = word[node + 24] / 8
         let efn = word[node + 24] - efk * 8
@@ -1286,6 +1408,8 @@ proc print_expr(node) {
         to c_le when (op == 'L')
         to c_ge when (op == 'G')
         to c_ne when (op == 'N')
+        to c_and when (op == 'A')
+        to c_or when (op == 'O')
         write_byte('(')
         write_byte(op)
         write_byte(' ')
@@ -1309,6 +1433,8 @@ proc print_expr(node) {
         emit("))")  return 0
     }
     state c_ne { emit("(- 1 (eq ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  emit("))")  return 0 }
+    state c_and { emit("(* ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
+    state c_or { emit("(lt 0 (+ ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  emit("))")  return 0 }
 }
 
 ; does transition arm `arm` pass an argument for local slot `i` of target state `tgt`? -> the arg's
@@ -1334,8 +1460,18 @@ proc emit_call_state(tgt, arm) {
     let mi = word[6000032]
     state vchk { to visval when (word[6660000 + arm * 8] > 0)  to vcall }
     state visval {                     ; a value arm: return the literal/expression, method-paired
+        to vtail when (word[6660000 + arm * 8] == 3)
         to vpm when (word[6010200 + mi * 8] == 2)
         to vlit
+    }
+    state vtail {                      ; a machine tail call: the callee's own return IS this arm's value
+        let tc = word[6680000 + arm * 8]
+        emit("(m")  emit_dec(tc)  emit("_me")
+        print_args(word[6670000 + arm * 8])
+        emit_zeros(word[6010800 + tc * 8] - word[6010600 + tc * 8])   ; LCNT - PCNT
+        emit_selfslots(tc)
+        write_byte(')')
+        return 0
     }
     state vpm {
         to vpb when (self_slot_count() > 0)
@@ -1372,9 +1508,16 @@ proc emit_call_state(tgt, arm) {
         to lloop
     }
     state isarg { print_expr(an)  i = i + 1  to lloop }
+    state fields { emit_selfslots(mi)  to done }
+    state done { write_byte(')')  return 0 }
+}
+
+; the unified self-state slots (fields, arrays, input, output) appended to a call — shared by state
+; calls, machine tail-call arms, and anything else that invokes a has_self def.
+proc emit_selfslots(mi) {
     state fields {
-        to dofields when (word[6010200 + mi * 8] != 1)     ; has_self -> append fields + arrays + inp + out
-        to done
+        to dofields when (word[6010200 + mi * 8] != 1)
+        return 0
     }
     state dofields { let g = 0  to floop }
     state floop {
@@ -1399,12 +1542,12 @@ proc emit_call_state(tgt, arm) {
         to outslot
     }
     state outslot {
-        to done when (word[6000056] == 0)                  ; HAS_OUTPUT
+        to sdone when (word[6000056] == 0)                 ; HAS_OUTPUT
         write_byte(' ')
         print_outname()
-        to done
+        to sdone
     }
-    state done { write_byte(')')  return 0 }
+    state sdone { return 0 }
 }
 
 ; ---- block translation (SSA name threading) ----
@@ -1755,6 +1898,7 @@ proc emit_transition() {
         to armval when (is_digit_at() == 1)
         to armvexpr when (cbyte() == '(')
         let toff = word[2097144]
+        to armfree when (state_exists(toff) == 0)
         skip_ident()
         word[6610000 + ac * 8] = lookup_state(toff)
         word[6630000 + ac * 8] = 0     ; ARM_ARGC = 0
@@ -1763,6 +1907,37 @@ proc emit_transition() {
         skip_ws()
         to armnoargs when (cbyte() == ')')
         to armargs
+    }
+    state armfree {                    ; not a state name: a machine TAIL CALL (`-> sum(args)`) or a
+        skip_ident()                   ; bare VALUE expression (`-> acc`)
+        skip_ws()
+        to armtail when (cbyte() == '(')
+        word[2097144] = toff           ; rewind: the whole arm target is a value expression
+        word[6660000 + ac * 8] = 2
+        word[6670000 + ac * 8] = parse_cmp()
+        word[6630000 + ac * 8] = 0
+        ac = ac + 1
+        to armloop
+    }
+    state armtail {
+        to armtc when (machine_exists(toff) == 1)
+        word[2097144] = toff           ; unknown callee: parse as an expression (fails loudly downstream)
+        word[6660000 + ac * 8] = 2
+        word[6670000 + ac * 8] = parse_cmp()
+        word[6630000 + ac * 8] = 0
+        ac = ac + 1
+        to armloop
+    }
+    state armtc {                      ; tail call to a machine: (m<idx>_me <args> <zeros> <selfslots>)
+        adv()                          ; consume '('
+        word[6660000 + ac * 8] = 3
+        word[6680000 + ac * 8] = lookup_machine(toff)
+        word[6670000 + ac * 8] = parse_args()
+        skip_ws()
+        adv()                          ; consume ')'
+        word[6630000 + ac * 8] = 0
+        ac = ac + 1
+        to armloop
     }
     state armval {                     ; `_ -> 75`: the arm RETURNS the literal (a value-returning state)
         word[6660000 + ac * 8] = 1
@@ -1974,7 +2149,30 @@ proc parse_machine_header() {
     state parmnext { adv()  to parmloop }
     state toclose { to atclose when (cbyte() == ')')  adv()  to toclose }
     state atclose { adv()  to tobrace }        ; consume ')'
-    state tobrace { to atbrace when (cbyte() == '{')  adv()  to tobrace }
+    state tobrace {
+        to atbrace when (cbyte() == '{')
+        to skipterm when (is_terminates_at(word[2097144]) == 1)
+        adv()
+        to tobrace
+    }
+    state skipterm {                   ; a `terminates { decreases ...; }` proof clause: skip its block
+        skip_ident()
+        to stbrace
+    }
+    state stbrace {
+        to stopen when (cbyte() == '{')
+        to atbrace when (word[2097144] >= word[2097136])
+        adv()
+        to stbrace
+    }
+    state stopen { adv()  to stclose }
+    state stclose {                    ; terminates blocks are flat — scan to the matching '}'
+        to stdone when (cbyte() == '}')
+        to atbrace when (word[2097144] >= word[2097136])
+        adv()
+        to stclose
+    }
+    state stdone { adv()  to tobrace }
     state atbrace {
         adv()                          ; consume '{'
         word[6010400 + mc * 8] = word[2097144]     ; M_BODY = after '{'
@@ -2108,10 +2306,12 @@ proc scan_states(mi) {
     state is_st {
         skip_ident()                   ; past "state"
         skip_ws()
-        word[6300000 + (mi * 16 + word[6011000 + mi * 8]) * 8] = word[2097144]   ; M_SNAME
+        to not_st when (is_idchar(cbyte()) == 0)   ; `self.state.a` / `state = ..`: a FIELD named
+        word[6300000 + (mi * 16 + word[6011000 + mi * 8]) * 8] = word[2097144]   ; state, not a decl
         skip_ident()                   ; past state name
         to hdclose
     }
+    state not_st { to loop }
     ; the state header `( [&mut self][, NAME: TYPE]* )` — value params register as machine locals
     ; (zero-init slots; a transition arm's args write them) and in the state's M_SP tables.
     state hdclose {
@@ -2807,6 +3007,7 @@ proc render() {
         emit("(def nth (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nth t (- k 1)))))) ")
         emit("(def setl (xs k v) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) (Cons v t) (Cons h (setl t (- k 1) v)))))) ")
         emit("(def len (xs) (match xs (Nil 0) ((Cons h t) (+ 1 (len t))))) ")
+        emit("(def drop (xs k) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) xs (drop t (- k 1)))))) ")
         to outhelp
     }
     state outhelp {

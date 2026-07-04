@@ -86,6 +86,12 @@ om shapes_area                # 70 — structs-in-arrays v0 + expression value a
 om stack_vm                   # 70 — structs-in-arrays v0 + expression value arms
 om bit_shift                 # 64 — shifts lower to *2^k and /2^k (mul/div witnesses cover them)
 om value_call_in_expr        # 70 — embedded value calls hoisted out of expressions (source-rewrite to t-vars)
+om recursive_sum              # 70 — slices v0 (params, [k..], .len, machine tail-call arms)
+om subslice_sum               # 70 — slices v0 (params, [k..], .len, machine tail-call arms)
+om dual_accumulator_recursion # 70 — slices v0 (params, [k..], .len, machine tail-call arms)
+om fletcher_checksum          # 56 — slices v0 (params, [k..], .len, machine tail-call arms)
+om multi_value_calls          # 70 — slices v0 (params, [k..], .len, machine tail-call arms)
+om framed_payload            # 60 — slices v0 (exit-verified; encoder arity gap keeps it out of meaning-tv)
 om text_padding              # 6  — string-carrier fields: "ALERT temp" assignment, .len arithmetic, write_line(field); dual-channel
 om collatz_sequence          # 111 — hailstone steps for seed 27
 om dice_roller               # 70 — self-verified
