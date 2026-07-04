@@ -28,8 +28,10 @@
 # encoder witnesses results and emits VALUE-PIN certs (= <operand term> <literal>) plus chunked literal
 # addition certs proving the op's arithmetic, each an in-envelope kernel run — certifying computation,
 # the multi-lemma assembly precedent applied to arithmetic. Unlocks collatz_sequence, digital_root,
-# modular_exponentiation. Outside: dice_roller (values exceed the unary wall), division over difference
-# pairs.
+# modular_exponentiation. BINARY NUMERALS: a sample whose intermediates exceed the unary wall re-encodes
+# with little-endian bit-spine constructor values (BNIL/B0/B1) and carry-passing badd / shift-and-add bmul
+# user funs — O(bits) unfold runs, so dice_roller's 72-million LCG states are kernel-recomputed directly.
+# ALL 19 omega-meaning samples are now PROVEN. Outside: division over difference pairs (no sample needs it).
 cd "$(dirname "$0")"
 command -v python3 >/dev/null 2>&1 || { echo "meaning-tv: skipped (python3 absent)"; exit 0; }
 . ../alpha/seed_env.sh
@@ -91,5 +93,6 @@ tv cli_mvp
 tv digital_root
 tv collatz_sequence
 tv modular_exponentiation
+tv dice_roller
 echo "meaning-route TV (the kernel re-computes each covered sample's arithmetic + $VCTOT obligations: division/mul/sub witnesses + array bounds): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] && [ "$PASS" -gt 0 ]
