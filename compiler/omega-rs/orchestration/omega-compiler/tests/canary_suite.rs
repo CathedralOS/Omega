@@ -8858,6 +8858,53 @@ fn runtime_shift_right_signedness_canary_runs() {
 }
 
 #[test]
+fn const_fold_cast_signedness_canary_runs() {
+    // Const-folded integer casts stay correct across truncation + sign
+    // reinterpret, including a wrapping-produced high-bit value cast to a signed
+    // type (`(0u32-1) as i8 == -1`). Positive contrast to the const-fold
+    // arithmetic miscompile class: a cast node carries its target type, so
+    // folding never drops width/signedness. Guards against a future arithmetic-
+    // folder fix breaking cast folding. exit 71 = a fold dropped width/sign.
+    let canary = pass_canary("arithmetic/const_fold_cast_signedness");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("const-fold cast canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for const-folded casts, got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-const-fold-cast-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("const-fold cast canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("const-fold cast canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected const-folded casts (truncate + sign reinterpret) to exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_copy_then_read_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_copy_then_read_exit");
     let main_path = canary.join("main.omg");
@@ -19581,6 +19628,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_i64_full_width_exit",
     "arithmetic/runtime_chained_field_mutation_exit",
     "arithmetic/runtime_copy_then_read_exit",
+    "arithmetic/const_fold_cast_signedness",
     "arithmetic/runtime_signed_division_exit",
     "arithmetic/runtime_shift_right_signedness",
     "arithmetic/runtime_unsigned_division_exit",
