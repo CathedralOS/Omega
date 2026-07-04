@@ -1,0 +1,34 @@
+// RUN CANARY (exit 70) + interpreter differential. Saturating i32 multiply
+// overflow must clamp to the SIGN-CORRECT bound: a positive overflow clamps to
+// INT_MAX, a NEGATIVE overflow to INT_MIN (clamping negative overflow to INT_MAX
+// is the classic bug). 100000 * 100000 = 1e10 -> INT_MAX; 100000 * -100000 =
+// -1e10 -> INT_MIN. exit 72 = positive overflow wrong; 73 = negative clamped to
+// the wrong bound.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    a: i32 in Saturating;
+    b: i32 in Saturating;
+    c: i32 in Saturating;
+}
+machine Main::main(&mut self) {
+    self.a = 100000;
+    self.b = 100000;
+    self.c = 0 - 100000;
+    let pos: i32 in Saturating = self.a * self.b;   // +1e10 -> INT_MAX
+    let neg: i32 in Saturating = self.a * self.c;   // -1e10 -> INT_MIN
+    transition pos == 2147483647 {
+        true  -> check_neg(neg)
+        false -> pos_wrong()
+    }
+    state check_neg(&mut self, neg: i32 in Saturating) {
+        transition neg == 0 - 2147483648 {
+            true  -> good()
+            false -> neg_wrong()
+        }
+    }
+    state good(&mut self)      { self.console.exit_process(70); }
+    state pos_wrong(&mut self) { self.console.exit_process(72); }
+    state neg_wrong(&mut self) { self.console.exit_process(73); }
+}
