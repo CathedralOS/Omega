@@ -18300,6 +18300,9 @@ fn run_canary(path: &str) -> PathBuf {
     repo_root().join("canaries/run").join(path)
 }
 
+// Only the `#[cfg(not(windows))]` native-dungeon repro test copies a sample
+// tree; gate the helper the same way so Windows builds don't warn it unused.
+#[cfg(not(windows))]
 fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
     fs::create_dir_all(to)?;
     for entry in fs::read_dir(from)? {
