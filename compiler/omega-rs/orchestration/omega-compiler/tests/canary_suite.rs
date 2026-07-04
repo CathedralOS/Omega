@@ -8900,6 +8900,47 @@ fn runtime_shift_right_signedness_canary_runs() {
 }
 
 #[test]
+fn array_element_write_width_domain_canary_runs() {
+    // An array-element write coerces the stored value to the element WIDTH and the
+    // ARRAY's arithmetic DOMAIN (interpreter assignment_target_coercion): a u8
+    // element given `a+b`=300 truncates to 44; a `[u8;N] in Saturating` element
+    // clamps to 255. exit 72 = wrap element wrong; 73 = saturating did not clamp.
+    let canary = pass_canary("arithmetic/array_element_write_width_domain");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("array-element coercion canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (element width truncation + array Saturating clamp), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-array-elem-coerce-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("array-element coercion canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("array-element coercion canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected element width truncation + array Saturating clamp (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn int_transition_arg_width_wrap_canary_runs() {
     // An integer argument is wrapped to the param's declared width at the binding
     // (interpreter bind_frame apply_arithmetic_domain), matching native's
@@ -19798,6 +19839,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/f32_field_store_rounding",
     "arithmetic/f32_transition_arg_rounding",
     "arithmetic/int_transition_arg_width_wrap",
+    "arithmetic/array_element_write_width_domain",
     "arithmetic/runtime_signed_division_exit",
     "arithmetic/runtime_shift_right_signedness",
     "arithmetic/runtime_unsigned_division_exit",
