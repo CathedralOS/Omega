@@ -584,23 +584,22 @@ block DIES (`build_and_package_model.md` addendum).
 6. **The greeting**: `table.con_out.output_string(&utf16 greeting)` under
    QEMU/OVMF — milestone 1 closes.
 
-**SETTLED 2026-07-04 (Zach) — IMPLICIT LAYOUT-DOMAIN ADD IS A COMPILE ERROR.**
-Adding `OmegaLayout<X>` (or any invariant-bearing layout domain) to a value
-without an explicit `as` is REJECTED. The refinement `&[u8] in OmegaLayout<X>`
-is established ONLY by (a) `as` + the plan-implication proof [#21] -- VACUOUS
-(free re-label) for a zero-invariant plan (all-`At` offsets over full-range
-scalars = the brief's degenerate "recast is a borrow", §5b), a real proof for an
-invariant-bearing one; or (b) the derived `validate` runtime mint [#22]. Bare
-construction `Checked::Valid { view: plain }` (silent implicit-add, compiles
-today) becomes an error. RATIONALE: layout is the one domain with NO downstream
-safety net -- a forged range is caught at the indexing site, but a forged layout
-is a silent OOB in `materialize` (which is total by design). The trivial-vs-proof
-decision is READ FROM THE case-vocabulary Plan (all-`At`/full-range -> trivial;
-`Varint`/`LengthPrefixed`/range/era -> proof-or-validate). SEQUENCING: the fence
-lands WITH #21's `as` surface (does NOT parse today) + #22's validate -- never
-before, or `Valid(view)` is unconstructible. OPEN SUB-Q (not settled): behaviour
-domains (Wrapping, zero-invariant) + range domains (flow-proven at use) also allow
-implicit-add today; whether "force `as`" extends to them or stays layout-only.
+**SETTLED 2026-07-04 (Zach) — DOMAIN MINTING IS `as` + USER CODE; THE COMPILER
+GENERATES NOTHING.** The ONLY primitive is `as`, licensed iff the invariant-prover
+can discharge the target domain's invariants AT THAT EXACT SPOT. Zero-invariant ->
+trivial (a borrow). Invariant-bearing -> you WRITE a conversion machine that guards
+the facts (guard-narrowing establishes them) and ends in an `as` the compiler
+accepts because, there, the invariants hold; if you want a Valid|Invalid result you
+DECLARE that enum yourself. NO compiler-derived `validate`, NO generated codec code,
+no builtin `Checked` -- "derived validate" DISSOLVES exactly like encode-as-builtin
+was rejected. Implicit domain-add (a `&[u8]` into an `&[u8] in OmegaLayout<X>` slot
+without `as`) = COMPILE ERROR: layout is the one domain with no downstream safety net
+(a forged range is caught at the index site; a forged layout is a silent OOB in any
+total reader). So #22-as-a-builtin is GONE; the real remaining compiler work is #21:
+`as` + how far the invariant-prover REACHES -- single-scalar range = the landed
+guard-narrowing keystone; whole-buffer-via-loop (utf8-style) = inductive/loop-
+invariant reasoning, the hard edge. OPEN SUB-Q (unsettled): does "force `as`" extend
+past layout to range/behaviour domains, which also allow implicit-add today.
 
 **#22 RECON (2026-07-04, probe-verified; checklist in session memory):** the
 settled surface ALREADY compiles (`case Valid(view: &[u8] in
