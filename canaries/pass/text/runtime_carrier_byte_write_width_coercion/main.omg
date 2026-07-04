@@ -1,0 +1,21 @@
+// RUN CANARY (exit 70) + interpreter differential. A carrier byte WRITE of a
+// COMPUTED value coerces to the u8 byte width, matching native: `buffer[0] = a+b`
+// with `a+b`=300 stores the low byte (44). The carrier path (Value::Str, packed
+// bytes) is separate from the fixed-array element_cell path, so this pins the
+// coercion for carriers specifically. The existing carrier byte-write canary only
+// covers in-range literals/fields. exit 71 = the byte was not the low-byte 44.
+domain [u8; 8]::Utf8 when valid_utf8(self) {}
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; buffer: [u8; 8] in Utf8; a: u8 in Wrapping; b: u8 in Wrapping; }
+machine Main::main(&mut self) {
+    self.buffer = "AAAAAAAA";
+    self.a = 200;
+    self.b = 100;
+    self.buffer[0] = self.a + self.b;   // 300 -> low byte 44
+    transition self.buffer[0] == 44 {
+        true  -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}
