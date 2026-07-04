@@ -1,0 +1,55 @@
+// Two runtime-indexed reads compared in a GUARD (`arr[i] < arr[j]`, both
+// indices runtime values). Memory flagged this as adjacent to #38 (the
+// dispatch-guard compare path uses static offsets) with the fenced-vs-silent
+// question uncharacterized. ANSWER (pinned here): it COMPILES and computes the
+// comparison correctly -- NOT a silent miscompile, and native == interp.
+//
+// To rule out an "always takes the true arm" bug the canary checks BOTH
+// directions: arr[i] < arr[j] must be TRUE and the reverse arr[j] < arr[i] must
+// be FALSE, so a guard that read the wrong element (or ignored its operands)
+// fails. arr = [10, 20, 30, 40], i = 1 (20), j = 3 (40).
+//
+// NOTE (completeness, not soundness): the index bound `i < len` in the reverse
+// SUB-STATE is proven by RE-ASSIGNING the flow constants (`i = 1; j = 3`) at
+// its head. The declared range type `[0..=3]` alone does NOT discharge the
+// bound across a state edge -- the index prover wants a flow constant or a
+// dominating guard (the same reason `array_max` guards `i < 6` before indexing).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    arr: [i32; 4];
+    i: i32 [0..=3];
+    j: i32 [0..=3];
+}
+machine Main::main(&mut self) {
+    self.arr[0] = 10;
+    self.arr[1] = 20;
+    self.arr[2] = 30;
+    self.arr[3] = 40;
+    self.i = 1;
+    self.j = 3;
+
+    // Forward: arr[i]=20 < arr[j]=40 must be TRUE.
+    transition self.arr[self.i] < self.arr[self.j] {
+        true -> check_reverse()
+        false -> bad()
+    }
+
+    // Reverse: arr[j]=40 < arr[i]=20 must be FALSE. Re-establish i/j as flow
+    // constants so the index bound is provable in this sub-state (see the
+    // completeness note above), then guard the same two reads with the operands
+    // swapped -- catches a compare that ignores which element is which.
+    state check_reverse(&mut self) {
+        self.i = 1;
+        self.j = 3;
+        transition self.arr[self.j] < self.arr[self.i] {
+            true -> bad()
+            false -> good()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
