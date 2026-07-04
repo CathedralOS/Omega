@@ -99,9 +99,19 @@ def build_tab(funs):                               # (Tcons (Trule gid cid body)
 def prop(g, funs):
     if g[0] == 'All':
         return '(All %s)' % prop(g[1], funs)
+    if g[0] == 'Exists':
+        return '(Exists %s)' % prop(g[1], funs)
     if g[0] == '=':
         return '(Eq %s %s)' % (term(g[1], funs), term(g[2], funs))
-    raise SystemExit('untranslatable goal head: %s' % g[0])
+    if g[0] == '->':
+        return '(Arrow %s %s)' % (prop(g[1], funs), prop(g[2], funs))
+    if g[0] == '&':
+        return '(And %s %s)' % (prop(g[1], funs), prop(g[2], funs))
+    if g[0] == '+':
+        return '(Or %s %s)' % (prop(g[1], funs), prop(g[2], funs))
+    if g[0] == 'bot':
+        return 'Bot'
+    raise SystemExit('untranslatable prop head: %s' % g[0])
 
 
 def proof(p, funs):
@@ -109,16 +119,33 @@ def proof(p, funs):
         return '(Gen %s)' % proof(p[1], funs)
     if p[0] == 'refl':
         return '(Refl %s)' % term(p[1], funs)
+    if p[0] == 'hyp':
+        return '(Hyp %d)' % p[1]
+    if p[0] == 'lam':                              # (lam P body) -> (Lam <prop> <proof>)
+        return '(Lam %s %s)' % (prop(p[1], funs), proof(p[2], funs))
+    if p[0] == 'app':
+        return '(App %s %s)' % (proof(p[1], funs), proof(p[2], funs))
+    if p[0] == 'inst':
+        return '(Inst %s %s)' % (proof(p[1], funs), term(p[2], funs))
+    if p[0] == 'eqelim':                           # (eqelim motive pfeq pfpa)
+        return '(Eqelim %s %s %s)' % (prop(p[1], funs), proof(p[2], funs), proof(p[3], funs))
+    if p[0] == 'rec':                              # (rec cidA cidB motive base step) -> Rec + two Mkspec
+        sa, sb = funs['#data'][p[1]], funs['#data'][p[2]]
+        return '(Rec (Mkspec %d %d %d %d) (Mkspec %d %d %d %d) %s %s %s)' % (
+            p[1], sa[0], sa[1], sa[2], p[2], sb[0], sb[1], sb[2],
+            prop(p[3], funs), proof(p[4], funs), proof(p[5], funs))
     raise SystemExit('untranslatable proof head: %s' % p[0])
 
 
 def main():
     forms = parse(sys.stdin.read())
     funs = {}                                      # fid -> [(cidA, bodyA), (cidB, bodyB)]
+    specs = {}                                     # cid -> (arity, r0, r1)
     body = []
     for f in forms:
         if isinstance(f, list) and f and f[0] == 'data':
-            continue                               # constructor ids need no declaration in the Con encoding
+            specs[f[1]] = (int(f[2]), int(f[3]), int(f[4]))   # cid -> (arity, r0, r1) for Rec's Mkspec
+            continue
         if isinstance(f, list) and f and f[0] == 'fun':
             funs.setdefault(f[1], []).append((f[2], f[3]))
             continue
@@ -126,6 +153,7 @@ def main():
     if len(body) != 2:
         raise SystemExit('expected exactly <goal> <proof> after declarations')
     funs['#tab'] = build_tab({k: v for k, v in funs.items() if k != '#tab'})
+    funs['#data'] = specs
     print('(check %s %s)' % (proof(body[1], funs), prop(body[0], funs)))
 
 
