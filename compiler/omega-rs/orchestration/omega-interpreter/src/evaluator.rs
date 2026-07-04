@@ -2867,6 +2867,29 @@ impl<'program> Evaluator<'program> {
         Some((primitive, domain))
     }
 
+    /// Coerce a stored SCALAR to a declared TYPE reference -- the decision-17
+    /// truncation/clamp/trap for an integer, f32 rounding for a float -- matching
+    /// the native store into that typed slot. A non-scalar value (Struct, Array,
+    /// Ref, ...) or a non-primitive type passes through unchanged. Used where a
+    /// value lands in a typed slot with the type in hand: struct/case literal
+    /// FIELD init (the field carries its own domain, `x: u8 in Wrapping`).
+    fn coerce_scalar_value(
+        &self,
+        value: Value,
+        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    ) -> EvalResult<Value> {
+        match (&value, self.program.primitive_type_reference(type_reference)) {
+            (Value::Int(raw), Some(primitive)) => {
+                let domain = self
+                    .program
+                    .arithmetic_domain_for_type_reference(type_reference);
+                Ok(Value::Int(apply_arithmetic_domain(*raw, primitive, domain)?))
+            }
+            (Value::Float(f), Some(PrimitiveType::F32)) => Ok(Value::Float(*f as f32 as f64)),
+            _ => Ok(value),
+        }
+    }
+
     /// Declared integer primitive of an assignment target, when it is a FIELD whose
     /// receiver resolves to a typed struct (`self.c`, `obj.field`, or the equivalent
     /// name path). Used to wrap an assigned integer to the field's declared width,
@@ -3094,6 +3117,14 @@ impl<'program> Evaluator<'program> {
         };
         for field in self.program.expression_table.struct_fields(literal.fields) {
             let value = self.eval_expression(field.value, frame)?;
+            // Coerce the field value to the field's declared width/domain, matching
+            // the native store into the field slot (`Point { x: a+b }` with `a+b`
+            // = 300 into a u8 field reads 44). The field type carries its own
+            // domain, so resolve it directly.
+            let value = match self.field_type_reference(type_symbol, field.name.as_str()) {
+                Some(type_reference) => self.coerce_scalar_value(value, type_reference)?,
+                None => value,
+            };
             fields.insert(field.name.as_str().to_owned(), value.cell());
         }
         Ok(Value::Struct {

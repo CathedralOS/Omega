@@ -63,6 +63,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/f32_transition_arg_rounding", 70),
     ("arithmetic/int_transition_arg_width_wrap", 70),
     ("arithmetic/array_element_write_width_domain", 70),
+    ("arithmetic/struct_literal_field_coercion", 70),
     ("arithmetic/runtime_struct_field_range_narrowing_exit", 70),
     (
         "arithmetic/runtime_transition_arg_false_arm_narrowing_exit",
