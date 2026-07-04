@@ -492,6 +492,7 @@ class SymInterp:
         rd_mark = ('loopvar', '#rd')                    # the read POSITION is a hidden loop var: in-body reads
         self.rdpos = rd_mark                            # come out as stream elements (sv #rd), stride-checked
         fill_save, self._fill = self._fill, []
+        bf_save = getattr(self, '_body_forks', 0)
         try:
             out = self._run_region_once(labels[body_label], header_pc, ph_env, blocks, labels)
         except Unsupported:
@@ -499,6 +500,7 @@ class SymInterp:
         finally:
             rd_after, self.rdpos = self.rdpos, rd_entry
             fill_events, self._fill = self._fill, fill_save
+            self._body_forks = bf_save
         reads = 0
         if rd_after != rd_mark:                         # the body consumed input: R reads per iteration
             rdd = _canon(_lin_delta(rd_after, rd_mark) or 0)
@@ -717,9 +719,9 @@ class SymInterp:
                             if self._summarize_loop(pc, st[1], st[2], env, blocks, labels):
                                 take = False            # recursively; an IF-DIAMOND inside the body FORKS
                             else:                       # both paths to the header and merges pointwise
-                                self._body_forks = getattr(self, '_body_forks', 0) + 1
-                                if self._body_forks > 4:
+                                if getattr(self, '_body_forks', 0) >= 4:
                                     raise Unsupported('too many branches inside a summarized loop body')
+                                self._body_forks = getattr(self, '_body_forks', 0) + 1
                                 try:
                                     b = self._boolterm(st[2], env)
                                     rd, bm = self.rdpos, dict(self.bytemem)
