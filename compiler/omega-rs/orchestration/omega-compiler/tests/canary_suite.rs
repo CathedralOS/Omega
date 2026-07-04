@@ -8900,6 +8900,47 @@ fn runtime_shift_right_signedness_canary_runs() {
 }
 
 #[test]
+fn f32_field_store_rounding_canary_runs() {
+    // An f32 field/local rounds each stored result to f32 (interpreter store
+    // rounding, matching native SSE): stepping past 2^24 by `+ 1.0` plateaus at
+    // 16777216. Regression lock for the interpreter Value::Float store-rounding
+    // fix; exit 71 = the interpreter kept f64 and over-accumulated to 16777218.
+    let canary = pass_canary("arithmetic/f32_field_store_rounding");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("f32 field store canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (f32 store rounds, plateaus at 16777216), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-f32-field-store-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f32 field store canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f32 field store canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected f32 field store to round to f32 and plateau (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn const_fold_cast_signedness_canary_runs() {
     // Const-folded integer casts stay correct across truncation + sign
     // reinterpret, including a wrapping-produced high-bit value cast to a signed
@@ -19672,6 +19713,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_chained_field_mutation_exit",
     "arithmetic/runtime_copy_then_read_exit",
     "arithmetic/const_fold_cast_signedness",
+    "arithmetic/f32_field_store_rounding",
     "arithmetic/runtime_signed_division_exit",
     "arithmetic/runtime_shift_right_signedness",
     "arithmetic/runtime_unsigned_division_exit",
