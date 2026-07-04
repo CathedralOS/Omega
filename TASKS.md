@@ -669,7 +669,15 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >   big-bang).
 > - **`usize` retirement** — design-dead (count/addr model settled); impl queued.
 >
-> **Ergonomics / completions:** #26 auto-hoist pure-builtin guard subjects;
+> **Ergonomics / completions:** #26 auto-hoist pure-builtin guard subjects
+> (SCOPE SETTLED 2026-07-03: the sound slice = min/max/abs/clamp/sqrt because
+> they are stateless -> the effectful-single-eval constraint that reverted the
+> general hoist twice is satisfied by construction. Temp-type plumbing located:
+> a ~20-line `Call` branch in hoist_temp_type.rs resolving the first arg's type
+> via the existing attached_field_type/parameter_type helpers. Still a focused
+> session: the risky half is scoping the syntax->symbol-resolved synthesis to
+> guard-operand pure-builtin calls only, avoiding the documented string/bool
+> sibling entanglement. Recipe in value-call-in-guard-always-true.md.);
 > sin/cos (numerical mini-project, must match interp); layouts-ladder remainder
 > (mint rung, Packed grammar, layout plan-walking deriver).
 >
@@ -704,7 +712,14 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >   - **Phase 2 -- generic MACHINES**: synthesize one Machine per instantiation
 >     (copy states, substitute T); value-call targets rewrite to the synthetic
 >     symbol; StateKey.machine carries it automatically; the fence becomes a
->     no-op. Canary: `machine id<T>(x:T)->T` called at i32 + bool.
+>     no-op. Canary: `machine id<T>(x:T)->T` called at i32 + bool. STATE VERIFIED
+>     2026-07-03: `id<T>` called at BOTH i32 and bool is cleanly FENCED today
+>     ("a value call to the generic machine `id` is not supported natively yet"),
+>     NOT a silent poison -- monomorphization.rs substitutes IN PLACE + clears the
+>     param list, which only covers the single/agreeing-instantiation case. So
+>     Phase 2 = machine deep-clone-per-instantiation at the typed layer (fresh
+>     symbol, substitute, retarget each value-call site) -- a real multi-file
+>     slice, not a fence-flip.
 >   - **Phase 3 -- nested generics** (`Store<T>` containing `Item<T>`): recursive
 >     discovery; layout cascade (inner instance recorded before outer).
 >   - **Phase 4 -- generic trait conformances / containers**: `Store<T> satisfies
