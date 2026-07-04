@@ -104,6 +104,11 @@ tv task_runner
 tv elevator
 tv logger
 tv alarm_scheduler
+tv vending_machine
+tv calculator
+tv direction_command
+tv parse_number
+tv shape_area
 tv digital_root
 tv collatz_sequence
 tv modular_exponentiation

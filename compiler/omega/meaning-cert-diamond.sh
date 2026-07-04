@@ -24,7 +24,7 @@ b ../gamma/interp.beta "$T/interp.exe" || { echo "meaning-cert diamond FAIL — 
 SPECS=""
 for s in bounded_counter nested_counters euclid_gcd leap_year smallest_prime_factor number_guess \
          generic_ring_buffer insertion_sort calculator_rpn tic_tac_toe bank_ledger bouncing_ball \
-         turn_combat width_mixer cli_mvp text_padding alarm_probe alarm_probe2 event_log token_interpreter nested_case_payload score_tracker stopwatch task_runner elevator logger alarm_scheduler digital_root collatz_sequence modular_exponentiation dice_roller; do
+         turn_combat width_mixer cli_mvp text_padding alarm_probe alarm_probe2 event_log token_interpreter nested_case_payload score_tracker stopwatch task_runner elevator logger alarm_scheduler vending_machine calculator direction_command parse_number shape_area digital_root collatz_sequence modular_exponentiation dice_roller; do
   "$T/e2g.exe" < "../../samples/$s/main.omg" > "$T/g" 2>/dev/null
   python3 gamma2claim.py < "$T/g" > "$T/$s.claims" 2>/dev/null \
     || { echo "meaning-cert diamond FAIL — encoder refused $s"; exit 1; }

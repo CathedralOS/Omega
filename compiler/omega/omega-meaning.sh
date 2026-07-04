@@ -71,6 +71,11 @@ om task_runner                # 70 — case payloads v1 ((Pair tag payload), mat
 om elevator                   # 70 — case payloads v1 ((Pair tag payload), match destructuring)
 om logger                     # 70 — case payloads v1 ((Pair tag payload), match destructuring)
 om alarm_scheduler            # 70 — case payloads v1 ((Pair tag payload), match destructuring)
+om vending_machine            # 70 — value arms (`_ -> N` returns the literal)
+om calculator                 # 46 — value arms (`_ -> N` returns the literal)
+om direction_command          # 1 — value arms (`_ -> N` returns the literal)
+om parse_number               # 25 — value arms (`_ -> N` returns the literal)
+om shape_area                 # 42 — value arms (`_ -> N` returns the literal)
 om text_padding              # 6  — string-carrier fields: "ALERT temp" assignment, .len arithmetic, write_line(field); dual-channel
 om collatz_sequence          # 111 — hailstone steps for seed 27
 om dice_roller               # 70 — self-verified
