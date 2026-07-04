@@ -50,14 +50,18 @@ def program(seed):
     # modes draw from the full linear-in-i delta space: under a down-counter the i ↦ n-k substitution folds
     # the linear part into the invariant coefficient and flips the triangular part across the ℤ pair.
     down = rng.random() < 0.20
-    lines.append('    let i = %s' % ('n' if down else '0'))
+    # up-counters: ~25% start at a symbolic input (trip = bound ∸ start via the monus constructor) —
+    # but != guards only summarize from 0 (from a symbolic start the machine diverges when start > bound).
+    start = '0' if down or rng.random() >= 0.25 else data[0]
+    lines.append('    let i = %s' % ('n' if down else start))
     if down:
         guard = rng.choice(['(0 < i)', '(i > 0)', '(i != 0)'])      # equivalent spellings, all normalized
         lines.append('    state loop { to body when %s  return %s }' % (guard, ret))
         step = 'i = i - 1'
         delta = lambda: _delta(rng, data)
     else:
-        guard = rng.choice(['i < n', 'i <= n', 'n > i', 'n >= i', 'i != n'])    # all lower to recognized idioms
+        guards = ['i < n', 'i <= n', 'n > i', 'n >= i'] + (['i != n'] if start == '0' else [])
+        guard = rng.choice(guards)                                  # all lower to recognized idioms
         lines.append('    state loop { to body when (%s)  return %s }' % (guard, ret))
         step = 'i = i + 1'
         delta = lambda: _delta(rng, data)

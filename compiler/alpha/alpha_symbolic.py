@@ -41,6 +41,11 @@ def nat(k):                            # a concrete natural as s^k z
 # ZZ_CID: a ℤ difference-pair value ('zz', pos, neg) = pos - neg (see beta_symbolic). The observable is mod 256
 # and 256 | 2^64, so ℤ arithmetic mod 256 == alpha's mod-2^64 arithmetic mod 256 — this soundly models `sub`.
 ZZ_CID = 5
+# MN_CID: monus ('mn', a, b) = max(0, a - b), truncated subtraction over ℕ — the BRANCH-FREE trip count
+# of a loop whose counter starts at a symbolic value: `i = a; while (i < n)` runs exactly n ∸ a times for ALL
+# inputs (a > n gives 0 on the machine and in ℕ alike). Like zz, it is a plain binary constructor to the
+# kernel — (data 6 2 0 0), certs by refl — with its MEANING carried by the two differentially-pinned engines.
+MN_CID = 6
 
 def render(t):                         # -> check.beta / prover term syntax
     h = t[0]
@@ -49,6 +54,7 @@ def render(t):                         # -> check.beta / prover term syntax
     if h == 'v':  return '(v %d)' % t[1]
     if h == 'f':  return '(f %d %s)' % (t[1], render(t[2]))
     if h == 'zz': return '(k %d %s %s)' % (ZZ_CID, render(t[1]), render(t[2]))
+    if h == 'mn': return '(k %d %s %s)' % (MN_CID, render(t[1]), render(t[2]))
     return '(%s %s %s)' % (h, render(t[1]), render(t[2]))
 
 def evaluate(t, env):                  # concrete integer value (ℤ; the gate observes it mod 256)
@@ -57,6 +63,7 @@ def evaluate(t, env):                  # concrete integer value (ℤ; the gate o
     if h == 's':  return 1 + evaluate(t[1], env)
     if h == 'v':  return env[t[1]]
     if h == 'zz': return evaluate(t[1], env) - evaluate(t[2], env)
+    if h == 'mn': return max(0, evaluate(t[1], env) - evaluate(t[2], env))
     if h == 'f':                       # a user-function recurrence; TRI_ID is the triangular sum g(n)=Σ_{j<n} j
         if t[1] != TRI_ID:
             raise Unsupported('unknown recurrence fun %d' % t[1])
@@ -280,7 +287,7 @@ def _mentions_slot(t):
     if isinstance(t, tuple):
         if t[0] == 'slot':
             return True
-        if t[0] in ('s', 'p', 'm', 'f', 'zz'):
+        if t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn'):
             return any(_mentions_slot(x) for x in t[1:])
     return False
 
@@ -288,14 +295,14 @@ def _has_zz(t):                        # does a zz pair occur anywhere inside te
     if isinstance(t, tuple):
         if t[0] == 'zz':
             return True
-        if t[0] in ('s', 'p', 'm', 'f'):
+        if t[0] in ('s', 'p', 'm', 'f', 'mn'):
             return any(_has_zz(x) for x in t[1:])
     return False
 
 def _occurs(t, ph):                    # does the exact marker `ph` occur in term `t`?
     if t == ph:
         return True
-    return isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'f', 'zz') and any(_occurs(x, ph) for x in t[1:])
+    return isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn') and any(_occurs(x, ph) for x in t[1:])
 
 def _subst_slots(t, MEM, invariant):   # ('slot', addr) -> MEM[addr] for loop-invariant addrs; recurse elsewhere
     if isinstance(t, tuple):
@@ -303,7 +310,7 @@ def _subst_slots(t, MEM, invariant):   # ('slot', addr) -> MEM[addr] for loop-in
             return MEM[t[1]] if t[1] in invariant else t
         if t[0] == 's':
             return ('s', _subst_slots(t[1], MEM, invariant))
-        if t[0] in ('p', 'm', 'zz'):
+        if t[0] in ('p', 'm', 'zz', 'mn'):
             return (t[0], _subst_slots(t[1], MEM, invariant), _subst_slots(t[2], MEM, invariant))
         if t[0] == 'f':
             return ('f', t[1], _subst_slots(t[2], MEM, invariant))
@@ -325,7 +332,7 @@ def _scale2(coef, x):
 def _mentions_marked(t, marked):       # does term `t` mention any marker in the `marked` set?
     if t in marked:
         return True
-    if isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'f', 'zz'):
+    if isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn'):
         return any(_mentions_marked(x, marked) for x in t[1:])
     return False
 
@@ -416,11 +423,11 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
             kind = 'lt'
         elif Rb == 0:
             kind, L, Rb = 'lt', 0, L
-    if kind not in ('lt', 'le') or not isinstance(L, int):
-        return None                                 # `counter < bound` / `counter <= bound`, counter concrete at entry
-    if L != 0:
-        return None                                 # trip = Rb assumes the counter ENTERS at 0 (beta requires
-                                                    # entry 0 too); a nonzero start needs trip = Rb - L: refused
+    if kind not in ('lt', 'le'):
+        return None                                 # `counter < bound` / `counter <= bound`
+    if isinstance(L, tuple) and L[0] in ('zz', 'mn', 'cmp'):
+        return None                                 # a ℤ-pair / monus / boolean start value: later
+    off = _canon(L) if not isinstance(L, int) else L    # the counter's START (0 keeps today's forms)
     header = next((h for h, j in backedges.items() if h <= cont_pc <= j), None)
     if header is None:
         return None
@@ -433,7 +440,10 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
     r15 = R.get(15, 0)                              # frame locals sit at/above the data-stack top
     carried = [a for a in MEM if isinstance(a, int) and a >= r15
                and (S1.get(a) != MEM[a] or S2.get(a) != MEM[a] or S3.get(a) != MEM[a])]
-    trip = Rb if kind == 'lt' else _add(Rb, 1)      # `<`: 0..R-1 = R iters ; `<=`: 0..R = R+1 iters
+    hi = Rb if kind == 'lt' else _add(Rb, 1)        # exclusive upper end: R (<) or R+1 (<=)
+    # from 0: trip = hi (the existing forms). From a symbolic/nonzero start: trip = hi ∸ start — MONUS, the
+    # branch-free trip count (start > hi runs 0 times on the machine and 0 = hi ∸ start in ℕ alike).
+    trip = hi if off == 0 else ('mn', _term(hi), _term(L))
     # FAST PATH — finite differences over the 3 iterations (invariant + pure-Σi deltas)
     updates = {}; have_counter = False; general = False
     for a in carried:
@@ -479,7 +489,7 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
         # DOWN-count: guard `0 < i` (L the concrete 0, Rb the counter's symbolic entry value) with a slot
         # stepping by the ℤ pair -1 — it drains I, I-1, …, 1, so exactly trip = Rb iterations. `0 <= i`
         # with -1 never terminates and is not recognized. A ℤ-pair entry value can't be a trip count yet.
-        if kind != 'lt' or L != 0 or (isinstance(Rb, tuple) and Rb[0] == 'zz'):
+        if kind != 'lt' or off != 0 or (isinstance(Rb, tuple) and Rb[0] == 'zz'):
             return None
         counters = [a for a in moved if _is_negone(raw[a]) and MEM[a] == Rb]
         if not counters:
@@ -506,9 +516,10 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
             p0, n0 = _as_zz(MEM[a])
             if down:                                # i ↦ n-k: linear parts fold into the invariant
                 updates[a] = _down_series(p0, n0, dp[0], dp[1], dn[0], dn[1], trip)
-            else:                                   # coefficient, g cross-terms swap components
-                updates[a] = ('zz', _series_closed(p0, _canon(dp[0]), _canon(dp[1]), trip),
-                                    _series_closed(n0, _canon(dn[0]), _canon(dn[1]), trip))
+            else:                                   # coefficient, g cross-terms swap components; a start
+                updates[a] = ('zz',                 # offset folds a1·off into each invariant part
+                              _series_closed(p0, _canon(_sum2(dp[0], _scale2(dp[1], off))), _canon(dp[1]), trip),
+                              _series_closed(n0, _canon(_sum2(dn[0], _scale2(dn[1], off))), _canon(dn[1]), trip))
             continue
         sub = _subst_slots(d, MEM, invariant)       # δ = a0 + a1·counter
         if _has_zz(sub):
@@ -522,7 +533,7 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
             p0, n0 = _as_zz(MEM[a])                 # the -a1·g(t) cross-term makes the result a ℤ pair
             updates[a] = _down_series(p0, n0, dec[0], dec[1], 0, 0, trip)
             continue
-        updates[a] = _series_closed(MEM[a], _canon(dec[0]), _canon(dec[1]), trip)
+        updates[a] = _series_closed(MEM[a], _canon(_sum2(dec[0], _scale2(dec[1], off))), _canon(dec[1]), trip)
     MEM.update(updates)
     return exit_pc
 

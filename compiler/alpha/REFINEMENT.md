@@ -166,10 +166,20 @@ would honestly FAIL the cross-engine proof, which is correct: it genuinely behav
 vs compiled. Word↔byte aliasing refuses on both directions; `word[..]` and byte ops inside loops are later
 slices.
 
+### Monus trip counts (symbolic counter starts)
+
+`i = a; while (i < n)` runs **n ∸ a** times — truncated subtraction, the constructor `(k 6 n a)` — which is
+the *branch-free* trip count: `a > n` gives 0 iterations on the machine and `0 = n ∸ a` in ℕ alike, so the
+closed form holds for **all** inputs with no case split. Counter-linear deltas fold the start offset into
+the invariant coefficient (`Σᵢ₌ₐⁿ⁻¹ i = (n∸a)·a + g(n∸a)`; identity fold when the start is 0, so all prior
+forms are byte-stable). Like the ℤ pair, monus is a plain binary constructor to the kernel (`(data 6 2 0 0)`,
+certs by refl); its meaning lives in the two differentially-pinned evaluators. `!=` guards refuse from a
+nonzero start — the machine genuinely diverges there when `start > bound`.
+
 **Deliberately out of scope** (each conservatively *refused* — never mis-summarized): scaling recurrences
 (`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`, tetrahedral `Σg`);
-ℤ-pair trip counts; `word[..]` memory; byte memory inside loop bodies (symbolic-address buffers — the
-read-loop class); stale reads of rewrite slots; returns inside loop bodies.
+ℤ-pair or monus counter *start values*; `word[..]` memory; byte memory inside loop bodies (symbolic-address
+buffers — the read-loop class); stale reads of rewrite slots; returns inside loop bodies.
 
 ## How data-dependent loops are summarized (the interesting part)
 

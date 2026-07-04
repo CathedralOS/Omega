@@ -32,6 +32,7 @@ ASM = sys.argv[3] if len(sys.argv) > 3 else None      # the beta assembler exe
 # which alpha_symbolic/beta_symbolic emit as ('f',90,t) for `acc += i` loops. Prepended to a cert that mentions it.
 REC_PRELUDE = '(data 2 0 0 0) (data 3 1 1 0) (fun 90 2 (k 2)) (fun 90 3 (p (rec 0) (v 0)))'
 ZZ_PRELUDE = '(data 5 2 0 0)'                          # the ℤ difference-pair constructor (k 5 pos neg) = pos - neg
+MN_PRELUDE = '(data 6 2 0 0)'                          # the monus constructor (k 6 a b) = max(0, a - b)
 
 # ---- a minimal raw-byte Alpha assembler (encoding per alpha_ref.py) ---------------------------------
 def imm(d, k): return bytes([0x01, d]) + int(k).to_bytes(8, 'little')
@@ -85,6 +86,7 @@ AUTO_SAMPLES = [
     ("callloop  (PROC CALL IN LOOP →2·g(n))", "refinement-samples/callloop.beta"),
     ("temploop  (REWRITE TEMP t=a*i →a·g(n))", "refinement-samples/temploop.beta"),
     ("bytemem   (BYTE MEMORY roundtrip+truncation)", "refinement-samples/bytemem.beta"),
+    ("fromto    (MONUS TRIP i=a..n →(n∸a)a+g(n∸a))", "refinement-samples/fromto.beta"),
     ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
     ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
     ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),
@@ -138,7 +140,9 @@ def prove_equiv(label, text, tape, ok_msg, quiet_perturb=False, trials=40, teeth
         for _ in range(nC):
             g = '(All %s)' % g
         if '(f ' in g or '(k ' in g:                   # user-fun recurrence and/or ℤ difference-pair: prover.py
-            prelude = (REC_PRELUDE if '(f ' in g else '') + (' ' + ZZ_PRELUDE if '(k ' in g else '')
+            prelude = ((REC_PRELUDE if '(f ' in g else '')
+                       + (' ' + ZZ_PRELUDE if '(k 5 ' in g else '')
+                       + (' ' + MN_PRELUDE if '(k 6 ' in g else ''))
             proof = '(refl %s)' % cterm                # can't parse these, so emit a direct refl cert (valid iff
             for _ in range(nC):                        # C conv rhs) with the needed decls prepended; check.beta decides
                 proof = '(gen %s)' % proof

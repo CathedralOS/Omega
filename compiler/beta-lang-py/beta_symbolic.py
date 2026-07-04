@@ -44,6 +44,11 @@ TRI_ID = 90
 # (the (data ZZ_CID 2 0 0) decl is prepended to the cert). Peano stays Peano — a value becomes 'zz' only once a
 # subtraction touches it.
 ZZ_CID = 5
+# MN_CID: monus ('mn', a, b) = max(0, a - b), truncated subtraction over ℕ — the BRANCH-FREE trip count
+# of a loop whose counter starts at a symbolic value: `i = a; while (i < n)` runs exactly n ∸ a times for ALL
+# inputs (a > n gives 0 on the machine and in ℕ alike). Like zz, it is a plain binary constructor to the
+# kernel — (data 6 2 0 0), certs by refl — with its MEANING carried by the two differentially-pinned engines.
+MN_CID = 6
 
 def render(t):
     h = t[0]
@@ -52,6 +57,7 @@ def render(t):
     if h == 'v':  return '(v %d)' % t[1]
     if h == 'f':  return '(f %d %s)' % (t[1], render(t[2]))
     if h == 'zz': return '(k %d %s %s)' % (ZZ_CID, render(t[1]), render(t[2]))
+    if h == 'mn': return '(k %d %s %s)' % (MN_CID, render(t[1]), render(t[2]))
     return '(%s %s %s)' % (h, render(t[1]), render(t[2]))
 
 def evaluate(t, env):                  # concrete value under {var_index: int} (ℤ; the gate observes it mod 256)
@@ -60,6 +66,7 @@ def evaluate(t, env):                  # concrete value under {var_index: int} (
     if h == 's':  return 1 + evaluate(t[1], env)
     if h == 'v':  return env[t[1]]
     if h == 'zz': return evaluate(t[1], env) - evaluate(t[2], env)
+    if h == 'mn': return max(0, evaluate(t[1], env) - evaluate(t[2], env))
     if h == 'f':                       # a user-function recurrence; TRI_ID is the triangular sum g(n)=Σ_{j<n} j
         if t[1] != TRI_ID:
             raise Unsupported('unknown recurrence fun %d' % t[1])
@@ -195,7 +202,7 @@ def _mentions(t, ph):                  # does the placeholder `ph` occur in term
         return True
     if isinstance(t, tuple) and t[0] == 'f':
         return _mentions(t[2], ph)
-    return isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'zz') and any(_mentions(x, ph) for x in t[1:])
+    return isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'zz', 'mn') and any(_mentions(x, ph) for x in t[1:])
 
 def _peel(expr, ph):
     """expr = an additive spine containing ph -> the spine with ph removed (the per-iteration delta,
@@ -245,7 +252,7 @@ def _mentions_loopvar(t, names):       # does term `t` mention any ('loopvar', v
             return t[1] in names
         if t[0] == 'f':
             return _mentions_loopvar(t[2], names)
-        if t[0] in ('s', 'p', 'm', 'zz'):
+        if t[0] in ('s', 'p', 'm', 'zz', 'mn'):
             return any(_mentions_loopvar(x, names) for x in t[1:])
     return False
 
@@ -255,7 +262,7 @@ def _subst_loopvars(t, entry, invariant):   # ('loopvar', v) -> entry value for 
             return entry[t[1]] if t[1] in invariant else t
         if t[0] == 's':
             return ('s', _subst_loopvars(t[1], entry, invariant))
-        if t[0] in ('p', 'm', 'zz'):
+        if t[0] in ('p', 'm', 'zz', 'mn'):
             return (t[0], _subst_loopvars(t[1], entry, invariant), _subst_loopvars(t[2], entry, invariant))
         if t[0] == 'f':
             return ('f', t[1], _subst_loopvars(t[2], entry, invariant))
@@ -265,7 +272,7 @@ def _has_zz(t):                        # does a zz pair occur anywhere inside te
     if isinstance(t, tuple):
         if t[0] == 'zz':
             return True
-        if t[0] in ('s', 'p', 'm', 'f'):
+        if t[0] in ('s', 'p', 'm', 'f', 'mn'):
             return any(_has_zz(x) for x in t[1:])
     return False
 
@@ -367,7 +374,9 @@ class SymInterp:
                     fresh[v] = fv
         if cond[0] == 'bin' and cond[1] in ('>', '>='):     # (a > b) ≡ (b < a): normalize to the < forms, the
             cond = ('bin', {'>': '<', '>=': '<='}[cond[1]], cond[3], cond[2])   # same swap bc does in codegen
+        ne_mapped = False
         if cond[0] == 'bin' and cond[1] == '!=':
+            ne_mapped = True
             # Over ℕ with a UNIT-stride counter, != is <: `i != n` from 0 by +1 hits n exactly (i < n), and
             # `i != 0` by -1 drains to 0 exactly (0 < i). The < / down branches below enforce precisely the
             # entry/stride conditions that make this exact-hit argument sound; any other != loop is refused
@@ -383,17 +392,26 @@ class SymInterp:
         if cond[0] != 'bin' or cond[1] not in ('<', '<='):
             return False
         down = False
-        if cond[2][0] == 'var':                         # UP-count: `i < bound` / `i <= bound`, i from 0 by +1
+        off = 0                                         # the up-counter's START value (0 keeps today's forms)
+        if cond[2][0] == 'var':                         # UP-count: `i < bound` / `i <= bound`, i by +1
             counter = cond[2][1]
-            if counter not in loop_vars or _canon(deltas[counter]) != 1 or entry[counter] != 0:
-                return False                            # counter: a unit-stride loop var starting at 0
+            if counter not in loop_vars or _canon(deltas[counter]) != 1:
+                return False                            # counter: a unit-stride loop var
+            off = _canon(entry[counter])
+            if isinstance(off, tuple) and off[0] in ('zz', 'mn'):
+                return False                            # a ℤ-pair / monus start value: later
+            if ne_mapped and off != 0:
+                return False                            # != needs the exact-hit argument, only sound from 0
             if _expr_uses(cond[3], loop_vars) or _expr_uses(cond[3], rewrite):
                 return False                            # the bound must be loop-invariant
             try:
                 bound = self.ev(cond[3], env)
             except Unsupported:
                 return False
-            trip = bound if cond[1] == '<' else _add(bound, 1)  # iterations: 0..bound-1 (<) or 0..bound (<=)
+            hi = bound if cond[1] == '<' else _add(bound, 1)    # exclusive upper end: bound (<) or bound+1 (<=)
+            # from 0: trip = hi (the existing forms). From a symbolic/nonzero start a: trip = hi ∸ a — MONUS,
+            # the branch-free trip count (a > hi runs 0 times on the machine and 0 = hi ∸ a in ℕ alike).
+            trip = hi if off == 0 else ('mn', _term(hi), _term(off))
         elif cond[1] == '<' and cond[2] == ('num', 0) and cond[3][0] == 'var':
             down = True                                 # DOWN-count: `0 < i`, i from I by -1 -> exactly I trips
             counter = cond[3][1]                        # (`0 <= i` with -1 never terminates: not recognized)
@@ -421,9 +439,10 @@ class SymInterp:
                 p0, n0 = _as_zz(entry[v])
                 if down:                                # i ↦ n-k: linear parts fold into the invariant
                     closed[v] = _down_series(p0, n0, dp[0], dp[1], dn[0], dn[1], trip)
-                else:                                   # coefficient, g cross-terms swap components
-                    closed[v] = ('zz', _series_closed(p0, _canon(dp[0]), _canon(dp[1]), trip),
-                                       _series_closed(n0, _canon(dn[0]), _canon(dn[1]), trip))
+                else:                                   # coefficient, g cross-terms swap components; a start
+                    closed[v] = ('zz',                  # offset folds a1·off into each invariant part
+                                 _series_closed(p0, _canon(_sum2(dp[0], _scale2(dp[1], off))), _canon(dp[1]), trip),
+                                 _series_closed(n0, _canon(_sum2(dn[0], _scale2(dn[1], off))), _canon(dn[1]), trip))
                 continue
             sub = _subst_loopvars(d, entry, invariant)
             if _has_zz(sub):
@@ -437,7 +456,7 @@ class SymInterp:
                 p0, n0 = _as_zz(entry[v])               # the -a1·g(t) cross-term makes the result a ℤ pair
                 closed[v] = _down_series(p0, n0, dec[0], dec[1], 0, 0, trip)
                 continue
-            closed[v] = _series_closed(entry[v], _canon(dec[0]), _canon(dec[1]), trip)
+            closed[v] = _series_closed(entry[v], _canon(_sum2(dec[0], _scale2(dec[1], off))), _canon(dec[1]), trip)
         env.update(closed)
         env.update(fresh)                               # body-introduced vars with iteration-independent values
         for v in rewrite:

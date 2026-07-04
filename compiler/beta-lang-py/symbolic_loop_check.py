@@ -21,6 +21,13 @@ def loop(guard, updates, ret='total'):
             "    state loop { to body when (%s)  return %s }\n"
             "    state body { %s  i = i + 1  to loop }\n}\n") % (guard, ret, updates)
 
+def fromloop(init, updates, guard='i < n', ret='total'):   # counter starts at `init`: trip = bound ∸ init
+    return ("proc main() {\n"
+            "    let n = read_byte()\n    let a = read_byte()\n    let b = read_byte()\n"
+            "    let total = 0\n    let s = 0\n    let i = %s\n"
+            "    state loop { to body when (%s)  return %s }\n"
+            "    state body { %s  i = i + 1  to loop }\n}\n") % (init, guard, ret, updates)
+
 def downloop(updates, ret='total'):    # i drains n -> 0 under (0 < i): exactly n trips
     return ("proc main() {\n"
             "    let n = read_byte()\n    let a = read_byte()\n    let b = read_byte()\n"
@@ -90,6 +97,13 @@ SUMMARIZABLE = [
     ("call δ (total += dbl(a))", "proc dbl(x) { return (x + x) }\n" + loop("i < n", "total = total + dbl(a)"),
      lambda n, a, b: 2 * n * a),
     ("rewrite temp (t=a*i; +=t)", loop("i < n", "t = (a * i)  total = total + t"),  lambda n, a, b: a * (n * (n - 1) // 2)),
+    # MONUS trip counts: a counter starting at a symbolic/nonzero value runs bound ∸ start times — the
+    # branch-free trip (start > bound gives 0 on the machine and in ℕ alike; the grid covers a > n).
+    ("from a: c·(n∸a)",         fromloop("a", "total = total + b"),                lambda n, a, b: max(0, n - a) * b),
+    ("from a: Σi (offset fold)", fromloop("a", "total = total + i"),               lambda n, a, b: sum(range(a, max(a, n)))),
+    ("from a, <=: c·(n+1∸a)",   fromloop("a", "total = total + b", guard='i <= n'),
+     lambda n, a, b: max(0, n + 1 - a) * b),
+    ("from a: ret i = max(a,n)", fromloop("a", "total = total + b", ret='i'),      lambda n, a, b: max(a, n)),
     ("↓ Σi   (total += i)",     downloop("total = total + i"),                     lambda n, a, b: n * (n + 1) // 2),
     ("↓ -Σi  (total -= i)",     downloop("total = total - i"),                     lambda n, a, b: (-(n * (n + 1) // 2)) % 256),
     ("↓ a·Σi (total += a*i)",   downloop("total = total + (a * i)"),               lambda n, a, b: a * (n * (n + 1) // 2)),
@@ -103,6 +117,9 @@ MUST_REFUSE = [
     # != with a stride that can SKIP the bound: i jumps over n when n is odd and the machine diverges — the
     # unit-stride requirement refuses it, which is exactly what makes the != ≡ < normalization sound.
     ("(i != n) stride 2 (skips!)",    loop("i != n", "total = total + a").replace('i = i + 1', 'i = i + 2')),
+    # != from a symbolic start: the machine DIVERGES when a > n (the counter runs past n and wraps) — the
+    # exact-hit argument only holds from 0, so this must refuse.
+    ("(i != n) from a (diverges!)",   fromloop("a", "total = total + b", guard='i != n')),
     # Σ of g: inner (j < i, total += j) makes the outer delta g(i) — quadratic in the outer counter
     # (tetrahedral sum), genuinely outside the linear class on both sides.
     ("nested Σg (j<i, total+=j)",     nestedloop("i").replace('total = total + a', 'total = total + j')),
