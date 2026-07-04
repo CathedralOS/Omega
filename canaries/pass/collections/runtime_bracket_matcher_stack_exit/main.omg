@@ -1,0 +1,110 @@
+// Bracket matching with a runtime STACK -- pushes/pops an inline array by a
+// runtime stack pointer, the classic parser shape. Brackets are int-encoded:
+// opens 1='(' 2='[' 3='{', closes are their negatives (-1=')' -2=']' -3='}'),
+// so a close matches the top open iff popped + cur == 0. The input
+// [1, 2, -1, -2] is "([)]" -- BALANCED BY COUNT (two opens, two closes) but
+// mis-nested: the ')' at index 2 tries to close the '[' on top. A correct
+// matcher detects that type mismatch -> exit 70; a count-only matcher (or a
+// broken pop) would call it balanced -> exit 71.
+//
+// Idiom (proven in runtime_palindrome_two_pointer_exit): compound bound guards
+// discharge each indexed access, and `Wrapping` on the loop/stack indices frees
+// the +1/-1 from an overflow obligation while the guards keep them in range.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    input: [i32; 4];
+    stack: [i32; 4];
+    i: i32 in Wrapping;
+    top: i32 in Wrapping;
+    cur: i32 in Wrapping;
+    popped: i32 in Wrapping;
+    chk: i32 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.input[0] = 1;
+    self.input[1] = 2;
+    self.input[2] = 0 - 1;
+    self.input[3] = 0 - 2;
+    self.i = 0;
+    self.top = 0;
+
+    transition {
+        _ -> scan()
+    }
+
+    // Loop head over the token stream.
+    state scan(&mut self) {
+        transition self.i >= 0 && self.i < 4 {
+            true -> read_tok()
+            _ -> check_empty()
+        }
+    }
+
+    state read_tok(&mut self) {
+        self.cur = self.input[self.i];
+        transition self.cur > 0 {
+            true -> push_tok()
+            false -> pop_tok()
+        }
+    }
+
+    // Push an open bracket (guard proves the stack slot is in range).
+    state push_tok(&mut self) {
+        transition self.top >= 0 && self.top < 4 {
+            true -> do_push()
+            _ -> unbalanced()
+        }
+    }
+    state do_push(&mut self) {
+        self.stack[self.top] = self.cur;
+        self.top = self.top + 1;
+        self.i = self.i + 1;
+        transition {
+            _ -> scan()
+        }
+    }
+
+    // A close bracket needs a non-empty stack.
+    state pop_tok(&mut self) {
+        transition self.top >= 1 && self.top < 5 {
+            true -> do_pop()
+            _ -> unbalanced()
+        }
+    }
+    state do_pop(&mut self) {
+        self.top = self.top - 1;
+        transition self.top >= 0 && self.top < 4 {
+            true -> match_pair()
+            _ -> unbalanced()
+        }
+    }
+    state match_pair(&mut self) {
+        self.popped = self.stack[self.top];
+        self.chk = self.popped + self.cur;
+        transition self.chk == 0 {
+            true -> advance()
+            false -> unbalanced()
+        }
+    }
+    state advance(&mut self) {
+        self.i = self.i + 1;
+        transition {
+            _ -> scan()
+        }
+    }
+
+    // Stream consumed: balanced iff the stack is empty.
+    state check_empty(&mut self) {
+        transition self.top == 0 {
+            true -> balanced()
+            false -> unbalanced()
+        }
+    }
+
+    // "([)]" is mis-nested, so the correct verdict is UNBALANCED -> 70.
+    state unbalanced(&mut self) { self.console.exit_process(70); }
+    state balanced(&mut self) { self.console.exit_process(71); }
+}
