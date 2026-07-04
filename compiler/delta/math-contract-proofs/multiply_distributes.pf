@@ -1,9 +1,0 @@
-(have addassoc (all a (all b (all c (= (+ (+ a b) c) (+ a (+ b c))))))
-  (natind a (all b (all c (= (+ (+ a b) c) (+ a (+ b c))))) (gen b (gen c (refl (+ b c)))) (gen a1 (lam ih (all b (all c (= (+ (+ a1 b) c) (+ a1 (+ b c))))) (gen b (gen c (eqelim x (= (s (+ (+ a1 b) c)) (s x)) (inst* ih b c) (refl (s (+ (+ a1 b) c)))))))))
-  (natind a (all b (all c (= (* (+ a b) c) (+ (* a c) (* b c)))))
-    (gen b (gen c (refl (* b c))))
-    (gen a1 (lam ih (all b (all c (= (* (+ a1 b) c) (+ (* a1 c) (* b c)))))
-      (gen b (gen c
-        (have congr (= (+ c (* (+ a1 b) c)) (+ c (+ (* a1 c) (* b c)))) (eqelim x (= (+ c (* (+ a1 b) c)) (+ c x)) (inst* ih b c) (refl (+ c (* (+ a1 b) c))))
-        (have symA (= (+ c (+ (* a1 c) (* b c))) (+ (+ c (* a1 c)) (* b c))) (eqelim y (= y (+ (+ c (* a1 c)) (* b c))) (inst* addassoc c (* a1 c) (* b c)) (refl (+ (+ c (* a1 c)) (* b c))))
-          (eqelim x (= (+ c (* (+ a1 b) c)) x) symA congr)))))))))
