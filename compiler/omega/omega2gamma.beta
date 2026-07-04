@@ -781,7 +781,26 @@ proc parse_term() {
         adv()
         return e
     }
-    state lit { return alloc(0, parse_number(), 0, 0) }
+    state lit {
+        let iv = parse_number()
+        to litdot when (cbyte() == '.')
+        return alloc(0, iv, 0, 0)
+    }
+    state litdot {                     ; a '.' after digits: a FLOAT literal (1.8) — floats are outside the
+        to litfloat when (is_digit(byte[2097152 + word[2097144] + 1]) == 1)   ; integer/structural fragment
+        return alloc(0, iv, 0, 0)      ; a bare '.' with no digit (unreachable in valid Omega) -> the int
+    }
+    state litfloat {                   ; REFUSE LOUDLY: the meaning route covers integer/structural Omega;
+        emit("E2G-UNSUPPORTED-float-literal ")   ; IEEE float semantics belong to the native producer
+        adv()                          ; consume '.'
+        to fskip
+    }
+    state fskip {
+        to fdone when (is_digit(cbyte()) == 0)   ; consume the fractional digits so scanning stays sane
+        adv()
+        to fskip
+    }
+    state fdone { return alloc(0, 0, 0, 0) }
 }
 
 proc parse_product() {
