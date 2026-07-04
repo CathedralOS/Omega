@@ -2710,6 +2710,26 @@ fn runtime_binary_operation_byte_size(
 ) -> usize {
     if is_comparison_operator(operator) {
         runtime_binary_compare_byte_size(operands, left, right)
+    } else if matches!(
+        operator,
+        StateGuardOperator::Divide
+            | StateGuardOperator::Modulo
+            | StateGuardOperator::DivideUnsigned
+            | StateGuardOperator::ModuloUnsigned
+            | StateGuardOperator::ShiftLeft
+            | StateGuardOperator::ShiftRight
+            | StateGuardOperator::ShiftRightLogical
+    ) {
+        // Non-modular ops must run at the OPERAND width, not a hardcoded 64-bit:
+        // a 64-bit sdiv/asr on a narrow i32 (loaded without a sign-extended top
+        // half) reads the sign/high bit wrong. Sizing to the shifted/divided VALUE
+        // (left, else the other operand) picks the narrow (W-register) form so an
+        // i32 sign bit is honored -- mirrors the x86_64 backend. Both W/X encodings
+        // are the same fixed length here, so relocation offsets are unaffected. Two
+        // immediates carry no width, so fall back to the declared target width.
+        runtime_value_operand_value_byte_size(operands, left)
+            .or_else(|| runtime_value_operand_value_byte_size(operands, right))
+            .unwrap_or(target_byte_size)
     } else {
         target_byte_size
     }

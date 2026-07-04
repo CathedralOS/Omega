@@ -6512,6 +6512,9 @@ fn runtime_binary_operation_byte_size(
             | StateGuardOperator::Modulo
             | StateGuardOperator::DivideUnsigned
             | StateGuardOperator::ModuloUnsigned
+            | StateGuardOperator::ShiftLeft
+            | StateGuardOperator::ShiftRight
+            | StateGuardOperator::ShiftRightLogical
     ) {
         // Division/modulo are NOT modular: a 64-bit idiv/div on a zero-extended
         // negative i32 dividend yields a wrong quotient. Run at the OPERAND width (an
@@ -6519,6 +6522,14 @@ fn runtime_binary_operation_byte_size(
         // op handles the i32 dividend correctly -- signed via cdq, unsigned via the
         // resolver mapping Divide->DivideUnsigned. Add/sub/mul are modular and keep
         // the default 64-bit form. See [[guard-negative-i32-arithmetic]].
+        //
+        // SHIFTS join this branch for the same reason: a 64-bit `sar` on a
+        // zero-extended negative i32 reads the high bit wrong (`-320 >> 2` would
+        // become 0x3FFFFFB0, not -80), so run the shift at the shifted VALUE's width
+        // (its left operand). A 32-bit `sar`/`shr`/`shl` honors the i32 sign/high bit,
+        // and `<<` at the operand width also drops i32 overflow (wrapping semantics)
+        // instead of leaking into the upper 32 bits. Both width encodings are the same
+        // length, so relocation offsets are unaffected.
         //
         // When BOTH operands are immediates (a constant/constant divide that did not
         // fold) neither has a storage width, so fall back to the TARGET (declared)
