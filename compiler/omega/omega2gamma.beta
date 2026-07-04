@@ -580,18 +580,48 @@ proc parse_cmp() {
     state lt {
         adv()
         to le when (cbyte() == '=')
+        to shl when (cbyte() == '<')
         let bl = parse_sum()
         a = alloc(2, '<', a, bl)
         to loop
     }
+    state shl {                        ; a << k -> a * 2^k (constant shift; 2^k by squaring-free loop)
+        adv()
+        skip_ws()
+        let sk = parse_number()
+        let sp = 1
+        to shle
+    }
+    state shle {
+        to shld when (sk == 0)
+        sp = sp * 2
+        sk = sk - 1
+        to shle
+    }
+    state shld { a = alloc(2, '*', a, alloc(0, sp, 0, 0))  to loop }
     state le  { adv()  let ble = parse_sum()  a = alloc(2, 'L', a, ble)  to loop }
     state gt {
         adv()
         to ge when (cbyte() == '=')
+        to shr when (cbyte() == '>')
         let bg = parse_sum()
         a = alloc(2, '>', a, bg)
         to loop
     }
+    state shr {                        ; a >> k -> a / 2^k (floor division; the Euclid witness covers it)
+        adv()
+        skip_ws()
+        let rk = parse_number()
+        let rp = 1
+        to shre
+    }
+    state shre {
+        to shrd when (rk == 0)
+        rp = rp * 2
+        rk = rk - 1
+        to shre
+    }
+    state shrd { a = alloc(2, '/', a, alloc(0, rp, 0, 0))  to loop }
     state ge  { adv()  let bge = parse_sum()  a = alloc(2, 'G', a, bge)  to loop }
     state eqx { adv()  adv()  let beq = parse_sum()  a = alloc(2, '=', a, beq)  to loop }
     state nex { adv()  adv()  let bne = parse_sum()  a = alloc(2, 'N', a, bne)  to loop }
