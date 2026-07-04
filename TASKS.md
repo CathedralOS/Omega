@@ -2823,6 +2823,26 @@ exit.
   value resolution independently RE-FOLDS via `fold_binary_expression`. Fixing
   one fold layer is whack-a-mole; the type must ride ON the constant so it
   survives every layer (the metadata-on-`Expression::Integer` representation).
+  NEXT-SESSION PLAN (scoped 2026-07-04, NOT started — a focused session, not a
+  loop tick): change checked `Expression::Integer(i64)` →
+  `Integer(i64, Option<PrimitiveType>)` (signedness+width; `None` = the current
+  domain-neutral literal). Blast radius = 41 construct/match sites across
+  `omega-state-values` (bindings/folding/simplify), `omega-instruction-selection`
+  (guards, writes/static_values, writes/subslice_copy, storage_places/{expressions,
+  static_values}), and the checked-trees def — mostly mechanical (`Integer(v)` →
+  `Integer(v, _)` / `Integer(v, None)`). Then (a) POPULATE at substitution
+  (`simplify/bindings.rs` stamps the binding's declared `PrimitiveType` onto the
+  folded value; checking stamps context type where a literal lands in a typed
+  slot), and (b) READ in `fold_integer_math` — mask the result to the operand
+  width and pick unsigned `>>`/`/`/`%` for unsigned operands (so `0u32-2` folds
+  to `4294967294`, after which every downstream sign-op is already correct). The
+  scaffold (variant + all-`None`) is green-and-behavior-neutral on its own but
+  delivers no fix alone, so land scaffold+populate+read together in one session.
+  This representation ALSO subsumes the decision-17 domain half (the folded
+  constant could carry its domain too) and is the unified root fix flagged in the
+  `decision-17-const-fold-domain-hole` / `shift-right-signedness-const-fold`
+  memories. Because it changes a checked-tree data-shape between phases (ZII
+  concern), surface the design to Zach before landing.
   Confirms this is a real representation change, not a one-site patch.
   UNIFIED ROOT with the domain hole below: `Expression::Integer(i64)` is
   metadata-free, so every const-substitution/fold strips BOTH the operand's
@@ -2871,6 +2891,17 @@ exit.
   operand width, not i64) or shift-out-to-zero. Parked repro
   `canaries/pending/arithmetic/shift_amount_at_or_above_width_divergence`; memory
   `shift-amount-out-of-range-divergence`.
+  ROLLOUT BLAST RADIUS (measured 2026-07-04): the proof-obligation direction is
+  Zach-endorsed, but introducing an Exact-shift compile error is NOT autonomous
+  tick work — it breaks existing corpus shifts with RUNTIME amounts that aren't
+  yet proven < width: `samples/cli/collections/bitset` (`mask << vals[i]`),
+  `samples/cli/collections/bitset_sieve` (`bits >> i`, `m << j`), and
+  `canaries/pass/arithmetic/runtime_signed_modulo_shift_edges_exit`
+  (`base << self.n`), plus any others among the 126 corpus shift occurrences with
+  a non-constant amount. Each needs per-site migration — a dominating guard
+  (`n < width`, via the guard-narrowing keystone) OR moving the operand into a
+  Wrapping/Saturating domain. That per-site choice is a real design surface;
+  bring the migration plan to Zach rather than rolling the error out blind.
 - [ ] SAME-CLASS divergence (probe 2026-07-04): a float-to-int cast of an
   OUT-OF-RANGE value diverges native-vs-interp. `1e20 as i32`: native = 0 (x86
   `cvttsd2si` yields the i64 "integer indefinite" 0x8000…, truncated to i32 = 0);
