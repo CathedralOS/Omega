@@ -676,12 +676,16 @@ Cost is a one-time transcription of each table struct's fields in spec order
 > instance records + rewrites field spellings). No new arena types needed --
 > follow plan_laid's slug-named synthetic instances (ZII: synthetic symbol +
 > per-instance DataLayout keyed by (definition, canonical-args)).
->   - **Phase 1 -- generic DATA, scalar T** (the vertical slice): discovery walk
->     collects distinct `Generic{base,args}`; synthesize a per-instance symbol
->     (slug like plan_laid); rewrite the `Generic` type refs to `Named{synthetic}`;
->     key data_layouts by the synthetic symbol (kill the poison); field-offset
->     resolution follows the synthetic symbol. Canary: `data Box<T>{value:T}`
->     used as `Box<i32>` AND `Box<bool>` in one program, both fields read.
+>   - **Phase 1 -- generic DATA, scalar T -- DONE (75c445a49).** A pre-resolution
+>     desugar (pipeline/generic_instances.rs, plan_laid shape + parameter
+>     substitution): synthesize a distinct concrete record per `Base<Args>`
+>     field spelling, rewrite the field ref to its plain name -> downstream sees
+>     ordinary records, poison gone. PURELY ADDITIVE: skips generic enums,
+>     non-plain-Named args, param-nesting fields, and method-bearing generics
+>     (containers = Phase 2). Canary runtime_generic_two_instantiations_exit
+>     (Box<i32>+Box<bool>). REMAINING Phase-1 polish: lift to param/let/return
+>     type positions (FIELD-only today); domain-typed args (`Box<i32 in
+>     Wrapping>` currently falls to the old single-slot path).
 >   - **Phase 2 -- generic MACHINES**: synthesize one Machine per instantiation
 >     (copy states, substitute T); value-call targets rewrite to the synthetic
 >     symbol; StateKey.machine carries it automatically; the fence becomes a
