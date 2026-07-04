@@ -607,12 +607,10 @@ fn hoist_membership_match_subject(
 /// structurally equal across arms already and is left untouched. Returns whether
 /// it hoisted, so the caller skips the operand hoist.
 ///
-/// Scoped to pure-BUILTIN subjects (min/max/sqrt): those lower directly in a let
-/// value, so the shared temp is a clean `let __b = min(a, b) == 3`. A runtime-
-/// INDEXED subject (`arr[i] > 5 { true/false }`) is deliberately NOT handled here
-/// -- it needs the indexed read hoisted INSIDE the shared temp, which miscompiled
-/// in testing; it stays on the (unchanged) operand-hoist path, so its true/false
-/// pair remains the pre-existing gap (task #41) rather than a regression.
+/// Handles both a pure-BUILTIN subject (min/max/sqrt, which lowers directly in the
+/// let value) and a runtime-INDEXED subject (`arr[i] > 5 { true/false }`, whose
+/// read is hoisted INSIDE the shared temp -- `let __t = arr[i]; let __b = __t >
+/// 5`; `__t` keeps its slot as a compare operand, so it reads correctly).
 fn hoist_comparison_match_subject(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
@@ -677,11 +675,15 @@ fn hoist_comparison_match_subject(
     // Reuse the sibling arm's temp, or mint `let __hoist_N: bool = <subject>`.
     // The subject is a comparison, so the temp is `bool` -- known here (unlike the
     // indexed/builtin operand hoists, whose element type needs the resolved field
-    // types via `infer_hoist_temp_type`). A pure-builtin subject lowers directly
-    // in the let value (`let __b = min(a, b) == 3`), so no inner hoist is needed.
+    // types via `infer_hoist_temp_type`). A pure-builtin subject lowers directly in
+    // the let value (`let __b = min(a, b) == 3`); a runtime-INDEXED subject needs
+    // its read hoisted INSIDE the temp first (`let __t = arr[i]; let __b = __t >
+    // 5`), which the let-value operand hoist does -- `__t` (an indexed-read local
+    // used as a compare operand) keeps its slot, so `__t > 5` reads correctly.
     let name = match lowerer.match_subject_temp(subject_key) {
         Some(existing) => DiagnosticName::generated(existing),
         None => {
+            hoist_operand_indexed_reads(lowerer, outer.left, hoisted, false);
             let fresh = lowerer.next_hoist_name();
             lowerer.record_match_subject_temp(subject_key, fresh.clone());
             let name = DiagnosticName::generated(fresh);
@@ -744,12 +746,13 @@ fn is_comparison_operator(operator: BinaryOperator) -> bool {
 }
 
 /// Whether `expression` contains (transitively through comparison/arith/cast
-/// operands) a hoistable pure-builtin call -- the shape the shared-subject hoist
-/// handles. Runtime-INDEXED reads are intentionally excluded (see
-/// `hoist_comparison_match_subject`): they need the read hoisted inside the
-/// shared temp, which miscompiled, so they stay on the operand-hoist path.
+/// operands) a hoistable pure-builtin call OR a runtime-indexed read -- the shapes
+/// the shared-subject hoist handles (both would otherwise be pulled into per-arm
+/// temps by the operand hoist, breaking the true/false pairing).
 fn subject_contains_hoistable(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
-    if is_hoistable_builtin_guard_call(lowerer, expression) {
+    if is_hoistable_builtin_guard_call(lowerer, expression)
+        || is_runtime_indexed_read(lowerer, expression)
+    {
         return true;
     }
     let node = lowerer

@@ -698,12 +698,13 @@ Cost is a one-time transcription of each table struct's fields in spec order
 > (keyed on the syntax subject handle the parser reuses across arms) into
 > `let __b: bool = min(..) == 7`, so both arms test one local and the pair pairs.
 > Canary calls/runtime_min_guard_true_false_pair_exit (534 suite + differential).
-> #41 REMAINING: the INDEXED true/false pair (`arr[i] > 5 { true/false }`) --
-> hoist_comparison_match_subject is scoped to BUILTIN subjects because the indexed
-> variant needs the read hoisted INSIDE the shared temp, which MISCOMPILED (read
-> element 0 / 99 not 42); indexed stays on the operand-hoist path (unchanged, so
-> its true/false pair remains the gap). Debug the nested indexed-in-let-value
-> hoist, then widen subject_contains_hoistable back to indexed reads.
+> #41 COMPLETE 2026-07-03: the INDEXED true/false pair (`arr[i] > 5 { true/false }`)
+> now works too -- subject_contains_hoistable re-widened to indexed reads once the
+> underlying miscompile was fixed (the nested `let __t=arr[i]; let __b=__t>5`
+> failed because a comparison operand did not force the local's slot -- fixed in
+> the storage layer, 94d306a7e). The subject-hoist hoists the read inside the
+> shared temp; `__t` keeps its slot so `__t > 5` reads correctly. Canary
+> collections/runtime_indexed_guard_true_false_pair_exit (535 suite + differential).
 > sin/cos (numerical mini-project, must match interp); layouts-ladder remainder
 > (mint rung, Packed grammar, layout plan-walking deriver).
 >
