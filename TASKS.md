@@ -802,7 +802,11 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >   `(a||b)&&c`): the parser disambiguation (fix 1) landed, so parenthesized
 >   cast/arith subjects + Or-of-And DNF (`(a&&b)||c`) now work; only an And CONTAINING
 >   an Or remains (clean error naming the nested `||`, fail canary
->   and_of_or_guard_rejected; fix 2 = DNF-normalize since Or-of-And already lowers),
+>   and_of_or_guard_rejected; fix 2 CORRECTED 2026-07-04c: NOT just DNF-normalize --
+>   the disjunction lowering handles `conjunction || LEAF` only, not `conjunction ||
+>   conjunction`, and simplify_expression ALREADY distributes And-over-Or at
+>   build_state_guard.rs:330 into that unsupported form; fix 2 = GENERALIZE the
+>   disjunction lowering to a full DNF of arbitrary conjunctions),
 >   `arr[i]=arr[j]` both-runtime
 >   (#38 -- NARROWED 2026-07-03: this is the last BARE-source case into an indexed
 >   target; a binary/literal/field source already selects, only a bare local or
