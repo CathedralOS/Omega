@@ -112,6 +112,10 @@ SUMMARIZABLE = [
     ("read+i  (Σ + g(n) mixed)", loop("i < n", "total = total + (read_byte() + i)"), lambda n, a, b: None),
     ("-= read (Σ on the neg side)", loop("i < n", "total = total - read_byte()").replace('let total = 0', 'let total = 200'),
      lambda n, a, b: None),
+    # WIDE reads: R reads per iteration, ALL consumed by the acc with coefficient 1 -> Σ input[base..base+R·t)
+    # (consecutive reads are contiguous). One-of-many reads is a STRIDED sum and refuses.
+    ("2-wide (read+read)",       loop("i < n", "total = total + (read_byte() + read_byte())"), lambda n, a, b: None),
+    ("↓ read (Σ direction-free)", downloop("total = total + read_byte()"),                  lambda n, a, b: None),
     ("+= a - read (mixed pair)",  loop("i < n", "total = total + (a - read_byte())").replace('let total = 0', 'let total = 200'),
      lambda n, a, b: None),
     ("discarding reads (2n)",    loop("i < n", "total = total + 2  s = read_byte()"), lambda n, a, b: None),
@@ -132,6 +136,7 @@ MUST_REFUSE = [
     # exact-hit argument only holds from 0, so this must refuse.
     ("(i != n) from a (diverges!)",   fromloop("a", "total = total + b", guard='i != n')),
     ("read*read (quadratic stream)",  loop("i < n", "total = total + (read_byte() * read_byte())")),
+    ("one-of-two reads (strided)",    loop("i < n", "total = total + read_byte()  s = read_byte()")),
     # Σ of g: inner (j < i, total += j) makes the outer delta g(i) — quadratic in the outer counter
     # (tetrahedral sum), genuinely outside the linear class on both sides.
     ("nested Σg (j<i, total+=j)",     nestedloop("i").replace('total = total + a', 'total = total + j')),
@@ -154,7 +159,7 @@ def main():
                 for bb in (0, 3):
                     if nn * (aa + bb) >= 256:
                         continue
-                    vec = [nn, aa, bb] + ([1 + (j * 7) % 9 for j in range(20)] if streamy else [])
+                    vec = [nn, aa, bb] + ([1 + (j * 7) % 9 for j in range(60)] if streamy else [])
                     env = {i: vec[i] for i in range(len(vec))}
                     env['in'] = vec
                     v = B.evaluate(M, env) % 256

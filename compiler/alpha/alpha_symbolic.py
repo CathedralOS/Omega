@@ -265,6 +265,11 @@ def _concnat(d):                       # the int value of a concrete delta (int 
     if isinstance(d, tuple) and d[0] == 's':
         inner = _concnat(d[1])
         return None if inner is None else inner + 1
+    if isinstance(d, tuple) and d[0] in ('p', 'm'):     # fold additive/multiplicative trees of concretes
+        l, r = _concnat(d[1]), _concnat(d[2])           # (a peeled multi-read position delta is (p (s z) (s z)))
+        if l is None or r is None:
+            return None
+        return l + r if d[0] == 'p' else l * r
     return None
 
 def _canon(x):                         # canonicalize a concrete coefficient to an int so 0/1 simplify identically
@@ -345,11 +350,37 @@ def _split_stream(d, rdmark):
             return (combined, coef)
     return (d, None) if not _has_stream(d) else (None, None)
 
-def _read_sum(rest_closed, base, trip, coef=1):    # rest-series + coef·Σ input[base .. base+trip)
-    ssum = ('ssum', _term(base), ('p', _term(base), trip))
+def _read_sum(rest_closed, base, trip, coef=1, width=1):
+    """rest-series + coef·Σ input[base .. base + width·trip). The upper end is exactly the read POSITION's
+    own series closure (delta `width` per iteration), so the forms stay byte-identical at width 1."""
+    ssum = ('ssum', _term(base), _series_closed(base, width, 0, trip))
     if _canon(coef) != 1:
         ssum = ('m', ssum, _term(coef))
     return ('p', _term(rest_closed), ssum)
+
+def _stream_offsets(d, rdmark):
+    """d ≡ rest + Σ_j (sv rdmark+off_j), every read atom coefficient 1 -> (rest, sorted offsets);
+    (None, None) if any stream part is not a bare offset atom. Offsets are per-iteration read positions."""
+    def atom_off(t):
+        if t == ('sv', rdmark):
+            return 0
+        if isinstance(t, tuple) and t[0] == 'sv' and isinstance(t[1], tuple):
+            d = _peel(t[1], rdmark)                     # index = rdmark + off, possibly a left-nested chain
+            return _concnat(d) if d is not None else None
+        return None
+    if not _has_stream(d):
+        return (d, [])
+    o = atom_off(d)
+    if o is not None:
+        return (0, [o])
+    if isinstance(d, tuple) and d[0] == 'p':
+        lr, lo = _stream_offsets(d[1], rdmark)
+        rr, ro = _stream_offsets(d[2], rdmark)
+        if lo is None or ro is None or None in (lo or []) or None in (ro or []):
+            return (None, None)
+        rest = rr if lr == 0 else lr if rr == 0 else ('p', _term(lr), _term(rr))
+        return (rest, lo + ro)
+    return (None, None)
 
 def _component_closed(init, comp_rest_dec, coef, base, trip, off):
     """Close one ℤ-pair component: the ordinary series over its rest (offset-folded), plus an optional
@@ -603,9 +634,18 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
                                     _component_closed(n0, dn, ncoef, MEM.get(RDV), trip, off))
             continue
         if _has_stream(d) or _occurs(d, ('slot', RDV)):     # δ = rest + coef·read: an invariant-coefficient
-            rest, coef = _split_stream(d, ('slot', RDV))    # stream sum plus an ordinary series
-            if coef is None or _canon(raw.get(RDV)) != 1 or not isinstance(MEM.get(RDV), int):
-                return None                         # exactly one read per iteration, from a concrete base
+            R = _canon(raw.get(RDV))                # stream sum plus an ordinary series
+            if not isinstance(R, int) or R < 1 or not isinstance(MEM.get(RDV), int):
+                return None                         # a fixed per-iteration read count, from a concrete base
+            rest, coef = _split_stream(d, ('slot', RDV))
+            width = 1
+            if coef is None:                        # not a single coefficiented read: try the WIDE shape —
+                rest, offs = _stream_offsets(d, ('slot', RDV))      # the acc must consume ALL R reads, each
+                if offs is None or sorted(offs) != list(range(R)):  # once -> Σ over base..base+R·trip
+                    return None
+                coef, width = 1, R
+            elif R != 1:
+                return None                         # one-of-many reads: a STRIDED sum — refused
             coef_s = _subst_slots(coef, MEM, invariant) if isinstance(coef, tuple) else coef
             if (_has_stream(coef_s) or _has_zz(coef_s) or _mentions_marked(coef_s, movedset)
                     or _occurs(coef_s, ('slot', RDV))):
@@ -619,8 +659,10 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
                 dec = _lin_decompose(rest_s, ctr, movedset)
                 if dec is None or (down and _canon(dec[1]) != 0):
                     return None
+            if down and _canon(dec[1]) != 0:
+                return None                         # a counter-dependent rest under a down-counter
             rest_closed = _series_closed(MEM[a], _canon(_sum2(dec[0], _scale2(dec[1], off))), _canon(dec[1]), trip)
-            updates[a] = _read_sum(rest_closed, MEM[RDV], trip, coef_s)
+            updates[a] = _read_sum(rest_closed, MEM[RDV], trip, coef_s, width)
             continue
         sub = _subst_slots(d, MEM, invariant)       # δ = a0 + a1·counter
         if _has_zz(sub):
