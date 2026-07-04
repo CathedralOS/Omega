@@ -84,7 +84,7 @@ step "seam — inductive predicates vs operational decision" delta   predicate-s
 step "seam — propositional logic vs classical truth-table"  delta   logic-soundness.sh gamma
 step "seam — corpus theorems: proved AND operationally true" delta soundness-sweep.sh gamma
 step "seam — FUZZ: random +/* defeq vs operational eval" delta     seam-fuzz.sh gamma
-step "seam — recx accumulator recursion vs independent evaluation (kernel + check_ref agree)" delta recx-soundness.sh beta beta-lang beta-lang-rs
+step "seam — recx accumulator recursion vs independent evaluation (check.beta + check_ref + checker.gamma agree)" delta recx-soundness.sh gamma beta beta-lang beta-lang-rs
 step "checker diamond — FUZZ: random props, check.beta vs checker.gamma" delta checker-diamond-fuzz.sh gamma
 step "logic diamond — FUZZ: random propositional proofs, all 3 checkers" delta logic-diamond-fuzz.sh gamma
 step "predicate diamond — FUZZ: random Mem/ProdIs/Perm proofs, all 3 checkers" delta predicate-diamond-fuzz.sh gamma

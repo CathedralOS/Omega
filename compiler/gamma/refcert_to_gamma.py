@@ -68,6 +68,8 @@ def term(t, funs):
 
 
 def body_term(t, funs):                            # a rule body: f-references become Fcall/Fcall2
+    if isinstance(t, list) and t and t[0] == 'recx':   # (recx i E) -> (Recx i <body E>) accumulator rec
+        return '(Recx %d %s)' % (t[1], body_term(t[2], funs))
     if isinstance(t, list) and t and t[0] == 'f':
         if len(t) == 4:
             return '(Fcall2 %d %s %s)' % (t[1], body_term(t[2], funs), body_term(t[3], funs))
