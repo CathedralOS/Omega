@@ -7803,6 +7803,47 @@ fn arithmetic_domain_trapping_overflow_aborts() {
 }
 
 #[test]
+fn arithmetic_domain_trapping_let_overflow_aborts() {
+    // Decision 17: a Trapping overflow in a `let` LOCAL const-fold ABORTS, like the
+    // field path. `let b: i32 in Trapping = a + a` (a+a overflows i32) traps (ud2)
+    // and never reaches exit(70). REGRESSION for the fix: the frame-slot (`let`)
+    // store path used to write the folded constant RAW, silently running past the
+    // overflow. (No `_canary_runs` suffix -- a trap aborts, not a clean exit, so
+    // the differential drift guard must not treat it as a run canary.)
+    let canary = pass_canary("expressions/arithmetic_domain_trapping_let_overflow");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-trapping-let-of-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("arithmetic_domain_trapping_let_overflow canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("arithmetic_domain_trapping_let_overflow canary should run");
+
+    assert_ne!(
+        output.status.code(),
+        Some(70),
+        "expected a Trapping `let` overflow (2e9 + 2e9) to trap before exit(70), but it exited 70 \
+         as if no overflow occurred (frame-slot store wrote the constant raw)\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !output.status.success(),
+        "expected a Trapping `let` overflow to terminate abnormally, but it exited successfully"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn arithmetic_domain_return_range_proven_exact_exit_canary_runs() {
     // Decision 17 S4: a range-constrained return (`-> i32 [0..=10]`) lets a
     // caller's exact arithmetic on the result stay Exact (5+5+60=70). Enforcement
@@ -20178,6 +20219,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/arithmetic_domain_saturating_signed_exit",
     "expressions/arithmetic_domain_trapping_exit",
     "expressions/arithmetic_domain_trapping_overflow",
+    "expressions/arithmetic_domain_trapping_let_overflow",
     "expressions/arithmetic_domain_cast_exit",
     "expressions/arithmetic_domain_range_proven_exact_exit",
     "expressions/arithmetic_domain_requires_proven_exact_exit",

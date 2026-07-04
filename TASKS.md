@@ -2828,24 +2828,18 @@ exit.
   metadata-free, so every const-substitution/fold strips BOTH the operand's
   signedness/width (this entry) AND its arithmetic domain (next entry). A single
   metadata-carrying-constant (or metadata-aware fold) fix closes both.
-- [ ] MISCOMPILE (const-fold DOMAIN hole — NARROWED 2026-07-04, NO decision
-  needed). RE-VERIFIED at HEAD: 3 of the 4 cases already WORK — Saturating
-  field+local const-fold CLAMP (`100*100:u8` → 255), and Trapping FIELD const-fold
-  TRAPS (native ud2). The ONLY remaining broken case is a **Trapping LOCAL**:
-  `let b: i32 in Trapping = a + a` (const overflow) → native runs past, interp
-  traps. ROOT: the frame-slot (`let`) store path
-  (`writes/mutation/frame_slots.rs` ~L95, the `resolve_runtime_static_integer_value_in_table`
-  → `WriteRuntimeStorageInteger` arm) writes the folded constant RAW, missing the
-  trap-on-out-of-range that the FIELD path applies via `trapping_constant_overflow_write`
-  (`writes/mutation.rs` ~L1741/2124 — re-emits `bound±1` as a Trapping binary write
-  so the ud2 fires). FIX: mirror that at the `let`-store CALLER (leaf.rs /
-  argument_materialization.rs, which have `local_data.type_reference` for the
-  domain+primitive) — apply the trap to the folded constant before the raw frame
-  write. Narrow backend fix, NOT the metadata-on-constant change; no semantic
-  decision (a const stored into a domained slot traps per the SLOT's domain, as
-  the field path already does). Memory `decision-17-const-fold-domain-hole`
-  (corrected). The SIGN half (`>>`/`/`/`%`) is SEPARATE + still needs
-  metadata-on-constant.
+- [x] const-fold DOMAIN hole — FIXED 2026-07-04. The domain half is now fully
+  sound: Saturating (field+local) clamps, Trapping FIELD traps, and the last
+  broken case — **Trapping LOCAL** `let b: i32 in Trapping = a + a` — now traps
+  natively too. FIX (frame_slots.rs `trapping_frame_slot_constant_overflow_write`):
+  the frame-slot static-integer store arm now checks the slot's domain and, for a
+  Trapping out-of-range folded constant, re-emits a `bound±1` Trapping binary write
+  so the ud2 fires (mirroring the field path's `trapping_constant_overflow_write`).
+  Saturating stays pre-clamped at the fold (never reaches here out of range).
+  Locked by `expressions/arithmetic_domain_trapping_let_overflow` (aborts). Full
+  suite (571) + interp differential green. Memory `decision-17-const-fold-domain-hole`.
+  NOTE: the SIGN half (const-folded `>>`/`/`/`%` misfold) is a SEPARATE, still-open
+  bug that DOES need metadata-on-constant — see `shift-right-signedness-const-fold`.
 - [~] ORACLE f32 rounding — PARTLY FIXED 2026-07-04. The interpreter now rounds a
   `Value::Float` to f32 at THREE type-aware seams (evaluator.rs): the Assignment
   store, the LocalData store, and the transition-arg param binding (`bind_frame`)
