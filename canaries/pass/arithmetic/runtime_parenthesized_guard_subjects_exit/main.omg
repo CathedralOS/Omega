@@ -1,0 +1,58 @@
+// Parenthesized guard SUBJECTS, newly parseable: a leading `(` in a guard subject
+// is now disambiguated -- a top-level comma means a tuple `(a, b)`, otherwise it is
+// a single parenthesized expression routed through the general expression parser.
+// This unblocks `(cast) OP x`, `(arith) OP x`, and simple boolean nestings whose
+// top level is a disjunction of conjunctions (DNF). Values are built at runtime so
+// the guards run in codegen. Differential-checked native==interpreter.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    c: i32 in Wrapping;
+    i: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.a = 0;
+    self.b = 0;
+    self.c = 0;
+    self.i = 0;
+    transition { _ -> build() }
+
+    state build(&mut self) {
+        transition self.i < 5 { true -> step() _ -> paren_cast() }
+    }
+    state step(&mut self) {
+        self.a = self.a + 1;   // -> 5
+        self.b = self.b + 2;   // -> 10
+        self.i = self.i + 1;
+        transition { _ -> build() }
+    }
+
+    // a=5, b=10, c=0 at runtime from here.
+    state paren_cast(&mut self) {
+        // parenthesized CAST subject: (5 as i8) > 0 (was a parse error before).
+        transition (self.a as i8) > 0 { true -> paren_arith() _ -> bad() }
+    }
+    state paren_arith(&mut self) {
+        // parenthesized ARITHMETIC subject: (5 + 10) > 6.
+        transition (self.a + self.b) > 6 { true -> or_of_and() _ -> bad() }
+    }
+    state or_of_and(&mut self) {
+        // a top-level disjunction of conjunctions (DNF), with a parenthesized
+        // conjunction: (a > 0 && b > 0) || c > 100 -> (true && true) || false.
+        transition (self.a > 0 && self.b > 0) || self.c > 100 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

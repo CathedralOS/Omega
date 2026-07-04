@@ -74,6 +74,39 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
+    /// True when `self` begins with a `(` whose matching `)` group contains a
+    /// TOP-LEVEL comma -- i.e. a real tuple/pattern list `(a, b)`, as opposed to
+    /// a single parenthesized expression `(a + b)`. Scans only within the leading
+    /// group (stops at its matching `)`); a comma nested in a further `(`/`[`/`{`
+    /// does not count. Used to disambiguate a transition guard SUBJECT starting
+    /// with `(`: a top-level comma means a tuple of subjects, no comma means a
+    /// parenthesized expression to route through the general expression parser.
+    pub(super) fn leading_paren_group_has_top_level_comma(&self) -> bool {
+        let mut paren = 0usize;
+        let mut bracket = 0usize;
+        let mut brace = 0usize;
+        for token in self.tokens {
+            match token.punctuation() {
+                Some(PunctuationKind::LeftParen) => paren += 1,
+                Some(PunctuationKind::RightParen) => {
+                    paren = paren.saturating_sub(1);
+                    if paren == 0 {
+                        return false;
+                    }
+                }
+                Some(PunctuationKind::LeftBracket) => bracket += 1,
+                Some(PunctuationKind::RightBracket) => bracket = bracket.saturating_sub(1),
+                Some(PunctuationKind::LeftBrace) => brace += 1,
+                Some(PunctuationKind::RightBrace) => brace = brace.saturating_sub(1),
+                Some(PunctuationKind::Comma) if paren == 1 && bracket == 0 && brace == 0 => {
+                    return true;
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
     pub(super) fn take_contextual(self, name: &str) -> Result<Self, ParseError> {
         let (token, rest) = self.expect_token()?;
         if matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))

@@ -798,7 +798,12 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >   paths and must NOT be hoisted. Only a SCALAR `arr[i].field` should hoist, which
 >   needs a TYPE-AWARE hoist (typed layer) or a backend operand resolver, not a
 >   frontend predicate. The `let t = arr[i].field; use t` idiom is the workaround),
->   boolean guard nesting `(a||b)&&c`, `arr[i]=arr[j]` both-runtime
+>   boolean guard nesting -- NARROWED 2026-07-04 to ONLY And-of-Or (`a&&(b||c)`,
+>   `(a||b)&&c`): the parser disambiguation (fix 1) landed, so parenthesized
+>   cast/arith subjects + Or-of-And DNF (`(a&&b)||c`) now work; only an And CONTAINING
+>   an Or remains (clean error naming the nested `||`, fail canary
+>   and_of_or_guard_rejected; fix 2 = DNF-normalize since Or-of-And already lowers),
+>   `arr[i]=arr[j]` both-runtime
 >   (#38 -- NARROWED 2026-07-03: this is the last BARE-source case into an indexed
 >   target; a binary/literal/field source already selects, only a bare local or
 >   bare indexed read fails, both NeedsMachineOwnedWrite in the mutation emitter),
@@ -830,8 +835,9 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >   widening signed -4->i64, widening unsigned 200->i32), interp==native. aarch64
 >   reuses the existing Convert emit. fail canary cast_in_guard_rejected removed.
 >   ZII cleanup: added `PrimitiveType::scalar_byte_size()` (single source of truth;
->   convert_scalar_byte_size now delegates). Parenthesized subjects are the separate
->   boolean-guard-nesting parser gap.
+>   convert_scalar_byte_size now delegates). Parenthesized guard subjects (incl.
+>   `(cast) OP x`) now parse too as of 2026-07-04 -- the boolean-guard-nesting parser
+>   fix (fix 1); only And-of-Or (`a&&(b||c)`) remains a clean error.
 >
 > **Mint arc remainder (library-grade; the boot path used the boundary-vouch
 > shortcut):**

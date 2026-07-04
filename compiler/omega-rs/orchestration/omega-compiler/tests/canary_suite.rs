@@ -7051,6 +7051,61 @@ fn runtime_cast_in_guard_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_parenthesized_guard_subjects_exit_canary_runs() {
+    // Parenthesized guard subjects: `(a as i8) > 0`, `(a + b) > 6`, and a DNF
+    // `(a > 0 && b > 0) || c > 100`. The parser now routes a leading-`(` subject
+    // with no top-level comma through the general expression parser. Values built
+    // at runtime; all guards must hold -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_parenthesized_guard_subjects_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-paren-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("parenthesized-guard-subjects canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("parenthesized-guard-subjects canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected parenthesized cast/arith/DNF guard subjects to evaluate correctly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn and_of_or_guard_rejected_canary_is_rejected() {
+    // A disjunction (`||`) nested inside a conjunction (`&&`) in a guard subject
+    // (`a && (b || c)`) is not yet lowerable (Or-of-And works; And-of-Or needs DNF
+    // normalization). The dispatch-guard blocker must reject it cleanly rather than
+    // miscompile. Pins the boundary: if And-of-Or ever compiles silently, this fails.
+    let canary = fail_canary("arithmetic/and_of_or_guard_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected And-of-Or guard canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("conjunction") || combined.contains("disjunction"),
+        "expected a guard-lowering rejection naming the nested-disjunction case, got:\n{combined}"
+    );
+}
+
+#[test]
 fn runtime_narrow_signed_wrap_boundaries_exit_canary_runs() {
     // Signed two's-complement wrap-around at narrow boundaries (i8: 127->-128, -128->127;
     // i16 analogues), both ends, in-Wrapping. Complements the saturating narrow canaries.
