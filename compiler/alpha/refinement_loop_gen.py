@@ -65,6 +65,24 @@ def program(seed):
         lines.append('    state loop { to body when (%s)  return %s }' % (guard, ret))
         step = 'i = i + 1'
         delta = lambda: _delta(rng, data)
+    # ~12%: the whole body is a CONDITIONAL-DELTA diamond (if guard: acc += δ1 else acc += δ2) — the body
+    # fork-merges and the invariant conditional delta summarizes as n·cond(g, δ1, δ2).
+    if not down and start == '0' and rng.random() < 0.20 and data:
+        g = '(%s %s %d)' % (rng.choice(data), rng.choice(['<', '<=', '==', '!=']), rng.randint(1, 4))
+        d1, d2 = _inv(rng, data), _inv(rng, data)
+        lines.append('    state body { to armt when %s  to armf }' % g)
+        lines.append('    state armt { %s = %s + %s  to step }' % (accs[0], accs[0], d1))
+        lines.append('    state armf { %s = %s + %s  to step }' % (accs[0], accs[0], d2))
+        lines.append('    state step { %s  to loop }' % step)
+        lines.append('}')
+        return '\n'.join(lines) + '\n'
+    # ~10%: a BUFFER COPY body (byte[base+i] = read_byte()) with element reads post-loop.
+    if not down and start == '0' and rng.random() < 0.10:
+        base = 6000 + 512 * rng.randint(0, 3)
+        lines.append('    state body { byte[(%d + i)] = read_byte()  %s  to loop }' % (base, step))
+        lines.append('}')
+        return ('\n'.join(lines) + '\n').replace(
+            'return %s }' % ret, 'return (byte[%d] + byte[%d]) }' % (base, base + rng.randint(1, 2)))
     # ~25% of accumulators SUBTRACT their delta (acc = acc - δ); ~20% route it through a REWRITE temp
     # (t = δ; acc = acc ± t) — t is overwritten each iteration and dropped post-loop.
     parts = []
