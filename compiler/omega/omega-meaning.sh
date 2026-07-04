@@ -85,6 +85,7 @@ om self_mutation_between_calls # 70 — structs-in-arrays v0 + expression value 
 om shapes_area                # 70 — structs-in-arrays v0 + expression value arms
 om stack_vm                   # 70 — structs-in-arrays v0 + expression value arms
 om bit_shift                 # 64 — shifts lower to *2^k and /2^k (mul/div witnesses cover them)
+om value_call_in_expr        # 70 — embedded value calls hoisted out of expressions (source-rewrite to t-vars)
 om text_padding              # 6  — string-carrier fields: "ALERT temp" assignment, .len arithmetic, write_line(field); dual-channel
 om collatz_sequence          # 111 — hailstone steps for seed 27
 om dice_roller               # 70 — self-verified
