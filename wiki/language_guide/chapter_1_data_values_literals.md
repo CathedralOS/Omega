@@ -275,6 +275,37 @@ machine Player::heal(
 Locals are not data fields. They do not become part of the data layout and they
 do not survive outside the graph paths where their lifetime is valid.
 
+## Constants
+
+A `const` is a named compile-time value. Its initializer is evaluated at build
+time (an effect-free expression in constant position — see
+[Build-Time Evaluation](../design_briefs/build_time_evaluation.md)), so a `const`
+is a *value*, not runtime storage.
+
+```omega
+pub const PAGE_SIZE: u64 = 4096;
+pub const EFI_SUCCESS: EfiStatus = EfiStatus { code: 0 };
+```
+
+- **Free-floating, namespaced by package/module** (the default), resolved by the
+  `::` path rule — a `const` is a compile-time name (`memory::PAGE_SIZE`). It may
+  instead be **type-scoped** when it genuinely belongs to a type
+  (`const EfiStatus::SUCCESS = …`), declared like a machine (`Type::NAME`),
+  **outside** the `data` block — so it is never part of a value's shape and never
+  counts toward `sizeof`. (Only scope a constant to a type it truly belongs to;
+  binding unrelated constants to a `data` symbol is worse design.)
+- **Immutable, and a pure value** — the const's type must have **no cleanup
+  obligation, no shared ownership, and no interior mutability**. It is copied
+  freely at each use, so it is trivially borrowable and thread-safe. A type with
+  a drop/cleanup obligation cannot be a `const`; the restriction is checked from
+  the cleanup facts ([Drops And Cleanup](chapter_16_drops_and_cleanup.md)), and
+  it is what makes a `const` safe to reference from anywhere without analysis.
+- **Not authority.** A constant grants nothing, so free-floating constants are
+  consistent with the capability model — unlike ambient *mutable* state, which
+  does not exist (there is no `static` keyword; persistent state is the root's
+  subtree — see
+  [Constants & the Static Root](../design_briefs/static_root_and_constants.md)).
+
 ## Parameters
 
 Parameters are explicit entry values.
