@@ -95,7 +95,15 @@
     (Lnil (match b (Lnil 1) (z 0)))
     ((Lcons p q) (match b ((Lcons r s) (if (nateq p r) (nateq q s) 0)) (z 0)))
     ((Lapp p q) (match b ((Lapp r s) (if (nateq p r) (nateq q s) 0)) (z 0)))
-    ((Llen x) (match b ((Llen y) (nateq x y)) (z 0))) ((Con q) (match b ((Con r) (eq q r)) (z 0))) ((Apply f g) (match b ((Apply h k) (if (nateq f h) (nateq g k) 0)) (z 0)))))
+    ((Llen x) (match b ((Llen y) (nateq x y)) (z 0))) ((Con q) (match b ((Con r) (eq q r)) (z 0))) ((Apply f g) (match b ((Apply h k) (if (nateq f h) (nateq g k) 0)) (z 0)))
+    ; STUCK user-function applications compare structurally — argument AND inline rules (check.beta's rules
+    ; live in a global table so its equality compares only (fid,arg); here the rules ride the term, and
+    ; requiring them equal is the same-or-stricter check). Rule bodies bring Reccall/Par/Fbundle along.
+    ((Fapp a x y) (match b ((Fapp c w v) (if (nateq a c) (if (nateq x w) (nateq y v) 0) 0)) (z 0)))
+    ((Frule ca ba) (match b ((Frule cb bb) (if (eq ca cb) (nateq ba bb) 0)) (z 0)))
+    ((Reccall i) (match b ((Reccall j) (eq i j)) (z 0)))
+    ((Par k) (match b ((Par j) (eq k j)) (z 0)))
+    ((Fbundle x y) (match b ((Fbundle w v) (if (nateq x w) (nateq y v) 0)) (z 0)))))
 (def conveq (a b) (nateq (pnorm a) (pnorm b)))   ; definitional equality
 
 ; substitute closed individual term s for the var bound at depth d
