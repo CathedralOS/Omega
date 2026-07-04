@@ -33,6 +33,8 @@ ASM = sys.argv[3] if len(sys.argv) > 3 else None      # the beta assembler exe
 REC_PRELUDE = '(data 2 0 0 0) (data 3 1 1 0) (fun 90 2 (k 2)) (fun 90 3 (p (rec 0) (v 0)))'
 ZZ_PRELUDE = '(data 5 2 0 0)'                          # the ℤ difference-pair constructor (k 5 pos neg) = pos - neg
 MN_PRELUDE = '(data 6 2 0 0)'                          # the monus constructor (k 6 a b) = max(0, a - b)
+SV_PRELUDE = '(data 7 1 1 0)'                          # the stream-element constructor (k 7 t) = input[t]
+SSUM_PRELUDE = '(data 8 2 0 0)'                        # the stream-sum constructor (k 8 lo hi) = Σ input[lo..hi)
 
 # ---- a minimal raw-byte Alpha assembler (encoding per alpha_ref.py) ---------------------------------
 def imm(d, k): return bytes([0x01, d]) + int(k).to_bytes(8, 'little')
@@ -87,6 +89,7 @@ AUTO_SAMPLES = [
     ("temploop  (REWRITE TEMP t=a*i →a·g(n))", "refinement-samples/temploop.beta"),
     ("bytemem   (BYTE MEMORY roundtrip+truncation)", "refinement-samples/bytemem.beta"),
     ("fromto    (MONUS TRIP i=a..n →(n∸a)a+g(n∸a))", "refinement-samples/fromto.beta"),
+    ("sumbytes  (READ-LOOP →Σ input[1..1+n) + next)", "refinement-samples/sumbytes.beta"),
     ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
     ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
     ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),
@@ -123,13 +126,16 @@ def prove_equiv(label, text, tape, ok_msg, quiet_perturb=False, trials=40, teeth
     if nC != nM:
         print("  FAIL %-26s : arity mismatch code=%d source=%d" % (label, nC, nM)); return False
     procs = Parser(lex(text)).parse()
-    for _ in range(1 if nC == 0 else trials):          # differential: each derivation vs its OWN reference VM
-        env = {i: random.randint(0, 6) for i in range(nC)}
+    streamy = S._has_stream(C) or B._has_stream(M)     # a read-loop: pad the input vector (bounds are ≤ 6)
+    for _ in range(1 if (nC == 0 and not streamy) else trials):  # differential vs each derivation's OWN reference
+        vec = [random.randint(0, 6) for _ in range(nC + (40 if streamy else 0))]
+        env = {i: vec[i] for i in range(len(vec))}
+        env['in'] = vec
         vc, vm = S.evaluate(C, env), B.evaluate(M, env)
         if vc >= 256 or vm >= 256:
             continue
-        va = run_ref(tape, [env[i] for i in range(nC)])          # the actual bytecode (alpha VM)
-        vb = beta_ref_observe(procs, env, nC)                    # the actual source (beta interpreter)
+        va = run_ref(tape, vec)                                  # the actual bytecode (alpha VM)
+        vb = beta_ref_observe(procs, env, len(vec))              # the actual source (beta interpreter)
         if vc % 256 != va:
             print("  FAIL %-26s : alpha_symbolic ≠ bytecode (sym=%s vm=%s at %s)\n%s" % (label, vc, va, env, text)); return False
         if vm % 256 != vb:
@@ -142,7 +148,9 @@ def prove_equiv(label, text, tape, ok_msg, quiet_perturb=False, trials=40, teeth
         if '(f ' in g or '(k ' in g:                   # user-fun recurrence and/or ℤ difference-pair: prover.py
             prelude = ((REC_PRELUDE if '(f ' in g else '')
                        + (' ' + ZZ_PRELUDE if '(k 5 ' in g else '')
-                       + (' ' + MN_PRELUDE if '(k 6 ' in g else ''))
+                       + (' ' + MN_PRELUDE if '(k 6 ' in g else '')
+                       + (' ' + SV_PRELUDE if '(k 7 ' in g else '')
+                       + (' ' + SSUM_PRELUDE if '(k 8 ' in g else ''))
             proof = '(refl %s)' % cterm                # can't parse these, so emit a direct refl cert (valid iff
             for _ in range(nC):                        # C conv rhs) with the needed decls prepended; check.beta decides
                 proof = '(gen %s)' % proof
@@ -194,15 +202,19 @@ def run_ref(tape, stdin_bytes):
         os.unlink(path)
 
 def differential(tape, term, n, trials=40):
-    """Instantiate the symbolic term at random small inputs and compare to the concrete VM (mod 256)."""
-    if n == 0:
+    """Instantiate the symbolic term at random small inputs and compare to the concrete VM (mod 256).
+    A term with STREAM constructs (a read-loop's Σ input[lo..hi)) gets a padded input vector — the machine
+    consumes exactly what it reads (loop bounds are drawn ≤ 6, so 40 bytes of slack always suffice)."""
+    if n == 0 and not S._has_stream(term):
         trials = 1                                     # input-free: one run settles it
     for _ in range(trials):
-        env = {i: random.randint(0, 6) for i in range(n)}
+        vec = [random.randint(0, 6) for _ in range(n + (40 if S._has_stream(term) else 0))]
+        env = {i: vec[i] for i in range(len(vec))}
+        env['in'] = vec
         v = S.evaluate(term, env)
         if v >= 256:
             continue                                   # keep below the write/halt mod-256 truncation
-        if run_ref(tape, [env[i] for i in range(n)]) != v % 256:
+        if run_ref(tape, vec) != v % 256:
             return False
     return True
 

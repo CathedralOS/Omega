@@ -104,6 +104,10 @@ SUMMARIZABLE = [
     ("from a, <=: c·(n+1∸a)",   fromloop("a", "total = total + b", guard='i <= n'),
      lambda n, a, b: max(0, n + 1 - a) * b),
     ("from a: ret i = max(a,n)", fromloop("a", "total = total + b", ret='i'),      lambda n, a, b: max(a, n)),
+    # READ-LOOPS: one read_byte() per iteration -> Σ input[base..base+trip) as the (k 8 lo hi) stream sum;
+    # the grid supplies a padded input vector. A read mixed into a larger delta refuses (a later slice).
+    ("read-sum (total += read)", loop("i < n", "total = total + read_byte()"),     lambda n, a, b: None),
+    ("discarding reads (2n)",    loop("i < n", "total = total + 2  s = read_byte()"), lambda n, a, b: None),
     ("↓ Σi   (total += i)",     downloop("total = total + i"),                     lambda n, a, b: n * (n + 1) // 2),
     ("↓ -Σi  (total -= i)",     downloop("total = total - i"),                     lambda n, a, b: (-(n * (n + 1) // 2)) % 256),
     ("↓ a·Σi (total += a*i)",   downloop("total = total + (a * i)"),               lambda n, a, b: a * (n * (n + 1) // 2)),
@@ -120,6 +124,7 @@ MUST_REFUSE = [
     # != from a symbolic start: the machine DIVERGES when a > n (the counter runs past n and wraps) — the
     # exact-hit argument only holds from 0, so this must refuse.
     ("(i != n) from a (diverges!)",   fromloop("a", "total = total + b", guard='i != n')),
+    ("read*2 delta (mixed read)",     loop("i < n", "total = total + (read_byte() * 2)")),
     # Σ of g: inner (j < i, total += j) makes the outer delta g(i) — quadratic in the outer counter
     # (tetrahedral sum), genuinely outside the linear class on both sides.
     ("nested Σg (j<i, total+=j)",     nestedloop("i").replace('total = total + a', 'total = total + j')),
@@ -136,13 +141,17 @@ def main():
             print("  FAIL %-28s : refused a summarizable loop (%s)" % (name, e)); fails += 1; continue
         procs = Parser(lex(src)).parse()
         bad = 0
+        streamy = B._has_stream(M)
         for nn in range(0, 14):
             for aa in range(0, 10):
                 for bb in (0, 3):
                     if nn * (aa + bb) >= 256:
                         continue
-                    v = B.evaluate(M, {0: nn, 1: aa, 2: bb}) % 256
-                    rc, _ = beta_interp.interpret(procs, bytes([nn, aa, bb]))
+                    vec = [nn, aa, bb] + ([1 + (j * 7) % 9 for j in range(20)] if streamy else [])
+                    env = {i: vec[i] for i in range(len(vec))}
+                    env['in'] = vec
+                    v = B.evaluate(M, env) % 256
+                    rc, _ = beta_interp.interpret(procs, bytes(vec))
                     n_checks += 1
                     if v != rc:
                         bad += 1
