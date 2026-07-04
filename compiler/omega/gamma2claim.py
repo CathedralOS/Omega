@@ -32,7 +32,11 @@ import sys
 sys.setrecursionlimit(200000)          # deep dispatch chains in translated samples
 
 FUEL = 500000
-MAXV = 20000                           # unary-numeral wall: a larger intermediate would exhaust the checker
+MAXV = 20000                           # hard unary wall (zpair mode: difference-pair components)
+UWALL = 500                            # unary-mode PREFERENCE wall: beyond it a sample re-encodes in
+                                       # binary, whose certs stay decidable by the tightest diamond leg
+                                       # (checker.gamma-on-interp dies on ~2000-deep unary walks)
+WALL = [MAXV]                          # the active wall, set per mode by run()
 
 # tv-encode.py's kernel-side user-nat machinery, verbatim (uadd/usub/umul/ueq/ult + fueled udiv/umod):
 # engaged only when the sample uses - / %, so the +/* samples keep their kernel-native p/m forms.
@@ -128,7 +132,7 @@ def parse_all(src):
 def nat(k):
     if k < 0:
         raise Out('negative value reached the term encoder')
-    if k > MAXV:
+    if k > WALL[0]:
         raise Big()
     return 'z' if k == 0 else '(s %s)' % nat(k - 1)
 
@@ -136,7 +140,7 @@ def nat(k):
 def unat(k):                           # user-nat literal (k 3 (k 3 ... (k 2)))
     if k < 0:
         raise Out('negative value reached the term encoder')
-    if k > MAXV:
+    if k > WALL[0]:
         raise Big()
     return '(k 2)' if k == 0 else '(k 3 %s)' % unat(k - 1)
 
@@ -174,6 +178,7 @@ def run(src, zpair, binary=False):
     # difference-pair move, replayed kernel-side).
     user = zpair or any(('(%s ' % op) in src for op in ('-', '/', '%'))
     lit = bin_lit if binary else (unat if user else nat)
+    WALL[0] = MAXV if zpair else UWALL     # zpair keeps the hard wall; plain unary defers to binary early
     Z0 = '(k 2)'
     defs = {}
     top = None
@@ -214,8 +219,9 @@ def run(src, zpair, binary=False):
     #   value-pin cert   (= <operand term> <literal>)      — walk-only; kernel re-computes the expression
     #   literal certs    chunked additions, first argument <= CHUNK, proving the op's arithmetic
     # and the op's result term becomes the literal, so downstream claims stay inside the envelope.
-    CHUNK = 1500
-    DIRECT_MUL = 2500                      # u*v at most this: one direct (f 23 min max) cert is in-envelope
+    CHUNK = 400                            # matched to the TIGHTEST diamond leg (checker.gamma-on-interp
+    DIRECT_MUL = 400                       # ~400 unfolds; check.beta alone handles ~2000) so every cert
+                                           # is decidable by ALL three checkers, not just the anchor
 
     def pin(v):                            # kernel re-computes v's expression: (= v.t literal)
         litv = lit(v.n)
@@ -224,7 +230,7 @@ def run(src, zpair, binary=False):
 
     def add_cert(x, y):                    # one in-envelope literal addition cert; returns the sum
         s = x + y
-        if s > MAXV:
+        if s > WALL[0]:
             raise Out('witness sum %d exceeds the unary wall' % s)
         lo, hi = (x, y) if x <= y else (y, x)
         if lo > CHUNK:
@@ -303,7 +309,7 @@ def run(src, zpair, binary=False):
         h = e[0]
         if h == '+':
             a, b = num(ev(e[1], env)), num(ev(e[2], env))
-            if abs(a.n) + abs(b.n) > MAXV and not binary:
+            if abs(a.n) + abs(b.n) > WALL[0] and not binary:
                 raise Big()
             if zpair:
                 return V(a.n + b.n, '(f 21 %s %s)' % (a.t, b.t), '(f 21 %s %s)' % (a.nt, b.nt))
@@ -320,7 +326,7 @@ def run(src, zpair, binary=False):
             return V(a.n + b.n, '(f 21 %s %s)' % (lo.t, hi.t))
         if h == '*':
             a, b = num(ev(e[1], env)), num(ev(e[2], env))
-            if abs(a.n * b.n) > MAXV and not binary:
+            if abs(a.n * b.n) > WALL[0] and not binary:
                 raise Big()
             if zpair:                       # (p1-n1)(p2-n2) = (p1p2+n1n2) - (p1n2+n1p2)
                 return V(a.n * b.n,

@@ -5,9 +5,16 @@
 # feature was needed; Con/Apply thread through pnorm/nateq/subt/freet already, and ffire leaves a
 # non-constructor scrutinee STUCK, which is exactly what a refl certificate needs. The (fun FID ..) rule
 # declarations are INLINED at each (f FID arg) site as (Fapp arg (Frule cidA bodyA) (Frule cidB bodyB)) —
-# the same inlining precedent as prover.py --gamma's lemma handling. Reads the cert on stdin, prints the
+# BINARY applications (f FID a b) ride an (Fbundle a b) scrutinee with (y 0) -> (Par 0). Applications use
+# the TABLE-CARRYING (Fap tab fid arg) encoding: the whole rule table rides each application and rule
+# bodies reference sibling functions via Fcall/Fcall2 (re-attaching the table), so MUTUALLY recursive
+# families (binary-numeral badd/bmul) translate finitely where rule-inlining would diverge. Reads the cert on stdin, prints the
 # gamma expression on stdout; exits 1 on anything outside the refl-cert shape.
 import sys
+import threading
+
+sys.setrecursionlimit(400000)          # meaning certs carry deep unary spines (12345-deep numerals)
+threading.stack_size(512 * 1024 * 1024)
 
 
 def parse(src):
@@ -49,11 +56,42 @@ def term(t, funs):
         for a in t[2:]:
             g = '(Apply %s %s)' % (g, term(a, funs))
         return g
-    if h == 'f':                                   # (f FID arg) -> Fapp with the FID's rules inlined
-        (ca, ba), (cb, bb) = funs[t[1]]
-        return '(Fapp %s (Frule %d %s) (Frule %d %s))' % (
-            term(t[2], funs), ca, term(ba, funs), cb, term(bb, funs))
+    if h == 'y':                                   # (y 0) -> the binary application's extra argument
+        return '(Par %d)' % t[1]
+    if h == 'f':                                   # (f FID a [b]) -> table-carrying (Fap tab FID arg):
+        tab = funs['#tab']                         # the WHOLE rule table rides the application, so
+        if len(t) == 4:                            # mutually recursive families terminate (bodies
+            return '(Fap %s %d (Fbundle %s %s))' % (   # reference siblings via Fcall/Fcall2, which
+                tab, t[1], term(t[2], funs), term(t[3], funs))     # re-attach the same table)
+        return '(Fap %s %d %s)' % (tab, t[1], term(t[2], funs))
     raise SystemExit('untranslatable term head: %s' % h)
+
+
+def body_term(t, funs):                            # a rule body: f-references become Fcall/Fcall2
+    if isinstance(t, list) and t and t[0] == 'f':
+        if len(t) == 4:
+            return '(Fcall2 %d %s %s)' % (t[1], body_term(t[2], funs), body_term(t[3], funs))
+        return '(Fcall %d %s)' % (t[1], body_term(t[2], funs))
+    if isinstance(t, list) and t and t[0] == 'k':
+        g = '(Con %d)' % t[1]
+        for a in t[2:]:
+            g = '(Apply %s %s)' % (g, body_term(a, funs))
+        return g
+    if isinstance(t, list) and t and t[0] == 's':
+        return '(Su %s)' % body_term(t[1], funs)
+    if isinstance(t, list) and t and t[0] == 'p':
+        return '(Pl %s %s)' % (body_term(t[1], funs), body_term(t[2], funs))
+    if isinstance(t, list) and t and t[0] == 'm':
+        return '(Mu %s %s)' % (body_term(t[1], funs), body_term(t[2], funs))
+    return term(t, funs)                           # v/y/rec/z literals share the term translation
+
+
+def build_tab(funs):                               # (Tcons (Trule gid cid body) ...) over ALL rules
+    tab = 'Tnil'
+    for fid in sorted(funs, reverse=True):
+        for cid, b in reversed(funs[fid]):
+            tab = '(Tcons (Trule %d %d %s) %s)' % (fid, cid, body_term(b, funs), tab)
+    return tab
 
 
 def prop(g, funs):
@@ -85,8 +123,13 @@ def main():
         body.append(f)
     if len(body) != 2:
         raise SystemExit('expected exactly <goal> <proof> after declarations')
+    funs['#tab'] = build_tab({k: v for k, v in funs.items() if k != '#tab'})
     print('(check %s %s)' % (proof(body[1], funs), prop(body[0], funs)))
 
 
 if __name__ == '__main__':
-    main()
+    rc = []                            # deep recursion needs real stack: run in a big-stack thread
+    t = threading.Thread(target=lambda: rc.append(main()))
+    t.start()
+    t.join()
+    sys.exit(rc[0] or 0 if rc else 1)
