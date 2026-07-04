@@ -95,7 +95,13 @@ pub(crate) fn desugar_generic_data_instances(
             continue;
         }
         if data_with_machines.contains(definition.name.as_str()) {
-            continue; // has methods -> Phase 2
+            continue; // has methods (a container) -> Phase 2; do NOT fence here --
+            // containers are valid-but-unimplemented (used type-check-only, e.g.
+            // the stdlib `Vec<T>` in borrow canaries). A desugar-level "reject all
+            // container instantiations" is too broad (it pre-empts those checks);
+            // the silent-zero of a T-returning container VALUE-CALL at RUNTIME is
+            // the narrow #40 concern, for a value-call/codegen fence -- see the
+            // CONTAINERS note in TASKS.md and generics-runtime-boundary.md.
         }
         let parameter_names = syntax
             .tables

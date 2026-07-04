@@ -764,26 +764,28 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >     slice, not a fence-flip.
 >   - **Phase 3 -- nested generics** (`Store<T>` containing `Item<T>`) -- DONE
 >     2026-07-03 (fixpoint desugar; see the Phase-3 note above).
->   - **CONTAINERS (generic data + attached method) -- BLOCKED ON A PARSER GAP,
->     found 2026-07-03.** `data Box<T> {..}` + `machine Box<T>::stored(&self)->T`
->     used as `Box<i32>` with `self.b.stored()` SILENTLY MISCOMPILES (the method
->     returns ZERO). ROOT (probed via the syntax dump): `machine Box<T>::stored`
->     parses with `attached_data = null` -- the `<T>` in the machine PATH breaks
->     the scope attachment (parser/machine.rs split_machine_path sees a 1-member
->     path), so the method is an ORPHAN generic machine, unlinked from Box, that
->     value-calls to zero. CONSEQUENCE: `data_with_machines` never learns "Box" is
->     method-bearing, so Phase 1 does NOT exclude it (treats it as method-less) --
->     the DATA monomorphizes but the METHOD stays a generic orphan. FIX ORDER:
->     (1) parser -- attach `Type<T>::method` to `Type` (consume the `<T>` between
->     the scope and `::method`, set attached_data=Type, machine type_params=[T]);
->     (2) THEN a desugar fence is effective (a method-bearing generic instantiation
->     = clean error, `data_with_machines` finally sees "Box"); (3) Phase 2 proper
->     = clone the attached machine with T substituted when synthesizing the data
->     instance -- PRE-RESOLUTION-tractable (the `Box<i32>` spelling determines T,
->     unlike free `id<T>` which needs call-site inference), via a
->     SUBSTITUTION-AWARE machine deep-clone (extend syntax_trees.rs copy_machine/
->     copy_state/copy_type_reference to substitute T). An ineffective
->     desugar-fence (relies on attached_data) was built + reverted this session.
+>   - **CONTAINERS (generic data + attached method) -- valid-but-unimplemented;
+>     silent-0 at RUNTIME (corrected 2026-07-03; my prior "parser gap" note was
+>     from the WRONG syntax).** The CORRECT method syntax is T-on-METHOD:
+>     `machine Box::stored<T>(&self)->T` (like the corpus's `Main::id<T>`), which
+>     ATTACHES to Box fine (attached_data=Box). `Box<T>::stored` (T-on-SCOPE) is a
+>     separate/unsupported spelling that parses attached_data=null. With the
+>     correct syntax, `Box::stored<T>` used as `Box<i32>` + `self.b.stored()`
+>     compiles and RUNS but the method returns ZERO -- a silent miscompile at
+>     runtime (the DATA monomorphizes but the METHOD stays a generic machine whose
+>     T-typed value-call result is never materialized, the #40 class). SCOPE OF THE
+>     FENCE: a desugar-level "reject all container instantiations" is TOO BROAD --
+>     containers are used TYPE-CHECK-ONLY today (stdlib `Vec<T>` in the borrow
+>     canaries, e.g. vec_view_invalidated_by_push, which reach borrow-check not
+>     runtime), so it pre-empts those and masks their real check; a fence keyed on
+>     data_with_machines was built + reverted TWICE this arc for exactly this. The
+>     narrow #40 fence (if wanted) is at the VALUE-CALL/codegen: a T-returning
+>     value-call to a generic container method (statement calls / slice-returning
+>     `as_slice` are fine). REAL FIX = Phase 2 (implement the container runtime):
+>     clone the attached machine with T substituted when synthesizing the data
+>     instance -- pre-resolution-tractable (the `Box<i32>` spelling determines T,
+>     unlike free `id<T>` which needs call-site inference) via a substitution-aware
+>     extension of syntax_trees.rs copy_machine/copy_state/copy_type_reference.
 >   - **Phase 4 -- generic trait conformances / containers**: `Store<T> satisfies
 >     Container<T>`. DESIGN QUESTION (Zach, when reached, far off): generic-trait
 >     dispatch = static specialization (one stamped impl per instance) vs a
