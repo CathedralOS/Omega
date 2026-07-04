@@ -18,8 +18,12 @@
 # SAFETY OBLIGATIONS (lines 3+ of the encoder output): one kernel-checked claim per hazard site —
 # division/mod (iszero(divisor) = 0) and ARRAY BOUNDS (omega2gamma lowers arrays to Cons spines walked by
 # nth/setl whose Nil arms return silent defaults on overrun; the kernel re-computes each user-level access's
-# index expression and confirms ult(idx, len) = 1, difference-pair form in zpair mode). omega-rs's
-# obligations.rs concept, discharged by the lattice's own anchor.
+# index expression and confirms ult(idx, len) = 1, difference-pair form in zpair mode) and DOMAIN
+# ERASURE (omega2gamma drops `in Saturating`/`Wrapping`; sound exactly where the domains agree with
+# plain arithmetic — every subtraction site carries a kernel-checked no-underflow witness, ult(a,b)=0
+# directly or d+b=a on the witnessed path; additive/multiplicative sites stay in-range by the value
+# walls; ℤ-mode samples model Wrapping soundly while |values| < 2^31). omega-rs's obligations.rs
+# concept, discharged by the lattice's own anchor.
 # STRUCTURAL RESULTS (cli_mvp): a sample whose final value is a constructor tree gets a structural claim —
 # the tree with computed leaves proven equal to the literal tree — and the encoder's `#render` line must
 # string-equal the interpreter's printed value, pinning the claimed structure to the real run.
@@ -113,5 +117,5 @@ tv digital_root
 tv collatz_sequence
 tv modular_exponentiation
 tv dice_roller
-echo "meaning-route TV (the kernel re-computes each covered sample's arithmetic + $VCTOT obligations: division/mul/sub witnesses + array bounds): $PASS ok, $FAIL failed"
+echo "meaning-route TV (the kernel re-computes each covered sample's arithmetic + $VCTOT obligations: division/mul/sub witnesses + array bounds + domain-erasure): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] && [ "$PASS" -gt 0 ]

@@ -54,7 +54,10 @@ shape with *its own trust story* — obligations discharged by certificates the 
    magnitudes overflow, O(bits) kernel reductions. With it, `meaning-tv.sh` proves ALL 19 omega-meaning
    samples.*
 3. **Obligation-emitting elaboration**: port epsilon's certify-* pattern up to omega2gamma, one obligation
-   class at a time, each with its three-checker diamond. *Status: two classes live in `meaning-tv.sh` —
+   class at a time, each with its three-checker diamond. *Status: four classes live in `meaning-tv.sh` —
+   division safety, array bounds, arithmetic witnesses (pins + chunked literal certificates), and DOMAIN
+   ERASURE (the translator drops `in Saturating`/`Wrapping` annotations; every subtraction site carries a
+   kernel-checked no-underflow witness proving the erasure changed nothing). Earlier status detail: —
    division safety (iszero(divisor) = 0 at every / and % site) and array bounds (ult(idx, len) = 1 at every
    user-level nth/setl access, difference-pair form in ℤ mode; omega2gamma's Cons-spine array lowering
    returns silent defaults on overrun, the exact silent-OOB shape the obligation forbids). Structural
