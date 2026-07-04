@@ -15,8 +15,16 @@
 # subtraction UNDERFLOWS transiently is re-encoded with ℤ DIFFERENCE-PAIR values ((pos, neg) components,
 # componentwise user-fun arithmetic) and the claim P = uadd(exit, N) makes the kernel verify pos - neg =
 # exit in ℤ — no negative ever materializes (the refinement pillar's move, replayed kernel-side).
+# SAFETY OBLIGATIONS (lines 3+ of the encoder output): one kernel-checked claim per hazard site —
+# division/mod (iszero(divisor) = 0) and ARRAY BOUNDS (omega2gamma lowers arrays to Cons spines walked by
+# nth/setl whose Nil arms return silent defaults on overrun; the kernel re-computes each user-level access's
+# index expression and confirms ult(idx, len) = 1, difference-pair form in zpair mode). omega-rs's
+# obligations.rs concept, discharged by the lattice's own anchor.
+# STRUCTURAL RESULTS (cli_mvp): a sample whose final value is a constructor tree gets a structural claim —
+# the tree with computed leaves proven equal to the literal tree — and the encoder's `#render` line must
+# string-equal the interpreter's printed value, pinning the claimed structure to the real run.
 # Outside: quotients past the reduction wall (collatz/digital_root), modexp (kernel reduction too slow),
-# division over difference pairs, cli_mvp (a match gap).
+# division over difference pairs.
 cd "$(dirname "$0")"
 command -v python3 >/dev/null 2>&1 || { echo "meaning-tv: skipped (python3 absent)"; exit 0; }
 . ../alpha/seed_env.sh
@@ -34,7 +42,7 @@ tv() {
   src="../../samples/$1/main.omg"
   want=$(grep -oE 'Expected exit: [0-9]+' "$src" | head -1 | grep -oE '[0-9]+')
   "$T/e2g.exe" < "$src" > "$T/g" 2>/dev/null
-  "$T/interp.exe" < "$T/g" >/dev/null 2>&1; got=$?
+  "$T/interp.exe" < "$T/g" > "$T/istdout" 2>/dev/null; got=$?
   python3 gamma2claim.py < "$T/g" > "$T/claims" 2>/dev/null || { FAIL=$((FAIL+1)); echo "  FAIL $1 : encoder refused a listed sample"; return; }
   line1=$(head -1 "$T/claims"); bad=$(sed -n 2p "$T/claims")
   enc=${line1%% *}; cert=${line1#* }
@@ -44,17 +52,21 @@ tv() {
   [ "$v" = accept ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : kernel rejected the meaning claim"; return; }
   v2=$(printf '%s' "$bad" | "$T/check.exe")
   [ "$v2" = reject ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : perturbed claim NOT rejected"; return; }
-  nvc=0
+  nvc=0; shape=""
   while IFS= read -r vc; do
     [ -n "$vc" ] || continue
+    case "$vc" in '#render '*)         # the encoder's claimed structure: must equal interp's printed value
+      [ "${vc#\#render }" = "$(head -1 "$T/istdout")" ] \
+        || { FAIL=$((FAIL+1)); echo "  FAIL $1 : claimed structure differs from the interpreter's"; return; }
+      shape=" + structure pinned to interp stdout"; continue;; esac
     v3=$(printf '%s' "$vc" | "$T/check.exe")
-    [ "$v3" = accept ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : a division-safety obligation was rejected"; return; }
+    [ "$v3" = accept ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : a safety obligation was rejected"; return; }
     nvc=$((nvc+1))
   done <<VCEOF
 $(tail -n +3 "$T/claims")
 VCEOF
   VCTOT=$((VCTOT+nvc))
-  PASS=$((PASS+1)); echo "  ok   $1 : meaning ≡ exit $enc PROVEN in the kernel (perturbed rejected; $nvc safety VCs)"
+  PASS=$((PASS+1)); echo "  ok   $1 : meaning ≡ exit $enc PROVEN in the kernel (perturbed rejected; $nvc safety VCs$shape)"
 }
 tv bounded_counter
 tv nested_counters
@@ -70,5 +82,6 @@ tv bank_ledger
 tv bouncing_ball
 tv turn_combat
 tv width_mixer
-echo "meaning-route TV (the kernel re-computes each covered sample's arithmetic + $VCTOT division-safety obligations): $PASS ok, $FAIL failed"
+tv cli_mvp
+echo "meaning-route TV (the kernel re-computes each covered sample's arithmetic + $VCTOT safety obligations: division + array bounds): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] && [ "$PASS" -gt 0 ]
