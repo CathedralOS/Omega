@@ -2661,9 +2661,9 @@ exit.
 - [ ] Reduce host/runtime special-case lowering around stdin/stdout/process
   calls; build richer multi-step text flows and real console interaction.
 - [ ] Replace the current Windows GUI sample shortcut with a real app-window
-  host surface. `samples/windowed_calculator` showed on 2026-07-04 that using
-  predefined classes is only partial: the older `samples/window_app` /
-  `samples/window_demo` `STATIC`-class path does not get real caption
+  host surface. `samples/gui/windowed_calculator` showed on 2026-07-04 that using
+  predefined classes is only partial: the older `samples/gui/window_app` /
+  `samples/gui/window_demo` `STATIC`-class path does not get real caption
   interaction right (drag/close/caption buttons are effectively non-functional
   in practice). The calculator sample, after switching to `#32770` with
   `WS_OVERLAPPEDWINDOW`, is currently the only windowed sample that drags and
