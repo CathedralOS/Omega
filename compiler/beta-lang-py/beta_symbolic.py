@@ -16,6 +16,7 @@
 # branches on a SYMBOLIC value (input-dependent loop bound), symbolic subtraction, div/mod, or symbolic memory
 # raises Unsupported. Concrete-bounded loops/recursion UNROLL. read_byte order fixes the input numbering.
 import sys, os
+sys.setrecursionlimit(400000)          # deep-nat traversals (buffer addresses render as s^k chains)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bc2 import lex, Parser
 
@@ -307,7 +308,7 @@ def _has_stream(t):                    # does a stream term (sv / ssum) occur an
     if isinstance(t, tuple):
         if t[0] in ('sv', 'ssum'):
             return True
-        if t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn'):
+        if t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn', 'blt', 'ble', 'beq', 'bne', 'cond'):
             return any(_has_stream(x) for x in t[1:])
     return False
 
@@ -406,6 +407,9 @@ class SymInterp:
         self.procs = {p[1]: p for p in procs}
         self.bytemem = {}                  # concrete BYTE address -> value; SYMBOLIC values stored UNTRUNCATED
         self.rdpos = 0                     # the input-stream read position (int; a term after a read-loop)
+        self.bytesegs = []                 # buffer SEGMENTS from summarized copy loops: (base, trip, rdbase) —
+                                           # byte[base+j] = input[rdbase+j] for j < trip (a fill's closed form)
+        self._fill = None                  # symbolic-address store events recorded during a region run
         self.n_inputs = 0                  # (the observable is mod 256; +/-/* respect mod-256 congruence)
         self.steps = 0
 
@@ -457,6 +461,10 @@ class SymInterp:
             if e[1] != 'byte':
                 raise Unsupported('word memory not modelled yet')
             a = _concrete(self.ev(e[2], env), 'memory read at a symbolic address')
+            for (b0, t0, r0) in self.bytesegs:          # a fill segment: byte[b0+j] = input[r0+j] for j < t0
+                j = a - b0
+                if 0 <= j < 512:
+                    return ('cond', ('blt', j, t0), ('sv', r0 + j), self.bytemem.get(a, 0))
             return self.bytemem.get(a, 0)               # the interp's memory starts zeroed
         raise Unsupported('expression form %s' % k)
 
@@ -483,18 +491,31 @@ class SymInterp:
         rd_entry = self.rdpos                           # markers every frame slot); invariants subst back below
         rd_mark = ('loopvar', '#rd')                    # the read POSITION is a hidden loop var: in-body reads
         self.rdpos = rd_mark                            # come out as stream elements (sv #rd), stride-checked
+        fill_save, self._fill = self._fill, []
         try:
             out = self._run_region_once(labels[body_label], header_pc, ph_env, blocks, labels)
         except Unsupported:
             return False
         finally:
             rd_after, self.rdpos = self.rdpos, rd_entry
+            fill_events, self._fill = self._fill, fill_save
         reads = 0
         if rd_after != rd_mark:                         # the body consumed input: R reads per iteration
             rdd = _canon(_lin_delta(rd_after, rd_mark) or 0)
             if not isinstance(rdd, int) or rdd < 1 or isinstance(rd_entry, tuple):
                 return False                            # a fixed per-iteration read count, from a fixed position
             reads = rdd
+        seg_base = None
+        if fill_events:                                 # a COPY loop: exactly one byte[base + ctr] = read_byte()
+            if len(fill_events) != 1 or reads != 1:     # per iteration, base concrete, the value the iteration's
+                return False                            # single stream element
+            fa, fv = fill_events[0]
+            if fv != ('sv', rd_mark):
+                return False
+            seg_base = None
+            for cand in entry:                          # the counter is identified below; defer the base peel
+                pass
+            seg_addr = fa
         deltas = {}
         rewrite = set()                                 # REWRITE vars: fully overwritten each iteration (a
         for v in entry:                                 # temp t = a*i, …) — no additive delta exists. They
@@ -636,6 +657,17 @@ class SymInterp:
                 closed[v] = _down_series(p0, n0, dec[0], dec[1], 0, 0, trip)
                 continue
             closed[v] = _series_closed(entry[v], _canon(_sum2(dec[0], _scale2(dec[1], off))), _canon(dec[1]), trip)
+        if fill_events:
+            if down or off != 0:
+                return False                            # copy loops: up-counting from 0 (slice 1)
+            pb = _peel(seg_addr, ('loopvar', counter))
+            base = _concnat(pb) if pb is not None else None
+            if base is None:
+                return False                            # store address must be exactly base + counter
+            if any(b0 + 512 > base and base + 512 > b0 for (b0, t0, r0) in self.bytesegs) \
+                    or any(base <= k2 < base + 512 for k2 in self.bytemem):
+                return False                            # overlapping segments / prior writes: refused
+            self.bytesegs.append((base, trip, rd_entry))
         env.update(closed)
         env.update(fresh)                               # body-introduced vars with iteration-independent values
         for v in rewrite:
@@ -665,6 +697,16 @@ class SymInterp:
                     env[st[1]] = self.ev(st[2], env)
                 elif k == 'callstmt':
                     self.ev(st[1], env)                 # result discarded; a read still advances the stream
+                elif k == 'memset':
+                    if st[1] != 'byte':
+                        raise Unsupported('word memory not modelled yet')
+                    a2 = self.ev(st[2], env)
+                    v2 = self.ev(st[3], env)
+                    if isinstance(a2, int):
+                        raise Unsupported('concrete byte store inside a summarized loop body')
+                    if self._fill is None:
+                        raise Unsupported('symbolic-address byte store outside a fill-recording run')
+                    self._fill.append((a2, v2))         # a FILL event: byte[base + ctr] = value, judged after
                 elif k == 'goto':
                     take = st[2] is None
                     if st[2] is not None:
@@ -753,6 +795,8 @@ class SymInterp:
                     if st[1] != 'byte':
                         raise Unsupported('word memory not modelled yet')
                     a = _concrete(self.ev(st[2], env), 'memory write at a symbolic address')
+                    if any(0 <= a - b0 < 512 for (b0, t0, r0) in self.bytesegs):
+                        raise Unsupported('byte store over a fill segment')
                     v = self.ev(st[3], env)
                     self.bytemem[a] = (v & 0xFF) if isinstance(v, int) else v
                 elif k == 'goto':

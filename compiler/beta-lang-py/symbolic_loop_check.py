@@ -126,6 +126,11 @@ SUMMARIZABLE = [
         "    state add { total = total + 2  to next }\n"
         "    state skip { total = total + 1  to next }\n"
         "    state next { i = i + 1  to loop }"),                                  lambda n, a, b: n * (2 if a < b else 1)),
+    # BUFFER COPY: the fill summarizes to a segment; post-loop element reads are conditional terms.
+    ("buf copy (byte[b+i]=read)", loop("i < n", "s = s").replace(
+        "state body { s = s  i = i + 1  to loop }",
+        "state body { byte[(6000 + i)] = read_byte()  i = i + 1  to loop }").replace(
+        "return total", "return (byte[6000] + byte[6001])"),                       lambda n, a, b: None),
     ("↓ Σi   (total += i)",     downloop("total = total + i"),                     lambda n, a, b: n * (n + 1) // 2),
     ("↓ -Σi  (total -= i)",     downloop("total = total - i"),                     lambda n, a, b: (-(n * (n + 1) // 2)) % 256),
     ("↓ a·Σi (total += a*i)",   downloop("total = total + (a * i)"),               lambda n, a, b: a * (n * (n + 1) // 2)),

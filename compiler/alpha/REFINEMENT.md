@@ -221,11 +221,23 @@ memory, later branches — and even loop deltas (`total += (a < b)` summarizes t
 an invariant coefficient). The engines' internal boolean carries RAW sides (a `_term`-coerced side would
 break the summarizer's slot matching — found when the basic `n·a` loop fork-bombed under the coercion).
 
+### Buffer copy loops (fill segments)
+
+`while (i<n): byte[base+i] = read_byte()` — the read-n-bytes-into-a-buffer idiom — summarizes to a
+**segment** `(base, trip, rdbase)`: `byte[base+j] = input[rdbase+j]` for `j < trip`. A post-loop read at a
+concrete offset becomes the conditional term `(k 9 (k 10 j trip) (k 7 rdbase+j) old)` — in-range reads the
+copied stream element, out-of-range the prior memory. This is exactly what conditional terms were the
+prerequisite for: the segment bound `j < trip` is symbolically undecidable, so the meaning *carries the
+decision as a term* instead of needing to make it. Fill stores are recorded as events during the body run
+(never written concretely); the summarizer requires exactly one store per iteration at address
+`base + counter` (base concrete), value = the iteration's single stream element, up-counting from 0.
+Overlapping segments, prior writes in the range, and later stores over a segment all refuse.
+
 **Deliberately out of scope** (each conservatively *refused* — never mis-summarized): scaling recurrences
 (`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`, tetrahedral `Σg`);
 ℤ-pair or monus counter *start values*; `word[..]` memory; quadratic streams (`read·read`); strided stream
-sums (one-of-many reads); buffer writes at symbolic addresses; stale reads of rewrite slots; returns inside
-loop bodies; branches inside loop bodies (conditional deltas).
+sums (one-of-many reads); invariant-value fills (`byte[base+i] = c` — only copy loops for now); segment reads at symbolic
+offsets; stale reads of rewrite slots; returns inside loop bodies.
 
 ## How data-dependent loops are summarized (the interesting part)
 
