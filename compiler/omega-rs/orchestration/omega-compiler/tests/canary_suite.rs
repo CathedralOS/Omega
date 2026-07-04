@@ -2159,6 +2159,47 @@ fn runtime_carrier_itoa_exit_canary_runs() {
 // = 'C') and a u8 field (`buffer[1] = self.ch` = 'D') work; from "AB" the writes
 // yield "CD" -> `==` exits 70.
 #[test]
+fn runtime_carrier_byte_write_width_coercion_canary_runs() {
+    // A carrier byte WRITE of a COMPUTED value coerces to the u8 byte width
+    // (`buffer[0] = a+b` with a+b=300 stores the low byte 44), matching native.
+    // The carrier (Value::Str) path is separate from the array element_cell path.
+    // exit 71 = the byte was not the low-byte 44.
+    let canary = pass_canary("text/runtime_carrier_byte_write_width_coercion");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("carrier byte-write coercion canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (carrier byte write coerces to u8), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-carrier-coerce-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier byte-write coercion canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("carrier byte-write coercion canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected carrier byte write to coerce to u8 low byte (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_bounded_carrier_byte_write_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_byte_write_exit");
     let main_path = canary.join("main.omg");
