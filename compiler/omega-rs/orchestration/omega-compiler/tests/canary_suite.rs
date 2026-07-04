@@ -18005,6 +18005,38 @@ fn runtime_same_type_contained_direct_fields_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_argmax_index_exit_canary_runs() {
+    // argmax over [4,15,8,42,16,23]: the maximum 42 is at index 3 -> exit 70;
+    // a wrong index-capture -> exit 71.
+    let canary = pass_canary("collections/runtime_argmax_index_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-argmax-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("argmax canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("argmax canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected argmax of [4,15,8,42,16,23] to be index 3 (exit 70); exit 71 = wrong \
+         index capture. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_bracket_matcher_stack_exit_canary_runs() {
     // Stack-based bracket matcher over "([)]" (mis-nested). Correct verdict is
     // UNBALANCED -> exit 70; a count-only or broken matcher -> exit 71.
@@ -18841,6 +18873,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_same_type_contained_direct_fields_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
+    "collections/runtime_argmax_index_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
     "concurrency/runtime_spawn_struct_result_exit",
