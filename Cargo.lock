@@ -446,14 +446,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-graph"
-version = "0.1.0"
-dependencies = [
- "omega-core",
- "omega-syntax-trees",
-]
-
-[[package]]
 name = "omega-image"
 version = "0.1.0"
 dependencies = [
