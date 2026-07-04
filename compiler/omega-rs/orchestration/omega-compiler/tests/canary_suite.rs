@@ -17968,6 +17968,39 @@ fn runtime_float_min_max_abs_clamp_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_dual_indexed_guard_compare_exit_canary_runs() {
+    // PROBE: `arr[i] < arr[j]` (both runtime indices) in a guard. arr[1]=20 <
+    // arr[3]=40 is TRUE -> exit 70. Exit 71 = silent miscompile.
+    let canary = pass_canary("collections/runtime_dual_indexed_guard_compare_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-dual-idx-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dual-indexed guard-compare canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dual-indexed guard-compare canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected arr[1]=20 < arr[3]=40 to be TRUE (exit 70); exit 71 = the guard \
+         compared the wrong elements (silent miscompile). got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_float_running_min_max_fold_exit_canary_runs() {
     // A RUNNING float min/max fold across state edges: `self.lo = min(self.lo,
     // self.cur)` reads an accumulator field, feeds minsd/maxsd, and writes it
@@ -18634,6 +18667,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_negative_float_to_int_exit",
     "arithmetic/runtime_float_min_max_abs_clamp_exit",
     "arithmetic/runtime_float_running_min_max_fold_exit",
+    "collections/runtime_dual_indexed_guard_compare_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
     "concurrency/runtime_spawn_struct_result_exit",
