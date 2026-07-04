@@ -189,14 +189,11 @@ fn evaluate_wire_policy(
 }
 
 /// The wire size fact for a scalar primitive (informational for the policy;
-/// varint encoding does not depend on it).
+/// varint encoding does not depend on it). Non-scalars (`String`) report 8,
+/// preserving the prior `_ => 8` fallback. Sizes come from the single source of
+/// truth on `PrimitiveType`.
 fn primitive_wire_size(primitive: PrimitiveType) -> i64 {
-    match primitive {
-        PrimitiveType::Bool | PrimitiveType::I8 | PrimitiveType::U8 => 1,
-        PrimitiveType::I16 | PrimitiveType::U16 => 2,
-        PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => 4,
-        _ => 8,
-    }
+    primitive.scalar_byte_size().unwrap_or(8) as i64
 }
 
 /// Materialize the schema's facts as the std `Schema` value: field
