@@ -107,6 +107,9 @@ SUMMARIZABLE = [
     # READ-LOOPS: one read_byte() per iteration -> Σ input[base..base+trip) as the (k 8 lo hi) stream sum;
     # the grid supplies a padded input vector. A read mixed into a larger delta refuses (a later slice).
     ("read-sum (total += read)", loop("i < n", "total = total + read_byte()"),     lambda n, a, b: None),
+    ("read*2  (coefficiented Σ)", loop("i < n", "total = total + (read_byte() * 2)"), lambda n, a, b: None),
+    ("a*read  (symbolic coef)",  loop("i < n", "total = total + (a * read_byte())"), lambda n, a, b: None),
+    ("read+i  (Σ + g(n) mixed)", loop("i < n", "total = total + (read_byte() + i)"), lambda n, a, b: None),
     ("discarding reads (2n)",    loop("i < n", "total = total + 2  s = read_byte()"), lambda n, a, b: None),
     ("↓ Σi   (total += i)",     downloop("total = total + i"),                     lambda n, a, b: n * (n + 1) // 2),
     ("↓ -Σi  (total -= i)",     downloop("total = total - i"),                     lambda n, a, b: (-(n * (n + 1) // 2)) % 256),
@@ -124,7 +127,7 @@ MUST_REFUSE = [
     # != from a symbolic start: the machine DIVERGES when a > n (the counter runs past n and wraps) — the
     # exact-hit argument only holds from 0, so this must refuse.
     ("(i != n) from a (diverges!)",   fromloop("a", "total = total + b", guard='i != n')),
-    ("read*2 delta (mixed read)",     loop("i < n", "total = total + (read_byte() * 2)")),
+    ("read*read (quadratic stream)",  loop("i < n", "total = total + (read_byte() * read_byte())")),
     # Σ of g: inner (j < i, total += j) makes the outer delta g(i) — quadratic in the outer counter
     # (tetrahedral sum), genuinely outside the linear class on both sides.
     ("nested Σg (j<i, total+=j)",     nestedloop("i").replace('total = total + a', 'total = total + j')),

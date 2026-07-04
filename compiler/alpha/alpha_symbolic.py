@@ -315,8 +315,41 @@ def _has_stream(t):                    # does a stream term (sv / ssum) occur an
             return any(_has_stream(x) for x in t[1:])
     return False
 
-def _read_sum(init, base, trip):       # init + Σ input[base .. base+trip) — identical shape in both engines
-    return ('p', _term(init), ('ssum', _term(base), ('p', _term(base), trip)))
+def _split_stream(d, rdmark):
+    """d ≡ rest + coef·(sv rdmark) -> (rest, coef); coef None when d has no stream part; (None, None) when the
+    stream part is not linearly separable (e.g. (sv rd)·(sv rd), or a read under a non-invariant factor).
+    Shared shape in both engines so the closed forms stay byte-identical."""
+    sv = ('sv', rdmark)
+    if d == sv:
+        return (0, 1)
+    if isinstance(d, tuple):
+        if d[0] == 'm':
+            if d[1] == sv and not _has_stream(d[2]):
+                return (0, d[2])
+            if d[2] == sv and not _has_stream(d[1]):
+                return (0, d[1])
+        if d[0] == 'p':
+            ls, rs = _has_stream(d[1]), _has_stream(d[2])
+            if ls and rs:
+                return (None, None)
+            if not ls and not rs:
+                return (d, None)
+            side = 1 if ls else 2
+            rest, coef = _split_stream(d[side], rdmark)
+            if coef is None and rest is None:
+                return (None, None)
+            other = d[3 - side]
+            if coef is None:
+                return (d, None)
+            combined = other if rest == 0 else ('p', _term(rest), _term(other)) if side == 1 else ('p', _term(other), _term(rest))
+            return (combined, coef)
+    return (d, None) if not _has_stream(d) else (None, None)
+
+def _read_sum(rest_closed, base, trip, coef=1):    # rest-series + coef·Σ input[base .. base+trip)
+    ssum = ('ssum', _term(base), ('p', _term(base), trip))
+    if _canon(coef) != 1:
+        ssum = ('m', ssum, _term(coef))
+    return ('p', _term(rest_closed), ssum)
 
 def _has_zz(t):                        # does a zz pair occur anywhere inside term `t`?
     if isinstance(t, tuple):
@@ -550,14 +583,27 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
                               _series_closed(p0, _canon(_sum2(dp[0], _scale2(dp[1], off))), _canon(dp[1]), trip),
                               _series_closed(n0, _canon(_sum2(dn[0], _scale2(dn[1], off))), _canon(dn[1]), trip))
             continue
-        if d == ('sv', ('slot', RDV)):              # acc += read_byte(): Σ input[base .. base+trip) —
-            if _canon(raw.get(RDV)) != 1 or not isinstance(MEM.get(RDV), int):
-                return None                         # only with EXACTLY one read per iteration, from a
-            updates[a] = _read_sum(MEM[a], MEM[RDV], trip)      # concrete base position
+        if _has_stream(d) or _occurs(d, ('slot', RDV)):     # δ = rest + coef·read: an invariant-coefficient
+            rest, coef = _split_stream(d, ('slot', RDV))    # stream sum plus an ordinary series
+            if coef is None or _canon(raw.get(RDV)) != 1 or not isinstance(MEM.get(RDV), int):
+                return None                         # exactly one read per iteration, from a concrete base
+            coef_s = _subst_slots(coef, MEM, invariant) if isinstance(coef, tuple) else coef
+            if (_has_stream(coef_s) or _has_zz(coef_s) or _mentions_marked(coef_s, movedset)
+                    or _occurs(coef_s, ('slot', RDV))):
+                return None                         # the read's coefficient must be loop-invariant
+            if rest == 0:
+                dec = (0, 0)
+            else:
+                rest_s = _subst_slots(rest, MEM, invariant)
+                if _has_stream(rest_s) or _has_zz(rest_s):
+                    return None
+                dec = _lin_decompose(rest_s, ctr, movedset)
+                if dec is None or (down and _canon(dec[1]) != 0):
+                    return None
+            rest_closed = _series_closed(MEM[a], _canon(_sum2(dec[0], _scale2(dec[1], off))), _canon(dec[1]), trip)
+            updates[a] = _read_sum(rest_closed, MEM[RDV], trip, coef_s)
             continue
         sub = _subst_slots(d, MEM, invariant)       # δ = a0 + a1·counter
-        if _has_stream(sub) or _occurs(sub, ('slot', RDV)):
-            return None                             # a read mixed into a larger delta: a later slice
         if _has_zz(sub):
             return None                             # invariant zz feeding a plain delta: beta distributes
         if _mentions_marked(sub, rewriteset):

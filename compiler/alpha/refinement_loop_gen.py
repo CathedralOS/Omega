@@ -68,9 +68,20 @@ def program(seed):
     # ~25% of accumulators SUBTRACT their delta (acc = acc - δ); ~20% route it through a REWRITE temp
     # (t = δ; acc = acc ± t) — t is overwritten each iteration and dropped post-loop.
     parts = []
-    for acc in accs:
+    read_used = False                                               # at most ONE read per body: the
+    for acc in accs:                                                # summarizers require stride exactly 1
         op = '-' if rng.random() < 0.25 else '+'
-        d = delta()
+        # ~15%: the delta consumes the INPUT STREAM (one read per iteration; += only — subtracting reads is a
+        # later slice). Coefficients / added terms stay loop-invariant.
+        if not read_used and rng.random() < 0.15:
+            read_used = True
+            op = '+'
+            d = rng.choice(['read_byte()',
+                            '(read_byte() * %s)' % _inv(rng, data),
+                            '(%s * read_byte())' % _inv(rng, data),
+                            '(read_byte() + %s)' % _inv(rng, data)])
+        else:
+            d = delta()
         if rng.random() < 0.20:
             parts.append('t%s = %s  %s = %s %s t%s' % (acc[-1], d, acc, acc, op, acc[-1]))
         else:

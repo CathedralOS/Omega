@@ -287,8 +287,41 @@ def _has_stream(t):                    # does a stream term (sv / ssum) occur an
             return any(_has_stream(x) for x in t[1:])
     return False
 
-def _read_sum(init, base, trip):       # init + Σ input[base .. base+trip) — identical shape in both engines
-    return ('p', _term(init), ('ssum', _term(base), ('p', _term(base), trip)))
+def _split_stream(d, rdmark):
+    """d ≡ rest + coef·(sv rdmark) -> (rest, coef); coef None when d has no stream part; (None, None) when the
+    stream part is not linearly separable (e.g. (sv rd)·(sv rd), or a read under a non-invariant factor).
+    Shared shape in both engines so the closed forms stay byte-identical."""
+    sv = ('sv', rdmark)
+    if d == sv:
+        return (0, 1)
+    if isinstance(d, tuple):
+        if d[0] == 'm':
+            if d[1] == sv and not _has_stream(d[2]):
+                return (0, d[2])
+            if d[2] == sv and not _has_stream(d[1]):
+                return (0, d[1])
+        if d[0] == 'p':
+            ls, rs = _has_stream(d[1]), _has_stream(d[2])
+            if ls and rs:
+                return (None, None)
+            if not ls and not rs:
+                return (d, None)
+            side = 1 if ls else 2
+            rest, coef = _split_stream(d[side], rdmark)
+            if coef is None and rest is None:
+                return (None, None)
+            other = d[3 - side]
+            if coef is None:
+                return (d, None)
+            combined = other if rest == 0 else ('p', _term(rest), _term(other)) if side == 1 else ('p', _term(other), _term(rest))
+            return (combined, coef)
+    return (d, None) if not _has_stream(d) else (None, None)
+
+def _read_sum(rest_closed, base, trip, coef=1):    # rest-series + coef·Σ input[base .. base+trip)
+    ssum = ('ssum', _term(base), ('p', _term(base), trip))
+    if _canon(coef) != 1:
+        ssum = ('m', ssum, _term(coef))
+    return ('p', _term(rest_closed), ssum)
 
 def _has_zz(t):                        # does a zz pair occur anywhere inside term `t`?
     if isinstance(t, tuple):
@@ -465,11 +498,26 @@ class SymInterp:
         closed = {}
         for v in loop_vars:                             # each δ = a0 + a1·counter -> init + a0·trip + a1·g(trip)
             d = deltas[v]
-            if d == ('sv', ('loopvar', '#rd')):         # acc += read_byte(): Σ input[base .. base+trip)
-                closed[v] = _read_sum(entry[v], rd_entry, trip)
+            if _has_stream(d) or _mentions(d, ('loopvar', '#rd')):
+                rest, coef = _split_stream(d, ('loopvar', '#rd'))   # δ = rest + coef·read
+                if coef is None or reads != 1:
+                    return False                        # exactly one read per iteration
+                coef_s = _subst_loopvars(coef, entry, invariant) if isinstance(coef, tuple) else coef
+                if (_has_stream(coef_s) or _has_zz(coef_s) or _mentions_loopvar(coef_s, loop_vars)
+                        or _mentions(coef_s, ('loopvar', '#rd'))):
+                    return False                        # the read's coefficient must be loop-invariant
+                if rest == 0:
+                    dec = (0, 0)
+                else:
+                    rest_s = _subst_loopvars(rest, entry, invariant)
+                    if _has_stream(rest_s) or _has_zz(rest_s):
+                        return False
+                    dec = _lin_decompose(rest_s, counter, loop_vars)
+                    if dec is None or (down and _canon(dec[1]) != 0):
+                        return False
+                rest_closed = _series_closed(entry[v], _canon(_sum2(dec[0], _scale2(dec[1], off))), _canon(dec[1]), trip)
+                closed[v] = _read_sum(rest_closed, rd_entry, trip, coef_s)
                 continue
-            if _mentions(d, ('loopvar', '#rd')) or _has_stream(d):
-                return False                            # a read mixed into a larger delta: a later slice
             if isinstance(d, tuple) and d[0] == 'zz':   # subtracting accumulator: summarize pos/neg independently
                 P = _subst_loopvars(d[1], entry, invariant)
                 N = _subst_loopvars(d[2], entry, invariant)
