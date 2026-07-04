@@ -152,6 +152,15 @@ fn runtime_value_expression_can_emit(
         | Expression::Boolean(_)
         | Expression::Integer(_)
         | Expression::String(_) => true,
+        // A numeric `as` cast subject (`self.big as u8 == 44`): emittable when its
+        // source is -- the guard value-operand path wraps it in a Convert.
+        Expression::Cast(cast) => runtime_value_expression_can_emit(
+            input,
+            source_key,
+            source_dispatch_index,
+            statement_index,
+            &cast.value,
+        ),
         Expression::Call(_) => input
             .runtime_storage
             .transition_guard_result_slot(source_dispatch_index, source_key, statement_index)

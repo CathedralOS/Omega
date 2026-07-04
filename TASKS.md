@@ -816,10 +816,22 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >   for narrow `>>`), and the same width fix also corrects aarch64 narrow div/mod in
 >   guards (previously ran 64-bit, unverified). fail canary shift_in_guard_rejected
 >   removed. See bitwise-operators.md.
-> - **CAST in a guard subject** (`transition (self.x as i8) == c`) -- still FENCED
->   (fail canary cast_in_guard_rejected). A cast-hoist tested sound but a nearby
->   bare-field cast store miscompiles, so cast stays rejected until its operand path
->   is done. Parenthesized subjects are the separate boolean-guard-nesting parser gap.
+> - **CAST in a guard subject** (`transition self.x as u8 == c`) -- LANDED
+>   2026-07-04, same pattern as shifts. The guard value-operand resolver
+>   (guards.rs `resolve_runtime_value_operand_in_table`) gained a Cast arm that wraps
+>   the source in a `RuntimeValueOperand::Convert` (mirroring the write-path resolver
+>   writes/mutation/value_operands.rs), and `guard_expression_support.rs` allows
+>   `Expression::Cast` in the emit gate. The Convert carries its target width, so the
+>   guard compare sizes to the cast target automatically -- no byte_size change was
+>   needed (unlike shifts). The feared "bare-field cast store miscompiles" was an
+>   ARTIFACT of the reverted 2026-07-03 hoist, NOT a HEAD bug (re-probed: bare +
+>   domain-annotated cast stores both give 44 for `300 as u8`). Verified x86_64:
+>   canary+differential `arithmetic/runtime_cast_in_guard_exit` (narrowing 300->u8,
+>   widening signed -4->i64, widening unsigned 200->i32), interp==native. aarch64
+>   reuses the existing Convert emit. fail canary cast_in_guard_rejected removed.
+>   ZII cleanup: added `PrimitiveType::scalar_byte_size()` (single source of truth;
+>   convert_scalar_byte_size now delegates). Parenthesized subjects are the separate
+>   boolean-guard-nesting parser gap.
 >
 > **Mint arc remainder (library-grade; the boot path used the boundary-vouch
 > shortcut):**
