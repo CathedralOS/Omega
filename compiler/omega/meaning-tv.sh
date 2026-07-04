@@ -1,0 +1,47 @@
+#!/usr/bin/env sh
+# MEANING-ROUTE TRANSLATION VALIDATION — the summit rung's Rust-free meaning gate, upgraded from shell
+# comparison to KERNEL PROOF for the covered fragment.
+#
+# omega-meaning.sh checks each sample's meaning-route exit against its documented intent by comparing
+# numbers in the shell. This gate makes that a certificate: gamma2claim.py (UNTRUSTED, the tv-encode
+# precedent) abstract-executes the omega2gamma translation into an UNFOLDED kernel arithmetic term — every
+# + and * in the computation is a p/m node — and delta/check.beta accepts
+#       (= <meaning term> <unary exit>) (refl <unary exit>)
+# only by RE-COMPUTING the sample's entire arithmetic in its own conversion. The exit is cross-checked
+# three ways first (encoder = interpreter run = documented intent), and a perturbed certificate (exit+1)
+# must be REJECTED, so acceptance is meaningful. Control decisions (if/match) are the encoder's, exactly
+# like tv-encode's unrolled loops: a wrong decision mis-states the meaning and fails the cross-check.
+# Scope: the +/* fragment of omega2gamma output; -,/,% via the tv-encode user-fun route are the next slice.
+cd "$(dirname "$0")"
+command -v python3 >/dev/null 2>&1 || { echo "meaning-tv: skipped (python3 absent)"; exit 0; }
+. ../alpha/seed_env.sh
+SEED=../alpha/$ALPHA_SEED
+ASM=../beta/$BETA_SEED
+( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null 2>&1 ) || { echo "meaning-tv FAIL — bc build"; exit 1; }
+b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
+T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+b omega2gamma.beta     "$T/e2g.exe"    || { echo "meaning-tv FAIL — build omega2gamma.beta"; exit 1; }
+b ../gamma/interp.beta "$T/interp.exe" || { echo "meaning-tv FAIL — build interp.beta"; exit 1; }
+b ../delta/check.beta  "$T/check.exe"  || { echo "meaning-tv FAIL — build check.beta"; exit 1; }
+
+PASS=0; FAIL=0
+tv() {
+  src="../../samples/$1/main.omg"
+  want=$(grep -oE 'Expected exit: [0-9]+' "$src" | head -1 | grep -oE '[0-9]+')
+  "$T/e2g.exe" < "$src" > "$T/g" 2>/dev/null
+  "$T/interp.exe" < "$T/g" >/dev/null 2>&1; got=$?
+  python3 gamma2claim.py < "$T/g" > "$T/claims" 2>/dev/null || { FAIL=$((FAIL+1)); echo "  FAIL $1 : encoder refused a listed sample"; return; }
+  line1=$(head -1 "$T/claims"); bad=$(sed -n 2p "$T/claims")
+  enc=${line1%% *}; cert=${line1#* }
+  if [ "$enc" != "$got" ] || [ "$enc" != "$want" ]; then
+    FAIL=$((FAIL+1)); echo "  FAIL $1 : exits disagree (encoder=$enc interp=$got documented=$want)"; return; fi
+  v=$(printf '%s' "$cert" | "$T/check.exe")
+  [ "$v" = accept ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : kernel rejected the meaning claim"; return; }
+  v2=$(printf '%s' "$bad" | "$T/check.exe")
+  [ "$v2" = reject ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : perturbed claim NOT rejected"; return; }
+  PASS=$((PASS+1)); echo "  ok   $1 : meaning ≡ exit $enc PROVEN in the kernel (perturbed claim rejected)"
+}
+tv bounded_counter
+tv nested_counters
+echo "meaning-route TV (the kernel re-computes each covered sample's arithmetic): $PASS ok, $FAIL failed"
+[ "$FAIL" = 0 ] && [ "$PASS" -gt 0 ]
