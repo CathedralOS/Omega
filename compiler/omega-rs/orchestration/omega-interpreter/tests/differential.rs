@@ -229,6 +229,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_indexed_reduction_loop_exit", 70),
     ("collections/runtime_array_max_and_sum_exit", 70),
     ("generics/runtime_generic_record_instance_exit", 70),
+    ("generics/runtime_generic_two_instantiations_exit", 30),
     ("generics/runtime_generic_enum_payload_exit", 70),
     ("generics/runtime_generic_value_call_exit", 70),
     ("generics/runtime_generic_value_call_agreeing_exit", 70),

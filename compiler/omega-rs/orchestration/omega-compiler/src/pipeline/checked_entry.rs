@@ -23,6 +23,7 @@ pub fn compile_to_checked(
         source_files_to_syntax_trees(root_path, target_name, &mut timings)?;
     // PLAN-LAID VALUE TYPES (layouts L4), desugar half -- exactly as the full
     // `compile` pipeline does.
+    crate::pipeline::generic_instances::desugar_generic_data_instances(&mut syntax.syntax_trees)?;
     let plan_laid_records =
         crate::pipeline::plan_laid::desugar_plan_laid_value_types(&mut syntax.syntax_trees)?;
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, &mut timings)?;
