@@ -1,0 +1,29 @@
+// PURE-BUILTIN GUARD-SUBJECT HOIST (#26). A pure builtin (`min`/`max`/`sqrt`;
+// `abs`/`clamp` desugar to these) used DIRECTLY as a guard subject is now
+// hoisted automatically into a temp -- `transition min(self.a, self.b) == 7`
+// lowers as `let __hoist = min(self.a, self.b); transition __hoist == 7`, the
+// sound "bind it to a local first" idiom made automatic. Builtins are
+// effect-free, so this can never change an effectful evaluation count (the
+// constraint that reverted the general value-call hoist). DISCRIMINATING: with
+// a=8,b=7, min=7 (true arm) and max=8 (true arm) reach `good` (exit 70); a wrong
+// min/max, or a vacuously-true guard, would take a `_` arm to `bad` (exit 71).
+// Native must match the interpreter (differential).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: i32; b: i32; }
+machine Main::main(&mut self) {
+    self.a = 8;
+    self.b = 7;
+    transition min(self.a, self.b) == 7 {
+        true -> check_max()
+        _ -> bad()
+    }
+    state check_max(&mut self) {
+        transition max(self.a, self.b) == 8 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+// Expected exit: 70

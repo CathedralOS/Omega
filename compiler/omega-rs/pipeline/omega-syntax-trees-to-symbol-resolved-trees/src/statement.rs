@@ -50,7 +50,7 @@ fn lower_statement_node(
             let target = lower_statement_expression(lowerer, syntax_trees, assignment.target)?;
             let value = lower_statement_expression(lowerer, syntax_trees, assignment.value)?;
             let mut hoisted = Vec::new();
-            let value = hoist_operand_indexed_reads(lowerer, value, &mut hoisted);
+            let value = hoist_operand_indexed_reads(lowerer, value, &mut hoisted, false);
             hoisted.push(Statement::Assignment(Assignment { target, value }));
             Ok(hoisted)
         }
@@ -78,7 +78,7 @@ fn lower_statement_node(
             };
             let mut hoisted = Vec::new();
             let initial_value = if initial_value.is_valid() {
-                hoist_operand_indexed_reads(lowerer, initial_value, &mut hoisted)
+                hoist_operand_indexed_reads(lowerer, initial_value, &mut hoisted, false)
             } else {
                 initial_value
             };
@@ -118,7 +118,13 @@ fn lower_statement_node(
             let mut hoisted = Vec::new();
             if let TransitionGuard::When(expression) = guard {
                 if guard_hoists_operands(lowerer, expression) {
-                    hoist_operand_indexed_reads(lowerer, expression, &mut hoisted);
+                    // In GUARD position also hoist a pure-builtin subject
+                    // (`transition min(self.a, self.b) == 3`) into a temp, so the
+                    // guard compares a materialized local -- the sound idiom the
+                    // "bind it to a local first" diagnostic asks for, made
+                    // automatic. Scoped to guards (the `true` flag): assignment
+                    // and let values above already lower builtin calls directly.
+                    hoist_operand_indexed_reads(lowerer, expression, &mut hoisted, true);
                 } else {
                     // A `Membership` root is an enum-variant match arm (`grid[i] { Wall -> .. }`);
                     // the comparison hoist above skips it (not a `Binary`). Hoist its runtime-indexed
@@ -154,10 +160,11 @@ fn hoist_operand_indexed_reads(
     lowerer: &mut Lowerer,
     value: ExpressionHandle,
     hoisted: &mut Vec<Statement>,
+    hoist_builtin_calls: bool,
 ) -> ExpressionHandle {
     // The root itself stays as-is, but rewrite its children so any nested
     // operand-position indexed read is hoisted.
-    rewrite_children(lowerer, value, hoisted);
+    rewrite_children(lowerer, value, hoisted, hoist_builtin_calls);
     value
 }
 
@@ -167,6 +174,7 @@ fn rewrite_children(
     lowerer: &mut Lowerer,
     expression: ExpressionHandle,
     hoisted: &mut Vec<Statement>,
+    hoist_builtin_calls: bool,
 ) {
     let node = lowerer
         .symbol_resolved_trees
@@ -177,8 +185,8 @@ fn rewrite_children(
         .clone();
     match node {
         ExpressionNode::Binary(binary) => {
-            let left = hoist_child(lowerer, binary.left, hoisted);
-            let right = hoist_child(lowerer, binary.right, hoisted);
+            let left = hoist_child(lowerer, binary.left, hoisted, hoist_builtin_calls);
+            let right = hoist_child(lowerer, binary.right, hoisted, hoist_builtin_calls);
             set_expression(
                 lowerer,
                 expression,
@@ -190,7 +198,7 @@ fn rewrite_children(
             );
         }
         ExpressionNode::Unary(unary) => {
-            let operand = hoist_child(lowerer, unary.operand, hoisted);
+            let operand = hoist_child(lowerer, unary.operand, hoisted, hoist_builtin_calls);
             set_expression(
                 lowerer,
                 expression,
@@ -201,7 +209,7 @@ fn rewrite_children(
             );
         }
         ExpressionNode::Cast(cast) => {
-            let value = hoist_child(lowerer, cast.value, hoisted);
+            let value = hoist_child(lowerer, cast.value, hoisted, hoist_builtin_calls);
             set_expression(
                 lowerer,
                 expression,
@@ -213,7 +221,7 @@ fn rewrite_children(
             );
         }
         ExpressionNode::Membership(membership) => {
-            let value = hoist_child(lowerer, membership.value, hoisted);
+            let value = hoist_child(lowerer, membership.value, hoisted, hoist_builtin_calls);
             set_expression(
                 lowerer,
                 expression,
@@ -232,12 +240,12 @@ fn rewrite_children(
         ExpressionNode::Mutable(_) => {}
         ExpressionNode::Range(range) => {
             let start = if range.start.is_valid() {
-                hoist_child(lowerer, range.start, hoisted)
+                hoist_child(lowerer, range.start, hoisted, hoist_builtin_calls)
             } else {
                 range.start
             };
             let end = if range.end.is_valid() {
-                hoist_child(lowerer, range.end, hoisted)
+                hoist_child(lowerer, range.end, hoisted, hoist_builtin_calls)
             } else {
                 range.end
             };
@@ -257,7 +265,7 @@ fn rewrite_children(
             // value root. Leave it whole (the root whole-value copy path), but
             // still rewrite its index sub-expression so a runtime-indexed read
             // INSIDE the index (`arr[other[i]]`) is hoisted.
-            let index = hoist_child(lowerer, indexed.index, hoisted);
+            let index = hoist_child(lowerer, indexed.index, hoisted, hoist_builtin_calls);
             set_expression(
                 lowerer,
                 expression,
@@ -283,18 +291,68 @@ fn hoist_child(
     lowerer: &mut Lowerer,
     child: ExpressionHandle,
     hoisted: &mut Vec<Statement>,
+    hoist_builtin_calls: bool,
 ) -> ExpressionHandle {
     if is_runtime_indexed_read(lowerer, child) {
         // Rewrite the indexed read's OWN index first (nested `arr[other[i]]`),
         // then hoist the whole indexed read into a fresh temp.
-        rewrite_children(lowerer, child, hoisted);
+        rewrite_children(lowerer, child, hoisted, hoist_builtin_calls);
+        return hoist_into_temp(lowerer, child, hoisted);
+    }
+
+    // In guard position, a pure-builtin call subject (`min(self.a, self.b)`) is
+    // hoisted whole into a temp so the guard compares a materialized local. The
+    // builtins are effect-free, so this never changes an effectful evaluation
+    // count (unlike a general value-call hoist). Only calls whose first argument
+    // is a `self.<field>` place are hoisted -- the symbol-resolved->typed lowering
+    // types the temp from that field (`infer_hoist_temp_type`); a non-place first
+    // argument (a nested call, a literal) is left for the "bind to a local first"
+    // diagnostic, unchanged.
+    if hoist_builtin_calls && is_hoistable_builtin_guard_call(lowerer, child) {
         return hoist_into_temp(lowerer, child, hoisted);
     }
 
     // Not a runtime-indexed read: descend so deeper operand-position runtime
     // indexed reads (`(a + arr[i]) * b`) are still hoisted.
-    rewrite_children(lowerer, child, hoisted);
+    rewrite_children(lowerer, child, hoisted, hoist_builtin_calls);
     child
+}
+
+/// Whether `expression` is a pure-builtin call (`min`/`max`/`sqrt`; `abs`/`clamp`
+/// are already desugared to these) that Phase-1 guard hoisting materializes: a
+/// free call (no receiver) whose FIRST argument is a `self.<field>` place, so the
+/// synthetic temp's type is resolvable from that field. `abs(self.x)` desugars to
+/// `max(self.x, 0 - self.x)` (first arg `self.x`, hoisted); `clamp(self.x, ..)`
+/// desugars to `min(max(self.x, ..), ..)` whose first arg is a call, so it is
+/// left alone (not hoisted) -- the temp would be untypeable.
+fn is_hoistable_builtin_guard_call(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
+    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let ExpressionNode::Call(call) = expressions.expression(expression) else {
+        return false;
+    };
+    if call.receiver.is_valid() {
+        return false; // a method call, not a free builtin
+    }
+    if !matches!(call.target.as_str(), "min" | "max" | "sqrt") {
+        return false;
+    }
+    let arguments = expressions.expression_handles(call.arguments);
+    let Some(&first) = arguments.first() else {
+        return false;
+    };
+    // The first argument must be a `self.<field>` member access -- the only place
+    // shape `infer_hoist_temp_type` can type the temp from.
+    let ExpressionNode::Member(member) = expressions.expression(first) else {
+        return false;
+    };
+    matches!(
+        expressions.expression(member.receiver),
+        ExpressionNode::Name(path)
+            if expressions
+                .name_path_members(path.members)
+                .first()
+                .is_some_and(|name| name.as_str() == "self")
+    )
 }
 
 /// Whether `expression` is an `Indexed` read whose index is NOT a constant
