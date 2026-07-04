@@ -23,8 +23,13 @@
 # STRUCTURAL RESULTS (cli_mvp): a sample whose final value is a constructor tree gets a structural claim —
 # the tree with computed leaves proven equal to the literal tree — and the encoder's `#render` line must
 # string-equal the interpreter's printed value, pinning the claimed structure to the real run.
-# Outside: quotients past the reduction wall (collatz/digital_root), modexp (kernel reduction too slow),
-# division over difference pairs.
+# DIVISION BY WITNESS: heavy arithmetic (div/mod/mul/sub over big values) no longer reduces through the
+# fueled user funs (whose unfold runs blow the alpha VM's 64 MiB envelope — the old quotient wall). The
+# encoder witnesses results and emits VALUE-PIN certs (= <operand term> <literal>) plus chunked literal
+# addition certs proving the op's arithmetic, each an in-envelope kernel run — certifying computation,
+# the multi-lemma assembly precedent applied to arithmetic. Unlocks collatz_sequence, digital_root,
+# modular_exponentiation. Outside: dice_roller (values exceed the unary wall), division over difference
+# pairs.
 cd "$(dirname "$0")"
 command -v python3 >/dev/null 2>&1 || { echo "meaning-tv: skipped (python3 absent)"; exit 0; }
 . ../alpha/seed_env.sh
@@ -83,5 +88,8 @@ tv bouncing_ball
 tv turn_combat
 tv width_mixer
 tv cli_mvp
-echo "meaning-route TV (the kernel re-computes each covered sample's arithmetic + $VCTOT safety obligations: division + array bounds): $PASS ok, $FAIL failed"
+tv digital_root
+tv collatz_sequence
+tv modular_exponentiation
+echo "meaning-route TV (the kernel re-computes each covered sample's arithmetic + $VCTOT obligations: division/mul/sub witnesses + array bounds): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] && [ "$PASS" -gt 0 ]
