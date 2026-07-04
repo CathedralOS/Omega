@@ -193,11 +193,15 @@ and its rest — `total += a·read_byte() + i` closes as `g(n) + a·Σ input[bas
 ordinary series and the stream part as `(m (k 8 lo hi) coef)` with a loop-invariant coefficient. A quadratic
 stream (`read·read`) refuses.
 
+Subtracting reads compose too: each ℤ-pair component splits its own stream part, so `total -= read_byte()`
+puts the `Σ` on the pair's **neg** side — `(k 5 init (p z Σ))` — and `total += a − read_byte()` mixes an
+ordinary series on pos with a stream sum on neg (`_component_closed`, identical in both engines).
+
 **Deliberately out of scope** (each conservatively *refused* — never mis-summarized): scaling recurrences
 (`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`, tetrahedral `Σg`);
-ℤ-pair or monus counter *start values*; `word[..]` memory; quadratic streams (`read·read`); subtracting
-reads (`total -= read_byte()`); more than one read per iteration; buffer writes at symbolic addresses;
-stale reads of rewrite slots; returns inside loop bodies.
+ℤ-pair or monus counter *start values*; `word[..]` memory; quadratic streams (`read·read`); more than one
+read per iteration; reads in down-counting loops; buffer writes at symbolic addresses; stale reads of
+rewrite slots; returns inside loop bodies.
 
 ## How data-dependent loops are summarized (the interesting part)
 

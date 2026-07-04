@@ -323,6 +323,15 @@ def _read_sum(rest_closed, base, trip, coef=1):    # rest-series + coef·Σ inpu
         ssum = ('m', ssum, _term(coef))
     return ('p', _term(rest_closed), ssum)
 
+def _component_closed(init, comp_rest_dec, coef, base, trip, off):
+    """Close one ℤ-pair component: the ordinary series over its rest (offset-folded), plus an optional
+    coefficiented stream sum. Identical construction in both engines."""
+    rest_closed = _series_closed(init, _canon(_sum2(comp_rest_dec[0], _scale2(comp_rest_dec[1], off))),
+                                 _canon(comp_rest_dec[1]), trip)
+    if coef is None:
+        return rest_closed
+    return _read_sum(rest_closed, base, trip, coef)
+
 def _has_zz(t):                        # does a zz pair occur anywhere inside term `t`?
     if isinstance(t, tuple):
         if t[0] == 'zz':
@@ -498,7 +507,8 @@ class SymInterp:
         closed = {}
         for v in loop_vars:                             # each δ = a0 + a1·counter -> init + a0·trip + a1·g(trip)
             d = deltas[v]
-            if _has_stream(d) or _mentions(d, ('loopvar', '#rd')):
+            if not (isinstance(d, tuple) and d[0] == 'zz') and (_has_stream(d)
+                                                                or _mentions(d, ('loopvar', '#rd'))):
                 rest, coef = _split_stream(d, ('loopvar', '#rd'))   # δ = rest + coef·read
                 if coef is None or reads != 1:
                     return False                        # exactly one read per iteration
@@ -518,24 +528,35 @@ class SymInterp:
                 rest_closed = _series_closed(entry[v], _canon(_sum2(dec[0], _scale2(dec[1], off))), _canon(dec[1]), trip)
                 closed[v] = _read_sum(rest_closed, rd_entry, trip, coef_s)
                 continue
-            if isinstance(d, tuple) and d[0] == 'zz':   # subtracting accumulator: summarize pos/neg independently
-                P = _subst_loopvars(d[1], entry, invariant)
-                N = _subst_loopvars(d[2], entry, invariant)
-                if _has_zz(P) or _has_zz(N):
-                    return False                        # a zz value nested in a component: alpha refuses too
-                if _mentions_loopvar(P, rewrite) or _mentions_loopvar(N, rewrite):
-                    return False                        # the delta reads a rewrite var's stale value
-                dp = _lin_decompose(P, counter, loop_vars)
-                dn = _lin_decompose(N, counter, loop_vars)
-                if dp is None or dn is None:
-                    return False
+            if isinstance(d, tuple) and d[0] == 'zz':   # subtracting accumulator: summarize pos/neg
+                comps = []                              # independently — each component may carry its OWN
+                for raw_comp in (d[1], d[2]):           # stream part (acc -= read puts the Σ on the NEG side)
+                    rest, coef = _split_stream(raw_comp, ('loopvar', '#rd'))
+                    if rest is None and coef is None:
+                        return False                    # not linearly separable (read·read, …)
+                    if coef is not None:
+                        if reads != 1 or down:
+                            return False                # stride-1 reads, up-counting only
+                        coef = _subst_loopvars(coef, entry, invariant) if isinstance(coef, tuple) else coef
+                        if (_has_stream(coef) or _has_zz(coef) or _mentions_loopvar(coef, loop_vars)
+                                or _mentions_loopvar(coef, rewrite) or _mentions(coef, ('loopvar', '#rd'))):
+                            return False                # the read's coefficient must be loop-invariant
+                    rest_s = _subst_loopvars(rest, entry, invariant) if rest != 0 else 0
+                    if rest_s != 0 and (_has_stream(rest_s) or _has_zz(rest_s)
+                                        or _mentions_loopvar(rest_s, rewrite)
+                                        or _mentions(rest_s, ('loopvar', '#rd'))):
+                        return False
+                    dec = (0, 0) if rest_s == 0 else _lin_decompose(rest_s, counter, loop_vars)
+                    if dec is None:
+                        return False
+                    comps.append((dec, coef))
+                (dp, pcoef), (dn, ncoef) = comps
                 p0, n0 = _as_zz(entry[v])
                 if down:                                # i ↦ n-k: linear parts fold into the invariant
                     closed[v] = _down_series(p0, n0, dp[0], dp[1], dn[0], dn[1], trip)
-                else:                                   # coefficient, g cross-terms swap components; a start
-                    closed[v] = ('zz',                  # offset folds a1·off into each invariant part
-                                 _series_closed(p0, _canon(_sum2(dp[0], _scale2(dp[1], off))), _canon(dp[1]), trip),
-                                 _series_closed(n0, _canon(_sum2(dn[0], _scale2(dn[1], off))), _canon(dn[1]), trip))
+                else:
+                    closed[v] = ('zz', _component_closed(p0, dp, pcoef, rd_entry, trip, off),
+                                       _component_closed(n0, dn, ncoef, rd_entry, trip, off))
                 continue
             sub = _subst_loopvars(d, entry, invariant)
             if _has_zz(sub):

@@ -351,6 +351,15 @@ def _read_sum(rest_closed, base, trip, coef=1):    # rest-series + coef·Σ inpu
         ssum = ('m', ssum, _term(coef))
     return ('p', _term(rest_closed), ssum)
 
+def _component_closed(init, comp_rest_dec, coef, base, trip, off):
+    """Close one ℤ-pair component: the ordinary series over its rest (offset-folded), plus an optional
+    coefficiented stream sum. Identical construction in both engines."""
+    rest_closed = _series_closed(init, _canon(_sum2(comp_rest_dec[0], _scale2(comp_rest_dec[1], off))),
+                                 _canon(comp_rest_dec[1]), trip)
+    if coef is None:
+        return rest_closed
+    return _read_sum(rest_closed, base, trip, coef)
+
 def _has_zz(t):                        # does a zz pair occur anywhere inside term `t`?
     if isinstance(t, tuple):
         if t[0] == 'zz':
@@ -564,24 +573,34 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
     for a in moved:
         d = raw[a]
         if isinstance(d, tuple) and d[0] == 'zz':   # subtracting accumulator: pos/neg components follow
-            P = _subst_slots(d[1], MEM, invariant)  # independent additive recurrences — summarize each
-            N = _subst_slots(d[2], MEM, invariant)
-            if _has_stream(P) or _has_stream(N) or _occurs(P, ('slot', RDV)) or _occurs(N, ('slot', RDV)):
-                return None                         # a read mixed into a pair delta: a later slice
-            if _has_zz(P) or _has_zz(N):
-                return None                         # a zz value nested in a component: beta distributes
-            if _mentions_marked(P, rewriteset) or _mentions_marked(N, rewriteset):
-                return None                         # the delta reads a rewrite slot's stale value
-            dp, dn = _lin_decompose(P, ctr, movedset), _lin_decompose(N, ctr, movedset)
-            if dp is None or dn is None:
-                return None
+            # each pair component may carry its OWN stream part: acc -= read puts the Σ on the NEG side
+            comps = []
+            for raw_comp in (d[1], d[2]):
+                rest, coef = _split_stream(raw_comp, ('slot', RDV))
+                if rest is None and coef is None:
+                    return None                     # not linearly separable (read·read, …)
+                if coef is not None:
+                    if _canon(raw.get(RDV)) != 1 or not isinstance(MEM.get(RDV), int) or down:
+                        return None                 # stride-1 reads, concrete base, up-counting only
+                    coef = _subst_slots(coef, MEM, invariant) if isinstance(coef, tuple) else coef
+                    if (_has_stream(coef) or _has_zz(coef) or _mentions_marked(coef, movedset)
+                            or _mentions_marked(coef, rewriteset) or _occurs(coef, ('slot', RDV))):
+                        return None                 # the read's coefficient must be loop-invariant
+                rest_s = _subst_slots(rest, MEM, invariant) if rest != 0 else 0
+                if rest_s != 0 and (_has_stream(rest_s) or _has_zz(rest_s)
+                                    or _mentions_marked(rest_s, rewriteset) or _occurs(rest_s, ('slot', RDV))):
+                    return None
+                dec = (0, 0) if rest_s == 0 else _lin_decompose(rest_s, ctr, movedset)
+                if dec is None:
+                    return None
+                comps.append((dec, coef))
+            (dp, pcoef), (dn, ncoef) = comps
             p0, n0 = _as_zz(MEM[a])
             if down:                                # i ↦ n-k: linear parts fold into the invariant
                 updates[a] = _down_series(p0, n0, dp[0], dp[1], dn[0], dn[1], trip)
             else:                                   # coefficient, g cross-terms swap components; a start
-                updates[a] = ('zz',                 # offset folds a1·off into each invariant part
-                              _series_closed(p0, _canon(_sum2(dp[0], _scale2(dp[1], off))), _canon(dp[1]), trip),
-                              _series_closed(n0, _canon(_sum2(dn[0], _scale2(dn[1], off))), _canon(dn[1]), trip))
+                updates[a] = ('zz', _component_closed(p0, dp, pcoef, MEM.get(RDV), trip, off),
+                                    _component_closed(n0, dn, ncoef, MEM.get(RDV), trip, off))
             continue
         if _has_stream(d) or _occurs(d, ('slot', RDV)):     # δ = rest + coef·read: an invariant-coefficient
             rest, coef = _split_stream(d, ('slot', RDV))    # stream sum plus an ordinary series
