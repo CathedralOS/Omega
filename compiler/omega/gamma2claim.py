@@ -88,20 +88,37 @@ def unat(k):                           # user-nat literal (k 3 (k 3 ... (k 2)))
     return '(k 2)' if k == 0 else '(k 3 %s)' % unat(k - 1)
 
 
-class V:                                   # a value: concrete int `n` + the TERM tree that computes it
-    __slots__ = ('n', 't')
+class V:                                   # a value: concrete int `n` + the TERM tree(s) that compute it.
+    __slots__ = ('n', 't', 'nt')           # zpair mode: n is the ℤ value, (t, nt) the (pos, neg) components
 
-    def __init__(self, n, t):
+    def __init__(self, n, t, nt=None):
         self.n = n
         self.t = t
+        self.nt = nt
+
+
+class Under(Exception):                    # an underflowing subtraction: retry the sample in zpair mode
+    pass
 
 
 def main():
     src = sys.stdin.read()
+    try:
+        run(src, zpair=False)
+    except Under:
+        run(src, zpair=True)               # an underflow: re-encode with ℤ difference-pair values
+
+
+def run(src, zpair):
     forms = parse_all(src)
-    # USER mode when -,/,% appear: values ride user nats and ops become kernel user-fun applications
-    user = any(('(%s ' % op) in src for op in ('-', '/', '%'))
+    # USER mode when -,/,% appear: values ride user nats and ops become kernel user-fun applications.
+    # ZPAIR mode (an underflowing subtraction was hit): every value is a (pos, neg) pair of user nats —
+    # componentwise uadd for +, swapped for -, cross terms for * — and the claim P = uadd(exit, N) makes the
+    # kernel verify pos - neg = exit in ℤ, with no negative ever materializing (the refinement pillar's
+    # difference-pair move, replayed kernel-side).
+    user = zpair or any(('(%s ' % op) in src for op in ('-', '/', '%'))
     lit = unat if user else nat
+    Z0 = '(k 2)'
     defs = {}
     top = None
     for f in forms:
@@ -118,30 +135,40 @@ def main():
         if fuel[0] <= 0:
             raise Out('fuel exhausted')
         if isinstance(e, int):
-            return V(e, lit(e))
+            return V(e, lit(e), Z0 if zpair else None)
         if isinstance(e, str):
             if e in env:
                 return env[e]
-            return V(0, lit(0))             # interp.beta's env_lookup returns 0 on a miss — mirror it
+            return V(0, lit(0), Z0 if zpair else None)   # interp.beta's env_lookup: 0 on a miss — mirror it
                                             # (omega2gamma emits at least one unbound reference in the wild)
         h = e[0]
         if h == '+':
             a, b = ev(e[1], env), ev(e[2], env)
-            if a.n + b.n > MAXV:
+            if abs(a.n) + abs(b.n) > MAXV:
                 raise Out('intermediate exceeds the unary wall')
+            if zpair:
+                return V(a.n + b.n, '(f 21 %s %s)' % (a.t, b.t), '(f 21 %s %s)' % (a.nt, b.nt))
             return V(a.n + b.n, ('(f 21 %s %s)' if user else '(p %s %s)') % (a.t, b.t))
         if h == '*':
             a, b = ev(e[1], env), ev(e[2], env)
-            if a.n * b.n > MAXV:
+            if abs(a.n * b.n) > MAXV:
                 raise Out('intermediate exceeds the unary wall')
+            if zpair:                       # (p1-n1)(p2-n2) = (p1p2+n1n2) - (p1n2+n1p2)
+                return V(a.n * b.n,
+                         '(f 21 (f 23 %s %s) (f 23 %s %s))' % (a.t, b.t, a.nt, b.nt),
+                         '(f 21 (f 23 %s %s) (f 23 %s %s))' % (a.t, b.nt, a.nt, b.t))
             return V(a.n * b.n, ('(f 23 %s %s)' if user else '(m %s %s)') % (a.t, b.t))
         if h == '-':
             a, b = ev(e[1], env), ev(e[2], env)
+            if zpair:                       # (p1-n1) - (p2-n2) = (p1+n2) - (n1+p2)
+                return V(a.n - b.n, '(f 21 %s %s)' % (a.t, b.nt), '(f 21 %s %s)' % (a.nt, b.t))
             if a.n < b.n:
-                raise Out('underflowing subtraction (usub is monus; interp wraps)')
+                raise Under()               # retry the whole sample with ℤ difference-pair values
             return V(a.n - b.n, '(f 22 %s %s)' % (b.t, a.t))   # usub(b, a) = a - b
         if h == '/':
             a, b = ev(e[1], env), ev(e[2], env)
+            if zpair:
+                raise Out('division over difference pairs: later')
             if b.n == 0:
                 raise Out('division by zero')
             if a.n // b.n > 800:
@@ -149,6 +176,8 @@ def main():
             return V(a.n // b.n, '(f 46 %s %s)' % (a.t, b.t))
         if h == '%':
             a, b = ev(e[1], env), ev(e[2], env)
+            if zpair:
+                raise Out('mod over difference pairs: later')
             if b.n == 0:
                 raise Out('mod by zero')
             if a.n // b.n > 800:
@@ -158,7 +187,7 @@ def main():
             a, b = ev(e[1], env), ev(e[2], env)
             r = {'<': a.n < b.n, '<=': a.n <= b.n, '==': a.n == b.n, '!=': a.n != b.n,
                  'eq': a.n == b.n, 'lt': a.n < b.n, 'le': a.n <= b.n, 'ne': a.n != b.n}[h]
-            return V(1 if r else 0, lit(1 if r else 0))
+            return V(1 if r else 0, lit(1 if r else 0), Z0 if zpair else None)
         if h == 'let':
             env2 = dict(env)
             env2[e[1]] = ev(e[2], env)
@@ -211,6 +240,14 @@ def main():
     r = ev(top, {})
     if not isinstance(r, V):
         raise Out('top-level value is not a number')
+    if zpair:                              # claim P = uadd(exit, N): verifies pos - neg = exit in ℤ
+        if not (0 <= r.n <= 255):
+            raise Out('final ℤ value %d not a plain exit byte' % r.n)
+        rhs = '(f 21 %s %s)' % (unat(r.n), r.nt)
+        bad = '(f 21 %s %s)' % (unat(r.n + 1), r.nt)
+        print('%d %s (= %s %s) (refl %s)' % (r.n, USER_PRELUDE, r.t, rhs, rhs))
+        print('%s (= %s %s) (refl %s)' % (USER_PRELUDE, r.t, bad, bad))
+        return
     exit_code = r.n & 0xFF
     good = lit(r.n)
     pre = (USER_PRELUDE + ' ') if user else ''
