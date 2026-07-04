@@ -96,7 +96,9 @@ diar() {
 # diao DESC FULLSRC "in-bytes" "out-bytes" : STDOUT programs. Compares the native process's raw stdout bytes
 # to the gamma route's OUTPUT list (the program returns `(rev out Nil)`; interp prints it; decode the ints).
 # FULLSRC is the entire program (varied data decls / arrays), like diac.
-decode_list() { printf '%s\n' "$1" | "$T/interp.exe" 2>/dev/null | grep -oE '[0-9]+' | tr '\n' ' ' | sed 's/ *$//'; }
+# dual-channel returns: output-mode programs yield (Pair <exit> <stdout list>) — strip the exit
+# component before collecting the stdout bytes (the pair's first number is NOT an output byte).
+decode_list() { printf '%s\n' "$1" | "$T/interp.exe" 2>/dev/null | sed 's/^(Pair [0-9]* //' | grep -oE '[0-9]+' | tr '\n' ' ' | sed 's/ *$//'; }
 diao() {
   printf '%s\n' "$2" > "$T/p.alp"
   EPS_ARCH=aarch64 "$BE" "$T/p.alp" "$T/p" >/dev/null 2>&1 || { FAIL=$((FAIL+1)); echo "  FAIL $1 : native compile"; return; }
