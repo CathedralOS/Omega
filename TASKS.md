@@ -2877,6 +2877,23 @@ exit.
   operand width, not i64) or shift-out-to-zero. Parked repro
   `canaries/pending/arithmetic/shift_amount_at_or_above_width_divergence`; memory
   `shift-amount-out-of-range-divergence`.
+- [ ] SAME-CLASS divergence (probe 2026-07-04): a float-to-int cast of an
+  OUT-OF-RANGE value diverges native-vs-interp. `1e20 as i32`: native = 0 (x86
+  `cvttsd2si` yields the i64 "integer indefinite" 0x8000…, truncated to i32 = 0);
+  interp = -1 (`f.trunc() as i64` SATURATES to i64::MAX, truncated to i32 = -1).
+  Both garbage; in-range casts agree. Parked repro
+  `canaries/pending/arithmetic/float_to_int_overflow_divergence`.
+- [ ] ** SYNTHESIS — UNDERSPECIFIED NUMERIC-RANGE OPS (design thesis for Zach) **:
+  the two entries above (shift amount >= width; float-to-int cast out of range)
+  are the SAME shape — an operation whose behavior is UNDEFINED outside a range,
+  where native (hardware) and interp (Rust `as`/i64) diverge because neither is
+  canonically correct. The proof-carrying-consistent resolution, extending
+  decision-17 (Exact arithmetic = a proof obligation), is to make the RANGE a
+  PROOF OBLIGATION: the shift amount provably < operand width, the float provably
+  in the target integer's range — else a COMPILE ERROR (like an array index
+  bound). Alternatives per-op: define saturating (Rust-style) or match-hardware.
+  ONE ruling covers both (and likely future corners like `usize`/`Addr` casts).
+  DESIGN CALL for Zach — flagged, not decided.
 - [ ] Native-emission gap (surfaced 2026-07-04, CLEAN error — interp supports it):
   a state that CALLS another machine whose ENTRY is a branching (dispatching)
   state, passing arguments, is refused: "state calls: `A.s` … calls branching
