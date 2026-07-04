@@ -2845,6 +2845,13 @@ exit.
   refusal, no miscompile); the fix is guarded state-call expansion at the call
   site. Low priority — the workaround is to inline the second dispatch or make
   the callee entry a non-branching state that transitions inward.
+  SCOPE SPIKE 2026-07-04: NOT a small fix. Lives in
+  `omega-emission-planning/src/state_call_blockers/` over a developed
+  `RuntimeBranchCallExpansion` taxonomy (GuardedLeaf → NeedsBranchPrelude →
+  NeedsStraightLineTarget → NeedsNestedBranchTarget → UnknownTarget → Unplanned,
+  ranked). My case doesn't even MATCH a planned branching call (reasons.rs:34
+  `matching_calls.peek().is_none()` path) — it needs a new planned expansion
+  threaded through the planner AND the emitter, not just filling `Unplanned`.
 - [ ] Reduce duplicate descriptor assumptions remaining across backend crates.
 - [ ] Strengthen assigned-target allocation toward a real register/stack
   allocation story with register classes, spills, and post-assignment cleanup.
