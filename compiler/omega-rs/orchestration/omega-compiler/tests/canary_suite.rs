@@ -11823,6 +11823,35 @@ fn runtime_min_max_guard_subject_hoist_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_indexed_guard_true_false_pair_exit_canary_runs() {
+    // #41 indexed half: `transition arr[i] > 5 { true -> false -> }` -- the
+    // natural array-element branch. hoist_comparison_match_subject shares one
+    // subject temp across arms (hoisting the read inside it), so the pair pairs
+    // for exhaustiveness. Discriminating: arr[1]=20 > 5 true -> ok (70).
+    let canary = pass_canary("collections/runtime_indexed_guard_true_false_pair_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-idxpair-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed guard true/false pair canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed guard true/false pair canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a shared-subject indexed guard pair to discriminate (exit 70), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_indexed_local_compare_exit_canary_runs() {
     // Silent miscompile fixed: `let hi = arr[i]; let over: bool = hi > 5` read
     // `over` as a folded default (always false) -- the alias-fold substituted the

@@ -1,0 +1,25 @@
+// INDEXED guard subject with a { true -> false -> } PAIR (#41 indexed half).
+// `transition self.arr[self.i] > 5 { true false }` -- the natural way to branch on
+// an array element -- used to be rejected as non-exhaustive: each arm re-lowered
+// the subject to its own hoisted temp, so the true/false pair no longer paired.
+// hoist_comparison_match_subject now shares one subject temp across arms (keyed on
+// the syntax subject handle the parser reuses), hoisting the read inside it
+// (`let __t = arr[i]; let __b = __t > 5`); __t keeps its slot as a compare operand
+// so it reads correctly (the storage fix). DISCRIMINATING: arr[1]=20 so 20 > 5 is
+// TRUE -> ok (exit 70); a below-threshold element would take the false arm (71).
+// Native must match the interpreter (differential).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; arr: [i32; 3]; i: i32; }
+machine Main::main(&mut self) {
+    self.arr[0] = 3;
+    self.arr[1] = 20;
+    self.arr[2] = 30;
+    self.i = 1;
+    transition self.arr[self.i] > 5 {
+        true -> ok()
+        false -> bad()
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+// Expected exit: 70
