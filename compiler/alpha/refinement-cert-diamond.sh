@@ -24,8 +24,10 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 DEFS=$(cat ../gamma/checker.gamma)
 
 mkdir "$T/certs"
-# run the gate over the curated samples only (fuzz 0) with cert emission; its own pass/fail still applies
-REFINE_CERT_DIR="$T/certs" REFINE_FUZZ=0 REFINE_LOOP_FUZZ=0 REFINE_COMPOSE_FUZZ=0 REFINE_NESTED_FUZZ=0 \
+# run the gate over the curated samples PLUS a deterministic slice of the loop/nested fuzz spaces (their
+# refl-path certs exercise every constructor family; straight-line fuzz certs go through prover.py, whose
+# certs the prover-diamond already double-checks). The gate seeds its RNG, so the cert set is stable.
+REFINE_CERT_DIR="$T/certs" REFINE_FUZZ=0 REFINE_LOOP_FUZZ=6 REFINE_COMPOSE_FUZZ=0 REFINE_NESTED_FUZZ=4 \
   python3 alpha_refinement_check.py "$T/check.exe" "$(pwd)/../beta-lang-rs/build/bc.exe" "$(pwd)/$ASM" >/dev/null \
   || { echo "refinement gate failed during cert emission"; exit 1; }
 
