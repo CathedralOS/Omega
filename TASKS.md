@@ -678,14 +678,17 @@ Cost is a one-time transcription of each table struct's fields in spec order
 > left) whose first arg is `self.<field>`. Effect-free by construction, so the
 > effectful-single-eval tripwire stays green -- the constraint that reverted the
 > general value-call hoist twice. Canary calls/runtime_min_max_guard_subject_
-> hoist_exit (discriminating, differential). REMAINING (pre-existing, shared with
-> the INDEXED operand hoist -- NOT introduced here): a `{ true -> false -> }`
-> arm pair over a HOISTED subject fails exhaustiveness because each arm mints a
-> DISTINCT temp (proven: `arr[i] > 5 { true/false }` fails identically). Works
-> today with a `_`-closed arm; the general fix is a structural-equality-keyed
-> shared-temp memo across sibling arms (the membership path shares via a
-> syntax-handle memo, but operand hoisting runs post-lowering where arms have
-> distinct handles) -- a focused session that would fix both hoists at once.
+> hoist_exit. The NATURAL `{ true -> false -> }` PAIR form now works too (#41
+> below): hoist_comparison_match_subject hoists the SHARED bool subject once
+> (keyed on the syntax subject handle the parser reuses across arms) into
+> `let __b: bool = min(..) == 7`, so both arms test one local and the pair pairs.
+> Canary calls/runtime_min_guard_true_false_pair_exit (534 suite + differential).
+> #41 REMAINING: the INDEXED true/false pair (`arr[i] > 5 { true/false }`) --
+> hoist_comparison_match_subject is scoped to BUILTIN subjects because the indexed
+> variant needs the read hoisted INSIDE the shared temp, which MISCOMPILED (read
+> element 0 / 99 not 42); indexed stays on the operand-hoist path (unchanged, so
+> its true/false pair remains the gap). Debug the nested indexed-in-let-value
+> hoist, then widen subject_contains_hoistable back to indexed reads.
 > sin/cos (numerical mini-project, must match interp); layouts-ladder remainder
 > (mint rung, Packed grammar, layout plan-walking deriver).
 >

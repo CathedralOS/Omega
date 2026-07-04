@@ -5,7 +5,7 @@ use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_symbol_resolved_trees::expression::{
-    ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCastExpression,
+    BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableCastExpression,
     TableIndexedExpression, TableMembershipExpression, TableNamePath, TableRangeExpression,
     TableUnaryExpression,
 };
@@ -118,13 +118,27 @@ fn lower_statement_node(
             let mut hoisted = Vec::new();
             if let TransitionGuard::When(expression) = guard {
                 if guard_hoists_operands(lowerer, expression) {
-                    // In GUARD position also hoist a pure-builtin subject
-                    // (`transition min(self.a, self.b) == 3`) into a temp, so the
-                    // guard compares a materialized local -- the sound idiom the
-                    // "bind it to a local first" diagnostic asks for, made
-                    // automatic. Scoped to guards (the `true` flag): assignment
-                    // and let values above already lower builtin calls directly.
-                    hoist_operand_indexed_reads(lowerer, expression, &mut hoisted, true);
+                    // A bool-arm dispatch (`{ true -> .. false -> .. }`) over a
+                    // hoistable comparison subject shares ONE temp across arms so
+                    // the true/false pair still pairs for exhaustiveness (each arm
+                    // otherwise re-lowers the subject to its own temp). If that
+                    // fires it rewrites the guard to `__hoist == <bool>`, leaving
+                    // nothing for the operand hoist.
+                    if !hoist_comparison_match_subject(
+                        lowerer,
+                        syntax_trees,
+                        transition.guard,
+                        expression,
+                        &mut hoisted,
+                    ) {
+                        // In GUARD position also hoist a pure-builtin subject
+                        // (`transition min(self.a, self.b) == 3`) into a temp, so the
+                        // guard compares a materialized local -- the sound idiom the
+                        // "bind it to a local first" diagnostic asks for, made
+                        // automatic. Scoped to guards (the `true` flag): assignment
+                        // and let values above already lower builtin calls directly.
+                        hoist_operand_indexed_reads(lowerer, expression, &mut hoisted, true);
+                    }
                 } else {
                     // A `Membership` root is an enum-variant match arm (`grid[i] { Wall -> .. }`);
                     // the comparison hoist above skips it (not a `Binary`). Hoist its runtime-indexed
@@ -572,6 +586,188 @@ fn hoist_membership_match_subject(
             domain_symbol: membership.domain_symbol,
         }),
     );
+}
+
+/// Hoists a bool-arm dispatch SUBJECT that contains a hoistable read/call into a
+/// SINGLE shared temp, so a `{ true -> .. false -> .. }` pair still shares one
+/// subject and exhaustiveness pairs the arms.
+///
+/// A `transition min(self.a, self.b) == 3 { true -> A false -> B }` lowers (per
+/// arm) to the wrapper `(min(self.a, self.b) == 3) == <bool>`. The operand hoist
+/// would pull `min(self.a, self.b)` into a DISTINCT temp per arm (each arm
+/// re-lowers the subject to its own handle), so the two arms no longer test a
+/// structurally-equal subject and the dispatch is rejected as non-exhaustive
+/// (`arr[i] > 5 { true/false }` fails identically -- this is not builtin-specific).
+/// Instead this keys the shared `match_subject_temps` memo on the SYNTAX subject
+/// handle (the parser reuses `subject[0]` across every arm's guard, guards.rs):
+/// the first arm mints `let __hoist_N: bool = <subject>` and the siblings reuse
+/// it, so all arms test one local. Only fires when the subject is a COMPARISON
+/// CONTAINING a builtin/indexed read (exactly the shapes the operand hoist would
+/// otherwise break); a bare-place subject (`self.flag`, `self.a > self.b`) is
+/// structurally equal across arms already and is left untouched. Returns whether
+/// it hoisted, so the caller skips the operand hoist.
+///
+/// Scoped to pure-BUILTIN subjects (min/max/sqrt): those lower directly in a let
+/// value, so the shared temp is a clean `let __b = min(a, b) == 3`. A runtime-
+/// INDEXED subject (`arr[i] > 5 { true/false }`) is deliberately NOT handled here
+/// -- it needs the indexed read hoisted INSIDE the shared temp, which miscompiled
+/// in testing; it stays on the (unchanged) operand-hoist path, so its true/false
+/// pair remains the pre-existing gap (task #41) rather than a regression.
+fn hoist_comparison_match_subject(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    syntax_guard: syntax::statement::TransitionGuardNode,
+    guard_expression: ExpressionHandle,
+    hoisted: &mut Vec<Statement>,
+) -> bool {
+    // The LOWERED guard must be the bool-arm wrapper `SUBJECT ==/!= <bool>`.
+    let ExpressionNode::Binary(outer) = lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .expression(guard_expression)
+        .clone()
+    else {
+        return false;
+    };
+    if !matches!(
+        outer.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) {
+        return false;
+    }
+    if !matches!(
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .bodies
+            .expressions
+            .expression(outer.right),
+        ExpressionNode::Boolean(_)
+    ) {
+        return false;
+    }
+    // The SUBJECT must be a comparison that CONTAINS a hoistable read/call.
+    let subject_is_comparison = matches!(
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .bodies
+            .expressions
+            .expression(outer.left),
+        ExpressionNode::Binary(inner) if is_comparison_operator(inner.operator)
+    );
+    if !subject_is_comparison || !subject_contains_hoistable(lowerer, outer.left) {
+        return false;
+    }
+
+    // The SHARED syntax subject handle: `subject[0]`, the left of every arm's
+    // wrapper (guards.rs builds `Binary { left: subject[0], ==, right: arm }`).
+    let syntax::statement::TransitionGuardNode::When(syntax_expression) = syntax_guard else {
+        return false;
+    };
+    let syntax::expression::ExpressionNode::Binary(syntax_outer) =
+        syntax_trees.expressions.expression(syntax_expression)
+    else {
+        return false;
+    };
+    let subject_key = syntax_outer.left.arena_index();
+
+    // Reuse the sibling arm's temp, or mint `let __hoist_N: bool = <subject>`.
+    // The subject is a comparison, so the temp is `bool` -- known here (unlike the
+    // indexed/builtin operand hoists, whose element type needs the resolved field
+    // types via `infer_hoist_temp_type`). A pure-builtin subject lowers directly
+    // in the let value (`let __b = min(a, b) == 3`), so no inner hoist is needed.
+    let name = match lowerer.match_subject_temp(subject_key) {
+        Some(existing) => DiagnosticName::generated(existing),
+        None => {
+            let fresh = lowerer.next_hoist_name();
+            lowerer.record_match_subject_temp(subject_key, fresh.clone());
+            let name = DiagnosticName::generated(fresh);
+            hoisted.push(Statement::LocalData(LocalData {
+                symbol: SymbolHandle::invalid(),
+                name: name.clone(),
+                storage: LocalDataStorage {
+                    type_reference: TypeReference::Named {
+                        symbol: SymbolHandle::invalid(),
+                        name: DiagnosticName::generated("bool"),
+                    },
+                    initial_value: outer.left,
+                },
+            }));
+            name
+        }
+    };
+
+    // Rewrite the guard to test the shared temp: `__hoist_N ==/!= <bool>`.
+    let mut members = HandleSpan::empty();
+    lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .push_name_path_member(&mut members, name);
+    let name_reference = lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .insert(ExpressionNode::Name(TableNamePath {
+            members,
+            is_self_value: false,
+            head_symbol: SymbolHandle::invalid(),
+            symbol: SymbolHandle::invalid(),
+        }));
+    set_expression(
+        lowerer,
+        guard_expression,
+        ExpressionNode::Binary(TableBinaryExpression {
+            left: name_reference,
+            operator: outer.operator,
+            right: outer.right,
+        }),
+    );
+    true
+}
+
+fn is_comparison_operator(operator: BinaryOperator) -> bool {
+    matches!(
+        operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+    )
+}
+
+/// Whether `expression` contains (transitively through comparison/arith/cast
+/// operands) a hoistable pure-builtin call -- the shape the shared-subject hoist
+/// handles. Runtime-INDEXED reads are intentionally excluded (see
+/// `hoist_comparison_match_subject`): they need the read hoisted inside the
+/// shared temp, which miscompiled, so they stay on the operand-hoist path.
+fn subject_contains_hoistable(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
+    if is_hoistable_builtin_guard_call(lowerer, expression) {
+        return true;
+    }
+    let node = lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .expression(expression)
+        .clone();
+    match node {
+        ExpressionNode::Binary(binary) => {
+            subject_contains_hoistable(lowerer, binary.left)
+                || subject_contains_hoistable(lowerer, binary.right)
+        }
+        ExpressionNode::Unary(unary) => subject_contains_hoistable(lowerer, unary.operand),
+        ExpressionNode::Cast(cast) => subject_contains_hoistable(lowerer, cast.value),
+        _ => false,
+    }
 }
 
 /// Whether a `When` guard is a COMPARISON/boolean guard whose runtime-indexed operands should be
