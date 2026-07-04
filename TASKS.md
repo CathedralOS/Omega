@@ -662,9 +662,14 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >   works -- local_data_requires_storage recognizes a Member-off-a-runtime-index
 >   initializer so the local keeps its slot instead of alias-folding; canary
 >   collections/runtime_indexed_field_local_operand_exit. The DIRECT
->   `self.r = arr[i].field + 22` still errors -- the operand hoist handles bare
->   `arr[i]` but not `arr[i].field`; needs is_runtime_indexed_read to accept
->   Member-of-Indexed + infer_hoist_temp_type to type the field temp),
+>   `self.r = arr[i].field + 22` still errors. A frontend operand-hoist of
+>   `arr[i].field` was ATTEMPTED + REVERTED 2026-07-03: it is TOO BROAD -- at the
+>   pre-resolution hoist layer the field's TYPE is unknown, so hoisting every
+>   `arr[i].field` operand breaks STRING/SLICE fields (`arr[i].str_field` concat,
+>   indexed writes, slice reads -- ~10 canaries), which have their own operand
+>   paths and must NOT be hoisted. Only a SCALAR `arr[i].field` should hoist, which
+>   needs a TYPE-AWARE hoist (typed layer) or a backend operand resolver, not a
+>   frontend predicate. The `let t = arr[i].field; use t` idiom is the workaround),
 >   boolean guard nesting `(a||b)&&c`, `arr[i]=arr[j]` both-runtime
 >   (#38 -- NARROWED 2026-07-03: this is the last BARE-source case into an indexed
 >   target; a binary/literal/field source already selects, only a bare local or
