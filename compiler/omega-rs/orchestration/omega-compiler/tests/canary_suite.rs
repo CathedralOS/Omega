@@ -988,6 +988,73 @@ fn nested_runtime_indexed_write_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn runtime_indexed_write_frame_local_source_exit_canary_runs() {
+    // `nums[i] = t` with t a FRAME-slot capture: nums[2] must land the captured
+    // 99 (exit 70); the old stale fold wrote the post-overwrite 0.
+    let canary = pass_canary("collections/runtime_indexed_write_frame_local_source_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-frame-src-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("frame-local-source indexed write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("frame-local-source indexed write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected nums[i]=t to write the CAPTURED value 99 (exit 70); exit 71 = the stale          fold or an uninitialized slot returned. got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_captured_local_swap_exit_canary_runs() {
+    // Euclid swap: let r = a % b; a = b; b = r. The capture-aware binding skip
+    // keeps r in its slot -> gcd(48,36) = 12 (exit 70); the old fold gave 36.
+    let canary = pass_canary("control_flow/runtime_captured_local_swap_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gcd-swap-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("captured-local swap canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("captured-local swap canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the slot-captured swap to compute gcd(48,36)=12 (exit 70); exit 71 = the          fold re-read the reassigned field. got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_dual_indexed_copy_in_loop_exit_canary_runs() {
     // `a[i] = b[i]` element-wise in a loop (task #38's cross-array + loop face)
     // now lowers through CopyRuntimeMachineIndexedToRuntimeMachineIndexed. The
@@ -18926,6 +18993,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_dual_indexed_guard_equality_exit",
     "collections/runtime_dual_indexed_copy_exit",
     "collections/runtime_dual_indexed_copy_in_loop_exit",
+    "collections/runtime_indexed_write_frame_local_source_exit",
+    "control_flow/runtime_captured_local_swap_exit",
     "calls/runtime_same_type_contained_direct_fields_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",

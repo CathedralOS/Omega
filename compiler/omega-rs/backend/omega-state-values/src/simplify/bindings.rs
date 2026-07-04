@@ -88,16 +88,29 @@ pub(super) fn simple_local_bindings(
         .count();
     let mut bindings = Arena::with_capacity(local_binding_capacity);
 
-    for statement in program
-        .statement_table
-        .statements(state.statement_nodes)
-        .iter()
-        .take(statement_index)
-    {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    for (declaration_index, statement) in statements.iter().enumerate().take(statement_index) {
         let StatementNode::LocalData(local_data) = statement else {
             continue;
         };
         if !local_data.initial_value.is_valid() {
+            continue;
+        }
+        // CAPTURE semantics: a `let` captures its initializer's VALUE at the
+        // declaration. When a member field the initializer reads is REASSIGNED
+        // between the declaration and this use point, substituting the
+        // initializer would re-read the post-write value (`let t = self.v;
+        // self.v = 0; nums[i] = t` silently wrote 0 -- the stale-fold family).
+        // Skip the binding so the local resolves through its captured slot.
+        // A field written only BEFORE the declaration still folds -- the
+        // don't-over-block rule (runtime_spawn_interleaved_join depends on it).
+        if initializer_field_reassigned_between(
+            &program.expression_table,
+            statements,
+            declaration_index + 1,
+            statement_index,
+            local_data.initial_value,
+        ) {
             continue;
         }
         let Some(value) = simple_local_binding_value_from_table(
@@ -114,6 +127,90 @@ pub(super) fn simple_local_bindings(
     }
 
     bindings
+}
+
+/// Whether a member FIELD the initializer reads is assigned by any statement in
+/// `[start, end)` -- the capture-violation test above. Matched by field NAME
+/// (conservative: a same-named field on another struct only suppresses a fold,
+/// never miscompiles).
+pub fn initializer_field_reassigned_between(
+    expressions: &ExpressionTable,
+    statements: &[StatementNode],
+    start: usize,
+    end: usize,
+    initial_value: ExpressionHandle,
+) -> bool {
+    let mut read_fields = Vec::new();
+    collect_member_field_names(expressions, initial_value, &mut read_fields);
+    if read_fields.is_empty() {
+        return false;
+    }
+    statements
+        .iter()
+        .skip(start)
+        .take(end.saturating_sub(start))
+        .any(|statement| {
+            let StatementNode::Assignment(assignment) = statement else {
+                return false;
+            };
+            let Some(target_field) = assignment_member_field_name(expressions, assignment.target)
+            else {
+                return false;
+            };
+            read_fields.iter().any(|field| *field == target_field)
+        })
+}
+
+/// Collects the member FIELD NAMES an expression reads (`self.v` -> `v`),
+/// walking nested receivers and operands.
+fn collect_member_field_names(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+    out: &mut Vec<omega_checked_trees::name::Identifier>,
+) {
+    match expressions.expression(expression) {
+        ExpressionNode::Member(member) => {
+            out.push(member.member.clone());
+            collect_member_field_names(expressions, member.receiver, out);
+        }
+        ExpressionNode::Mutable(inner) => collect_member_field_names(expressions, *inner, out),
+        ExpressionNode::Binary(binary) => {
+            collect_member_field_names(expressions, binary.left, out);
+            collect_member_field_names(expressions, binary.right, out);
+        }
+        ExpressionNode::Cast(cast) => collect_member_field_names(expressions, cast.value, out),
+        ExpressionNode::Indexed(indexed) => {
+            collect_member_field_names(expressions, indexed.collection, out);
+            collect_member_field_names(expressions, indexed.index, out);
+        }
+        ExpressionNode::Unary(unary) => collect_member_field_names(expressions, unary.operand, out),
+        ExpressionNode::Range(range) => {
+            collect_member_field_names(expressions, range.start, out);
+            collect_member_field_names(expressions, range.end, out);
+        }
+        ExpressionNode::Call(call) => {
+            for argument in expressions.expression_handles(call.arguments) {
+                collect_member_field_names(expressions, *argument, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The member FIELD NAME an assignment target writes (`self.v = ..` -> `v`),
+/// peeling `Mutable`/`Indexed` wrappers. A plain-Name target (a local) is None.
+fn assignment_member_field_name(
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+) -> Option<omega_checked_trees::name::Identifier> {
+    match expressions.expression(target) {
+        ExpressionNode::Member(member) => Some(member.member.clone()),
+        ExpressionNode::Mutable(inner) => assignment_member_field_name(expressions, *inner),
+        ExpressionNode::Indexed(indexed) => {
+            assignment_member_field_name(expressions, indexed.collection)
+        }
+        _ => None,
+    }
 }
 
 fn simple_local_binding_value_from_table(

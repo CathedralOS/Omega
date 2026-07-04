@@ -936,11 +936,12 @@ fn machine_instruction_width(
             *target_offset,
             *byte_count,
         ),
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed { .. } => {
-            runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
-                input.target.architecture,
-            )
-        }
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
+            source_region, ..
+        } => runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
+            input.target.architecture,
+            *source_region,
+        ),
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. } => {
             runtime_storage_copy_machine_indexed_to_machine_indexed_width(
                 input.target.architecture,

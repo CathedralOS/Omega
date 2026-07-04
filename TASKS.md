@@ -421,9 +421,26 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   exit, sum 70 -- the old classifier fence routes it to the write path where the
   dual arm picks it up), CROSS-ARRAY a[i]=b[j], and an in-place swap; both fail
   canaries converted to run canaries; 550 canaries + samples + differential 11/11
-  (native == interp). REMAINING sibling (still fenced, unchanged): `arr[i] =
-  <bare local>` -- a FRAME-region source needs the encoder to read a frame base;
-  same recipe, smaller.
+  (native == interp). SIBLING DONE same day: `arr[i] = <bare local>` -- see the capture entry below.
+- DONE 2026-07-03 (the CAPTURE-SEMANTICS stack + frame-source write, the
+  iter-33 wall bottomed out): `let t = self.v; self.v = 0; nums[i] = t` was a
+  SILENT miscompile (wrote the post-overwrite v -- the stale-fold family; same
+  root as the OPEN euclid-gcd swap bug). Fixed at the SINGLE deepest layer plus
+  its enablers: (1) `simple_local_bindings` (omega-state-values simplify) now
+  SKIPS the local->initializer binding when a member field the initializer
+  reads is REASSIGNED between the declaration and the use (capture semantics;
+  mutation-BEFORE-decl still folds -- the spawn_interleaved don't-over-block
+  rule holds); (2) `local_data_requires_storage` allocates the slot for exactly
+  that shape (new assignment-VALUE visibility -- the liveness scan never
+  counted assignment RHS uses); (3) the write half
+  `CopyRuntimeStorageToRuntimeMachineIndexed` accepts a RuntimeFrame SOURCE
+  (x86_64: load rax off the frame base, second machine-base reloc at +17,
+  width 51; aarch64 clean error). The GCD swap (`let r = a % b; a = b; b = r`)
+  now computes gcd(48,36)=12 natively -- the samples/euclid_gcd field-temp
+  workaround is no longer required. Canaries
+  collections/runtime_indexed_write_frame_local_source_exit +
+  control_flow/runtime_captured_local_swap_exit; 552 canaries + samples +
+  differential 11/11.
 - u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
 - FIXED 2026-07-03 (sum-type FIELD store payload offset): `self.tx =
