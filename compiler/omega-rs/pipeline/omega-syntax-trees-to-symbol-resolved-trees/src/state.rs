@@ -40,7 +40,15 @@ fn lower_state_parts(
         .is_valid()
         .then(|| lower_type_reference_handle(lowerer, syntax_trees, return_type_handle))
         .transpose()?;
+    // Record which of THIS state's params are shared references to a NAMED
+    // type (`table: &EfiSystemTable`): a member read through one must
+    // dereference the pointer slot, so the guard/operand hoists materialize it
+    // into a `let` (the boot-verified pointee path). `&mut` params are
+    // excluded -- their alias slots share the caller's storage and fold flat
+    // correctly. Overwrites the previous state's list.
+    lowerer.reference_struct_parameters = reference_struct_parameter_names(lowerer, &parameters);
     let statements = lower_state_statements(lowerer, syntax_trees, statements)?;
+    lowerer.reference_struct_parameters = Vec::new();
 
     Ok(State {
         symbol: SymbolHandle::invalid(),
@@ -244,4 +252,35 @@ pub(crate) fn lower_state_parameter(
         is_mutable: parameter.is_mutable,
         is_self: parameter.is_self,
     })
+}
+
+/// The names of parameters declared as a SHARED reference to a NAMED type
+/// (`table: &EfiSystemTable`) -- the shapes whose member reads must deref the
+/// pointer slot rather than fold flat.
+fn reference_struct_parameter_names(
+    lowerer: &Lowerer,
+    parameters: &HandleSpan<omega_symbol_resolved_trees::signature::StateParameter>,
+) -> Vec<String> {
+    lowerer
+        .symbol_resolved_trees
+        .state_parameters(*parameters)
+        .iter()
+        .filter_map(|parameter| {
+            let omega_symbol_resolved_trees::types::TypeReference::Reference(reference) =
+                &parameter.type_reference
+            else {
+                return None;
+            };
+            if reference.is_mutable {
+                return None;
+            }
+            matches!(
+                lowerer
+                    .symbol_resolved_trees
+                    .child_type_reference(reference.referee),
+                omega_symbol_resolved_trees::types::TypeReference::Named { .. }
+            )
+            .then(|| parameter.name.as_str().to_string())
+        })
+        .collect()
 }

@@ -58,6 +58,31 @@ pub(super) fn infer_hoist_temp_type(
         return Ok(Some(lower_type_reference_into_table(lowerer, &place_type)?));
     }
 
+    // A member read hoisted through a SHARED reference-to-named param
+    // (`let __hoist = table.con_out` with `table: &EfiSystemTable`): the temp's
+    // type is the FIELD's declared type in the referee data definition. The
+    // guard/assignment hoists synthesize exactly this shape so the read routes
+    // through the pointee-deref path; the temp is slot-backed and must carry a
+    // concrete type.
+    if let ExpressionNode::Member(member) = expressions.expression(initial_value)
+        && let ExpressionNode::Name(path) = expressions.expression(member.receiver)
+        && let [only] = expressions.name_path_members(path.members)
+        && let Some(TypeReference::Reference(reference)) =
+            parameter_type(lowerer.source_trees, state, only.as_str())
+        && !reference.is_mutable
+        && let TypeReference::Named { name, .. } =
+            lowerer.source_trees.child_type_reference(reference.referee)
+    {
+        let data_name = name.clone();
+        let member_name = member.member.as_str().to_string();
+        if let Some(field_type) =
+            attached_field_type(lowerer.source_trees, &data_name, &member_name)
+        {
+            return Ok(Some(lower_type_reference_into_table(lowerer, &field_type)?));
+        }
+        return Ok(None);
+    }
+
     let ExpressionNode::Indexed(indexed) = expressions.expression(initial_value) else {
         return Ok(None);
     };
