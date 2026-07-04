@@ -171,6 +171,8 @@ def shift_term(t, d, cut):
             return [t[0], shift_term(t[1], d, cut), shift_term(t[2], d, cut)]
         if t[0] == 'len':
             return ['len', shift_term(t[1], d, cut)]
+        if t[0] in ('f', 'k'):                         # user fun/constructor application: fid/cid + term args
+            return [t[0], t[1]] + [shift_term(a, d, cut) for a in t[2:]]
     return t                                           # z / nil
 
 def shift_prop(p, d, cut):
@@ -202,6 +204,8 @@ def subst_term(t, s, depth):
             return [t[0], subst_term(t[1], s, depth), subst_term(t[2], s, depth)]
         if t[0] == 'len':
             return ['len', subst_term(t[1], s, depth)]
+        if t[0] in ('f', 'k'):
+            return [t[0], t[1]] + [subst_term(a, s, depth) for a in t[2:]]
     return t                                           # z / nil
 
 def subst_prop(p, s, depth):
@@ -230,6 +234,8 @@ def subst_term_keep(t, s, depth):                      # like subst_term but KEE
             return [t[0], subst_term_keep(t[1], s, depth), subst_term_keep(t[2], s, depth)]
         if t[0] == 'len':
             return ['len', subst_term_keep(t[1], s, depth)]
+        if t[0] in ('f', 'k'):
+            return [t[0], t[1]] + [subst_term_keep(a, s, depth) for a in t[2:]]
     return t
 
 def subst_prop_keep(p, s, depth):                      # for induction's P(s n): substitute, keep the binder
