@@ -762,8 +762,28 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >     Phase 2 = machine deep-clone-per-instantiation at the typed layer (fresh
 >     symbol, substitute, retarget each value-call site) -- a real multi-file
 >     slice, not a fence-flip.
->   - **Phase 3 -- nested generics** (`Store<T>` containing `Item<T>`): recursive
->     discovery; layout cascade (inner instance recorded before outer).
+>   - **Phase 3 -- nested generics** (`Store<T>` containing `Item<T>`) -- DONE
+>     2026-07-03 (fixpoint desugar; see the Phase-3 note above).
+>   - **CONTAINERS (generic data + attached method) -- BLOCKED ON A PARSER GAP,
+>     found 2026-07-03.** `data Box<T> {..}` + `machine Box<T>::stored(&self)->T`
+>     used as `Box<i32>` with `self.b.stored()` SILENTLY MISCOMPILES (the method
+>     returns ZERO). ROOT (probed via the syntax dump): `machine Box<T>::stored`
+>     parses with `attached_data = null` -- the `<T>` in the machine PATH breaks
+>     the scope attachment (parser/machine.rs split_machine_path sees a 1-member
+>     path), so the method is an ORPHAN generic machine, unlinked from Box, that
+>     value-calls to zero. CONSEQUENCE: `data_with_machines` never learns "Box" is
+>     method-bearing, so Phase 1 does NOT exclude it (treats it as method-less) --
+>     the DATA monomorphizes but the METHOD stays a generic orphan. FIX ORDER:
+>     (1) parser -- attach `Type<T>::method` to `Type` (consume the `<T>` between
+>     the scope and `::method`, set attached_data=Type, machine type_params=[T]);
+>     (2) THEN a desugar fence is effective (a method-bearing generic instantiation
+>     = clean error, `data_with_machines` finally sees "Box"); (3) Phase 2 proper
+>     = clone the attached machine with T substituted when synthesizing the data
+>     instance -- PRE-RESOLUTION-tractable (the `Box<i32>` spelling determines T,
+>     unlike free `id<T>` which needs call-site inference), via a
+>     SUBSTITUTION-AWARE machine deep-clone (extend syntax_trees.rs copy_machine/
+>     copy_state/copy_type_reference to substitute T). An ineffective
+>     desugar-fence (relies on attached_data) was built + reverted this session.
 >   - **Phase 4 -- generic trait conformances / containers**: `Store<T> satisfies
 >     Container<T>`. DESIGN QUESTION (Zach, when reached, far off): generic-trait
 >     dispatch = static specialization (one stamped impl per instance) vs a
