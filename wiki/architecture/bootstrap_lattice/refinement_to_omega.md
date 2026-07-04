@@ -56,7 +56,11 @@ shape with *its own trust story* — obligations discharged by certificates the 
    user-level nth/setl access, difference-pair form in ℤ mode; omega2gamma's Cons-spine array lowering
    returns silent defaults on overrun, the exact silent-OOB shape the obligation forbids). Structural
    results also covered: constructor-tree values get a leaf-computed vs literal-tree claim plus a render
-   pin against the interpreter's printed value.*
+   pin against the interpreter's printed value. Heavy arithmetic rides DIVISION-BY-WITNESS: the encoder
+   witnesses quotients/products/differences and the kernel checks the defining property across in-envelope
+   certificates (value-pin certs re-compute each operand expression; chunked literal addition certs verify
+   the op) — certifying computation, replacing the old quotient wall with the measured reduction envelope
+   of the 64 MiB alpha image.*
 
 Everything above obeys the standing decisions: D1 (Rust exits by role), D2 (meaning by elaboration to
 gamma), D3 (trust via proofs + TV), D5 (diversity at every seam). The refinement pillar is the proof that

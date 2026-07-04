@@ -157,6 +157,54 @@ def run(src, zpair):
             raise Out('constructor value in a numeric position')
         return x
 
+    # THE REDUCTION ENVELOPE (measured, not assumed): check.beta runs in the alpha VM's fixed 64 MiB image;
+    # a user-fun unfold RUN of depth ~2000+ (uadd recursing on its first argument's value) or ~3000 total
+    # per certificate collides stack and arena — the old quotient wall was this limit wearing a disguise.
+    # Heavy arithmetic is therefore split across CERTIFICATES (each check.exe run has fresh memory), the
+    # multi-lemma assembly precedent applied to arithmetic:
+    #   value-pin cert   (= <operand term> <literal>)      — walk-only; kernel re-computes the expression
+    #   literal certs    chunked additions, first argument <= CHUNK, proving the op's arithmetic
+    # and the op's result term becomes the literal, so downstream claims stay inside the envelope.
+    CHUNK = 1500
+    DIRECT_MUL = 2500                      # u*v at most this: one direct (f 23 min max) cert is in-envelope
+
+    def pin(v):                            # kernel re-computes v's expression: (= v.t literal)
+        litv = unat(v.n)
+        if v.t != litv:
+            vcs.append('(= %s %s) (refl %s)' % (v.t, litv, litv))
+
+    def add_cert(x, y):                    # one in-envelope literal addition cert; returns the sum
+        s = x + y
+        if s > MAXV:
+            raise Out('witness sum %d exceeds the unary wall' % s)
+        lo, hi = (x, y) if x <= y else (y, x)
+        if lo > CHUNK:
+            raise Out('witness addend %d exceeds the chunk envelope' % lo)
+        vcs.append('(= (f 21 %s %s) %s) (refl %s)' % (unat(lo), unat(hi), unat(s), unat(s)))
+        return s
+
+    def chunks(v):
+        out = [CHUNK] * (v // CHUNK)
+        if v % CHUNK:
+            out.append(v % CHUNK)
+        return out
+
+    def wit_sum(parts, start=0):           # chunked chain: start + sum(parts), one cert per addition
+        acc = start
+        for p in parts:
+            acc = add_cert(p, acc)
+        return acc
+
+    def wit_mul(u, v):                     # literal certs proving u*v; returns the product
+        if u == 0 or v == 0:
+            return 0
+        cnt, big = (u, v) if u <= v else (v, u)
+        if cnt * big <= DIRECT_MUL:
+            prod = cnt * big
+            vcs.append('(= (f 23 %s %s) %s) (refl %s)' % (unat(cnt), unat(big), unat(prod), unat(prod)))
+            return prod
+        return wit_sum(chunks(big) * cnt)
+
     # ARRAY-BOUNDS OBLIGATIONS: omega2gamma lowers arrays to Cons spines walked by its `nth`/`setl` helpers,
     # whose Nil arms return a SILENT default on overrun (0 / Nil) — the exact silent-OOB shape obligations
     # exist to forbid. At every user-level nth/setl call the kernel re-computes the INDEX EXPRESSION and
@@ -204,7 +252,14 @@ def run(src, zpair):
                 raise Out('intermediate exceeds the unary wall')
             if zpair:
                 return V(a.n + b.n, '(f 21 %s %s)' % (a.t, b.t), '(f 21 %s %s)' % (a.nt, b.nt))
-            return V(a.n + b.n, ('(f 21 %s %s)' if user else '(p %s %s)') % (a.t, b.t))
+            if not user:
+                return V(a.n + b.n, '(p %s %s)' % (a.t, b.t))
+            lo, hi = (a, b) if a.n <= b.n else (b, a)      # uadd unfolds its FIRST arg's value: orient small
+            if lo.n > CHUNK:                                # both heavy: witness across certs
+                pin(a), pin(b)
+                s = wit_sum(chunks(lo.n), hi.n)
+                return V(s, unat(s))
+            return V(a.n + b.n, '(f 21 %s %s)' % (lo.t, hi.t))
         if h == '*':
             a, b = num(ev(e[1], env)), num(ev(e[2], env))
             if abs(a.n * b.n) > MAXV:
@@ -213,34 +268,51 @@ def run(src, zpair):
                 return V(a.n * b.n,
                          '(f 21 (f 23 %s %s) (f 23 %s %s))' % (a.t, b.t, a.nt, b.nt),
                          '(f 21 (f 23 %s %s) (f 23 %s %s))' % (a.t, b.nt, a.nt, b.t))
-            return V(a.n * b.n, ('(f 23 %s %s)' if user else '(m %s %s)') % (a.t, b.t))
+            if not user:
+                return V(a.n * b.n, '(m %s %s)' % (a.t, b.t))
+            if a.n * b.n <= DIRECT_MUL:
+                lo, hi = (a, b) if a.n <= b.n else (b, a)
+                return V(a.n * b.n, '(f 23 %s %s)' % (lo.t, hi.t))
+            pin(a), pin(b)                  # heavy: pin the factor expressions, witness the product
+            prod = wit_mul(a.n, b.n)
+            return V(prod, unat(prod))
         if h == '-':
             a, b = num(ev(e[1], env)), num(ev(e[2], env))
             if zpair:                       # (p1-n1) - (p2-n2) = (p1+n2) - (n1+p2)
                 return V(a.n - b.n, '(f 21 %s %s)' % (a.t, b.nt), '(f 21 %s %s)' % (a.nt, b.t))
             if a.n < b.n:
                 raise Under()               # retry the whole sample with ℤ difference-pair values
-            return V(a.n - b.n, '(f 22 %s %s)' % (b.t, a.t))   # usub(b, a) = a - b
-        if h == '/':
+            if b.n <= 200 and a.n <= 3000:
+                return V(a.n - b.n, '(f 22 %s %s)' % (b.t, a.t))   # usub(b, a) = a - b, in-envelope
+            pin(a), pin(b)                  # heavy: subtraction VERIFIED BY ADDITION — d + b = a
+            d = a.n - b.n
+            lo, hi = (d, b.n) if d <= b.n else (b.n, d)
+            wit_sum(chunks(lo), hi)
+            return V(d, unat(d))
+        if h in ('/', '%'):
+            # DIVISION BY WITNESS (certifying computation): the fueled udiv/umod reduction blows the
+            # envelope — the old quotient wall. Instead the encoder WITNESSES q and r and the kernel checks
+            # the DEFINING PROPERTY across in-envelope certs:
+            #   iszero(divisor) = 0            (safety: the division cannot trap)
+            #   pins + chunked literal certs   (q * divisor + r = dividend, the Euclidean decomposition)
+            #   ult(r, divisor) = 1            (r is the true remainder => q, r are UNIQUE)
+            # Uniqueness of Euclidean division makes the literals q/r kernel-VERIFIED, not trusted; the
+            # result term is the literal, so downstream arithmetic composes from a checked value.
             a, b = num(ev(e[1], env)), num(ev(e[2], env))
             if zpair:
                 raise Out('division over difference pairs: later')
             if b.n == 0:
                 raise Out('division by zero')
-            if a.n // b.n > 800:
-                raise Out('quotient exceeds the reduction wall')
-            vcs.append('(= (f 24 %s) (k 2)) (refl (k 2))' % b.t)   # div-by-zero VC: iszero(divisor) = 0
-            return V(a.n // b.n, '(f 46 %s %s)' % (a.t, b.t))
-        if h == '%':
-            a, b = num(ev(e[1], env)), num(ev(e[2], env))
-            if zpair:
-                raise Out('mod over difference pairs: later')
-            if b.n == 0:
-                raise Out('mod by zero')
-            if a.n // b.n > 800:
-                raise Out('quotient exceeds the reduction wall')
-            vcs.append('(= (f 24 %s) (k 2)) (refl (k 2))' % b.t)   # mod-by-zero VC: iszero(divisor) = 0
-            return V(a.n % b.n, '(f 49 %s %s)' % (a.t, b.t))
+            q, r = a.n // b.n, a.n % b.n
+            if r > CHUNK:
+                raise Out('remainder %d exceeds the chunk envelope' % r)
+            vcs.append('(= (f 24 %s) (k 2)) (refl (k 2))' % b.t)
+            pin(a), pin(b)
+            prod = wit_mul(q, b.n)          # q * b, literal certs
+            if q:
+                add_cert(r, prod)           # q * b + r = a (values pinned to the terms above)
+            vcs.append('(= (f 28 %s %s) (k 3 (k 2))) (refl (k 3 (k 2)))' % (unat(r), unat(b.n)))
+            return V(q if h == '/' else r, unat(q if h == '/' else r))
         if h in ('<', '<=', '==', '!=', 'eq', 'lt', 'le', 'ne'):    # comparisons decided concretely
             a, b = num(ev(e[1], env)), num(ev(e[2], env))
             r = {'<': a.n < b.n, '<=': a.n <= b.n, '==': a.n == b.n, '!=': a.n != b.n,
