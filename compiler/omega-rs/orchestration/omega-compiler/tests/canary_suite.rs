@@ -6588,6 +6588,48 @@ stderr:
 }
 
 #[test]
+fn sum_mixed_width_payload_layout_canary_runs() {
+    // Sum-type payload LAYOUT across mixed widths: variant B packs (i16, i16,
+    // i64). Each destructured field must be read at the correct byte offset AND
+    // width -- the i64 sits after two i16s. Complements the shared-field-NAME
+    // collision canary with an offset/width axis. exit 72 = a field read the
+    // wrong offset/width; 71 = wrong variant dispatched.
+    let canary = pass_canary("control_flow/sum_mixed_width_payload_layout");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("sum mixed-width payload canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for mixed-width payload reads, got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sum-mixed-width-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sum mixed-width payload canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sum mixed-width payload canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected (i16,i16,i64) payload fields read at correct offset/width (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn arithmetic_domain_saturating_mul_exit_canary_runs() {
     // Decision 17: `u8 in Saturating` multiply clamps 100*100=10000 to 255 (a
     // 64-bit imul gives the exact product, then range-compare + cmov to the max).
@@ -19321,6 +19363,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/composite_range_guard_dispatch",
     "control_flow/no_payload_case_variant_after_payload_dispatch_exit",
     "control_flow/case_payload_shared_field_name_exit",
+    "control_flow/sum_mixed_width_payload_layout",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
     "control_flow/runtime_straight_line_terminal_local_exit",
