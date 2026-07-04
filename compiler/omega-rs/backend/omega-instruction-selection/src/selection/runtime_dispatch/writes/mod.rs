@@ -398,11 +398,27 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
             let field = expressions
                 .struct_field_at_offset(struct_literal.fields, offset)
                 .clone();
+            // A case construction's PAYLOAD fields must carry the constructed
+            // variant, exactly as the destructure/read path tags them -- so the
+            // write resolves the same variant-specific offset the read does.
+            // Without this, a payload field whose NAME is shared with another
+            // variant (e.g. `amount` in both `Deposit(amount)` and
+            // `Transfer(to, amount)`) resolves to the FIRST variant's same-named
+            // field and clobbers a sibling payload slot (silent miscompile).
+            // Common fields (shared across variants) stay untagged.
+            let case_variant = struct_literal.case_name.as_ref().and_then(|case_name| {
+                case_payload_field_variant_tag(
+                    input,
+                    &struct_literal.type_name,
+                    case_name,
+                    &field.name,
+                )
+            });
             let field_target = expressions.insert(ExpressionNode::Member(TableMemberExpression {
                 receiver: target,
                 member_symbol: SymbolHandle::invalid(),
                 member: field.name,
-                case_variant: None,
+                case_variant,
             }));
             emitted |= select_runtime_storage_resolved_mutation_write_in_mutable_table(
                 input,
@@ -812,6 +828,39 @@ fn case_tag_value(
         .iter()
         .position(|variant| variant.name == *case_name)
         .and_then(|index| i64::try_from(index).ok())
+}
+
+/// The `case_variant` tag for a case-construction field write: `Some(case_name)`
+/// when `field_name` is one of the case's PAYLOAD fields (so it resolves to that
+/// variant's field), `None` when it is a COMMON field shared across variants (or
+/// the type is not an enum). Mirrors the destructure/read path's tagging so a
+/// field-store construction writes at the same offset the read later resolves.
+fn case_payload_field_variant_tag(
+    input: &InstructionSelectionInput<'_>,
+    type_name: &Identifier,
+    case_name: &Identifier,
+    field_name: &Identifier,
+) -> Option<Identifier> {
+    let data_layout = input
+        .layouts
+        .data_layouts
+        .iter()
+        .find(|(_, data_layout)| data_layout.name == *type_name)
+        .map(|(_, data_layout)| data_layout)?;
+    let DataShape::Enum { common_fields, .. } = &data_layout.shape else {
+        return None;
+    };
+    let is_common_field = input
+        .layouts
+        .fields
+        .span_or_empty(*common_fields)
+        .iter()
+        .any(|field| field.name == *field_name);
+    if is_common_field {
+        None
+    } else {
+        Some(case_name.clone())
+    }
 }
 
 /// MIXED shapes: the common fields a case literal does NOT name, paired with a

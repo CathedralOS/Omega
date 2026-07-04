@@ -895,7 +895,7 @@ element miscompiles natively (#59; workaround = element-type Wrapping).
   `fetch_add` → `lock xadd` (x86_64) / `LDADDAL` (aarch64); `compare_exchange` →
   `LOCK CMPXCHG` / `CASAL`. Detected by TREE-SHAPE at the binary-write selection
   site on an atomic-typed target — no frontend churn, parser desugar unchanged.
-  `samples/cli/atomics_cross` + a canary byte-verify the aarch64 LSE ops and run the
+  `samples/cli/systems/atomics_cross` + a canary byte-verify the aarch64 LSE ops and run the
   host (exit 70). Cross-thread observability still waits on the scheduler (values
   oracle-matched). Commits af2cf360 / 598e5f38 / cf7ab02f / 1a146b1c.
 - **Exact-arithmetic overflow proof-check — DONE (decision 17 S1-S3).** Unprovable
