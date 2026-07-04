@@ -11943,6 +11943,35 @@ fn runtime_min_guard_true_false_pair_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_generic_let_local_instantiations_exit_canary_runs() {
+    // Phase-1 type-position polish: two distinct instantiations of Box<T> as
+    // LET-LOCALS (Box<i32> + Box<bool>), not fields. The desugar now scans
+    // machine-body type positions (let-locals, params, returns), not just data
+    // fields, so the 2nd instantiation no longer poisons the layout. exit 30.
+    let canary = pass_canary("generics/runtime_generic_let_local_instantiations_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-genlet-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("generic let-local instantiations canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("generic let-local instantiations canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(30),
+        "expected two coexisting generic let-local instances (exit 30), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_generic_domain_instantiations_exit_canary_runs() {
     // Phase 1 domain-arg extension: two DOMAIN-CARRYING instantiations of
     // `Box<T>` (`Box<i32 in Wrapping>` + `Box<u8 in Wrapping>`) coexist. Each

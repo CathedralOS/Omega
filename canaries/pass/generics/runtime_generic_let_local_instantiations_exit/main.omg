@@ -1,0 +1,23 @@
+// GENERICS PHASE 1 (type-position polish): two DISTINCT instantiations of one
+// generic data type as LET-LOCALS (`let bi: Box<i32>`, `let bb: Box<bool>`) --
+// not struct fields -- coexist. The pre-resolution desugar originally scanned
+// only data FIELD type references, so a generic-data `let`-local (or a state
+// param / return type) hit the layout builder's per-definition poison on a 2nd
+// distinct instantiation ("needs runtime frame slot layout"). The desugar now
+// scans machine-body type positions too, synthesizing a concrete record per
+// spelling. Reads 30 from the i32 box, true from the bool box; exits 30.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Box<T> { value: T; }
+data Main { console: Console; r: i32; }
+machine Main::main(&mut self) {
+    let bi: Box<i32> = Box { value: 30 };
+    let bb: Box<bool> = Box { value: true };
+    self.r = bi.value;
+    transition bb.value == true {
+        true -> ok()
+        false -> bad()
+    }
+    state ok(&mut self) { self.console.exit_process(self.r); }
+    state bad(&mut self) { self.console.exit_process(99); }
+}
+// Expected exit: 30

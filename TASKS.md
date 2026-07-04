@@ -733,9 +733,13 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >     domain-differing instances coexist; the substitution rides the argument's
 >     own type reference so the domain follows the field for free. Canary
 >     runtime_generic_domain_instantiations_exit (Box<i32 in Wrapping>+Box<u8 in
->     Wrapping>, exit 42). REMAINING Phase-1 polish: lift to param/let/return
->     type positions (FIELD-only today); genuinely composite args (nested
->     generic / array / slice / reference / range-bounded) still fall through.
+>     Wrapping>, exit 42). TYPE-POSITION POLISH DONE 2026-07-03: the desugar now
+>     scans machine-body `let`-local, state PARAMETER, and RETURN type positions
+>     too (not just data FIELDS) via consider_generic_spelling, so two
+>     instantiations as let-locals no longer poison. Canary
+>     runtime_generic_let_local_instantiations_exit (Box<i32>+Box<bool> let-locals,
+>     exit 30). REMAINING Phase-1: genuinely composite args (nested generic /
+>     array / slice / reference / range-bounded) still fall through (Phase 3).
 >   - **Phase 2 -- generic MACHINES**: synthesize one Machine per instantiation
 >     (copy states, substitute T); value-call targets rewrite to the synthetic
 >     symbol; StateKey.machine carries it automatically; the fence becomes a
