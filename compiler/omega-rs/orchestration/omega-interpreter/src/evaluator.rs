@@ -844,30 +844,21 @@ impl<'program> Evaluator<'program> {
             //   * integer param: wrap/clamp/trap an `Int` to the param's width +
             //     arithmetic domain (a u8 param given `a+b`=300 must read 44).
             // A `&mut` arg carries a `Ref`/place (not a `Float`/`Int`), so it is
-            // left untouched and its aliasing preserved; a by-value scalar is a
-            // copy anyway, so a fresh coerced cell is correct.
+            // left untouched and its aliasing preserved (keep the original cell);
+            // a by-value scalar is a copy anyway, so a fresh coerced cell is
+            // correct. Funnels through `coerce_scalar_with` like every other seam.
             let cell = match self.program.primitive_type_reference(parameter.type_reference) {
-                Some(PrimitiveType::F32) => {
-                    let rounded = match &*cell.borrow() {
-                        Value::Float(f) => Some(*f as f32 as f64),
-                        _ => None,
-                    };
-                    match rounded {
-                        Some(r) => Value::Float(r).cell(),
-                        None => cell,
-                    }
-                }
                 Some(primitive) => {
-                    let raw = match &*cell.borrow() {
-                        Value::Int(raw) => Some(*raw),
+                    let scalar = match &*cell.borrow() {
+                        v @ (Value::Int(_) | Value::Float(_)) => Some(v.clone()),
                         _ => None,
                     };
-                    match raw {
-                        Some(raw) => {
+                    match scalar {
+                        Some(value) => {
                             let domain = self
                                 .program
                                 .arithmetic_domain_for_type_reference(parameter.type_reference);
-                            Value::Int(apply_arithmetic_domain(raw, primitive, domain)?).cell()
+                            self.coerce_scalar_with(value, primitive, domain)?.cell()
                         }
                         None => cell,
                     }
@@ -922,20 +913,11 @@ impl<'program> Evaluator<'program> {
                 // `[u8;N] in Saturating` clamps to 255). Integers truncate/clamp/
                 // trap (decision 17); an f32 target rounds to f32 (native keeps f32
                 // in the slot). Mirrors the LocalData store below.
-                let value = if let Value::Int(raw) = value {
-                    match self.assignment_target_coercion(assignment.target, frame) {
-                        Some((primitive, domain)) => {
-                            Value::Int(apply_arithmetic_domain(raw, primitive, domain)?)
-                        }
-                        None => value,
+                let value = match self.assignment_target_coercion(assignment.target, frame) {
+                    Some((primitive, domain)) => {
+                        self.coerce_scalar_with(value, primitive, domain)?
                     }
-                } else if let Value::Float(f) = value {
-                    match self.assignment_target_coercion(assignment.target, frame) {
-                        Some((PrimitiveType::F32, _)) => Value::Float(f as f32 as f64),
-                        _ => value,
-                    }
-                } else {
-                    value
+                    None => value,
                 };
                 // Carrier byte WRITE: `out[i] = ch` where `out` is text (`Value::Str`, packed
                 // BYTES). The byte has no per-element cell, so write it straight into the vec
@@ -1000,30 +982,10 @@ impl<'program> Evaluator<'program> {
                 } else {
                     self.default_value_for_type(local.type_reference)?
                 };
-                // Apply the local's declared width AND arithmetic domain (decision
-                // 17): Wrapping/Exact truncate like the native truncating store,
-                // Saturating clamps, Trapping halts on overflow -- matching the
-                // native clamp/trap emission.
-                let value = match (
-                    &value,
-                    self.program.primitive_type_reference(local.type_reference),
-                ) {
-                    (Value::Int(raw), Some(primitive)) => {
-                        let domain = self
-                            .program
-                            .arithmetic_domain_for_type_reference(local.type_reference);
-                        Value::Int(apply_arithmetic_domain(*raw, primitive, domain)?)
-                    }
-                    (Value::Float(f), Some(PrimitiveType::F32)) => {
-                        // An f32 local rounds its stored value to f32 -- mirrors
-                        // the Assignment store above and the native f32 store. (A
-                        // fully-inline multi-op initializer is still evaluated in
-                        // f64 before this final round; per-op f32 rounding needs
-                        // the binary op's result type -- see TASKS.)
-                        Value::Float(*f as f32 as f64)
-                    }
-                    _ => value,
-                };
+                // Coerce to the local's declared width + arithmetic domain
+                // (decision 17): Wrapping/Exact truncate like the native store,
+                // Saturating clamps, Trapping traps, an f32 local rounds to f32.
+                let value = self.coerce_scalar_value(value, local.type_reference)?;
                 // A `let` introduces a fresh local cell, bound through the frame's
                 // interior-mutable locals map.
                 frame.bind(local.name.as_str(), value.cell());
@@ -2867,26 +2829,43 @@ impl<'program> Evaluator<'program> {
         Some((primitive, domain))
     }
 
-    /// Coerce a stored SCALAR to a declared TYPE reference -- the decision-17
-    /// truncation/clamp/trap for an integer, f32 rounding for a float -- matching
-    /// the native store into that typed slot. A non-scalar value (Struct, Array,
-    /// Ref, ...) or a non-primitive type passes through unchanged. Used where a
-    /// value lands in a typed slot with the type in hand: struct/case literal
-    /// FIELD init (the field carries its own domain, `x: u8 in Wrapping`).
+    /// The CORE value-landing coercion: coerce a stored SCALAR to an already-
+    /// resolved (primitive, arithmetic-domain), matching the native store into
+    /// that typed slot -- the decision-17 truncate/clamp/trap for an integer, f32
+    /// rounding for a float. A non-scalar value (Struct, Array, Ref, ...) passes
+    /// through unchanged. Every interpreter value-landing seam funnels here.
+    fn coerce_scalar_with(
+        &self,
+        value: Value,
+        primitive: omega_typed_trees::types::PrimitiveType,
+        domain: ArithmeticDomain,
+    ) -> EvalResult<Value> {
+        match &value {
+            Value::Int(raw) => Ok(Value::Int(apply_arithmetic_domain(*raw, primitive, domain)?)),
+            Value::Float(f) if primitive == PrimitiveType::F32 => {
+                Ok(Value::Float(*f as f32 as f64))
+            }
+            _ => Ok(value),
+        }
+    }
+
+    /// Coerce a stored SCALAR to a declared TYPE reference (resolves its primitive
+    /// + domain, then [`coerce_scalar_with`]). A non-primitive type passes through.
+    /// Used where a value lands in a typed slot with the type in hand: struct/case
+    /// literal FIELD init + the LocalData store (the type carries its own domain).
     fn coerce_scalar_value(
         &self,
         value: Value,
         type_reference: omega_typed_trees::types::TypeReferenceHandle,
     ) -> EvalResult<Value> {
-        match (&value, self.program.primitive_type_reference(type_reference)) {
-            (Value::Int(raw), Some(primitive)) => {
+        match self.program.primitive_type_reference(type_reference) {
+            Some(primitive) => {
                 let domain = self
                     .program
                     .arithmetic_domain_for_type_reference(type_reference);
-                Ok(Value::Int(apply_arithmetic_domain(*raw, primitive, domain)?))
+                self.coerce_scalar_with(value, primitive, domain)
             }
-            (Value::Float(f), Some(PrimitiveType::F32)) => Ok(Value::Float(*f as f32 as f64)),
-            _ => Ok(value),
+            None => Ok(value),
         }
     }
 
