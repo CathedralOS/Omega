@@ -283,7 +283,8 @@ def _expr_uses(e, names):              # does AST expression `e` reference any o
 class SymInterp:
     def __init__(self, procs):
         self.procs = {p[1]: p for p in procs}
-        self.n_inputs = 0
+        self.bytemem = {}                  # concrete BYTE address -> value; SYMBOLIC values stored UNTRUNCATED
+        self.n_inputs = 0                  # (the observable is mod 256; +/-/* respect mod-256 congruence)
         self.steps = 0
 
     def ev(self, e, env):
@@ -317,7 +318,12 @@ class SymInterp:
             sx, sy = from_signed(x), from_signed(y)
             return 1 if {'<': sx < sy, '>': sx > sy, '<=': sx <= sy, '>=': sx >= sy,
                          '==': x == y, '!=': x != y}[op] else 0
-        raise Unsupported('expression form %s' % k)     # 'mem' (byte[]/word[]) not modelled yet
+        if k == 'mem':
+            if e[1] != 'byte':
+                raise Unsupported('word memory not modelled yet')
+            a = _concrete(self.ev(e[2], env), 'memory read at a symbolic address')
+            return self.bytemem.get(a, 0)               # the interp's memory starts zeroed
+        raise Unsupported('expression form %s' % k)
 
     def _summarize_loop(self, header_pc, body_label, cond, env, blocks, labels):
         """Recognize a linear counter loop  `state H { to B when (i<n) <exit> } state B { <lin updates> to H }`
@@ -498,6 +504,12 @@ class SymInterp:
                     return self.ev(st[1], env)
                 elif k == 'callstmt':
                     self.ev(st[1], env)
+                elif k == 'memset':
+                    if st[1] != 'byte':
+                        raise Unsupported('word memory not modelled yet')
+                    a = _concrete(self.ev(st[2], env), 'memory write at a symbolic address')
+                    v = self.ev(st[3], env)
+                    self.bytemem[a] = (v & 0xFF) if isinstance(v, int) else v
                 elif k == 'goto':
                     take = st[2] is None
                     if st[2] is not None:

@@ -155,9 +155,21 @@ The gate's differential pin runs the compiled tape on the reference VM with a **
 (found in the wild — bc emits divergent code for an assignment to an undeclared variable) fails the pin
 loudly instead of hanging the gate.
 
+### Byte memory (straight-line, concrete addresses)
+
+`byte[5000] = a + b; return byte[5000] * 2` certifies: both engines model a byte map at concrete addresses.
+A stored **symbolic** value is kept *untruncated* even though `storeb` keeps only the low byte — sound
+because the observable is mod 256 and `+`/`−`/`*` respect mod-256 congruence (a ring homomorphism ℤ→ℤ/256),
+so every observed byte matches the machine; concrete stores truncate exactly. Alpha's initial byte memory is
+the **tape image** (as on the machine) while the source interpreter's is zeroed — a low-address program
+would honestly FAIL the cross-engine proof, which is correct: it genuinely behaves differently interpreted
+vs compiled. Word↔byte aliasing refuses on both directions; `word[..]` and byte ops inside loops are later
+slices.
+
 **Deliberately out of scope** (each conservatively *refused* — never mis-summarized): scaling recurrences
 (`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`, tetrahedral `Σg`);
-ℤ-pair trip counts; byte-granular memory; stale reads of rewrite slots; returns inside loop bodies.
+ℤ-pair trip counts; `word[..]` memory; byte memory inside loop bodies (symbolic-address buffers — the
+read-loop class); stale reads of rewrite slots; returns inside loop bodies.
 
 ## How data-dependent loops are summarized (the interesting part)
 

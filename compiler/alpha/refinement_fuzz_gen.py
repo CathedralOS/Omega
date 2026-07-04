@@ -31,6 +31,12 @@ def program(seed):
     for j in range(rng.randint(1, 3)):
         lines.append('    let t%d = %s' % (j, _expr(rng, names, rng.randint(1, 2))))
         names.append('t%d' % j)
+    # ~30%: route a value through BYTE MEMORY (a store at a high fixed address, later read as an atom).
+    # Symbolic stores are modelled untruncated — the mod-256 observable congruence keeps the byte exact.
+    if rng.random() < 0.30:
+        addr = 5000 + rng.randint(0, 3)
+        lines.append('    byte[%d] = %s' % (addr, _expr(rng, names, 1)))
+        names.append('byte[%d]' % addr)
     lines.append('    return %s' % _expr(rng, names, rng.randint(1, 2)))
     lines.append('}')
     return '\n'.join(lines) + '\n'

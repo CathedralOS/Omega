@@ -84,6 +84,7 @@ AUTO_SAMPLES = [
     ("tri_nested (TRIANGULAR j<i →a·g(n))", "refinement-samples/tri_nested.beta"),
     ("callloop  (PROC CALL IN LOOP →2·g(n))", "refinement-samples/callloop.beta"),
     ("temploop  (REWRITE TEMP t=a*i →a·g(n))", "refinement-samples/temploop.beta"),
+    ("bytemem   (BYTE MEMORY roundtrip+truncation)", "refinement-samples/bytemem.beta"),
     ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
     ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
     ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),
