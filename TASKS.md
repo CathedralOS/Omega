@@ -440,7 +440,12 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   workaround is no longer required. Canaries
   collections/runtime_indexed_write_frame_local_source_exit +
   control_flow/runtime_captured_local_swap_exit; 552 canaries + samples +
-  differential 11/11.
+  differential 11/11. SAME-DAY FOLLOW-UP: the TRANSITIVE copy chain
+  (`let t = arr[i]; let c = t; let d = c; let b = d > 5` silently read false)
+  is closed -- the slot scan follows bare-Name copies transitively
+  (local_or_bare_copy_used_as_arithmetic_operand). Canary
+  collections/runtime_indexed_local_copy_chain_exit; 553 green. Remaining
+  fold-family face: the VALUE-CALL arg paths (deep, separate thread).
 - u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
 - FIXED 2026-07-03 (sum-type FIELD store payload offset): `self.tx =

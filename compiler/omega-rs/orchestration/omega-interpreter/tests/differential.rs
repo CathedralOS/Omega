@@ -296,6 +296,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         "collections/runtime_indexed_write_frame_local_source_exit",
         70,
     ),
+    ("collections/runtime_indexed_local_copy_chain_exit", 70),
     ("control_flow/runtime_captured_local_swap_exit", 70),
     ("calls/runtime_same_type_contained_direct_fields_exit", 70),
     ("collections/runtime_palindrome_two_pointer_exit", 70),

@@ -1,0 +1,31 @@
+// TRANSITIVE copy chain over an indexed-read local: t = arr[i] (runtime read),
+// c = t, d = c (bare copies), b = d > 5 (comparison via the second-hop copy).
+// The slot-requirement scan used to count only DIRECT operand uses of t, so
+// the chain folded d -> c -> t -> arr[i] into the fenced direct form and b
+// silently read false. `local_or_bare_copy_used_as_arithmetic_operand` now
+// follows bare-Name copies transitively (name-matched -- a bare local use
+// carries no valid symbol at the storage stage), so t keeps its slot and the
+// chain resolves through it. arr[1] = 8 > 5 -> exit 70 (the fold exits 71).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    arr: [i32; 4];
+    i: i32 [0..=3];
+}
+machine Main::main(&mut self) {
+    self.arr[0] = 3;
+    self.arr[1] = 8;
+    self.arr[2] = 1;
+    self.arr[3] = 9;
+    self.i = 1;
+    let t: i32 = self.arr[self.i];
+    let c: i32 = t;
+    let d: i32 = c;
+    let b: bool = d > 5;
+    transition b {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
