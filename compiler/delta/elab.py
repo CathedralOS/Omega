@@ -83,6 +83,7 @@ def et(n, iv):  # elaborate a term
     if h == 'k':   return "(k %s)" % ' '.join([n[1]] + [et(a, iv) for a in n[2:]])
     if h == 'f':   return "(f %s)" % ' '.join([n[1]] + [et(a, iv) for a in n[2:]])
     if h == 'rec': return "(rec %s)" % n[1]
+    if h == 'recx':return "(recx %s %s)" % (n[1], et(n[2], iv))   # accumulator recursion: field i, extra:=E
     if h == 'y':   return "(y %s)" % n[1]
     if h == 'v':   return "(v %s)" % n[1]     # raw de Bruijn (fun-rule pattern field)
     raise SystemExit("elab error: bad term %r" % (n,))
