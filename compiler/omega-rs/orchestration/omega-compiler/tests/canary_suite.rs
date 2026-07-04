@@ -8861,6 +8861,46 @@ fn runtime_unsigned_modulo_cast_operand_exit_canary_runs() {
 }
 
 #[test]
+fn saturating_multiply_overflow_both_signs_canary_runs() {
+    // Saturating i32 multiply overflow clamps to the SIGN-CORRECT bound: positive
+    // overflow -> INT_MAX, negative overflow -> INT_MIN (clamping negative to
+    // INT_MAX is the classic bug). exit 72 = positive wrong; 73 = negative bound.
+    let canary = pass_canary("arithmetic/saturating_multiply_overflow_both_signs");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("saturating multiply canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (+overflow->INT_MAX, -overflow->INT_MIN), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sat-mul-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating multiply canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating multiply canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected sign-correct saturating multiply clamp (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn saturating_signed_divide_min_by_neg_one_canary_runs() {
     // Saturating signed divide/modulo of TYPE_MIN by -1: the same idiv #DE corner
     // as the Wrapping case, but CLAMPED (INT_MIN / -1 -> INT_MAX, % -> 0).
@@ -20005,6 +20045,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/const_fold_cast_signedness",
     "arithmetic/wrapping_signed_divide_min_by_neg_one",
     "arithmetic/saturating_signed_divide_min_by_neg_one",
+    "arithmetic/saturating_multiply_overflow_both_signs",
     "arithmetic/f32_field_store_rounding",
     "arithmetic/f32_transition_arg_rounding",
     "arithmetic/int_transition_arg_width_wrap",
