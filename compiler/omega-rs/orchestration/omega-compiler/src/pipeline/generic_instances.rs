@@ -26,14 +26,17 @@
 //! phases, or the pre-existing poison for a second such instantiation): generic
 //! ENUMS (`case` members), genuinely composite arguments (a nested generic,
 //! array, slice, reference, or a range-bounded type), and fields that NEST the
-//! parameter (`[T; N]`, `&T`, `Other<T>`). FIELD type position only, like
-//! plan_laid v0.
+//! parameter (`[T; N]`, `&T`, `Other<T>`). Scans every TYPE-REFERENCE position a
+//! generic-data spelling reaches: data FIELDS plus machine-body `let`-local,
+//! state PARAMETER, and RETURN type annotations (all poison the per-definition
+//! layout the same way on a 2nd distinct instantiation).
 
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{DataDefinition, DataMember, Item};
+use omega_syntax_trees::statement::StatementNode;
 use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use std::collections::HashMap;
 
@@ -111,69 +114,58 @@ pub(crate) fn desugar_generic_data_instances(
         return Ok(());
     }
 
-    // Scan field type references for generic-data applications. Collection
-    // only; mutation happens after the scan so the borrows stay simple.
+    // Collect every TYPE-REFERENCE position a generic-data spelling can appear in.
+    // Collection is separate from consideration so the syntax borrows stay simple.
+    // Data FIELDS were the original Phase-1 scope; a `Box<i32>` also poisons the
+    // per-definition layout on a 2nd distinct instantiation in a machine body --
+    // as a `let`-local, a state PARAMETER, or a RETURN type -- so those positions
+    // are monomorphized too (the "type positions" Phase-1 polish).
+    let mut positions: Vec<TypeReferenceHandle> = Vec::new();
+    for item in syntax.root_items() {
+        match item {
+            Item::Data(definition) => {
+                for member in syntax.tables.items.data_members(definition.members) {
+                    if let DataMember::Field(field) = member {
+                        positions.push(field.type_reference);
+                    }
+                }
+            }
+            Item::Machine(machine) => {
+                for state_handle in syntax.tables.items.state_handles(machine.states) {
+                    let state = syntax.tables.items.state(*state_handle);
+                    positions.push(state.return_type);
+                    for parameter_handle in syntax.tables.items.state_parameters(state.parameters) {
+                        positions.push(
+                            syntax
+                                .tables
+                                .items
+                                .state_parameter(*parameter_handle)
+                                .type_reference,
+                        );
+                    }
+                    for statement_handle in syntax.tables.items.statements(state.statements) {
+                        if let StatementNode::LocalData(local) =
+                            syntax.tables.statements.statement(*statement_handle)
+                        {
+                            positions.push(local.type_reference);
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     let mut rewrites: Vec<PendingRewrite> = Vec::new();
     let mut instantiations: Vec<Instantiation> = Vec::new();
-    for item in syntax.root_items() {
-        let Item::Data(definition) = item else {
-            continue;
-        };
-        for member in syntax.tables.items.data_members(definition.members) {
-            let DataMember::Field(field) = member else {
-                continue;
-            };
-            let TypeReferenceNode::Generic {
-                base_name,
-                arguments,
-            } = syntax
-                .tables
-                .type_references
-                .type_reference(field.type_reference)
-            else {
-                continue;
-            };
-            let base = base_name.as_str().to_string();
-            let Some(base_info) = generic_data.get(&base) else {
-                continue; // non-generic base: plan-laid / existing error paths
-            };
-
-            let argument_handles: Vec<TypeReferenceHandle> = syntax
-                .tables
-                .type_references
-                .type_reference_handles(*arguments)
-                .to_vec();
-            // SKIP (leave for the existing generic path) anything Phase 1 cannot
-            // lower completely: wrong arity, a non-plain-Named argument, or a
-            // base that is not a plain record whose fields are each exactly the
-            // parameter or parameter-free.
-            if argument_handles.len() != base_info.parameter_names.len() {
-                continue;
-            }
-            let Some(argument_names) = monomorphizable_argument_slugs(syntax, &argument_handles)
-            else {
-                continue;
-            };
-            if !base_is_fully_monomorphizable(syntax, base_info) {
-                continue;
-            }
-
-            let synthetic_name = format!("{base}<{}>", argument_names.join(", "));
-            rewrites.push(PendingRewrite {
-                type_reference: field.type_reference,
-                synthetic_name: synthetic_name.clone(),
-            });
-            if !instantiations
-                .iter()
-                .any(|instance| instance.synthetic_name == synthetic_name)
-            {
-                instantiations.push(Instantiation {
-                    synthetic_name,
-                    base_name: base,
-                    argument_handles,
-                });
-            }
-        }
+    for position in positions {
+        consider_generic_spelling(
+            syntax,
+            &generic_data,
+            position,
+            &mut rewrites,
+            &mut instantiations,
+        );
     }
     // No Phase-1 diagnostics: unhandled shapes are SKIPPED, not rejected.
     // Synthesize one concrete record per distinct instantiation: the base's
@@ -219,6 +211,63 @@ pub(crate) fn desugar_generic_data_instances(
     }
 
     Ok(())
+}
+
+/// If `type_reference` is a `Base<Args..>` spelling of a fully-monomorphizable
+/// generic data definition, record the rewrite-to-plain-name and the (deduped)
+/// instantiation. Anything Phase 1 cannot lower completely -- a non-generic base,
+/// wrong arity, a non-sluggable argument, or a base that is not a plain record
+/// whose fields are each exactly the parameter or parameter-free -- is left
+/// UNTOUCHED for the existing type-check-only path (skip, never reject).
+fn consider_generic_spelling(
+    syntax: &SyntaxTrees,
+    generic_data: &HashMap<String, GenericData>,
+    type_reference: TypeReferenceHandle,
+    rewrites: &mut Vec<PendingRewrite>,
+    instantiations: &mut Vec<Instantiation>,
+) {
+    let TypeReferenceNode::Generic {
+        base_name,
+        arguments,
+    } = syntax.tables.type_references.type_reference(type_reference)
+    else {
+        return;
+    };
+    let base = base_name.as_str().to_string();
+    let Some(base_info) = generic_data.get(&base) else {
+        return; // non-generic base: plan-laid / existing error paths
+    };
+
+    let argument_handles: Vec<TypeReferenceHandle> = syntax
+        .tables
+        .type_references
+        .type_reference_handles(*arguments)
+        .to_vec();
+    if argument_handles.len() != base_info.parameter_names.len() {
+        return;
+    }
+    let Some(argument_names) = monomorphizable_argument_slugs(syntax, &argument_handles) else {
+        return;
+    };
+    if !base_is_fully_monomorphizable(syntax, base_info) {
+        return;
+    }
+
+    let synthetic_name = format!("{base}<{}>", argument_names.join(", "));
+    rewrites.push(PendingRewrite {
+        type_reference,
+        synthetic_name: synthetic_name.clone(),
+    });
+    if !instantiations
+        .iter()
+        .any(|instance| instance.synthetic_name == synthetic_name)
+    {
+        instantiations.push(Instantiation {
+            synthetic_name,
+            base_name: base,
+            argument_handles,
+        });
+    }
 }
 
 /// A distinguishing slug for each argument -- the Phase-1 gate. `Some` when
