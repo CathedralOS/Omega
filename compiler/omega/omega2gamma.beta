@@ -594,6 +594,13 @@ proc is_write_byte() {                 ; the boundary call `write_byte` (10 char
     state yes { return 1 }
 }
 
+proc is_digit_at() {
+    let c = cbyte()
+    state lo { to hi when (c > 47)  return 0 }
+    state hi { to yes when (c < 58)  return 0 }
+    state yes { return 1 }
+}
+
 proc is_write_line() {                 ; the boundary call `write_line` (10 chars)
     let o = word[2097144]
     state c1 { to c2 when (byte[2097152 + o] == 'w')  return 0 }
@@ -672,15 +679,41 @@ proc emit_write_byte() {
 proc emit_write_line() {
     skip_ident()                       ; past "write_line"
     skip_ws()  adv()                   ; consume '('
-    skip_ws()  adv()                   ; consume opening '"'
+    skip_ws()
     let n = 0
+    state wlck {                       ; the fragment supports STRING-LITERAL args only; anything else
+        to wlstr when (cbyte() == '"')                    ; must REFUSE LOUDLY, not scan forever (the
+        to wlbad                                          ; old code spun at EOF on write_line(self.f))
+    }
+    state wlbad {
+        emit("E2G-UNSUPPORTED-write-line-arg ")           ; unparseable marker poisons the output: every
+        to wlskip                                         ; downstream consumer fails, never silently
+    }
+    state wlskip {                     ; consume through the call's ')', EOF-guarded
+        to wlseof when (word[2097144] >= word[2097136])
+        to wlsrp when (cbyte() == ')')
+        adv()
+        to wlskip
+    }
+    state wlsrp { adv()  to wlsemi }
+    state wlsemi {                     ; ...and through the statement's ';' (the body scanner has no
+        to wlseof when (word[2097144] >= word[2097136])   ; stray-';' case and would spin on it)
+        to wlsemieat when (cbyte() == ';')
+        adv()
+        to wlsemi
+    }
+    state wlsemieat { adv()  return 0 }
+    state wlseof { return 0 }
+    state wlstr { adv()  to rd }       ; consume opening '"'
     state rd {
         to enddq when (cbyte() == '"')
+        to wlrdeof when (word[2097144] >= word[2097136])
         byte[6900000 + n] = cbyte()
         n = n + 1
         adv()
         to rd
     }
+    state wlrdeof { emit("E2G-UNSUPPORTED-write-line-arg ")  return 0 }
     state enddq {
         adv()                          ; consume closing '"'
         byte[6900000 + n] = 10         ; write_line appends a newline
@@ -708,10 +741,21 @@ proc emit_write_line() {
         word[6000016] = word[6000016] + 1
         to tcl
     }
-    state tcl { to eatcl when (cbyte() == ')')  adv()  to tcl }
+    state tcl {
+        to teof when (word[2097144] >= word[2097136])
+        to eatcl when (cbyte() == ')')
+        adv()
+        to tcl
+    }
     state eatcl { adv()  to tsemi }
-    state tsemi { to eatsemi when (cbyte() == ';')  adv()  to tsemi }
+    state tsemi {
+        to teof when (word[2097144] >= word[2097136])
+        to eatsemi when (cbyte() == ';')
+        adv()
+        to tsemi
+    }
     state eatsemi { adv()  return 1 }
+    state teof { return 1 }
 }
 
 ; the entry's terminal: in output mode, RETURN the accumulated stdout `(rev out Nil)`; else the exit value.
@@ -1259,7 +1303,14 @@ proc emit_transition() {
 }
 
 proc emit_exit() {
-    state toopen { to open when (cbyte() == '(')  adv()  to toopen }
+    state toopen {                     ; a self-path with NO call ('}' / EOF before '(') is outside the
+        to nocall when (word[2097144] >= word[2097136])  ; fragment: refuse loudly instead of spinning
+        to nocall when (cbyte() == '}')
+        to open when (cbyte() == '(')
+        adv()
+        to toopen
+    }
+    state nocall { emit("E2G-UNSUPPORTED-bare-self-path ")  return 0 }
     state open {
         adv()
         let e = parse_cmp()
@@ -1283,9 +1334,11 @@ proc translate_block(mi, off) {
         to t_self when (is_self() == 1)
         to t_bwbyte when (is_write_byte() == 1)         ; bare write_byte(...)
         to t_bwline when (is_write_line() == 1)         ; bare write_line("...")
+        to t_bexpr when (is_digit_at() == 1)            ; a bare terminal VALUE (`{ 0 }`): the block result
         depth = depth + do_assign()
         to loop
     }
+    state t_bexpr { let bx = parse_cmp()  print_expr(bx)  to close }
     state t_end {                      ; a &mut self METHOD falls off the end -> return its self-bundle
         to t_endm when (word[6010200 + word[6000032] * 8] == 2)   ; M_KIND[CUR_MI] == 2 (method)
         to close
