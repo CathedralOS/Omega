@@ -133,6 +133,7 @@ tv multi_value_calls
 tv framed_payload
 tv slice_maximum
 tv clamp_sum
+tv inventory_lookup
 tv digital_root
 tv collatz_sequence
 tv modular_exponentiation

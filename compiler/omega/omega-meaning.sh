@@ -94,6 +94,7 @@ om multi_value_calls          # 70 — slices v0 (params, [k..], .len, machine t
 om framed_payload            # 60 — bounded subslices x[a..b] via take(drop x a); fully proven
 om slice_maximum             # 9 — max/min builtins as conditional binaries
 om clamp_sum                 # 200 — min builtin + ℤ-mode clamped folds
+om inventory_lookup          # 20 — string equality (structural listeq) + string-literal expression values
 om text_padding              # 6  — string-carrier fields: "ALERT temp" assignment, .len arithmetic, write_line(field); dual-channel
 om collatz_sequence          # 111 — hailstone steps for seed 27
 om dice_roller               # 70 — self-verified

@@ -352,6 +352,18 @@ proc array_lookup(pref, off) {
     state nomatch { return 0 }
 }
 
+proc array_exists(pref, off) {         ; distinct from array_lookup (which returns 0 on both miss and hit-0)
+    let k = 0
+    state loop {
+        to no when (k == word[6000040])
+        to yes when (path2_eq(pref, off, word[6830000 + k * 8], word[6820000 + k * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
 ; the single instance path in `data Main` for type `off` (0 if none).
 proc inst_for_type(off) {
     let t = 0
@@ -468,14 +480,46 @@ proc lenpath(f, s) {                   ; multi-segment path whose LAST segment i
     state b { return is_len_at(s) }
 }
 
+proc is_strnode(node) {
+    state a { to yes when (word[node] == 19)  to b }
+    state b { to yes when (word[node] == 20)  return 0 }
+    state yes { return 1 }
+}
+
 proc parse_term() {
     skip_ws()
     let c = cbyte()
     state disp {
         to paren when (c == '(')
+        to strlit when (c == 34)               ; a string literal value -> a (Cons b .. Nil) list node
         to lit when (is_digit(c) == 1)
         to ident
     }
+    state strlit {
+        adv()                                  ; consume opening quote
+        let sn = 0
+        to slrd
+    }
+    state slrd {
+        to slend when (cbyte() == 34)
+        to slend when (word[2097144] >= word[2097136])
+        byte[6900000 + sn] = cbyte()
+        sn = sn + 1
+        adv()
+        to slrd
+    }
+    state slend {
+        adv()                                  ; consume closing quote
+        let snode = alloc(20, 0, 0, 0)         ; strnil
+        to slbuild
+    }
+    state slbuild {
+        to sldone when (sn == 0)
+        sn = sn - 1
+        snode = alloc(19, byte[6900000 + sn], snode, 0)   ; strcons byte-first (innermost = last byte)
+        to slbuild
+    }
+    state sldone { return snode }
     state ident {
         to selffield when (is_self() == 1)
         let off = word[2097144]
@@ -649,8 +693,10 @@ proc parse_term() {
         to arrread when (cbyte() == '[')
         to dolen when (lenpath(foff, lseg) == 1)
         to doslice when (is_as_slice_at(lseg) == 1)
+        to barearr when (array_exists(cur_pref(), foff) == 1)   ; bare `self.carrier` -> its list value
         return alloc(3, field_lookup(cur_pref(), foff), 0, 0)
     }
+    state barearr { return alloc(15, array_lookup(cur_pref(), foff), 0, 0) }
     state doslice {                    ; self.arr.as_slice() — the whole array slot as a list value
         byte[2097152 + lseg - 1] = ' '                 ; blank `.as_slice` so the carrier path resolves
         byte[2097152 + lseg] = ' '
@@ -814,8 +860,24 @@ proc parse_cmp0() {
     }
     state shrd { a = alloc(2, '/', a, alloc(0, rp, 0, 0))  to loop }
     state ge  { adv()  let bge = parse_sum()  a = alloc(2, 'G', a, bge)  to loop }
-    state eqx { adv()  adv()  let beq = parse_sum()  a = alloc(2, '=', a, beq)  to loop }
-    state nex { adv()  adv()  let bne = parse_sum()  a = alloc(2, 'N', a, bne)  to loop }
+    state eqx {
+        adv()  adv()
+        let beq = parse_sum()
+        to eqlist when (is_strnode(a) == 1)
+        to eqlist when (is_strnode(beq) == 1)
+        a = alloc(2, '=', a, beq)
+        to loop
+    }
+    state eqlist { a = alloc(2, 'Q', a, beq)  to loop }
+    state nex {
+        adv()  adv()
+        let bne = parse_sum()
+        to nelist when (is_strnode(a) == 1)
+        to nelist when (is_strnode(bne) == 1)
+        a = alloc(2, 'N', a, bne)
+        to loop
+    }
+    state nelist { a = alloc(2, 'R', a, bne)  to loop }
 }
 
 ; logical layers over 0/1 comparison results: `&&` -> multiplication, `||` -> (lt 0 (+ a b)).
@@ -1424,6 +1486,8 @@ proc print_expr(node) {
         to isldrop when (word[node] == 13)
         to isllen when (word[node] == 14)
         to isaslice when (word[node] == 15)
+        to isstrc when (word[node] == 19)
+        to isstrn when (word[node] == 20)
         to isnnth when (word[node] == 16)
         to isndrop when (word[node] == 17)
         to isntake when (word[node] == 18)
@@ -1473,6 +1537,8 @@ proc print_expr(node) {
     state b_f0 { emit("(match pl ((Pair ca cb) ca))")  return 0 }
     state b_f1x { emit("(match pl ((Pair ca cb) cb))")  return 0 }
     state b_f1 { emit("(match pl ((Pair ca cb) (match cb ((Pair cc cd) cc))))")  return 0 }
+    state isstrc { emit("(Cons ")  emit_dec(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state isstrn { emit("Nil")  return 0 }
     state isint { emit_dec(word[node + 8])  return 0 }
     state islocal { print_curname(word[node + 8])  return 0 }
     state isfield { print_fcurname(word[node + 8])  return 0 }
@@ -1497,6 +1563,8 @@ proc print_expr(node) {
         to c_or when (op == 'O')
         to c_max when (op == 'X')
         to c_min when (op == 'Y')
+        to c_leq when (op == 'Q')
+        to c_lne when (op == 'R')
         write_byte('(')
         write_byte(op)
         write_byte(' ')
@@ -1509,6 +1577,8 @@ proc print_expr(node) {
     state c_lt { emit("(lt ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
     state c_gt { emit("(lt ")  print_expr(word[node + 24])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
     state c_eq { emit("(eq ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
+    state c_leq { emit("(listeq ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
+    state c_lne { emit("(- 1 (listeq ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  emit("))")  return 0 }
     state c_le {
         emit("(+ (lt ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])
         emit(") (eq ")   print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])
@@ -3106,6 +3176,7 @@ proc render() {
         emit("(def len (xs) (match xs (Nil 0) ((Cons h t) (+ 1 (len t))))) ")
         emit("(def drop (xs k) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) xs (drop t (- k 1)))))) ")
         emit("(def take (xs k) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) Nil (Cons h (take t (- k 1))))))) ")
+        emit("(def listeq (a b) (match a (Nil (match b (Nil 1) ((Cons bh bt) 0))) ((Cons ah at) (match b (Nil 0) ((Cons bh bt) (if (eq ah bh) (listeq at bt) 0)))))) ")
         to outhelp
     }
     state outhelp {
