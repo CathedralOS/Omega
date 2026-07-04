@@ -11,7 +11,7 @@ use omega_state_guards::{StateGuardKind, StateGuardOperator};
 
 use super::super::storage_places::{
     clamp_runtime_case_comparison_operands, clamp_runtime_case_comparison_operands_in_table,
-    enum_variant_value, enum_variant_value_in_table,
+    classify_scalar_value_type_in_table, enum_variant_value, enum_variant_value_in_table,
     resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_is_fat_slice_in_table,
@@ -1678,6 +1678,45 @@ fn resolve_runtime_value_operand_in_table(
             is_float: false,
             // Integer arm derives its own width; default 8 matches prior behavior.
             byte_width: 8,
+        }));
+    }
+
+    // A numeric `as` cast in a guard subject (`transition self.big as u8 == 44`):
+    // resolve the source operand and wrap it in a Convert, which the encoder lowers
+    // to the in-place conversion (movsxd / cvttsd2si / cvtsi2sd / cvtsd2ss). Mirrors
+    // the write-path resolver (writes/mutation/value_operands.rs); the guard-compare
+    // width then derives from the Convert's target byte size.
+    if let ExpressionNode::Cast(cast) = expressions.expression(expression) {
+        let source_expression = cast.value;
+        let target_primitive = expressions
+            .name_path_members(cast.target_type)
+            .last()
+            .and_then(|name| PrimitiveType::from_name(name.as_str()))?;
+        let source_primitive = classify_scalar_value_type_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            source_expression,
+        )?;
+        let target_byte_size = target_primitive.scalar_byte_size()?;
+        let source_byte_size = source_primitive.scalar_byte_size()?;
+        let source = resolve_runtime_value_operand_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            statement_index,
+            expressions,
+            source_expression,
+            runtime_value_operands,
+        )?;
+        return Some(runtime_value_operands.insert(RuntimeValueOperand::Convert {
+            source,
+            source_byte_size,
+            target_byte_size,
+            source_is_float: source_primitive.accepts_float_literal(),
+            target_is_float: target_primitive.accepts_float_literal(),
+            source_signed: source_primitive.is_signed_integer(),
         }));
     }
 

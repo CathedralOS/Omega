@@ -1,0 +1,59 @@
+// A numeric `as` cast used DIRECTLY in a guard subject (`transition self.x as u8 == c`),
+// newly supported. The guard value-operand path wraps the cast in a Convert (mirroring the
+// write-path resolver) and the guard compare derives its width from the cast's TARGET type.
+// Values are built at runtime so the casts run in codegen, not const-folded. Previously the
+// dispatch-guard blocker rejected any cast in a guard subject (former
+// canaries/fail/arithmetic/cast_in_guard_rejected); the workaround was to cast into a field
+// first. The differential oracle also checks native==interpreter.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    big: i32 in Wrapping;
+    i: i32 in Wrapping;
+    neg: i32 in Wrapping;
+    small: u8 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.big = 0;
+    self.i = 0;
+    transition { _ -> build() }
+
+    state build(&mut self) {
+        transition self.i < 6 { true -> step() _ -> narrow_guard() }
+    }
+    state step(&mut self) {
+        self.big = self.big + 50;
+        self.i = self.i + 1;
+        transition { _ -> build() }
+    }
+
+    // big = 300 at runtime from here on.
+    state narrow_guard(&mut self) {
+        // narrowing cast in a guard subject: 300 as u8 == 44 (low byte of 0x12C).
+        transition self.big as u8 in Wrapping == 44 { true -> widen_signed_guard() _ -> bad() }
+    }
+    state widen_signed_guard(&mut self) {
+        self.neg = 0 - 4;
+        // widening SIGNED cast (sign-extend): (-4 as i32) as i64 == -4, not a huge
+        // zero-extended value.
+        transition self.neg as i64 == 0 - 4 { true -> widen_unsigned_guard() _ -> bad() }
+    }
+    state widen_unsigned_guard(&mut self) {
+        self.small = 200;
+        // widening UNSIGNED cast (zero-extend): 200u8 as i32 == 200 (not sign-extended
+        // to a negative i32).
+        transition self.small as i32 == 200 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

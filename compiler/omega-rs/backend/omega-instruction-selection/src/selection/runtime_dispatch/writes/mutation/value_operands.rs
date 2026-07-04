@@ -978,16 +978,5 @@ fn program_state_statements_by_symbol<'a>(
 /// Byte size of a scalar primitive for a Convert operand (1/4/8), or `None` for
 /// non-scalar (e.g. `String`).
 fn convert_scalar_byte_size(primitive: PrimitiveType) -> Option<usize> {
-    match primitive {
-        PrimitiveType::Bool | PrimitiveType::I8 | PrimitiveType::U8 => Some(1),
-        PrimitiveType::I16 | PrimitiveType::U16 => Some(2),
-        PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => Some(4),
-        PrimitiveType::F64
-        | PrimitiveType::I64
-        | PrimitiveType::U64
-        | PrimitiveType::Usize
-        | PrimitiveType::Isize
-        | PrimitiveType::Addr => Some(8),
-        PrimitiveType::String => None,
-    }
+    primitive.scalar_byte_size()
 }

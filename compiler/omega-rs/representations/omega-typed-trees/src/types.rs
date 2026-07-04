@@ -696,6 +696,19 @@ impl PrimitiveType {
         )
     }
 
+    /// Byte size of a scalar primitive, or `None` for `String` (not a fixed-width
+    /// scalar). Single source of truth for the backend's scalar-width decisions
+    /// (conversions, guard-operand widths, storage layout of scalars).
+    pub fn scalar_byte_size(self) -> Option<usize> {
+        match self {
+            Self::Bool | Self::I8 | Self::U8 => Some(1),
+            Self::I16 | Self::U16 => Some(2),
+            Self::F32 | Self::I32 | Self::U32 => Some(4),
+            Self::F64 | Self::I64 | Self::U64 | Self::Usize | Self::Isize | Self::Addr => Some(8),
+            Self::String => None,
+        }
+    }
+
     pub fn accepts_range_constraint(self) -> bool {
         matches!(
             self,
