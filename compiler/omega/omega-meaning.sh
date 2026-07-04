@@ -49,8 +49,10 @@ omt() {
 }
 
 # NB the set is AUDITED, not just swept: a sample whose pass depends on a mis-parse coincidence is
-# excluded even if its exit matches (format_number: string buffers; alarm_probe2: case-pattern
-# dispatch). Output-mode programs return (Pair <exit> <stdout list>) — BOTH observables; the gate
+# excluded even if its exit matches (format_number: string buffers). alarm_probe2's old exclusion
+# (case-pattern dispatch mis-parse) is RESOLVED: case data v0 lowers no-payload case values to integer
+# tags with real per-tag dispatch (verified: distinct tags, zero unbound variables; payload-case
+# construction refuses loudly, so payload binders can never observe garbage). Output-mode programs return (Pair <exit> <stdout list>) — BOTH observables; the gate
 # parses the exit from the printed pair. width_mixer stays: its `as i32` casts drop harmlessly (widening is a no-op over gamma's
 # unbounded ints while values stay in range — the same status as `in Trapping` annotations).
 om bank_ledger               # 70 — self-verified (state args)
@@ -58,6 +60,8 @@ om bouncing_ball             # 70 — self-verified (state args)
 om bounded_counter           # 70 — saturation check stays in range; state args report(70)
 om calculator_rpn            # 70 — self-verified (arrays + state args)
 om cli_mvp                   # 0  — dual-channel (Pair 0 stdout)
+om alarm_probe               # 70 — case dispatch v0: no-payload Trigger arms fire, fire_count reaches 2
+om alarm_probe2              # 70 — case dispatch v0 (was audit-excluded as a mis-parse coincidence; now faithful)
 om text_padding              # 6  — string-carrier fields: "ALERT temp" assignment, .len arithmetic, write_line(field); dual-channel
 om collatz_sequence          # 111 — hailstone steps for seed 27
 om dice_roller               # 70 — self-verified

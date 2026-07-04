@@ -386,10 +386,26 @@ proc parse_term() {
         to selffield when (is_self() == 1)
         let off = word[2097144]
         skip_ident()
+        to dcolon when (cbyte() == ':')     ; Type::Case — a case-constructor VALUE
         skip_ws()
         to iscall when (cbyte() == '(')
-        return alloc(1, lookup_local(off), 0, 0)
+        to cbind when (casebind_has(off) == 1)   ; an arm's payload binder (v0: reads as 0; payload
+        return alloc(1, lookup_local(off), 0, 0)                  ; construction refuses, unreachable)
     }
+    state cbind { return alloc(0, 0, 0, 0) }
+    state dcolon {
+        to dcolon2 when (byte[2097152 + word[2097144] + 1] == ':')
+        emit("E2G-UNSUPPORTED-single-colon ")            ; not a '::' — outside the fragment
+        return alloc(0, 0, 0, 0)
+    }
+    state dcolon2 {
+        adv()  adv()                   ; consume '::'
+        let coff2 = word[2097144]
+        skip_ident()
+        to cpay when (case_payload(coff2) == 1)
+        return alloc(0, case_tag(coff2), 0, 0)
+    }
+    state cpay { emit("E2G-UNSUPPORTED-payload-case-construction ")  return alloc(0, 0, 0, 0) }
     state iscall {                     ; name( args ) -> a free-machine call
         adv()                          ; consume '('
         let ch = parse_args()
@@ -1309,16 +1325,54 @@ proc do_assign() {
 
 proc parse_arm_pat() {
     skip_ws()
+    word[6000080] = 0                  ; CASEBIND_CNT: binders scope to this arm's args
     state d {
         to p_true when (is_true() == 1)
         to p_false when (is_false() == 1)
         to p_wild when (cbyte() == '_')
+        to p_case when (is_upper(cbyte()) == 1)
         to p_int
     }
     state p_true { skip_ident()  return 1 }
     state p_false { skip_ident()  return 0 }
     state p_wild { adv()  return 0 }
     state p_int { return parse_number() }
+    state p_case {                     ; Type::Case (or a bare Case) pattern -> the case's integer tag
+        let coff = word[2097144]
+        skip_ident()
+        to p_qual when (cbyte() == ':')
+        to p_pay
+    }
+    state p_qual {
+        to p_qual2 when (byte[2097152 + word[2097144] + 1] == ':')
+        to p_pay                       ; a single ':' — treat the name read so far as the case
+    }
+    state p_qual2 {
+        adv()  adv()                   ; consume '::'
+        coff = word[2097144]
+        skip_ident()
+        to p_pay
+    }
+    state p_pay {
+        skip_ws()
+        to p_bind when (cbyte() == '{')
+        to p_bind when (cbyte() == '(')
+        return case_tag(coff)
+    }
+    state p_bind { adv()  to p_bloop }
+    state p_bloop {                    ; payload binders read as literal 0 downstream (v0: payload
+        skip_ws()                      ; construction refuses, so these reads are unreachable)
+        to p_bend when (cbyte() == '}')
+        to p_bend when (cbyte() == ')')
+        to p_bend when (word[2097144] >= word[2097136])
+        to p_bcomma when (cbyte() == ',')
+        word[6970000 + word[6000080] * 8] = word[2097144]
+        word[6000080] = word[6000080] + 1
+        skip_ident()
+        to p_bloop
+    }
+    state p_bcomma { adv()  to p_bloop }
+    state p_bend { adv()  return case_tag(coff) }
 }
 
 proc emit_ifchain(subj, ac) {
@@ -1831,6 +1885,102 @@ proc name_is_Main(off) {               ; does the name at `off` spell "Main" (th
 ; records (T -> F) in DATA_TYPE/DATA_PATH — the single-instance map that lets a T-owned method's
 ; `self.X` resolve to the unified slot `F.X`. (One instance per type; Console is just another entry,
 ; harmless since nothing is owned by Console.)
+; ---- case data (sum types), v0: NO-PAYLOAD case VALUES lower to integer TAGS (per-data decl order).
+; Payload-case CONSTRUCTION refuses loudly (marker), so arm payload binders — which read as literal 0 —
+; can never observe real payload data: reachable-wrong is impossible, the fragment is merely small.
+; Tables: CASE_NAME[6940000] CASE_TAG[6950000] CASE_PAY[6960000], CASE_CNT[6000072];
+; per-arm payload binders: CASEBIND[6970000], CASEBIND_CNT[6000080].
+proc is_case_kw() {
+    let i = word[2097144]
+    state a { to b when (byte[2097152 + i] == 'c')  return 0 }
+    state b { to c when (byte[2097152 + i + 1] == 'a')  return 0 }
+    state c { to d when (byte[2097152 + i + 2] == 's')  return 0 }
+    state d { to e when (byte[2097152 + i + 3] == 'e')  return 0 }
+    state e { to no when (is_idchar(byte[2097152 + i + 4]) == 1)  return 1 }
+    state no { return 0 }
+}
+
+proc collect_cases() {
+    word[6000072] = 0                  ; CASE_CNT
+    word[2097144] = 0
+    let tag = 0
+    state find {
+        skip_ws()
+        to done when (cbyte() == 0)
+        to atdata when (is_data() == 1)
+        to skiptok when (is_idchar(cbyte()) == 1)
+        adv()
+        to find
+    }
+    state skiptok { skip_ident()  to find }
+    state atdata { skip_ident()  tag = 0  to inblock }
+    state inblock {                    ; scan this data block's body for `case NAME[( / {]`
+        skip_ws()
+        to done when (cbyte() == 0)
+        to blockend when (cbyte() == '}')
+        to atcase when (is_case_kw() == 1)
+        to intok when (is_idchar(cbyte()) == 1)
+        adv()
+        to inblock
+    }
+    state intok { skip_ident()  to inblock }
+    state blockend { adv()  to find }
+    state atcase {
+        skip_ident()                   ; past "case"
+        skip_ws()
+        word[6940000 + word[6000072] * 8] = word[2097144]
+        word[6950000 + word[6000072] * 8] = tag
+        skip_ident()
+        skip_ws()
+        word[6960000 + word[6000072] * 8] = 0
+        to haspay when (cbyte() == '(')
+        to nopay
+    }
+    state haspay { word[6960000 + word[6000072] * 8] = 1  to nopay }
+    state nopay {
+        word[6000072] = word[6000072] + 1
+        tag = tag + 1
+        to inblock
+    }
+    state done { return 0 }
+}
+
+proc case_idx(off) {                   ; index of the case named at off, or CASE_CNT on miss
+    let k = 0
+    state loop {
+        to miss when (k == word[6000072])
+        to hit when (name_eq2(off, word[6940000 + k * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state hit { return k }
+    state miss { return word[6000072] }
+}
+
+proc case_tag(off) {
+    let k = case_idx(off)
+    state a { to miss when (k == word[6000072])  return word[6950000 + k * 8] }
+    state miss { return 0 }
+}
+
+proc case_payload(off) {
+    let k = case_idx(off)
+    state a { to miss when (k == word[6000072])  return word[6960000 + k * 8] }
+    state miss { return 0 }
+}
+
+proc casebind_has(off) {               ; is the ident at off one of the current arm's payload binders?
+    let k = 0
+    state loop {
+        to no when (k == word[6000080])
+        to yes when (name_eq2(off, word[6970000 + k * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
 proc collect_instances() {
     word[6000064] = 0                  ; DT_CNT
     word[2097144] = 0
@@ -2155,6 +2305,7 @@ proc main() {
         to ploop
     }
     state pdone {                      ; the UNIFIED self-state: union of fields/input/output over ALL
+        collect_cases()                ; case decls -> integer tags (sum types v0)
         collect_instances()            ; data Main's nested-data instances (type -> field path)
         word[6000024] = 0              ; &mut self machines (entry + methods), plus arrays from the decl.
         word[6000048] = 0
