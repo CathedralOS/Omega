@@ -95,6 +95,15 @@ tv cli_mvp
 tv text_padding
 tv alarm_probe
 tv alarm_probe2
+tv event_log
+tv token_interpreter
+tv nested_case_payload
+tv score_tracker
+tv stopwatch
+tv task_runner
+tv elevator
+tv logger
+tv alarm_scheduler
 tv digital_root
 tv collatz_sequence
 tv modular_exponentiation

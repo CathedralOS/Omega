@@ -62,6 +62,15 @@ om calculator_rpn            # 70 — self-verified (arrays + state args)
 om cli_mvp                   # 0  — dual-channel (Pair 0 stdout)
 om alarm_probe               # 70 — case dispatch v0: no-payload Trigger arms fire, fire_count reaches 2
 om alarm_probe2              # 70 — case dispatch v0 (was audit-excluded as a mis-parse coincidence; now faithful)
+om event_log                  # 70 — case payloads v1 ((Pair tag payload), match destructuring)
+om token_interpreter          # 70 — case payloads v1 ((Pair tag payload), match destructuring)
+om nested_case_payload        # 70 — case payloads v1 ((Pair tag payload), match destructuring)
+om score_tracker              # 70 — case payloads v1 ((Pair tag payload), match destructuring)
+om stopwatch                  # 70 — case payloads v1 ((Pair tag payload), match destructuring)
+om task_runner                # 70 — case payloads v1 ((Pair tag payload), match destructuring)
+om elevator                   # 70 — case payloads v1 ((Pair tag payload), match destructuring)
+om logger                     # 70 — case payloads v1 ((Pair tag payload), match destructuring)
+om alarm_scheduler            # 70 — case payloads v1 ((Pair tag payload), match destructuring)
 om text_padding              # 6  — string-carrier fields: "ALERT temp" assignment, .len arithmetic, write_line(field); dual-channel
 om collatz_sequence          # 111 — hailstone steps for seed 27
 om dice_roller               # 70 — self-verified

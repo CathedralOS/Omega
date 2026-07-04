@@ -389,10 +389,13 @@ proc parse_term() {
         to dcolon when (cbyte() == ':')     ; Type::Case — a case-constructor VALUE
         skip_ws()
         to iscall when (cbyte() == '(')
-        to cbind when (casebind_has(off) == 1)   ; an arm's payload binder (v0: reads as 0; payload
-        return alloc(1, lookup_local(off), 0, 0)                  ; construction refuses, unreachable)
+        to cbind when (casebind_slot(off) < word[6000080])   ; an arm's payload binder: an inline
+        return alloc(1, lookup_local(off), 0, 0)              ; extraction from `pl` (tag 8)
     }
-    state cbind { return alloc(0, 0, 0, 0) }
+    state cbind {
+        let bs = casebind_slot(off)
+        return alloc(8, word[7000000 + bs * 8], word[7010000 + bs * 8], 0)
+    }
     state dcolon {
         to dcolon2 when (byte[2097152 + word[2097144] + 1] == ':')
         emit("E2G-UNSUPPORTED-single-colon ")            ; not a '::' — outside the fragment
@@ -402,10 +405,87 @@ proc parse_term() {
         adv()  adv()                   ; consume '::'
         let coff2 = word[2097144]
         skip_ident()
-        to cpay when (case_payload(coff2) == 1)
-        return alloc(0, case_tag(coff2), 0, 0)
+        skip_ws()
+        to cnamed when (cbyte() == '{')
+        to cpos when (cbyte() == '(')
+        to cpay when (case_payload(coff2) == 1)          ; a payload case built with NO payload: refuse
+        return alloc(9, alloc(0, case_tag(coff2), 0, 0), alloc(0, 0, 0, 0), 0)   ; (Pair TAG 0)
     }
     state cpay { emit("E2G-UNSUPPORTED-payload-case-construction ")  return alloc(0, 0, 0, 0) }
+    state cnamed {                     ; { f: e, g: e } — exprs stored BY DECL FIELD INDEX (order-safe)
+        adv()
+        let ck = case_idx(coff2)
+        let e0 = 0
+        let e1 = 0
+        let e2 = 0
+        to cbig when (word[6960000 + ck * 8] > 3)
+        to cnloop
+    }
+    state cbig { emit("E2G-UNSUPPORTED-case-arity ")  return alloc(0, 0, 0, 0) }
+    state cnloop {
+        skip_ws()
+        to cdone when (cbyte() == '}')
+        to cdone when (word[2097144] >= word[2097136])
+        to cncomma when (cbyte() == ',')
+        let fo = word[2097144]
+        skip_ident()
+        skip_ws()
+        adv()                          ; consume ':'
+        skip_ws()
+        let fx = case_fidx(ck, fo)
+        let fe = parse_cmp()
+        to cn0 when (fx == 0)
+        to cn1 when (fx == 1)
+        e2 = fe
+        to cnloop
+    }
+    state cn0 { e0 = fe  to cnloop }
+    state cn1 { e1 = fe  to cnloop }
+    state cncomma { adv()  to cnloop }
+    state cpos {                       ; ( e, e ) — positional, decl order
+        adv()
+        let ck2 = case_idx(coff2)
+        let p0 = 0
+        let pe0 = 0
+        let pe1 = 0
+        let pe2 = 0
+        to cbig when (word[6960000 + ck2 * 8] > 3)
+        to cploop
+    }
+    state cploop {
+        skip_ws()
+        to cpdone when (cbyte() == ')')
+        to cpdone when (word[2097144] >= word[2097136])
+        to cpcomma when (cbyte() == ',')
+        let pe = parse_cmp()
+        to cp0 when (p0 == 0)
+        to cp1 when (p0 == 1)
+        pe2 = pe
+        p0 = p0 + 1
+        to cploop
+    }
+    state cp0 { pe0 = pe  p0 = p0 + 1  to cploop }
+    state cp1 { pe1 = pe  p0 = p0 + 1  to cploop }
+    state cpcomma { adv()  to cploop }
+    state cpdone {
+        adv()
+        e0 = pe0
+        e1 = pe1
+        e2 = pe2
+        ck = ck2
+        to cbuild
+    }
+    state cdone { adv()  to cbuild }
+    state cbuild {                     ; (Pair TAG payload): 1 field -> e0; 2 -> (Pair e0 e1); 3 nested
+        let tagn = alloc(0, word[6950000 + ck * 8], 0, 0)
+        to cb1 when (word[6960000 + ck * 8] == 1)
+        to cb2 when (word[6960000 + ck * 8] == 2)
+        to cb3 when (word[6960000 + ck * 8] == 3)
+        return alloc(9, tagn, alloc(0, 0, 0, 0), 0)
+    }
+    state cb1 { return alloc(9, tagn, e0, 0) }
+    state cb2 { return alloc(9, tagn, alloc(9, e0, e1, 0), 0) }
+    state cb3 { return alloc(9, tagn, alloc(9, e0, alloc(9, e1, e2, 0), 0), 0) }
     state iscall {                     ; name( args ) -> a free-machine call
         adv()                          ; consume '('
         let ch = parse_args()
@@ -1059,9 +1139,30 @@ proc print_expr(node) {
         to iscall when (word[node] == 4)
         to isaread when (word[node] == 6)
         to islen when (word[node] == 7)
+        to isbind when (word[node] == 8)
+        to ispair when (word[node] == 9)
         to isbin
     }
     state islen { emit("(len ")  print_acurname(word[node + 8])  write_byte(')')  return 0 }
+    state ispair {
+        emit("(Pair ")  print_expr(word[node + 8])  write_byte(' ')
+        print_expr(word[node + 16])  write_byte(')')
+        return 0
+    }
+    state isbind {                     ; case binder: field k of an n-field payload, extracted from pl
+        let bk = word[node + 8]
+        let bn = word[node + 16]
+        to b_solo when (bn == 1)
+        to b_f0 when (bk == 0)
+        to b_f1x when (bn == 2)
+        to b_f1 when (bk == 1)
+        emit("(match pl ((Pair ca cb) (match cb ((Pair cc cd) cd))))")   ; k=2 of 3
+        return 0
+    }
+    state b_solo { emit("pl")  return 0 }
+    state b_f0 { emit("(match pl ((Pair ca cb) ca))")  return 0 }
+    state b_f1x { emit("(match pl ((Pair ca cb) cb))")  return 0 }
+    state b_f1 { emit("(match pl ((Pair ca cb) (match cb ((Pair cc cd) cc))))")  return 0 }
     state isint { emit_dec(word[node + 8])  return 0 }
     state islocal { print_curname(word[node + 8])  return 0 }
     state isfield { print_fcurname(word[node + 8])  return 0 }
@@ -1354,19 +1455,22 @@ proc parse_arm_pat() {
         to p_pay
     }
     state p_pay {
+        word[6000088] = 1              ; CASEMODE: this transition dispatches on a case value
         skip_ws()
         to p_bind when (cbyte() == '{')
         to p_bind when (cbyte() == '(')
         return case_tag(coff)
     }
     state p_bind { adv()  to p_bloop }
-    state p_bloop {                    ; payload binders read as literal 0 downstream (v0: payload
-        skip_ws()                      ; construction refuses, so these reads are unreachable)
+    state p_bloop {                    ; payload binders: name -> the case's FIELD index (by name),
+        skip_ws()                      ; extracted inline from `pl` at use sites
         to p_bend when (cbyte() == '}')
         to p_bend when (cbyte() == ')')
         to p_bend when (word[2097144] >= word[2097136])
         to p_bcomma when (cbyte() == ',')
         word[6970000 + word[6000080] * 8] = word[2097144]
+        word[7000000 + word[6000080] * 8] = case_fidx(case_idx(coff), word[2097144])
+        word[7010000 + word[6000080] * 8] = word[6960000 + case_idx(coff) * 8]
         word[6000080] = word[6000080] + 1
         skip_ident()
         to p_bloop
@@ -1378,10 +1482,22 @@ proc parse_arm_pat() {
 proc emit_ifchain(subj, ac) {
     let last = ac - 1
     let j = 0
+    state cm {                         ; case dispatch: destructure ONCE, test the tag, extract payload
+        to loop when (word[6000088] == 0)                 ; binders from pl at their use sites
+        emit("(match ")
+        print_expr(subj)
+        emit(" ((Pair tg pl) ")
+        to loop
+    }
     state loop {
         to tail when (j == last)
+        to ctest when (word[6000088] == 1)
         emit("(if (eq ")
         print_expr(subj)
+        to test2
+    }
+    state ctest { emit("(if (eq tg")  to test2 }
+    state test2 {
         write_byte(' ')
         emit_dec(word[6600000 + j * 8])
         emit(") ")
@@ -1396,12 +1512,17 @@ proc emit_ifchain(subj, ac) {
         to closed
     }
     state closed { to done when (k == last)  write_byte(')')  k = k + 1  to closed }
-    state done { return 0 }
+    state done {
+        to cmclose when (word[6000088] == 1)
+        return 0
+    }
+    state cmclose { emit("))")  return 0 }   ; close the case-mode (match .. ((Pair tg pl) ..)) wrapper
 }
 
 proc emit_transition() {
     skip_ident()                       ; past "transition"
     skip_ws()
+    word[6000088] = 0                  ; CASEMODE: set by any case arm pattern
     let subj = 0
     let ac = 0
     state chksubj {
@@ -1936,7 +2057,32 @@ proc collect_cases() {
         to haspay when (cbyte() == '(')
         to nopay
     }
-    state haspay { word[6960000 + word[6000072] * 8] = 1  to nopay }
+    state haspay {                     ; payload decl `(f0: T, f1: T, ..)` — record field NAMES (cap 3;
+        adv()                          ; a 4th makes construction/patterns refuse via the count)
+        to fnloop
+    }
+    state fnloop {
+        skip_ws()
+        to fdone2 when (cbyte() == ')')
+        to fdone2 when (word[2097144] >= word[2097136])
+        to fname when (word[6960000 + word[6000072] * 8] < 4)
+        to fskip2
+    }
+    state fname {
+        word[6980000 + (word[6000072] * 4 + word[6960000 + word[6000072] * 8]) * 8] = word[2097144]
+        word[6960000 + word[6000072] * 8] = word[6960000 + word[6000072] * 8] + 1
+        skip_ident()
+        to fskip2
+    }
+    state fskip2 {                     ; consume the field's type up to ',' or ')'
+        to fdone2 when (cbyte() == ')')
+        to fcomma when (cbyte() == ',')
+        to fdone2 when (word[2097144] >= word[2097136])
+        adv()
+        to fskip2
+    }
+    state fcomma { adv()  to fnloop }
+    state fdone2 { adv()  to nopay }
     state nopay {
         word[6000072] = word[6000072] + 1
         tag = tag + 1
@@ -1969,7 +2115,19 @@ proc case_payload(off) {
     state miss { return 0 }
 }
 
-proc casebind_has(off) {               ; is the ident at off one of the current arm's payload binders?
+proc case_fidx(k, off) {               ; field index of the name at off within case k, or count on miss
+    let j = 0
+    state loop {
+        to miss when (j == word[6960000 + k * 8])
+        to hit when (name_eq2(off, word[6980000 + (k * 4 + j) * 8]) == 1)
+        j = j + 1
+        to loop
+    }
+    state hit { return j }
+    state miss { return word[6960000 + k * 8] }
+}
+
+proc casebind_slot(off) {              ; the current arm's binder slot for the ident at off, or CNT
     let k = 0
     state loop {
         to no when (k == word[6000080])
@@ -1977,8 +2135,8 @@ proc casebind_has(off) {               ; is the ident at off one of the current 
         k = k + 1
         to loop
     }
-    state yes { return 1 }
-    state no { return 0 }
+    state yes { return k }
+    state no { return word[6000080] }
 }
 
 proc collect_instances() {
