@@ -97,6 +97,19 @@ The trait carries the FULL contract — including the transform machines a
 dynamic grammar needs — and the law is: **policies author `plan()`; every
 other member is DERIVED from the plan, never hand-implemented.**
 
+> **REVISION 2026-07-04 (Zach) — the derivation thesis is superseded for
+> MINTING.** The language has no compiler-generated code and no unsafe: a value
+> enters a domain ONLY via `as`, licensed when the prover discharges every
+> invariant at that point (Chapter 8). So `validate` below is NOT a derived
+> member — turning bytes into a refined view is a USER-WRITTEN machine that
+> guards the facts and ends in `as`; `Checked`/`Valid`/`Invalid` are
+> user-declared, not built in. STILL OPEN: whether `encode` (value → plain
+> bytes, mints nothing) may remain a derived conformance, or is also
+> user-written. The `Plan` vocabulary below still stands as a layout
+> *description*; what is retracted is the claim that the codec is *generated*
+> from it. Treat the derived-member framing in this section as historical
+> until the encode question is ruled.
+
 ```omega
 trait Grammar {
     machine plan(schema: Schema) -> Plan;        // authored: the policy's one job
