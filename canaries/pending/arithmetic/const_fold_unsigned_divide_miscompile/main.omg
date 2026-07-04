@@ -1,0 +1,41 @@
+// PARKED REPRO (probe 2026-07-04): const-folded unsigned DIVISION miscompiles --
+// the same root as const_fold_unsigned_shift_right_miscompile (see its comment).
+//
+// b = 0xFFFFFFFE (4294967294).  b / 3 for u32 = 1431655764.
+// The type-blind const-folder (omega-state-values/src/simplify/folding.rs) holds
+// b as i64 -2 (`0u32 - 2` folded without wrapping to width), then folds
+// `-2 / 3` = 0. native exits 71 (0 != 1431655764); interpreter (oracle) exits 70.
+//
+// Modulo is the third face: `(0u32 - 2) % 3` -> native 0xFFFFFFFE, interp 2.
+// Shift, divide, modulo are the sign-sensitive ops; +,-,*,&,|,^,<< are safe
+// (agree mod 2^width under truncation). Fix = general expression-type derivation
+// at the fold layer; see TASKS "MISCOMPILE CLASS" + memory
+// shift-right-signedness-const-fold. RUNTIME (field-held) unsigned division is
+// correct and locked by arithmetic/runtime_unsigned_division_exit.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let a: u32 in Wrapping = 0;
+    let b: u32 in Wrapping = a - 2;   // folds to i64 -2 (true u32 value 4294967294)
+    let y: u32 in Wrapping = b / 3;   // folds to i64 0 (should be 1431655764)
+
+    transition y == 1431655764 {
+        _ -> report(y)
+    }
+
+    state report(&mut self, y: u32 in Wrapping) {
+        transition y == 1431655764 {
+            true  -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}
