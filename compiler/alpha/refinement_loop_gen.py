@@ -71,11 +71,10 @@ def program(seed):
     read_used = False                                               # at most ONE read per body: the
     for acc in accs:                                                # summarizers require stride exactly 1
         op = '-' if rng.random() < 0.25 else '+'
-        # ~15%: the delta consumes the INPUT STREAM (one read per iteration; += only — subtracting reads is a
-        # later slice). Coefficients / added terms stay loop-invariant.
+        # ~15%: the delta consumes the INPUT STREAM (one read per iteration, adding OR subtracting — a
+        # subtracting read puts the Σ on the pair's neg side). Coefficients / added terms stay loop-invariant.
         if not read_used and rng.random() < 0.15:
             read_used = True
-            op = '+'
             d = rng.choice(['read_byte()',
                             '(read_byte() * %s)' % _inv(rng, data),
                             '(%s * read_byte())' % _inv(rng, data),
