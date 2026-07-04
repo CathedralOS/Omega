@@ -2663,14 +2663,13 @@ exit.
 - [ ] Replace the current Windows GUI sample shortcut with a real app-window
   host surface. `samples/gui/windowed_calculator` showed on 2026-07-04 that using
   predefined classes is only partial: the older `samples/gui/window_app` /
-  `samples/gui/window_demo` `STATIC`-class path does not get real caption
-  interaction right (drag/close/caption buttons are effectively non-functional
-  in practice). The calculator sample, after switching to `#32770` with
-  `WS_OVERLAPPEDWINDOW`, is currently the only windowed sample that drags and
-  whose caption buttons work for minimize/maximize/system-menu close; the
-  caption X button still does not close. This points at needing a registered
-  Omega window class plus a real WndProc/close path instead of relying on
-  borrowed predefined-class DefWindowProc behavior.
+  `samples/gui/window_demo` `STATIC`-class path did not get real caption
+  interaction right. On 2026-07-04, all three GUI samples were moved to the
+  calculator's `#32770` + `WS_OVERLAPPEDWINDOW` workaround, so dragging and the
+  non-close caption buttons behave like the calculator. The caption X button
+  still does not close. This points at needing a registered Omega window class
+  plus a real WndProc/close path instead of relying on borrowed
+  predefined-class DefWindowProc behavior.
 - [ ] Broaden persistent machine/state mutation coverage beyond isolated
   micro-shapes toward dungeon-sample blockers.
 - [ ] Link final-image imports/fixups back to source and lowered boundary-edge
