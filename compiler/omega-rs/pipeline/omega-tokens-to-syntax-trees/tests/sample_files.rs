@@ -10,7 +10,7 @@ fn parses_dungeon_sample_project() {
         .ancestors()
         .nth(4)
         .expect("parser crate should live under compiler/pipeline/omega-tokens-to-syntax-trees");
-    let sample_root = repo_root.join("samples/dungeon_crawler_cli");
+    let sample_root = repo_root.join("samples/cli/dungeon_crawler_cli");
     let mut omega_files = Vec::new();
 
     collect_omega_files(&sample_root, &mut omega_files);

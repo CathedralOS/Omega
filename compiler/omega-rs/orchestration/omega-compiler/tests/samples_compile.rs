@@ -67,24 +67,50 @@ fn documented_expected_output(source: &str) -> Option<String> {
 
 fn sample_mains() -> Vec<PathBuf> {
     let samples_dir = repo_root().join("samples");
-    let mut mains: Vec<PathBuf> = fs::read_dir(&samples_dir)
-        .expect("samples/ directory should exist")
-        .filter_map(|entry| entry.ok())
-        .map(|entry| entry.path().join("main.omg"))
-        .filter(|main_path| main_path.is_file())
-        .collect();
+    let mut mains = Vec::new();
+    collect_sample_mains(&samples_dir, &mut mains);
     mains.sort();
     assert!(!mains.is_empty(), "expected sample apps under {}", samples_dir.display());
     mains
 }
 
+fn collect_sample_mains(directory: &Path, mains: &mut Vec<PathBuf>) {
+    if directory.join("main.omg").is_file() {
+        mains.push(directory.join("main.omg"));
+        return;
+    }
+
+    let entries = fs::read_dir(directory)
+        .unwrap_or_else(|error| panic!("failed to read directory {}: {error}", directory.display()));
+    for entry in entries {
+        let path = entry
+            .unwrap_or_else(|error| panic!("failed to read directory entry: {error}"))
+            .path();
+        if !path.is_dir() {
+            continue;
+        }
+        if path.file_name().is_some_and(|file_name| file_name == "build") {
+            continue;
+        }
+        collect_sample_mains(&path, mains);
+    }
+}
+
 fn sample_name(main_path: &Path) -> String {
-    main_path
-        .parent()
-        .and_then(|parent| parent.file_name())
-        .and_then(|name| name.to_str())
-        .unwrap_or("<unknown>")
-        .to_owned()
+    let samples_dir = repo_root().join("samples");
+    let Some(parent) = main_path.parent() else {
+        return "<unknown>".to_owned();
+    };
+    let relative = parent.strip_prefix(&samples_dir).unwrap_or(parent);
+    let components: Vec<_> = relative
+        .components()
+        .filter_map(|component| component.as_os_str().to_str())
+        .collect();
+    if components.is_empty() {
+        "<unknown>".to_owned()
+    } else {
+        components.join("__")
+    }
 }
 
 fn repo_root() -> PathBuf {
