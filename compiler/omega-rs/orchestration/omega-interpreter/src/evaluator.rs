@@ -836,12 +836,16 @@ impl<'program> Evaluator<'program> {
                 .get(arg_index)
                 .cloned()
                 .unwrap_or_else(|| Value::Unit.cell());
-            // Round an f32 ARGUMENT to f32 width at the param binding, mirroring
-            // the Assignment/LocalData store rounding: an inline `+ 1.0` arg is
-            // evaluated in f64 but the f32 param must hold the f32 value native
-            // passes in an f32 register. A `&mut f32` arg carries a `Ref` place,
-            // not a `Float`, so it is left untouched (no match); a by-value f32 is
-            // a copy anyway, so a fresh rounded cell is correct.
+            // Coerce a by-value ARGUMENT to the param's declared width/domain at
+            // the binding, matching the native truncating/clamping/trapping store
+            // at the call boundary. Mirrors the Assignment/LocalData store wraps:
+            //   * f32 param: round a `Float` to f32 (an inline `+1.0` arg is f64;
+            //     native passes it in an f32 register).
+            //   * integer param: wrap/clamp/trap an `Int` to the param's width +
+            //     arithmetic domain (a u8 param given `a+b`=300 must read 44).
+            // A `&mut` arg carries a `Ref`/place (not a `Float`/`Int`), so it is
+            // left untouched and its aliasing preserved; a by-value scalar is a
+            // copy anyway, so a fresh coerced cell is correct.
             let cell = match self.program.primitive_type_reference(parameter.type_reference) {
                 Some(PrimitiveType::F32) => {
                     let rounded = match &*cell.borrow() {
@@ -853,7 +857,22 @@ impl<'program> Evaluator<'program> {
                         None => cell,
                     }
                 }
-                _ => cell,
+                Some(primitive) => {
+                    let raw = match &*cell.borrow() {
+                        Value::Int(raw) => Some(*raw),
+                        _ => None,
+                    };
+                    match raw {
+                        Some(raw) => {
+                            let domain = self
+                                .program
+                                .arithmetic_domain_for_type_reference(parameter.type_reference);
+                            Value::Int(apply_arithmetic_domain(raw, primitive, domain)?).cell()
+                        }
+                        None => cell,
+                    }
+                }
+                None => cell,
             };
             locals.insert(parameter.name.as_str().to_owned(), cell);
             arg_index += 1;
