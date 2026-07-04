@@ -1636,6 +1636,21 @@ fn resolve_runtime_value_operand_in_table(
         {
             operator = unsigned_arithmetic_operator(operator);
         }
+        // A right shift's signedness is decided by the SHIFTED VALUE (left
+        // operand) alone -- signed `>>` is arithmetic (`sar`), unsigned is
+        // logical (`shr`); the shift COUNT (right) never affects it. So this
+        // reads only the left operand, unlike the divide/modulo swap above.
+        if matches!(operator, StateGuardOperator::ShiftRight)
+            && resolve_runtime_storage_is_signed_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                binary.left,
+            ) == Some(false)
+        {
+            operator = unsigned_arithmetic_operator(operator);
+        }
         let left = resolve_runtime_value_operand_in_table(
             input,
             dispatch_index,
@@ -1939,6 +1954,9 @@ fn unsigned_arithmetic_operator(operator: StateGuardOperator) -> StateGuardOpera
     match operator {
         StateGuardOperator::Divide => StateGuardOperator::DivideUnsigned,
         StateGuardOperator::Modulo => StateGuardOperator::ModuloUnsigned,
+        // Unsigned `>>` is a LOGICAL shift (zero-fill); the signed default is
+        // arithmetic (`sar`), which would smear the sign bit of a large u32.
+        StateGuardOperator::ShiftRight => StateGuardOperator::ShiftRightLogical,
         other => other,
     }
 }
@@ -1954,19 +1972,19 @@ fn runtime_arithmetic_operator(operator: BinaryOperator) -> Option<StateGuardOpe
         BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
         BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
         BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
-        // Shifts stay None here: the guard-subject shift emitter does not yet
-        // thread operand signedness (signed `>>` would mis-lower to logical
-        // `shr`). Bitwise above carry no signedness and are safe. Wiring shifts
-        // is a follow-up (see guard_expression_support.rs).
+        // Shifts: `<<` is signedness-agnostic (zero-fill from the right), so it
+        // needs no adjustment. `>>` defaults to the SIGNED (arithmetic `sar`)
+        // form here; the binary value-operand site swaps it to
+        // `ShiftRightLogical` when the shifted VALUE (left operand) is unsigned.
+        BinaryOperator::ShiftLeft => Some(StateGuardOperator::ShiftLeft),
+        BinaryOperator::ShiftRight => Some(StateGuardOperator::ShiftRight),
         BinaryOperator::Equal
         | BinaryOperator::Greater
         | BinaryOperator::GreaterOrEqual
         | BinaryOperator::Less
         | BinaryOperator::LessOrEqual
         | BinaryOperator::NotEqual
-        | BinaryOperator::Or
-        | BinaryOperator::ShiftLeft
-        | BinaryOperator::ShiftRight => None,
+        | BinaryOperator::Or => None,
     }
 }
 

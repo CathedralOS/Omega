@@ -831,37 +831,13 @@ fn computed_host_arg_rejected_canary_is_rejected() {
 fn cast_in_guard_rejected_canary_is_rejected() {
     // A cast in a guard subject is not yet lowerable; the dispatch-guard blocker rejects it
     // cleanly rather than silently miscompiling (#40). Workaround: cast into a field first,
-    // then guard the field. Sibling of shift_in_guard_rejected; guards against the value-call
-    // -in-guard silent-miscompile failure mode reaching casts. Remove when casts-in-guards land.
+    // then guard the field. (Shifts in guards now lower -- see
+    // runtime_shift_in_guard_exit; casts still need their operand path.) Guards against the
+    // value-in-guard silent-miscompile failure mode reaching casts. Remove when casts-in-guards land.
     let canary = fail_canary("arithmetic/cast_in_guard_rejected");
     let diagnostics = match compile_canary_without_output(&canary) {
         Ok(report) => panic!(
             "expected cast-in-guard canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
-    let combined = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        combined.contains("guard"),
-        "expected a guard-lowering rejection diagnostic, got:\n{combined}"
-    );
-}
-
-#[test]
-fn shift_in_guard_rejected_canary_is_rejected() {
-    // A shift (<< / >>) directly in a guard subject is not yet lowerable; the dispatch-guard
-    // blocker rejects it cleanly rather than silently miscompiling (#40). Value-position
-    // shifts work (bind the shifted value to a local first). This guards the #40 boundary:
-    // if shift-in-guard ever compiles, the canary fails. Remove when shifts-in-guards land.
-    let canary = fail_canary("arithmetic/shift_in_guard_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected shift-in-guard canary to reject, but it compiled: {}",
             report.summary()
         ),
         Err(diagnostics) => diagnostics,
@@ -7031,6 +7007,37 @@ fn runtime_shift_signedness_exit_canary_runs() {
         output.status.code(),
         Some(70),
         "expected signed (arithmetic) vs unsigned (logical) shifts to compute correctly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_shift_in_guard_exit_canary_runs() {
+    // Shifts used DIRECTLY in a guard subject (`self.x >> n == k`). `<<` is
+    // signedness-agnostic; `>>` threads the shifted value's signedness (arithmetic
+    // sar for signed, logical shr for unsigned). Values are built at runtime so the
+    // shifts run in codegen. Was rejected by the dispatch-guard blocker until the
+    // guard value-operand path learned to thread shift signedness.
+    let canary = pass_canary("arithmetic/runtime_shift_in_guard_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-shift-in-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("shift-in-guard canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("shift-in-guard canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected signed/unsigned/left shifts in guard subjects to compute correctly (exit 70); got {:?}\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );

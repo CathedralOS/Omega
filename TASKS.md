@@ -804,17 +804,22 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >   bare indexed read fails, both NeedsMachineOwnedWrite in the mutation emitter),
 >   computed-index `arr[k+1]` double-gate, u64 literals > i64::MAX (i128
 >   refactor). Fenced (safe) but block real programs. One-fence-per-fire.
-> - **SHIFT/CAST in a guard subject** (`transition self.x >> 1 == c`) -- still
->   FENCED (fail canaries shift_in_guard_rejected / cast_in_guard_rejected). A
->   frontend auto-hoist (materialize the bool subject) was attempted + REVERTED
->   2026-07-03: it's UNSOUND for NEGATIVE signed shifts (the shift stays a
->   comparison operand in the let-value, hitting the same `sar`-at-64-bit
->   byte-width bug as the guard-direct path -- native gave `(-8>>1)==-4` FALSE).
->   The sound fix is the BACKEND operand-width threading (run the `sar` at the
->   operand width + sign-extend narrow operands), NOT a frontend hoist -- see
->   bitwise-operators.md. (Cast-hoist tested sound but a nearby bare-field cast
->   store miscompiles, so cast reverted too.) Parenthesized subjects are the
->   separate boolean-guard-nesting parser gap.
+> - **SHIFT in a guard subject** (`transition self.x >> 1 == c`) -- LANDED
+>   2026-07-04. The guard value-operand path now threads shifts: `runtime_arithmetic_operator`
+>   maps `<<`/`>>`, the value-operand site swaps `>>`->`ShiftRightLogical` when the
+>   shifted VALUE (left operand) is unsigned, and `guard_expression_support` allows
+>   both in the emit gate. The predicted sound fix landed too -- shifts run at the
+>   OPERAND width (not a hardcoded 64-bit) in `runtime_binary_operation_byte_size`
+>   on BOTH arches, so a narrow signed `sar` honors the i32 sign bit (`-320>>2==-80`)
+>   and `<<` drops i32 overflow. x86_64 verified (canary+differential
+>   `arithmetic/runtime_shift_in_guard_exit`); aarch64 correct-by-construction (ASR-W
+>   for narrow `>>`), and the same width fix also corrects aarch64 narrow div/mod in
+>   guards (previously ran 64-bit, unverified). fail canary shift_in_guard_rejected
+>   removed. See bitwise-operators.md.
+> - **CAST in a guard subject** (`transition (self.x as i8) == c`) -- still FENCED
+>   (fail canary cast_in_guard_rejected). A cast-hoist tested sound but a nearby
+>   bare-field cast store miscompiles, so cast stays rejected until its operand path
+>   is done. Parenthesized subjects are the separate boolean-guard-nesting parser gap.
 >
 > **Mint arc remainder (library-grade; the boot path used the boundary-vouch
 > shortcut):**
