@@ -292,6 +292,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_dual_indexed_guard_equality_exit", 70),
     ("calls/runtime_same_type_contained_direct_fields_exit", 70),
     ("collections/runtime_palindrome_two_pointer_exit", 70),
+    ("collections/runtime_bracket_matcher_stack_exit", 70),
     ("arithmetic/runtime_float_self_compare_nan_exit", 70),
     ("arithmetic/runtime_abs_desugar_exit", 70),
     ("arithmetic/runtime_sqrt_builtin_exit", 70),

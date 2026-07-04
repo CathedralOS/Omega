@@ -18005,6 +18005,38 @@ fn runtime_same_type_contained_direct_fields_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_bracket_matcher_stack_exit_canary_runs() {
+    // Stack-based bracket matcher over "([)]" (mis-nested). Correct verdict is
+    // UNBALANCED -> exit 70; a count-only or broken matcher -> exit 71.
+    let canary = pass_canary("collections/runtime_bracket_matcher_stack_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-bracket-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bracket matcher canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bracket matcher canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the stack matcher to detect mis-nesting in \"([)]\" (exit 70); exit 71 = \
+         it accepted the mismatch. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_palindrome_two_pointer_exit_canary_runs() {
     // Two-pointer palindrome over [1,2,3,4,1] (NOT a palindrome): must detect the
     // arr[1]=2 vs arr[3]=4 mismatch -> exit 70; missing it -> exit 71.
@@ -18808,6 +18840,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_dual_indexed_guard_equality_exit",
     "calls/runtime_same_type_contained_direct_fields_exit",
     "collections/runtime_palindrome_two_pointer_exit",
+    "collections/runtime_bracket_matcher_stack_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
     "concurrency/runtime_spawn_struct_result_exit",
