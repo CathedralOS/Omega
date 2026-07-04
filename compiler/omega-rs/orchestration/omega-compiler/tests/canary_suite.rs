@@ -11943,6 +11943,36 @@ fn runtime_min_guard_true_false_pair_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nested_generic_instantiations_exit_canary_runs() {
+    // Phase 3: NESTED generic data. Pair<T> contains a Box<T> field, so Pair<i32>
+    // needs Box<i32> synthesized too (and Pair<bool> -> Box<bool>). The desugar
+    // runs to a fixpoint: synthesizing Pair<i32> emits a fresh Box<i32> spelling
+    // the next round monomorphizes; generic template bodies are skipped so the
+    // param-arg Box<T> is never mistaken for a concrete instance. exit 30.
+    let canary = pass_canary("generics/runtime_nested_generic_instantiations_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gennest-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested generic instantiations canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested generic instantiations canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(30),
+        "expected nested generic instances (Pair<i32>/Pair<bool> over Box<T>) to coexist (exit 30), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_generic_let_local_instantiations_exit_canary_runs() {
     // Phase-1 type-position polish: two distinct instantiations of Box<T> as
     // LET-LOCALS (Box<i32> + Box<bool>), not fields. The desugar now scans

@@ -738,8 +738,19 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >     too (not just data FIELDS) via consider_generic_spelling, so two
 >     instantiations as let-locals no longer poison. Canary
 >     runtime_generic_let_local_instantiations_exit (Box<i32>+Box<bool> let-locals,
->     exit 30). REMAINING Phase-1: genuinely composite args (nested generic /
->     array / slice / reference / range-bounded) still fall through (Phase 3).
+>     exit 30). REMAINING Phase-1: composite ARGS (`Box<[i32;4]>`, `Box<&T>`,
+>     range-bounded) still fall through.
+>   - **Phase 3 -- NESTED generic data -- DONE 2026-07-03.** `Pair<T> { a: Box<T> }`
+>     used as `Pair<i32>` synthesizes `Box<i32>` too. The desugar now runs to a
+>     FIXPOINT (collect_type_reference_positions each round; a synthesized
+>     `Pair<i32>` has a fresh `Box<i32>` field the next round monomorphizes);
+>     base_is_fully_monomorphizable accepts a nested-generic field of a KNOWN base
+>     with parameter-or-concrete args; substitute_member builds the concrete
+>     `Box<i32>` spelling; and generic TEMPLATE bodies (defs/machines with type
+>     params) are SKIPPED so the param-arg `Box<T>` inside `Pair<T>` is not
+>     mistaken for a concrete instance. Was an outright error before ("references
+>     unknown data type T"). Canary runtime_nested_generic_instantiations_exit
+>     (Pair<i32>+Pair<bool>, exit 30).
 >   - **Phase 2 -- generic MACHINES**: synthesize one Machine per instantiation
 >     (copy states, substitute T); value-call targets rewrite to the synthetic
 >     symbol; StateKey.machine carries it automatically; the fence becomes a

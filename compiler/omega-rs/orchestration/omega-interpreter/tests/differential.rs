@@ -237,6 +237,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("generics/runtime_generic_two_instantiations_exit", 30),
     ("generics/runtime_generic_domain_instantiations_exit", 42),
     ("generics/runtime_generic_let_local_instantiations_exit", 30),
+    ("generics/runtime_nested_generic_instantiations_exit", 30),
     ("generics/runtime_generic_enum_payload_exit", 70),
     ("generics/runtime_generic_value_call_exit", 70),
     ("generics/runtime_generic_value_call_agreeing_exit", 70),
