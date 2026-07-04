@@ -142,9 +142,22 @@ refused on both sides. `refinement_nested_gen.py` fuzzes this recursive machiner
 all four inner-bound kinds (concrete, input, the outer counter) with subtracting bodies and outer-step
 deltas, each proven against the compiled bytecode.
 
+### Calls in loop bodies and rewrite slots
+
+A procedure call inside a summarized body is **inlined during the placeholder run** (alpha's body runner
+gained call/ret; beta's `ev` always inlined), so `total += double(i)` certifies as the counter-linear
+`2·g(n)`. The callee's temp slots — and any per-iteration temporary like `t = a·i` — are **rewrite slots**:
+fully overwritten each iteration, no additive delta exists for them. Instead of refusing the loop, both
+engines DROP them post-loop (alpha poisons the slot — a later load refuses; beta removes the var — a later
+read refuses) and refuse only if another delta reads a rewrite slot's *stale* previous-iteration value.
+
+The gate's differential pin runs the compiled tape on the reference VM with a **timeout**: a diverging tape
+(found in the wild — bc emits divergent code for an assignment to an undeclared variable) fails the pin
+loudly instead of hanging the gate.
+
 **Deliberately out of scope** (each conservatively *refused* — never mis-summarized): scaling recurrences
 (`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`, tetrahedral `Σg`);
-ℤ-pair trip counts; byte-granular memory; loop bodies containing calls or returns.
+ℤ-pair trip counts; byte-granular memory; stale reads of rewrite slots; returns inside loop bodies.
 
 ## How data-dependent loops are summarized (the interesting part)
 

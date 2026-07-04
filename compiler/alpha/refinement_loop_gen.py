@@ -42,6 +42,9 @@ def program(seed):
     for acc in accs:
         init = rng.choice(['0', str(rng.randint(0, 3))] + data)     # accumulator start: 0, a const, or an input
         lines.append('    let %s = %s' % (acc, init))
+    for acc in accs:
+        lines.append('    let t%s = 0' % acc[-1])                   # rewrite temps MUST be declared: bc emits
+                                                                    # divergent code for undeclared assignments
     ret = rng.choice(accs + ['i'])                                  # return an accumulator or the counter
     # ~20% DOWN-counting: i drains n -> 0 under (0 < i), stepping by the ℤ pair -1 — exactly n trips. Both
     # modes draw from the full linear-in-i delta space: under a down-counter the i ↦ n-k substitution folds
@@ -58,10 +61,17 @@ def program(seed):
         lines.append('    state loop { to body when (%s)  return %s }' % (guard, ret))
         step = 'i = i + 1'
         delta = lambda: _delta(rng, data)
-    # ~25% of accumulators SUBTRACT their delta (acc = acc - δ): the value goes negative in ℤ and is carried
-    # as a difference pair whose pos/neg components summarize independently (observable mod 256 stays exact).
-    body = '  '.join('%s = %s %s %s' % (acc, acc, '-' if rng.random() < 0.25 else '+', delta())
-                     for acc in accs)
+    # ~25% of accumulators SUBTRACT their delta (acc = acc - δ); ~20% route it through a REWRITE temp
+    # (t = δ; acc = acc ± t) — t is overwritten each iteration and dropped post-loop.
+    parts = []
+    for acc in accs:
+        op = '-' if rng.random() < 0.25 else '+'
+        d = delta()
+        if rng.random() < 0.20:
+            parts.append('t%s = %s  %s = %s %s t%s' % (acc[-1], d, acc, acc, op, acc[-1]))
+        else:
+            parts.append('%s = %s %s %s' % (acc, acc, op, d))
+    body = '  '.join(parts)
     lines.append('    state body { %s  %s  to loop }' % (body, step))
     lines.append('}')
     return '\n'.join(lines) + '\n'

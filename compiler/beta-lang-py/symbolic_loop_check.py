@@ -85,6 +85,11 @@ SUMMARIZABLE = [
     ("nested triangular (j<i)",   nestedloop("i"),                                 lambda n, a, b: a * (n * (n - 1) // 2)),
     ("nested n·g(b) (total+=j)",  nestedloop("b").replace('total = total + a', 'total = total + j'),
      lambda n, a, b: n * (b * (b - 1) // 2)),
+    # calls in loop bodies (inlined during the placeholder run) and per-iteration REWRITE temps (t is
+    # fully overwritten each iteration: dropped post-loop; a delta reading its STALE value refuses).
+    ("call δ (total += dbl(a))", "proc dbl(x) { return (x + x) }\n" + loop("i < n", "total = total + dbl(a)"),
+     lambda n, a, b: 2 * n * a),
+    ("rewrite temp (t=a*i; +=t)", loop("i < n", "t = (a * i)  total = total + t"),  lambda n, a, b: a * (n * (n - 1) // 2)),
     ("↓ Σi   (total += i)",     downloop("total = total + i"),                     lambda n, a, b: n * (n + 1) // 2),
     ("↓ -Σi  (total -= i)",     downloop("total = total - i"),                     lambda n, a, b: (-(n * (n + 1) // 2)) % 256),
     ("↓ a·Σi (total += a*i)",   downloop("total = total + (a * i)"),               lambda n, a, b: a * (n * (n + 1) // 2)),
@@ -101,6 +106,8 @@ MUST_REFUSE = [
     # Σ of g: inner (j < i, total += j) makes the outer delta g(i) — quadratic in the outer counter
     # (tetrahedral sum), genuinely outside the linear class on both sides.
     ("nested Σg (j<i, total+=j)",     nestedloop("i").replace('total = total + a', 'total = total + j')),
+    # a delta reading a rewrite temp's STALE value (t assigned AFTER its use) is order-sensitive: refused.
+    ("stale rewrite read (t after)",  loop("i < n", "total = total + t  t = (a * i)").replace("let s = 0", "let s = 0\n    let t = 0")),
 ]
 
 def main():
