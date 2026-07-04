@@ -412,6 +412,20 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   bare local or bare indexed read does not) -- a dual-indexed copy or a
   bare-place source arm in the indexed-target mutation emitter, NOT a frontend
   hoist (hoisting to a local does not help). See #38.
+  - SITE PINNED (2026-07-03): the fall-through is the machine-indexed copy arm
+    in `writes/mutation.rs`
+    (`select_runtime_resolved_target_value_source_mutation_writes`, the
+    `resolve_runtime_machine_indexed_target` block, ~line 1522). Its copy arm
+    (`CopyRuntimeStorageToRuntimeMachineIndexed`) is gated
+    `source_place.region == Machine` on purpose: the x86_64 encoder reads value,
+    index, and target element off the ONE shared machine base. So the gap is
+    ENCODER-level, two distinct sub-cases (each = new/extended instruction kind +
+    x86_64 AND aarch64 encoders + differential):
+    (1) `arr[i]=arr[j]`: source is a runtime-INDEXED read -> `resolve_runtime_-
+    storage_place` returns no fixed place -> needs a DUAL-index copy (source
+    index reg + target index reg). (2) `arr[i]=local`: source is a FRAME-region
+    place -> fails the `==Machine` gate -> needs the encoder to read a frame-base
+    source. NOT a fire-tick edit; a focused backend pass.
 - u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
 
@@ -2636,6 +2650,17 @@ exit.
   allocation story with register classes, spills, and post-assignment cleanup.
 - [ ] Reduce host/runtime special-case lowering around stdin/stdout/process
   calls; build richer multi-step text flows and real console interaction.
+- [ ] Replace the current Windows GUI sample shortcut with a real app-window
+  host surface. `samples/windowed_calculator` showed on 2026-07-04 that using
+  predefined classes is only partial: the older `samples/window_app` /
+  `samples/window_demo` `STATIC`-class path does not get real caption
+  interaction right (drag/close/caption buttons are effectively non-functional
+  in practice). The calculator sample, after switching to `#32770` with
+  `WS_OVERLAPPEDWINDOW`, is currently the only windowed sample that drags and
+  whose caption buttons work for minimize/maximize/system-menu close; the
+  caption X button still does not close. This points at needing a registered
+  Omega window class plus a real WndProc/close path instead of relying on
+  borrowed predefined-class DefWindowProc behavior.
 - [ ] Broaden persistent machine/state mutation coverage beyond isolated
   micro-shapes toward dungeon-sample blockers.
 - [ ] Link final-image imports/fixups back to source and lowered boundary-edge
