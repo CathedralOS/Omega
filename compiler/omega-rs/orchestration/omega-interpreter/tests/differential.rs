@@ -52,6 +52,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_min_max_signedness_exit", 70),
     ("arithmetic/runtime_modulo_div_narrowing_exit", 70),
     ("calls/runtime_min_max_guard_subject_hoist_exit", 70),
+    ("calls/runtime_min_guard_true_false_pair_exit", 70),
     ("arithmetic/runtime_payload_range_narrowing_exit", 70),
     ("arithmetic/runtime_provable_field_construction_exit", 70),
     ("arithmetic/runtime_signed_division_exit", 70),

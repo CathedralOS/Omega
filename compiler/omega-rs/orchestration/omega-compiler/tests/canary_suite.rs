@@ -11823,6 +11823,36 @@ fn runtime_min_max_guard_subject_hoist_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_min_guard_true_false_pair_exit_canary_runs() {
+    // #41: a pure-builtin guard subject with a `{ true -> false -> }` PAIR. Each
+    // arm re-lowers the subject to its own temp, so the pair stopped pairing for
+    // exhaustiveness; hoist_comparison_match_subject shares one subject temp
+    // across arms (keyed on the syntax subject handle). Discriminating: min=7
+    // matches -> good (70); a wrong min or a failed pair would exit 71.
+    let canary = pass_canary("calls/runtime_min_guard_true_false_pair_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-minpair-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("min guard true/false pair canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("min guard true/false pair canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a shared-subject builtin guard pair to discriminate (exit 70), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_generic_domain_instantiations_exit_canary_runs() {
     // Phase 1 domain-arg extension: two DOMAIN-CARRYING instantiations of
     // `Box<T>` (`Box<i32 in Wrapping>` + `Box<u8 in Wrapping>`) coexist. Each
