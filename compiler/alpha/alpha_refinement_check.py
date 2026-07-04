@@ -90,6 +90,7 @@ AUTO_SAMPLES = [
     ("bytemem   (BYTE MEMORY roundtrip+truncation)", "refinement-samples/bytemem.beta"),
     ("fromto    (MONUS TRIP i=a..n →(n∸a)a+g(n∸a))", "refinement-samples/fromto.beta"),
     ("sumbytes  (READ-LOOP →Σ input[1..1+n) + next)", "refinement-samples/sumbytes.beta"),
+    ("weightedread (a·Σ input + g(n))", "refinement-samples/weightedread.beta"),
     ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
     ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
     ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),

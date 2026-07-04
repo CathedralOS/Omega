@@ -188,11 +188,16 @@ differential pins supply padded input vectors (loop bounds are drawn small). Thi
 beta bug: reads inside summarized bodies previously got a *fixed* global index — `n · (first byte)` instead
 of the sum — contained only because alpha refused the shape.
 
+Read deltas **compose with the linear machinery**: `_split_stream` separates a delta into its stream part
+and its rest — `total += a·read_byte() + i` closes as `g(n) + a·Σ input[base..base+n)`, the rest through the
+ordinary series and the stream part as `(m (k 8 lo hi) coef)` with a loop-invariant coefficient. A quadratic
+stream (`read·read`) refuses.
+
 **Deliberately out of scope** (each conservatively *refused* — never mis-summarized): scaling recurrences
 (`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`, tetrahedral `Σg`);
-ℤ-pair or monus counter *start values*; `word[..]` memory; reads mixed into larger deltas
-(`total += read_byte()·2` — needs a coefficient on the stream sum); more than one read per iteration;
-buffer writes at symbolic addresses; stale reads of rewrite slots; returns inside loop bodies.
+ℤ-pair or monus counter *start values*; `word[..]` memory; quadratic streams (`read·read`); subtracting
+reads (`total -= read_byte()`); more than one read per iteration; buffer writes at symbolic addresses;
+stale reads of rewrite slots; returns inside loop bodies.
 
 ## How data-dependent loops are summarized (the interesting part)
 
