@@ -51,7 +51,12 @@ shape with *its own trust story* — obligations discharged by certificates the 
    *gamma elaboration* is the thing symbolically executed — refinement at the γ level, reusing interp.beta
    as the pin.
 3. **Obligation-emitting elaboration**: port epsilon's certify-* pattern up to omega2gamma, one obligation
-   class at a time, each with its three-checker diamond.
+   class at a time, each with its three-checker diamond. *Status: two classes live in `meaning-tv.sh` —
+   division safety (iszero(divisor) = 0 at every / and % site) and array bounds (ult(idx, len) = 1 at every
+   user-level nth/setl access, difference-pair form in ℤ mode; omega2gamma's Cons-spine array lowering
+   returns silent defaults on overrun, the exact silent-OOB shape the obligation forbids). Structural
+   results also covered: constructor-tree values get a leaf-computed vs literal-tree claim plus a render
+   pin against the interpreter's printed value.*
 
 Everything above obeys the standing decisions: D1 (Rust exits by role), D2 (meaning by elaboration to
 gamma), D3 (trust via proofs + TV), D5 (diversity at every seam). The refinement pillar is the proof that

@@ -13,6 +13,13 @@
 # literals, let, def calls (recursion bounded by fuel), if, match on Pair/bare-constructor values. Samples
 # using `-` are outside the fragment and reported as such (exit 2).
 #
+# STRUCTURAL RESULTS: a sample whose final value is a constructor tree (e.g. cli_mvp's output char list)
+# gets a structural claim instead — left side the tree with each leaf's COMPUTED term, right side the
+# literal tree, fresh (data CID ..) decls per constructor — so the kernel re-computes every leaf and the
+# tree shape. The concrete render (interp.beta's exact print format) is emitted as a final `#render` line
+# the gate string-compares against the interpreter's stdout: the structure is PINNED to the real run, not
+# just the exit code (which is always 0 for constructor-valued programs).
+#
 # stdout line 1: `<computed exit> <claim cert>`; line 2: the off-by-one NEGATIVE-control cert the kernel
 # must reject. The gate cross-checks the exit against both the interpreter run and the documented intent.
 import sys
@@ -133,6 +140,49 @@ def run(src, zpair):
                                            # iszero(divisor) reduces to 0, i.e. the kernel re-computes the
                                            # divisor and confirms the division cannot trap (omega-rs's
                                            # obligations.rs concept, discharged by the lattice's own anchor)
+    ctors = {}                             # constructor name -> (cid, arity): fresh ids for structural claims
+
+    def ctor_cid(name, arity):
+        if name in ctors:
+            cid, ar = ctors[name]
+            if ar != arity:
+                raise Out('constructor %s used at two arities' % name)
+            return cid
+        cid = 60 + len(ctors)
+        ctors[name] = (cid, arity)
+        return cid
+
+    def num(x):                            # constructor values must never reach a numeric position: refuse
+        if not isinstance(x, V):
+            raise Out('constructor value in a numeric position')
+        return x
+
+    # ARRAY-BOUNDS OBLIGATIONS: omega2gamma lowers arrays to Cons spines walked by its `nth`/`setl` helpers,
+    # whose Nil arms return a SILENT default on overrun (0 / Nil) — the exact silent-OOB shape obligations
+    # exist to forbid. At every user-level nth/setl call the kernel re-computes the INDEX EXPRESSION and
+    # confirms it lands inside the spine: ult(idx, len) = 1 (zpair: neg <= pos and pos < len + neg, the
+    # difference-pair reading of 0 <= idx < len). Recursive inner calls are the helper's own walk, not user
+    # accesses — suppressed via inarr.
+    inarr = [0]
+
+    def spine_len(v):
+        n = 0
+        while isinstance(v, tuple) and v[0] == 'Cons' and len(v) == 3:
+            n += 1
+            v = v[2]
+        return n if v == 'Nil' else None
+
+    def arr_vc(lst, idx):
+        n = spine_len(lst)
+        if n is None or not isinstance(idx, V):
+            raise Out('array access over a non-spine list or non-numeric index')
+        if not user:
+            raise Out('array access outside user mode')   # unreachable: nth/setl bodies contain `-`
+        if zpair:
+            vcs.append('(= (f 28 %s %s) (k 2)) (refl (k 2))' % (idx.t, idx.nt))
+            vcs.append('(= (f 28 %s (f 21 %s %s)) (k 3 (k 2))) (refl (k 3 (k 2)))' % (idx.t, unat(n), idx.nt))
+        else:
+            vcs.append('(= (f 28 %s %s) (k 3 (k 2))) (refl (k 3 (k 2)))' % (idx.t, unat(n)))
 
     def ev(e, env):
         fuel[0] -= 1
@@ -143,18 +193,20 @@ def run(src, zpair):
         if isinstance(e, str):
             if e in env:
                 return env[e]
+            if e[0].isupper():
+                return e                    # a bare constructor atom (Nil etc.) IS a value, not a variable
             return V(0, lit(0), Z0 if zpair else None)   # interp.beta's env_lookup: 0 on a miss — mirror it
                                             # (omega2gamma emits at least one unbound reference in the wild)
         h = e[0]
         if h == '+':
-            a, b = ev(e[1], env), ev(e[2], env)
+            a, b = num(ev(e[1], env)), num(ev(e[2], env))
             if abs(a.n) + abs(b.n) > MAXV:
                 raise Out('intermediate exceeds the unary wall')
             if zpair:
                 return V(a.n + b.n, '(f 21 %s %s)' % (a.t, b.t), '(f 21 %s %s)' % (a.nt, b.nt))
             return V(a.n + b.n, ('(f 21 %s %s)' if user else '(p %s %s)') % (a.t, b.t))
         if h == '*':
-            a, b = ev(e[1], env), ev(e[2], env)
+            a, b = num(ev(e[1], env)), num(ev(e[2], env))
             if abs(a.n * b.n) > MAXV:
                 raise Out('intermediate exceeds the unary wall')
             if zpair:                       # (p1-n1)(p2-n2) = (p1p2+n1n2) - (p1n2+n1p2)
@@ -163,14 +215,14 @@ def run(src, zpair):
                          '(f 21 (f 23 %s %s) (f 23 %s %s))' % (a.t, b.nt, a.nt, b.t))
             return V(a.n * b.n, ('(f 23 %s %s)' if user else '(m %s %s)') % (a.t, b.t))
         if h == '-':
-            a, b = ev(e[1], env), ev(e[2], env)
+            a, b = num(ev(e[1], env)), num(ev(e[2], env))
             if zpair:                       # (p1-n1) - (p2-n2) = (p1+n2) - (n1+p2)
                 return V(a.n - b.n, '(f 21 %s %s)' % (a.t, b.nt), '(f 21 %s %s)' % (a.nt, b.t))
             if a.n < b.n:
                 raise Under()               # retry the whole sample with ℤ difference-pair values
             return V(a.n - b.n, '(f 22 %s %s)' % (b.t, a.t))   # usub(b, a) = a - b
         if h == '/':
-            a, b = ev(e[1], env), ev(e[2], env)
+            a, b = num(ev(e[1], env)), num(ev(e[2], env))
             if zpair:
                 raise Out('division over difference pairs: later')
             if b.n == 0:
@@ -180,7 +232,7 @@ def run(src, zpair):
             vcs.append('(= (f 24 %s) (k 2)) (refl (k 2))' % b.t)   # div-by-zero VC: iszero(divisor) = 0
             return V(a.n // b.n, '(f 46 %s %s)' % (a.t, b.t))
         if h == '%':
-            a, b = ev(e[1], env), ev(e[2], env)
+            a, b = num(ev(e[1], env)), num(ev(e[2], env))
             if zpair:
                 raise Out('mod over difference pairs: later')
             if b.n == 0:
@@ -190,7 +242,7 @@ def run(src, zpair):
             vcs.append('(= (f 24 %s) (k 2)) (refl (k 2))' % b.t)   # mod-by-zero VC: iszero(divisor) = 0
             return V(a.n % b.n, '(f 49 %s %s)' % (a.t, b.t))
         if h in ('<', '<=', '==', '!=', 'eq', 'lt', 'le', 'ne'):    # comparisons decided concretely
-            a, b = ev(e[1], env), ev(e[2], env)
+            a, b = num(ev(e[1], env)), num(ev(e[2], env))
             r = {'<': a.n < b.n, '<=': a.n <= b.n, '==': a.n == b.n, '!=': a.n != b.n,
                  'eq': a.n == b.n, 'lt': a.n < b.n, 'le': a.n <= b.n, 'ne': a.n != b.n}[h]
             return V(1 if r else 0, lit(1 if r else 0), Z0 if zpair else None)
@@ -199,7 +251,7 @@ def run(src, zpair):
             env2[e[1]] = ev(e[2], env)
             return ev(e[3], env2)
         if h == 'if':
-            c = ev(e[1], env)
+            c = num(ev(e[1], env))
             return ev(e[2] if c.n != 0 else e[3], env)
         if h == 'match':
             sub = ev_ctor(e[1], env)
@@ -216,6 +268,14 @@ def run(src, zpair):
             args = [ev_ctor(x, env) for x in e[1:]]
             if len(args) != len(params):
                 raise Out('arity mismatch calling %s' % h)
+            if h in ('nth', 'setl'):
+                if not inarr[0]:
+                    arr_vc(args[0], args[1])
+                inarr[0] += 1
+                try:
+                    return ev(body, dict(zip(params, args)))
+                finally:
+                    inarr[0] -= 1
             return ev(body, dict(zip(params, args)))
         if isinstance(h, str) and h[0].isupper():
             return ev_ctor(e, env)
@@ -244,8 +304,35 @@ def run(src, zpair):
         return None
 
     r = ev(top, {})
-    if not isinstance(r, V):
-        raise Out('top-level value is not a number')
+    if not isinstance(r, V):               # a constructor tree: emit the STRUCTURAL claim
+        if zpair:
+            raise Out('structural result in zpair mode')
+
+        def stt(v, concrete):              # the tree as a kernel term; leaves computed (lhs) or literal (rhs)
+            if isinstance(v, V):
+                return lit(v.n) if concrete else v.t
+            if isinstance(v, str):
+                return '(k %d)' % ctor_cid(v, 0)
+            cid = ctor_cid(v[0], len(v) - 1)
+            return '(k %d %s)' % (cid, ' '.join(stt(x, concrete) for x in v[1:]))
+
+        def render(v):                     # interp.beta's exact print format, for the gate's stdout pin
+            if isinstance(v, V):
+                return str(v.n)
+            if isinstance(v, str):
+                return v
+            return '(%s)' % ' '.join([v[0]] + [render(x) for x in v[1:]])
+
+        lhs, rhs = stt(r, False), stt(r, True)
+        pre = (USER_PRELUDE + ' ') if user else ''
+        decls = ' '.join('(data %d %d 0 0)' % (cid, ar) for cid, ar in sorted(ctors.values()))
+        badcid = 60 + len(ctors)           # a fresh constructor nothing equals: the negative control
+        print('0 %s%s (= %s %s) (refl %s)' % (pre, decls, lhs, rhs, rhs))
+        print('%s%s (data %d 0 0 0) (= %s (k %d)) (refl (k %d))' % (pre, decls, badcid, lhs, badcid, badcid))
+        for vc in dict.fromkeys(vcs):
+            print('%s%s' % (pre, vc))
+        print('#render %s' % render(r))    # pins the structure to the interpreter's printed value
+        return
     if zpair:                              # claim P = uadd(exit, N): verifies pos - neg = exit in ℤ
         if not (0 <= r.n <= 255):
             raise Out('final ℤ value %d not a plain exit byte' % r.n)
@@ -253,6 +340,8 @@ def run(src, zpair):
         bad = '(f 21 %s %s)' % (unat(r.n + 1), r.nt)
         print('%d %s (= %s %s) (refl %s)' % (r.n, USER_PRELUDE, r.t, rhs, rhs))
         print('%s (= %s %s) (refl %s)' % (USER_PRELUDE, r.t, bad, bad))
+        for vc in dict.fromkeys(vcs):      # lines 3+: safety obligations (array bounds in zpair mode)
+            print('%s %s' % (USER_PRELUDE, vc))
         return
     exit_code = r.n & 0xFF
     good = lit(r.n)
