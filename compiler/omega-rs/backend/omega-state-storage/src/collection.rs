@@ -493,6 +493,13 @@ fn initializer_is_runtime_indexed_read(
         ExpressionNode::Mutable(inner) => {
             initializer_is_runtime_indexed_read(expressions, *inner)
         }
+        // A field read off a runtime-indexed element (`arr[i].field`) is the same
+        // unresolvable-without-a-slot value as the bare read: it is not folded back
+        // into an operand position either, so a local initialized from it and used
+        // as an arithmetic/comparison/bitwise operand must keep its slot.
+        ExpressionNode::Member(member) => {
+            initializer_is_runtime_indexed_read(expressions, member.receiver)
+        }
         _ => false,
     }
 }

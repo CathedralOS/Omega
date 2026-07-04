@@ -1,0 +1,34 @@
+// A local initialized from a FIELD READ off a runtime-indexed element
+// (`let t = self.ps[self.i].x`) then used as an arithmetic OPERAND
+// (`self.r = t + 22`) was rejected ("NeedsMachineOwnedWrite"): the local was
+// alias-folded back to `arr[i].field`, which has no operand-position lowering, so
+// the dependent write dropped it. `arr[i].field` reads the same
+// unresolvable-without-a-slot value as a bare `arr[i]`, so a local initialized
+// from it and used as an operand now keeps its slot (local_data_requires_storage
+// recognizes a Member-off-a-runtime-index initializer). DISCRIMINATING: ps[1].x =
+// 20, so t + 22 = 42 (a folded/dropped operand would read 0 -> 22 -> mismatch);
+// also sums a second indexed-field local. Native must match the interpreter.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Point { x: i32; y: i32; }
+data Main {
+    console: Console;
+    ps: [Point; 3];
+    i: i32;
+    r: i32 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.ps[0].x = 10;
+    self.ps[1].x = 20;
+    self.ps[2].x = 30;
+    self.i = 1;
+    let a: i32 in Wrapping = self.ps[self.i].x;
+    let b: i32 in Wrapping = self.ps[0].x;
+    self.r = a + b + 12;
+    transition self.r == 42 {
+        true -> ok()
+        false -> bad()
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+// Expected exit: 70
