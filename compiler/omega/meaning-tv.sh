@@ -113,6 +113,14 @@ tv calculator
 tv direction_command
 tv parse_number
 tv shape_area
+tv account_ledger
+tv array_index_from_call
+tv game_of_life
+tv pixel_canvas
+tv scoreboard
+tv self_mutation_between_calls
+tv shapes_area
+tv stack_vm
 tv digital_root
 tv collatz_sequence
 tv modular_exponentiation

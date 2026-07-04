@@ -515,8 +515,19 @@ proc parse_term() {
         let ix = parse_cmp()
         skip_ws()
         adv()                          ; consume ']'
+        to sfield when (cbyte() == '.')
         return alloc(6, array_lookup(cur_pref(), foff), ix, 0)
     }
+    state sfield {                     ; self.arr[ix].field — extract the field from the element tuple
+        adv()                          ; consume '.'
+        let sfo = word[2097144]
+        skip_ident()
+        let sarr = array_lookup(cur_pref(), foff)
+        let sdt = word[7050000 + sarr * 8]
+        to sbad when (sdt == 0)
+        return alloc(10, sarr, ix, case_like_pack(dt2_fidx(sdt - 1, sfo), word[7030000 + (sdt - 1) * 8]))
+    }
+    state sbad { emit("E2G-UNSUPPORTED-field-of-scalar-array ")  return alloc(0, 0, 0, 0) }
     state paren {
         adv()
         let e = parse_cmp()
@@ -1141,9 +1152,26 @@ proc print_expr(node) {
         to islen when (word[node] == 7)
         to isbind when (word[node] == 8)
         to ispair when (word[node] == 9)
+        to iselemf when (word[node] == 10)
         to isbin
     }
     state islen { emit("(len ")  print_acurname(word[node + 8])  write_byte(')')  return 0 }
+    state iselemf {                    ; field of a struct-array element: extract from (nth aK ix)
+        let efk = word[node + 24] / 8
+        let efn = word[node + 24] - efk * 8
+        to ef_solo when (efn == 1)
+        emit("(match (nth ")  print_acurname(word[node + 8])  write_byte(' ')
+        print_expr(word[node + 16])  emit(") ((Pair ea eb) ")
+        to ef_f0 when (efk == 0)
+        to ef_f1x when (efn == 2)
+        to ef_f1 when (efk == 1)
+        emit("(match eb ((Pair ec ed) ed))))")
+        return 0
+    }
+    state ef_solo { emit("(nth ")  print_acurname(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state ef_f0 { emit("ea))")  return 0 }
+    state ef_f1x { emit("eb))")  return 0 }
+    state ef_f1 { emit("(match eb ((Pair ec ed) ec))))")  return 0 }
     state ispair {
         emit("(Pair ")  print_expr(word[node + 8])  write_byte(' ')
         print_expr(word[node + 16])  write_byte(')')
@@ -1229,19 +1257,30 @@ proc arm_arg_for(tgt, arm, i) {
 ; name, except slots that are the target's params with an arm argument — those get the arg expression.
 proc emit_call_state(tgt, arm) {
     let mi = word[6000032]
-    state vchk { to visval when (word[6660000 + arm * 8] == 1)  to vcall }
-    state visval {                     ; a value arm: return the literal, method-paired like t_return
+    state vchk { to visval when (word[6660000 + arm * 8] > 0)  to vcall }
+    state visval {                     ; a value arm: return the literal/expression, method-paired
         to vpm when (word[6010200 + mi * 8] == 2)
-        emit_dec(word[6670000 + arm * 8])
-        return 0
+        to vlit
     }
     state vpm {
         to vpb when (self_slot_count() > 0)
+        to vlit
+    }
+    state vlit {
+        to vex when (word[6660000 + arm * 8] == 2)
         emit_dec(word[6670000 + arm * 8])
         return 0
     }
+    state vex { print_expr(word[6670000 + arm * 8])  return 0 }
     state vpb {
-        emit("(Pair ")  emit_dec(word[6670000 + arm * 8])  write_byte(' ')
+        emit("(Pair ")
+        to vpbe when (word[6660000 + arm * 8] == 2)
+        emit_dec(word[6670000 + arm * 8])
+        to vpbtail
+    }
+    state vpbe { print_expr(word[6670000 + arm * 8])  to vpbtail }
+    state vpbtail {
+        write_byte(' ')
         emit_bundle()  write_byte(')')
         return 0
     }
@@ -1558,6 +1597,7 @@ proc emit_transition() {
         skip_ws()
         word[6660000 + ac * 8] = 0     ; ARM_ISVAL = 0
         to armval when (is_digit_at() == 1)
+        to armvexpr when (cbyte() == '(')
         let toff = word[2097144]
         skip_ident()
         word[6610000 + ac * 8] = lookup_state(toff)
@@ -1572,6 +1612,16 @@ proc emit_transition() {
         word[6660000 + ac * 8] = 1
         word[6670000 + ac * 8] = parse_number()
         word[6630000 + ac * 8] = 0
+        ac = ac + 1
+        to armloop
+    }
+    state armvexpr {                   ; `_ -> (expr)`: the arm RETURNS the expression's value
+        adv()                          ; consume '('
+        word[6660000 + ac * 8] = 2
+        word[6670000 + ac * 8] = parse_cmp()
+        word[6630000 + ac * 8] = 0
+        skip_ws()
+        adv()                          ; consume ')'
         ac = ac + 1
         to armloop
     }
@@ -2047,6 +2097,96 @@ proc is_case_kw() {
     state no { return 0 }
 }
 
+; ---- plain-data field tables (structs-in-arrays v0): scalar field names per data TYPE, decl order,
+; cap 3 (DT2_NAME 7020000, DT2_FCNT 7030000, DT2_FN 7040000, DT2_CNT 6000104). Array elements of such a
+; type are right-nested Pair tuples — (f0), (Pair f0 f1), (Pair f0 (Pair f1 f2)) — reusing the case-
+; payload representation; reads extract inline, writes rebuild via setl.
+proc collect_dtypes() {
+    word[6000104] = 0
+    word[2097144] = 0
+    state find {
+        skip_ws()
+        to done when (cbyte() == 0)
+        to atdata when (is_data() == 1)
+        to skiptok when (is_idchar(cbyte()) == 1)
+        adv()
+        to find
+    }
+    state skiptok { skip_ident()  to find }
+    state atdata {
+        skip_ident()                   ; past "data"
+        skip_ws()
+        word[7020000 + word[6000104] * 8] = word[2097144]
+        word[7030000 + word[6000104] * 8] = 0
+        skip_ident()
+        to tobrace
+    }
+    state tobrace {                    ; skip any [copy, zero_init] property bracket
+        to atbrace2 when (cbyte() == '{')
+        to done when (cbyte() == 0)
+        adv()
+        to tobrace
+    }
+    state atbrace2 { adv()  to dfloop }
+    state dfloop {
+        skip_ws()
+        to dblkend when (cbyte() == '}')
+        to done when (cbyte() == 0)
+        to dcase when (is_case_kw() == 1)
+        let fno = word[2097144]
+        skip_ident()
+        skip_ws()
+        to dfname when (cbyte() == ':')
+        to dfskip
+    }
+    state dcase { to dfskip }          ; case lines: tags handled by collect_cases, not fields
+    state dfname {
+        to dfrec when (word[7030000 + word[6000104] * 8] < 4)
+        to dfskip
+    }
+    state dfrec {
+        word[7040000 + (word[6000104] * 4 + word[7030000 + word[6000104] * 8]) * 8] = fno
+        word[7030000 + word[6000104] * 8] = word[7030000 + word[6000104] * 8] + 1
+        to dfskip
+    }
+    state dfskip {
+        to dfsemi when (cbyte() == ';')
+        to dblkend when (cbyte() == '}')
+        to done when (cbyte() == 0)
+        adv()
+        to dfskip
+    }
+    state dfsemi { adv()  to dfloop }
+    state dblkend { adv()  word[6000104] = word[6000104] + 1  to find }
+    state done { return 0 }
+}
+
+proc dt2_fidx(t, off) {                ; field index of the name at off within data type t
+    let j = 0
+    state loop {
+        to miss when (j == word[7030000 + t * 8])
+        to hit when (name_eq2(off, word[7040000 + (t * 4 + j) * 8]) == 1)
+        j = j + 1
+        to loop
+    }
+    state hit { return j }
+    state miss { return word[7030000 + t * 8] }
+}
+
+proc case_like_pack(fidx, fcnt) { return fidx * 8 + fcnt }
+
+proc dt2_idx(off) {                    ; data-type index by name, or DT2_CNT on miss
+    let k = 0
+    state loop {
+        to miss when (k == word[6000104])
+        to hit when (name_eq2(off, word[7020000 + k * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state hit { return k }
+    state miss { return word[6000104] }
+}
+
 proc collect_cases() {
     word[6000072] = 0                  ; CASE_CNT
     word[2097144] = 0
@@ -2299,7 +2439,15 @@ proc collect_arrays() {
     state isarr2 {
         word[6820000 + word[6000040] * 8] = noff    ; ARRAY_NAME[ac] = noff
         word[6830000 + word[6000040] * 8] = pref    ; ARRAY_PREF[ac] = the block's instance path (0 = Main)
+        word[7050000 + word[6000040] * 8] = 0       ; A_STYPE = 0 (scalar elements)
         adv()                          ; consume '['
+        skip_ws()
+        to selem when (is_upper(cbyte()) == 1)
+        to arrsemi
+    }
+    state selem {                      ; [Tname; N] — a STRUCT element type: record its dtype index + 1
+        word[7050000 + word[6000040] * 8] = dt2_idx(word[2097144]) + 1
+        skip_ident()
         to arrsemi
     }
     state arrsemi { to atsemi when (cbyte() == ';')  adv()  to arrsemi }   ; skip "i32" to the inner ';'
@@ -2321,6 +2469,57 @@ proc do_array_write(arr) {
     let ix = parse_cmp()
     skip_ws()
     adv()                              ; consume ']'
+    state fchk { to fstore when (cbyte() == '.')  to toeq }
+    state fstore {                     ; self.arr[ix].field = e — rebuild the element tuple via setl
+        adv()
+        let wfo = word[2097144]
+        skip_ident()
+        let wdt = word[7050000 + arr * 8]
+        to wbad when (wdt == 0)
+        let wfk = dt2_fidx(wdt - 1, wfo)
+        let wfn = word[7030000 + (wdt - 1) * 8]
+        to weq
+    }
+    state wbad { emit("E2G-UNSUPPORTED-field-of-scalar-array ")  to weq0 }
+    state weq0 { to wskip when (cbyte() == ';')  to wend0 when (word[2097144] >= word[2097136])  adv()  to weq0 }
+    state wskip { adv()  return 0 }
+    state wend0 { return 0 }
+    state weq { to weat when (cbyte() == '=')  adv()  to weq }
+    state weat {
+        adv()
+        skip_ws()
+        let wval = parse_cmp()
+        emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
+        emit("(setl ")  print_acurname(arr)  write_byte(' ')  print_expr(ix)  write_byte(' ')
+        to w1 when (wfn == 1)
+        emit("(match (nth ")  print_acurname(arr)  write_byte(' ')  print_expr(ix)  emit(") ((Pair ea eb) ")
+        to w2 when (wfn == 2)
+        to w3f0 when (wfk == 0)
+        to w3f1 when (wfk == 1)
+        emit("(Pair ea (match eb ((Pair ec ed) (Pair ec ")  print_expr(wval)  emit(")))))")
+        to wclose
+    }
+    state w1 { print_expr(wval)  to wfin }
+    state w2 {
+        to w2f0 when (wfk == 0)
+        emit("(Pair ea ")  print_expr(wval)  emit("))")
+        to wclose
+    }
+    state w2f0 { emit("(Pair ")  print_expr(wval)  emit(" eb))")  to wclose }
+    state w3f0 { emit("(Pair ")  print_expr(wval)  emit(" eb))")  to wclose }
+    state w3f1 { emit("(Pair ea (match eb ((Pair ec ed) (Pair ")  print_expr(wval)  emit(" ed))))")  to wclose }
+    state wclose { write_byte(')')  to wfin }
+    state wfin {
+        write_byte(')')
+        write_byte(' ')
+        word[6440000 + arr * 8] = 1
+        word[6450000 + arr * 8] = word[6000016]
+        word[6000016] = word[6000016] + 1
+        to wsemi
+    }
+    state wsemi { to wsemi2 when (cbyte() == ';')  to wend when (word[2097144] >= word[2097136])  adv()  to wsemi }
+    state wsemi2 { adv()  return 0 }
+    state wend { return 0 }
     state toeq { to eat when (cbyte() == '=')  adv()  to toeq }
     state eat {
         adv()                          ; consume '='
@@ -2415,11 +2614,29 @@ proc render_machine(mi) {
     state sdone { return 0 }
 }
 
-; emit ` (Cons 0 (Cons 0 ... Nil))` of `count` zeros — a self-array's zero initial value.
-proc emit_array_zeros(count) {
+; emit ` (Cons z (Cons z ... Nil))` of `count` zero elements — scalar arrays fill with 0, struct arrays
+; with the element type's ZERO TUPLE ((Pair 0 0) / (Pair 0 (Pair 0 0))), so field extraction always
+; matches (the zero_init property's meaning-route twin).
+proc emit_array_zeros(ai, count) {
     write_byte(' ')
-    let k = 0
-    state opens { to closes when (k == count)  emit("(Cons 0 ")  k = k + 1  to opens }
+    let fc = 0
+    state styp {
+        to sc when (word[7050000 + ai * 8] == 0)
+        fc = word[7030000 + (word[7050000 + ai * 8] - 1) * 8]
+        to sc
+    }
+    state sc { let k = 0  to opens }
+    state opens {
+        to closes when (k == count)
+        emit("(Cons ")
+        to z1 when (fc < 2)
+        to z2 when (fc == 2)
+        emit("(Pair 0 (Pair 0 0))")
+        to zdone
+    }
+    state z1 { emit("0")  to zdone }
+    state z2 { emit("(Pair 0 0)")  to zdone }
+    state zdone { write_byte(' ')  k = k + 1  to opens }
     state closes { emit("Nil")  let j = 0  to cl }
     state cl { to done when (j == count)  write_byte(')')  j = j + 1  to cl }
     state done { return 0 }
@@ -2459,7 +2676,7 @@ proc render() {
     }
     state ainit {
         to adone when (ai == word[6000040])             ; ARRAY_CNT
-        emit_array_zeros(word[6840000 + ai * 8])        ; the array's zero-list of its declared length
+        emit_array_zeros(ai, word[6840000 + ai * 8])        ; the array's zero-list of its declared length
         ai = ai + 1
         to ainit
     }
@@ -2490,6 +2707,7 @@ proc main() {
     }
     state pdone {                      ; the UNIFIED self-state: union of fields/input/output over ALL
         collect_cases()                ; case decls -> integer tags (sum types v0)
+        collect_dtypes()               ; plain-data field names (structs-in-arrays v0)
         collect_instances()            ; data Main's nested-data instances (type -> field path)
         word[6000024] = 0              ; &mut self machines (entry + methods), plus arrays from the decl.
         word[6000048] = 0
