@@ -85,6 +85,89 @@ machine Game::start_game(&mut self)
 }
 ```
 
+## Establishing A Domain — `as`, With All Facts Proven
+
+A value is *in* a domain only where the compiler can prove the domain's
+predicate holds. Membership is a discharged proof obligation, never a runtime
+tag or an unbacked claim. A value comes to carry a domain in exactly three
+ways, and no others:
+
+- **Constant.** A compile-time-known value whose facts the compiler checks
+  directly: a literal `"hello"` is provably `Utf8`; `0` is provably `[0..=100]`.
+- **Flow.** A dominating guard narrows a value: in the `true` arm of
+  `transition level <= 100`, `level` carries `[0..=100]` (Chapter 9). The guard
+  *is* the proof.
+- **`as`.** The explicit minter, for a fact that holds here but is not evident
+  from the type. `value as T in D` is licensed **only when the prover discharges
+  every invariant of `D` at that exact point**. If it cannot, it is a compile
+  error — you restructure (add the guards that establish the fact) until the
+  proof exists.
+
+There is no unsafe cast and no "assert, on me" escape. `as` never asserts a
+fact it has not proven, so a value never carries a domain that was not
+established. This applies to **every** domain — ranges, encodings, layouts,
+behaviour policies alike.
+
+Establishing a domain over *runtime* data is therefore ordinary code, not a
+compiler builtin. To turn untrusted bytes into `&[u8] in Utf8` you write a
+machine that reads the bytes, guards that each unit is valid, and casts in the
+arm where the whole sequence is proven:
+
+```omega
+data Utf8Scan {
+    case NotText;
+    case Text(view: &[u8] in Utf8);
+}
+
+machine Scanner::scan(&mut self, bytes: &[u8]) -> Utf8Scan {
+    self.i = 0;
+    transition { _ -> step(bytes) }
+
+    state step(&mut self, bytes: &[u8]) -> Utf8Scan {
+        transition self.i < bytes.len {
+            true -> check(bytes)
+            _    -> (Utf8Scan::Text { view: bytes as &[u8] in Utf8 })  // all units proven
+        }
+    }
+    state check(&mut self, bytes: &[u8]) -> Utf8Scan {
+        transition bytes[self.i] < 128 {                               // the invariant, guarded
+            true  -> next(bytes)
+            false -> (Utf8Scan::NotText)
+        }
+    }
+    state next(&mut self, bytes: &[u8]) -> Utf8Scan {
+        self.i = self.i + 1;
+        transition { _ -> step(bytes) }
+    }
+}
+```
+
+The compiler generates none of this — and generates nothing at all for domain
+membership. Its only job is to accept or reject the `as`, by asking whether the
+domain's invariants are proven at that point. The reach of that prover is the
+ceiling on what can be minted: a fact the prover cannot yet discharge (a
+whole-buffer property established across a loop) simply cannot be cast until the
+prover grows to reach it. This is the anti-serde principle at its end — the only
+path from raw bytes to a trusted fact is a proof the machine actually checked.
+
+If you want a `Valid | Invalid`-style result, you declare that sum type yourself
+(`Utf8Scan` above); there is no built-in verdict type and no generated codec.
+
+### Declarations And The Zero Value
+
+The one place a domain appears without a written `as` is a declaration —
+`x: T in D`, or a `data` field `f: T in D`. The cast is implicit there, but it
+is still checked: the compiler proves the **ZII default** (the zero value)
+satisfies `D`. A domain that excludes its zero value therefore cannot be
+default-declared.
+
+```omega
+data Config {
+    level: u8 [0..=100];    // ok: the ZII default 0 is in [0..=100]
+    // rank: u8 [1..=9];    // COMPILE ERROR: ZII 0 is not in [1..=9] -- nothing proves the default
+}
+```
+
 ## Domains And Ordinary Validity
 
 Domains classify values that are valid for their type.

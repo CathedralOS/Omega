@@ -115,12 +115,19 @@ CounterMessage::encode(&save, &mut scratch, &mut written);
   rings) and can never be **invented** at a carrier.
 - Foreign grammars (`Protobuf`, C-ABI layouts, …) are sibling policies over
   the same schemas; a provides-mapping to a foreign symbol implies its format
-  (see the extern brief). All policies produce *plans* validated and derived
-  by the compiler — encoding and decoding are generated from source-visible
-  contracts, never hand-written byte code.
-- Decode is the standard two-step: **validate** (fallible mint over `&[u8]`,
-  producing a refined view) then **materialize** (total). Inbound bytes carry
-  zero guarantees before the mint — a trust boundary, not a type assertion.
+  (see the extern brief).
+- **Decoding is not a compiler-derived operation** (SETTLED 2026-07-04, Zach —
+  supersedes the earlier "derived validate" framing). Turning inbound `&[u8]`
+  into a domain-refined view is domain MINTING, and minting is ordinary
+  user-written code that ends in an `as` the compiler accepts only once every
+  invariant is proven (Chapter 8, "Establishing A Domain"). There is no
+  compiler-generated `validate` and no built-in verdict type; a program that
+  wants `Valid | Invalid` declares that sum type and writes the machine that
+  proves the bytes. Inbound bytes carry zero guarantees until such a proof — a
+  trust boundary, not a type assertion.
+- OPEN (pending Zach's ruling): whether *encoding* (a value → plain bytes, which
+  mints nothing) is likewise user-written, or may still be a derived conformance.
+  The minting/inbound direction is settled; the outbound direction is not.
 
 ## Durability Is A Plan Grade
 
