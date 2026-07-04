@@ -11,7 +11,6 @@ members = [
     "compiler/omega-rs/pipeline/omega-source-files-to-tokens",
     "compiler/omega-rs/pipeline/omega-tokens-to-syntax-trees",
     "compiler/omega-rs/semantics/omega-types",
-    "compiler/omega-rs/semantics/omega-graph",
     "compiler/omega-rs/representations/omega-facts",
     "compiler/omega-rs/representations/omega-effects",
     "compiler/omega-rs/semantics/omega-validation",
