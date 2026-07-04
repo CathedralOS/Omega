@@ -44,6 +44,13 @@ pub(crate) struct Lowerer {
     /// this to materialize such reads into `let` temps, which lower through the
     /// boot-verified pointee path. Overwritten at each state's lowering.
     pub(crate) reference_struct_parameters: Vec<String>,
+    /// Whether the machine currently being lowered is a BOUNDARY machine. Only
+    /// boundary params are REAL pointer slots (the entry hand-off vouches
+    /// them); a non-boundary `&Struct` param is a call-site ALIAS slot sharing
+    /// the caller's storage, and materializing a pointee deref through one
+    /// loads a non-pointer as an address (segfault -- probed 2026-07-04). The
+    /// ref-param hoist is scoped to boundary machines.
+    pub(crate) current_machine_is_boundary: bool,
     /// Maps a match SUBJECT syntax expression handle to the name of the single
     /// hoisted temp for it. All arms of one enum-variant match share the same
     /// syntax subject handle (the parser reuses it across arms), so the first
@@ -61,6 +68,7 @@ impl Lowerer {
             sources,
             hoist_counter: 0,
             reference_struct_parameters: Vec::new(),
+            current_machine_is_boundary: false,
             match_subject_temps: std::collections::HashMap::new(),
         }
     }

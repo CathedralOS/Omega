@@ -303,6 +303,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ),
     ("control_flow/runtime_captured_local_swap_exit", 70),
     ("calls/runtime_same_type_contained_direct_fields_exit", 70),
+    ("calls/runtime_shared_ref_param_member_exit", 42),
     ("collections/runtime_palindrome_two_pointer_exit", 70),
     ("collections/runtime_bracket_matcher_stack_exit", 70),
     ("collections/runtime_argmax_index_exit", 70),

@@ -18192,6 +18192,40 @@ fn runtime_float_min_max_abs_clamp_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_shared_ref_param_member_exit_canary_runs() {
+    // Shared &Struct param (non-boundary): content-spill convention; the callee
+    // reads a=7 and b=35 through the ref -> got=42 (the exit). A pointee
+    // misresolution dereferences the spilled content and crashes (0xC0000005).
+    let canary = pass_canary("calls/runtime_shared_ref_param_member_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-sharedref-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("shared-ref param canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("shared-ref param canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "expected a+b=42 through the shared &Struct param (exit 42); a crash/garbage =          the pointee resolver treated the content spill as a pointer. got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_same_type_contained_direct_fields_exit_canary_runs() {
     // The SOUND pattern for two same-type contained machines: DIRECT field access
     // (not method calls, which alias to the first field of the type). a -> 13,
@@ -19137,6 +19171,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_inplace_reverse_local_temp_exit",
     "control_flow/runtime_captured_local_swap_exit",
     "calls/runtime_same_type_contained_direct_fields_exit",
+    "calls/runtime_shared_ref_param_member_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",
