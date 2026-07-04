@@ -1,0 +1,28 @@
+// SILENT MISCOMPILE FIXED: a local initialized from a runtime-indexed read
+// (`let t = self.arr[self.i]`) then used as a BITWISE operand (`let m = t & 6`)
+// previously read m as 0 -- the slot-less indexed-read local was alias-folded and
+// its bitwise write silently dropped it. Bitwise ops read their operands as
+// runtime values exactly like arithmetic/comparison operands, so an indexed-read
+// local used as a bitwise operand now keeps its slot (local_data_requires_storage
+// counts is_bitwise_operator). DISCRIMINATING: arr[1]=20 (10100b); (20 & 6)=4,
+// (20 | 1)=21, (20 ^ 4)=16 -> sum 41; +29 = 70. A miscompile that read the
+// operands as 0 would give 0+0+0+29 = 29 -> bad. Native must match the interpreter.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; arr: [i32; 3]; i: i32; }
+machine Main::main(&mut self) {
+    self.arr[0] = 10;
+    self.arr[1] = 20;
+    self.i = 1;
+    let t: i32 = self.arr[self.i];
+    let a: i32 = t & 6;
+    let o: i32 = t | 1;
+    let x: i32 = t ^ 4;
+    let sum: i32 in Wrapping = a + o + x + 29;
+    transition sum == 70 {
+        true -> ok()
+        false -> bad()
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+// Expected exit: 70

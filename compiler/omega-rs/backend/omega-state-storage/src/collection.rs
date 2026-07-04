@@ -531,6 +531,19 @@ fn is_comparison_operator(operator: BinaryOperator) -> bool {
     )
 }
 
+/// A BITWISE-logical op (`local & 3`, `local | 1`, `local ^ mask`) reads its
+/// operands as runtime values, the same unresolvable-without-a-slot position as
+/// an arithmetic operand (shifts are already in `is_arithmetic_operator`). A
+/// slot-less indexed-read local is not substituted into it, so `let m = t & 6`
+/// silently drops it and reads 0 -- so a local used as a bitwise operand must
+/// keep its slot too.
+fn is_bitwise_operator(operator: BinaryOperator) -> bool {
+    matches!(
+        operator,
+        BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor
+    )
+}
+
 /// Whether `expression` is directly a reference to `symbol` (a bare `Name`).
 fn expression_is_symbol(
     expressions: &omega_checked_trees::expression::ExpressionTable,
@@ -568,7 +581,8 @@ fn expression_uses_symbol_as_arithmetic_operand(
     match expressions.expression(expression) {
         ExpressionNode::Binary(binary) => {
             ((is_arithmetic_operator(binary.operator)
-                || is_comparison_operator(binary.operator))
+                || is_comparison_operator(binary.operator)
+                || is_bitwise_operator(binary.operator))
                 && (expression_is_symbol(expressions, binary.left, symbol, local_name)
                     || expression_is_symbol(expressions, binary.right, symbol, local_name)))
                 || recurse(binary.left)

@@ -11852,6 +11852,36 @@ fn runtime_indexed_guard_true_false_pair_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_indexed_local_bitwise_exit_canary_runs() {
+    // Silent miscompile fixed (sibling of the compare case): `let t = arr[i]; let
+    // m = t & 6` read m as 0 -- a bitwise operand didn't force the indexed-read
+    // local's slot, so it alias-folded and dropped. is_bitwise_operator now counts
+    // it. Discriminating: (20&6)+(20|1)+(20^4)+29 = 4+21+16+29 = 70; the miscompile
+    // (operands read 0) would give 29 -> 71.
+    let canary = pass_canary("collections/runtime_indexed_local_bitwise_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-idxbit-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed-local-bitwise canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed-local-bitwise canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected an indexed-read local used as a bitwise operand to read its slot (exit 70), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_indexed_local_compare_exit_canary_runs() {
     // Silent miscompile fixed: `let hi = arr[i]; let over: bool = hi > 5` read
     // `over` as a folded default (always false) -- the alias-fold substituted the
