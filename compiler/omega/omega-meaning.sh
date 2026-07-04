@@ -76,6 +76,14 @@ om calculator                 # 46 — value arms (`_ -> N` returns the literal)
 om direction_command          # 1 — value arms (`_ -> N` returns the literal)
 om parse_number               # 25 — value arms (`_ -> N` returns the literal)
 om shape_area                 # 42 — value arms (`_ -> N` returns the literal)
+om account_ledger             # 70 — structs-in-arrays v0 + expression value arms
+om array_index_from_call      # 70 — structs-in-arrays v0 + expression value arms
+om game_of_life               # 70 — structs-in-arrays v0 + expression value arms
+om pixel_canvas               # 70 — structs-in-arrays v0 + expression value arms
+om scoreboard                 # 70 — structs-in-arrays v0 + expression value arms
+om self_mutation_between_calls # 70 — structs-in-arrays v0 + expression value arms
+om shapes_area                # 70 — structs-in-arrays v0 + expression value arms
+om stack_vm                   # 70 — structs-in-arrays v0 + expression value arms
 om text_padding              # 6  — string-carrier fields: "ALERT temp" assignment, .len arithmetic, write_line(field); dual-channel
 om collatz_sequence          # 111 — hailstone steps for seed 27
 om dice_roller               # 70 — self-verified
