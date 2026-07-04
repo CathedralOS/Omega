@@ -8,8 +8,10 @@
 //   guard  `table.firmware_revision == 0` -> pointee frame@8 +32 (4 bytes)
 //   direct `self.c = table.con_out`       -> pointee frame@8 +64 into the
 //                                            temp slot, then slot -> machine.
+//   transition arg `check_p(table.con_in)` -> pointee frame@8 +48 (verified
+//                                            working; locked here).
 // The dedicated suite test asserts the report shows the pointee derefs and no
-// flat @72 read.
+// flat slot+field read.
 data EfiSystemTable {
     hdr_signature: u64;
     hdr_revision: u32;
@@ -30,8 +32,14 @@ data Main {
 boundary machine Main::run(&mut self, handle: addr, table: &EfiSystemTable) -> i32 {
     self.c = table.con_out;
     transition table.firmware_revision == 0 {
-        true -> check_c()
-        false -> check_c()
+        true -> check_p(table.con_in)
+        false -> check_p(table.con_in)
+    }
+    state check_p(&mut self, p: addr) -> i32 {
+        transition p == 0 {
+            true -> check_c()
+            false -> check_c()
+        }
     }
     state check_c(&mut self) -> i32 {
         transition self.c == 0 {
