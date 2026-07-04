@@ -58,5 +58,6 @@ print(l)")
 }
 tv stdin_checksum
 tv stdin_upper
+tv stdin_rot1
 echo "input-grid meaning TV (input-taking samples proven per documented input vector): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] && [ "$PASS" -gt 0 ]

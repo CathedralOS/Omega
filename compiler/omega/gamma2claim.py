@@ -488,11 +488,21 @@ def run(src, zpair, binary=False):
 
     r = ev(top, {})
     if not isinstance(r, V):               # a constructor tree: emit the STRUCTURAL claim
-        if zpair:
-            raise Out('structural result in zpair mode')
+        # ℤ-pair mode: leaves carry (pos, neg) difference-pair terms that can't sit inside one tree
+        # equality. Each leaf gets its own PIN — (= t (f 21 unat(n) nt)), the kernel verifying
+        # pos - neg = n in ℤ with the rhs term as its own refl witness — and the tree claim rides the
+        # literals; the render pin covers the shape against the interpreter's printed value.
+        def zleaf(v):
+            litv = unat(v.n)
+            if v.nt is not None and v.t != litv:
+                rhs_ = '(f 21 %s %s)' % (litv, v.nt)
+                vcs.append('(= %s %s) (refl %s)' % (v.t, rhs_, rhs_))
+            return litv
 
         def stt(v, concrete):              # the tree as a kernel term; leaves computed (lhs) or literal (rhs)
             if isinstance(v, V):
+                if zpair:
+                    return zleaf(v) if not concrete else unat(v.n)
                 return lit(v.n) if concrete else v.t
             if isinstance(v, str):
                 return '(k %d)' % ctor_cid(v, 0)
