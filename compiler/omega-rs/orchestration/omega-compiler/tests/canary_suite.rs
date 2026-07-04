@@ -988,6 +988,39 @@ fn nested_runtime_indexed_write_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn runtime_indexed_local_copy_chain_exit_canary_runs() {
+    // Transitive copy chain t=arr[i]; c=t; d=c; b=d>5: the slot scan follows
+    // bare copies, so b is true (exit 70); the old fold read false (exit 71).
+    let canary = pass_canary("collections/runtime_indexed_local_copy_chain_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-copychain-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("copy-chain canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("copy-chain canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the copy chain to read arr[1]=8 > 5 as TRUE (exit 70); exit 71 = the          transitive fold returned. got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_indexed_write_frame_local_source_exit_canary_runs() {
     // `nums[i] = t` with t a FRAME-slot capture: nums[2] must land the captured
     // 99 (exit 70); the old stale fold wrote the post-overwrite 0.
@@ -18994,6 +19027,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_dual_indexed_copy_exit",
     "collections/runtime_dual_indexed_copy_in_loop_exit",
     "collections/runtime_indexed_write_frame_local_source_exit",
+    "collections/runtime_indexed_local_copy_chain_exit",
     "control_flow/runtime_captured_local_swap_exit",
     "calls/runtime_same_type_contained_direct_fields_exit",
     "collections/runtime_palindrome_two_pointer_exit",

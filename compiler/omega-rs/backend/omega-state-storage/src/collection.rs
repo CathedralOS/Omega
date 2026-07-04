@@ -343,17 +343,13 @@ fn local_data_requires_storage(
     // currently-passing program (none exercises this broken pattern).
     if (expression_contains_call(expressions, initial_value)
         || initializer_is_runtime_indexed_read(expressions, initial_value))
-        && statements
-            .iter()
-            .skip(local_statement_index + 1)
-            .any(|statement| {
-                statement_uses_symbol_as_arithmetic_operand(
-                    expressions,
-                    statement,
-                    local_symbol,
-                    local_name,
-                )
-            })
+        && local_or_bare_copy_used_as_arithmetic_operand(
+            expressions,
+            statements,
+            local_statement_index,
+            local_symbol,
+            local_name,
+        )
     {
         return true;
     }
@@ -427,6 +423,61 @@ fn local_data_requires_storage(
                 uses_runtime_flow,
             )
         })
+}
+
+/// Whether the local -- or any BARE-COPY of it (`let c = t;`, transitively) --
+/// is used as an arithmetic/comparison/bitwise/cast operand after its
+/// declaration. The direct scan alone misses the copy chain: `let t = arr[i];
+/// let c = t; let b = c > 5` folded c -> t -> arr[i] into the fenced direct
+/// form and silently read false. Bare-Name copies are matched by NAME (a bare
+/// local use carries no valid symbol at this stage).
+fn local_or_bare_copy_used_as_arithmetic_operand(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statements: &[StatementNode],
+    local_statement_index: usize,
+    local_symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    // One forward pass builds the transitive bare-copy set: statements are in
+    // order, so a copy of a copy is seen after its source joined the set.
+    let mut aliases: Vec<(SymbolHandle, Identifier)> =
+        vec![(local_symbol, local_name.clone())];
+    for statement in statements.iter().skip(local_statement_index + 1) {
+        if let StatementNode::LocalData(local_data) = statement
+            && local_data.initial_value.is_valid()
+            && let Some(source_name) =
+                bare_name_initializer(expressions, local_data.initial_value)
+            && aliases.iter().any(|(_, name)| *name == source_name)
+        {
+            aliases.push((local_data.symbol, local_data.name.clone()));
+        }
+    }
+
+    statements
+        .iter()
+        .skip(local_statement_index + 1)
+        .any(|statement| {
+            aliases.iter().any(|(symbol, name)| {
+                statement_uses_symbol_as_arithmetic_operand(expressions, statement, *symbol, name)
+            })
+        })
+}
+
+/// The NAME a bare-Name initializer reads (`let c = t;` -> `t`), peeling
+/// `Mutable`. Anything else (binary, indexed, member, literal) is None.
+fn bare_name_initializer(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<Identifier> {
+    match expressions.expression(expression) {
+        ExpressionNode::Name(path) => expressions
+            .name_path_members(path.members)
+            .first()
+            .cloned()
+            .filter(|_| expressions.name_path_members(path.members).len() == 1),
+        ExpressionNode::Mutable(inner) => bare_name_initializer(expressions, *inner),
+        _ => None,
+    }
 }
 
 /// The index of the first statement after the local's declaration that ASSIGNS
