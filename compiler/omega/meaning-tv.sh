@@ -93,6 +93,8 @@ tv turn_combat
 tv width_mixer
 tv cli_mvp
 tv text_padding
+tv alarm_probe
+tv alarm_probe2
 tv digital_root
 tv collatz_sequence
 tv modular_exponentiation
