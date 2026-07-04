@@ -63,17 +63,46 @@ fn lower_statement_node(
             hoisted.push(Statement::Assignment(Assignment { target, value }));
             Ok(hoisted)
         }
-        syntax::statement::StatementNode::Call(call) => Ok(vec![Statement::Call(Call {
-            receiver_symbol: SymbolHandle::invalid(),
-            target_symbol: SymbolHandle::invalid(),
-            target: crate::name::lower_name(&call.target),
-            storage: CallStorage {
-                receiver: lower_statement_path_members(lowerer, syntax_trees, call.receiver),
-                receiver_starts_at_self: call.receiver_starts_at_self,
-                arguments: lower_statement_expressions(lowerer, syntax_trees, call.arguments)?,
-                discards_result: call.discards_result,
-            },
-        })]),
+        syntax::statement::StatementNode::Call(call) => {
+            let receiver = lower_statement_path_members(lowerer, syntax_trees, call.receiver);
+            let arguments = lower_statement_expressions(lowerer, syntax_trees, call.arguments)?;
+            // A ref-param member as a CALL ARGUMENT (`out.output_string(
+            // table.con_out, ..)`) folds flat -- slot+field frame read, silent
+            // garbage into the callee. Hoist each such argument into a `let`
+            // (the pointee-deref path) and pass the temp. Indexed-read args are
+            // deliberately NOT hoisted here (their call-arg substitution is
+            // correct); only ref-param members, whose substitution is the bug.
+            let mut hoisted = Vec::new();
+            for offset in 0..arguments.count() {
+                let argument = lowerer
+                    .symbol_resolved_trees
+                    .tables
+                    .bodies
+                    .expressions
+                    .expression_handles(arguments)[offset as usize];
+                if is_reference_struct_parameter_member(lowerer, argument) {
+                    let temp = hoist_into_temp(lowerer, argument, &mut hoisted);
+                    lowerer
+                        .symbol_resolved_trees
+                        .tables
+                        .bodies
+                        .expressions
+                        .set_expression_handle_at_offset(arguments, offset, temp);
+                }
+            }
+            hoisted.push(Statement::Call(Call {
+                receiver_symbol: SymbolHandle::invalid(),
+                target_symbol: SymbolHandle::invalid(),
+                target: crate::name::lower_name(&call.target),
+                storage: CallStorage {
+                    receiver,
+                    receiver_starts_at_self: call.receiver_starts_at_self,
+                    arguments,
+                    discards_result: call.discards_result,
+                },
+            }));
+            Ok(hoisted)
+        }
         syntax::statement::StatementNode::Expression(expression) => Ok(vec![Statement::Expression(
             lower_statement_expression(lowerer, syntax_trees, *expression)?,
         )]),

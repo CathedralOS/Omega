@@ -1,0 +1,20 @@
+// The DIRECT host-call-argument face (the last #37 sub-face): `table.con_out`
+// passed STRAIGHT into the VtableSlot call, no manual let. This used to fold
+// FLAT (frame_storage@72 -- slot 8 + con_out 64, silent firmware poison into
+// `mov rax,[rcx+8]; call rax`, a #GP under OVMF). The call-argument hoist now
+// materializes the ref-param member into a pointee-deref temp and passes the
+// temp; the dedicated suite test asserts the report shows the deref, no flat
+// @72, and the dispatch bytes survive.
+boundary trait TextOutput { machine output_string(this: addr, text: addr); }
+uefi_x64 provides TextOutput { output_string -> VtableSlot(1); }
+data EfiSystemTable {
+    hdr_signature: u64; hdr_revision: u32; hdr_header_size: u32; hdr_crc: u32; hdr_reserved: u32;
+    firmware_vendor: addr; firmware_revision: u32; fw_pad: u32;
+    console_in_handle: addr; con_in: addr; console_out_handle: addr; con_out: addr;
+}
+data Main { out: TextOutput; msg: [u16; 19]; }
+boundary machine Main::run(&self, handle: addr, table: &EfiSystemTable) -> i32 {
+    self.msg = utf16"Hello from Omega\r\n\0";
+    self.out.output_string(table.con_out, &self.msg);
+    transition { _ -> (0) }
+}
