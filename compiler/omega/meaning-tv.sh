@@ -29,7 +29,7 @@ b omega2gamma.beta     "$T/e2g.exe"    || { echo "meaning-tv FAIL — build omeg
 b ../gamma/interp.beta "$T/interp.exe" || { echo "meaning-tv FAIL — build interp.beta"; exit 1; }
 b ../delta/check.beta  "$T/check.exe"  || { echo "meaning-tv FAIL — build check.beta"; exit 1; }
 
-PASS=0; FAIL=0
+PASS=0; FAIL=0; VCTOT=0
 tv() {
   src="../../samples/$1/main.omg"
   want=$(grep -oE 'Expected exit: [0-9]+' "$src" | head -1 | grep -oE '[0-9]+')
@@ -44,7 +44,17 @@ tv() {
   [ "$v" = accept ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : kernel rejected the meaning claim"; return; }
   v2=$(printf '%s' "$bad" | "$T/check.exe")
   [ "$v2" = reject ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : perturbed claim NOT rejected"; return; }
-  PASS=$((PASS+1)); echo "  ok   $1 : meaning ≡ exit $enc PROVEN in the kernel (perturbed claim rejected)"
+  nvc=0
+  while IFS= read -r vc; do
+    [ -n "$vc" ] || continue
+    v3=$(printf '%s' "$vc" | "$T/check.exe")
+    [ "$v3" = accept ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : a division-safety obligation was rejected"; return; }
+    nvc=$((nvc+1))
+  done <<VCEOF
+$(tail -n +3 "$T/claims")
+VCEOF
+  VCTOT=$((VCTOT+nvc))
+  PASS=$((PASS+1)); echo "  ok   $1 : meaning ≡ exit $enc PROVEN in the kernel (perturbed rejected; $nvc safety VCs)"
 }
 tv bounded_counter
 tv nested_counters
@@ -60,5 +70,5 @@ tv bank_ledger
 tv bouncing_ball
 tv turn_combat
 tv width_mixer
-echo "meaning-route TV (the kernel re-computes each covered sample's arithmetic): $PASS ok, $FAIL failed"
+echo "meaning-route TV (the kernel re-computes each covered sample's arithmetic + $VCTOT division-safety obligations): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] && [ "$PASS" -gt 0 ]
