@@ -18827,6 +18827,10 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
+fn sample_project(path: &str) -> PathBuf {
+    repo_root().join("samples").join(path)
+}
+
 fn pass_canary(path: &str) -> PathBuf {
     repo_root().join("canaries/pass").join(path)
 }
