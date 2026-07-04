@@ -95,6 +95,7 @@ step "convergence — epsilon emits a proof; delta checks it" epsilon-rs converg
 step "convergence (self-hosted) — the self-hosted compiler's certifiers, checked by delta" epsilon-rs convergence-selfhost.sh delta
 step "convergence (reference route) — certifier RUN on interp.beta; cert checked by check.beta" epsilon-rs convergence-reference.sh delta gamma
 step "convergence (RUST-FREE) — omega2gamma.beta->interp.beta; cert checked by check.beta" omega convergence-reference.sh epsilon-rs delta gamma
+step "e2g termination canary — omega2gamma halts on every sample, supported or refused (no silent scan-forever)" omega e2g-termination.sh beta beta-lang beta-lang-rs ../samples
 step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega omega-meaning.sh gamma ../samples
 step "omega meaning-TV — the kernel re-computes each covered sample's arithmetic (proof, not comparison)" omega meaning-tv.sh gamma delta beta beta-lang beta-lang-rs ../samples
 step "meaning-cert diamond — every meaning-TV cert (pins, witnesses, binary arithmetic, structural claims) decided identically by check.beta AND check_ref.py" omega meaning-cert-diamond.sh delta beta beta-lang beta-lang-rs ../samples
