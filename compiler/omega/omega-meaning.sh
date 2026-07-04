@@ -30,7 +30,9 @@ om() {
   src="../../samples/$1/main.omg"
   want=$(grep -oE 'Expected exit: [0-9]+' "$src" | head -1 | grep -oE '[0-9]+')
   [ -n "$want" ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : no documented exit"; return; }
-  "$T/e2g.exe" < "$src" 2>/dev/null | "$T/interp.exe" >/dev/null 2>&1; got=$?
+  "$T/e2g.exe" < "$src" 2>/dev/null | "$T/interp.exe" > "$T/mo.out" 2>&1; got=$?
+  case "$(head -c 6 "$T/mo.out")" in '(Pair ')                    # dual-channel: exit rides the pair
+    got=$(head -1 "$T/mo.out" | sed 's/^(Pair \([0-9]*\) .*/\1/');; esac
   if [ "$got" = "$want" ]; then PASS=$((PASS+1)); else
     FAIL=$((FAIL+1)); echo "  FAIL $1 : meaning-route exit $got, documented $want"; fi
 }
@@ -39,20 +41,24 @@ om() {
 omt() {
   src="tests/$1.omg"
   want=$(grep -oE 'Expected exit: [0-9]+' "$src" | head -1 | grep -oE '[0-9]+')
-  "$T/e2g.exe" < "$src" 2>/dev/null | "$T/interp.exe" >/dev/null 2>&1; got=$?
+  "$T/e2g.exe" < "$src" 2>/dev/null | "$T/interp.exe" > "$T/mo.out" 2>&1; got=$?
+  case "$(head -c 6 "$T/mo.out")" in '(Pair ')                    # dual-channel: exit rides the pair
+    got=$(head -1 "$T/mo.out" | sed 's/^(Pair \([0-9]*\) .*/\1/');; esac
   if [ "$got" = "$want" ]; then PASS=$((PASS+1)); else
     FAIL=$((FAIL+1)); echo "  FAIL tests/$1 : meaning-route exit $got, documented $want"; fi
 }
 
 # NB the set is AUDITED, not just swept: a sample whose pass depends on a mis-parse coincidence is
 # excluded even if its exit matches (format_number: string buffers; alarm_probe2: case-pattern
-# dispatch). width_mixer stays: its `as i32` casts drop harmlessly (widening is a no-op over gamma's
+# dispatch). Output-mode programs return (Pair <exit> <stdout list>) — BOTH observables; the gate
+# parses the exit from the printed pair. width_mixer stays: its `as i32` casts drop harmlessly (widening is a no-op over gamma's
 # unbounded ints while values stay in range — the same status as `in Trapping` annotations).
 om bank_ledger               # 70 — self-verified (state args)
 om bouncing_ball             # 70 — self-verified (state args)
 om bounded_counter           # 70 — saturation check stays in range; state args report(70)
 om calculator_rpn            # 70 — self-verified (arrays + state args)
-om cli_mvp                   # 0
+om cli_mvp                   # 0  — dual-channel (Pair 0 stdout)
+om text_padding              # 6  — string-carrier fields: "ALERT temp" assignment, .len arithmetic, write_line(field); dual-channel
 om collatz_sequence          # 111 — hailstone steps for seed 27
 om dice_roller               # 70 — self-verified
 om digital_root              # 6  — digital root of 12345

@@ -50,6 +50,8 @@ tv() {
   want=$(grep -oE 'Expected exit: [0-9]+' "$src" | head -1 | grep -oE '[0-9]+')
   "$T/e2g.exe" < "$src" > "$T/g" 2>/dev/null
   "$T/interp.exe" < "$T/g" > "$T/istdout" 2>/dev/null; got=$?
+  case "$(head -c 6 "$T/istdout")" in '(Pair ')                   # dual-channel: exit rides the pair
+    got=$(head -1 "$T/istdout" | sed 's/^(Pair \([0-9]*\) .*/\1/');; esac
   python3 gamma2claim.py < "$T/g" > "$T/claims" 2>/dev/null || { FAIL=$((FAIL+1)); echo "  FAIL $1 : encoder refused a listed sample"; return; }
   line1=$(head -1 "$T/claims"); bad=$(sed -n 2p "$T/claims")
   enc=${line1%% *}; cert=${line1#* }
@@ -90,6 +92,7 @@ tv bouncing_ball
 tv turn_combat
 tv width_mixer
 tv cli_mvp
+tv text_padding
 tv digital_root
 tv collatz_sequence
 tv modular_exponentiation

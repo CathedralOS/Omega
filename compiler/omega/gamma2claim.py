@@ -486,7 +486,10 @@ def run(src, zpair, binary=False):
         pre = (BIN_PRELUDE + ' ') if binary else (USER_PRELUDE + ' ') if user else ''
         decls = ' '.join('(data %d %d 0 0)' % (cid, ar) for cid, ar in sorted(ctors.values()))
         badcid = 100 + len(ctors)           # a fresh constructor nothing equals: the negative control
-        print('0 %s%s (= %s %s) (refl %s)' % (pre, decls, lhs, rhs, rhs))
+        # dual-channel results: (Pair <exit> <stdout>) reports the exit component as the exit code (the
+        # interpreter exits 0 for any constructor value; the gate parses the same pair from its stdout)
+        sexit = r[1].n & 0xFF if (r[0] == 'Pair' and len(r) == 3 and isinstance(r[1], V)) else 0
+        print('%d %s%s (= %s %s) (refl %s)' % (sexit, pre, decls, lhs, rhs, rhs))
         print('%s%s (data %d 0 0 0) (= %s (k %d)) (refl (k %d))' % (pre, decls, badcid, lhs, badcid, badcid))
         for vc in dict.fromkeys(vcs):
             print('%s%s' % (pre, vc))
