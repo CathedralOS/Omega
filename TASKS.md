@@ -374,8 +374,17 @@ The ladder, smallest-landable-first; layouts need NO general const positions
   multi-state machine (head + body + advance); `game_of_life` is fully manually
   unrolled into 16 machines and does not iterate. The proof machinery exists —
   this is front-end sugar, but the surface is a language-design call.
-- **[ENGINEERING]** `arr[i] = <binary>` (a computed value into a runtime-indexed
-  target) is unselectable; forces the `tmp = arr[i]+v; arr[i] = tmp` idiom.
+- **[RESOLVED 2026-07-03]** `arr[i] = <binary>` (a computed value into a
+  runtime-indexed target) now selects: `arr[i] = arr[i]+22`, `arr[i] =
+  arr[j]+arr[k]`, `(arr[i]+22)*1`, even `arr[j]*1` all compile+run (the
+  assignment-value operand hoist materializes the read operands; the computed
+  store then emits). Canaried: collections/runtime_computed_indexed_write_exit.
+  The remaining fenced sources into an indexed target are BARE places only:
+  `arr[i] = <bare local>` and `arr[i] = arr[j]` (bare indexed, #38) both hit
+  NeedsMachineOwnedWrite -- a BINARY/literal/field source works, a bare local or
+  bare indexed read does not. Backend mutation-selection gap (not a frontend
+  hoist: hoisting `arr[i]=arr[j]` to a LOCAL doesn't help -- `arr[i]=<local>`
+  fails too; a FIELD temp is the working workaround).
 - **[ENGINEERING]** numeric intrinsics: min / max / abs / sqrt / clamp DONE.
   abs = `max(x, 0 - x)`, clamp = `min(max(x, lo), hi)` (frontend desugars);
   sqrt = unary float builtin riding the BINARY SSE value-write path with both
@@ -396,12 +405,15 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 "provably correct native output," which it meets.
 
 ### Smaller open items / latent bugs surfaced
-- `arr[i] = arr[j]` (both runtime indices) silent miscompile — latent, documented;
-  field-temp workaround. Stopgap-error first (#40 trap), then a dual-indexed copy.
+- `arr[i] = arr[j]` (both runtime indices) is FENCED (a clean compile error --
+  "NeedsMachineOwnedWrite", NOT a silent miscompile; verified 2026-07-03).
+  Field-temp workaround. Sibling: `arr[i] = <bare local>` fails identically. Both
+  are a backend mutation-selection gap (a binary/literal/field source works, a
+  bare local or bare indexed read does not) -- a dual-indexed copy or a
+  bare-place source arm in the indexed-target mutation emitter, NOT a frontend
+  hoist (hoisting to a local does not help). See #38.
 - u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
-- The four `samples/software_renderer_*` dirs are STALE husks (no `.omg` source,
-  only build artifacts) — delete or rebuild; they prove nothing and mislead.
 
 ## Cathedral first-boot ladder — the concrete freestanding consumer (2026-07-02)
 
@@ -646,7 +658,10 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >   Workaround proven (let-bind then guard). Dedicated fire, not loop-sized.
 > - **Backend miscompile fences** — a cluster of `clean error` gaps to complete:
 >   nested-runtime-indexed write (`grid[*][i]`), array-of-structs as a binary
->   operand, boolean guard nesting `(a||b)&&c`, `arr[i]=arr[j]` both-runtime,
+>   operand, boolean guard nesting `(a||b)&&c`, `arr[i]=arr[j]` both-runtime
+>   (#38 -- NARROWED 2026-07-03: this is the last BARE-source case into an indexed
+>   target; a binary/literal/field source already selects, only a bare local or
+>   bare indexed read fails, both NeedsMachineOwnedWrite in the mutation emitter),
 >   computed-index `arr[k+1]` double-gate, u64 literals > i64::MAX (i128
 >   refactor). Fenced (safe) but block real programs. One-fence-per-fire.
 >
