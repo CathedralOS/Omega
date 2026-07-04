@@ -2814,6 +2814,16 @@ exit.
   carries no type; selection defaults to signed on the type-less literal). Parked
   repros: `canaries/pending/arithmetic/const_fold_{unsigned_shift_right,unsigned_divide}_miscompile`.
   Memory: `shift-right-signedness-const-fold`.
+  SPIKE 2026-07-04 (rules OUT the tempting narrow fix): canonicalizing an unsigned
+  binding's folded value at the STATE-VALUES layer (enrich `Binding` with the
+  let's type, mask `-2`→`4294967294`) is INSUFFICIENT. `simple_local_binding_value_from_table`
+  stores binding values UNFOLDED (it preserves `Name(a)`; the substitution point
+  does not re-simplify), so the fold-to-constant does NOT happen there — and
+  per the decision-17 memory's DBG trace, instruction-selection's alias/static-
+  value resolution independently RE-FOLDS via `fold_binary_expression`. Fixing
+  one fold layer is whack-a-mole; the type must ride ON the constant so it
+  survives every layer (the metadata-on-`Expression::Integer` representation).
+  Confirms this is a real representation change, not a one-site patch.
   UNIFIED ROOT with the domain hole below: `Expression::Integer(i64)` is
   metadata-free, so every const-substitution/fold strips BOTH the operand's
   signedness/width (this entry) AND its arithmetic domain (next entry). A single
