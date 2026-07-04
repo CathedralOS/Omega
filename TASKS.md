@@ -2787,6 +2787,26 @@ exit.
 
 ### Runtime And Backend Confidence
 
+- [ ] MISCOMPILE (probe 2026-07-04, narrow): a CONST-FOLDED unsigned right shift
+  of a WRAPPING-produced high-bit value uses arithmetic `sar` instead of logical
+  `shr`. `(0u32 - 2) >> 1` → native 0xFFFFFFFF (4294967295), interpreter (oracle)
+  0x7FFFFFFF (2147483647). ROOT: `omega-state-values/src/simplify/folding.rs` is
+  TYPE-BLIND (bare i64), so it folds `0 - 2` to `-2` (losing u32 width) then
+  `-2 >> 1` with Rust arithmetic `>>` to `-1`. Right shift is the SOLE op whose
+  high bits leak past slot truncation, so it is the only one exposed. SCOPE is
+  narrow: RUNTIME (field-held) unsigned shifts are CORRECT — instruction
+  selection resolves the field's signedness and picks `shr` (locked by the new
+  canary `arithmetic/runtime_shift_right_signedness`, which pins BOTH signed
+  `sar` and unsigned `shr`). Only the compile-time-const-folded high-bit case is
+  wrong, and only when the value came from wrapping arithmetic (a DIRECT
+  `0xFFFFFFFE >> 1` literal folds to a POSITIVE i64 and is fine). VERIFIED: naive
+  "defer the fold to selection" does NOT fix it — `TableBinaryExpression` carries
+  no type, so selection also defaults to signed on a type-less literal. REAL FIX
+  = make the const-folder domain/width-aware (fold `0u32 - 2` to 4294967294,
+  mask to width) OR thread the expression's integer type through
+  checked→state-graph→selection. Parked repro:
+  `canaries/pending/arithmetic/const_fold_unsigned_shift_right_miscompile`.
+  Memory: `shift-right-signedness-const-fold`.
 - [ ] Reduce duplicate descriptor assumptions remaining across backend crates.
 - [ ] Strengthen assigned-target allocation toward a real register/stack
   allocation story with register classes, spills, and post-assignment cleanup.

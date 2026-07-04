@@ -8808,6 +8808,56 @@ fn runtime_signed_division_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_shift_right_signedness_canary_runs() {
+    // Right-shift is signedness-sensitive: a signed operand must lower to `sar`
+    // (arithmetic), an unsigned operand to `shr` (logical). `-8 >> 1 == -4` AND
+    // `0xFFFFFFFE >> 1 == 0x7FFFFFFF` both hold only when the two shifts pick
+    // different instructions. exit 71 = a `sar` misfire on the unsigned value
+    // (0xFFFFFFFF instead of 0x7FFFFFFF). Values are field-held so they are
+    // genuine runtime operands (instruction selection resolves the field's
+    // signedness); the const-folded high-bit case is a separate documented gap.
+    let canary = pass_canary("arithmetic/runtime_shift_right_signedness");
+    let main_path = canary.join("main.omg");
+
+    // Interpreter oracle first: it must agree the exit is 70.
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("shift-right signedness canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (sar for signed, shr for unsigned), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-shift-right-signedness-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("shift-right signedness canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("shift-right signedness canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected signed `sar` AND unsigned `shr` right shifts (exit 70), got {:?} \
+         (71 = unsigned >> emitted `sar`)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_copy_then_read_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_copy_then_read_exit");
     let main_path = canary.join("main.omg");
@@ -19532,6 +19582,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_chained_field_mutation_exit",
     "arithmetic/runtime_copy_then_read_exit",
     "arithmetic/runtime_signed_division_exit",
+    "arithmetic/runtime_shift_right_signedness",
     "arithmetic/runtime_unsigned_division_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
