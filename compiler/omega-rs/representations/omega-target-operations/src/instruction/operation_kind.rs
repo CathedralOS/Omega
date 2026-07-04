@@ -609,6 +609,23 @@ pub enum TargetOperationKind {
         field_byte_offset: usize,
         byte_count: usize,
     },
+    /// The DUAL-indexed copy `arr[i] = arr[j]` (task #38): source and target
+    /// are both runtime-indexed machine-owned elements; composes the read half
+    /// of `CopyRuntimeMachineIndexedToRuntimeStorage` with the write half of
+    /// `CopyRuntimeStorageToRuntimeMachineIndexed`.
+    CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
+        source_base_byte_offset: usize,
+        source_index_offset: usize,
+        source_index_region: RuntimeStorageRegion,
+        source_element_byte_size: usize,
+        source_field_byte_offset: usize,
+        target_base_byte_offset: usize,
+        target_index_offset: usize,
+        target_index_region: RuntimeStorageRegion,
+        target_element_byte_size: usize,
+        target_field_byte_offset: usize,
+        byte_count: usize,
+    },
     CopyRuntimeStorageToRuntimePointee {
         source_region: RuntimeStorageRegion,
         source_offset: usize,

@@ -904,6 +904,36 @@ pub(super) fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtim
     )
 }
 
+pub(super) fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+    input: MachineEmissionContext<'_>,
+    source_base_byte_offset: usize,
+    source_index_offset: usize,
+    source_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_element_byte_size: usize,
+    source_field_byte_offset: usize,
+    target_base_byte_offset: usize,
+    target_index_offset: usize,
+    target_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_element_byte_size: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+        input.target.architecture,
+        source_base_byte_offset,
+        source_index_offset,
+        source_index_region,
+        source_element_byte_size,
+        source_field_byte_offset,
+        target_base_byte_offset,
+        target_index_offset,
+        target_index_region,
+        target_element_byte_size,
+        target_field_byte_offset,
+        byte_count,
+    )
+}
+
 pub(super) fn encode_runtime_storage_copy_to_runtime_pointee(
     input: MachineEmissionContext<'_>,
     source_offset: usize,

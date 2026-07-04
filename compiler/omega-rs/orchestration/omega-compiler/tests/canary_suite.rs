@@ -926,27 +926,38 @@ fn computed_index_operand_canary_is_rejected() {
 }
 
 #[test]
-fn indexed_write_from_indexed_read_canary_is_rejected() {
-    // `nums[i] = nums[j]` with both indices runtime silently copied the array base
-    // (exit 10 not 50). A blocker-level stopgap now refuses it; this pins that it
-    // errors rather than miscompiles. Sound workaround: a field temp.
-    let canary = fail_canary("collections/indexed_write_from_indexed_read_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected indexed-write-from-indexed-read canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
-    let combined = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        combined.contains("runtime-indexed element from a runtime-indexed read"),
-        "expected dual-runtime-indexed diagnostic, got:\n{combined}"
+fn runtime_dual_indexed_copy_exit_canary_runs() {
+    // `nums[i] = nums[j]` (both indices runtime) now LOWERS for real (task #38,
+    // CopyRuntimeMachineIndexedToRuntimeMachineIndexed) instead of being fenced.
+    // nums=[10,20,30,40,50], i=0, j=4 -> nums[0]=50, exited as the code. Exit 10
+    // = the historic base-copy/no-op bug returned.
+    let canary = pass_canary("collections/runtime_dual_indexed_copy_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-dual-copy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dual-indexed copy canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dual-indexed copy canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(50),
+        "expected nums[i]=nums[j] (i=0, j=4) to copy element j -> nums[0]=50 (the exit \
+         code); exit 10 = the base-copy/no-op bug. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
     );
+
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]
@@ -977,30 +988,39 @@ fn nested_runtime_indexed_write_rejected_canary_is_rejected() {
 }
 
 #[test]
-fn runtime_dual_indexed_copy_in_loop_rejected_canary_is_rejected() {
-    // `a[i] = b[i]` (both sides runtime-indexed) inside a loop cannot be lowered by the
-    // static-assignment fast path -- it would silently NO-OP (the value resolves to the array base).
-    // The classifier guard keeps it out of the AlreadyLowered fast path so it is recorded as a write
-    // and rejected cleanly. The top-level form is covered by indexed_write_from_indexed_read_rejected;
-    // this fences the in-loop form, which previously had no write record at all.
-    let canary = fail_canary("collections/runtime_dual_indexed_copy_in_loop_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected in-loop dual-indexed copy canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
-    let combined = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        combined.contains("needs runtime storage write lowering")
-            || combined.contains("needs mutation lowering"),
-        "expected a write-lowering rejection for the in-loop dual-indexed copy, got:\n{combined}"
+fn runtime_dual_indexed_copy_in_loop_exit_canary_runs() {
+    // `a[i] = b[i]` element-wise in a loop (task #38's cross-array + loop face)
+    // now lowers through CopyRuntimeMachineIndexedToRuntimeMachineIndexed. The
+    // classifier still routes it off the static-assignment fast path (which
+    // would no-op); the recorded write then selects the dual copy. b=[10,20,40]
+    // copies into a; sum(a)=70. Exit 0 = the historic silent no-op returned.
+    let canary = pass_canary("collections/runtime_dual_indexed_copy_in_loop_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-dual-loop-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("in-loop dual-indexed copy canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("in-loop dual-indexed copy canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the element-wise a[i]=b[i] loop to copy [10,20,40] (sum 70, the exit \
+         code); exit 0 = the historic silent no-op returned. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
     );
+
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]
@@ -18904,6 +18924,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_dual_indexed_guard_compare_exit",
     "collections/runtime_cross_array_indexed_guard_compare_exit",
     "collections/runtime_dual_indexed_guard_equality_exit",
+    "collections/runtime_dual_indexed_copy_exit",
+    "collections/runtime_dual_indexed_copy_in_loop_exit",
     "calls/runtime_same_type_contained_direct_fields_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
