@@ -42,8 +42,9 @@ pub fn windows_import_library(symbol: &str) -> Option<&'static str> {
 }
 
 pub(crate) fn populate(plan: &mut HostAbiPlan) {
+    let policy: std::sync::Arc<str> = "omega::host::targets::windows".into();
     plan.boundary_policies.insert(HostBoundaryPolicy {
-        path: "omega::host::targets::windows".into(),
+        path: std::sync::Arc::clone(&policy),
         checked: true,
     });
 
@@ -51,7 +52,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         WINDOWS_IMPORT_ROWS
             .iter()
             .map(|(capability, operation, library, symbol)| {
-                windows_import(capability, operation, library, symbol)
+                windows_import(capability, operation, library, symbol, &policy)
             }),
     );
 
@@ -215,13 +216,21 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
     }
 }
 
-fn windows_import(capability: &str, operation: &str, library: &str, symbol: &str) -> HostBinding {
+fn windows_import(
+    capability: &str,
+    operation: &str,
+    library: &str,
+    symbol: &str,
+    policy: &std::sync::Arc<str>,
+) -> HostBinding {
     HostBinding {
         operation_key: crate::HostOperationKey::from_names(capability, operation),
         mechanism: HostBindingMechanism::Import {
             library: library.into(),
             symbol: symbol.into(),
         },
-        boundary_policy: "omega::host::targets::windows".into(),
+        // Share ONE policy allocation across every binding (all name the same
+        // target path) -- an Arc refcount bump, not a fresh string per row.
+        boundary_policy: std::sync::Arc::clone(policy),
     }
 }
