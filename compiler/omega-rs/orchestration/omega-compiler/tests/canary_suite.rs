@@ -18084,6 +18084,41 @@ fn efi_ref_param_direct_faces_deref_not_flat() {
 }
 
 #[test]
+fn efi_ref_param_call_arg_derefs_and_dispatches() {
+    // The direct host-call arg `output_string(table.con_out, ..)` must deref
+    // (pointee frame@8 +64), never fold flat (frame_storage@72 fed firmware
+    // poison into the vtable dispatch), and the `mov rax,[rcx+8]; call rax`
+    // dispatch bytes must survive the hoist.
+    let canary = pass_canary("targets/efi_ref_param_call_arg");
+    let build_dir = std::env::temp_dir().join(format!("omega-refarg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("ref-param call-arg canary should compile");
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("backend report should be written");
+    assert!(
+        report.contains("copy runtime pointee runtime_frame@8 +64"),
+        "expected the con_out DEREF (pointee frame@8 +64) feeding the call arg"
+    );
+    assert!(
+        !report.contains("frame_storage@72"),
+        "flat slot+field read (frame_storage@72) regressed for the call-arg face"
+    );
+    let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
+    let needle = [0x48u8, 0x8b, 0x81, 0x08, 0x00, 0x00, 0x00, 0xff, 0xd0];
+    assert!(
+        bytes.windows(needle.len()).any(|window| window == needle),
+        "expected `mov rax, [rcx+8]; call rax` (VtableSlot(1) dispatch) in .text"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     for canary_name in ACTIVE_FAIL_CANARIES {
         let canary = fail_canary(canary_name);
@@ -19074,6 +19109,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "targets/efi_vtable_call",
     "targets/efi_conout_projection",
     "targets/efi_ref_param_direct_faces",
+    "targets/efi_ref_param_call_arg",
     "arithmetic/narrowing_flow_and_widen_permitted",
     "comptime/runtime_const_array_length_exit",
     "layouts/runtime_plan_laid_value_field_exit",

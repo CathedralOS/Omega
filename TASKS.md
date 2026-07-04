@@ -462,8 +462,14 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   correctly); `&self` unaffected (SelfType referee). Canary
   targets/efi_ref_param_direct_faces asserts the report shows both pointee
   derefs and no flat @72. 555 canaries + samples + differential green.
-  REMAINING #37 face: host-call-arg-direct `f(r.field)` (separate
-  boundary-call-through-field bug, untangle separately).
+  SAME-DAY FOLLOW-UP: the host-call-arg-direct face
+  (`out.output_string(table.con_out, ..)`, the last #37 sub-face) is CLOSED --
+  it silently flat-folded (frame@72 fed firmware poison into the vtable
+  dispatch); the CALL-ARGUMENT lowering now hoists ref-param-member args
+  through the same deref-let path (indexed-read args untouched -- their
+  call-arg substitution is correct). Canary targets/efi_ref_param_call_arg
+  asserts deref + no flat @72 + the dispatch bytes. #37 is fully closed;
+  556 canaries + samples + differential green.
 - u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
 - FIXED 2026-07-03 (sum-type FIELD store payload offset): `self.tx =
