@@ -361,6 +361,12 @@ def run(src, zpair, binary=False):
                            % (bin_lit(d), bin_lit(b.n), bin_lit(a.n), bin_lit(a.n)))
                 return V(d, bin_lit(d))
             if b.n <= 200 and a.n <= 3000:
+                # DOMAIN-ERASURE WITNESS: omega2gamma drops `in Saturating`/`Wrapping` annotations, which
+                # is sound only where the domains AGREE with plain arithmetic — for subtraction, exactly
+                # when no underflow occurred. The kernel re-checks ult(a, b) = 0 (b <= a) at every erased
+                # site; the witnessed heavy path proves the same via its d + b = a certificate.
+                pin(a), pin(b)
+                vcs.append('(= (f 28 %s %s) (k 2)) (refl (k 2))' % (unat(a.n), unat(b.n)))
                 return V(a.n - b.n, '(f 22 %s %s)' % (b.t, a.t))   # usub(b, a) = a - b, in-envelope
             pin(a), pin(b)                  # heavy: subtraction VERIFIED BY ADDITION — d + b = a
             d = a.n - b.n
