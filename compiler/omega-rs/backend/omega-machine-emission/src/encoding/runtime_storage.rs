@@ -884,6 +884,7 @@ pub(super) fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtim
 
 pub(super) fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
     input: MachineEmissionContext<'_>,
+    source_region: omega_target_operations::RuntimeStorageRegion,
     source_offset: usize,
     base_byte_offset: usize,
     index_offset: usize,
@@ -894,6 +895,7 @@ pub(super) fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtim
 ) -> Result<Vec<u8>, Diagnostic> {
     architecture::encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
         input.target.architecture,
+        source_region,
         source_offset,
         base_byte_offset,
         index_offset,

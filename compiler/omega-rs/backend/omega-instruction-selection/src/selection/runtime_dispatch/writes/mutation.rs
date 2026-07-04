@@ -1568,8 +1568,11 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             source_machine,
             source_state,
             &resolved_value.expression,
-        ) && source_place.region == omega_abstract_operations::RuntimeStorageRegion::Machine
-            && source_place.byte_count == indexed_target.byte_count
+        ) && matches!(
+            source_place.region,
+            omega_abstract_operations::RuntimeStorageRegion::Machine
+                | omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
+        ) && source_place.byte_count == indexed_target.byte_count
         {
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {

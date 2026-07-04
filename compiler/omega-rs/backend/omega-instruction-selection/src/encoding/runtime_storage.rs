@@ -1029,6 +1029,7 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
 
 pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
     architecture: Architecture,
+    source_region: omega_target_operations::RuntimeStorageRegion,
     source_offset: usize,
     base_byte_offset: usize,
     index_offset: usize,
@@ -1039,6 +1040,11 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_stora
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => {
+            if source_region != omega_target_operations::RuntimeStorageRegion::Machine {
+                return Err(Diagnostic::error(
+                    "aarch64 cannot write a machine indexed element from a frame-resident                      source yet; use a machine field temp",
+                ));
+            }
             aarch64::encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
                 source_offset,
                 base_byte_offset,
@@ -1050,6 +1056,7 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_stora
         }
         Architecture::X86_64 => {
             x86_64::encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
+                source_region,
                 source_offset,
                 base_byte_offset,
                 index_offset,

@@ -384,6 +384,36 @@ fn local_data_requires_storage(
         return true;
     }
 
+    // A local CAPTURING a field read (`let t = self.v`) keeps its slot when the
+    // SOURCE FIELD is reassigned later and the local is still used AFTER that
+    // write. Slot-less, the use alias-folds back to `self.v` and reads the NEW
+    // value -- verified silently wrong (`self.v = 99; let t = self.v;
+    // self.v = 0; nums[i] = t` wrote 0, not 99; the stale-fold family).
+    // Deliberately narrow: a use BEFORE the reassignment folds correctly and
+    // stays slot-less, so no slot-offset shift touches passing programs.
+    if let Some(reassignment_index) = initializer_field_reassignment_index(
+        expressions,
+        statements,
+        local_statement_index,
+        initial_value,
+    ) && statements
+        .iter()
+        .skip(reassignment_index + 1)
+        .any(|statement| {
+            statement_references_local(
+                expressions,
+                statement_table,
+                statement,
+                local_symbol,
+                local_name,
+                uses_runtime_flow,
+            ) || local_data_value_references_symbol(expressions, statement, local_symbol, local_name)
+                || assignment_value_references_symbol(expressions, statement, local_symbol, local_name)
+        })
+    {
+        return true;
+    }
+
     statements
         .iter()
         .skip(local_statement_index + 1)
@@ -397,6 +427,97 @@ fn local_data_requires_storage(
                 uses_runtime_flow,
             )
         })
+}
+
+/// The index of the first statement after the local's declaration that ASSIGNS
+/// a member field the initializer READS (`let t = self.v; ...; self.v = 0;`).
+/// Matched by FIELD NAME (conservative: a same-named field on another struct
+/// only costs an extra slot, never a fold).
+fn initializer_field_reassignment_index(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statements: &[StatementNode],
+    local_statement_index: usize,
+    initial_value: ExpressionHandle,
+) -> Option<usize> {
+    let mut read_fields = Vec::new();
+    collect_member_field_names(expressions, initial_value, &mut read_fields);
+    if read_fields.is_empty() {
+        return None;
+    }
+    statements
+        .iter()
+        .enumerate()
+        .skip(local_statement_index + 1)
+        .find_map(|(index, statement)| {
+            let StatementNode::Assignment(assignment) = statement else {
+                return None;
+            };
+            let target_field = assignment_member_field_name(expressions, assignment.target)?;
+            read_fields
+                .iter()
+                .any(|field| *field == target_field)
+                .then_some(index)
+        })
+}
+
+/// Collects the member FIELD NAMES an expression reads (`self.v` -> `v`,
+/// including nested receivers and operands).
+fn collect_member_field_names(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+    out: &mut Vec<Identifier>,
+) {
+    match expressions.expression(expression) {
+        ExpressionNode::Member(member) => {
+            out.push(member.member.clone());
+            collect_member_field_names(expressions, member.receiver, out);
+        }
+        ExpressionNode::Mutable(inner) => collect_member_field_names(expressions, *inner, out),
+        ExpressionNode::Binary(binary) => {
+            collect_member_field_names(expressions, binary.left, out);
+            collect_member_field_names(expressions, binary.right, out);
+        }
+        ExpressionNode::Cast(cast) => collect_member_field_names(expressions, cast.value, out),
+        ExpressionNode::Indexed(indexed) => {
+            collect_member_field_names(expressions, indexed.collection, out);
+            collect_member_field_names(expressions, indexed.index, out);
+        }
+        ExpressionNode::Unary(unary) => collect_member_field_names(expressions, unary.operand, out),
+        _ => {}
+    }
+}
+
+/// Whether an ASSIGNMENT statement's VALUE references the symbol -- the one use
+/// position `statement_references_local` deliberately omits (a slot-less local
+/// used as an assignment value is normally covered by the alias fold; the
+/// stale-capture clause above must count it because it exists precisely to
+/// BLOCK that fold).
+fn assignment_value_references_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement: &StatementNode,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    let StatementNode::Assignment(assignment) = statement else {
+        return false;
+    };
+    expression_references_symbol(expressions, assignment.value, symbol, local_name)
+}
+
+/// The member FIELD NAME an assignment target writes (`self.v = ..` -> `v`),
+/// peeling `Mutable`/`Indexed` wrappers. A plain-Name target (a local) is None.
+fn assignment_member_field_name(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    target: ExpressionHandle,
+) -> Option<Identifier> {
+    match expressions.expression(target) {
+        ExpressionNode::Member(member) => Some(member.member.clone()),
+        ExpressionNode::Mutable(inner) => assignment_member_field_name(expressions, *inner),
+        ExpressionNode::Indexed(indexed) => {
+            assignment_member_field_name(expressions, indexed.collection)
+        }
+        _ => None,
+    }
 }
 
 /// Whether an initializer is an ARRAY literal (possibly wrapped in `Mutable`). An

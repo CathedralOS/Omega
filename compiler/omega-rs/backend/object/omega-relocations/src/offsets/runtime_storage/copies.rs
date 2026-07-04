@@ -93,6 +93,19 @@ pub(crate) fn runtime_storage_copy_machine_indexed_to_machine_indexed_second_bas
     }
 }
 
+/// Start of the second `mov r15,imm64` (the machine base) inside the
+/// FRAME-SOURCE variant of the storage->machine-indexed write; the relocation
+/// planner adds the +2 immediate offset itself. x86_64 only.
+pub(crate) fn runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset(
+    architecture: Architecture,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        // mov r15,imm64 (10) + load rax (7) precede it.
+        Architecture::X86_64 => 17,
+    }
+}
+
 pub(crate) fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_target_address_offset(
     architecture: Architecture,
 ) -> usize {

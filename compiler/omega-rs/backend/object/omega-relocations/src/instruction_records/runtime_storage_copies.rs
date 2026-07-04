@@ -4,6 +4,7 @@ use super::super::offsets::{
     runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset,
     runtime_storage_copy_from_runtime_machine_indexed_target_address_offset,
     runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset,
+    runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset,
     runtime_storage_copy_from_runtime_pointee_to_runtime_frame_target_address_offset,
     runtime_storage_copy_target_address_offset,
 };
@@ -116,13 +117,25 @@ pub(super) fn collect_runtime_storage_copy_relocations(
             );
             true
         }
-        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed { .. } => {
-            // Single shared machine base: the only relocation is the machine
-            // symbol at the `mov r15,imm64` that opens the instruction (the
-            // planner offsets the imm itself). The source value, the index, and
-            // the target element all read off this one base.
-            context
-                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
+            source_region, ..
+        } => {
+            // The opening `mov r15,imm64` loads the SOURCE base -- the machine
+            // symbol for a field source (then value, index, and target element
+            // all ride that one base), or the runtime frame for a slot-backed
+            // local source, in which case a SECOND relocation re-loads the
+            // machine base for the index read + element store.
+            context.insert_data_address_at_instruction_start(
+                context.storage_region_symbol_handle(*source_region),
+            );
+            if *source_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                context.insert_data_address_at_relative_offset(
+                    runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset(
+                        context.input.target.architecture,
+                    ),
+                    context.machine_storage_symbol_handle(),
+                );
+            }
             true
         }
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. } => {
