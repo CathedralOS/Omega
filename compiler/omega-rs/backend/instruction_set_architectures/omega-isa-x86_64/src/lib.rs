@@ -4658,9 +4658,20 @@ pub fn runtime_storage_binary_write_width(
         // Saturating SIGNED divide/modulo wraps the normal idiv in a TYPE_MIN/-1
         // guard (see append_saturating_signed_divide_modulo).
         saturating_signed_divide_modulo_width(byte_size, operator == StateGuardOperator::Modulo)
+    } else if domain == ArithmeticDomain::Wrapping
+        && matches!(
+            operator,
+            StateGuardOperator::Divide | StateGuardOperator::Modulo
+        )
+    {
+        // Wrapping SIGNED divide/modulo guards TYPE_MIN/-1 so idiv does not #DE
+        // (see append_wrapping_signed_divide_modulo). Unsigned uses the *Unsigned
+        // operators and cannot overflow, so it falls through.
+        wrapping_signed_divide_modulo_width(byte_size, operator == StateGuardOperator::Modulo)
     } else {
-        // Trapping div/mod (and all Exact/Wrapping ops, plus unsigned saturating
-        // div/mod which cannot overflow) use the normal op width.
+        // Trapping div/mod (idiv traps == Trapping semantics), Exact (proven
+        // non-overflowing), and unsigned div/mod (cannot overflow) use the normal
+        // op width.
         runtime_binary_operation_or_float_width(operator, byte_size, is_float)
     };
     // 10 (mov r14,imm64) + left + push r10 (2) + right + mov r11,r10 (3)
@@ -4687,6 +4698,23 @@ fn saturating_signed_divide_modulo_width(byte_size: usize, want_remainder: bool)
     } else {
         17 // neg r10 (3) + mov r9,imm64 (10) + cmovo r10,r9 (4)
     };
+    let normal = runtime_binary_operation_width(
+        if want_remainder {
+            StateGuardOperator::Modulo
+        } else {
+            StateGuardOperator::Divide
+        },
+        byte_size,
+    );
+    4 + 2 + fixup + 2 + normal
+}
+
+/// Bytes of [`append_wrapping_signed_divide_modulo`], for the relocation layout.
+/// MUST equal the emitter exactly. cmp r11,-1 (4) + jne (2) + the divisor==-1
+/// fixup (always 3: `neg r10` for divide, `xor r10d,r10d` for modulo) + jmp (2) +
+/// the normal idiv core.
+fn wrapping_signed_divide_modulo_width(byte_size: usize, want_remainder: bool) -> usize {
+    let fixup = 3; // neg r10/r10d, or xor r10d,r10d
     let normal = runtime_binary_operation_width(
         if want_remainder {
             StateGuardOperator::Modulo
@@ -4788,6 +4816,21 @@ pub fn encode_runtime_storage_binary_write(
         // normal path below. (Trapping div/mod also falls through, where `idiv`
         // traps on overflow and divide-by-zero -- exactly Trapping semantics.)
         append_saturating_signed_divide_modulo(
+            &mut bytes,
+            byte_size,
+            operator == StateGuardOperator::Modulo,
+        )?;
+    } else if domain == ArithmeticDomain::Wrapping
+        && matches!(
+            operator,
+            StateGuardOperator::Divide | StateGuardOperator::Modulo
+        )
+    {
+        // Wrapping SIGNED divide/modulo: guard TYPE_MIN / -1 so the bare `idiv`
+        // does not raise #DE -- produce the WRAPPED result (TYPE_MIN / 0) instead.
+        // Unsigned div/mod uses the *Unsigned operators (cannot overflow) and
+        // falls through to the normal path below.
+        append_wrapping_signed_divide_modulo(
             &mut bytes,
             byte_size,
             operator == StateGuardOperator::Modulo,
@@ -6599,6 +6642,48 @@ fn append_saturating_signed_divide_modulo(
     append_integer_divide_modulo_core(&mut normal, byte_size, want_remainder, true);
     // jne over (special + the jmp) to the idiv; run special; jmp past the idiv.
     // Both blocks are well under 128 bytes, so rel8 offsets suffice.
+    bytes.push(0x75);
+    bytes.push((special.len() + 2) as u8); // jne -> normal
+    bytes.extend(special);
+    bytes.push(0xeb);
+    bytes.push(normal.len() as u8); // jmp -> done
+    bytes.extend(normal);
+    Ok(())
+}
+
+/// WRAPPING signed divide/modulo. x86 `idiv` raises #DE (integer-overflow trap)
+/// for TYPE_MIN / -1; the Wrapping domain must instead produce the WRAPPED result
+/// (TYPE_MIN for divide -- the true quotient TYPE_MAX+1 wraps to TYPE_MIN -- and 0
+/// for modulo). Guard the single overflowing divisor (-1) and avoid idiv for it:
+/// `a / -1 == -a` via `neg r10` (and `neg` of TYPE_MIN naturally wraps to
+/// TYPE_MIN, so no clamp is needed, unlike the saturating variant); `a % -1 == 0`.
+/// Narrow widths (i8/i16) let the store truncate the negated 32-bit value back to
+/// the correct wrapped byte. Divide-by-zero still reaches `idiv` and traps,
+/// matching the interpreter. (aarch64 `sdiv` does not trap on overflow, so this
+/// guard is x86_64-only.)
+fn append_wrapping_signed_divide_modulo(
+    bytes: &mut Vec<u8>,
+    byte_size: usize,
+    want_remainder: bool,
+) -> Result<(), Diagnostic> {
+    // cmp r11, -1 (sized): the only divisor that would overflow idiv.
+    if byte_size <= 4 {
+        bytes.extend([0x41, 0x83, 0xfb, 0xff]); // cmp r11d, -1
+    } else {
+        bytes.extend([0x49, 0x83, 0xfb, 0xff]); // cmp r11, -1
+    }
+    // The divisor == -1 fixup block (always 3 bytes).
+    let mut special: Vec<u8> = Vec::new();
+    if want_remainder {
+        special.extend([0x45, 0x31, 0xd2]); // xor r10d, r10d  (a % -1 == 0)
+    } else if byte_size <= 4 {
+        special.extend([0x41, 0xf7, 0xda]); // neg r10d  (-a; TYPE_MIN wraps to TYPE_MIN)
+    } else {
+        special.extend([0x49, 0xf7, 0xda]); // neg r10
+    }
+    // The normal idiv (every divisor except -1).
+    let mut normal: Vec<u8> = Vec::new();
+    append_integer_divide_modulo_core(&mut normal, byte_size, want_remainder, true);
     bytes.push(0x75);
     bytes.push((special.len() + 2) as u8); // jne -> normal
     bytes.extend(special);

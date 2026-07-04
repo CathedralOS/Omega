@@ -59,6 +59,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_signed_division_exit", 70),
     ("arithmetic/runtime_shift_right_signedness", 70),
     ("arithmetic/const_fold_cast_signedness", 70),
+    ("arithmetic/wrapping_signed_divide_min_by_neg_one", 70),
     ("arithmetic/f32_field_store_rounding", 70),
     ("arithmetic/f32_transition_arg_rounding", 70),
     ("arithmetic/int_transition_arg_width_wrap", 70),
