@@ -3064,7 +3064,7 @@ proc do_array_write(arr) {
     }
     state w2f0 { emit("(Pair ")  print_expr(wval)  emit(" eb))")  to wclose }
     state w3f0 { emit("(Pair ")  print_expr(wval)  emit(" eb))")  to wclose }
-    state w3f1 { emit("(Pair ea (match eb ((Pair ec ed) (Pair ")  print_expr(wval)  emit(" ed))))")  to wclose }
+    state w3f1 { emit("(Pair ea (match eb ((Pair ec ed) (Pair ")  print_expr(wval)  emit(" ed)))))")  to wclose }
     state wclose { write_byte(')')  to wfin }
     state wfin {
         write_byte(')')
