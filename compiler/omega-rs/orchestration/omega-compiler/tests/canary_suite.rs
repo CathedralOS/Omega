@@ -18,10 +18,10 @@ use std::process::Stdio;
 #[cfg(windows)]
 #[test]
 fn windows_x64_cli_mvp_emits_runnable_pe() {
-    let sample = repo_root().join("samples").join("cli_mvp");
+    let sample = repo_root().join("samples").join("cli").join("cli_mvp");
     let main_path = sample.join("main.omg");
     // Build into the in-repo `build/` so the committed/runnable artifact always
-    // matches HEAD: a passing suite leaves a fresh exe at samples/cli_mvp/build/.
+    // matches HEAD: a passing suite leaves a fresh exe at samples/cli/cli_mvp/build/.
     // (Regenerated clean each run; NOT deleted afterward, unlike the temp-dir
     // canaries.) Prevents the "run the exe in the folder and see stale garbage"
     // trap.
@@ -64,7 +64,7 @@ fn windows_x64_cli_mvp_emits_runnable_pe() {
 #[cfg(windows)]
 #[test]
 fn windows_pe_ships_base_relocations_and_dynamicbase() {
-    let sample = repo_root().join("samples").join("cli_mvp");
+    let sample = repo_root().join("samples").join("cli").join("cli_mvp");
     let build_dir = std::env::temp_dir().join(format!("omega-reloc-{}", std::process::id()));
     let _ = fs::remove_dir_all(&build_dir);
 
@@ -176,7 +176,7 @@ machine build(b: &mut Build) {
 // linux-syscall host calls).
 #[test]
 fn linux_x64_cli_mvp_emits_elf_with_syscalls() {
-    let sample = repo_root().join("samples").join("cli_mvp");
+    let sample = repo_root().join("samples").join("cli").join("cli_mvp");
     let main_path = sample.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-linux-x64-cli-mvp-{}", std::process::id()));
@@ -220,7 +220,7 @@ fn linux_x64_cli_mvp_emits_elf_with_syscalls() {
 // real LSE atomic instructions: LDADDAL (fetch_add) and CASAL (compare_exchange).
 #[test]
 fn atomics_cross_platform_emits_real_atomics() {
-    let sample = repo_root().join("samples").join("atomics_cross");
+    let sample = repo_root().join("samples").join("cli").join("atomics_cross");
     let main_path = sample.join("main.omg");
 
     // --- windows_x64: compile + run ---
@@ -284,7 +284,7 @@ fn atomics_cross_platform_emits_real_atomics() {
 // presence of the runtime-storage load sequence (`mov r15, imm64` then a load).
 #[test]
 fn linux_x64_dungeon_crawler_emits_elf_with_runtime_storage_syscalls() {
-    let sample = repo_root().join("samples").join("dungeon_crawler_cli");
+    let sample = repo_root().join("samples").join("cli").join("dungeon_crawler_cli");
     let main_path = sample.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-linux-x64-dungeon-{}", std::process::id()));
@@ -340,11 +340,11 @@ fn linux_x64_dungeon_crawler_emits_elf_with_runtime_storage_syscalls() {
 #[cfg(windows)]
 #[test]
 fn windows_x64_dungeon_crawler_emits_runnable_pe() {
-    let sample = repo_root().join("samples").join("dungeon_crawler_cli");
+    let sample = repo_root().join("samples").join("cli").join("dungeon_crawler_cli");
     let main_path = sample.join("main.omg");
     // Build into the in-repo `build/` so the runnable artifact always matches HEAD
     // (regenerated clean each run, NOT deleted afterward). This is the durable fix
-    // for the stale-artifact trap: `samples/dungeon_crawler_cli/build/omega-program.exe`
+    // for the stale-artifact trap: `samples/cli/dungeon_crawler_cli/build/omega-program.exe`
     // is rewritten by every green suite run.
     let build_dir = sample.join("build");
     let _ = fs::remove_dir_all(&build_dir);
@@ -422,7 +422,7 @@ fn windows_x64_dungeon_crawler_emits_runnable_pe() {
         "the `fight` command should resolve combat in an enemy room\nstdout:\n{stdout}"
     );
     // Intentionally NOT removing build_dir: leave the fresh, verified artifact in
-    // samples/dungeon_crawler_cli/build/ so running the in-repo exe matches HEAD.
+    // samples/cli/dungeon_crawler_cli/build/ so running the in-repo exe matches HEAD.
 }
 
 #[test]
@@ -17334,7 +17334,7 @@ fn runtime_nested_value_call_caller_local_guard_exit_canary_runs() {
 #[cfg(not(windows))]
 #[test]
 fn native_dungeon_crawler_runs_stable_scripted_loop() {
-    let sample = repo_root().join("samples").join("dungeon_crawler_cli");
+    let sample = repo_root().join("samples").join("cli").join("dungeon_crawler_cli");
     let main_path = sample.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-native-dungeon-{}", std::process::id()));
@@ -17416,7 +17416,10 @@ fn native_dungeon_crawler_runs_stable_scripted_loop() {
 #[cfg(not(windows))]
 #[test]
 fn native_dungeon_direct_movement_dispatch_runs() {
-    let source = repo_root().join("samples").join("dungeon_crawler_cli");
+    let source = repo_root()
+        .join("samples")
+        .join("cli")
+        .join("dungeon_crawler_cli");
     let package_dir = std::env::temp_dir().join(format!(
         "omega-dungeon-direct-movement-{}",
         std::process::id()
@@ -17994,6 +17997,39 @@ fn runtime_same_type_contained_direct_fields_exit_canary_runs() {
         Some(70),
         "expected two same-type contained machines to be INDEPENDENT via direct field \
          access (a=13, b=21 -> exit 70); exit 71 = they aliased. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_palindrome_two_pointer_exit_canary_runs() {
+    // Two-pointer palindrome over [1,2,3,4,1] (NOT a palindrome): must detect the
+    // arr[1]=2 vs arr[3]=4 mismatch -> exit 70; missing it -> exit 71.
+    let canary = pass_canary("collections/runtime_palindrome_two_pointer_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-palindrome-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("palindrome two-pointer canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("palindrome two-pointer canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the two-pointer scan to DETECT arr[1]=2 != arr[3]=4 (exit 70); exit 71 = \
+         it missed the mismatch. got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -18771,6 +18807,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_cross_array_indexed_guard_compare_exit",
     "collections/runtime_dual_indexed_guard_equality_exit",
     "calls/runtime_same_type_contained_direct_fields_exit",
+    "collections/runtime_palindrome_two_pointer_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
     "concurrency/runtime_spawn_struct_result_exit",
