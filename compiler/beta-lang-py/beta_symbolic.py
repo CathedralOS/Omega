@@ -49,6 +49,13 @@ ZZ_CID = 5
 # inputs (a > n gives 0 on the machine and in ℕ alike). Like zz, it is a plain binary constructor to the
 # kernel — (data 6 2 0 0), certs by refl — with its MEANING carried by the two differentially-pinned engines.
 MN_CID = 6
+# SV_CID / SSUM_CID: the INPUT STREAM enters the term language. ('sv', t) = the t-th input byte, rendered
+# (k 7 t); ('ssum', lo, hi) = Σ_{j=lo}^{hi-1} input[j], rendered (k 8 lo hi) — the closed form of a loop that
+# does `acc += read_byte()` once per iteration. Fixed-index reads stay (v k), so all prior forms are
+# unchanged; stream terms appear only when a read's index is symbolic (inside a summarized loop). Like
+# zz/monus these are plain constructors to the kernel; their meaning lives in the pinned evaluators.
+SV_CID = 7
+SSUM_CID = 8
 
 def render(t):
     h = t[0]
@@ -58,6 +65,8 @@ def render(t):
     if h == 'f':  return '(f %d %s)' % (t[1], render(t[2]))
     if h == 'zz': return '(k %d %s %s)' % (ZZ_CID, render(t[1]), render(t[2]))
     if h == 'mn': return '(k %d %s %s)' % (MN_CID, render(t[1]), render(t[2]))
+    if h == 'sv': return '(k %d %s)' % (SV_CID, render(_term(t[1])))
+    if h == 'ssum': return '(k %d %s %s)' % (SSUM_CID, render(_term(t[1])), render(_term(t[2])))
     return '(%s %s %s)' % (h, render(t[1]), render(t[2]))
 
 def evaluate(t, env):                  # concrete value under {var_index: int} (ℤ; the gate observes it mod 256)
@@ -67,6 +76,8 @@ def evaluate(t, env):                  # concrete value under {var_index: int} (
     if h == 'v':  return env[t[1]]
     if h == 'zz': return evaluate(t[1], env) - evaluate(t[2], env)
     if h == 'mn': return max(0, evaluate(t[1], env) - evaluate(t[2], env))
+    if h == 'sv': return env['in'][evaluate(_term(t[1]), env)]
+    if h == 'ssum': return sum(env['in'][evaluate(_term(t[1]), env):evaluate(_term(t[2]), env)])
     if h == 'f':                       # a user-function recurrence; TRI_ID is the triangular sum g(n)=Σ_{j<n} j
         if t[1] != TRI_ID:
             raise Unsupported('unknown recurrence fun %d' % t[1])
@@ -202,7 +213,7 @@ def _mentions(t, ph):                  # does the placeholder `ph` occur in term
         return True
     if isinstance(t, tuple) and t[0] == 'f':
         return _mentions(t[2], ph)
-    return isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'zz', 'mn') and any(_mentions(x, ph) for x in t[1:])
+    return isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'zz', 'mn', 'sv', 'ssum') and any(_mentions(x, ph) for x in t[1:])
 
 def _peel(expr, ph):
     """expr = an additive spine containing ph -> the spine with ph removed (the per-iteration delta,
@@ -252,7 +263,7 @@ def _mentions_loopvar(t, names):       # does term `t` mention any ('loopvar', v
             return t[1] in names
         if t[0] == 'f':
             return _mentions_loopvar(t[2], names)
-        if t[0] in ('s', 'p', 'm', 'zz', 'mn'):
+        if t[0] in ('s', 'p', 'm', 'zz', 'mn', 'sv', 'ssum'):
             return any(_mentions_loopvar(x, names) for x in t[1:])
     return False
 
@@ -260,13 +271,24 @@ def _subst_loopvars(t, entry, invariant):   # ('loopvar', v) -> entry value for 
     if isinstance(t, tuple):                # alpha's _subst_slots splices raw MEM values); recurse elsewhere
         if t[0] == 'loopvar':
             return entry[t[1]] if t[1] in invariant else t
-        if t[0] == 's':
-            return ('s', _subst_loopvars(t[1], entry, invariant))
-        if t[0] in ('p', 'm', 'zz', 'mn'):
+        if t[0] in ('s', 'sv'):
+            return (t[0], _subst_loopvars(t[1], entry, invariant))
+        if t[0] in ('p', 'm', 'zz', 'mn', 'ssum'):
             return (t[0], _subst_loopvars(t[1], entry, invariant), _subst_loopvars(t[2], entry, invariant))
         if t[0] == 'f':
             return ('f', t[1], _subst_loopvars(t[2], entry, invariant))
     return t
+
+def _has_stream(t):                    # does a stream term (sv / ssum) occur anywhere inside `t`?
+    if isinstance(t, tuple):
+        if t[0] in ('sv', 'ssum'):
+            return True
+        if t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn'):
+            return any(_has_stream(x) for x in t[1:])
+    return False
+
+def _read_sum(init, base, trip):       # init + Σ input[base .. base+trip) — identical shape in both engines
+    return ('p', _term(init), ('ssum', _term(base), ('p', _term(base), trip)))
 
 def _has_zz(t):                        # does a zz pair occur anywhere inside term `t`?
     if isinstance(t, tuple):
@@ -291,6 +313,7 @@ class SymInterp:
     def __init__(self, procs):
         self.procs = {p[1]: p for p in procs}
         self.bytemem = {}                  # concrete BYTE address -> value; SYMBOLIC values stored UNTRUNCATED
+        self.rdpos = 0                     # the input-stream read position (int; a term after a read-loop)
         self.n_inputs = 0                  # (the observable is mod 256; +/-/* respect mod-256 congruence)
         self.steps = 0
 
@@ -308,7 +331,13 @@ class SymInterp:
         if k == 'call':
             name = e[1]
             if name == 'read_byte':
-                v = ('v', self.n_inputs); self.n_inputs += 1; return v      # a fresh input variable
+                cur = self.rdpos
+                if isinstance(cur, int):
+                    self.rdpos = cur + 1
+                    self.n_inputs = max(self.n_inputs, cur + 1)
+                    return ('v', cur)                  # a fixed-index input variable (all prior forms)
+                self.rdpos = _add(cur, 1)              # symbolic position: a STREAM element (k 7 idx)
+                return ('sv', cur)
             if name == 'write_byte':
                 return self.ev(e[2][0], env)                                # value flows through unchanged
             if name not in self.procs:
@@ -352,10 +381,21 @@ class SymInterp:
     def _summarize_loop_inner(self, header_pc, body_label, cond, env, blocks, labels):
         entry = dict(env)
         ph_env = {v: ('loopvar', v) for v in env}       # EVERY var gets a placeholder (mirrors alpha, which
-        try:                                            # markers every frame slot); invariants subst back below
+        rd_entry = self.rdpos                           # markers every frame slot); invariants subst back below
+        rd_mark = ('loopvar', '#rd')                    # the read POSITION is a hidden loop var: in-body reads
+        self.rdpos = rd_mark                            # come out as stream elements (sv #rd), stride-checked
+        try:
             out = self._run_region_once(labels[body_label], header_pc, ph_env, blocks, labels)
         except Unsupported:
             return False
+        finally:
+            rd_after, self.rdpos = self.rdpos, rd_entry
+        reads = 0
+        if rd_after != rd_mark:                         # the body consumed input
+            rdd = _lin_delta(rd_after, rd_mark)
+            if rdd is None or _canon(rdd) != 1 or isinstance(rd_entry, tuple):
+                return False                            # exactly ONE read per iteration, from a fixed position
+            reads = 1
         deltas = {}
         rewrite = set()                                 # REWRITE vars: fully overwritten each iteration (a
         for v in entry:                                 # temp t = a*i, …) — no additive delta exists. They
@@ -370,7 +410,7 @@ class SymInterp:
         for v in out:                                   # keep only values identical on every iteration; DROP
             if v not in entry:                          # the rest (unknowable post-loop — a later read of a
                 fv = _subst_loopvars(out[v], entry, invariant)      # dropped var refuses via ev)
-                if not _mentions_loopvar(fv, set(entry)):
+                if not _mentions_loopvar(fv, set(entry)) and not _mentions(fv, rd_mark) and not _has_stream(fv):
                     fresh[v] = fv
         if cond[0] == 'bin' and cond[1] in ('>', '>='):     # (a > b) ≡ (b < a): normalize to the < forms, the
             cond = ('bin', {'>': '<', '>=': '<='}[cond[1]], cond[3], cond[2])   # same swap bc does in codegen
@@ -425,6 +465,11 @@ class SymInterp:
         closed = {}
         for v in loop_vars:                             # each δ = a0 + a1·counter -> init + a0·trip + a1·g(trip)
             d = deltas[v]
+            if d == ('sv', ('loopvar', '#rd')):         # acc += read_byte(): Σ input[base .. base+trip)
+                closed[v] = _read_sum(entry[v], rd_entry, trip)
+                continue
+            if _mentions(d, ('loopvar', '#rd')) or _has_stream(d):
+                return False                            # a read mixed into a larger delta: a later slice
             if isinstance(d, tuple) and d[0] == 'zz':   # subtracting accumulator: summarize pos/neg independently
                 P = _subst_loopvars(d[1], entry, invariant)
                 N = _subst_loopvars(d[2], entry, invariant)
@@ -461,6 +506,8 @@ class SymInterp:
         env.update(fresh)                               # body-introduced vars with iteration-independent values
         for v in rewrite:
             env.pop(v, None)                            # dropped: a post-loop read refuses via ev
+        if reads:
+            self.rdpos = _series_closed(rd_entry, 1, 0, trip)   # base + trip: symbolic -> later reads refuse
         return True
 
     def _run_region_once(self, start_idx, header_pc, env, blocks, labels):
@@ -479,6 +526,8 @@ class SymInterp:
                 k = st[0]
                 if k in ('let', 'assign'):
                     env[st[1]] = self.ev(st[2], env)
+                elif k == 'callstmt':
+                    self.ev(st[1], env)                 # result discarded; a read still advances the stream
                 elif k == 'goto':
                     take = st[2] is None
                     if st[2] is not None:

@@ -176,10 +176,23 @@ forms are byte-stable). Like the ℤ pair, monus is a plain binary constructor t
 certs by refl); its meaning lives in the two differentially-pinned evaluators. `!=` guards refuse from a
 nonzero start — the machine genuinely diverges there when `start > bound`.
 
+### The input stream (read-loops)
+
+`while (i < n): total += read_byte()` certifies as `Σ input[1..1+n)` — the stream-sum constructor
+`(k 8 lo hi)`, with individual symbolic-position reads as stream elements `(k 7 t)`. The mechanism: the read
+**position** is a hidden loop variable (a virtual frame slot `RDV` on the machine side), so the ordinary
+summarizer handles it — delta +1 per iteration, markers, series closure `base + trip` — with no
+special-purpose recognizer. Fixed-index reads stay `(v k)`, keeping all prior forms unchanged. Post-loop
+reads work (`(k 7 (p 1 n))` = the next byte after the loop); discarded reads just advance the stream. The
+differential pins supply padded input vectors (loop bounds are drawn small). This work also fixed a latent
+beta bug: reads inside summarized bodies previously got a *fixed* global index — `n · (first byte)` instead
+of the sum — contained only because alpha refused the shape.
+
 **Deliberately out of scope** (each conservatively *refused* — never mis-summarized): scaling recurrences
 (`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`, tetrahedral `Σg`);
-ℤ-pair or monus counter *start values*; `word[..]` memory; byte memory inside loop bodies (symbolic-address
-buffers — the read-loop class); stale reads of rewrite slots; returns inside loop bodies.
+ℤ-pair or monus counter *start values*; `word[..]` memory; reads mixed into larger deltas
+(`total += read_byte()·2` — needs a coefficient on the stream sum); more than one read per iteration;
+buffer writes at symbolic addresses; stale reads of rewrite slots; returns inside loop bodies.
 
 ## How data-dependent loops are summarized (the interesting part)
 

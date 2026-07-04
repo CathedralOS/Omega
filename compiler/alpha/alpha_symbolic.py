@@ -46,6 +46,13 @@ ZZ_CID = 5
 # inputs (a > n gives 0 on the machine and in ℕ alike). Like zz, it is a plain binary constructor to the
 # kernel — (data 6 2 0 0), certs by refl — with its MEANING carried by the two differentially-pinned engines.
 MN_CID = 6
+# SV_CID / SSUM_CID: the INPUT STREAM in the term language — ('sv', t) = the t-th input byte (k 7 t);
+# ('ssum', lo, hi) = Σ_{j=lo}^{hi-1} input[j] (k 8 lo hi), the closed form of `acc += read_byte()` loops.
+# Fixed-index reads stay (v k). The read POSITION is a virtual frame slot (RDV) so the ordinary summarizer
+# machinery (delta +1/iteration, markers) handles the stream with no special-purpose recognizer.
+SV_CID = 7
+SSUM_CID = 8
+RDV = -8                               # the virtual slot holding the read position (no real slot is negative)
 
 def render(t):                         # -> check.beta / prover term syntax
     h = t[0]
@@ -55,6 +62,8 @@ def render(t):                         # -> check.beta / prover term syntax
     if h == 'f':  return '(f %d %s)' % (t[1], render(t[2]))
     if h == 'zz': return '(k %d %s %s)' % (ZZ_CID, render(t[1]), render(t[2]))
     if h == 'mn': return '(k %d %s %s)' % (MN_CID, render(t[1]), render(t[2]))
+    if h == 'sv': return '(k %d %s)' % (SV_CID, render(_term(t[1])))
+    if h == 'ssum': return '(k %d %s %s)' % (SSUM_CID, render(_term(t[1])), render(_term(t[2])))
     return '(%s %s %s)' % (h, render(t[1]), render(t[2]))
 
 def evaluate(t, env):                  # concrete integer value (ℤ; the gate observes it mod 256)
@@ -64,6 +73,8 @@ def evaluate(t, env):                  # concrete integer value (ℤ; the gate o
     if h == 'v':  return env[t[1]]
     if h == 'zz': return evaluate(t[1], env) - evaluate(t[2], env)
     if h == 'mn': return max(0, evaluate(t[1], env) - evaluate(t[2], env))
+    if h == 'sv': return env['in'][evaluate(_term(t[1]), env)]
+    if h == 'ssum': return sum(env['in'][evaluate(_term(t[1]), env):evaluate(_term(t[2]), env)])
     if h == 'f':                       # a user-function recurrence; TRI_ID is the triangular sum g(n)=Σ_{j<n} j
         if t[1] != TRI_ID:
             raise Unsupported('unknown recurrence fun %d' % t[1])
@@ -234,6 +245,11 @@ def _run_body_once(tape, backedges, start_pc, header, MEM, R, sp, depth=0):
                 else:
                     R[rz] = ('cmp', 'eq' if fv == 0 else 'ne', x, y)
                 pc = lj
+        elif op == 0x11:                                # read d — a stream element at the current position
+            cur = MEM.get(RDV, 0)
+            R[tape[pc + 1]] = ('v', cur) if isinstance(cur, int) else ('sv', cur)
+            MEM[RDV] = _add(cur, 1) if not isinstance(cur, int) else cur + 1
+            pc += 2
         elif op == 0x13:                                # call a — push the return offset, enter the callee
             sp -= 8; MEM[sp] = pc + 9; pc = _le8(tape, pc + 1)
         elif op == 0x14:                                # ret — pop the return offset
@@ -287,9 +303,20 @@ def _mentions_slot(t):
     if isinstance(t, tuple):
         if t[0] == 'slot':
             return True
-        if t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn'):
+        if t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn', 'sv', 'ssum'):
             return any(_mentions_slot(x) for x in t[1:])
     return False
+
+def _has_stream(t):                    # does a stream term (sv / ssum) occur anywhere inside `t`?
+    if isinstance(t, tuple):
+        if t[0] in ('sv', 'ssum'):
+            return True
+        if t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn'):
+            return any(_has_stream(x) for x in t[1:])
+    return False
+
+def _read_sum(init, base, trip):       # init + Σ input[base .. base+trip) — identical shape in both engines
+    return ('p', _term(init), ('ssum', _term(base), ('p', _term(base), trip)))
 
 def _has_zz(t):                        # does a zz pair occur anywhere inside term `t`?
     if isinstance(t, tuple):
@@ -302,15 +329,15 @@ def _has_zz(t):                        # does a zz pair occur anywhere inside te
 def _occurs(t, ph):                    # does the exact marker `ph` occur in term `t`?
     if t == ph:
         return True
-    return isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn') and any(_occurs(x, ph) for x in t[1:])
+    return isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn', 'sv', 'ssum') and any(_occurs(x, ph) for x in t[1:])
 
 def _subst_slots(t, MEM, invariant):   # ('slot', addr) -> MEM[addr] for loop-invariant addrs; recurse elsewhere
     if isinstance(t, tuple):
         if t[0] == 'slot':
             return MEM[t[1]] if t[1] in invariant else t
-        if t[0] == 's':
-            return ('s', _subst_slots(t[1], MEM, invariant))
-        if t[0] in ('p', 'm', 'zz', 'mn'):
+        if t[0] in ('s', 'sv'):
+            return (t[0], _subst_slots(t[1], MEM, invariant))
+        if t[0] in ('p', 'm', 'zz', 'mn', 'ssum'):
             return (t[0], _subst_slots(t[1], MEM, invariant), _subst_slots(t[2], MEM, invariant))
         if t[0] == 'f':
             return ('f', t[1], _subst_slots(t[2], MEM, invariant))
@@ -332,7 +359,7 @@ def _scale2(coef, x):
 def _mentions_marked(t, marked):       # does term `t` mention any marker in the `marked` set?
     if t in marked:
         return True
-    if isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn'):
+    if isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn', 'sv', 'ssum'):
         return any(_mentions_marked(x, marked) for x in t[1:])
     return False
 
@@ -438,7 +465,7 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
     except Unsupported:
         return None
     r15 = R.get(15, 0)                              # frame locals sit at/above the data-stack top
-    carried = [a for a in MEM if isinstance(a, int) and a >= r15
+    carried = [a for a in MEM if isinstance(a, int) and (a >= r15 or a == RDV)
                and (S1.get(a) != MEM[a] or S2.get(a) != MEM[a] or S3.get(a) != MEM[a])]
     hi = Rb if kind == 'lt' else _add(Rb, 1)        # exclusive upper end: R (<) or R+1 (<=)
     # from 0: trip = hi (the existing forms). From a symbolic/nonzero start: trip = hi ∸ start — MONUS, the
@@ -463,7 +490,7 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
         MEM.update(updates)
         return exit_pc
     # GENERAL PATH — one placeholder iteration: read each δ as a term over ('slot',*) markers, then decompose
-    frame = [a for a in MEM if isinstance(a, int) and a >= r15]
+    frame = [a for a in MEM if isinstance(a, int) and (a >= r15 or a == RDV)]
     PMEM = dict(MEM)
     for a in frame:
         PMEM[a] = ('slot', a)
@@ -506,6 +533,8 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
         if isinstance(d, tuple) and d[0] == 'zz':   # subtracting accumulator: pos/neg components follow
             P = _subst_slots(d[1], MEM, invariant)  # independent additive recurrences — summarize each
             N = _subst_slots(d[2], MEM, invariant)
+            if _has_stream(P) or _has_stream(N) or _occurs(P, ('slot', RDV)) or _occurs(N, ('slot', RDV)):
+                return None                         # a read mixed into a pair delta: a later slice
             if _has_zz(P) or _has_zz(N):
                 return None                         # a zz value nested in a component: beta distributes
             if _mentions_marked(P, rewriteset) or _mentions_marked(N, rewriteset):
@@ -521,7 +550,14 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
                               _series_closed(p0, _canon(_sum2(dp[0], _scale2(dp[1], off))), _canon(dp[1]), trip),
                               _series_closed(n0, _canon(_sum2(dn[0], _scale2(dn[1], off))), _canon(dn[1]), trip))
             continue
+        if d == ('sv', ('slot', RDV)):              # acc += read_byte(): Σ input[base .. base+trip) —
+            if _canon(raw.get(RDV)) != 1 or not isinstance(MEM.get(RDV), int):
+                return None                         # only with EXACTLY one read per iteration, from a
+            updates[a] = _read_sum(MEM[a], MEM[RDV], trip)      # concrete base position
+            continue
         sub = _subst_slots(d, MEM, invariant)       # δ = a0 + a1·counter
+        if _has_stream(sub) or _occurs(sub, ('slot', RDV)):
+            return None                             # a read mixed into a larger delta: a later slice
         if _has_zz(sub):
             return None                             # invariant zz feeding a plain delta: beta distributes
         if _mentions_marked(sub, rewriteset):
@@ -639,8 +675,14 @@ def symexec(tape):
                 pc = imm8(pc + 3) if _s64(x) < _s64(y) else pc + 11
             else:
                 pc = imm8(pc + 3) if x == y else pc + 11
-        elif op == 0x11:                                 # read d -> fresh input var
-            R[tape[pc + 1]] = ('v', n_inputs); n_inputs += 1; pc += 2
+        elif op == 0x11:                                 # read d — a fixed-index input var while the read
+            cur = MEM.get(RDV, 0)                        # position is concrete; a stream element (k 7 pos)
+            if isinstance(cur, int):                     # after a read-loop has made the position symbolic
+                R[tape[pc + 1]] = ('v', cur); MEM[RDV] = cur + 1
+                n_inputs = max(n_inputs, cur + 1)
+            else:
+                R[tape[pc + 1]] = ('sv', cur); MEM[RDV] = _add(cur, 1)
+            pc += 2
         elif op == 0x13:                                 # call a — push return offset to the call stack
             sp -= 8; MEM[sp] = pc + 9; pc = imm8(pc + 1)
         elif op == 0x14:                                 # ret — pop return offset
