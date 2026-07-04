@@ -485,6 +485,13 @@ proc parse_term() {
     state lsub {
         adv()  adv()                   ; consume '..'
         skip_ws()
+        to lsubend when (cbyte() == ']')
+        let le = parse_cmp()           ; bounded x[a..b] -> (take (drop x a) (- b a))
+        skip_ws()
+        adv()                          ; consume ']'
+        return alloc(18, alloc(13, lookup_local(off), lx, 0), alloc(2, '-', le, lx), 0)
+    }
+    state lsubend {
         adv()                          ; consume ']'
         return alloc(13, lookup_local(off), lx, 0)
     }
@@ -613,7 +620,36 @@ proc parse_term() {
         byte[2097152 + lseg + 7] = ' '
         skip_ws()
         adv()  adv()                   ; consume '()'
+        skip_ws()
+        to slpost when (cbyte() == '[')
+        to sllen when (dotlen_here() == 1)
         return alloc(15, array_lookup(cur_pref(), foff), 0, 0)
+    }
+    state slpost {                     ; as_slice()[ix] / as_slice()[k..] — postfix over the slot value
+        adv()                          ; consume '['
+        let px = parse_cmp()
+        skip_ws()
+        to slsub when (cbyte() == '.')
+        adv()                          ; consume ']'
+        return alloc(16, alloc(15, array_lookup(cur_pref(), foff), 0, 0), px, 0)
+    }
+    state slsub {
+        adv()  adv()                   ; consume '..'
+        skip_ws()
+        to slsubend when (cbyte() == ']')
+        let se = parse_cmp()
+        skip_ws()
+        adv()                          ; consume ']'
+        return alloc(18, alloc(17, alloc(15, array_lookup(cur_pref(), foff), 0, 0), px, 0), alloc(2, '-', se, px), 0)
+    }
+    state slsubend {
+        adv()                          ; consume ']'
+        return alloc(17, alloc(15, array_lookup(cur_pref(), foff), 0, 0), px, 0)
+    }
+    state sllen {
+        adv()
+        skip_ident()                   ; past `len`
+        return alloc(7, array_lookup(cur_pref(), foff), 0, 0)
     }
     state dolen {                      ; blank the `.len` so the carrier's path terminates for lookup
         byte[2097152 + lseg - 1] = ' '
@@ -1345,6 +1381,9 @@ proc print_expr(node) {
         to isldrop when (word[node] == 13)
         to isllen when (word[node] == 14)
         to isaslice when (word[node] == 15)
+        to isnnth when (word[node] == 16)
+        to isndrop when (word[node] == 17)
+        to isntake when (word[node] == 18)
         to isbin
     }
     state islen { emit("(len ")  print_acurname(word[node + 8])  write_byte(')')  return 0 }
@@ -1353,6 +1392,9 @@ proc print_expr(node) {
     state isldrop { emit("(drop ")  print_curname(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
     state isllen { emit("(len ")  print_curname(word[node + 8])  write_byte(')')  return 0 }
     state isaslice { print_acurname(word[node + 8])  return 0 }
+    state isnnth { emit("(nth ")  print_expr(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state isndrop { emit("(drop ")  print_expr(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state isntake { emit("(take ")  print_expr(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
     state iselemf {                    ; field of a struct-array element: extract from (nth aK ix)
         let efk = word[node + 24] / 8
         let efn = word[node + 24] - efk * 8
@@ -3008,6 +3050,7 @@ proc render() {
         emit("(def setl (xs k v) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) (Cons v t) (Cons h (setl t (- k 1) v)))))) ")
         emit("(def len (xs) (match xs (Nil 0) ((Cons h t) (+ 1 (len t))))) ")
         emit("(def drop (xs k) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) xs (drop t (- k 1)))))) ")
+        emit("(def take (xs k) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) Nil (Cons h (take t (- k 1))))))) ")
         to outhelp
     }
     state outhelp {

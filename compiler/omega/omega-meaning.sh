@@ -91,7 +91,7 @@ om subslice_sum               # 70 — slices v0 (params, [k..], .len, machine t
 om dual_accumulator_recursion # 70 — slices v0 (params, [k..], .len, machine tail-call arms)
 om fletcher_checksum          # 56 — slices v0 (params, [k..], .len, machine tail-call arms)
 om multi_value_calls          # 70 — slices v0 (params, [k..], .len, machine tail-call arms)
-om framed_payload            # 60 — slices v0 (exit-verified; encoder arity gap keeps it out of meaning-tv)
+om framed_payload            # 60 — bounded subslices x[a..b] via take(drop x a); fully proven
 om text_padding              # 6  — string-carrier fields: "ALERT temp" assignment, .len arithmetic, write_line(field); dual-channel
 om collatz_sequence          # 111 — hailstone steps for seed 27
 om dice_roller               # 70 — self-verified
