@@ -1,7 +1,8 @@
 #!/usr/bin/env sh
 # ∀-INPUT THEOREM — the summit's per-vector input proofs made UNIVERSAL, and MECHANICAL.
 #
-# input-tv.sh proves an input loop's meaning on particular input vectors. This gate proves it for ALL
+# count/k-family: fold gains a constant per element. sum-forall: fold gains the ELEMENT (needs uadd
+# proven a commutative monoid). input-tv.sh proves an input loop's meaning on particular input vectors. This gate proves it for ALL
 # inputs at once — ∀xs ∀n. fold(xs, n) = agg(xs) + n — by structural induction on xs, the induction
 # hypothesis instantiated at the SHIFTED accumulator (the shape recx was added to the kernel to express).
 #
@@ -38,7 +39,7 @@ verify() {  # $1 = label, $2 = shell command emitting the .elab source
     && echo "  ok   $1 accepted by all three (check.beta/check_ref/checker.gamma)" \
     || { echo "  FAIL $1: not accepted by all three (beta=$ab ref=$ar gamma=$ag)"; fail=1; }
   # PERTURB: wrap the goal RHS in one extra successor; the proof must no longer fit.
-  sed 's/\(= (f 91 xs n) \)(f 21 (f 93 xs) n)))/\1(k 3 (f 21 (f 93 xs) n))))/' "$T/src.elab" \
+  sed '/^(all xs/ s/(f 21 (f 9\([0-9]\) xs) n)/(k 3 (f 21 (f 9\1 xs) n))/' "$T/src.elab" \
     | python3 elab.py > "$T/bad.cert" 2>/dev/null
   pb=$(cat "$T/bad.cert" | "$T/check.exe"); pr=$(cat "$T/bad.cert" | python3 check_ref.py); pg=$(gverdict "$T/bad.cert")
   [ "$pb" = reject ] && [ "$pr" = reject ] && [ "$pg" = reject ] \
@@ -50,6 +51,7 @@ verify "count-forall (hand-authored k=1)" "cat count-forall.elab"
 verify "generated k=1 (count -> len)"     "python3 forall-gen.py 1"
 verify "generated k=2 (2 per elem -> 2*len)" "python3 forall-gen.py 2"
 verify "generated k=3 (3 per elem -> 3*len)" "python3 forall-gen.py 3"
+verify "sum-forall (add-the-element fold; uadd commutative monoid)" "cat sum-forall.elab"
 
 echo "forall-input theorem (per-vector input proofs made universal AND mechanical; all three checkers agree, perturbations rejected): $( [ $fail = 0 ] && echo PASS || echo FAIL )"
 [ $fail = 0 ]
