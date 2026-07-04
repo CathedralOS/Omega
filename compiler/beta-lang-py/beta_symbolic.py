@@ -275,6 +275,10 @@ def _lin_delta(expr, ph):
         dp = _lin_delta(expr[1], ph)
         if dp is not None:
             return ('zz', dp, expr[2])
+    if isinstance(expr, tuple) and expr[0] == 'cond' and not _mentions(expr[1], ph):
+        dT, dF = _lin_delta(expr[2], ph), _lin_delta(expr[3], ph)   # conditional post-value: per-branch deltas
+        if dT is not None and dF is not None:
+            return ('cond', expr[1], dT, dF)
     return None
 
 def _mentions_loopvar(t, names):       # does term `t` mention any ('loopvar', v) with v in names?
@@ -640,7 +644,7 @@ class SymInterp:
             self.rdpos = _series_closed(rd_entry, 1, 0, trip)   # base + trip: symbolic -> later reads refuse
         return True
 
-    def _run_region_once(self, start_idx, header_pc, env, blocks, labels):
+    def _run_region_once(self, start_idx, header_pc, env, blocks, labels, si=0):
         """Execute the loop-body REGION once on a placeholder env, following CONCRETE control only — an inner
         loop with a concrete bound unrolls right here, mirroring alpha's _run_body_once — until control jumps
         back to the outer header. Mutates and returns env. Symbolic branches (a nested SYMBOLIC loop — a
@@ -649,7 +653,10 @@ class SymInterp:
         steps = 0
         while True:
             jumped = False
-            for st in blocks[pc]:
+            stmts = blocks[pc]
+            i, si = si, 0
+            while i < len(stmts):
+                st = stmts[i]; i += 1
                 steps += 1
                 if steps > 200000:
                     raise Unsupported('loop body region too long to summarize')
@@ -664,10 +671,33 @@ class SymInterp:
                         try:
                             take = _concrete(self.ev(st[2], env),
                                              'symbolic branch inside a summarized loop body') != 0
-                        except Unsupported:             # an INNER loop with a symbolic bound: summarize it
-                            if not self._summarize_loop(pc, st[1], st[2], env, blocks, labels):
-                                raise                   # recursively, its closed forms (over this run's
-                            take = False                # markers) flowing into the outer deltas
+                        except Unsupported:             # an INNER loop with a symbolic bound summarizes
+                            if self._summarize_loop(pc, st[1], st[2], env, blocks, labels):
+                                take = False            # recursively; an IF-DIAMOND inside the body FORKS
+                            else:                       # both paths to the header and merges pointwise
+                                self._body_forks = getattr(self, '_body_forks', 0) + 1
+                                if self._body_forks > 4:
+                                    raise Unsupported('too many branches inside a summarized loop body')
+                                try:
+                                    b = self._boolterm(st[2], env)
+                                    rd, bm = self.rdpos, dict(self.bytemem)
+                                    eT = self._run_region_once(labels[st[1]], header_pc, dict(env), blocks, labels)
+                                    rdT, bmT = self.rdpos, self.bytemem
+                                    self.rdpos, self.bytemem = rd, dict(bm)
+                                    eF = self._run_region_once(pc, header_pc, dict(env), blocks, labels, si=i)
+                                    if rdT != self.rdpos:
+                                        raise Unsupported('paths consume different read counts')
+                                    for kk in set(bmT) | set(self.bytemem):
+                                        vT, vF = bmT.get(kk, bm.get(kk, 0)), self.bytemem.get(kk, bm.get(kk, 0))
+                                        self.bytemem[kk] = vT if vT == vF else ('cond', b, vT, vF)
+                                    merged = {}
+                                    for kk in set(eT) | set(eF):
+                                        vT, vF = eT.get(kk, env.get(kk, 0)), eF.get(kk, env.get(kk, 0))
+                                        merged[kk] = vT if vT == vF else ('cond', b, vT, vF)
+                                    env.clear(); env.update(merged)
+                                    return env
+                                finally:
+                                    self._body_forks -= 1
                     if take:
                         if labels.get(st[1]) == header_pc:
                             return env                  # one full iteration: control returned to the header

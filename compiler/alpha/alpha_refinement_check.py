@@ -97,6 +97,7 @@ AUTO_SAMPLES = [
     ("absdiff   (BRANCH ON DATA →cond/ℤ pairs)", "refinement-samples/absdiff.beta"),
     ("maxmin    (NESTED BRANCHES →cond in cond)", "refinement-samples/maxmin.beta"),
     ("boolval   (STORED COMPARISON as a value)", "refinement-samples/boolval.beta"),
+    ("condloop  (CONDITIONAL DELTA in a loop body)", "refinement-samples/condloop.beta"),
     ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
     ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
     ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),

@@ -119,6 +119,13 @@ SUMMARIZABLE = [
     ("+= a - read (mixed pair)",  loop("i < n", "total = total + (a - read_byte())").replace('let total = 0', 'let total = 200'),
      lambda n, a, b: None),
     ("discarding reads (2n)",    loop("i < n", "total = total + 2  s = read_byte()"), lambda n, a, b: None),
+    # CONDITIONAL deltas: an if-diamond in the body forks-and-merges; an invariant condition summarizes.
+    ("cond δ (if a<b: +2 else +1)", loop("i < n", "s = s").replace(
+        "state body { s = s  i = i + 1  to loop }",
+        "state body { to add when (a < b)  to skip }\n"
+        "    state add { total = total + 2  to next }\n"
+        "    state skip { total = total + 1  to next }\n"
+        "    state next { i = i + 1  to loop }"),                                  lambda n, a, b: n * (2 if a < b else 1)),
     ("↓ Σi   (total += i)",     downloop("total = total + i"),                     lambda n, a, b: n * (n + 1) // 2),
     ("↓ -Σi  (total -= i)",     downloop("total = total - i"),                     lambda n, a, b: (-(n * (n + 1) // 2)) % 256),
     ("↓ a·Σi (total += a*i)",   downloop("total = total + (a * i)"),               lambda n, a, b: a * (n * (n + 1) // 2)),
@@ -140,6 +147,12 @@ MUST_REFUSE = [
     # Σ of g: inner (j < i, total += j) makes the outer delta g(i) — quadratic in the outer counter
     # (tetrahedral sum), genuinely outside the linear class on both sides.
     ("nested Σg (j<i, total+=j)",     nestedloop("i").replace('total = total + a', 'total = total + j')),
+    # a body branch guarded on the ACCUMULATOR itself alternates paths per iteration: refused (both engines).
+    ("self-ref body guard (total<3)", loop("i < n", "s = s").replace(
+        "state body { s = s  i = i + 1  to loop }",
+        "state body { to add when (total < 3)  to next }\n"
+        "    state add { total = total + 1  to next }\n"
+        "    state next { i = i + 1  to loop }")),
     # a delta reading a rewrite temp's STALE value (t assigned AFTER its use) is order-sensitive: refused.
     ("stale rewrite read (t after)",  loop("i < n", "total = total + t  t = (a * i)").replace("let s = 0", "let s = 0\n    let t = 0")),
 ]

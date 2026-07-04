@@ -200,13 +200,15 @@ def _cmp_idiom(tape, pc):
         return None
     return (rz, lj, op, fv)
 
-def _run_body_once(tape, backedges, start_pc, header, MEM, R, sp, depth=0):
+def _run_body_once(tape, backedges, start_pc, header, MEM, R, sp, depth=0, brcell=None):
     """Speculatively execute ONE loop iteration from start_pc until pc jumps back to `header`; return the
     resulting memory. Operates on copies, so the caller's state is untouched. Control must be concrete —
     EXCEPT an inner loop guard: an inner loop with a concrete bound unrolls right here, and one with a
     SYMBOLIC bound is summarized recursively via _summarize, its closed forms (over this run's slot markers)
     flowing into the outer deltas. This is the EXACT per-iteration transition."""
     MEM = dict(MEM); R = dict(R); pc = start_pc; steps = 0
+    if brcell is None:
+        brcell = [False]
     def reg(i):
         return R.get(i, 0)
     while True:
@@ -239,16 +241,27 @@ def _run_body_once(tape, backedges, start_pc, header, MEM, R, sp, depth=0):
                     exit_pc, cont_pc = pc + 10, _le8(tape, pc + 2)
                 kind = {'blt': 'lt', 'ble': 'le', 'beq': 'eq', 'bne': 'ne'}[c[0]]
                 nxt = _summarize(tape, backedges, ('cmp', kind, c[1], c[2]), cont_pc, exit_pc, MEM, R, sp, depth + 1)
-                if nxt is None:
-                    raise Unsupported('inner loop not in the summarizable linear class')
+                if nxt is None:                             # an IF-DIAMOND inside the body: fork both paths
+                    if depth >= 4:                          # to the header and merge post-states pointwise —
+                        raise Unsupported('too many branches inside a summarized loop body')
+                    brcell[0] = True
+                    MT = _run_body_once(tape, backedges, cont_pc, header, MEM, dict(R), sp, depth + 1, brcell)
+                    MF = _run_body_once(tape, backedges, exit_pc, header, MEM, dict(R), sp, depth + 1, brcell)
+                    merged = {}                             # a slot differing across paths becomes (cond c ..)
+                    for kk in set(MT) | set(MF):
+                        vT, vF = MT.get(kk, MEM.get(kk, 0)), MF.get(kk, MEM.get(kk, 0))
+                        merged[kk] = vT if vT == vF else ('cond', c, vT, vF)
+                    return merged
                 pc = nxt
             else:
-                c = _concrete(c, 'symbolic branch inside a summarized loop body')
-                taken = (c == 0) if op == 0x0D else (c != 0)
+                brcell[0] = True                            # a concrete data branch: the fast path's 3-run
+                c = _concrete(c, 'symbolic branch inside a summarized loop body')   # probe can be fooled by
+                taken = (c == 0) if op == 0x0D else (c != 0)                        # short-horizon uniformity
                 pc = _le8(tape, pc + 2) if taken else pc + 10
         elif op in (0x0F, 0x10):                        # jlt / jeq — concrete compares branch; a symbolic
             x, y = reg(tape[pc + 1]), reg(tape[pc + 2])  # one becomes a boolean via bc's idiom (as in symexec)
             if isinstance(x, int) and isinstance(y, int):
+                brcell[0] = True
                 hit = (_s64(x) < _s64(y)) if op == 0x0F else (x == y)
                 pc = _le8(tape, pc + 3) if hit else pc + 11
             else:
@@ -519,6 +532,10 @@ def _slot_delta(s0, s1):
         dp = _slot_delta(s0, s1[1])
         if dp is not None and not (isinstance(dp, tuple) and dp[0] == 'zz'):
             return ('zz', dp, s1[2])
+    if isinstance(s1, tuple) and s1[0] == 'cond' and not _occurs(s1[1], s0):
+        dT, dF = _slot_delta(s0, s1[2]), _slot_delta(s0, s1[3])   # a conditional post-value: per-branch deltas
+        if dT is not None and dF is not None:
+            return ('cond', s1[1], dT, dF)
     return None
 
 def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
@@ -549,10 +566,11 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
     header = next((h for h, j in backedges.items() if h <= cont_pc <= j), None)
     if header is None:
         return None
-    try:                                            # run THREE body iterations from the concrete header state
-        S1 = _run_body_once(tape, backedges, cont_pc, header, MEM, R, sp, depth)
-        S2 = _run_body_once(tape, backedges, cont_pc, header, S1, R, sp, depth)
-        S3 = _run_body_once(tape, backedges, cont_pc, header, S2, R, sp, depth)
+    br = [False]                                    # run THREE body iterations from the concrete header state;
+    try:                                            # if any crossed a data branch, the finite-difference probe
+        S1 = _run_body_once(tape, backedges, cont_pc, header, MEM, R, sp, depth, br)   # is unreliable (short-
+        S2 = _run_body_once(tape, backedges, cont_pc, header, S1, R, sp, depth, br)    # horizon uniformity) and
+        S3 = _run_body_once(tape, backedges, cont_pc, header, S2, R, sp, depth, br)    # the marker path decides
     except Unsupported:
         return None
     r15 = R.get(15, 0)                              # frame locals sit at/above the data-stack top
@@ -563,7 +581,7 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
     # branch-free trip count (start > hi runs 0 times on the machine and 0 = hi ∸ start in ℕ alike).
     trip = hi if off == 0 else ('mn', _term(hi), _term(L))
     # FAST PATH — finite differences over the 3 iterations (invariant + pure-Σi deltas)
-    updates = {}; have_counter = False; general = False
+    updates = {}; have_counter = False; general = br[0]
     for a in carried:
         s0 = MEM[a]
         d1, d2, d3 = _slot_delta(s0, S1[a]), _slot_delta(S1[a], S2[a]), _slot_delta(S2[a], S3[a])
