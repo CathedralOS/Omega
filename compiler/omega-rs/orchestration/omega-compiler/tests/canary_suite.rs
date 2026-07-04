@@ -18052,6 +18052,38 @@ fn efi_vtable_call_emits_indirect_dispatch() {
 }
 
 #[test]
+fn efi_ref_param_direct_faces_deref_not_flat() {
+    // Task #37: the DIRECT guard-subject and machine-target reads through an
+    // entry ref-param must DEREFERENCE the pointer slot (pointee copies in the
+    // report), never fold flat (`frame_storage@72` = slot 8 + con_out 64).
+    let canary = pass_canary("targets/efi_ref_param_direct_faces");
+    let build_dir = std::env::temp_dir().join(format!("omega-refparam-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("ref-param direct-faces canary should compile");
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("backend report should be written");
+    assert!(
+        report.contains("copy runtime pointee runtime_frame@8 +64"),
+        "expected the con_out DEREF (pointee frame@8 +64) in the report"
+    );
+    assert!(
+        report.contains("copy runtime pointee runtime_frame@8 +32"),
+        "expected the firmware_revision DEREF (pointee frame@8 +32) in the report"
+    );
+    assert!(
+        !report.contains("frame_storage@72"),
+        "flat slot+field read (frame_storage@72) regressed -- the entry-ref-param          member folded flat instead of dereferencing"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     for canary_name in ACTIVE_FAIL_CANARIES {
         let canary = fail_canary(canary_name);
@@ -19041,6 +19073,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "targets/efi_struct_handoff",
     "targets/efi_vtable_call",
     "targets/efi_conout_projection",
+    "targets/efi_ref_param_direct_faces",
     "arithmetic/narrowing_flow_and_widen_permitted",
     "comptime/runtime_const_array_length_exit",
     "layouts/runtime_plan_laid_value_field_exit",

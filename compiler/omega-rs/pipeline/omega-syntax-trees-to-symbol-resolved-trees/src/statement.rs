@@ -51,6 +51,15 @@ fn lower_statement_node(
             let value = lower_statement_expression(lowerer, syntax_trees, assignment.value)?;
             let mut hoisted = Vec::new();
             let value = hoist_operand_indexed_reads(lowerer, value, &mut hoisted, false);
+            // A BARE ref-param member as the whole RHS (`self.c = table.con_out`)
+            // is not an operand, so the rewrite above leaves it -- and the flat
+            // machine-write path would read frame garbage. Hoist the root into a
+            // `let`, which lowers through the pointee-deref path.
+            let value = if is_reference_struct_parameter_member(lowerer, value) {
+                hoist_child(lowerer, value, &mut hoisted, false)
+            } else {
+                value
+            };
             hoisted.push(Statement::Assignment(Assignment { target, value }));
             Ok(hoisted)
         }
@@ -307,6 +316,17 @@ fn hoist_child(
     hoisted: &mut Vec<Statement>,
     hoist_builtin_calls: bool,
 ) -> ExpressionHandle {
+    // A member read through a shared reference-to-struct PARAM
+    // (`table.con_out`) must dereference the pointer slot; left in operand or
+    // guard position it folds flat (slot + field offset in the FRAME) and
+    // silently reads garbage -- the entry-ref-param face. Hoisting it into a
+    // `let` routes it through the boot-verified pointee-copy path. The param's
+    // `&Named` type is DECLARED on the state signature, so this predicate is
+    // not type-blind.
+    if is_reference_struct_parameter_member(lowerer, child) {
+        return hoist_into_temp(lowerer, child, hoisted);
+    }
+
     if is_runtime_indexed_read(lowerer, child) {
         // Rewrite the indexed read's OWN index first (nested `arr[other[i]]`),
         // then hoist the whole indexed read into a fresh temp.
@@ -749,9 +769,36 @@ fn is_comparison_operator(operator: BinaryOperator) -> bool {
 /// operands) a hoistable pure-builtin call OR a runtime-indexed read -- the shapes
 /// the shared-subject hoist handles (both would otherwise be pulled into per-arm
 /// temps by the operand hoist, breaking the true/false pairing).
+/// Whether `expression` is a member read through a SHARED reference-to-struct
+/// parameter of the current state (`table.con_out` with `table:
+/// &EfiSystemTable`) -- the shape whose flat fold reads frame garbage. The
+/// receiver must be a bare single-segment name matching one of the recorded
+/// `&Named` params.
+fn is_reference_struct_parameter_member(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
+    if lowerer.reference_struct_parameters.is_empty() {
+        return false;
+    }
+    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let ExpressionNode::Member(member) = expressions.expression(expression) else {
+        return false;
+    };
+    let ExpressionNode::Name(path) = expressions.expression(member.receiver) else {
+        return false;
+    };
+    let members = expressions.name_path_members(path.members);
+    let [only] = members else {
+        return false;
+    };
+    lowerer
+        .reference_struct_parameters
+        .iter()
+        .any(|name| name == only.as_str())
+}
+
 fn subject_contains_hoistable(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
     if is_hoistable_builtin_guard_call(lowerer, expression)
         || is_runtime_indexed_read(lowerer, expression)
+        || is_reference_struct_parameter_member(lowerer, expression)
     {
         return true;
     }

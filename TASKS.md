@@ -446,6 +446,24 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   (local_or_bare_copy_used_as_arithmetic_operand). Canary
   collections/runtime_indexed_local_copy_chain_exit; 553 green. Remaining
   fold-family face: the VALUE-CALL arg paths (deep, separate thread).
+- DONE 2026-07-04 (#37, the DIRECT entry-ref-param faces): `transition
+  table.firmware_revision == 0` and `self.c = table.con_out` (no manual let)
+  used to fold FLAT (slot+field frame read -- silent garbage; the guard face
+  compared frame@72). Fixed via the house guard-hoist pattern, NOT type-blind:
+  a param's `&Named` type is DECLARED on the state signature, so the
+  syntax->resolved lowering records `reference_struct_parameters` per state and
+  hoists any member read through one into a `let` (guard subjects, guard
+  operands, and bare assignment-RHS roots), which lowers through the
+  boot-verified pointee path. Three coordinated rules keep the temp sound:
+  (1) hoist_temp_type types it from the referee data's field; (2) the storage
+  layer SLOTS ref-param-member locals used afterwards (any position);
+  (3) state-values' MATERIALIZATION rule (twin of the capture rule) never
+  substitutes one away. `&mut` params excluded (alias slots fold flat
+  correctly); `&self` unaffected (SelfType referee). Canary
+  targets/efi_ref_param_direct_faces asserts the report shows both pointee
+  derefs and no flat @72. 555 canaries + samples + differential green.
+  REMAINING #37 face: host-call-arg-direct `f(r.field)` (separate
+  boundary-call-through-field bug, untangle separately).
 - u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
 - FIXED 2026-07-03 (sum-type FIELD store payload offset): `self.tx =

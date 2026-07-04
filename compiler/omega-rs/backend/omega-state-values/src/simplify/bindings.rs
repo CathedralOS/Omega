@@ -113,6 +113,22 @@ pub(super) fn simple_local_bindings(
         ) {
             continue;
         }
+        // MATERIALIZATION rule (twin of the capture rule above): a local whose
+        // initializer reads a member through a SHARED reference-to-named param
+        // (`let __h = table.con_out` with `table: &EfiSystemTable`) exists to
+        // materialize the pointee DEREFERENCE into its slot. Substituting the
+        // member back re-creates the flat frame-garbage read the let was minted
+        // to avoid (the entry-ref-param face). Mirrors
+        // `initializer_is_reference_param_member` in omega-state-storage's
+        // collection.rs, which slots exactly this shape.
+        if initializer_is_reference_param_member(
+            program,
+            state,
+            &program.expression_table,
+            local_data.initial_value,
+        ) {
+            continue;
+        }
         let Some(value) = simple_local_binding_value_from_table(
             &program.expression_table,
             local_data.initial_value,
@@ -127,6 +143,57 @@ pub(super) fn simple_local_bindings(
     }
 
     bindings
+}
+
+/// Whether an initializer is a member read through a SHARED reference-to-named
+/// parameter of `state` (`table.con_out` with `table: &EfiSystemTable`),
+/// peeling `Mutable`. Twin of the same-named check in omega-state-storage
+/// (collection.rs) -- keep the predicates in lockstep: the storage side SLOTS
+/// this shape, this side must never substitute it away.
+fn initializer_is_reference_param_member(
+    program: &CheckedTrees,
+    state: &State,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            initializer_is_reference_param_member(program, state, expressions, *inner)
+        }
+        ExpressionNode::Member(member) => {
+            let ExpressionNode::Name(path) = expressions.expression(member.receiver) else {
+                return false;
+            };
+            let members = expressions.name_path_members(path.members);
+            let [only] = members else {
+                return false;
+            };
+            program.state_parameters(state).iter().any(|parameter| {
+                parameter.name.as_str() == only.as_str()
+                    && parameter_is_shared_named_reference(program, parameter.type_reference)
+            })
+        }
+        _ => false,
+    }
+}
+
+/// `&Named` (shared, non-slice) -- the pointer-slot param shape.
+fn parameter_is_shared_named_reference(
+    program: &CheckedTrees,
+    type_reference: omega_checked_trees::types::TypeReferenceHandle,
+) -> bool {
+    let omega_checked_trees::types::TypeReferenceNode::Reference {
+        is_mutable: false,
+        referee,
+        ..
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
+        return false;
+    };
+    matches!(
+        program.type_reference_table.type_reference(*referee),
+        omega_checked_trees::types::TypeReferenceNode::Named { .. }
+    )
 }
 
 /// Whether a member FIELD the initializer reads is assigned by any statement in

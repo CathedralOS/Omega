@@ -37,6 +37,13 @@ pub(crate) struct Lowerer {
     /// `statement::hoist_indexed_operands`). `__hoist_` prefixed so the
     /// generated names cannot collide with source identifiers.
     hoist_counter: u32,
+    /// Names of the CURRENT state's parameters declared as a shared reference
+    /// to a NAMED type (`table: &EfiSystemTable`). A member read through one
+    /// (`table.con_out`) must dereference the pointer slot; the flat fold reads
+    /// frame garbage (the entry-ref-param face). The guard/operand hoists use
+    /// this to materialize such reads into `let` temps, which lower through the
+    /// boot-verified pointee path. Overwritten at each state's lowering.
+    pub(crate) reference_struct_parameters: Vec<String>,
     /// Maps a match SUBJECT syntax expression handle to the name of the single
     /// hoisted temp for it. All arms of one enum-variant match share the same
     /// syntax subject handle (the parser reuses it across arms), so the first
@@ -53,6 +60,7 @@ impl Lowerer {
             symbol_resolved_trees: SymbolResolvedTrees::default(),
             sources,
             hoist_counter: 0,
+            reference_struct_parameters: Vec::new(),
             match_subject_temps: std::collections::HashMap::new(),
         }
     }

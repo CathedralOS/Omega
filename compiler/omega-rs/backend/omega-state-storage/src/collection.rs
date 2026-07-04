@@ -161,6 +161,8 @@ fn build_machine_state_storage_plan(
             match statement {
                 StatementNode::LocalData(local_data) => {
                     if !local_data_requires_storage(
+                        program,
+                        state,
                         &program.expression_table,
                         &program.statement_table,
                         statements,
@@ -302,6 +304,8 @@ fn state_has_initialized_locals_before(
 }
 
 fn local_data_requires_storage(
+    program: &CheckedTrees,
+    state: &omega_checked_trees::state::State,
     expressions: &omega_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
     statements: &[StatementNode],
@@ -312,6 +316,32 @@ fn local_data_requires_storage(
     uses_runtime_flow: bool,
 ) -> bool {
     if !initial_value.is_valid() {
+        return true;
+    }
+
+    // A local whose initializer reads a member THROUGH A SHARED-REFERENCE
+    // param (`let h = table.con_out` with `table: &EfiSystemTable`) exists to
+    // MATERIALIZE the dereference -- folding it back re-creates the flat
+    // frame-garbage read the let was minted to avoid (the entry-ref-param
+    // face; the guard/assignment hoists synthesize exactly this shape). Keep
+    // the slot whenever the local is referenced afterwards, in ANY position
+    // (including assignment values, which the liveness scan otherwise skips).
+    if initializer_is_reference_param_member(program, state, expressions, initial_value)
+        && statements
+            .iter()
+            .skip(local_statement_index + 1)
+            .any(|statement| {
+                statement_references_local(
+                    expressions,
+                    statement_table,
+                    statement,
+                    local_symbol,
+                    local_name,
+                    uses_runtime_flow,
+                ) || local_data_value_references_symbol(expressions, statement, local_symbol, local_name)
+                    || assignment_value_references_symbol(expressions, statement, local_symbol, local_name)
+            })
+    {
         return true;
     }
 
@@ -478,6 +508,56 @@ fn bare_name_initializer(
         ExpressionNode::Mutable(inner) => bare_name_initializer(expressions, *inner),
         _ => None,
     }
+}
+
+/// Whether an initializer is a member read through a SHARED reference-to-named
+/// parameter of `state` (`table.con_out` with `table: &EfiSystemTable`) --
+/// peeling `Mutable`. Such a local materializes a POINTEE dereference and must
+/// never be folded back to the member.
+fn initializer_is_reference_param_member(
+    program: &CheckedTrees,
+    state: &omega_checked_trees::state::State,
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            initializer_is_reference_param_member(program, state, expressions, *inner)
+        }
+        ExpressionNode::Member(member) => {
+            let ExpressionNode::Name(path) = expressions.expression(member.receiver) else {
+                return false;
+            };
+            let members = expressions.name_path_members(path.members);
+            let [only] = members else {
+                return false;
+            };
+            program.state_parameters(state).iter().any(|parameter| {
+                parameter.name.as_str() == only.as_str()
+                    && parameter_is_shared_named_reference(program, parameter.type_reference)
+            })
+        }
+        _ => false,
+    }
+}
+
+/// `&Named` (shared, non-slice) -- the pointer-slot param shape.
+fn parameter_is_shared_named_reference(
+    program: &CheckedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    let TypeReferenceNode::Reference {
+        is_mutable: false,
+        referee,
+        ..
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
+        return false;
+    };
+    matches!(
+        program.type_reference_table.type_reference(*referee),
+        TypeReferenceNode::Named { .. }
+    )
 }
 
 /// The index of the first statement after the local's declaration that ASSIGNS
