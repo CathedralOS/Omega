@@ -129,6 +129,10 @@ def run(src, zpair):
     if top is None:
         raise Out('no top-level expression')
     fuel = [FUEL]
+    vcs = []                               # SAFETY OBLIGATIONS: one kernel-checked claim per / and % site —
+                                           # iszero(divisor) reduces to 0, i.e. the kernel re-computes the
+                                           # divisor and confirms the division cannot trap (omega-rs's
+                                           # obligations.rs concept, discharged by the lattice's own anchor)
 
     def ev(e, env):
         fuel[0] -= 1
@@ -173,6 +177,7 @@ def run(src, zpair):
                 raise Out('division by zero')
             if a.n // b.n > 800:
                 raise Out('quotient exceeds the reduction wall')
+            vcs.append('(= (f 24 %s) (k 2)) (refl (k 2))' % b.t)   # div-by-zero VC: iszero(divisor) = 0
             return V(a.n // b.n, '(f 46 %s %s)' % (a.t, b.t))
         if h == '%':
             a, b = ev(e[1], env), ev(e[2], env)
@@ -182,6 +187,7 @@ def run(src, zpair):
                 raise Out('mod by zero')
             if a.n // b.n > 800:
                 raise Out('quotient exceeds the reduction wall')
+            vcs.append('(= (f 24 %s) (k 2)) (refl (k 2))' % b.t)   # mod-by-zero VC: iszero(divisor) = 0
             return V(a.n % b.n, '(f 49 %s %s)' % (a.t, b.t))
         if h in ('<', '<=', '==', '!=', 'eq', 'lt', 'le', 'ne'):    # comparisons decided concretely
             a, b = ev(e[1], env), ev(e[2], env)
@@ -254,6 +260,8 @@ def run(src, zpair):
     wrap = '(k 3 %s)' if user else '(s %s)'
     print('%d %s(= %s %s) (refl %s)' % (exit_code, pre, r.t, good, good))
     print('%s(= %s %s) (refl %s)' % (pre, r.t, wrap % good, wrap % good))   # off-by-one negative control
+    for vc in dict.fromkeys(vcs):          # lines 3+: the division-safety obligations, each kernel-checked
+        print('%s%s' % (pre, vc))
 
 
 if __name__ == '__main__':
