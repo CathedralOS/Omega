@@ -129,6 +129,8 @@ def proof(p, funs):
         return '(Inst %s %s)' % (proof(p[1], funs), term(p[2], funs))
     if p[0] == 'eqelim':                           # (eqelim motive pfeq pfpa)
         return '(Eqelim %s %s %s)' % (prop(p[1], funs), proof(p[2], funs), proof(p[3], funs))
+    if p[0] == 'natind':                           # (natind motive base step) -> Natind (built-in nat)
+        return '(Natind %s %s %s)' % (prop(p[1], funs), proof(p[2], funs), proof(p[3], funs))
     if p[0] == 'rec':                              # (rec cidA cidB motive base step) -> Rec + two Mkspec
         sa, sb = funs['#data'][p[1]], funs['#data'][p[2]]
         return '(Rec (Mkspec %d %d %d %d) (Mkspec %d %d %d %d) %s %s %s)' % (
