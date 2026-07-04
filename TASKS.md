@@ -876,6 +876,24 @@ Cost is a one-time transcription of each table struct's fields in spec order
 > sin/cos (numerical mini-project, must match interp); layouts-ladder remainder
 > (mint rung, Packed grammar, layout plan-walking deriver).
 >
+> **value-CALL-in-guard SILENT MISCOMPILE (#40) — still open; 3rd stopgap shape
+> ruled out 2026-07-04.** A scalar/bool USER value-call directly in a guard subject
+> (`transition self.dbl(5)==11`) silently takes the true arm (not materialized).
+> The full fix is deep (gated on effectful-subject evaluation semantics — a Zach
+> design call). A validator STOPGAP (silent->clean-error) was tried this tick in
+> omega-validation/calls.rs, resolving the callee via arithmetic_domains::
+> call_return_type (the PROVEN value-machine resolver; machine_symbols.state does
+> NOT resolve a value-MACHINE) + rejecting an integer/Bool return. It correctly
+> rejected the bug + allowed the workaround/builtins, but OVER-REJECTED 7 canaries:
+> KEY FINDING — the bug is only OBSERVABLE when the transition's arms DISCRIMINATE.
+> `runtime_{transition_subject,effectful_subject}_single_evaluation` put an effectful
+> bool value-call in a guard with BOTH arms -> the SAME target (testing single-
+> evaluation, not discrimination) and legitimately PASS. REVERTED (clean). Next
+> shape (do THIS): gate the rejection on true-arm target != false-arm target; also
+> explain why the VIEW canary runtime_nested_guarded_reference_returned_slice_
+> element_exit was rejected (views should be None-primitive/allowed). Memory
+> value-call-in-guard-always-true. Focused session, NOT a tick.
+>
 > **GENERICS / MONOMORPHIZATION -- phased plan (recon a87aee3d, 2026-07-04).**
 > Today: type-check-only. Stage-1 monomorphization (typed-trees-to-checked-trees/
 > monomorphization.rs) infers args at return/param position + substitutes IN
