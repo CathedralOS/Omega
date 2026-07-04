@@ -18,18 +18,23 @@
 //! type-check-only path (which handles single instantiations, generic enums,
 //! and domain-typed arguments today). So this never regresses a working
 //! program -- it only lifts the layout builder's one-slot POISON for the clean
-//! case (two `plain-record<plain-Named>` instantiations that previously
-//! collided). What it skips (later phases, or the pre-existing poison for a
-//! second such instantiation): generic ENUMS (`case` members), non-plain-Named
-//! arguments (`Box<i32 in Wrapping>`), and fields that NEST the parameter
-//! (`[T; N]`, `&T`, `Other<T>`). FIELD type position only, like plan_laid v0.
+//! case (two `plain-record<sluggable-arg>` instantiations that previously
+//! collided). Sluggable arguments are a plain concrete `Named` type OR a
+//! `Named` carrying only nameable domain constraints (`Box<i32 in Wrapping>`,
+//! `Store<u8 in Utf8>`) -- the substitution rides the argument's own type
+//! reference, so the domain follows the field for free. What it skips (later
+//! phases, or the pre-existing poison for a second such instantiation): generic
+//! ENUMS (`case` members), genuinely composite arguments (a nested generic,
+//! array, slice, reference, or a range-bounded type), and fields that NEST the
+//! parameter (`[T; N]`, `&T`, `Other<T>`). FIELD type position only, like
+//! plan_laid v0.
 
 use omega_core::arena::{Handle, HandleSpan};
 use omega_core::diagnostics::Diagnostic;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::item::{DataDefinition, DataMember, Item};
-use omega_syntax_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use omega_syntax_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use std::collections::HashMap;
 
 struct GenericData {
@@ -145,7 +150,8 @@ pub(crate) fn desugar_generic_data_instances(
             if argument_handles.len() != base_info.parameter_names.len() {
                 continue;
             }
-            let Some(argument_names) = plain_named_arguments(syntax, &argument_handles) else {
+            let Some(argument_names) = monomorphizable_argument_slugs(syntax, &argument_handles)
+            else {
                 continue;
             };
             if !base_is_fully_monomorphizable(syntax, base_info) {
@@ -215,19 +221,58 @@ pub(crate) fn desugar_generic_data_instances(
     Ok(())
 }
 
-/// The argument names when EVERY argument is a plain concrete `Named` type
-/// (the Phase-1 gate); `None` if any argument is composite/domain-typed.
-fn plain_named_arguments(
+/// A distinguishing slug for each argument -- the Phase-1 gate. `Some` when
+/// EVERY argument is either a plain concrete `Named` type or a `Named` carrying
+/// only nameable constraints (an arithmetic/carrier domain, `Box<i32 in
+/// Wrapping>` / `Store<u8 in Utf8>`); `None` if any argument is genuinely
+/// composite (a nested generic, array, slice, reference, or a range-bounded
+/// type whose bound is an expression). The slug is used only to name the
+/// synthetic record -- the SUBSTITUTION points the field at the argument's own
+/// type reference, so a domain constraint on the argument rides along
+/// unchanged. Distinct spellings must slug distinctly (`i32 in Wrapping` vs
+/// `i32 in Saturating`); identical spellings share one instance.
+fn monomorphizable_argument_slugs(
     syntax: &SyntaxTrees,
     argument_handles: &[TypeReferenceHandle],
 ) -> Option<Vec<String>> {
     argument_handles
         .iter()
-        .map(|&argument| match syntax.tables.type_references.type_reference(argument) {
-            TypeReferenceNode::Named(name) => Some(name.as_str().to_string()),
-            _ => None,
-        })
+        .map(|&argument| type_reference_slug(syntax, argument))
         .collect()
+}
+
+/// The naming slug for an argument type, or `None` for a shape Phase 1 leaves
+/// to the existing generic path. Plain `Named` and `Named in Domain...` only.
+fn type_reference_slug(syntax: &SyntaxTrees, handle: TypeReferenceHandle) -> Option<String> {
+    match syntax.tables.type_references.type_reference(handle) {
+        TypeReferenceNode::Named(name) => Some(name.as_str().to_string()),
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let base = type_reference_slug(syntax, *base_type)?;
+            let mut rendered = Vec::new();
+            for constraint in syntax.tables.type_references.constraints(*constraints) {
+                rendered.push(constraint_slug(constraint)?);
+            }
+            if rendered.is_empty() {
+                return Some(base);
+            }
+            Some(format!("{base} in {}", rendered.join(" + ")))
+        }
+        _ => None,
+    }
+}
+
+/// The naming slug for a constraint, or `None` for a range bound (an expression
+/// -- Phase 3). Only the nameable behaviour/domain tags slug here.
+fn constraint_slug(constraint: &TypeConstraintNode) -> Option<String> {
+    match constraint {
+        TypeConstraintNode::Named(name) => Some(name.as_str().to_string()),
+        TypeConstraintNode::Domain(name) => Some(name.as_str().to_string()),
+        TypeConstraintNode::ArithmeticDomain(domain) => Some(domain.name().to_string()),
+        TypeConstraintNode::Range { .. } => None,
+    }
 }
 
 /// Whether the base generic is a PLAIN RECORD each of whose fields is either

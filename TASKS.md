@@ -683,9 +683,15 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >     ordinary records, poison gone. PURELY ADDITIVE: skips generic enums,
 >     non-plain-Named args, param-nesting fields, and method-bearing generics
 >     (containers = Phase 2). Canary runtime_generic_two_instantiations_exit
->     (Box<i32>+Box<bool>). REMAINING Phase-1 polish: lift to param/let/return
->     type positions (FIELD-only today); domain-typed args (`Box<i32 in
->     Wrapping>` currently falls to the old single-slot path).
+>     (Box<i32>+Box<bool>). DOMAIN-ARG EXTENSION DONE: a `Named` carrying only
+>     nameable domain constraints (`Box<i32 in Wrapping>`, `Store<u8 in Utf8>`)
+>     now slugs distinctly (type_reference_slug/constraint_slug) so two
+>     domain-differing instances coexist; the substitution rides the argument's
+>     own type reference so the domain follows the field for free. Canary
+>     runtime_generic_domain_instantiations_exit (Box<i32 in Wrapping>+Box<u8 in
+>     Wrapping>, exit 42). REMAINING Phase-1 polish: lift to param/let/return
+>     type positions (FIELD-only today); genuinely composite args (nested
+>     generic / array / slice / reference / range-bounded) still fall through.
 >   - **Phase 2 -- generic MACHINES**: synthesize one Machine per instantiation
 >     (copy states, substitute T); value-call targets rewrite to the synthetic
 >     symbol; StateKey.machine carries it automatically; the fence becomes a
