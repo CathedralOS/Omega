@@ -428,6 +428,16 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     source. NOT a fire-tick edit; a focused backend pass.
 - u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
+- Same-type contained-machine METHOD-CALL aliasing is a SILENT miscompile,
+  re-confirmed on current code 2026-07-03: `a: Counter; b: Counter` +
+  `self.b.increment()` mutates `self.a` (dispatch resolves the receiver region by
+  TYPE via `machine_storage_offset`, losing which field). Single instance, first-
+  instance calls, and DIRECT field access all work; the sound direct-field
+  workaround is now locked by `calls/runtime_same_type_contained_direct_fields_exit`.
+  Real fix = thread the receiver field offset through dispatch (deep). A precise
+  frontend fence (error a method call on a non-first same-type field) is possible
+  but CHANGES LANGUAGE SURFACE (rejects currently-compiling code) -- needs a Zach
+  decision, not landed unilaterally. See memory `contained-machine-same-type-aliasing`.
 
 ## Cathedral first-boot ladder — the concrete freestanding consumer (2026-07-02)
 

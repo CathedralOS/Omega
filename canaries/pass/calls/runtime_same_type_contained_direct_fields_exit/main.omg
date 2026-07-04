@@ -1,0 +1,44 @@
+// The SOUND pattern for MULTIPLE contained machines of the SAME type: drive them
+// via DIRECT FIELD ACCESS (`self.a.value = ...`), not method calls. Direct access
+// resolves through the normal member/storage path and keeps each field's OWN
+// offset, so `a` and `b` are fully independent -- this canary locks that.
+//
+// (Contrast, tracked separately: a METHOD CALL on a same-type contained field
+// past the first -- `self.b.increment()` -- silently aliases to `self.a` because
+// the dispatch resolves the receiver region by TYPE, losing which field. Verified
+// still silent on current code 2026-07-03. Until the receiver field is threaded
+// through dispatch, direct field ops (this canary) or distinct types are the
+// sound workarounds.)
+//
+// a starts 3 then +10 = 13; b starts 1 then +20 = 21. Independent -> exit 70.
+// A regression that aliased them would corrupt one -> exit 71.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Counter {
+    value: i32 in Wrapping;
+}
+data Main {
+    console: Console;
+    a: Counter;
+    b: Counter;
+}
+machine Main::main(&mut self) {
+    self.a.value = 3;
+    self.b.value = 1;
+    self.a.value = self.a.value + 10;
+    self.b.value = self.b.value + 20;
+
+    transition self.a.value == 13 {
+        true -> check_b()
+        false -> bad()
+    }
+    state check_b(&mut self) {
+        transition self.b.value == 21 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
