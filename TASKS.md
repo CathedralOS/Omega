@@ -2764,6 +2764,19 @@ exit.
     aspirational. Real fix = emit the drop-machine call at the tracked state-exit
     point (reverse declaration order; skip on move-out per ch16's move-guard
     edges). See memory drop-bodies-not-executed.
+  - SIBLING (probe 2026-07-04): use-after-move is NOT rejected either. ch2 line 20
+    states "After a move, the old binding is no longer usable," but
+    `let g = Guard{..}; self.sink(move g); let x = g.handle;` COMPILES clean --
+    verified for both an all-scalar (Copy-eligible) type AND a LINEAR type (one
+    with a `drop` machine, which cannot be Copy). No fail canary covers it (only
+    ownership/assign_immutable_parameter). Same subsystem as drops: ownership is
+    frontend-MODELED (move mechanics work, drop obligations tracked) but
+    ENFORCEMENT is unimplemented. Memory-safe TODAY (value semantics + ZII +
+    drop-is-no-op ⇒ no double-free/dangling); both become real bugs under true
+    linear semantics. Real fix for this half = the move/borrow checker tracks
+    moved-out bindings and rejects subsequent reads. Fence-vs-implement is Zach's
+    call, same as drops. Treat "ownership enforcement" as ONE in-progress
+    subsystem; don't re-probe it expecting rejection.
 
 ### Array, Vec, String, And Views
 
