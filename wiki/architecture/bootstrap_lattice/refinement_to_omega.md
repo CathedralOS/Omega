@@ -71,3 +71,26 @@ shape with *its own trust story* — obligations discharged by certificates the 
 Everything above obeys the standing decisions: D1 (Rust exits by role), D2 (meaning by elaboration to
 gamma), D3 (trust via proofs + TV), D5 (diversity at every seam). The refinement pillar is the proof that
 the method scales; the ω climb is the same method against a bigger language.
+
+## The ∀-input climb (plan of record, 2026-07-05)
+
+Input-taking samples are proven per input vector (`input-tv.sh`, step 52: substitution closes the
+program). Making those claims universal hits a precise kernel wall: **user functions are primitive
+recursion with a FIXED extra argument**, but every translated input loop threads an UPDATING accumulator
+(`loop(Cons b t, n) = loop(t, n+1)`). The ∀-input theorems cannot even be *defined* kernel-side today.
+
+The capability that fixes it is small and sound: **`(recx i E)`** — a rule-body form recursing on field
+`i` with the extra argument replaced by the instantiated `E`. The scrutinee still decreases structurally
+(only the extra changes), so termination and consistency arguments carry over unchanged. Climb order,
+one seam per tick (D4):
+
+1. `check_ref.py` spike — DONE (inert: nothing emits recx; ground accumulator certs accept, wrong counts
+   reject; the anchor rejects the form until it learns it).
+2. `check.beta` learns recx (parser tag + instantiate branch) + a seam gate (recx defeq vs operational
+   eval over ground accumulator loops) + the checker diamonds re-run.
+3. `checker.gamma` (finst2 `Recx` node) + refcert_to_gamma translation, restoring the three-checker
+   diamond over recx certs.
+4. Proof assembly: the first ∀-input theorem (`∀xs ∀n: loop(xs, n) = uadd(len(xs), n)` for
+   stdin_checksum's count loop) via prover.py induction + the uadd-suc helper lemma.
+5. Automation: gamma2claim (or a sibling) emits the fun rules + spec + proof skeleton from the
+   translated gamma — grids become theorems.

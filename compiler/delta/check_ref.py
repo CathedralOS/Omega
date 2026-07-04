@@ -123,6 +123,9 @@ def instantiate(t, fid, fields, extra):                # substitute a rule body 
     if h == 'rec':                                     # (rec i) -> recursive call on field i
         f = fields[int(t[1])]
         return ['f', fid, f] if extra is None else ['f', fid, f, extra]
+    if h == 'recx':                                    # (recx i E) -> recursive call on field i with the
+        f = fields[int(t[1])]                          # extra REPLACED by E (accumulator recursion; still
+        return ['f', fid, f, instantiate(t[2], fid, fields, extra)]   # structurally decreasing on field i)
     if h == 'f':                                       # nested (f gid ...): keep gid, recurse args
         return ['f', t[1]] + [instantiate(a, fid, fields, extra) for a in t[2:]]
     if h == 'k':                                       # (k cid ...): keep cid, recurse args
