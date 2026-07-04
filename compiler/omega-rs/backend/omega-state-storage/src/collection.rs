@@ -162,6 +162,7 @@ fn build_machine_state_storage_plan(
                 StatementNode::LocalData(local_data) => {
                     if !local_data_requires_storage(
                         program,
+                        machine.boundary,
                         state,
                         &program.expression_table,
                         &program.statement_table,
@@ -305,6 +306,7 @@ fn state_has_initialized_locals_before(
 
 fn local_data_requires_storage(
     program: &CheckedTrees,
+    machine_is_boundary: bool,
     state: &omega_checked_trees::state::State,
     expressions: &omega_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
@@ -326,7 +328,8 @@ fn local_data_requires_storage(
     // face; the guard/assignment hoists synthesize exactly this shape). Keep
     // the slot whenever the local is referenced afterwards, in ANY position
     // (including assignment values, which the liveness scan otherwise skips).
-    if initializer_is_reference_param_member(program, state, expressions, initial_value)
+    if machine_is_boundary
+        && initializer_is_reference_param_member(program, state, expressions, initial_value)
         && statements
             .iter()
             .skip(local_statement_index + 1)

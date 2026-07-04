@@ -46,7 +46,14 @@ fn lower_state_parts(
     // into a `let` (the boot-verified pointee path). `&mut` params are
     // excluded -- their alias slots share the caller's storage and fold flat
     // correctly. Overwrites the previous state's list.
-    lowerer.reference_struct_parameters = reference_struct_parameter_names(lowerer, &parameters);
+    lowerer.reference_struct_parameters = if lowerer.current_machine_is_boundary {
+        reference_struct_parameter_names(lowerer, &parameters)
+    } else {
+        // Non-boundary `&Struct` params are call-site alias slots sharing the
+        // caller's storage -- their member reads fold correctly and must NOT
+        // be pointee-materialized.
+        Vec::new()
+    };
     let statements = lower_state_statements(lowerer, syntax_trees, statements)?;
     lowerer.reference_struct_parameters = Vec::new();
 

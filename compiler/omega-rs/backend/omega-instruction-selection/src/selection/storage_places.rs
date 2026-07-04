@@ -1829,7 +1829,36 @@ pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
     if slot.byte_size != input.runtime_abi.pointer_size {
         return None;
     }
+    // A SHARED `&Struct` slot is a REAL pointer only in a BOUNDARY machine
+    // (the entry hand-off vouches it). In a non-boundary machine a shared
+    // `&Struct` arg is spilled by CONTENT into the slot -- dereferencing it
+    // loads a field value as an address (probed 2026-07-04: `read(&self.inner)`
+    // then `r.b` as a binary operand segfaulted; the arg pass spills 8 content
+    // bytes while this arm treated them as a pointer). `&mut` slots stay
+    // pointee-resolvable everywhere -- a write must land in the CALLER's
+    // storage, so they hold genuine pointers (the alias-write canaries depend
+    // on it). Slice/carrier referees are {ptr,len} descriptors everywhere.
+    let slot_is_shared_reference = matches!(
+        &slot.type_descriptor,
+        omega_layout::TypeLayoutDescriptor::Reference {
+            is_mutable: false,
+            ..
+        }
+    );
     let pointee_descriptor = slot.type_descriptor.reference_referee()?;
+    if slot_is_shared_reference
+        && matches!(
+            pointee_descriptor,
+            omega_layout::TypeLayoutDescriptor::Named { .. }
+        )
+        && !input
+            .program
+            .machines()
+            .iter()
+            .any(|machine| machine.symbol == source_key.machine && machine.boundary)
+    {
+        return None;
+    }
     let pointee_layout = descriptor_layout(input, pointee_descriptor);
     let suffix = path.suffix(1);
     let (field_byte_offset, field_layout) = if path.len() <= 1 {

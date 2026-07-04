@@ -470,6 +470,21 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   call-arg substitution is correct). Canary targets/efi_ref_param_call_arg
   asserts deref + no flat @72 + the dispatch bytes. #37 is fully closed;
   556 canaries + samples + differential green.
+- FIXED 2026-07-04 (non-boundary shared `&Struct` param SEGFAULT, latent):
+  probing the first-ever runtime use of a shared `&Struct` param in a
+  NON-boundary machine (`read(&self.inner)`; the corpus never passed one)
+  found an ACCESS VIOLATION: the arg pass spills the pointee's CONTENT into
+  the param slot (flat member reads correct), but the m1-era pointee-source
+  arms treated the `&Named`-typed slot as a POINTER and dereferenced a field
+  value as an address. CONVENTION now enforced in the pointee resolver
+  (storage_places.rs): shared `&Named` slots deref ONLY in boundary machines
+  (the vouched entry hand-off); `&mut` slots deref everywhere (writes must
+  land in caller storage -- the alias-write canaries pinned this during the
+  fix); slices are {ptr,len} everywhere. The new frontend/storage/state-values
+  ref-param rules are likewise scoped to boundary machines. Run canary
+  calls/runtime_shared_ref_param_member_exit (exit 42, differential-covered --
+  the first &Struct-param run coverage). 557 canaries + samples + differential
+  green.
 - u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
 - FIXED 2026-07-03 (sum-type FIELD store payload offset): `self.tx =

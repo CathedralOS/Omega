@@ -71,6 +71,7 @@ fn binding_matches_path(binding: &Binding, path: &NamePath) -> bool {
 
 pub(super) fn simple_local_bindings(
     program: &CheckedTrees,
+    machine: &omega_checked_trees::machine::Machine,
     state: &State,
     statement_index: usize,
 ) -> Arena<Binding> {
@@ -121,12 +122,14 @@ pub(super) fn simple_local_bindings(
         // to avoid (the entry-ref-param face). Mirrors
         // `initializer_is_reference_param_member` in omega-state-storage's
         // collection.rs, which slots exactly this shape.
-        if initializer_is_reference_param_member(
-            program,
-            state,
-            &program.expression_table,
-            local_data.initial_value,
-        ) {
+        if machine.boundary
+            && initializer_is_reference_param_member(
+                program,
+                state,
+                &program.expression_table,
+                local_data.initial_value,
+            )
+        {
             continue;
         }
         let Some(value) = simple_local_binding_value_from_table(

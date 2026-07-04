@@ -58,7 +58,7 @@ pub fn simplify_state_expression_for_role(
     role: StateValueRole,
     expression: &Expression,
 ) -> Expression {
-    let bindings = simple_local_bindings(program, state, statement_index);
+    let bindings = simple_local_bindings(program, machine, state, statement_index);
     // Never fold a call-result local into its use site, for ANY role. The call's
     // result is materialized once into that local's own call-result slot at the `let`
     // statement; substituting the call expression into a later statement (e.g.

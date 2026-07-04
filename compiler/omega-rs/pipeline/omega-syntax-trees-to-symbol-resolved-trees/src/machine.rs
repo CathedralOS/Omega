@@ -14,7 +14,9 @@ pub(crate) fn lower_machine_into(
     syntax_trees: &SyntaxTrees,
     machine: &syntax::item::Machine,
 ) -> Result<(), Diagnostic> {
+    lowerer.current_machine_is_boundary = machine.boundary;
     let states = lower_machine_states(lowerer, syntax_trees, machine.states)?;
+    lowerer.current_machine_is_boundary = false;
     let type_parameters = lower_type_parameters(lowerer, syntax_trees, machine.type_parameters)?;
     let satisfies = lower_machine_trait_conformances(lowerer, syntax_trees, machine.satisfies);
     let decreases = lower_machine_decreases(lowerer, syntax_trees, machine.decreases)?;
