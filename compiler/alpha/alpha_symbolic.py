@@ -52,6 +52,14 @@ MN_CID = 6
 # machinery (delta +1/iteration, markers) handles the stream with no special-purpose recognizer.
 SV_CID = 7
 SSUM_CID = 8
+# COND/Bxx: CONDITIONAL terms — the meaning of a program that BRANCHES on data. ('cond', b, t, f) selects t
+# when b is true, rendered (k 9 b t f) (the kernel accepts arity-3 constructors); the boolean b is one of
+# ('blt'|'ble'|'beq'|'bne', L, R), rendered (k 10..13 L R). Comparisons evaluate over ℤ — sound because the
+# machine compares the 2^64-wrapped value SIGNED, which agrees with ℤ for |x| < 2^63 (inputs are bytes and
+# the fragment's arithmetic stays far below). Like every constructor family: kernel checks refl, meaning
+# lives in the two differentially-pinned evaluators.
+COND_CID = 9
+BOOL_CID = {'blt': 10, 'ble': 11, 'beq': 12, 'bne': 13}
 RDV = -8                               # the virtual slot holding the read position (no real slot is negative)
 
 def render(t):                         # -> check.beta / prover term syntax
@@ -64,6 +72,8 @@ def render(t):                         # -> check.beta / prover term syntax
     if h == 'mn': return '(k %d %s %s)' % (MN_CID, render(t[1]), render(t[2]))
     if h == 'sv': return '(k %d %s)' % (SV_CID, render(_term(t[1])))
     if h == 'ssum': return '(k %d %s %s)' % (SSUM_CID, render(_term(t[1])), render(_term(t[2])))
+    if h == 'cond': return '(k %d %s %s %s)' % (COND_CID, render(t[1]), render(_term(t[2])), render(_term(t[3])))
+    if h in BOOL_CID: return '(k %d %s %s)' % (BOOL_CID[h], render(_term(t[1])), render(_term(t[2])))
     return '(%s %s %s)' % (h, render(t[1]), render(t[2]))
 
 def evaluate(t, env):                  # concrete integer value (ℤ; the gate observes it mod 256)
@@ -75,6 +85,11 @@ def evaluate(t, env):                  # concrete integer value (ℤ; the gate o
     if h == 'mn': return max(0, evaluate(t[1], env) - evaluate(t[2], env))
     if h == 'sv': return env['in'][evaluate(_term(t[1]), env)]
     if h == 'ssum': return sum(env['in'][evaluate(_term(t[1]), env):evaluate(_term(t[2]), env)])
+    if h == 'cond': return evaluate(_term(t[2]), env) if evaluate(t[1], env) else evaluate(_term(t[3]), env)
+    if h == 'blt': return 1 if evaluate(_term(t[1]), env) < evaluate(_term(t[2]), env) else 0
+    if h == 'ble': return 1 if evaluate(_term(t[1]), env) <= evaluate(_term(t[2]), env) else 0
+    if h == 'beq': return 1 if evaluate(_term(t[1]), env) == evaluate(_term(t[2]), env) else 0
+    if h == 'bne': return 1 if evaluate(_term(t[1]), env) != evaluate(_term(t[2]), env) else 0
     if h == 'f':                       # a user-function recurrence; TRI_ID is the triangular sum g(n)=Σ_{j<n} j
         if t[1] != TRI_ID:
             raise Unsupported('unknown recurrence fun %d' % t[1])
@@ -308,7 +323,7 @@ def _mentions_slot(t):
     if isinstance(t, tuple):
         if t[0] == 'slot':
             return True
-        if t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn', 'sv', 'ssum'):
+        if t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn', 'sv', 'ssum', 'blt', 'ble', 'beq', 'bne', 'cond'):
             return any(_mentions_slot(x) for x in t[1:])
     return False
 
@@ -395,14 +410,14 @@ def _has_zz(t):                        # does a zz pair occur anywhere inside te
     if isinstance(t, tuple):
         if t[0] == 'zz':
             return True
-        if t[0] in ('s', 'p', 'm', 'f', 'mn'):
+        if t[0] in ('s', 'p', 'm', 'f', 'mn', 'blt', 'ble', 'beq', 'bne', 'cond'):
             return any(_has_zz(x) for x in t[1:])
     return False
 
 def _occurs(t, ph):                    # does the exact marker `ph` occur in term `t`?
     if t == ph:
         return True
-    return isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn', 'sv', 'ssum') and any(_occurs(x, ph) for x in t[1:])
+    return isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn', 'sv', 'ssum', 'blt', 'ble', 'beq', 'bne', 'cond') and any(_occurs(x, ph) for x in t[1:])
 
 def _subst_slots(t, MEM, invariant):   # ('slot', addr) -> MEM[addr] for loop-invariant addrs; recurse elsewhere
     if isinstance(t, tuple):
@@ -410,8 +425,8 @@ def _subst_slots(t, MEM, invariant):   # ('slot', addr) -> MEM[addr] for loop-in
             return MEM[t[1]] if t[1] in invariant else t
         if t[0] in ('s', 'sv'):
             return (t[0], _subst_slots(t[1], MEM, invariant))
-        if t[0] in ('p', 'm', 'zz', 'mn', 'ssum'):
-            return (t[0], _subst_slots(t[1], MEM, invariant), _subst_slots(t[2], MEM, invariant))
+        if t[0] in ('p', 'm', 'zz', 'mn', 'ssum', 'blt', 'ble', 'beq', 'bne', 'cond'):
+            return (t[0],) + tuple(_subst_slots(x, MEM, invariant) for x in t[1:])
         if t[0] == 'f':
             return ('f', t[1], _subst_slots(t[2], MEM, invariant))
     return t
@@ -432,7 +447,7 @@ def _scale2(coef, x):
 def _mentions_marked(t, marked):       # does term `t` mention any marker in the `marked` set?
     if t in marked:
         return True
-    if isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn', 'sv', 'ssum'):
+    if isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn', 'sv', 'ssum', 'blt', 'ble', 'beq', 'bne', 'cond'):
         return any(_mentions_marked(x, marked) for x in t[1:])
     return False
 
@@ -681,19 +696,21 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
     return exit_pc
 
 def symexec(tape):
-    """Symbolically execute a loop-free Alpha tape. Returns (output_term, n_inputs), where inputs are
-    (v 0)..(v n-1) in `read` order. Raises Unsupported on anything outside the loop-free, concrete-control,
-    non-negative-arithmetic fragment (symbolic branch/address/subtraction, div/mod, byte memory, real loops)."""
-    R = {}                             # register -> value (int | term) ; unset = concrete 0
-    MEM = {}                           # concrete word address -> value ; the data + return-address stacks
-    BMEM = {}                          # concrete BYTE address -> value ; the byte[..] intrinsic's memory
+    """Symbolically execute an Alpha tape. Returns (output_term, n_inputs), where inputs are (v 0)..(v n-1)
+    in `read` order (plus stream elements past a read-loop). Raises Unsupported on anything outside the
+    modelled fragment. Data-dependent LOOPS summarize; data-dependent BRANCHES fork into conditional terms."""
+    ncell = [0]
+    out = _exec(tape, _back_edges(tape), 0, {}, {}, {}, 0x04000000, ncell, 0)
+    return out, ncell[0]
+
+def _exec(tape, backedges, pc, R, MEM, BMEM, sp, ncell, fork_depth):
+    """Run from pc to halt/write; return the RESULT term. A symbolic branch that is not a summarizable loop
+    FORKS: both paths run to completion on copied state and the result is (cond b then else) — no join
+    detection. Reads on each path number consecutively from the fork point, matching the machine's actual
+    per-path read order; the arity cell tracks the max across paths."""
     def reg(i):
         return R.get(i, 0)
-    sp = 0x04000000                    # the machine's call-stack pointer (return addresses); grows down
-    pc = 0
-    n_inputs = 0
     steps = 0
-    backedges = _back_edges(tape)
     def imm8(at):
         return int.from_bytes(tape[at:at + 8], 'little')
 
@@ -705,9 +722,9 @@ def symexec(tape):
             raise Unsupported('step budget exceeded (a data-independent loop?)')
         op = tape[pc]
         if op == 0x00:                                   # halt d
-            return _term(reg(tape[pc + 1])), n_inputs
+            return _term(reg(tape[pc + 1]))
         elif op == 0x12:                                 # write s -> the program's output
-            return _term(reg(tape[pc + 1])), n_inputs
+            return _term(reg(tape[pc + 1]))
         elif op == 0x01:                                 # imm d, k
             R[tape[pc + 1]] = imm8(pc + 2); pc += 10
         elif op == 0x02:                                 # mov d, s
@@ -757,8 +774,13 @@ def symexec(tape):
                 else:
                     exit_pc, cont_pc = pc + 10, imm8(pc + 2)
                 nxt = summarize(c, cont_pc, exit_pc)
-                if nxt is None:
-                    raise Unsupported('loop not in the summarizable linear class')
+                if nxt is None:                          # not a summarizable loop: FORK on the branch.
+                    if fork_depth >= 8:                  # cont_pc is the guard-TRUE edge, exit_pc the false
+                        raise Unsupported('too many data-dependent branches')
+                    b = ({'lt': 'blt', 'le': 'ble', 'eq': 'beq', 'ne': 'bne'}[c[1]], _term(c[2]), _term(c[3]))
+                    tv = _exec(tape, backedges, cont_pc, dict(R), dict(MEM), dict(BMEM), sp, ncell, fork_depth + 1)
+                    fv = _exec(tape, backedges, exit_pc, dict(R), dict(MEM), dict(BMEM), sp, ncell, fork_depth + 1)
+                    return ('cond', b, _term(tv), _term(fv))
                 pc = nxt
             else:
                 c = _concrete(c, 'branch on symbolic value')
@@ -786,7 +808,7 @@ def symexec(tape):
             cur = MEM.get(RDV, 0)                        # position is concrete; a stream element (k 7 pos)
             if isinstance(cur, int):                     # after a read-loop has made the position symbolic
                 R[tape[pc + 1]] = ('v', cur); MEM[RDV] = cur + 1
-                n_inputs = max(n_inputs, cur + 1)
+                ncell[0] = max(ncell[0], cur + 1)
             else:
                 R[tape[pc + 1]] = ('sv', cur); MEM[RDV] = _add(cur, 1)
             pc += 2

@@ -56,6 +56,14 @@ MN_CID = 6
 # zz/monus these are plain constructors to the kernel; their meaning lives in the pinned evaluators.
 SV_CID = 7
 SSUM_CID = 8
+# COND/Bxx: CONDITIONAL terms — the meaning of a program that BRANCHES on data. ('cond', b, t, f) selects t
+# when b is true, rendered (k 9 b t f) (the kernel accepts arity-3 constructors); the boolean b is one of
+# ('blt'|'ble'|'beq'|'bne', L, R), rendered (k 10..13 L R). Comparisons evaluate over ℤ — sound because the
+# machine compares the 2^64-wrapped value SIGNED, which agrees with ℤ for |x| < 2^63 (inputs are bytes and
+# the fragment's arithmetic stays far below). Like every constructor family: kernel checks refl, meaning
+# lives in the two differentially-pinned evaluators.
+COND_CID = 9
+BOOL_CID = {'blt': 10, 'ble': 11, 'beq': 12, 'bne': 13}
 
 def render(t):
     h = t[0]
@@ -67,6 +75,8 @@ def render(t):
     if h == 'mn': return '(k %d %s %s)' % (MN_CID, render(t[1]), render(t[2]))
     if h == 'sv': return '(k %d %s)' % (SV_CID, render(_term(t[1])))
     if h == 'ssum': return '(k %d %s %s)' % (SSUM_CID, render(_term(t[1])), render(_term(t[2])))
+    if h == 'cond': return '(k %d %s %s %s)' % (COND_CID, render(t[1]), render(_term(t[2])), render(_term(t[3])))
+    if h in BOOL_CID: return '(k %d %s %s)' % (BOOL_CID[h], render(_term(t[1])), render(_term(t[2])))
     return '(%s %s %s)' % (h, render(t[1]), render(t[2]))
 
 def evaluate(t, env):                  # concrete value under {var_index: int} (ℤ; the gate observes it mod 256)
@@ -78,6 +88,11 @@ def evaluate(t, env):                  # concrete value under {var_index: int} (
     if h == 'mn': return max(0, evaluate(t[1], env) - evaluate(t[2], env))
     if h == 'sv': return env['in'][evaluate(_term(t[1]), env)]
     if h == 'ssum': return sum(env['in'][evaluate(_term(t[1]), env):evaluate(_term(t[2]), env)])
+    if h == 'cond': return evaluate(_term(t[2]), env) if evaluate(t[1], env) else evaluate(_term(t[3]), env)
+    if h == 'blt': return 1 if evaluate(_term(t[1]), env) < evaluate(_term(t[2]), env) else 0
+    if h == 'ble': return 1 if evaluate(_term(t[1]), env) <= evaluate(_term(t[2]), env) else 0
+    if h == 'beq': return 1 if evaluate(_term(t[1]), env) == evaluate(_term(t[2]), env) else 0
+    if h == 'bne': return 1 if evaluate(_term(t[1]), env) != evaluate(_term(t[2]), env) else 0
     if h == 'f':                       # a user-function recurrence; TRI_ID is the triangular sum g(n)=Σ_{j<n} j
         if t[1] != TRI_ID:
             raise Unsupported('unknown recurrence fun %d' % t[1])
@@ -218,7 +233,7 @@ def _mentions(t, ph):                  # does the placeholder `ph` occur in term
         return True
     if isinstance(t, tuple) and t[0] == 'f':
         return _mentions(t[2], ph)
-    return isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'zz', 'mn', 'sv', 'ssum') and any(_mentions(x, ph) for x in t[1:])
+    return isinstance(t, tuple) and t[0] in ('s', 'p', 'm', 'zz', 'mn', 'sv', 'ssum', 'blt', 'ble', 'beq', 'bne', 'cond') and any(_mentions(x, ph) for x in t[1:])
 
 def _peel(expr, ph):
     """expr = an additive spine containing ph -> the spine with ph removed (the per-iteration delta,
@@ -268,7 +283,7 @@ def _mentions_loopvar(t, names):       # does term `t` mention any ('loopvar', v
             return t[1] in names
         if t[0] == 'f':
             return _mentions_loopvar(t[2], names)
-        if t[0] in ('s', 'p', 'm', 'zz', 'mn', 'sv', 'ssum'):
+        if t[0] in ('s', 'p', 'm', 'zz', 'mn', 'sv', 'ssum', 'blt', 'ble', 'beq', 'bne', 'cond'):
             return any(_mentions_loopvar(x, names) for x in t[1:])
     return False
 
@@ -278,8 +293,8 @@ def _subst_loopvars(t, entry, invariant):   # ('loopvar', v) -> entry value for 
             return entry[t[1]] if t[1] in invariant else t
         if t[0] in ('s', 'sv'):
             return (t[0], _subst_loopvars(t[1], entry, invariant))
-        if t[0] in ('p', 'm', 'zz', 'mn', 'ssum'):
-            return (t[0], _subst_loopvars(t[1], entry, invariant), _subst_loopvars(t[2], entry, invariant))
+        if t[0] in ('p', 'm', 'zz', 'mn', 'ssum', 'blt', 'ble', 'beq', 'bne', 'cond'):
+            return (t[0],) + tuple(_subst_loopvars(x, entry, invariant) for x in t[1:])
         if t[0] == 'f':
             return ('f', t[1], _subst_loopvars(t[2], entry, invariant))
     return t
@@ -367,7 +382,7 @@ def _has_zz(t):                        # does a zz pair occur anywhere inside te
     if isinstance(t, tuple):
         if t[0] == 'zz':
             return True
-        if t[0] in ('s', 'p', 'm', 'f', 'mn'):
+        if t[0] in ('s', 'p', 'm', 'f', 'mn', 'blt', 'ble', 'beq', 'bne', 'cond'):
             return any(_has_zz(x) for x in t[1:])
     return False
 
@@ -666,10 +681,29 @@ class SymInterp:
                 labels[s[1]] = len(blocks); blocks.append(s[2])
             else:
                 blocks[0].append(s)
-        pc = 0
+        return self._walk(0, 0, env, blocks, labels)
+
+    def _boolterm(self, e, env):
+        """A comparison expression as a boolean TERM (blt/ble/beq/bne over evaluated sides), with the >/>=
+        spellings normalized by the swap bc's codegen performs."""
+        if e[0] != 'bin' or e[1] not in ('<', '<=', '>', '>=', '==', '!='):
+            raise Unsupported('branch on a non-comparison symbolic value')
+        op, l, r = e[1], self.ev(e[2], env), self.ev(e[3], env)
+        if op in ('>', '>='):
+            op, l, r = {'>': '<', '>=': '<='}[op], r, l
+        return ({'<': 'blt', '<=': 'ble', '==': 'beq', '!=': 'bne'}[op], _term(l), _term(r))
+
+    def _walk(self, pc, si, env, blocks, labels):
+        """Execute blocks from (block pc, statement index si) to completion; return the RESULT value. A goto
+        on a symbolic non-loop guard FORKS: both paths run to completion and the result is the conditional
+        term (cond b then else) — no join detection needed. Path state (env, the read position, byte memory)
+        is copied per path; a fork inside a callee is independent. Fork depth is capped."""
         while pc < len(blocks):
+            stmts = blocks[pc]
+            i, si = si, 0
             jumped = False
-            for st in blocks[pc]:
+            while i < len(stmts):
+                st = stmts[i]; i += 1
                 self.steps += 1
                 if self.steps > 2_000_000:
                     raise Unsupported('step budget (a data-independent loop?)')
@@ -691,15 +725,23 @@ class SymInterp:
                     if st[2] is not None:
                         try:
                             take = _concrete(self.ev(st[2], env), 'branch on symbolic value') != 0
-                        except Unsupported:            # symbolic guard: try to summarize a data-dependent loop
+                        except Unsupported:            # symbolic guard: a data-dependent LOOP summarizes;
                             if self._summarize_loop(pc, st[1], st[2], env, blocks, labels):
-                                take = False           # loop replaced by its closed form; fall to the exit
+                                take = False           # anything else FORKS into a conditional term
                             else:
-                                raise
+                                self._forks = getattr(self, '_forks', 0) + 1
+                                if self._forks > 8:
+                                    raise Unsupported('too many data-dependent branches')
+                                b = self._boolterm(st[2], env)
+                                rd, bm = self.rdpos, dict(self.bytemem)
+                                tv = self._walk(labels[st[1]], 0, dict(env), blocks, labels)
+                                self.rdpos, self.bytemem = rd, bm
+                                fv = self._walk(pc, i, dict(env), blocks, labels)
+                                return ('cond', b, _term(tv), _term(fv))
                     if take:
                         pc = labels[st[1]]; jumped = True; break
                 else:
-                    raise Unsupported('statement form %s' % k)   # memset/emit not modelled yet
+                    raise Unsupported('statement form %s' % k)   # emit not modelled yet
             if not jumped:
                 pc += 1
         return 0
