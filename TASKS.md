@@ -2846,18 +2846,20 @@ exit.
   out-of-range domained constant. SEMANTIC Q for Zach already flagged in memory
   (target-domain fallback vs operand-driven purity; clamp-vs-error for an
   out-of-range literal store).
-- [ ] ORACLE + FOLDER f32 precision (probe 2026-07-04): f32 arithmetic is computed
-  in f64 by BOTH the interpreter (`Value::Float(f64)`, `eval_float_binary` has no
-  result type → never rounds) AND the host const-folder. Native SSE is the only
-  one that rounds to f32. RUNTIME repro: `a=16777216f32; a=a+1; a=a+1` → native
-  `a==16777216` (correct, exit 70), interp `a==16777218` (WRONG f64, exit 72).
-  FOLDED `let x:f32 = 16777216.0+1.0+1.0` is also wrong natively (folder does f64).
-  Same metadata-free-value root as the const-fold class above (values/constants
-  carry no width). Consequence: f32 differentials are UNRELIABLE — a native-vs-
-  interp f32 gap likely means the INTERPRETER is wrong, not native. FIX = f32
-  width tracking (split `Value::Float`, or thread the binary result type into
-  `eval_binary` and round) + folder rounds folded f32 ops. Parked repro
-  `canaries/pending/arithmetic/f32_arithmetic_computed_in_f64`; memory
+- [~] ORACLE f32 store rounding — PARTLY FIXED 2026-07-04. The interpreter now
+  rounds a `Value::Float` to f32 at BOTH stores (Assignment + LocalData in
+  evaluator.rs) when the target primitive is F32, mirroring the integer
+  `apply_arithmetic_domain` width wrap. This kills the FIELD-ACCUMULATION
+  divergence: `a:f32; a=a+1; a=a+1` past 2^24 now plateaus at 16777216 in native
+  AND interp (was interp 16777218). Locked by canary
+  `arithmetic/f32_field_store_rounding` (run + differential, registered in
+  canary_suite AND interpreter RUN_CANARIES). Full suite + interp differential
+  green. REMAINING (still open): a fully-inline `let x:f32 = 16777216.0+1.0+1.0`
+  yields 16777218 — the host const-FOLDER folds the whole expression in f64 before
+  the store rounds, losing intermediate f32 rounding. Native + interp now AGREE
+  (no divergence — oracle reliable again) but both are imprecise vs true f32.
+  Fully fixing needs per-OP f32 rounding, which needs the binary op's result type
+  (same metadata-on-values gap as the integer const-fold class). Memory
   `float-f32-computed-in-f64`.
 - [ ] Native-emission gap (surfaced 2026-07-04, CLEAN error — interp supports it):
   a state that CALLS another machine whose ENTRY is a branching (dispatching)

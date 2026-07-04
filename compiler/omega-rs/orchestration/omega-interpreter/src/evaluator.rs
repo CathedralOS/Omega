@@ -892,6 +892,22 @@ impl<'program> Evaluator<'program> {
                         }
                         None => value,
                     }
+                } else if let Value::Float(f) = value {
+                    // Round to the target field's float WIDTH: an f32 field rounds
+                    // each stored result to f32, matching the native truncating
+                    // store (SSE keeps f32 in the field). Without this the
+                    // interpreter keeps f64 and over-accumulates precision -- an
+                    // `f32` field stepped by `+ 1.0` past 2^24 would never plateau,
+                    // diverging from native. Mirrors the LocalData store below.
+                    let target_type =
+                        self.assignment_target_type_reference(assignment.target, frame);
+                    let target_primitive =
+                        target_type.and_then(|tr| self.program.primitive_type_reference(tr));
+                    if matches!(target_primitive, Some(PrimitiveType::F32)) {
+                        Value::Float(f as f32 as f64)
+                    } else {
+                        value
+                    }
                 } else {
                     value
                 };
@@ -971,6 +987,14 @@ impl<'program> Evaluator<'program> {
                             .program
                             .arithmetic_domain_for_type_reference(local.type_reference);
                         Value::Int(apply_arithmetic_domain(*raw, primitive, domain)?)
+                    }
+                    (Value::Float(f), Some(PrimitiveType::F32)) => {
+                        // An f32 local rounds its stored value to f32 -- mirrors
+                        // the Assignment store above and the native f32 store. (A
+                        // fully-inline multi-op initializer is still evaluated in
+                        // f64 before this final round; per-op f32 rounding needs
+                        // the binary op's result type -- see TASKS.)
+                        Value::Float(*f as f32 as f64)
                     }
                     _ => value,
                 };

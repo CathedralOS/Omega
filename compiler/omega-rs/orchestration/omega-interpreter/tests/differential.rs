@@ -57,6 +57,9 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_payload_range_narrowing_exit", 70),
     ("arithmetic/runtime_provable_field_construction_exit", 70),
     ("arithmetic/runtime_signed_division_exit", 70),
+    ("arithmetic/runtime_shift_right_signedness", 70),
+    ("arithmetic/const_fold_cast_signedness", 70),
+    ("arithmetic/f32_field_store_rounding", 70),
     ("arithmetic/runtime_struct_field_range_narrowing_exit", 70),
     (
         "arithmetic/runtime_transition_arg_false_arm_narrowing_exit",
@@ -121,6 +124,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         70,
     ),
     ("control_flow/case_payload_shared_field_name_exit", 70),
+    ("control_flow/sum_mixed_width_payload_layout", 70),
     ("control_flow/runtime_linear_search_early_exit", 70),
     ("control_flow/runtime_entry_return_field_exit", 200),
     ("control_flow/runtime_multi_field_payload_arith_exit", 70),
