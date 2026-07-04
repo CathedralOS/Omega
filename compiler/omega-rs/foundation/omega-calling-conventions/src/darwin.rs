@@ -4,16 +4,17 @@ use crate::{
 };
 
 pub(crate) fn populate(plan: &mut HostAbiPlan) {
+    let policy: std::sync::Arc<str> = "omega::host::targets::darwin".into();
     plan.boundary_policies.insert(HostBoundaryPolicy {
-        path: "omega::host::targets::darwin".into(),
+        path: std::sync::Arc::clone(&policy),
         checked: true,
     });
 
     plan.bindings.insert_many([
-        darwin_import("Stdin", "read", "_read"),
-        darwin_import("Stdout", "write", "_write"),
-        darwin_import("Stderr", "write", "_write"),
-        darwin_import("Process", "exit", "_exit"),
+        darwin_import("Stdin", "read", "_read", &policy),
+        darwin_import("Stdout", "write", "_write", &policy),
+        darwin_import("Stderr", "write", "_write", &policy),
+        darwin_import("Process", "exit", "_exit", &policy),
     ]);
 
     insert_platform_lowering(
@@ -68,13 +69,18 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
     );
 }
 
-fn darwin_import(capability: &str, operation: &str, symbol: &str) -> HostBinding {
+fn darwin_import(
+    capability: &str,
+    operation: &str,
+    symbol: &str,
+    policy: &std::sync::Arc<str>,
+) -> HostBinding {
     HostBinding {
         operation_key: crate::HostOperationKey::from_names(capability, operation),
         mechanism: HostBindingMechanism::Import {
             library: "libSystem.B.dylib".into(),
             symbol: symbol.into(),
         },
-        boundary_policy: "omega::host::targets::darwin".into(),
+        boundary_policy: std::sync::Arc::clone(policy),
     }
 }
