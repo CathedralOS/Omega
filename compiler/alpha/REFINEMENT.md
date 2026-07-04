@@ -203,11 +203,24 @@ exactly the read position's own series closure. An accumulator consuming only *s
 would be a **strided** sum and refuses. Reads under down-counters work (the Σ is direction-independent);
 counter-dependent rests under a down-counter refuse.
 
+### Branching on data (conditional terms)
+
+An if-diamond on a symbolic guard **forks**: both paths run to completion on copied state (env / registers /
+memory / the read position) — no join detection — and the meaning is the conditional term
+`(k 9 b then else)` with the boolean `b` one of `(k 10..13 L R)` (`<`, `<=`, `==`, `!=`; `>`/`>=` normalize
+by the same swap bc's codegen performs). `absdiff` certifies as `if a<b then b−a else a−b` with ℤ pairs in
+both arms; forks nest (`max(a, max(b, c))`), capped at depth 8. Booleans compare over ℤ — sound because the
+machine compares the wrapped value *signed*, which agrees with ℤ for |x| < 2⁶³. Reads taken on a path number
+consecutively from the fork point, matching the machine's per-path read order. Loops keep priority
+(summarize first, fork only when the guard isn't a summarizable loop); branches *inside* loop bodies still
+refuse (conditional deltas — the next slice of this mountain).
+
 **Deliberately out of scope** (each conservatively *refused* — never mis-summarized): scaling recurrences
 (`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`, tetrahedral `Σg`);
 ℤ-pair or monus counter *start values*; `word[..]` memory; quadratic streams (`read·read`); strided stream
 sums (one-of-many reads); buffer writes at symbolic addresses; stale reads of rewrite slots; returns inside
-loop bodies.
+loop bodies; branches inside loop bodies (conditional deltas); comparisons stored as VALUES (`let b = (x<y)`
+outside a guard).
 
 ## How data-dependent loops are summarized (the interesting part)
 
