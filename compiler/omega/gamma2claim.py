@@ -9,9 +9,14 @@
 # is accepted by delta/check.beta only if the kernel's own CONVERSION re-computes the entire arithmetic of
 # the sample and reaches the same exit. Control (if / match arms, call targets) is decided by the encoder —
 # the same trust shape as tv-encode.py's unrolled loops: a bad decision mis-states the meaning and the claim
-# simply fails against the independently-run interpreter exit. Scope (slice 1): the `+`/`*` fragment —
-# literals, let, def calls (recursion bounded by fuel), if, match on Pair/bare-constructor values. Samples
-# using `-` are outside the fragment and reported as such (exit 2).
+# simply fails against the independently-run interpreter exit. Scope (grown far past slice 1): the full
+# arithmetic/comparison/logic set incl. shifts-as-mul/div, arrays and record arrays (Cons spines / Pair
+# tuples), slices (nth/drop/take/len), case data (tags + Pair payloads), value calls and machine tail
+# calls, strings, and dual-channel (Pair exit stdout) results. Anything outside REFUSES (exit 2).
+#
+# OBLIGATIONS (lines 3+, all kernel-checked): division safety, array bounds, arithmetic witnesses (value
+# pins + literal certificates inside the measured reduction envelope), domain-erasure no-underflow
+# witnesses, and boundary-range byte witnesses for every value crossing the process boundary.
 #
 # STRUCTURAL RESULTS: a sample whose final value is a constructor tree (e.g. cli_mvp's output char list)
 # gets a structural claim instead — left side the tree with each leaf's COMPUTED term, right side the
@@ -222,6 +227,19 @@ def run(src, zpair, binary=False):
     CHUNK = 400                            # matched to the TIGHTEST diamond leg (checker.gamma-on-interp
     DIRECT_MUL = 400                       # ~400 unfolds; check.beta alone handles ~2000) so every cert
                                            # is decidable by ALL three checkers, not just the anchor
+
+    def boundary_vc(n):                    # BOUNDARY-RANGE OBLIGATION (omega-rs boundary.rs's concept):
+        if n < 0 or n > 255:               # a value crossing the process boundary (exit code, stdout
+            raise Out('boundary value %d outside the byte range' % n)   # byte) must BE a byte. The
+        d = 255 - n                        # kernel checks n + (255-n) = 255 — an addition witness that
+        if binary:                         # works uniformly in every mode (kernel p, user f 21, bin f 81)
+            vcs.append('(= (f 81 %s %s) %s) (refl %s)'
+                       % (bin_lit(min(n, d)), bin_lit(max(n, d)), bin_lit(255), bin_lit(255)))
+        elif user:
+            vcs.append('(= (f 21 %s %s) %s) (refl %s)'
+                       % (unat(min(n, d)), unat(max(n, d)), unat(255), unat(255)))
+        else:
+            vcs.append('(= (p %s %s) %s) (refl %s)' % (nat(n), nat(d), nat(255), nat(255)))
 
     def pin(v):                            # kernel re-computes v's expression: (= v.t literal)
         litv = lit(v.n)
@@ -495,6 +513,19 @@ def run(src, zpair, binary=False):
         # dual-channel results: (Pair <exit> <stdout>) reports the exit component as the exit code (the
         # interpreter exits 0 for any constructor value; the gate parses the same pair from its stdout)
         sexit = r[1].n & 0xFF if (r[0] == 'Pair' and len(r) == 3 and isinstance(r[1], V)) else 0
+        if r[0] == 'Pair' and len(r) == 3 and isinstance(r[1], V):
+            boundary_vc(r[1].n)            # the exit component crosses the boundary...
+            seen_bytes = set()
+
+            def bwalk(v):                  # ...and so does every stdout byte in the output list
+                if isinstance(v, V):
+                    if v.n not in seen_bytes:
+                        seen_bytes.add(v.n)
+                        boundary_vc(v.n)
+                elif isinstance(v, tuple):
+                    for x in v[1:]:
+                        bwalk(x)
+            bwalk(r[2])
         print('%d %s%s (= %s %s) (refl %s)' % (sexit, pre, decls, lhs, rhs, rhs))
         print('%s%s (data %d 0 0 0) (= %s (k %d)) (refl (k %d))' % (pre, decls, badcid, lhs, badcid, badcid))
         for vc in dict.fromkeys(vcs):
@@ -504,6 +535,7 @@ def run(src, zpair, binary=False):
     if zpair:                              # claim P = uadd(exit, N): verifies pos - neg = exit in ℤ
         if not (0 <= r.n <= 255):
             raise Out('final ℤ value %d not a plain exit byte' % r.n)
+        boundary_vc(r.n)
         rhs = '(f 21 %s %s)' % (unat(r.n), r.nt)
         bad = '(f 21 %s %s)' % (unat(r.n + 1), r.nt)
         print('%d %s (= %s %s) (refl %s)' % (r.n, USER_PRELUDE, r.t, rhs, rhs))
@@ -511,6 +543,7 @@ def run(src, zpair, binary=False):
         for vc in dict.fromkeys(vcs):      # lines 3+: safety obligations (array bounds in zpair mode)
             print('%s %s' % (USER_PRELUDE, vc))
         return
+    boundary_vc(r.n)                       # the exit code crosses the boundary: it must be a byte
     exit_code = r.n & 0xFF
     good = lit(r.n)
     bad = lit(r.n + 1)                     # the off-by-one negative control, in the mode's encoding
