@@ -893,6 +893,18 @@ Cost is a one-time transcription of each table struct's fields in spec order
 > explain why the VIEW canary runtime_nested_guarded_reference_returned_slice_
 > element_exit was rejected (views should be None-primitive/allowed). Memory
 > value-call-in-guard-always-true. Focused session, NOT a tick.
+> CLOSED 2026-07-04b: the view canary is a DISCRIMINATING bool value-call guard
+> (`self.should_enter()==true { true->enter _->skip }`) that passes COINCIDENTALLY
+> (should_enter returns true, so always-true agrees with intended-true). A value-call
+> guard designed to be TRUE passes under both correct + buggy emission -- so the
+> corpus is full of coincidentally-passing discriminating value-call guards (BOTH
+> dungeon binaries included). Therefore ANY sound stopgap forces rewriting all of
+> them to bind-to-local, incl. the flagship dungeon -- a POLICY decision (is a
+> coincidentally-correct value-call guard an error?) + an invasive migration, not an
+> autonomous tick. SURFACE TO ZACH: "should a scalar/bool value-call directly in a
+> guard subject be a hard error until the backend materializes it?" If yes = a
+> mechanical validator gate + corpus sweep; if no = the silent miscompile waits for
+> the deep effectful-semantics fix. Stop re-attempting the stopgap solo.
 >
 > **GENERICS / MONOMORPHIZATION -- phased plan (recon a87aee3d, 2026-07-04).**
 > Today: type-check-only. Stage-1 monomorphization (typed-trees-to-checked-trees/
