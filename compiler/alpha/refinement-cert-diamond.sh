@@ -19,6 +19,9 @@ ASM=../beta/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 ../beta-lang-rs/build/bc.exe < ../delta/check.beta > "$T/c.asm" 2>/dev/null && "$ASM" < "$T/c.asm" > "$T/c.tape" 2>/dev/null \
   && stamp_seed "$T/c.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1 || { echo "check.beta build failed"; exit 1; }
+../beta-lang-rs/build/bc.exe < ../gamma/interp.beta > "$T/i.asm" 2>/dev/null && "$ASM" < "$T/i.asm" > "$T/i.tape" 2>/dev/null \
+  && stamp_seed "$T/i.tape" "$SEED" "$T/interp.exe" >/dev/null 2>&1 || { echo "interp.beta build failed"; exit 1; }
+DEFS=$(cat ../gamma/checker.gamma)
 
 mkdir "$T/certs"
 # run the gate over the curated samples only (fuzz 0) with cert emission; its own pass/fail still applies
@@ -26,13 +29,20 @@ REFINE_CERT_DIR="$T/certs" REFINE_FUZZ=0 REFINE_LOOP_FUZZ=0 REFINE_COMPOSE_FUZZ=
   python3 alpha_refinement_check.py "$T/check.exe" "$(pwd)/../beta-lang-rs/build/bc.exe" "$(pwd)/$ASM" >/dev/null \
   || { echo "refinement gate failed during cert emission"; exit 1; }
 
-PASS=0; FAIL=0
+PASS=0; FAIL=0; GPASS=0; GFAIL=0
 for c in "$T"/certs/cert-*.beta; do
   [ -f "$c" ] || continue
   expect=$(basename "$c" .beta | sed 's/.*-//')
   got=$(python3 ../delta/check_ref.py < "$c" 2>/dev/null || echo error)
   if [ "$got" = "$expect" ]; then PASS=$((PASS+1))
   else FAIL=$((FAIL+1)); echo "  FAIL $(basename "$c") : check.beta=$expect check_ref.py=$got"; fi
+  # THIRD leg: checker.gamma — the cert translated to its (check ..) syntax ((k ..) terms become the CURRIED
+  # constructor encoding (Apply.. (Con cid) ..); (fun ..) rules are inlined at each (f ..) site as Fapp).
+  gexpr=$(python3 ../gamma/refcert_to_gamma.py < "$c" 2>/dev/null) || { GFAIL=$((GFAIL+1)); echo "  FAIL $(basename "$c") : untranslatable to checker.gamma"; continue; }
+  vg=0; printf '%s\n%s\n' "$DEFS" "$gexpr" | "$T/interp.exe" >/dev/null 2>&1 || vg=$?   # accept = exit 1
+  gv=reject; [ "$vg" = 1 ] && gv=accept
+  if [ "$gv" = "$expect" ]; then GPASS=$((GPASS+1))
+  else GFAIL=$((GFAIL+1)); echo "  FAIL $(basename "$c") : check.beta=$expect checker.gamma=$gv"; fi
 done
-echo "refinement-cert diamond (every refl cert decided identically by check.beta AND check_ref.py): $PASS ok, $FAIL failed"
-[ "$FAIL" = 0 ] && [ "$PASS" -gt 0 ]
+echo "refinement-cert diamond (every refl cert decided identically by check.beta, check_ref.py AND checker.gamma): $PASS+$GPASS ok, $((FAIL+GFAIL)) failed"
+[ "$FAIL" = 0 ] && [ "$GFAIL" = 0 ] && [ "$PASS" -gt 0 ]

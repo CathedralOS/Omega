@@ -80,7 +80,13 @@
            ((Mu p q) (match b ((Mu r s) (if (nateq p r) (nateq q s) 0)) (z 0)))
            (Lnil (match b (Lnil 1) (z 0)))
            ((Lcons p q) (match b ((Lcons r s) (if (nateq p r) (nateq q s) 0)) (z 0)))
-           ((Lapp p q) (match b ((Lapp r s) (if (nateq p r) (nateq q s) 0)) (z 0))) ((Llen x) (match b ((Llen y) (nateq x y)) (z 0))) ((Con q) (match b ((Con r) (eq q r)) (z 0))) ((Apply f g) (match b ((Apply h k) (if (nateq f h) (nateq g k) 0)) (z 0)))))
+           ((Lapp p q) (match b ((Lapp r s) (if (nateq p r) (nateq q s) 0)) (z 0))) ((Llen x) (match b ((Llen y) (nateq x y)) (z 0))) ((Con q) (match b ((Con r) (eq q r)) (z 0))) ((Apply f g) (match b ((Apply h k) (if (nateq f h) (nateq g k) 0)) (z 0)))
+           ; STUCK user-function applications compare structurally (flat rule form: arg, cidA, bodyA, cidB, bodyB)
+           ((Fapp a x1 y1 x2 y2) (match b ((Fapp c w1 v1 w2 v2) (if (nateq a c) (if (eq x1 w1) (if (nateq y1 v1) (if (eq x2 w2) (nateq y2 v2) 0) 0) 0) 0)) (z 0)))
+           ((Reccall i) (match b ((Reccall j) (eq i j)) (z 0)))
+           ((Par k) (match b ((Par j) (eq k j)) (z 0)))
+           ((Fbundle x y) (match b ((Fbundle w v) (if (nateq x w) (nateq y v) 0)) (z 0)))
+           (Fnone (match b (Fnone 1) (z 0)))))
 (def conveq ((a Nat) (b Nat)) Int (nateq (pnorm a) (pnorm b)))
 
 (def subt ((t Nat) (s Nat) (d Int)) Nat
