@@ -670,14 +670,22 @@ Cost is a one-time transcription of each table struct's fields in spec order
 > - **`usize` retirement** — design-dead (count/addr model settled); impl queued.
 >
 > **Ergonomics / completions:** #26 auto-hoist pure-builtin guard subjects
-> (SCOPE SETTLED 2026-07-03: the sound slice = min/max/abs/clamp/sqrt because
-> they are stateless -> the effectful-single-eval constraint that reverted the
-> general hoist twice is satisfied by construction. Temp-type plumbing located:
-> a ~20-line `Call` branch in hoist_temp_type.rs resolving the first arg's type
-> via the existing attached_field_type/parameter_type helpers. Still a focused
-> session: the risky half is scoping the syntax->symbol-resolved synthesis to
-> guard-operand pure-builtin calls only, avoiding the documented string/bool
-> sibling entanglement. Recipe in value-call-in-guard-always-true.md.);
+> -- CORE LANDED 2026-07-03. `transition min(self.a, self.b) == 7 { .. }` now
+> hoists the builtin subject into a temp automatically (statement.rs
+> `hoist_child` gains a guard-scoped `hoist_builtin_calls` branch; the temp is
+> typed by a `Call` branch in hoist_temp_type.rs from the first arg's field
+> type). Scoped to min/max/sqrt (abs desugars in; clamp's nested first arg is
+> left) whose first arg is `self.<field>`. Effect-free by construction, so the
+> effectful-single-eval tripwire stays green -- the constraint that reverted the
+> general value-call hoist twice. Canary calls/runtime_min_max_guard_subject_
+> hoist_exit (discriminating, differential). REMAINING (pre-existing, shared with
+> the INDEXED operand hoist -- NOT introduced here): a `{ true -> false -> }`
+> arm pair over a HOISTED subject fails exhaustiveness because each arm mints a
+> DISTINCT temp (proven: `arr[i] > 5 { true/false }` fails identically). Works
+> today with a `_`-closed arm; the general fix is a structural-equality-keyed
+> shared-temp memo across sibling arms (the membership path shares via a
+> syntax-handle memo, but operand hoisting runs post-lowering where arms have
+> distinct handles) -- a focused session that would fix both hoists at once.
 > sin/cos (numerical mini-project, must match interp); layouts-ladder remainder
 > (mint rung, Packed grammar, layout plan-walking deriver).
 >

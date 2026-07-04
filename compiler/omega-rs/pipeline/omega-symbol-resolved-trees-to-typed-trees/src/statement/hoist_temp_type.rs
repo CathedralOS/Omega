@@ -29,6 +29,35 @@ pub(super) fn infer_hoist_temp_type(
     initial_value: ExpressionHandle,
 ) -> Result<Option<typed::types::TypeReferenceHandle>, Diagnostic> {
     let expressions = &lowerer.source_trees.tables.bodies.expressions;
+
+    // A pure-builtin guard subject the syntax->symbol-resolved lowering hoisted
+    // (`let __hoist = min(self.a, self.b)`): the temp's type is its FIRST
+    // argument's type. min/max/sqrt all return their operand's type (abs desugars
+    // to `max(x, 0-x)`; clamp's outer call has a non-place first arg and is not
+    // hoisted). Only a `self.<field>` first arg is typeable here, which is exactly
+    // what the hoist predicate requires; any other call shape yields no type.
+    let builtin_first_arg: Option<Option<ExpressionHandle>> =
+        match expressions.expression(initial_value) {
+            ExpressionNode::Call(call)
+                if !call.receiver.is_valid()
+                    && matches!(call.target.as_str(), "min" | "max" | "sqrt") =>
+            {
+                Some(expressions.expression_handles(call.arguments).first().copied())
+            }
+            ExpressionNode::Call(_) => Some(None),
+            _ => None,
+        };
+    if let Some(first) = builtin_first_arg {
+        let Some(first) = first else {
+            return Ok(None);
+        };
+        let Some(place_type) = collection_type_reference(lowerer, attached_data, state, first)
+        else {
+            return Ok(None);
+        };
+        return Ok(Some(lower_type_reference_into_table(lowerer, &place_type)?));
+    }
+
     let ExpressionNode::Indexed(indexed) = expressions.expression(initial_value) else {
         return Ok(None);
     };

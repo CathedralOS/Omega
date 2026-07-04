@@ -11792,6 +11792,37 @@ fn runtime_generic_two_instantiations_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_min_max_guard_subject_hoist_exit_canary_runs() {
+    // #26: a pure builtin (`min`/`max`) used directly as a guard SUBJECT is
+    // hoisted into a temp automatically, so the guard compares a materialized
+    // local. Builtins are effect-free, so the effectful-single-eval constraint
+    // that reverted the general value-call hoist is satisfied by construction.
+    // Discriminating (min=7, max=8 both match -> good, exit 70; wrong builtin
+    // or vacuous guard -> bad, exit 71).
+    let canary = pass_canary("calls/runtime_min_max_guard_subject_hoist_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-minguard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("min/max guard-subject hoist canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("min/max guard-subject hoist canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a hoisted pure-builtin guard subject to discriminate (exit 70), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_generic_domain_instantiations_exit_canary_runs() {
     // Phase 1 domain-arg extension: two DOMAIN-CARRYING instantiations of
     // `Box<T>` (`Box<i32 in Wrapping>` + `Box<u8 in Wrapping>`) coexist. Each
