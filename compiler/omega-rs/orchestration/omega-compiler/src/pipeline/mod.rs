@@ -1,6 +1,7 @@
 mod artifacts;
 mod boundary_report;
 mod build_config;
+mod generic_instances;
 mod checked_entry;
 mod const_lengths;
 mod layout_plans;

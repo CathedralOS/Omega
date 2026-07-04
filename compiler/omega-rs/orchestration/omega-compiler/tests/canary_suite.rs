@@ -11763,6 +11763,35 @@ fn runtime_generic_record_instance_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_generic_two_instantiations_exit_canary_runs() {
+    // Phase 1: TWO distinct instantiations of `Box<T>` (`Box<i32>` + `Box<bool>`)
+    // coexist in one program with native field access on both -- the
+    // per-instance monomorphization (pre-resolution desugar to distinct concrete
+    // records) that replaces the layout builder's one-slot poison. exit 30.
+    let canary = pass_canary("generics/runtime_generic_two_instantiations_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gen-two-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("two-instantiation generic canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("two-instantiation generic canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(30),
+        "expected two coexisting generic instances with native access (exit 30), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_array_max_and_sum_exit_canary_runs() {
     // Find the max and the sum of an array in one pass: an indexed read bound to a local, a
     // reduction (`total += v`), and an element comparison via the sound local-bind pattern
@@ -18720,6 +18749,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/machine_bound_satisfied_at_call",
     "generics/property_bound_type_parameter",
     "generics/runtime_generic_record_instance_exit",
+    "generics/runtime_generic_two_instantiations_exit",
     "generics/runtime_generic_enum_payload_exit",
     "generics/runtime_generic_value_call_exit",
     "generics/runtime_generic_value_call_agreeing_exit",
@@ -18887,7 +18917,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/property_unknown",
     "data/property_zero_init_nonzero_default",
     "generics/colon_bound_rejected",
-    "generics/generic_second_instantiation_access_rejected",
     "generics/machine_bound_satisfied_value_call_fenced",
     "generics/machine_bound_value_call_unchecked",
     "generics/machine_bound_violated_at_call",
