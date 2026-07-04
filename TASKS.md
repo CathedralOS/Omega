@@ -104,7 +104,7 @@ assertable and the interpreter's virtual GDI mirrors it. What landed:
   predicts.
 - Canaries (both differential): `host/runtime_gui_memory_dc_blit_exit` (CI-safe
   memory DC) + `host/runtime_gui_window_blit_exit` (REAL invisible window ->
-  GetDC -> blit). Sample `samples/window_demo`: a visible WS_POPUP window, 60
+  GetDC -> blit). Sample `samples/gui/window_demo`: a visible WS_POPUP window, 60
   frames of animated 64x64 wash stretched 4x, ~1.5s, exit-asserted.
 
 **MESSAGE PUMP + STANDALONE APP LANDED (same session, follow-up).** Five more
@@ -116,7 +116,7 @@ window system mints live handle tokens (HashSet liveness; is_window/destroy
 mirror native 1/0). Canary host/runtime_gui_window_lifecycle_exit
 (differential): create invisible -> bounded pump drain (a fresh window has ~1
 pending message natively, 0 virtually -- drain count deliberately unasserted)
--> IsWindow>0 -> DestroyWindow>0 -> IsWindow==0. `samples/window_app` is the
+-> IsWindow>0 -> DestroyWindow>0 -> IsWindow==0. `samples/gui/window_app` is the
 GENUINE STANDALONE APP: stays open until closed, draggable (pump dispatches
 through the STATIC class's DefWindowProc), X button works (verified end-to-end
 by posting a real WM_CLOSE from another process -> pump -> destroy -> exit 0),
@@ -234,7 +234,7 @@ either literal side), and the refold intersects back. Two faces:
 Pass canaries (differential): runtime_guard_proven_counter_exit +
 runtime_guard_narrowed_transition_arg_exit. The natural loop
 `transition i < N { true -> body } ... i = i + 1` now proves EXACT with
-`i: i32 [0..=N]`. samples/window_demo + window_app are converted FULLY EXACT
+`i: i32 [0..=N]`. samples/gui/window_demo + samples/gui/window_app are converted FULLY EXACT
 (zero domains in a real interactive windowed renderer).
 
 **De-Trapping sweep DONE (2026-07-02): 38/38 converted, 0 reverted.** 24 fully
@@ -667,7 +667,7 @@ Cost is a one-time transcription of each table struct's fields in spec order
 
 > **CURRENT OPEN WORK (2026-07-04, post-MILESTONE-1).** "Hello from Omega" boots
 > under QEMU/OVMF (ea51376cd); the whole first-boot ladder is done + sampled
-> (`samples/uefi_hello`). The Cathedral OS work (calling-plan lowering as stated
+> (`samples/uefi/uefi_hello`). The Cathedral OS work (calling-plan lowering as stated
 > policies, hardware facts, milestone 2 = GetMemoryMap/ExitBootServices/first
 > Region mint) is a SEPARATE agent's track over this same machinery — coordinate
 > before touching the ABI/boundary layer. The compiler-language backlog, by
@@ -883,7 +883,7 @@ element miscompiles natively (#59; workaround = element-type Wrapping).
   `fetch_add` → `lock xadd` (x86_64) / `LDADDAL` (aarch64); `compare_exchange` →
   `LOCK CMPXCHG` / `CASAL`. Detected by TREE-SHAPE at the binary-write selection
   site on an atomic-typed target — no frontend churn, parser desugar unchanged.
-  `samples/atomics_cross` + a canary byte-verify the aarch64 LSE ops and run the
+  `samples/cli/atomics_cross` + a canary byte-verify the aarch64 LSE ops and run the
   host (exit 70). Cross-thread observability still waits on the scheduler (values
   oracle-matched). Commits af2cf360 / 598e5f38 / cf7ab02f / 1a146b1c.
 - **Exact-arithmetic overflow proof-check — DONE (decision 17 S1-S3).** Unprovable
