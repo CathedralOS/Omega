@@ -436,7 +436,14 @@ class SymInterp:
             if op == '+':  return _add(a, b)
             if op == '*':  return _mul(a, b)
             if op == '-':  return _sub(a, b)
-            # comparisons: only decidable on concretes (that is what keeps control flow concrete)
+            # comparisons: concrete operands decide to 0/1; a SYMBOLIC operand yields a boolean TERM
+            # (blt/ble/beq/bne, >/>= normalized by bc's own operand swap) — the machine materializes the
+            # same 0/1 the term evaluates to, so stored booleans and boolean arithmetic stay congruent.
+            if not (isinstance(a, int) and isinstance(b, int)):
+                op2, l, r = op, a, b
+                if op2 in ('>', '>='):
+                    op2, l, r = {'>': '<', '>=': '<='}[op2], r, l
+                return ({'<': 'blt', '<=': 'ble', '==': 'beq', '!=': 'bne'}[op2], _term(l), _term(r))
             x = _concrete(a, 'compare on symbolic value'); y = _concrete(b, 'compare on symbolic value')
             from_signed = lambda z: z - (1 << 64) if z >= (1 << 63) else z
             sx, sy = from_signed(x), from_signed(y)
@@ -684,14 +691,12 @@ class SymInterp:
         return self._walk(0, 0, env, blocks, labels)
 
     def _boolterm(self, e, env):
-        """A comparison expression as a boolean TERM (blt/ble/beq/bne over evaluated sides), with the >/>=
-        spellings normalized by the swap bc's codegen performs."""
-        if e[0] != 'bin' or e[1] not in ('<', '<=', '>', '>=', '==', '!='):
-            raise Unsupported('branch on a non-comparison symbolic value')
-        op, l, r = e[1], self.ev(e[2], env), self.ev(e[3], env)
-        if op in ('>', '>='):
-            op, l, r = {'>': '<', '>=': '<='}[op], r, l
-        return ({'<': 'blt', '<=': 'ble', '==': 'beq', '!=': 'bne'}[op], _term(l), _term(r))
+        """The guard expression's value as a boolean TERM — a direct comparison or a STORED boolean
+        (ev renders symbolic comparisons as blt/ble/beq/bne terms)."""
+        v = self.ev(e, env)
+        if isinstance(v, tuple) and v and v[0] in ('blt', 'ble', 'beq', 'bne'):
+            return v
+        raise Unsupported('branch on a non-boolean symbolic value')
 
     def _walk(self, pc, si, env, blocks, labels):
         """Execute blocks from (block pc, statement index si) to completion; return the RESULT value. A goto

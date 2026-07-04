@@ -215,12 +215,17 @@ consecutively from the fork point, matching the machine's per-path read order. L
 (summarize first, fork only when the guard isn't a summarizable loop); branches *inside* loop bodies still
 refuse (conditional deltas — the next slice of this mountain).
 
+Comparisons are also first-class **values**: `let b = (x < y)` materializes the boolean constructor itself
+(evaluating to the same 0/1 byte the machine's compare idiom writes), flowing through arithmetic, byte
+memory, later branches — and even loop deltas (`total += (a < b)` summarizes to `n·[a<b]`, the boolean as
+an invariant coefficient). The engines' internal boolean carries RAW sides (a `_term`-coerced side would
+break the summarizer's slot matching — found when the basic `n·a` loop fork-bombed under the coercion).
+
 **Deliberately out of scope** (each conservatively *refused* — never mis-summarized): scaling recurrences
 (`acc = (acc-1)·2`); division; *genuinely* non-linear counter deltas (`i·i`, `i·total`, tetrahedral `Σg`);
 ℤ-pair or monus counter *start values*; `word[..]` memory; quadratic streams (`read·read`); strided stream
 sums (one-of-many reads); buffer writes at symbolic addresses; stale reads of rewrite slots; returns inside
-loop bodies; branches inside loop bodies (conditional deltas); comparisons stored as VALUES (`let b = (x<y)`
-outside a guard).
+loop bodies; branches inside loop bodies (conditional deltas).
 
 ## How data-dependent loops are summarized (the interesting part)
 

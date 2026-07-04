@@ -96,6 +96,7 @@ AUTO_SAMPLES = [
     ("weightedread (a·Σ input + g(n))", "refinement-samples/weightedread.beta"),
     ("absdiff   (BRANCH ON DATA →cond/ℤ pairs)", "refinement-samples/absdiff.beta"),
     ("maxmin    (NESTED BRANCHES →cond in cond)", "refinement-samples/maxmin.beta"),
+    ("boolval   (STORED COMPARISON as a value)", "refinement-samples/boolval.beta"),
     ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
     ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
     ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),
@@ -157,7 +158,7 @@ def prove_equiv(label, text, tape, ok_msg, quiet_perturb=False, trials=40, teeth
                        + (' ' + MN_PRELUDE if '(k 6 ' in g else '')
                        + (' ' + SV_PRELUDE if '(k 7 ' in g else '')
                        + (' ' + SSUM_PRELUDE if '(k 8 ' in g else '')
-                       + (' ' + COND_PRELUDE if '(k 9 ' in g else ''))
+                       + (' ' + COND_PRELUDE if any(('(k %d ' % i) in g for i in (9, 10, 11, 12, 13)) else ''))
             proof = '(refl %s)' % cterm                # can't parse these, so emit a direct refl cert (valid iff
             for _ in range(nC):                        # C conv rhs) with the needed decls prepended; check.beta decides
                 proof = '(gen %s)' % proof
