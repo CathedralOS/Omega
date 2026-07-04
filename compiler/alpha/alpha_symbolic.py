@@ -17,6 +17,7 @@
 # expression to alpha_ref.py on random inputs and (b) PROVES it equals the claimed source meaning for ALL
 # inputs via prover.py + check.beta. Encoding mirrors alpha_ref.py (the seed-diamonded reference).
 import sys
+sys.setrecursionlimit(400000)          # deep-nat traversals (buffer addresses render as s^k chains)
 
 MASK = (1 << 64) - 1
 INT_MIN = -(1 << 63)
@@ -61,6 +62,9 @@ SSUM_CID = 8
 COND_CID = 9
 BOOL_CID = {'blt': 10, 'ble': 11, 'beq': 12, 'bne': 13}
 RDV = -8                               # the virtual slot holding the read position (no real slot is negative)
+SEGK = -16                             # BMEM key holding fill SEGMENTS: ((base, trip, rdbase), ...) — a copy
+                                       # loop's closed form: byte[base+j] = input[rdbase+j] for j < trip
+EVK = -24                              # body-run MEM key collecting symbolic-address byte-store EVENTS
 
 def render(t):                         # -> check.beta / prover term syntax
     h = t[0]
@@ -281,6 +285,12 @@ def _run_body_once(tape, backedges, start_pc, header, MEM, R, sp, depth=0, brcel
             R[tape[pc + 1]] = ('v', cur) if isinstance(cur, int) else ('sv', cur)
             MEM[RDV] = _add(cur, 1) if not isinstance(cur, int) else cur + 1
             pc += 2
+        elif op == 0x09:                                # storeb inside a body: a SYMBOLIC address is a fill
+            a2 = reg(tape[pc + 1])                      # EVENT (byte[base+ctr] = v, judged by the summarizer);
+            if isinstance(a2, int):                     # concrete in-body byte stores stay refused (slice)
+                raise Unsupported('concrete byte store inside a summarized loop body')
+            MEM[EVK] = MEM.get(EVK, ()) + ((a2, reg(tape[pc + 2])),)
+            pc += 3
         elif op == 0x13:                                # call a — push the return offset, enter the callee
             sp -= 8; MEM[sp] = pc + 9; pc = _le8(tape, pc + 1)
         elif op == 0x14:                                # ret — pop the return offset
@@ -347,7 +357,7 @@ def _has_stream(t):                    # does a stream term (sv / ssum) occur an
     if isinstance(t, tuple):
         if t[0] in ('sv', 'ssum'):
             return True
-        if t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn'):
+        if t[0] in ('s', 'p', 'm', 'f', 'zz', 'mn', 'blt', 'ble', 'beq', 'bne', 'cond'):
             return any(_has_stream(x) for x in t[1:])
     return False
 
@@ -538,7 +548,7 @@ def _slot_delta(s0, s1):
             return ('cond', s1[1], dT, dF)
     return None
 
-def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
+def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0, BMEM=None):
     """cond = ('cmp', kind, L, R) guards a loop that continues to cont_pc and exits to exit_pc. Read the
     per-iteration transition off ONE speculative body run, recognize a unit-stride counter from 0 (or a
     down/!=-guarded equivalent) and linear-in-counter accumulator deltas, and replace the loop by each
@@ -572,9 +582,10 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
         S2 = _run_body_once(tape, backedges, cont_pc, header, S1, R, sp, depth, br)    # horizon uniformity) and
         S3 = _run_body_once(tape, backedges, cont_pc, header, S2, R, sp, depth, br)    # the marker path decides
     except Unsupported:
-        return None
+        S1 = None                                   # the concrete probe failed (e.g. a fill store): the
+        br[0] = True                                # marker path alone decides
     r15 = R.get(15, 0)                              # frame locals sit at/above the data-stack top
-    carried = [a for a in MEM if isinstance(a, int) and (a >= r15 or a == RDV)
+    carried = [] if S1 is None else [a for a in MEM if isinstance(a, int) and (a >= r15 or a == RDV)
                and (S1.get(a) != MEM[a] or S2.get(a) != MEM[a] or S3.get(a) != MEM[a])]
     hi = Rb if kind == 'lt' else _add(Rb, 1)        # exclusive upper end: R (<) or R+1 (<=)
     # from 0: trip = hi (the existing forms). From a symbolic/nonzero start: trip = hi ∸ start — MONUS, the
@@ -617,6 +628,13 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
             rewrite.add(a)
             continue
         raw[a] = d
+    fill_events = PS.get(EVK, ())
+    if fill_events:                                 # a COPY loop: one byte[base+ctr] = read_byte() / iteration
+        if BMEM is None or len(fill_events) != 1:
+            return None
+        fa, fv = fill_events[0]
+        if fv != ('sv', ('slot', RDV)) or _canon(raw.get(RDV)) != 1 or not isinstance(MEM.get(RDV), int):
+            return None
     invariant = {a for a in frame if raw.get(a) == 0}   # slots unchanged this iteration are loop-invariant
     moved = [a for a in frame if a in raw and raw[a] != 0]
     down = False
@@ -713,6 +731,18 @@ def _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, depth=0):
             updates[a] = _down_series(p0, n0, dec[0], dec[1], 0, 0, trip)
             continue
         updates[a] = _series_closed(MEM[a], _canon(_sum2(dec[0], _scale2(dec[1], off))), _canon(dec[1]), trip)
+    if fill_events:
+        if down or off != 0:
+            return None                             # copy loops: up-counting from 0 (slice 1)
+        pb = _peel(fill_events[0][0], ctr)          # store address must be exactly base + counter
+        base = _concnat(pb) if pb is not None else None
+        if base is None:
+            return None
+        segs = BMEM.get(SEGK, ())
+        if any(b0 + 512 > base and base + 512 > b0 for (b0, t0, r0) in segs) \
+                or any(isinstance(k2, int) and base <= k2 < base + 512 for k2 in BMEM):
+            return None                             # overlapping segments / prior byte writes: refused
+        BMEM[SEGK] = segs + ((base, trip, MEM[RDV]),)
     MEM.update(updates)
     return exit_pc
 
@@ -736,7 +766,7 @@ def _exec(tape, backedges, pc, R, MEM, BMEM, sp, ncell, fork_depth):
         return int.from_bytes(tape[at:at + 8], 'little')
 
     def summarize(cond, cont_pc, exit_pc):
-        return _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp)
+        return _summarize(tape, backedges, cond, cont_pc, exit_pc, MEM, R, sp, fork_depth, BMEM)
     while True:
         steps += 1
         if steps > 500000:
@@ -775,10 +805,19 @@ def _exec(tape, backedges, pc, R, MEM, BMEM, sp, ncell, fork_depth):
             a = _concrete(reg(tape[pc + 2]), 'byte load from symbolic address')
             if any(isinstance(w, int) and w <= a < w + 8 for w in MEM):
                 raise Unsupported('byte access aliases a word slot')
-            v = BMEM.get(a, tape[a] if a < len(tape) else 0)   # initial memory IS the tape image (alpha_ref)
+            v = None
+            for (b0, t0, r0) in BMEM.get(SEGK, ()):  # a fill segment: byte[b0+j] = input[r0+j] for j < t0
+                j = a - b0
+                if 0 <= j < 512:
+                    v = ('cond', ('blt', j, t0), ('sv', r0 + j), BMEM.get(a, tape[a] if a < len(tape) else 0))
+                    break
+            if v is None:
+                v = BMEM.get(a, tape[a] if a < len(tape) else 0)   # initial memory IS the tape image
             R[tape[pc + 1]] = v; pc += 3
         elif op == 0x09:                                 # storeb d, s — SYMBOLIC values are stored UNTRUNCATED:
             a = _concrete(reg(tape[pc + 1]), 'byte store to symbolic address')     # the observable is mod 256
+            if any(0 <= a - b0 < 512 for (b0, t0, r0) in BMEM.get(SEGK, ())):
+                raise Unsupported('byte store over a fill segment')
             if any(isinstance(w, int) and w <= a < w + 8 for w in MEM):            # and +/-/* respect mod-256
                 raise Unsupported('byte access aliases a word slot')               # congruence, so every
             v = reg(tape[pc + 2])                                                  # observed byte stays exact.
