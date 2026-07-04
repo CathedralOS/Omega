@@ -121,6 +121,7 @@ tv scoreboard
 tv self_mutation_between_calls
 tv shapes_area
 tv stack_vm
+tv bit_shift
 tv digital_root
 tv collatz_sequence
 tv modular_exponentiation
