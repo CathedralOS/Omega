@@ -16,8 +16,36 @@
 # stdout line 1: `<computed exit> <claim cert>`; line 2: the off-by-one NEGATIVE-control cert the kernel
 # must reject. The gate cross-checks the exit against both the interpreter run and the documented intent.
 import sys
+sys.setrecursionlimit(200000)          # deep dispatch chains in translated samples
 
-FUEL = 200000
+FUEL = 500000
+MAXV = 20000                           # unary-numeral wall: a larger intermediate would exhaust the checker
+
+# tv-encode.py's kernel-side user-nat machinery, verbatim (uadd/usub/umul/ueq/ult + fueled udiv/umod):
+# engaged only when the sample uses - / %, so the +/* samples keep their kernel-native p/m forms.
+USER_PRELUDE = (
+    "(data 2 0 0 0) (data 3 1 1 0) "
+    "(fun 20 2 (k 2)) (fun 20 3 (v 0)) "
+    "(fun 21 2 (y 0)) (fun 21 3 (k 3 (rec 0))) "
+    "(fun 22 2 (y 0)) (fun 22 3 (f 20 (rec 0))) "
+    "(fun 23 2 (k 2)) (fun 23 3 (f 21 (y 0) (rec 0))) "
+    "(fun 24 2 (k 3 (k 2))) (fun 24 3 (k 2)) "
+    "(fun 25 2 (f 24 (y 0))) (fun 25 3 (f 26 (y 0) (v 0))) "
+    "(fun 26 2 (k 2)) (fun 26 3 (f 25 (v 0) (y 0))) "
+    "(fun 27 2 (k 2)) (fun 27 3 (k 3 (k 2))) "
+    "(fun 28 2 (f 27 (y 0))) (fun 28 3 (f 29 (y 0) (v 0))) "
+    "(fun 29 2 (k 2)) (fun 29 3 (f 28 (y 0) (v 0)))"
+    " (data 4 2 0 0) "
+    "(fun 42 4 (v 0)) (fun 43 4 (v 1))"
+    " (fun 46 2 (k 2)) (fun 46 3 (f 47 (k 3 (v 0)) (k 4 (k 3 (v 0)) (y 0)))) "
+    "(fun 47 2 (k 2)) (fun 47 3 (f 48 (f 28 (f 42 (y 0)) (f 43 (y 0))) (k 4 (v 0) (y 0)))) "
+    "(fun 48 3 (k 2)) "
+    "(fun 48 2 (k 3 (f 47 (f 42 (y 0)) (k 4 (f 22 (f 43 (f 43 (y 0))) (f 42 (f 43 (y 0)))) (f 43 (f 43 (y 0))))))) "
+    "(fun 49 2 (k 2)) (fun 49 3 (f 50 (k 3 (v 0)) (k 4 (k 3 (v 0)) (y 0)))) "
+    "(fun 50 2 (f 42 (y 0))) (fun 50 3 (f 51 (f 28 (f 42 (y 0)) (f 43 (y 0))) (k 4 (v 0) (y 0)))) "
+    "(fun 51 3 (f 42 (f 43 (y 0)))) "
+    "(fun 51 2 (f 50 (f 42 (y 0)) (k 4 (f 22 (f 43 (f 43 (y 0))) (f 42 (f 43 (y 0)))) (f 43 (f 43 (y 0))))))"
+)
 
 
 class Out(Exception):
@@ -47,19 +75,33 @@ def parse_all(src):
 def nat(k):
     if k < 0:
         raise Out('negative value reached the term encoder')
+    if k > MAXV:
+        raise Out('intermediate %d exceeds the unary wall' % k)
     return 'z' if k == 0 else '(s %s)' % nat(k - 1)
+
+
+def unat(k):                           # user-nat literal (k 3 (k 3 ... (k 2)))
+    if k < 0:
+        raise Out('negative value reached the term encoder')
+    if k > MAXV:
+        raise Out('intermediate %d exceeds the unary wall' % k)
+    return '(k 2)' if k == 0 else '(k 3 %s)' % unat(k - 1)
 
 
 class V:                                   # a value: concrete int `n` + the TERM tree that computes it
     __slots__ = ('n', 't')
 
-    def __init__(self, n, t=None):
+    def __init__(self, n, t):
         self.n = n
-        self.t = t if t is not None else nat(n)
+        self.t = t
 
 
 def main():
-    forms = parse_all(sys.stdin.read())
+    src = sys.stdin.read()
+    forms = parse_all(src)
+    # USER mode when -,/,% appear: values ride user nats and ops become kernel user-fun applications
+    user = any(('(%s ' % op) in src for op in ('-', '/', '%'))
+    lit = unat if user else nat
     defs = {}
     top = None
     for f in forms:
@@ -76,26 +118,47 @@ def main():
         if fuel[0] <= 0:
             raise Out('fuel exhausted')
         if isinstance(e, int):
-            return V(e)
+            return V(e, lit(e))
         if isinstance(e, str):
             if e in env:
                 return env[e]
-            return V(0)                     # interp.beta's env_lookup returns 0 on a miss — mirror it
+            return V(0, lit(0))             # interp.beta's env_lookup returns 0 on a miss — mirror it
                                             # (omega2gamma emits at least one unbound reference in the wild)
         h = e[0]
         if h == '+':
             a, b = ev(e[1], env), ev(e[2], env)
-            return V(a.n + b.n, '(p %s %s)' % (a.t, b.t))
+            if a.n + b.n > MAXV:
+                raise Out('intermediate exceeds the unary wall')
+            return V(a.n + b.n, ('(f 21 %s %s)' if user else '(p %s %s)') % (a.t, b.t))
         if h == '*':
             a, b = ev(e[1], env), ev(e[2], env)
-            return V(a.n * b.n, '(m %s %s)' % (a.t, b.t))
-        if h in ('-', '/', '%'):
-            raise Out('operator %s outside the +/* fragment (the tv-encode user-fun route is the next slice)' % h)
+            if a.n * b.n > MAXV:
+                raise Out('intermediate exceeds the unary wall')
+            return V(a.n * b.n, ('(f 23 %s %s)' if user else '(m %s %s)') % (a.t, b.t))
+        if h == '-':
+            a, b = ev(e[1], env), ev(e[2], env)
+            if a.n < b.n:
+                raise Out('underflowing subtraction (usub is monus; interp wraps)')
+            return V(a.n - b.n, '(f 22 %s %s)' % (b.t, a.t))   # usub(b, a) = a - b
+        if h == '/':
+            a, b = ev(e[1], env), ev(e[2], env)
+            if b.n == 0:
+                raise Out('division by zero')
+            if a.n // b.n > 800:
+                raise Out('quotient exceeds the reduction wall')
+            return V(a.n // b.n, '(f 46 %s %s)' % (a.t, b.t))
+        if h == '%':
+            a, b = ev(e[1], env), ev(e[2], env)
+            if b.n == 0:
+                raise Out('mod by zero')
+            if a.n // b.n > 800:
+                raise Out('quotient exceeds the reduction wall')
+            return V(a.n % b.n, '(f 49 %s %s)' % (a.t, b.t))
         if h in ('<', '<=', '==', '!=', 'eq', 'lt', 'le', 'ne'):    # comparisons decided concretely
             a, b = ev(e[1], env), ev(e[2], env)
             r = {'<': a.n < b.n, '<=': a.n <= b.n, '==': a.n == b.n, '!=': a.n != b.n,
                  'eq': a.n == b.n, 'lt': a.n < b.n, 'le': a.n <= b.n, 'ne': a.n != b.n}[h]
-            return V(1 if r else 0)
+            return V(1 if r else 0, lit(1 if r else 0))
         if h == 'let':
             env2 = dict(env)
             env2[e[1]] = ev(e[2], env)
@@ -149,9 +212,11 @@ def main():
     if not isinstance(r, V):
         raise Out('top-level value is not a number')
     exit_code = r.n & 0xFF
-    good = nat(r.n)
-    print('%d (= %s %s) (refl %s)' % (exit_code, r.t, good, good))
-    print('(= %s (s %s)) (refl (s %s))' % (r.t, good, good))   # the negative control: off-by-one claim
+    good = lit(r.n)
+    pre = (USER_PRELUDE + ' ') if user else ''
+    wrap = '(k 3 %s)' if user else '(s %s)'
+    print('%d %s(= %s %s) (refl %s)' % (exit_code, pre, r.t, good, good))
+    print('%s(= %s %s) (refl %s)' % (pre, r.t, wrap % good, wrap % good))   # off-by-one negative control
 
 
 if __name__ == '__main__':
