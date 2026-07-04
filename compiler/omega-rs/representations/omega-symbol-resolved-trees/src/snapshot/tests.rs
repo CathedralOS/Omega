@@ -49,7 +49,7 @@ fn snapshots_materialize_resolved_roots_and_table_counts() {
         symbol: SymbolHandle::invalid(),
         name: DiagnosticName::generated("main"),
         attached_data: None,
-        abi: None,
+        boundary: false,
         storage: MachineStorage {
             type_parameters: HandleSpan::empty(),
             contains: HandleSpan::empty(),
