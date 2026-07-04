@@ -11823,6 +11823,37 @@ fn runtime_min_max_guard_subject_hoist_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_indexed_local_compare_exit_canary_runs() {
+    // Silent miscompile fixed: `let hi = arr[i]; let over: bool = hi > 5` read
+    // `over` as a folded default (always false) -- the alias-fold substituted the
+    // indexed-read local into the fenced `arr[i] > 5` form and silently produced
+    // false. A comparison operand now keeps its slot (local_data_requires_storage
+    // counts comparison operators), so the compare reads the slot. Discriminating
+    // (over=true vs low_over=false -> exit 70; the miscompile made over=false -> 71).
+    let canary = pass_canary("collections/runtime_indexed_local_compare_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-idxcmp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed-local-compare canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed-local-compare canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected an indexed-read local used as a compare operand to read its slot (exit 70), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_min_guard_true_false_pair_exit_canary_runs() {
     // #41: a pure-builtin guard subject with a `{ true -> false -> }` PAIR. Each
     // arm re-lowers the subject to its own temp, so the pair stopped pairing for

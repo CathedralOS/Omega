@@ -227,6 +227,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_nested_loop_fill_exit", 70),
     ("collections/runtime_computed_array_fill_via_temp_exit", 70),
     ("collections/runtime_computed_indexed_write_exit", 70),
+    ("collections/runtime_indexed_local_compare_exit", 70),
     ("collections/runtime_indexed_rmw_loop_exit", 70),
     ("collections/runtime_indexed_reduction_loop_exit", 70),
     ("collections/runtime_array_max_and_sum_exit", 70),

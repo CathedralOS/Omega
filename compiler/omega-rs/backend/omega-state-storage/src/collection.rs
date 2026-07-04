@@ -510,6 +510,27 @@ fn is_arithmetic_operator(operator: BinaryOperator) -> bool {
     )
 }
 
+/// A COMPARISON reads its operands as runtime values (`local > 5`), the same
+/// unresolvable-without-a-slot position as an arithmetic-binary operand: a
+/// slot-less local (e.g. one initialized from a runtime-indexed read, which is
+/// deliberately NOT folded back) is not substituted into the compare, so a
+/// dependent `let b = local > 5` silently drops it and reads a default. So a
+/// local used as a compare operand must keep its slot, exactly like an
+/// arithmetic operand. (The DIRECT `let b = arr[i] > 5` is already a clean
+/// error; this closes the intermediate-local escape `let t = arr[i]; let b = t
+/// > 5`, which folded to the broken direct form and miscompiled silently.)
+fn is_comparison_operator(operator: BinaryOperator) -> bool {
+    matches!(
+        operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+    )
+}
+
 /// Whether `expression` is directly a reference to `symbol` (a bare `Name`).
 fn expression_is_symbol(
     expressions: &omega_checked_trees::expression::ExpressionTable,
@@ -546,7 +567,8 @@ fn expression_uses_symbol_as_arithmetic_operand(
     };
     match expressions.expression(expression) {
         ExpressionNode::Binary(binary) => {
-            (is_arithmetic_operator(binary.operator)
+            ((is_arithmetic_operator(binary.operator)
+                || is_comparison_operator(binary.operator))
                 && (expression_is_symbol(expressions, binary.left, symbol, local_name)
                     || expression_is_symbol(expressions, binary.right, symbol, local_name)))
                 || recurse(binary.left)
