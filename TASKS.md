@@ -584,6 +584,17 @@ block DIES (`build_and_package_model.md` addendum).
 6. **The greeting**: `table.con_out.output_string(&utf16 greeting)` under
    QEMU/OVMF — milestone 1 closes.
 
+**#22 RECON (2026-07-04, probe-verified; checklist in session memory):** the
+settled surface ALREADY compiles (`case Valid(view: &[u8] in
+OmegaLayout<Schema>)` parses, types, constructs, dispatches). Today's decode is
+validate+materialize FUSED (verdict out-param); the split = factor the
+plan-walk's CHECKS from its WRITES (wire_decode.rs has both). OPEN DESIGN
+QUESTION (needs Zach, not fenced unilaterally): `Checked::Valid { view:
+<plain &[u8]> }` COMPILES — user construction trivially claims the refinement,
+the same spirit L5 closed for declared storage; either construction-from-
+unrefined errors (derived validate = the only minter, needs a privileged
+synthesis path) or it stays open until the deriver lands.
+
 **THE MINT ARC (re-scoped: the language ladder, no longer boot-blocking):**
 1. **Case-vocabulary Plan — DONE (task #34).** 2. **Plan-walking deriver —
 DONE (rungs 2a/2b/2c, task #35):** the wire codec is plan-driven end to end;
