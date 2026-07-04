@@ -584,6 +584,24 @@ block DIES (`build_and_package_model.md` addendum).
 6. **The greeting**: `table.con_out.output_string(&utf16 greeting)` under
    QEMU/OVMF — milestone 1 closes.
 
+**SETTLED 2026-07-04 (Zach) — IMPLICIT LAYOUT-DOMAIN ADD IS A COMPILE ERROR.**
+Adding `OmegaLayout<X>` (or any invariant-bearing layout domain) to a value
+without an explicit `as` is REJECTED. The refinement `&[u8] in OmegaLayout<X>`
+is established ONLY by (a) `as` + the plan-implication proof [#21] -- VACUOUS
+(free re-label) for a zero-invariant plan (all-`At` offsets over full-range
+scalars = the brief's degenerate "recast is a borrow", §5b), a real proof for an
+invariant-bearing one; or (b) the derived `validate` runtime mint [#22]. Bare
+construction `Checked::Valid { view: plain }` (silent implicit-add, compiles
+today) becomes an error. RATIONALE: layout is the one domain with NO downstream
+safety net -- a forged range is caught at the indexing site, but a forged layout
+is a silent OOB in `materialize` (which is total by design). The trivial-vs-proof
+decision is READ FROM THE case-vocabulary Plan (all-`At`/full-range -> trivial;
+`Varint`/`LengthPrefixed`/range/era -> proof-or-validate). SEQUENCING: the fence
+lands WITH #21's `as` surface (does NOT parse today) + #22's validate -- never
+before, or `Valid(view)` is unconstructible. OPEN SUB-Q (not settled): behaviour
+domains (Wrapping, zero-invariant) + range domains (flow-proven at use) also allow
+implicit-add today; whether "force `as`" extends to them or stays layout-only.
+
 **#22 RECON (2026-07-04, probe-verified; checklist in session memory):** the
 settled surface ALREADY compiles (`case Valid(view: &[u8] in
 OmegaLayout<Schema>)` parses, types, constructs, dispatches). Today's decode is
