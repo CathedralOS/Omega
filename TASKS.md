@@ -2749,6 +2749,21 @@ exit.
   drop is semantically empty and emitting no-op cleanup code would be dead
   weight. Revisit when drop-bearing types land — Vec/String real storage and
   the allocator story.)
+  - CORRECTION 2026-07-04 (probe): the "no type carries a cleanup machine, so
+    every drop is semantically empty" premise is FALSE for user code. A user CAN
+    write `Guard::drop(&mut self)` with an OBSERVABLE body today; it compiles
+    clean and the drop is TRACKED (report: `drop <unnamed> ... at state exit`),
+    but the body is NOT lowered to execution — probe-verified: a drop whose body
+    exits 42 never fired; the program reached its normal path and exited 70. So a
+    NON-EMPTY drop is a SILENT NO-OP (unlock/close/flush all do nothing, no error,
+    no warning), and ch16's "lowered drop edge runs the cleanup" is aspirational.
+    Soundness-adjacent, not mere dead-weight avoidance. DECISION for Zach (not
+    fenced unilaterally): until drop lowering lands, either (a) FENCE — a type
+    with a non-empty `drop` body is a compile error/warn (the 5 existing drops
+    canaries have EMPTY bodies and stay green), or (b) accept + mark ch16
+    aspirational. Real fix = emit the drop-machine call at the tracked state-exit
+    point (reverse declaration order; skip on move-out per ch16's move-guard
+    edges). See memory drop-bodies-not-executed.
 
 ### Array, Vec, String, And Views
 
