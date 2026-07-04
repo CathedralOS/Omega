@@ -19597,6 +19597,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "operators/app_package_provider_rejected",
     "operators/unregistered_provider_binding",
     "calls/runtime_helper_ordering_return",
+    "traits/runtime_dyn_varying_field_rejected",
     "traits/equatable_missing_conformance_suggested",
     "traits/equatable_field_not_equatable",
     "traits/equatable_recursive_type",
