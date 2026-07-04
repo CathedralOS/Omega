@@ -98,6 +98,7 @@ step "convergence (RUST-FREE) — omega2gamma.beta->interp.beta; cert checked by
 step "e2g termination canary — omega2gamma halts on every sample, supported or refused (no silent scan-forever)" omega e2g-termination.sh beta beta-lang beta-lang-rs ../samples
 step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega omega-meaning.sh gamma ../samples
 step "omega meaning-TV — the kernel re-computes each covered sample's arithmetic (proof, not comparison)" omega meaning-tv.sh gamma delta beta beta-lang beta-lang-rs ../samples
+step "input-grid meaning TV — input-taking samples proven per documented input vector (substitution closes the program; the whole proof pipe applies per vector)" omega input-tv.sh gamma delta beta beta-lang beta-lang-rs ../samples
 step "meaning-cert diamond — every meaning-TV cert (pins, witnesses, binary arithmetic, structural claims) decided identically by check.beta AND check_ref.py" omega meaning-cert-diamond.sh delta beta beta-lang beta-lang-rs ../samples
 step "translation validation — delta re-evaluates each compilation's result (+ - * < == / %, loops, gcd, cross-machine)" omega translation-validation.sh epsilon-rs delta gamma
 step "symbolic loops — beta_symbolic's data-dependent loop summaries (symbolic trip count -> closed form) pinned to the interpreter across an input grid" beta-lang-py symbolic-loops.sh
