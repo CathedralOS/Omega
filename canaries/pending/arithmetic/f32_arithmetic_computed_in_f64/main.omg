@@ -1,0 +1,48 @@
+// PARKED REPRO (probe 2026-07-04): f32 arithmetic is computed in f64 by BOTH the
+// interpreter (oracle) and the host const-folder, so f32-precision results
+// diverge from correct native SSE f32.
+//
+// 16777216 = 2^24, where f32 has integer spacing 2. In TRUE f32: 16777216 + 1
+// rounds back to 16777216 (the +1 is below the ULP), and +1 again stays
+// 16777216. In f64 (no rounding): 16777216 + 1 + 1 = 16777218 exactly.
+//
+// RUNTIME (this program, field-held so it can't fold): native SSE computes the
+// correct f32 value 16777216 and exits 70; the INTERPRETER computes 16777218 in
+// f64 and exits 72 -- a native-correct / interp-WRONG divergence.
+// (The const-FOLDED form `let x: f32 = 16777216.0 + 1.0 + 1.0` is also wrong
+// natively: the host folder computes 16777218 in f64 and the native code uses
+// that folded constant. So folded f32 = both wrong; runtime f32 = native right.)
+//
+// ROOT: the SAME metadata-free-value pattern as the integer const-fold class
+// (memory shift-right-signedness-const-fold / decision-17-const-fold-domain-hole):
+// the interpreter's `Value::Float(f64)` carries no width, and `eval_float_binary`
+// (evaluator.rs ~3254) computes `l + r` in f64 with no result-type parameter, so
+// it never rounds to f32. Only CASTS round (`source as f32 as f64`, ~3131), which
+// is why direct-literal and int-cast probes masked the bug. FIX needs f32 width
+// tracking (Value width, or the binary expression's result type threaded into
+// eval_binary) + the host folder rounding folded f32 ops to f32.
+//
+// META: f32-precision differentials are UNRELIABLE -- when native and interp
+// disagree on an f32 value, the interpreter (not native) is likely the wrong one.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: f32; }
+machine Main::main(&mut self) {
+    self.a = 16777216.0;
+    self.a = self.a + 1.0;   // true f32: rounds back to 16777216
+    self.a = self.a + 1.0;   // true f32: stays 16777216
+    transition self.a == 16777216.0 {
+        true  -> correct_f32()   // native SSE reaches here (exit 70)
+        false -> wrong()
+    }
+    state correct_f32(&mut self) { self.console.exit_process(70); }
+    state wrong(&mut self) {
+        // interpreter reaches here: its f64 accumulation gives 16777218 (exit 72)
+        transition self.a == 16777218.0 {
+            true  -> f64_result()
+            false -> other()
+        }
+    }
+    state f64_result(&mut self) { self.console.exit_process(72); }
+    state other(&mut self)      { self.console.exit_process(99); }
+}
