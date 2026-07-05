@@ -133,6 +133,8 @@ ok "(-> (Le (s (v 0)) (v 1)) (Lt (v 0) (v 1)))"        # i+1<=len =>  i<len     
 ok "(-> (Le (v 0) (v 1)) (Le (v 0) (s (v 1))))"        # i<=len =>  i<=len+1    (widen the bound)
 ok "(-> (Lt (v 0) (v 1)) (Lt (v 0) (s (v 1))))"        # i<len  =>  i<len+1
 ok "(All (Le z (v 0)))"                                # forall x. 0 <= x       (naturals are non-negative)
+ok "(All (Le z (m (v 0) (v 0))))"                      # 0 <= a*a  (non-negativity for a COMPOUND term: witness = the term itself)
+ok "(All (All (Le z (m (v 1) (v 0)))))"               # 0 <= a*b  (the generic 0<=C rule, C any closed term)
 no "(-> (Le (v 0) (v 1)) (Lt (v 0) (v 1)))"            # i<=len does NOT give i<len  (i=len)
 no "(All (Lt z (v 0)))"                                # 0 < x is FALSE (x=0)
 no "(All (Le (v 0) z))"                                # x <= 0 is FALSE
