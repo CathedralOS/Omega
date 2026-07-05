@@ -11,12 +11,14 @@
 # with no signed-integer bridge):
 #   count  — recursive_sum's `count(s,acc)=if s.len>0 then count(s[1..],acc+1) else acc` adds a CONSTANT per
 #            element (element-value-independent), so count-forall (count(xs,n)=len(xs)+n) discharges it.
-#   sum    — stdin_checksum's read_byte loop `self.sum = self.sum + b` sums BYTES (read_byte ∈ [0,255], the
-#            EOF -1 is guarded out by `b < 0`), so the summed elements are naturals and sum-forall
-#            (sumfold(xs,n)=listsum(xs)+n) discharges it: self.sum = listsum(input bytes) for EVERY input.
+#   pair   — stdin_checksum's read_byte loop threads a byte SUM (self.sum += b) AND a COUNT (self.n += 1) as a
+#            pair; the summed elements are BYTES (read_byte ∈ [0,255], EOF -1 guarded out by `b < 0`), so they
+#            are naturals and pair-forall (pairfold(xs,(s,c))=(listsum(xs)+s, len(xs)+c)) discharges the WHOLE
+#            dual accumulator: (sum,count) = (listsum(input bytes), len) for EVERY input, so the exit sum+n =
+#            listsum(bytes)+len(bytes) universally — the first COMPLETE ∀-input proof of an input sample.
 # Both theorems are verified here by check.beta + check_ref.py + checker.gamma with an off-by-one
 # perturbation rejected. (recursive_sum's `sum` folds SIGNED i32 — that needs a ℤ (difference-pair) fold
-# theorem, deliberately future work; these two dodge the signed bridge.)
+# theorem, deliberately future work; these two dodge the signed bridge by folding non-negative quantities.)
 cd "$(dirname "$0")"
 command -v python3 >/dev/null 2>&1 || { echo "forall-sample: skipped (python3 absent)"; exit 0; }
 . ../alpha/seed_env.sh
@@ -43,7 +45,7 @@ verify3() {
   { [ "$vb" = accept ] && [ "$vr" = accept ] && [ "$vg" = accept ] && [ "$nok" = yes ]; } || thmok=0
 }
 verify3 "count-forall (count(xs,n)=len(xs)+n)" count-forall.elab '/^(all xs/ s/(f 21 (f 9\([0-9]\) xs) n)/(k 3 (f 21 (f 9\1 xs) n))/'
-verify3 "sum-forall   (sumfold(xs,n)=listsum(xs)+n)" sum-forall.elab '/^(all xs/ s|(f 21 (f 94 xs) n)|(k 3 (f 21 (f 94 xs) n))|'
+verify3 "pair-forall  (pairfold(xs,(s,c))=(listsum(xs)+s, len(xs)+c))" pair-forall.elab '/^(all xs/ s|(k 70 (f 21 (f 94 xs) s)|(k 70 (k 3 (f 21 (f 94 xs) s))|'
 
 # ---- tie: real sample loops discharged for EVERY input ----
 cov=0; miss=0
@@ -59,13 +61,14 @@ for f in ../../samples/*/main.omg; do
       miss=$((miss+1)); echo "  MISS $s : +1 slice recursion but not the count-fold machine shape"
     fi
   fi
-  # (b) byte-stream SUM fold: read_byte loop summing bytes (self.F = self.F + b) with an EOF guard (b < 0)
-  bacc=$(grep -oE 'self\.[a-z_]+ = self\.[a-z_]+ \+ b\b' "$f" 2>/dev/null | head -1)
-  if [ -n "$bacc" ]; then
-    if grep -qE '= read_byte\(\)' "$f" && grep -qE 'b < 0' "$f"; then
-      cov=$((cov+1)); echo "  ok   $s : read_byte loop '$bacc' sums bytes (∈[0,255], EOF -1 guarded) -> self.sum = listsum(input bytes) for EVERY input (sum-forall over naturals)"
+  # (b) byte-stream (sum,count) PAIR fold: read_byte loop threading a byte sum (self.F = self.F + b) AND a
+  #     count (self.G = self.G + 1), with an EOF guard (b < 0). The summed elements are bytes ∈ [0,255].
+  bsum=$(grep -oE 'self\.[a-z_]+ = self\.[a-z_]+ \+ b\b' "$f" 2>/dev/null | head -1)
+  if [ -n "$bsum" ]; then
+    if grep -qE '= read_byte\(\)' "$f" && grep -qE 'b < 0' "$f" && grep -qE 'self\.[a-z_]+ = self\.[a-z_]+ \+ 1\b' "$f"; then
+      cov=$((cov+1)); echo "  ok   $s : read_byte loop IS the (sum,count) pair fold ('$bsum' + count+1; bytes ∈[0,255], EOF -1 guarded) -> (sum,count)=(listsum(input bytes),len) for EVERY input; exit sum+n = listsum+len (pair-forall over naturals)"
     else
-      miss=$((miss+1)); echo "  MISS $s : a '+ b' accumulation but not the read_byte byte-sum shape"
+      miss=$((miss+1)); echo "  MISS $s : a '+ b' accumulation but not the read_byte (sum,count) pair-fold shape"
     fi
   fi
 done
@@ -73,5 +76,5 @@ done
 ok=1
 [ "$thmok" = 1 ] || ok=0
 [ "$cov" -gt 0 ] && [ "$miss" = 0 ] || ok=0
-echo "∀-input sample connection (real sample loops proven correct for EVERY input by 3-checker theorems; perturbations rejected): $cov sample loop(s) discharged (count over slices; sum over byte streams — both ℤ-free)"
+echo "∀-input sample connection (real sample loops proven correct for EVERY input by 3-checker theorems; perturbations rejected): $cov sample loop(s) discharged (count over slices; (sum,count) pair over byte streams — both ℤ-free)"
 [ "$ok" = 1 ]
