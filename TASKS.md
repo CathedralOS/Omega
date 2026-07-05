@@ -3160,13 +3160,22 @@ exit.
   `n <= 0`) are STILL rejected (verified). RUN canary
   runtime_transition_value_guard_narrowing_exit (dec(43)=42, differential
   interp==native); full suite 587 clean.
-  REMAINING interval-precision gap (pre-existing, NOT guard-related): a one-sided
-  `requires x < 100` (entry-env SEEDING via requires_value_env) does NOT prove
-  `x + 1` in range -- the seeded interval `[None, 99]` keeps x's low end unbounded
-  instead of intersecting the type's i32 low. Terminal-expr rejects it too (so not a
-  regression). Fix = intersect a place's interval with its declared type range at
-  LOOKUP time (general; would also cover requires seeding), or in requires_value_env.
-  Sound over-rejection, separate follow-up.
+- [x] INTERVAL x TYPE-RANGE intersection at place LOOKUP -- COMPLETENESS fix,
+  LANDED 2026-07-04. Closes the requires-seeding precision gap (and any one-sided
+  bound): a one-sided `requires x < 100` seeds the env `[None, 99]`, so `x + 1`
+  over-rejected because the low end stayed unbounded. Fix (arithmetic_domains.rs
+  analyze, ONE line): the proven interval (flow env OR range-constraint) is now
+  `.map(|proven| proven.intersect(type_range))` before falling back to the full
+  type width. A typed value is ALWAYS within its type range, so intersecting is
+  sound AND can only TIGHTEN -- it never adds a rejection, only removes over-
+  rejections (also clamps a Wrapping-spilled env interval back to the type). Same
+  intersect-with-source-type keystone the narrowing store uses. Verified:
+  `requires x<100 { x+1 }` and `requires x>0 { x-1 }` now prove; the genuinely-
+  overflowing directions (`x>0 { x+1 }` high-unbounded, `x<100 { x-1 }` low-
+  unbounded) STILL reject. RUN canary runtime_requires_one_sided_bound_exit
+  (inc(41)=42, differential interp==native).
+  With this, decision-17's interval engine has no known soundness OR one-sided-
+  precision gaps at the value-binding boundaries.
 - [ ] Broaden persistent machine/state mutation coverage beyond isolated
   micro-shapes toward dungeon-sample blockers.
 - [ ] Link final-image imports/fixups back to source and lowered boundary-edge

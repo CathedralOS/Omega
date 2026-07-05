@@ -82,6 +82,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ),
     ("arithmetic/runtime_transition_arg_guard_narrowing_exit", 70),
     ("arithmetic/runtime_transition_value_guard_narrowing_exit", 42),
+    ("arithmetic/runtime_requires_one_sided_bound_exit", 42),
     ("arithmetic/runtime_transition_arg_saturating_exit", 70),
     ("arithmetic/runtime_unsigned_division_exit", 70),
     ("arithmetic/runtime_float_negative_ops_exit", 70),
