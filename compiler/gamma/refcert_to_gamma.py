@@ -148,6 +148,11 @@ def proof(p, funs):
         return '(Rec (Mkspec %d %d %d %d) (Mkspec %d %d %d %d) %s %s %s)' % (
             p[1], sa[0], sa[1], sa[2], p[2], sb[0], sb[1], sb[2],
             prop(p[3], funs), proof(p[4], funs), proof(p[5], funs))
+    if p[0] == 'prodrec':                          # (prodrec cid motive case) -> Prodrec + spec
+        cid = p[1]; sp = funs['#data'][cid]        # the guard rides the spec CONSTRUCTOR: Mkprod only when cid
+        ctor = 'Mkprod' if cid in funs['#prod'] else 'Mkspec'   # was (prod cid)-declared; else Mkspec -> gamma Bad
+        return '(Prodrec (%s %d %d %d %d) %s %s)' % (
+            ctor, cid, sp[0], sp[1], sp[2], prop(p[2], funs), proof(p[3], funs))
     # --- lemma citation: checker.gamma has no def/use, so INLINE the lemma's (closed) proof at each use ---
     if p[0] == 'use':
         return proof(funs['#defs'][int(p[1])], funs)
@@ -185,11 +190,15 @@ def main():
     forms = parse(sys.stdin.read())
     funs = {}                                      # fid -> [(cidA, bodyA), (cidB, bodyB)]
     specs = {}                                     # cid -> (arity, r0, r1)
+    prods = set()                                  # cids declared (prod cid) — licensed for prodrec (Mkprod)
     defs = {}                                      # lemma id -> its (closed) proof, inlined at each (use N)
     body = []
     for f in forms:
         if isinstance(f, list) and f and f[0] == 'data':
             specs[f[1]] = (int(f[2]), int(f[3]), int(f[4]))   # cid -> (arity, r0, r1) for Rec's Mkspec
+            continue
+        if isinstance(f, list) and f and f[0] == 'prod':
+            prods.add(f[1])                                   # (prod cid) — sole-constructor product marker
             continue
         if isinstance(f, list) and f and f[0] == 'fun':
             funs.setdefault(f[1], []).append((f[2], f[3]))
@@ -202,6 +211,7 @@ def main():
         raise SystemExit('expected exactly <goal> <proof> after declarations')
     funs['#tab'] = build_tab({k: v for k, v in funs.items() if k not in ('#tab', '#data', '#defs')})
     funs['#data'] = specs
+    funs['#prod'] = prods
     funs['#defs'] = defs
     print('(check %s %s)' % (proof(body[1], funs), prop(body[0], funs)))
 
