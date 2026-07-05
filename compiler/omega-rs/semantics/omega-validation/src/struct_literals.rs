@@ -146,6 +146,25 @@ fn validate_literal_field_names(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let type_name = literal.type_name.as_str();
+
+    // A field named more than once in one literal is ambiguous: only the FIRST
+    // value is stored and the rest are silently dropped (verified: `Point { x: 1,
+    // x: 2, .. }` keeps x == 1). Reject it, mirroring the duplicate-member
+    // rejection on the data DECLARATION. Independent of type resolution, so it runs
+    // before the definition lookup (and thus for generic/unresolved shapes too);
+    // field counts are tiny, so a linear scan is fine.
+    let mut seen: Vec<&str> = Vec::new();
+    for field in program.expression_table.struct_fields(literal.fields) {
+        let name = field.name.as_str();
+        if seen.contains(&name) {
+            diagnostics.push(Diagnostic::error(format!(
+                "data `{type_name}` literal has duplicate field `{name}`"
+            )));
+        } else {
+            seen.push(name);
+        }
+    }
+
     let Some(data_definition) = program
         .data_definitions()
         .iter()
