@@ -3070,27 +3070,25 @@ exit.
   member-symbol-validity walk (an unknown field leaves an invalid symbol; name_paths.rs),
   which must handle the valid member forms (case payloads, era fields, domain members).
   A "did you mean `count`?" edit-distance suggestion would further help.
-- [ ] UNDECLARED BARE NAME -- SILENT MISCOMPILE (found + parked 2026-07-04). Sibling
-  of the unknown-field check above, one level up: a single-segment bare name that is
-  NOT a local / parameter / field -- `let x: i32 = undeclared_var` -- COMPILES at
-  --check AND --build-dir and RUNS (exit 0; the name reads as 0). A bare name is
-  resolved for value but never checked for EXISTENCE. (`exit_process(undeclared)` is
-  the related case the backend host-encoder catches with a MISLEADING "no encodable
-  call sequence", not "unknown name".) Valid bare-name set probed: local / param /
-  field (implicit self). Repro + FINDINGS parked at
-  `canaries/pending/arithmetic/undeclared_bare_name_not_checked`. NAIVE FIX ATTEMPTED
-  + REVERTED 2026-07-04 (18 whole-tail false positives): a "1-segment Name not in
-  {field, local, param, top-level symbol, enum case}" check in scan_expression_calls
-  is NOT sufficient -- two more legal forms it wrongly rejected: (1) `true`/`false`
-  are single-segment `Name` nodes (not Boolean-literal nodes) in some lowerings; (2)
-  CROSS-STATE SCOPE -- a sub-state reads a param/local of the ENTRY/ancestor state
-  (`state nonpos` reads `n`; `state mark_current_room` reads `room_index`), so one
-  state's params/locals is the WRONG scope. Needs REAL name-resolution scope
-  (threaded bindings across a machine's states + boolean-literal handling) = a
-  focused-session feature, not the local-lookup sketch. Bare enum cases ARE legal
-  (confirmed). Symbol API located: MachineSymbols::{has_member,has_owned_data,
-  contained_type}; TopLevelSymbols::{has_type,machine,platform,trait_definition};
-  cases via program.data_members -> DataMember::Variant.
+- [x] UNDECLARED BARE NAME -- SILENT MISCOMPILE CLOSED 2026-07-04 (found + parked,
+  naive fix reverted, then landed same day). Sibling of the unknown-field check, one
+  level up: a single-segment bare name that is NOT a local / parameter / field / type
+  / enum case -- `let x: i32 = undeclared_var` -- used to COMPILE at --check AND
+  --build-dir and RUN (exit 0; the name read as 0/garbage). A bare name was resolved
+  for value but never checked for EXISTENCE. FIX: `is_known_bare_name` +
+  existence check in `scan_expression_calls` (omega-validation/calls.rs). The FIRST
+  attempt (a per-current-state lookup) gave 18 whole-tail false positives; the landed
+  version fixes both forms it missed -- (1) `true`/`false` are single-segment `Name`
+  nodes, skipped by name; (2) state bindings share the WHOLE-machine environment (a
+  sub-state reads a sibling/ancestor state's param, e.g. `state report` reads
+  `classify`'s `n`), so the allow-list scans EVERY state's params + `LocalData`, not
+  one state's. Deliberately GENEROUS (over-approximates scope) so it only ever
+  UNDER-rejects (misses a typo), never falsely rejects a real name. Canaries:
+  fail `arithmetic/undeclared_bare_name_rejected`, pass `arithmetic/bare_name_scopes`
+  (locks the cross-state + bare-enum-case forms). 599->600 canaries; differential
+  clean. BONUS: the old MISLEADING `exit_process(undeclared)` case (backend "no
+  encodable call sequence") is ALSO fixed -- a bare host-call arg now hits the
+  checker's clean "uses `undeclared` ..." message before the host encoder (verified).
 - [ ] CROSS-CLASS scalar assignment -- SILENT MISCOMPILE CLOSED 2026-07-04
   (literal + place, two waves same day). `self.i32 = true` (a `bool` literal) AND
   `self.i32 = self.bool_field` (a bool PLACE) BOTH used to pass `--check` and

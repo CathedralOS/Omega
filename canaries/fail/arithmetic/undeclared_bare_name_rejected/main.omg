@@ -1,0 +1,18 @@
+// A single-segment BARE name that resolves to nothing -- not a field, local,
+// parameter, top-level type, or enum case -- used to be SILENTLY accepted and read
+// as 0/garbage at runtime (no error at any phase). It is now rejected: a bare name
+// is checked for EXISTENCE, not just resolved for value. Sibling of the `self.<typo>`
+// field check (unknown_field_read_rejected); this covers the unqualified form.
+//
+// The scope for the check is the WHOLE machine (a sub-state may legitimately read a
+// param/local declared on an ancestor state), and `true`/`false`/bare enum cases
+// are accepted -- exercised by the pass canary `arithmetic/bare_name_scopes`.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+    let x: i32 in Wrapping = undeclared_var; // undeclared bare name -- must be rejected
+    self.console.exit_process(x);
+}
