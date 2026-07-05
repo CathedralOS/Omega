@@ -1028,6 +1028,31 @@ fn narrowing_value_call_arg_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn transition_value_overflow_rejected_canary_is_rejected() {
+    // Decision-17 exact-arithmetic overflow at the transition-value return
+    // boundary (`transition { _ -> (x + y) }`): this boundary used to SKIP the
+    // overflow proof obligation the other boundaries enforce, so the sum wrapped
+    // silently. Now checked uniformly.
+    let canary = fail_canary("arithmetic/transition_value_overflow_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected transition-value-overflow canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("exact arithmetic") && combined.contains("return value"),
+        "expected an exact-arithmetic overflow diagnostic at the return boundary, got:\n{combined}"
+    );
+}
+
+#[test]
 fn unknown_field_read_rejected_canary_is_rejected() {
     // A READ of a nonexistent field (a typo) in an expression is rejected at
     // type-check ("reads `self.cont`, but data X has no field `cont`"), not silently
