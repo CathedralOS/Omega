@@ -404,35 +404,55 @@ pub(crate) fn validate_array_literal_elements(
     else {
         return;
     };
-    let Some(element_primitive) = program.primitive_type_reference(*element_type) else {
-        return;
-    };
-    let owner = format!("array literal element of type `{}`", element_primitive.name());
-    for element in program.expression_table.expression_handles(*elements) {
-        // Class check first; a cross-class element is not also narrowing-checked.
-        if crate::expression_types::report_cross_class_store(
-            program,
-            machine,
-            Some(state),
-            *element,
-            element_primitive,
-            "array literal element",
-            "element",
-            diagnostics,
-        ) {
-            continue;
+    let element_type = *element_type;
+    let element_handles = program.expression_table.expression_handles(*elements);
+    match program.primitive_type_reference(element_type) {
+        // SCALAR element type: cross-class + narrowing per element.
+        Some(element_primitive) => {
+            let owner = format!("array literal element of type `{}`", element_primitive.name());
+            for element in element_handles {
+                // Class check first; a cross-class element is not also narrowing-checked.
+                if crate::expression_types::report_cross_class_store(
+                    program,
+                    machine,
+                    Some(state),
+                    *element,
+                    element_primitive,
+                    "array literal element",
+                    "element",
+                    diagnostics,
+                ) {
+                    continue;
+                }
+                // Narrowing check: the element must fit the element type's width.
+                check_value_narrowing(
+                    program,
+                    machine,
+                    Some(state),
+                    *element,
+                    element_primitive,
+                    &ValueEnv::new(),
+                    &owner,
+                    diagnostics,
+                );
+            }
         }
-        // Narrowing check: the element must fit the element type's width.
-        check_value_narrowing(
-            program,
-            machine,
-            Some(state),
-            *element,
-            element_primitive,
-            &ValueEnv::new(),
-            &owner,
-            diagnostics,
-        );
+        // DATA (non-primitive) element type: a wrong-data-type element
+        // (`[Foo; N] = [self.bar, ..]`) is otherwise silently accepted. Nominal guard.
+        None => {
+            for element in element_handles {
+                crate::expression_types::report_data_type_conflict(
+                    program,
+                    machine,
+                    Some(state),
+                    *element,
+                    element_type,
+                    "array literal element",
+                    "element",
+                    diagnostics,
+                );
+            }
+        }
     }
 }
 
