@@ -14,6 +14,10 @@ import sys
 
 PERTURB = '--perturb' in sys.argv[1:]
 
+BAGEQ = 90   # opaque binary-relation id for `Bag(a) == Bag(b)` (multiset equality). The prover/kernel treat
+#              Rel as UNINTERPRETED, which is exactly right for a proof VIEW carried requires->ensures: the
+#              identity contract `Bag(x)==Bag(y) |- Bag(x)==Bag(y)` is P->P, no multiset axioms needed.
+
 
 def toks(s):
     return re.findall(r'==|<=|!=|[<()+*]|\d+nat|[A-Za-z_][A-Za-z0-9_]*|\d+', s)
@@ -53,6 +57,12 @@ def atom(ts, pos, env):
 
 
 def clause(s, env):                                    # one requires/ensures line -> a prover prop
+    mb = re.fullmatch(r'\s*Bag\(\s*(\w+)\s*\)\s*==\s*Bag\(\s*(\w+)\s*\)\s*', s)
+    if mb:                                              # `Bag(a) == Bag(b)` -> opaque relation Rel BAGEQ a b
+        a, b = mb.group(1), mb.group(2)                 # (a proof view; see BAGEQ). Both sides must be params.
+        if a in env and b in env:
+            return '(Rel %d (v %d) (v %d))' % (BAGEQ, env[a], env[b])
+        return None
     ts = toks(s)
     for op, mk in (('==', lambda a, b: '(= %s %s)' % (a, b)),
                    ('<=', lambda a, b: '(Le %s %s)' % (a, b)),
@@ -95,6 +105,11 @@ def falsify(prop):                                     # --perturb: turn the con
     mneq = re.fullmatch(r'\(-> \((= .*)\) \(bot\)\)', prop)
     if mneq:
         return '(%s)' % mneq.group(1)
+    mrel = re.fullmatch(r'\(Rel (\d+) (.*)\)', prop)   # an opaque relation `Rel n a b`: SWAP the two arguments.
+    if mrel:                                           # `Rel n b a` is a DIFFERENT uninterpreted prop, NOT
+        a, b = _two(mrel.group(2))                     # entailed by `Rel n a b` (the kernel knows no symmetry),
+        if a != b:                                     # so the identity contract's proof must fail to fit it.
+            return '(Rel %s %s %s)' % (mrel.group(1), b, a)
     m = re.fullmatch(r'\((=|Lt|Le) (.*)\)', prop)
     if not m:
         return prop
