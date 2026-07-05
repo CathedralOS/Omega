@@ -1,0 +1,74 @@
+// Runtime narrow SATURATING add/sub at the type boundaries: operands are FIELDS
+// (runtime values, not const-folded), so this exercises the backend saturating
+// clamp for i8/u8/i16, not the fold. Add that overflows the max clamps to the max;
+// sub that underflows the min clamps to the min; unsigned underflow clamps to 0.
+// The differential oracle checks native==interpreter -- a boundary clamp that
+// disagrees would surface here.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a8: i8 in Saturating;
+    b8: i8 in Saturating;
+    r8: i8 in Saturating;
+    au: u8 in Saturating;
+    bu: u8 in Saturating;
+    ru: u8 in Saturating;
+    a16: i16 in Saturating;
+    b16: i16 in Saturating;
+    r16: i16 in Saturating;
+}
+
+machine Main::main(&mut self) {
+    // i8 add overflow: 120 + 20 = 140 -> clamp to 127.
+    self.a8 = 120;
+    self.b8 = 20;
+    self.r8 = self.a8 + self.b8;
+    transition self.r8 == 127 { true -> u8_add() _ -> bad() }
+
+    state u8_add(&mut self) {
+        // u8 add overflow: 200 + 100 = 300 -> clamp to 255.
+        self.au = 200;
+        self.bu = 100;
+        self.ru = self.au + self.bu;
+        transition self.ru == 255 { true -> i8_sub() _ -> bad() }
+    }
+    state i8_sub(&mut self) {
+        // i8 sub underflow: -120 - 20 = -140 -> clamp to -128.
+        self.a8 = 0 - 120;
+        self.b8 = 20;
+        self.r8 = self.a8 - self.b8;
+        transition self.r8 == 0 - 128 { true -> u8_sub() _ -> bad() }
+    }
+    state u8_sub(&mut self) {
+        // u8 sub underflow: 30 - 100 = -70 -> clamp to 0.
+        self.au = 30;
+        self.bu = 100;
+        self.ru = self.au - self.bu;
+        transition self.ru == 0 { true -> i16_add() _ -> bad() }
+    }
+    state i16_add(&mut self) {
+        // i16 add overflow: 30000 + 10000 = 40000 -> clamp to 32767.
+        self.a16 = 30000;
+        self.b16 = 10000;
+        self.r16 = self.a16 + self.b16;
+        transition self.r16 == 32767 { true -> in_range() _ -> bad() }
+    }
+    state in_range(&mut self) {
+        // an IN-RANGE saturating add stays exact: 40 + 2 = 42 (no clamp).
+        self.a8 = 40;
+        self.b8 = 2;
+        self.r8 = self.a8 + self.b8;
+        transition self.r8 == 42 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
