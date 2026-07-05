@@ -272,33 +272,42 @@ This is an ordered match like Rust's `match`: earlier arms win. That means
 overlapping domain patterns are allowed in ordinary value matching because the
 source order is part of the program.
 
-## Classifiers
+## Sub-Domains
 
-Domains that participate in domain patterns should provide a cheap classifier
-with `when` when possible.
+A domain is *only* its invariant facts — there is no separate classifier clause
+(there is no `when` keyword). A domain that participates in matching just gets
+tested by evaluating its body; when the body's leading fact is a cheap field
+compare, that test *is* cheap, with nothing extra to declare.
+
+Refinement is expressed structurally, by nesting the name: `A::B::C` is a
+**sub-domain** of `A::B`, and its body auto-includes the parent's facts.
 
 ```omega
-domain Game::Playing
-    when self.phase == GamePhase.Playing
-{
-    self.winner == None;
-}
+domain Game::Playing             { self.phase == GamePhase.Playing; self.winner == None; }
+domain Game::Playing::RoundStart { self.turn == 1; }
+// RoundStart ≡ { self in Game::Playing; self.turn == 1 } — the parent facts are inherited
+```
 
-domain Game::Finished
-    when self.phase == GamePhase.Finished
-{
-    self.winner != None || self.turns == 9;
+Membership is a lattice and the name is the edge. This subsumes what a `when`
+classifier used to do, for free: to test a sub-domain the compiler tests the
+parent first, so a cheap parent (`phase == Playing`) gives a tag-switch and an
+expensive one (a byte scan) is paid honestly — the cost follows the facts, not a
+keyword.
+
+```omega
+match game {
+    Game::Playing::RoundStart -> opening()   // tests Playing, then turn == 1
+    Game::Playing             -> mid()
+    Game::Finished            -> over()
 }
 ```
 
-The `when` clause is the classifier. The domain body is the full set of proof
-facts for that domain.
-For a domain pattern such as `Game::Playing`, the compiler may lower the match
-through the classifier, such as `game.phase`, instead of rechecking every body
-fact.
+`A::B::C` is single-parent (one name path). A domain that refines two unrelated
+parents still writes the explicit intersection in its body (`self in X & Y`) —
+the name path is for the common refinement chain, `&` for the DAG cases.
 
-If a domain has no classifier, a domain pattern may still be executable when
-all of the domain body's facts are pure, finite, and runtime-checkable:
+A domain pattern is executable when its body's facts are pure, finite, and
+runtime-checkable:
 
 ```omega
 if player in Player::Dead {
@@ -306,21 +315,39 @@ if player in Player::Dead {
 }
 ```
 
-This lowers to the domain body's comparisons and updates the true branch with
-`player in Player::Dead`. Domains with quantifiers, opaque proof calls, or
-non-executable facts cannot be used as runtime checks unless they expose an
-explicit executable classifier or checker.
+This lowers to the body's comparisons and narrows the true branch with `player
+in Player::Dead`. Domains with quantifiers, opaque proof calls, or
+non-executable facts cannot be used as runtime checks.
 
-For classified domains, the compiler checks classifier facts:
+For domain matches the compiler checks:
 
 - A non-wildcard match over a known domain union must be exhaustive.
-- Classifiers should be mutually exclusive when the program relies on
-  unordered domain-union reasoning.
+- Bodies must be mutually exclusive when the program relies on unordered
+  domain-union reasoning (a sub-domain is never mutually exclusive with its
+  parent — order it before the parent).
 - Each arm receives the facts from the selected domain.
 - Each transition target must accept the facts established by its arm.
 
-The compiler may infer simple classifiers later, but explicit `when` clauses
-are the reliable source-level mechanism.
+### Named Predicates (horizontal reuse)
+
+Sub-domains reuse facts *vertically* (a refinement chain). To reuse a fact
+*horizontally* — a shared condition across unrelated domains — name a pure
+bool-returning machine and call it. There is no separate `predicate` binder; a
+predicate is just a terse machine:
+
+```omega
+machine in_span(g: Game) -> bool = g.turn in 1..=9;   // reusable condition, no identity
+
+domain Game::Playing { self.phase == GamePhase.Playing; in_span(self); }
+domain Game::Sudden  { self.phase == GamePhase.Playing; in_span(self); self.turn == 9; }
+```
+
+The distinction: a **sub-domain** is a named membership set with identity (you
+`match` / `as` / `require` it); a **named predicate** is an anonymous reusable
+condition with no identity (a helper like `in_bounds`). Use the first for a
+meaningful state, the second for a shared fact-bundle. They compose — a
+sub-domain body may call named predicates, and a predicate may reference
+membership.
 
 ## Overlap And Intersections
 
@@ -355,7 +382,7 @@ match password {
 
 Here `Password::Secure` wins when both domains hold because it appears first.
 If source code needs an unordered, exhaustive split of a known domain union,
-the domains must still be distinguishable by mutually exclusive classifiers.
+the domains must still be distinguishable by mutually exclusive bodies.
 
 ## Domain-Sensitive Operators
 
@@ -666,7 +693,7 @@ never from the transport:
 
 A package may declare a domain over a type it does not own. This is the
 analog of Rust's extension traits: downstream code names its own validity
-classes over upstream data (`domain Entity::Quarantined when ...` in a policy
+classes over upstream data (`domain Entity::Quarantined { ... }` in a policy
 package, over a core `Entity`).
 
 Working rules:
@@ -718,7 +745,11 @@ Working interpretation:
 - Domains are type-scoped named proof predicates.
 - Domains classify values that satisfy the type's data and field invariants.
 - A domain body may not contradict the invariants of the type it classifies.
-- `when` is a cheap, pure classifier, not the whole invariant.
+- There is no `when` classifier keyword; a domain is only its invariant facts.
+- `Type::A::B` is a sub-domain of `Type::A` — its body auto-includes the parent's
+  facts (single-parent; use `self in X & Y` for the DAG case).
+- A named predicate is a pure bool machine, called from domain bodies for
+  horizontal fact reuse (no separate `predicate` binder).
 - `requires x in Type::Domain` is a caller obligation.
 - `ensures x in Type::Domain` is a callee guarantee.
 - `x in Type::A | Type::B` is a domain union.

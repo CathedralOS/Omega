@@ -837,7 +837,10 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
   returning bool (reuse the machine substrate; array accesses ride the existing bounds
   prover via `&&` short-circuit). RECURSION IS BANNED, so a sequence walk is a STATE MACHINE
   transitioning to itself with a NARROWED SLICE (slicing over indexing; no `usize`). See the
-  canonical `utf8_ok` recognizer in memory encoding-domains-no-intrinsics.
+  canonical `utf8_ok` recognizer in memory encoding-domains-no-intrinsics. Also: `when`
+  CLASSIFIER KEYWORD KILLED → SUB-DOMAINS (`Type::A::B` auto-includes A's facts; matching
+  tests parent-first, so cheap-parent = tag-switch for free); horizontal fact reuse = a named
+  bool machine (no `predicate` binder). ch8 "Sub-Domains" section rewritten.
 - **State param scope (settled 2026-07-05):** THREADED — pass what each state needs, NO
   whole-machine/global param access (keeps the borrow checker transition-local; `&mut`
   splitting is a linearity issue). Global access = a possible follow-up, compatible via
