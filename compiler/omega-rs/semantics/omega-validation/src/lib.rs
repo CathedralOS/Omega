@@ -358,6 +358,25 @@ fn validate_state_statement_node(
                 machine.name,
                 local_data.name.as_str()
             );
+            // Cross-class guard: `let x: i32 = true` stores a bool into a numeric
+            // local -- a silent miscompile, same as the assignment / arg / field
+            // positions. Only an INITIALIZED `let` has a value to class-check (a
+            // bare `let x: bool;` filled later by an `&mut` out-param has an invalid
+            // initializer). (Narrowing on the initializer is checked below.)
+            if local_data.initial_value.is_valid()
+                && let Some(target_primitive) = local_target_primitive
+            {
+                expression_types::report_cross_class_store(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    local_data.initial_value,
+                    target_primitive,
+                    &owner,
+                    "local",
+                    diagnostics,
+                );
+            }
             let before = diagnostics.len();
             let (interval, source_primitive) = arithmetic_domains::validate_value_range(
                 program,
