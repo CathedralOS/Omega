@@ -3148,11 +3148,25 @@ exit.
   ALL value-binding boundaries (assignment, let-init, terminal, transition-value,
   call-arg) enforce both decision-17 obligations (exact-overflow + narrowing)
   uniformly.
-  NOTE (pre-existing, ALL boundaries, NOT introduced here): a one-sided
-  `requires x < 100` does NOT prove `x + 1` in range (the interval keeps x's low end
-  unbounded rather than intersecting the type's i32 low) -- terminal-expr rejects it
-  too. An interval-precision completeness gap (intersect a requires-bounded operand
-  with its type range), not a soundness issue; separate follow-up.
+- [x] GUARD-NARROWED transition-VALUE return -- COMPLETENESS fix, LANDED
+  2026-07-04. The transition-value return path was validated against the RAW
+  `value_env`, NOT the guard-narrowed env, so `n > 0 { true -> (n - 1) }` over-
+  rejected (`n - 1` unprovable) even though the identical `count_down(n - 1)`
+  transition-ARGUMENT proved Exact via the arm guard. Fix: compute the guard-
+  narrowed env ONCE (lib.rs Transition arm) and use it for BOTH the return-value
+  validation and the call-arg validation (was only the latter). `guard_narrowed_env`
+  intersects each bounded place with its type range and negates for the `false`
+  arm, so soundness holds: UNGUARDED `_ -> (n - 1)` and the `false` arm (where
+  `n <= 0`) are STILL rejected (verified). RUN canary
+  runtime_transition_value_guard_narrowing_exit (dec(43)=42, differential
+  interp==native); full suite 587 clean.
+  REMAINING interval-precision gap (pre-existing, NOT guard-related): a one-sided
+  `requires x < 100` (entry-env SEEDING via requires_value_env) does NOT prove
+  `x + 1` in range -- the seeded interval `[None, 99]` keeps x's low end unbounded
+  instead of intersecting the type's i32 low. Terminal-expr rejects it too (so not a
+  regression). Fix = intersect a place's interval with its declared type range at
+  LOOKUP time (general; would also cover requires seeding), or in requires_value_env.
+  Sound over-rejection, separate follow-up.
 - [ ] Broaden persistent machine/state mutation coverage beyond isolated
   micro-shapes toward dungeon-sample blockers.
 - [ ] Link final-image imports/fixups back to source and lowered boundary-edge
