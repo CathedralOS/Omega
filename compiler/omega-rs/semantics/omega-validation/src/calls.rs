@@ -467,33 +467,94 @@ pub(crate) fn validate_call_arguments_handles(
                 expected_type,
                 expression_type_name_handle(program, *argument)
             )));
-        } else if let Some(parameter_primitive) =
-            program.primitive_type_reference(parameter.type_reference)
-            && let Some((value_class, target_class)) = cross_class_conflict(
-                program,
-                current_machine,
-                current_state,
-                *argument,
-                parameter_primitive,
-            )
-        {
+        } else {
             // The shape gate blanket-accepts place/name arguments (`self.field`,
             // a local) against ANY primitive parameter, so a `bool` field passed
             // for an `i32` parameter slips through and the backend silently reads
             // it as garbage. Resolve the argument's scalar class and reject a
-            // cross-class store, exactly as the assignment path does.
-            diagnostics.push(Diagnostic::error(format!(
-                "argument `{}` for state `{}` stores {} into a `{}` parameter, which holds {}",
-                parameter.name,
+            // cross-class store, exactly as the assignment path does. Only args
+            // that PASSED the shape gate reach here, so cross-class LITERALS (which
+            // the shape gate already rejects above) are not double-reported.
+            report_cross_class_argument(
+                program,
+                current_machine,
+                current_state,
+                *argument,
+                parameter,
                 target_name,
-                value_class.describe(),
-                parameter_primitive.name(),
-                target_class.describe(),
-            )));
+                diagnostics,
+            );
         }
     }
 
     let _ = (writable_roots, diagnostics);
+}
+
+/// Reject a single ARGUMENT whose scalar class conflicts with its `parameter`'s
+/// primitive type -- a `bool`/text value passed where a numeric parameter is
+/// expected (or vice versa), which the backend would otherwise read as garbage.
+/// Shared by the statement/transition path (`validate_call_arguments_handles`)
+/// and the value-position path (`validate_value_call_argument_classes`). Returns
+/// `true` if it reported. A non-primitive parameter (a data reference, a struct)
+/// or an unresolvable argument class yields `false` -- no report.
+fn report_cross_class_argument(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: Option<&State>,
+    argument: ExpressionHandle,
+    parameter: &StateParameter,
+    target_name: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let Some(parameter_primitive) = program.primitive_type_reference(parameter.type_reference)
+    else {
+        return false;
+    };
+    let Some((value_class, target_class)) =
+        cross_class_conflict(program, current_machine, current_state, argument, parameter_primitive)
+    else {
+        return false;
+    };
+    diagnostics.push(Diagnostic::error(format!(
+        "argument `{}` for state `{}` stores {} into a `{}` parameter, which holds {}",
+        parameter.name,
+        target_name,
+        value_class.describe(),
+        parameter_primitive.name(),
+        target_class.describe(),
+    )));
+    true
+}
+
+/// Reject cross-class scalar ARGUMENTS at a VALUE-position call site
+/// (`let r = self.f(self.bool_field)`). The value-position path validates only
+/// type-parameter bounds, so the same cross-class hole the statement/transition
+/// paths had applies here. Unlike `validate_call_arguments_handles` there is no
+/// shape gate ahead of this, so it also covers literal arguments.
+fn validate_value_call_argument_classes(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: &State,
+    arguments: &[ExpressionHandle],
+    callee_state: &State,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for (argument, parameter) in arguments.iter().zip(
+        program
+            .state_parameters(callee_state)
+            .iter()
+            .filter(|parameter| !parameter.is_self),
+    ) {
+        report_cross_class_argument(
+            program,
+            current_machine,
+            Some(current_state),
+            *argument,
+            parameter,
+            callee_state.name.as_str(),
+            diagnostics,
+        );
+    }
 }
 
 /// FROZEN DECISION 13 residue (value-position complement of `validate_call_node`).
@@ -927,6 +988,14 @@ fn validate_expression_call_bounds(
                 Some(current_state),
                 diagnostics,
             );
+            validate_value_call_argument_classes(
+                program,
+                current_machine,
+                current_state,
+                arguments,
+                callee_state,
+                diagnostics,
+            );
             return;
         }
 
@@ -958,6 +1027,14 @@ fn validate_expression_call_bounds(
                 Some(current_state),
                 diagnostics,
             );
+            validate_value_call_argument_classes(
+                program,
+                current_machine,
+                current_state,
+                arguments,
+                callee_state,
+                diagnostics,
+            );
             return;
         }
 
@@ -975,6 +1052,14 @@ fn validate_expression_call_bounds(
                 arguments,
                 current_machine,
                 Some(current_state),
+                diagnostics,
+            );
+            validate_value_call_argument_classes(
+                program,
+                current_machine,
+                current_state,
+                arguments,
+                callee_state,
                 diagnostics,
             );
         }
@@ -1009,6 +1094,14 @@ fn validate_expression_call_bounds(
                 Some(current_state),
                 diagnostics,
             );
+            validate_value_call_argument_classes(
+                program,
+                current_machine,
+                current_state,
+                arguments,
+                callee_state,
+                diagnostics,
+            );
         }
         return;
     }
@@ -1027,6 +1120,14 @@ fn validate_expression_call_bounds(
             arguments,
             current_machine,
             Some(current_state),
+            diagnostics,
+        );
+        validate_value_call_argument_classes(
+            program,
+            current_machine,
+            current_state,
+            arguments,
+            callee_state,
             diagnostics,
         );
     }

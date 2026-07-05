@@ -3081,10 +3081,25 @@ exit.
   clean, no arity/shape regression). Only fires on args that pass the shape gate, so
   no double-report with cross-class LITERAL args (the shape gate already rejects
   those). Locked by fail canary arg_class_mismatch_rejected.
-  STILL OPEN: VALUE-position call args (`let r = self.pick(self.b)`) go through
-  `validate_value_position_calls` (BOUND-check only, decision-13 residue), NOT
-  `validate_call_arguments_handles` -- a cross-class value-position arg may still
-  slip. Next probe target in this family.
+- [ ] CROSS-CLASS value-position call ARGUMENT -- SILENT MISCOMPILE CLOSED
+  2026-07-04 (4th & final wave, cross-class family COMPLETE). `let v: i32 =
+  self.take(self.b)` (bool field into an i32 value-position param) compiled+ran
+  silently (exit 0, arg read as garbage) -- confirmed by building a repro from the
+  `let v = self.next(&mut ...)` canary syntax. Value-position calls route through
+  `validate_value_position_calls` -> `scan_expression_calls` ->
+  `validate_expression_call_bounds` (decision-13 residue), which validated only
+  type-parameter BOUNDS, never argument classes. Fix: extracted the per-arg check
+  into a shared `report_cross_class_argument` helper + a value-position wrapper
+  `validate_value_call_argument_classes`, called it at ALL 5 callee-resolution
+  branches (self-state, attached-sibling, free-machine, external-machine,
+  attached-data). Deliberately NOT placed inside
+  `validate_machine_call_type_parameter_bounds` (shared with the statement path,
+  which already class-checks via `validate_call_arguments_handles` -- would
+  double-report). No shape gate ahead of the value-position path, so it also
+  covers literal args there. Locked by fail canary
+  value_call_arg_class_mismatch_rejected.
+  Whole cross-class-store family (assignment literal/place + call/transition/host
+  arg + value-position arg) now CLOSED -- see [[literal-class-assignment-miscompile]].
 - [ ] Broaden persistent machine/state mutation coverage beyond isolated
   micro-shapes toward dungeon-sample blockers.
 - [ ] Link final-image imports/fixups back to source and lowered boundary-edge
