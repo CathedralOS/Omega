@@ -3126,6 +3126,21 @@ exit.
   it runs for EVERY primitive field before the range check (which only applied to
   `[a..=b]`-constrained fields), so plain `x: i32` fields are covered. Locked by
   fail canary struct_literal_class_mismatch_rejected. Zero blast radius.
+- [x] NARROWING at struct-literal FIELD construction -- SILENT MISCOMPILE CLOSED
+  2026-07-04 (construction-position sibling of the call-arg 5th-boundary narrowing).
+  `Small { v: self.i64_field }` into an `i8 v` truncated 300 -> 44 silently; a
+  literal `Small { v: 300 }` for a plain i8 field also slipped (the range check
+  only covered `[a..=b]` fields). Fix: `enforce_construction_field_obligations`
+  now runs validate_value_range(field.value, Some(field_primitive)) into a
+  throwaway + check_narrowing_assignment for EVERY primitive field. FLOW-
+  INSENSITIVE (empty env, like the field-range check beside it) -- a wider place
+  must be `as`-cast or constrained at construction. ZERO blast radius (590 canaries
+  + samples-compile clean, whole tail verified -- no sample constructs from a
+  flow-narrowed wider place). Locked by fail canary
+  struct_literal_narrowing_rejected. NOTE: the flow-insensitivity is a completeness
+  gap (a construction from a flow-proven-small wider place over-rejects) shared with
+  the existing field-range check; threading the statement value_env into
+  validate_struct_literal_fields would close it -- deferred, low value.
 - [x] NARROWING at the CALL-ARGUMENT boundary -- decision-17 5th boundary, SILENT
   MISCOMPILE, FULLY CLOSED 2026-07-04 (2 commits). All arg positions --
   statement-call, transition-target, host/boundary, AND value-position
