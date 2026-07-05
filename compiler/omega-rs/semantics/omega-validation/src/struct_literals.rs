@@ -12,7 +12,9 @@ use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataDefinition, DataMember};
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
-use omega_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
+use omega_typed_trees::types::{
+    FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
+};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -170,6 +172,20 @@ fn validate_literal_field_names(
         .iter()
         .find(|definition| definition.name.as_str() == type_name)
     else {
+        // The literal names a type that is not a data definition -- a primitive
+        // (`i32 { a: 1 }`) or an undefined name (`Nonexistent { a: 1 }`). Neither is
+        // constructible with `{ ... }`; both used to compile silently, binding a ZII
+        // value. Generic data definitions ARE found here (handled just below), so
+        // this fires only on genuinely non-constructible names.
+        if PrimitiveType::from_name(type_name).is_some() {
+            diagnostics.push(Diagnostic::error(format!(
+                "cannot construct primitive type `{type_name}` with a struct literal"
+            )));
+        } else {
+            diagnostics.push(Diagnostic::error(format!(
+                "struct literal names unknown data type `{type_name}`"
+            )));
+        }
         return;
     };
     if data_definition.type_parameters.count() > 0 {
