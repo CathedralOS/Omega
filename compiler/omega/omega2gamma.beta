@@ -31,7 +31,10 @@
 ; (local .len/[i]/[a..]/[a..b] via nth/drop/take, as_slice + postfix), value calls (whole-RHS and
 ; expression-embedded via hoist+source-rewrite), machine tail-call arms, value arms (literal/expression),
 ; logical &&/|| layers, shifts as *2^k / /2^k, max/min builtins, terminates-clause skip, dual-channel
-; (Pair exit stdout) output convention. UNSUPPORTED constructs REFUSE with E2G-UNSUPPORTED markers.
+; (Pair exit stdout) output convention. UNSUPPORTED constructs REFUSE with E2G-UNSUPPORTED markers —
+; incl. unknown self-field methods (atomics store/fetch_add/compare_exchange, ...): only exit_process /
+; write_byte / write_line / real machine calls are recognized; anything else refuses (never silently
+; treated as exit_process, which used to collapse a whole program to its first argument).
 ; stdout: write_byte(e)/write_line("s") accumulate LAST list slot `out` (cons-front): write_byte -> `(Cons e
 ; out)`; write_line -> cons the string bytes + a trailing '\n'. In OUTPUT mode the entry terminal returns
 ; `(rev out Nil)` (the whole stdout) not the exit code; interp prints that list. `rev` prepended if outputs.
@@ -1105,6 +1108,24 @@ proc is_write_line() {                 ; the boundary call `write_line` (10 char
     state c9 { to c10 when (byte[2097152 + o + 8] == 'n')  return 0 }
     state c10 { to c11 when (byte[2097152 + o + 9] == 'e')  return 0 }
     state c11 { to yes when (is_idchar(byte[2097152 + o + 10]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_exit_process() {               ; the boundary call `exit_process` (12 chars)
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 'e')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'x')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 'i')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 't')  return 0 }
+    state c5 { to c6 when (byte[2097152 + o + 4] == '_')  return 0 }
+    state c6 { to c7 when (byte[2097152 + o + 5] == 'p')  return 0 }
+    state c7 { to c8 when (byte[2097152 + o + 6] == 'r')  return 0 }
+    state c8 { to c9 when (byte[2097152 + o + 7] == 'o')  return 0 }
+    state c9 { to c10 when (byte[2097152 + o + 8] == 'c')  return 0 }
+    state c10 { to c11 when (byte[2097152 + o + 9] == 'e')  return 0 }
+    state c11 { to c12 when (byte[2097152 + o + 10] == 's')  return 0 }
+    state c12 { to c13 when (byte[2097152 + o + 11] == 's')  return 0 }
+    state c13 { to yes when (is_idchar(byte[2097152 + o + 12]) == 0)  return 0 }
     state yes { return 1 }
 }
 
@@ -2312,9 +2333,11 @@ proc translate_block(mi, off) {
         to t_wbyte when (is_write_byte() == 1)
         to t_wline when (is_write_line() == 1)
         to t_xcall when (machine_exists(segoff) == 1)   ; self.inst.m(args) -> a cross-data method call
-        emit_exit_om()                      ; else exit_process (-> `(rev out Nil)` in output mode)
-        to close
+        to t_exit when (is_exit_process() == 1)          ; self.console.exit_process(<expr>) -> the entry terminal
+        emit("E2G-UNSUPPORTED-method ")     ; an unknown self-field method (atomics store/fetch_add, ...): refuse LOUDLY
+        to close                            ; (was silently treated as exit_process, collapsing the program to its 1st arg)
     }
+    state t_exit { emit_exit_om()  to close }
     state t_xcall { skip_ident()  depth = depth + emit_scall(lookup_machine(segoff))  to loop }
     state t_scall { depth = depth + emit_scall(lookup_machine(foff))  to loop }   ; CUR is at '('
     state t_wbyte { depth = depth + emit_write_byte()  to loop }
