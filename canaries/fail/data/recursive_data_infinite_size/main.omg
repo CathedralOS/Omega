@@ -1,0 +1,8 @@
+// A data type that contains ITSELF as an inline field (`next: Node` inside `Node`)
+// has no finite size -- a value would nest endlessly -- so it is inherently
+// impossible, not a missing feature. The diagnostic must name the type and point at
+// the fix (indirection), not expose an internal symbol index.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Node { value: i32; next: Node; } // Node contains an inline Node -- rejected
+data Main { console: Console; n: Node; }
+machine Main::main(&mut self) { self.console.exit_process(0); }

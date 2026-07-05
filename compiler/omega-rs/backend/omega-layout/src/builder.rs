@@ -189,9 +189,24 @@ impl<'program> LayoutBuilder<'program> {
         }
 
         if self.data_visiting.contains(symbol) {
+            // A data type reached while it is still being laid out contains itself as an
+            // INLINE value (directly, or through a cycle of inline fields), so it has no
+            // finite size -- a `Node { next: Node }` value would nest endlessly. This is
+            // inherently impossible, not a missing feature; name the type and point at the
+            // fix (indirection) rather than exposing the internal symbol index.
+            let name = self
+                .data_definition_by_symbol(symbol)
+                .ok()
+                .map(|definition| definition.name.as_str().to_owned());
+            let target = name
+                .as_deref()
+                .map(|name| format!("`{name}`"))
+                .unwrap_or_else(|| format!("data symbol {}", symbol.arena_index()));
             return Err(Diagnostic::error(format!(
-                "recursive data layout is not supported yet for symbol {}",
-                symbol.arena_index()
+                "recursive data type {target} has no finite size: it contains itself \
+                 (directly or through a cycle) as an inline field, which would nest \
+                 endlessly. Break the cycle by making the recursive field an indirection \
+                 (a reference) instead of an inline value."
             )));
         }
 
@@ -734,7 +749,10 @@ impl<'program> LayoutBuilder<'program> {
 
         if self.data_visiting.contains(definition.symbol) {
             return Err(Diagnostic::error(format!(
-                "recursive data layout is not supported yet for generic `{}`",
+                "recursive generic data type `{}` has no finite size: it contains itself \
+                 (directly or through a cycle) as an inline field, which would nest \
+                 endlessly. Break the cycle with an indirection (a reference) instead of \
+                 an inline value.",
                 definition.name
             )));
         }
