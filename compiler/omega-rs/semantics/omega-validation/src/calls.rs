@@ -1,6 +1,6 @@
 use crate::arithmetic_domains::{self, ValueEnv};
 use crate::expression_types::{
-    argument_matches_type_reference_handle, cross_class_conflict, expression_type_name_handle,
+    argument_matches_type_reference_handle, expression_type_name_handle, report_cross_class_store,
 };
 use crate::locals::WritableRoots;
 use crate::places::declared_place_type;
@@ -544,24 +544,17 @@ fn report_cross_class_argument(
     else {
         return false;
     };
-    let Some((value_class, target_class)) = cross_class_conflict(
+    let slot_context = format!("argument `{}` for state `{target_name}`", parameter.name);
+    report_cross_class_store(
         program,
         current_machine,
         current_state,
         argument,
         parameter_primitive,
-    ) else {
-        return false;
-    };
-    diagnostics.push(Diagnostic::error(format!(
-        "argument `{}` for state `{}` stores {} into a `{}` parameter, which holds {}",
-        parameter.name,
-        target_name,
-        value_class.describe(),
-        parameter_primitive.name(),
-        target_class.describe(),
-    )));
-    true
+        &slot_context,
+        "parameter",
+        diagnostics,
+    )
 }
 
 /// Reject a single numeric ARGUMENT that NARROWS into its `parameter` -- a wider

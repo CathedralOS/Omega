@@ -272,23 +272,20 @@ fn enforce_construction_field_obligations(
         // assignment / call-argument positions. Reject it before the range check
         // (which only applies to `[a..=b]`-constrained fields), so every primitive
         // field -- range-constrained or not -- is class-checked.
-        if let Some(field_primitive) = program.primitive_type_reference(field_type)
-            && let Some((value_class, target_class)) = crate::expression_types::cross_class_conflict(
+        if let Some(field_primitive) = program.primitive_type_reference(field_type) {
+            let slot_context = format!("construction of `{type_name}` field `{}`", field.name.as_str());
+            if crate::expression_types::report_cross_class_store(
                 program,
                 machine,
                 Some(state),
                 field.value,
                 field_primitive,
-            )
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "construction of `{type_name}` field `{}` stores {} into a `{}` field, which holds {}",
-                field.name.as_str(),
-                value_class.describe(),
-                field_primitive.name(),
-                target_class.describe(),
-            )));
-            continue;
+                &slot_context,
+                "field",
+                diagnostics,
+            ) {
+                continue;
+            }
         }
         // Narrowing guard (any primitive field): a value that does not fit the
         // field's TYPE -- `Small { v: self.i64_field }` into an `i8 v` -- is a
@@ -400,19 +397,16 @@ pub(crate) fn validate_array_literal_elements(
     let owner = format!("array literal element of type `{}`", element_primitive.name());
     for element in program.expression_table.expression_handles(*elements) {
         // Class check first; a cross-class element is not also narrowing-checked.
-        if let Some((value_class, target_class)) = crate::expression_types::cross_class_conflict(
+        if crate::expression_types::report_cross_class_store(
             program,
             machine,
             Some(state),
             *element,
             element_primitive,
+            "array literal element",
+            "element",
+            diagnostics,
         ) {
-            diagnostics.push(Diagnostic::error(format!(
-                "array literal element stores {} into a `{}` element, which holds {}",
-                value_class.describe(),
-                element_primitive.name(),
-                target_class.describe(),
-            )));
             continue;
         }
         // Narrowing check: the element must fit the element type's width.

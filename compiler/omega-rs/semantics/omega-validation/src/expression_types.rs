@@ -230,6 +230,36 @@ pub(crate) fn cross_class_conflict(
     (value_class != target_class).then_some((value_class, target_class))
 }
 
+/// If `value`'s scalar class conflicts with the `target` primitive's, push the
+/// cross-class store diagnostic and return `true`; else return `false`.
+/// `slot_context` names the store site (e.g. ``"argument `x` for state `s`"``,
+/// ``"construction of `Point` field `x`"``, `"array literal element"`) and
+/// `slot_noun` its kind (`"place"` / `"parameter"` / `"field"` / `"element"`).
+/// SINGLE SOURCE OF TRUTH for the cross-class store diagnostic across every store
+/// position -- the class complement of `arithmetic_domains::check_value_narrowing`.
+pub(crate) fn report_cross_class_store(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    value: ExpressionHandle,
+    target: PrimitiveType,
+    slot_context: &str,
+    slot_noun: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let Some((value_class, target_class)) = cross_class_conflict(program, machine, state, value, target)
+    else {
+        return false;
+    };
+    diagnostics.push(Diagnostic::error(format!(
+        "{slot_context} stores {} into a `{}` {slot_noun}, which holds {}",
+        value_class.describe(),
+        target.name(),
+        target_class.describe(),
+    )));
+    true
+}
+
 pub(crate) fn expression_type_name_handle(
     program: &TypedTrees,
     argument: ExpressionHandle,
