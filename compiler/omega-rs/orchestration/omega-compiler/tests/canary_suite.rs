@@ -21083,6 +21083,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "expressions/cast_to_non_scalar_type_rejected",
     "constraints/inverted_range_rejected",
     "parser/nesting_exceeds_max_depth",
+    "arithmetic/divide_by_zero_rejected",
+    "arithmetic/modulo_by_zero_rejected",
     "arithmetic/undeclared_bare_name_rejected",
     "arithmetic/indexed_element_class_rejected",
     "arithmetic/indexed_element_narrowing_rejected",
