@@ -1129,6 +1129,50 @@ proc is_exit_process() {               ; the boundary call `exit_process` (12 ch
     state yes { return 1 }
 }
 
+; classify a self-field method name at off: 1=store, 2=fetch_add, 3=compare_exchange, else 0.
+; single-threaded atomic ops desugar to plain field read/modify/write (memory orderings are no-ops here).
+proc atomic_method(off) {
+    state d {
+        to a_s when (byte[2097152 + off] == 's')
+        to a_f when (byte[2097152 + off] == 'f')
+        to a_c when (byte[2097152 + off] == 'c')
+        return 0
+    }
+    state a_s { to a_s2 when (byte[2097152 + off + 1] == 't')  return 0 }
+    state a_s2 { to a_s3 when (byte[2097152 + off + 2] == 'o')  return 0 }
+    state a_s3 { to a_s4 when (byte[2097152 + off + 3] == 'r')  return 0 }
+    state a_s4 { to a_s5 when (byte[2097152 + off + 4] == 'e')  return 0 }
+    state a_s5 { to a_syes when (is_idchar(byte[2097152 + off + 5]) == 0)  return 0 }
+    state a_syes { return 1 }
+    state a_f { to a_f2 when (byte[2097152 + off + 1] == 'e')  return 0 }
+    state a_f2 { to a_f3 when (byte[2097152 + off + 2] == 't')  return 0 }
+    state a_f3 { to a_f4 when (byte[2097152 + off + 3] == 'c')  return 0 }
+    state a_f4 { to a_f5 when (byte[2097152 + off + 4] == 'h')  return 0 }
+    state a_f5 { to a_f6 when (byte[2097152 + off + 5] == '_')  return 0 }
+    state a_f6 { to a_f7 when (byte[2097152 + off + 6] == 'a')  return 0 }
+    state a_f7 { to a_f8 when (byte[2097152 + off + 7] == 'd')  return 0 }
+    state a_f8 { to a_f9 when (byte[2097152 + off + 8] == 'd')  return 0 }
+    state a_f9 { to a_fyes when (is_idchar(byte[2097152 + off + 9]) == 0)  return 0 }
+    state a_fyes { return 2 }
+    state a_c { to a_c2 when (byte[2097152 + off + 1] == 'o')  return 0 }
+    state a_c2 { to a_c3 when (byte[2097152 + off + 2] == 'm')  return 0 }
+    state a_c3 { to a_c4 when (byte[2097152 + off + 3] == 'p')  return 0 }
+    state a_c4 { to a_c5 when (byte[2097152 + off + 4] == 'a')  return 0 }
+    state a_c5 { to a_c6 when (byte[2097152 + off + 5] == 'r')  return 0 }
+    state a_c6 { to a_c7 when (byte[2097152 + off + 6] == 'e')  return 0 }
+    state a_c7 { to a_c8 when (byte[2097152 + off + 7] == '_')  return 0 }
+    state a_c8 { to a_c9 when (byte[2097152 + off + 8] == 'e')  return 0 }
+    state a_c9 { to a_c10 when (byte[2097152 + off + 9] == 'x')  return 0 }
+    state a_c10 { to a_c11 when (byte[2097152 + off + 10] == 'c')  return 0 }
+    state a_c11 { to a_c12 when (byte[2097152 + off + 11] == 'h')  return 0 }
+    state a_c12 { to a_c13 when (byte[2097152 + off + 12] == 'a')  return 0 }
+    state a_c13 { to a_c14 when (byte[2097152 + off + 13] == 'n')  return 0 }
+    state a_c14 { to a_c15 when (byte[2097152 + off + 14] == 'g')  return 0 }
+    state a_c15 { to a_c16 when (byte[2097152 + off + 15] == 'e')  return 0 }
+    state a_c16 { to a_cyes when (is_idchar(byte[2097152 + off + 16]) == 0)  return 0 }
+    state a_cyes { return 3 }
+}
+
 ; ---- printing ----
 
 proc emit_dec(n) {
@@ -1982,6 +2026,65 @@ proc hoist_calls() {
     state hdone { word[2097144] = rst  return dep }
 }
 
+; a value-position atomic read-modify-write: `<target> = self.f.OP(args, orderings);`. Single-threaded
+; desugar (memory orderings are no-ops): fetch_add(v) -> old=f; f=f+v.  compare_exchange(e,n) -> old=f;
+; f = old + (old==e)*(n-old) (branchless swap). Binds the target (kindb/valb/idx) to old, rebinds the field
+; slot to the new value, returns 2 (two lets opened). CUR is at '('. Its own proc = fresh local scope.
+proc emit_atomic_rmw(op, kindb, idx, fld) {   ; VAL table is KIND table + 10000 (do not add a 5th arg — bc2.py caps calls at 4)
+    adv()                              ; consume '('
+    let a0 = parse_cmp()               ; fetch_add: addend; compare_exchange: expected
+    let a1 = 0
+    to cxarg when (op == 3)
+    to skiptoclose
+    state cxarg {                      ; compare_exchange: advance to ',' then parse `new`
+        to cxc when (cbyte() == ',')
+        to cxc when (word[2097144] >= word[2097136])
+        adv()
+        to cxarg
+    }
+    state cxc {
+        adv()                          ; consume ','
+        skip_ws()
+        a1 = parse_cmp()               ; new
+        to skiptoclose
+    }
+    state skiptoclose {                ; skip the remaining ordering args to ')'
+        to atclose when (cbyte() == ')')
+        to atclose when (word[2097144] >= word[2097136])
+        adv()
+        to skiptoclose
+    }
+    state atclose {
+        adv()                          ; consume ')'
+        let slot = field_lookup(cur_pref(), fld)
+        let f0 = word[6000016]         ; old = current f
+        let f1 = f0 + 1                ; new f
+        word[6000016] = f0 + 2
+        emit("(let t")  emit_dec(f0)  write_byte(' ')  print_fcurname(slot)  write_byte(' ')
+        to emitfa when (op == 2)
+        emit("(let t")  emit_dec(f1)  emit(" (+ t")  emit_dec(f0)  emit(" (* (eq t")  emit_dec(f0)  write_byte(' ')  print_expr(a0)  emit(") (- ")  print_expr(a1)  emit(" t")  emit_dec(f0)  emit("))) ")
+        to rebind
+    }
+    state emitfa {                     ; fetch_add: f' = f + v
+        emit("(let t")  emit_dec(f1)  emit(" (+ ")  print_fcurname(slot)  write_byte(' ')  print_expr(a0)  emit(") ")
+        to rebind
+    }
+    state rebind {
+        word[kindb + idx * 8] = 1      ; target = t{f0} (the prior value)
+        word[kindb + 10000 + idx * 8] = f0   ; VAL table = KIND table + 10000 (avoids a 5th proc arg; bc2.py caps at 4)
+        word[6420000 + slot * 8] = 1   ; field slot now reads t{f1}
+        word[6430000 + slot * 8] = f1
+        to eatsemi
+    }
+    state eatsemi {                    ; consume the trailing ';'
+        to done when (cbyte() == ';')
+        to done when (word[2097144] >= word[2097136])
+        adv()
+        to eatsemi
+    }
+    state done { adv()  return 2 }
+}
+
 proc do_write_slot(kindb, valb, idx) {
     state toeq { to eat when (cbyte() == '=')  adv()  to toeq }
     state eat {
@@ -1995,6 +2098,7 @@ proc do_write_slot(kindb, valb, idx) {
         let sav = word[2097144]        ; or cross-data); else an ordinary expression -> rewind + parse
         skip_ident()                   ; past "self"
         adv()                          ; past '.'
+        let fld = word[2097144]        ; the field name (first segment) — the atomic ops' place (single-field)
         let moff = skip_path()         ; past the dotted path; moff = its LAST segment
         skip_ws()
         to vchk when (cbyte() == '(')
@@ -2003,10 +2107,12 @@ proc do_write_slot(kindb, valb, idx) {
     }
     state vchk {
         to vcall when (machine_exists(moff) == 1)
+        to vatomic when (atomic_method(moff) >= 2)     ; let x = self.f.fetch_add/compare_exchange(...)
         word[2097144] = sav            ; e.g. a boundary value call -> not modeled; parse normally
         to normal
     }
     state vcall { return emit_vcall(lookup_machine(moff), kindb, valb, idx) }
+    state vatomic { return emit_atomic_rmw(atomic_method(moff), kindb, idx, fld) }
     state normal {
         let hd = hoist_calls()         ; embedded value calls bind first; their spans now read as t-vars
         let node = parse_cmp()
@@ -2334,10 +2440,39 @@ proc translate_block(mi, off) {
         to t_wline when (is_write_line() == 1)
         to t_xcall when (machine_exists(segoff) == 1)   ; self.inst.m(args) -> a cross-data method call
         to t_exit when (is_exit_process() == 1)          ; self.console.exit_process(<expr>) -> the entry terminal
-        emit("E2G-UNSUPPORTED-method ")     ; an unknown self-field method (atomics store/fetch_add, ...): refuse LOUDLY
+        to t_store when (atomic_method(segoff) == 1)     ; self.f.store(v, ord); -> the atomic store = plain field write
+        emit("E2G-UNSUPPORTED-method ")     ; an unknown self-field method (atomics fetch_add/compare_exchange, ...): refuse LOUDLY
         to close                            ; (was silently treated as exit_process, collapsing the program to its 1st arg)
     }
     state t_exit { emit_exit_om()  to close }
+    state t_store {                    ; self.f.store(v, ord); -> f = v  (single-threaded: memory ordering is a no-op)
+        skip_ident()                   ; past "store"
+        adv()                          ; consume '('
+        let sv = parse_cmp()           ; the stored value v (first arg)
+        to t_store2
+    }
+    state t_store2 {                   ; skip the ordering argument(s) to the closing ')'
+        to t_store3 when (cbyte() == ')')
+        to t_store3 when (word[2097144] >= word[2097136])
+        adv()
+        to t_store2
+    }
+    state t_store3 {
+        adv()                          ; consume ')'
+        emit("(let t")  emit_dec(word[6000016])  write_byte(' ')  print_expr(sv)  write_byte(' ')
+        word[6420000 + field_lookup(cur_pref(), foff) * 8] = 1     ; the field slot now reads the fresh t-var
+        word[6430000 + field_lookup(cur_pref(), foff) * 8] = word[6000016]
+        word[6000016] = word[6000016] + 1
+        depth = depth + 1
+        to t_ssemi
+    }
+    state t_ssemi {                    ; consume the trailing ';'
+        to t_sdone when (cbyte() == ';')
+        to t_sdone when (word[2097144] >= word[2097136])
+        adv()
+        to t_ssemi
+    }
+    state t_sdone { adv()  to loop }
     state t_xcall { skip_ident()  depth = depth + emit_scall(lookup_machine(segoff))  to loop }
     state t_scall { depth = depth + emit_scall(lookup_machine(foff))  to loop }   ; CUR is at '('
     state t_wbyte { depth = depth + emit_write_byte()  to loop }
@@ -2685,6 +2820,10 @@ proc collect_self(mi) {
     state c_wl { word[6000056] = 1  skip_ident()  to loop }
     state c_self {
         skip_ident()                   ; self
+        to c_selfd when (cbyte() == '.')   ; a real self.field access; `&mut self` / bare self -> skip (no field)
+        to loop
+    }
+    state c_selfd {
         adv()                          ; .
         let foff = word[2097144]
         let soff = skip_path()         ; the DOTTED path (self.state.n -> "state.n"); soff = last segment
