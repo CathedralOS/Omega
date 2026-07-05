@@ -3149,6 +3149,23 @@ exit.
   value_call_arg_class_mismatch_rejected.
   Whole cross-class-store family (assignment literal/place + call/transition/host
   arg + value-position arg) now CLOSED -- see [[literal-class-assignment-miscompile]].
+- [x] BOUNDED TEXT-CARRIER CAPACITY at CONSTRUCTION -- SILENT MISCOMPILE CLOSED
+  2026-07-05. A `[u8; N] in Utf8` carrier's length-fits guard was enforced on
+  ASSIGNMENT (`self.line = ...`) but NOT on brace CONSTRUCTION: `Holder { label:
+  "hello" }` supplied 5 bytes to a `[u8; 4]` field and compiled silently, overflowing
+  the inline storage past the array's bounds (verified). `scan_construction_field_domains`
+  (checks/contracts/writes.rs) checked only the DOMAIN half (valid UTF-8), never the
+  CAPACITY half. Fix: reuse `static_max_byte_length` + `type_reference_fixed_array_capacity`
+  in the construction walk (new `construction_field_type_by_name` resolves the field
+  type from the type name); machine resolved from `state_flow`. Whole tail clean (599
+  canaries + samples_compile + differential). Fail canary
+  text/bounded_carrier_construction_over_capacity_rejected.
+  FOLLOW-UP (latent, not live -- lower priority): the FIELD-DEFAULT position
+  (`data D { f: [u8; 4] in Utf8 = "hello"; }`) still slips -- but field defaults are
+  NOT emitted today ([[field-default-not-emitted]]; probe: adjacent field read 0, no
+  corruption), so it is a HYGIENE gap not a runtime overflow. Closing it needs a
+  separate pass over data-definition field defaults (different entry point than the
+  statement-flow write checker); becomes a live overflow only if defaults ever emit.
 - [x] ARRAY-LITERAL LENGTH MISMATCH -- SILENT MISCOMPILE CLOSED 2026-07-05. A fixed-
   array literal whose element count != the target `[T; N]` compiled with NO error:
   `[i32; 2] = [1,2,3,4]` wrote 4 elements PAST the 2-slot storage into adjacent fields
