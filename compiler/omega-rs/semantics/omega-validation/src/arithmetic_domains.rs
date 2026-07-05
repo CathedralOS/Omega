@@ -777,6 +777,27 @@ fn analyze(
                 };
             }
 
+            // A divisor that is PROVABLY zero (a literal `0`, or a value the prover
+            // has pinned to exactly 0) always traps -- the interpreter traps on
+            // div/mod-by-zero in every domain, and native `idiv` faults -- so it is
+            // dead-wrong code, rejected here like an out-of-range literal. This is
+            // the constant case only: a divisor that MIGHT be zero (an interval that
+            // merely straddles 0) stays a runtime concern, not a compile error.
+            if matches!(operator, BinaryOperator::Divide | BinaryOperator::Modulo)
+                && right.interval.low == Some(0)
+                && right.interval.high == Some(0)
+            {
+                let operation = if operator == BinaryOperator::Divide {
+                    "division"
+                } else {
+                    "remainder"
+                };
+                diagnostics.push(Diagnostic::error(format!(
+                    "{operation} by zero in {owner}: the divisor is provably zero, which always \
+                     traps at runtime. Remove the operation or use a nonzero divisor."
+                )));
+            }
+
             // S2: a binary mixing two different explicit domains is illegal.
             if let (Some(left_domain), Some(right_domain)) = (left.domain, right.domain)
                 && left_domain != right_domain
