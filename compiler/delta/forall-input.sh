@@ -57,6 +57,10 @@ verify "pair-forall (TWO-accumulator fold: sum AND count threaded together, via 
   "cat pair-forall.elab" '/^(all xs/ s|(k 70 (f 21 (f 94 xs) s)|(k 70 (k 3 (f 21 (f 94 xs) s))|'
 verify "prod-forall (MULTIPLICATIVE fold: prodfold(xs,n)=listprod(xs)*n; umul a commutative semiring)" \
   "cat prod-forall.elab" '/^(all xs/ s|(f 22 (f 98 xs) n)|(k 3 (f 22 (f 98 xs) n))|'
+verify "listsum-hom (MapReduce law: listsum(xs++ys) = listsum(xs)+listsum(ys); divide-and-conquer aggregation)" \
+  "cat listsum-hom.elab" '/^(all xs/ s|(f 21 (f 94 xs) (f 94 ys))|(k 3 (f 21 (f 94 xs) (f 94 ys)))|'
+verify "len-hom (count MapReduce law: len(xs++ys) = len(xs)+len(ys))" \
+  "cat len-hom.elab" '/^(all xs/ s|(f 21 (f 97 xs) (f 97 ys))|(k 3 (f 21 (f 97 xs) (f 97 ys)))|'
 
 echo "forall-input theorem (per-vector input proofs made universal AND mechanical; all three checkers agree, perturbations rejected): $( [ $fail = 0 ] && echo PASS || echo FAIL )"
 [ $fail = 0 ]
