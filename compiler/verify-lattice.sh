@@ -88,6 +88,7 @@ step "seam — recx accumulator recursion vs independent evaluation (check.beta 
 step "contract discharge (omega source) — math_proofs requires/ensures translated to delta props and proven by check.beta + check_ref + checker.gamma (perturbation rejected)" delta math-contracts.sh gamma beta beta-lang beta-lang-rs ../samples
 step "termination discharge (omega source) — 'decreases s -> Slice::Length' tail-recursion tied to a 3-checker measure-decrease lemma (reversed measure rejected)" delta termination-obligations.sh gamma beta beta-lang beta-lang-rs ../samples
 step "forall-input theorem — count(xs,n)=len(xs)+n proven for ALL inputs by induction (check.beta + check_ref + checker.gamma; perturbation rejected)" delta forall-input.sh gamma beta beta-lang beta-lang-rs
+step "forall-input SAMPLE connection — a real sample's count loop tied to the ∀-input theorem: proven = len(s)+acc for EVERY input (not just documented vectors)" delta forall-sample.sh gamma beta beta-lang beta-lang-rs ../samples
 step "checker diamond — FUZZ: random props, check.beta vs checker.gamma" delta checker-diamond-fuzz.sh gamma
 step "logic diamond — FUZZ: random propositional proofs, all 3 checkers" delta logic-diamond-fuzz.sh gamma
 step "predicate diamond — FUZZ: random Mem/ProdIs/Perm proofs, all 3 checkers" delta predicate-diamond-fuzz.sh gamma
