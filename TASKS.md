@@ -3122,9 +3122,16 @@ exit.
   class check. Fixed via the shared report_cross_class_store (slot_noun "return
   value") beside the range check in lib.rs. Zero blast radius (594 canaries +
   samples-compile, whole tail). Locked by fail canary
-  return_value_class_mismatch_rejected. ALL scalar value-binding positions --
-  assignment, let-init, call/transition/host/value-position arg, struct field,
-  array element, return value -- now enforce the cross-class guard.
+  return_value_class_mismatch_rejected. SIBLING (found immediately after): the
+  TERMINAL return form `machine -> i32 { self.bool_field }` also slipped for a PLACE
+  value -- the shape gate rejects a cross-class LITERAL there but blanket-accepts
+  places. Fixed in the StatementNode::Expression path with the same
+  report_cross_class_store, GATED on the shape gate not already erroring (so a
+  literal `{ true }` is not double-reported). Locked by
+  terminal_return_class_mismatch_rejected. ALL scalar value-binding positions now
+  enforce the cross-class guard (assignment, let-init, call/transition/host/
+  value-position arg, struct field, array element, transition-value + terminal
+  return).
 - [x] CROSS-CLASS LET-INITIALIZER -- SILENT MISCOMPILE CLOSED 2026-07-04 (7th
   position; a gap in THIS session's own coverage -- the LocalData path carried the
   narrowing check but not the class check, so `let x: i32 = true` / `= self.b`
