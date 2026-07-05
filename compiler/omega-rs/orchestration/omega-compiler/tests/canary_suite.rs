@@ -21080,6 +21080,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/indexed_element_narrowing_rejected",
     "arithmetic/array_literal_too_few_rejected",
     "arithmetic/array_literal_too_many_rejected",
+    "text/bounded_carrier_construction_over_capacity_rejected",
     "layouts/plan_laid_dynamic_plan",
     "layouts/plan_laid_policy_without_plan_machine",
     "control_flow/if_statement_retired",
