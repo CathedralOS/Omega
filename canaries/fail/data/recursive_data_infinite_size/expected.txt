@@ -1,0 +1,1 @@
+recursive data type `Node` has no finite size
