@@ -1,0 +1,34 @@
+// FAIL canary: a cross-CLASS argument at a VALUE-position call site --
+// `let v: i32 = self.take(self.b)` where `self.b` is a `bool` and `take`'s
+// parameter is `i32` -- is rejected at type-check. This was the 4th silent
+// miscompile in the cross-class-store family: value-position calls
+// (`let r = self.f(...)`) route through `validate_value_position_calls`
+// (decision-13 residue), which validated only type-parameter BOUNDS, not
+// argument classes, so the bool arg reached the backend as a raw byte and was
+// read as garbage (exit 0). The class check now runs at every value-position
+// callee-resolution branch. Same-class numeric args (`i8` for `i32`) and
+// computed args are untouched. Complements arg_class_mismatch_rejected (the
+// statement/transition/host arg positions).
+
+boundary trait Console {
+    machine exit_process(code: i32)
+    effects
+        process_exit;
+}
+
+data Main {
+    console: Console;
+    b: bool;
+}
+
+machine Main::take(&mut self, x: i32) -> i32 {
+    transition { _ -> (x) }
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.b = true;
+    let v: i32 = self.take(self.b); // bool arg for an i32 value-position parameter
+
+    transition { _ -> done() }
+    state done(&mut self) { self.console.exit_process(v); }
+}
