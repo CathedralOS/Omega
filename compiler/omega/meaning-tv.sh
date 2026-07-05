@@ -142,5 +142,9 @@ tv digital_root
 tv collatz_sequence
 tv modular_exponentiation
 tv dice_roller
+tv string_catalog            # String `==`/`+` on nested-struct fields: meaning PROVEN, not just run
+tv format_number             # digit extraction (/ 10, % 10, char codes): meaning PROVEN
+tv slice_accum_probe         # struct-slice element field access s[i].field in a tail-call: meaning PROVEN
+tv atomics_cross             # single-threaded atomics desugared to field arithmetic: meaning PROVEN
 echo "meaning-route TV (the kernel re-computes each covered sample's arithmetic + $VCTOT obligations: division/mul/sub witnesses + array bounds + domain-erasure + boundary-range): $PASS ok, $FAIL failed"
 [ "$FAIL" = 0 ] && [ "$PASS" -gt 0 ]
