@@ -81,6 +81,20 @@ def clause(s, env):                                    # one requires/ensures li
     return None
 
 
+def clauses(s, env):   # one requires/ensures line -> a LIST of props. `expr in lo..=hi` (an inclusive range,
+    # Omega interval surface) splits into the two bounds [lo <= expr, expr <= hi]; anything else is a single
+    # clause. Splitting an ensures range into two INDEPENDENT obligations (proven separately, each standalone
+    # with its own rewrite budget) is what lets the prover discharge them -- a conjunctive `lo<=e & e<=hi`
+    # goal sits on a rewrite-cap knife-edge that blows the node budget, but the two obligations alone don't.
+    mi = re.fullmatch(r'\s*(.+?)\s+in\s+(\d+)\s*\.\.=\s*(\d+)\s*', s)
+    if mi:
+        e, lo, hi = mi.group(1).strip(), mi.group(2), mi.group(3)
+        lop, hip = clause('%s <= %s' % (lo, e), env), clause('%s <= %s' % (e, hi), env)
+        return None if lop is None or hip is None else [lop, hip]
+    c = clause(s, env)
+    return None if c is None else [c]
+
+
 def _two(inner):                                       # split "A B" (two balanced terms) -> (A, B)
     terms, i, n = [], 0, len(inner)
     while i < n and len(terms) < 2:
@@ -137,19 +151,24 @@ def main():
                 mode.append(w)
         if not enss:
             continue
-        rp = [clause(r, env) for r in reqs]
-        ep = [clause(e, env) for e in enss]
-        if any(p is None for p in rp) or any(p is None for p in ep) or len(ep) != 1:
-            bad = next((c for c, p in list(zip(reqs, rp)) + list(zip(enss, ep)) if p is None), 'multiple ensures')
+        rl = [clauses(r, env) for r in reqs]                # each line -> a LIST of props (a range -> 2 bounds)
+        el = [clauses(e, env) for e in enss]
+        if any(x is None for x in rl) or any(x is None for x in el):
+            bad = next((c for c, x in list(zip(reqs, rl)) + list(zip(enss, el)) if x is None), '?')
             print('%s\tUNSUPPORTED: %s' % (name, bad))
             continue
-        concl = falsify(ep[0]) if PERTURB else ep[0]
-        prop = concl
-        for r in reversed(rp):
-            prop = '(-> %s %s)' % (r, prop)
-        for _ in params:
-            prop = '(All %s)' % prop
-        print('%s\t%s' % (name, prop))
+        reqprops = [p for lst in rl for p in lst]           # flat antecedent list (requires ranges expanded)
+        obligations = [p for lst in el for p in lst]        # each ensures bound is its OWN obligation
+        multi = len(obligations) > 1
+        for k, ob in enumerate(obligations):                # emit one line per obligation; unique name if >1 so
+            concl = falsify(ob) if PERTURB else ob          # the gate proves/perturbs each independently
+            prop = concl
+            for r in reversed(reqprops):
+                prop = '(-> %s %s)' % (r, prop)
+            for _ in params:
+                prop = '(All %s)' % prop
+            oname = '%s~%d' % (name, k) if multi else name
+            print('%s\t%s' % (oname, prop))
 
 
 if __name__ == '__main__':

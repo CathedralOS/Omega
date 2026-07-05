@@ -1024,6 +1024,15 @@ def _rules(sat, goal):
             _both_orient[0] = sbo
             if pf is not None:
                 return ("wit", body, w, pf)
+    # 0 <= C for ANY term C (naturals are non-negative): the goal ∃k. 0+k=C has witness C, since 0+C=C
+    # definitionally (refl). The generic witness search below only offers eigenvars + their successors + the
+    # goal's ground terms, so it misses a COMPOUND witness like a*a -- this discharges `0<=<anything>`
+    # (e.g. 0<=a*a, a squared bound's lower half) directly. Guard on nf so it only fires when it truly closes.
+    if (goal[0] == "ex" and goal[1][0] == "=" and goal[1][1] == ("p", ("z",), ("v", 0))
+            and _max_free_term(goal[1][2], 0) == 0):    # C is closed w.r.t. the ex-binder -> a valid witness
+        C = goal[1][2]
+        if nf(("p", ("z",), C)) == nf(C):               # 0 + C = C (always, definitionally) -> witness C, refl
+            return ("wit", goal[1], C, ("refl", C))
     # R-exists (wit): supply a witness term (a ground term or an in-scope eigenvar) and prove the instance
     if goal[0] == "ex":
         for t in cand_terms():
