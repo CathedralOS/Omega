@@ -38,8 +38,9 @@ verify() {  # $1 = label, $2 = shell command emitting the .elab source
   [ "$ab" = accept ] && [ "$ar" = accept ] && [ "$ag" = accept ] \
     && echo "  ok   $1 accepted by all three (check.beta/check_ref/checker.gamma)" \
     || { echo "  FAIL $1: not accepted by all three (beta=$ab ref=$ar gamma=$ag)"; fail=1; }
-  # PERTURB: wrap the goal RHS in one extra successor; the proof must no longer fit.
-  sed '/^(all xs/ s/(f 21 (f 9\([0-9]\) xs) n)/(k 3 (f 21 (f 9\1 xs) n))/' "$T/src.elab" \
+  # PERTURB: wrap the goal RHS in one extra successor; the proof must no longer fit. $3 overrides the sed for
+  # theorems whose goal shape differs (e.g. the two-accumulator fold's paired RHS).
+  sed "${3:-/^(all xs/ s/(f 21 (f 9\([0-9]\) xs) n)/(k 3 (f 21 (f 9\1 xs) n))/}" "$T/src.elab" \
     | python3 elab.py > "$T/bad.cert" 2>/dev/null
   pb=$(cat "$T/bad.cert" | "$T/check.exe"); pr=$(cat "$T/bad.cert" | python3 check_ref.py); pg=$(gverdict "$T/bad.cert")
   [ "$pb" = reject ] && [ "$pr" = reject ] && [ "$pg" = reject ] \
@@ -52,6 +53,8 @@ verify "generated k=1 (count -> len)"     "python3 forall-gen.py 1"
 verify "generated k=2 (2 per elem -> 2*len)" "python3 forall-gen.py 2"
 verify "generated k=3 (3 per elem -> 3*len)" "python3 forall-gen.py 3"
 verify "sum-forall (add-the-element fold; uadd commutative monoid)" "cat sum-forall.elab"
+verify "pair-forall (TWO-accumulator fold: sum AND count threaded together, via a pair + pair congruence)" \
+  "cat pair-forall.elab" '/^(all xs/ s|(k 70 (f 21 (f 94 xs) s)|(k 70 (k 3 (f 21 (f 94 xs) s))|'
 
 echo "forall-input theorem (per-vector input proofs made universal AND mechanical; all three checkers agree, perturbations rejected): $( [ $fail = 0 ] && echo PASS || echo FAIL )"
 [ $fail = 0 ]
