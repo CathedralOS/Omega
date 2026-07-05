@@ -850,6 +850,12 @@ fn exact_overflow_value_call_hint_canary_is_rejected() {
         "expected the overflow diagnostic to name the value-call operand and point at the \
          callee's return annotation, got:\n{combined}"
     );
+    // The generic overflow message also names the constraining mechanisms.
+    assert!(
+        combined.contains("requires` clause") && combined.contains("dominating guard"),
+        "expected the overflow diagnostic to name the `requires`-clause / dominating-guard \
+         constraining mechanisms, got:\n{combined}"
+    );
 }
 
 #[test]
