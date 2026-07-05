@@ -448,6 +448,19 @@ fn validate_state_statement_node(
                     "local",
                     diagnostics,
                 );
+                // Shape guard: `let y: i32 = self.xs` (array -> scalar) or
+                // `let xs: [i32; 3] = 5` (scalar -> array) otherwise bind a
+                // wrong-shaped value silently (the array case read a ZII 0).
+                expression_types::report_array_scalar_shape_mismatch(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    local_data.initial_value,
+                    local_data.type_reference,
+                    &owner,
+                    "local",
+                    diagnostics,
+                );
             }
             let before = diagnostics.len();
             let (interval, source_primitive) = arithmetic_domains::validate_value_range(

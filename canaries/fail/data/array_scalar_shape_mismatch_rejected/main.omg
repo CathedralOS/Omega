@@ -1,0 +1,7 @@
+// Binding an ARRAY value to a scalar local (`let y: i32 = self.xs`) used to
+// compile silently and read a ZII 0 -- neither the scalar-class nor nominal-data
+// check covers array-vs-scalar shape. Rejected now. (The scalar-into-array form
+// `let xs: [i32;3] = 5` is the mirror.)
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; xs: [i32; 3]; }
+machine Main::main(&mut self) { let y: i32 = self.xs; self.console.exit_process(y); }

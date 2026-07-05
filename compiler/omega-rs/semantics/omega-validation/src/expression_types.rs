@@ -446,6 +446,77 @@ pub(crate) fn report_cross_class_binary_operands(
     true
 }
 
+/// Whether a type reference denotes an ARRAY (a fixed array or a slice), looking
+/// through `Reference`/`Constrained` shells.
+fn type_reference_is_array(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+    if !handle.is_valid() {
+        return false;
+    }
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => type_reference_is_array(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_is_array(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray { .. } | TypeReferenceNode::Slice { .. } => true,
+        _ => false,
+    }
+}
+
+/// Whether a value's SHAPE is an array (`Some(true)`), a non-array scalar/struct
+/// (`Some(false)`), or undeterminable here (`None` -> skipped): an array literal
+/// vs a scalar literal, or a place resolved through `declared_place_type`. A
+/// computed value (call, binary, indexed) is `None` so this never false-positives.
+fn value_shape_is_array(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    value: ExpressionHandle,
+) -> Option<bool> {
+    match program.expression_table.expression(value) {
+        ExpressionNode::ArrayLiteral(_) => Some(true),
+        ExpressionNode::Integer(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::String(_)
+        | ExpressionNode::StructLiteral(_) => Some(false),
+        ExpressionNode::Mutable(inner) => value_shape_is_array(program, machine, state, *inner),
+        ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
+            crate::places::declared_place_type(program, machine, state, value)
+                .map(|type_reference| type_reference_is_array(program, type_reference))
+        }
+        _ => None,
+    }
+}
+
+/// Reject binding a value of the wrong SHAPE to a target: an array into a
+/// non-array slot (`let y: i32 = self.xs`, which silently read a ZII 0) or a
+/// non-array value into an array slot (`let xs: [i32; 3] = 5`). Both sides must be
+/// determinable; a computed value (a call result) is skipped. Complements the
+/// scalar-CLASS and nominal-DATA checks, which both classify only scalar shapes.
+pub(crate) fn report_array_scalar_shape_mismatch(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    value: ExpressionHandle,
+    target_type: TypeReferenceHandle,
+    slot_context: &str,
+    slot_noun: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let Some(value_is_array) = value_shape_is_array(program, machine, state, value) else {
+        return false;
+    };
+    if value_is_array == type_reference_is_array(program, target_type) {
+        return false;
+    }
+    diagnostics.push(Diagnostic::error(if value_is_array {
+        format!("{slot_context} binds an ARRAY value into a non-array {slot_noun}")
+    } else {
+        format!("{slot_context} binds a non-array value into an ARRAY {slot_noun}")
+    }));
+    true
+}
+
 pub(crate) fn expression_type_name_handle(
     program: &TypedTrees,
     argument: ExpressionHandle,
