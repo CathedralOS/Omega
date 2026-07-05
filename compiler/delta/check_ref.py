@@ -52,6 +52,8 @@ def parse_all(s):
 sys.setrecursionlimit(200000)
 FUNS = {}                                              # (fid, cid) -> rule body ; from (fun fid cid body)
 DATA = {}                                              # cid -> (arity, r0, r1) ; from (data cid arity r0 r1)
+PRODUCTS = set()                                        # cids explicitly declared (prod cid) as the SOLE constructor
+                                                       # of their type — the only cids `prodrec` may eliminate
 LEMMAS = {}                                            # N -> verified prop ; from (def N type proof), cited by (use N)
 DEFS_OK = True                                         # cleared if any (def ..) fails to verify -> whole cert rejects
 FUEL = 2_000_000
@@ -481,10 +483,19 @@ def infer(pf, ctx, idep=0):                            # ctx: list of (prop, pus
         return ['All', motive]                         # forall x. P(x)
     if h == 'prodrec':                                 # (prodrec cid motive case): SINGLE-constructor product
         cid, motive, case = pf[1], pf[2], pf[3]         # elimination — from P holding on the type's sole
-        tC = infer(case, ctx, idep)                     # constructor, conclude forall x. P(x). PROTOTYPE SPIKE:
-        if tC is None or not prop_eq(tC, con_case(cid, motive)):   # check.beta has no prodrec, so this is inert
-            return None                                 # (nothing emits it) AND the diamond catches any misuse
-        return ['All', motive]                         # (check.beta rejects prodrec, so a disagreement surfaces).
+        if cid not in PRODUCTS:                         # SOUNDNESS GUARD: prodrec proves forall x.P from ONE case,
+            return None                                 # so it is sound ONLY on a type with ONE constructor. Unlike
+                                                       # `rec` (structurally locked to 2 cases, hence used only on
+                                                       # 2-constructor types), prodrec's single case would UNSOUNDLY
+                                                       # prove forall over a SUM type if aimed at one of its
+                                                       # constructors. So cid must be explicitly declared a product
+                                                       # via (prod cid) — an auditable, opt-in assertion that cid is
+                                                       # its type's sole constructor (the same trust basis as rec's
+                                                       # author-supplied constructor set, but made explicit).
+        tC = infer(case, ctx, idep)                     # From P holding on that sole constructor, conclude forall x.P(x).
+        if tC is None or not prop_eq(tC, con_case(cid, motive)):
+            return None
+        return ['All', motive]
     return None
 
 def register(forms):
@@ -492,13 +503,16 @@ def register(forms):
     VERIFIED against its stated type in source order before it is citable). Sets DEFS_OK=False if any def fails
     to verify — the whole cert then rejects, matching check.beta. Returns the non-declaration forms (goal, proof)."""
     global DEFS_OK
-    FUNS.clear(); DATA.clear(); LEMMAS.clear(); DEFS_OK = True
+    FUNS.clear(); DATA.clear(); LEMMAS.clear(); PRODUCTS.clear(); DEFS_OK = True
     rest = []; defs = []
     for f in forms:                                    # tables first: fun/data are position-independent
         if isinstance(f, list) and f and f[0] == 'fun':
             FUNS[(f[1], f[2])] = f[3]
         elif isinstance(f, list) and f and f[0] == 'data':
             DATA[f[1]] = (int(f[2]), int(f[3]), int(f[4]))
+        elif isinstance(f, list) and f and f[0] == 'prod':
+            PRODUCTS.add(f[1])                          # (prod cid) — author asserts cid is its type's SOLE
+                                                       # constructor, licensing prodrec's one-case elimination
         elif isinstance(f, list) and f and f[0] == 'def':
             defs.append(f)                             # (def N type proof) — verified below, in order
         else:
