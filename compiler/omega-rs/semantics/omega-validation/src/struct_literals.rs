@@ -12,7 +12,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataDefinition, DataMember};
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
-use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use omega_typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNode};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -399,13 +399,37 @@ pub(crate) fn validate_array_literal_elements(
     let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(value) else {
         return;
     };
-    let TypeReferenceNode::FixedArray { element_type, .. } =
-        program.type_reference_table.type_reference(expected_type)
+    let TypeReferenceNode::FixedArray {
+        element_type,
+        length,
+    } = program.type_reference_table.type_reference(expected_type)
     else {
         return;
     };
     let element_type = *element_type;
     let element_handles = program.expression_table.expression_handles(*elements);
+    // LENGTH check: a `[T; N]` literal must supply exactly N elements. Too few
+    // leaves trailing slots reading uninitialized; too many overflows the storage
+    // -- a write PAST the array's bounds into adjacent fields (memory corruption),
+    // both silent before this. Only a resolved `Literal` length is checked; a
+    // generic `ConstParameter` length is unknown until instantiation (a `ConstCall`
+    // is const-eval'd to `Literal` upstream, so it never reaches here unresolved).
+    if let FixedArrayLength::Literal(expected_len) = length {
+        let expected_len = *expected_len;
+        if element_handles.len() != expected_len {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}` assigns an array literal with {} element(s) to a \
+                 `[_; {expected_len}]` place; a fixed-array literal must supply exactly \
+                 {expected_len} element(s)",
+                machine.name.as_str(),
+                state.name.as_str(),
+                element_handles.len(),
+            )));
+            // A mis-sized literal is reported once; skip the per-element checks so
+            // the count error is not buried under class/narrowing noise.
+            return;
+        }
+    }
     match program.primitive_type_reference(element_type) {
         // SCALAR element type: cross-class + narrowing per element.
         Some(element_primitive) => {

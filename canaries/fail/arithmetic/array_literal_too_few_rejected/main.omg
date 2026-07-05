@@ -1,0 +1,12 @@
+// A fixed-array literal with FEWER elements than the target `[T; N]` used to compile
+// silently, leaving the trailing slots reading uninitialized. A `[T; N]` literal
+// must supply exactly N elements (the counterpart of array_literal_too_many_rejected).
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main { console: Console; xs: [i32; 4]; }
+
+machine Main::main(&mut self) {
+    self.xs = [1, 2, 3]; // 3 elements into [i32; 4] -- element [3] left uninitialized, must be rejected
+    self.console.exit_process(0);
+}
