@@ -492,7 +492,7 @@ fn validate_type_constraints_node(
                     )));
                 }
             }
-            TypeConstraintNode::Range { .. } => {
+            TypeConstraintNode::Range { minimum, maximum } => {
                 let Some(primitive_type) = primitive_type else {
                     continue;
                 };
@@ -501,6 +501,18 @@ fn validate_type_constraints_node(
                     diagnostics.push(Diagnostic::error(format!(
                         "{owner} uses `range` on `{}`, but `range` is only valid on numeric types",
                         primitive_type.name()
+                    )));
+                } else if let (Some(low), Some(high)) = (
+                    crate::arithmetic_domains::literal_i64(program, *minimum),
+                    crate::arithmetic_domains::literal_i64(program, *maximum),
+                ) && low > high
+                {
+                    // An inverted range `[10..=5]` is the empty set -- no value can
+                    // satisfy it -- yet it silently disabled range checking (every
+                    // value "passed" the malformed bound). Reject it at the declaration.
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} declares an inverted range `[{low}..={high}]`: the low bound \
+                         exceeds the high bound, so no value can satisfy it",
                     )));
                 }
             }

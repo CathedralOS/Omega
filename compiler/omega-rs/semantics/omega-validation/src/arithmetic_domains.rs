@@ -1351,7 +1351,7 @@ pub(crate) fn validate_return_value_range(
 /// A type-constraint range bound as an i64, when it is a literal integer (the
 /// common case, `[0..100]`). Non-literal bounds are not narrowed (the caller
 /// falls back to the full type range -- sound).
-fn literal_i64(program: &TypedTrees, expression: ExpressionHandle) -> Option<i64> {
+pub(crate) fn literal_i64(program: &TypedTrees, expression: ExpressionHandle) -> Option<i64> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => Some(*value),
         _ => None,
