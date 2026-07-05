@@ -1,0 +1,8 @@
+// A value-position call (`let r = self.pick(1)`) with the wrong number of
+// arguments used to compile silently -- only the statement-position path checked
+// arity, so a missing arg then read its ZII default at runtime. Now both paths
+// share the same arity check.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::pick(&mut self, a: i32, b: i32) -> i32 { 42 }
+machine Main::main(&mut self) { let r: i32 = self.pick(1); self.console.exit_process(r); }

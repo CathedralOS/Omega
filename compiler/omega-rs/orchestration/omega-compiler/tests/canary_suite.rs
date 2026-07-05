@@ -21081,6 +21081,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/recursive_data_infinite_size",
     "data/fixed_array_too_large",
     "data/struct_literal_duplicate_field_rejected",
+    "calls/value_call_wrong_argument_count_rejected",
     "expressions/cast_to_non_scalar_type_rejected",
     "constraints/inverted_range_rejected",
     "parser/nesting_exceeds_max_depth",
