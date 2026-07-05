@@ -24,8 +24,14 @@ pub(crate) fn validate_assignment_target_handle(
     };
 
     if !writable_roots.contains(root_name) {
+        // The writable set cannot distinguish a nonexistent root (a typo) from a real
+        // but non-mutable one, so append a conditional typo hint -- correct whatever
+        // the cause. (A full "data X has no field Y" check is the separate
+        // unknown-field validation-gap TASK.)
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{machine_name}` state `{state_name}` assignment cannot write `{root_name}` because it is not mutable in this state"
+            "machine `{machine_name}` state `{state_name}` assignment cannot write `{root_name}` \
+             because it is not mutable in this state (if `{root_name}` is undeclared -- a typo -- \
+             no such field or local exists)"
         )));
     }
 }
