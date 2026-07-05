@@ -91,6 +91,7 @@ om subslice_sum               # 70 — slices v0 (params, [k..], .len, machine t
 om dual_accumulator_recursion # 70 — slices v0 (params, [k..], .len, machine tail-call arms)
 om fletcher_checksum          # 56 — slices v0 (params, [k..], .len, machine tail-call arms)
 om multi_value_calls          # 70 — slices v0 (params, [k..], .len, machine tail-call arms)
+om slice_accum_probe          # 70 — struct-slice element field access `s[i].field` in a machine arm (param `&[Entry]`); the field is extracted from the (nth s i) element tuple, so both the i32-slice probe and the struct-slice probe fold to 70
 om framed_payload            # 60 — bounded subslices x[a..b] via take(drop x a); fully proven
 om slice_maximum             # 9 — max/min builtins as conditional binaries
 om clamp_sum                 # 200 — min builtin + ℤ-mode clamped folds
