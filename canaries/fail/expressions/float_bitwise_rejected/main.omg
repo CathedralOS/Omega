@@ -1,0 +1,7 @@
+// Bitwise/shift/modulo are not defined for float operands -- the interpreter
+// rejects them ("float modulo/shift/bitwise not supported") and the backend
+// cannot encode them, yet `--check` used to pass. Rejected now at check with a
+// clear message. Float `+ - * /` and integer bitwise are unaffected.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { let a: f64 = 6.0; let b: f64 = 3.0; let r: f64 = a & b; self.console.exit_process(0); }
