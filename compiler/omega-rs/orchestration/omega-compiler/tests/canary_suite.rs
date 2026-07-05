@@ -21083,6 +21083,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/struct_literal_duplicate_field_rejected",
     "data/struct_literal_primitive_type_rejected",
     "data/struct_literal_unknown_type_rejected",
+    "data/struct_literal_wrong_data_type_rejected",
     "calls/value_call_wrong_argument_count_rejected",
     "expressions/cast_to_non_scalar_type_rejected",
     "constraints/inverted_range_rejected",

@@ -340,14 +340,41 @@ fn concrete_data_type_name(program: &TypedTrees, handle: TypeReferenceHandle) ->
     }
 }
 
-/// If the place `value`'s declared CONCRETE DATA type differs from the
-/// `expected_type`'s concrete data type, push a diagnostic and return `true`.
-/// BOTH sides must resolve to a concrete data type name; every other form (a
-/// primitive, a trait / boundary / generic parameter, an array, a versioned type,
-/// or a COMPUTED non-place argument whose place type is unresolved) yields `None`
-/// on one side and is skipped -- so this only ever rejects the unambiguous
-/// `&Bar`-for-`&Foo` type confusion. The nominal complement of
-/// `report_cross_class_store`.
+/// The concrete data type NAME a struct-literal value constructs (`B { .. }` ->
+/// `"B"`; a case literal `Event::Score { .. }` -> `"Event"`), or `None` when the
+/// value is not a struct literal or names a type that is not a data definition
+/// (the unknown-type case, rejected separately). Looks through a `Mutable`
+/// wrapper. This lets the nominal check resolve a LITERAL's type directly, where
+/// `declared_place_type` (place-only) resolves nothing.
+fn struct_literal_type_name(program: &TypedTrees, value: ExpressionHandle) -> Option<&str> {
+    match program.expression_table.expression(value) {
+        ExpressionNode::StructLiteral(literal) => {
+            let name = literal.type_name.as_str();
+            program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name.as_str() == name)
+                // Skip GENERIC data types: the literal names the bare base (`Box`)
+                // while the target is instantiated (`Box<i32>`), so a raw-name
+                // compare would false-positive. Matching instantiated type args is a
+                // deeper check; mirror `validate_literal_field_names`, which also
+                // bails on generic definitions.
+                .filter(|definition| definition.type_parameters.count() == 0)
+                .map(|definition| definition.name.as_str())
+        }
+        ExpressionNode::Mutable(inner) => struct_literal_type_name(program, *inner),
+        _ => None,
+    }
+}
+
+/// If `value`'s CONCRETE DATA type differs from the `expected_type`'s concrete
+/// data type, push a diagnostic and return `true`. BOTH sides must resolve to a
+/// concrete data type name; every other form (a primitive, a trait / boundary /
+/// generic parameter, an array, a versioned type, or a COMPUTED value whose type
+/// is unresolved) yields `None` on one side and is skipped -- so this only ever
+/// rejects the unambiguous type confusion. The value's type resolves from a
+/// struct LITERAL's own type name (`B { .. }`) or, failing that, a PLACE's
+/// declared type (`self.bar`). The nominal complement of `report_cross_class_store`.
 pub(crate) fn report_data_type_conflict(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
@@ -361,11 +388,10 @@ pub(crate) fn report_data_type_conflict(
     let Some(expected) = concrete_data_type_name(program, expected_type) else {
         return false;
     };
-    let Some(value_type) = crate::places::declared_place_type(program, machine, state, value)
-    else {
-        return false;
-    };
-    let Some(got) = concrete_data_type_name(program, value_type) else {
+    let Some(got) = struct_literal_type_name(program, value).or_else(|| {
+        crate::places::declared_place_type(program, machine, state, value)
+            .and_then(|value_type| concrete_data_type_name(program, value_type))
+    }) else {
         return false;
     };
     if expected == got {
