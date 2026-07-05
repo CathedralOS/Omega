@@ -55,20 +55,26 @@ for f in ../../samples/*/main.omg; do
   rec=$(grep -oE '[a-z_]+\([a-z_]+\[1\.\.\], *[a-z_]+ \+ 1\)' "$f" 2>/dev/null | head -1)
   if [ -n "$rec" ]; then
     name=${rec%%\(*}
-    if grep -qE "$name"'\(&mut self, *[a-z_]+: *&\[' "$f" && grep -qE '\.len > 0' "$f"; then
-      cov=$((cov+1)); echo "  ok   $s : slice machine '$name' IS the count fold ($rec) -> computes len(s)+acc for EVERY input (count-forall)"
+    acc=$(printf '%s' "$rec" | sed -E 's/.*, *([a-z_]+) \+ 1\)/\1/')   # the accumulator param
+    # tie is faithful only if: the machine is a &[..] fold, guarded by .len > 0, AND the base returns the
+    # bare accumulator (false -> acc) — matching count-forall's count(Nil,n)=n. A wrong base (e.g. acc+5)
+    # is NOT the count fold and must be rejected.
+    if grep -qE "$name"'\(&mut self, *[a-z_]+: *&\[' "$f" && grep -qE '\.len > 0' "$f" && grep -qE "false -> $acc *$" "$f"; then
+      cov=$((cov+1)); echo "  ok   $s : slice machine '$name' IS the count fold ($rec, base 'false -> $acc') -> computes len(s)+acc for EVERY input (count-forall)"
     else
-      miss=$((miss+1)); echo "  MISS $s : +1 slice recursion but not the count-fold machine shape"
+      miss=$((miss+1)); echo "  MISS $s : +1 slice recursion but not the full count-fold shape (guard .len>0 + base 'false -> $acc')"
     fi
   fi
   # (b) byte-stream (sum,count) PAIR fold: read_byte loop threading a byte sum (self.F = self.F + b) AND a
   #     count (self.G = self.G + 1), with an EOF guard (b < 0). The summed elements are bytes ∈ [0,255].
   bsum=$(grep -oE 'self\.[a-z_]+ = self\.[a-z_]+ \+ b\b' "$f" 2>/dev/null | head -1)
   if [ -n "$bsum" ]; then
-    if grep -qE '= read_byte\(\)' "$f" && grep -qE 'b < 0' "$f" && grep -qE 'self\.[a-z_]+ = self\.[a-z_]+ \+ 1\b' "$f"; then
-      cov=$((cov+1)); echo "  ok   $s : read_byte loop IS the (sum,count) pair fold ('$bsum' + count+1; bytes ∈[0,255], EOF -1 guarded) -> (sum,count)=(listsum(input bytes),len) for EVERY input; exit sum+n = listsum+len (pair-forall over naturals)"
+    # tie is faithful only if: read_byte source, EOF guard (b < 0), a count (self.G += 1), AND the exit is the
+    # COMBINED sum+count (exit_process(self.X + self.Y)) — matching pair-forall's (sum,count) fold and exit.
+    if grep -qE '= read_byte\(\)' "$f" && grep -qE 'b < 0' "$f" && grep -qE 'self\.[a-z_]+ = self\.[a-z_]+ \+ 1\b' "$f" && grep -qE 'exit_process\(self\.[a-z_]+ \+ self\.[a-z_]+\)' "$f"; then
+      cov=$((cov+1)); echo "  ok   $s : read_byte loop IS the (sum,count) pair fold ('$bsum' + count+1, exit sum+count; bytes ∈[0,255], EOF -1 guarded) -> (sum,count)=(listsum(input bytes),len) for EVERY input; exit = listsum+len (pair-forall over naturals)"
     else
-      miss=$((miss+1)); echo "  MISS $s : a '+ b' accumulation but not the read_byte (sum,count) pair-fold shape"
+      miss=$((miss+1)); echo "  MISS $s : a '+ b' accumulation but not the full read_byte (sum,count) pair-fold shape (count+1 + exit sum+count)"
     fi
   fi
 done
