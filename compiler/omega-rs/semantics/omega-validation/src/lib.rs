@@ -185,7 +185,18 @@ fn validate_state_statement_node(
                 machine,
                 machine_symbols.state(state_name),
                 assignment.target,
-            );
+            )
+            // An indexed target (`self.xs[i] = ..`) has no member path, so
+            // `declared_place_type` returns None -- fall back to the array/slice
+            // ELEMENT type so the store checks below see the real slot type.
+            .or_else(|| {
+                places::declared_indexed_element_type(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    assignment.target,
+                )
+            });
             let assignment_target_primitive =
                 assignment_target_type.and_then(|handle| program.primitive_type_reference(handle));
             // An array-literal RHS into a `[T; N]` target: check each element's

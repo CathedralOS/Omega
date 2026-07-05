@@ -1,0 +1,15 @@
+// The narrowing complement of indexed_element_class_rejected: storing `300` (not
+// provably in `i8` range) into an `[i8; N]` element via a runtime index used to be
+// exempt from the decision-17 narrowing proof obligation, because the indexed
+// target resolved to no declared type. Resolving the element type wires the
+// narrowing check into indexed element stores too.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main { console: Console; xs: [i8; 4]; i: i32 [0..=3]; }
+
+machine Main::main(&mut self) {
+    self.i = 2;
+    self.xs[self.i] = 300; // 300 does not fit i8 -- must be rejected (proof obligation)
+    self.console.exit_process(0);
+}
