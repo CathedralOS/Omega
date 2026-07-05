@@ -82,6 +82,24 @@ dia "(All (All (Le (v 0) (p (v 1) (v 0)))))"                      # y <= x+y    
 dia "(-> (& (Le (v 0) (v 1)) (Le (v 1) (v 2))) (Le (v 0) (v 2)))" # transitivity  (inlined add-assoc)
 dia "(-> (Le (p (v 0) (v 1)) (v 2)) (Le (v 0) (v 2)))"            # drop-addend
 dia "(All (All (All (-> (Le (v 2) (v 1)) (-> (Le (v 1) (v 0)) (Le (v 2) (v 0)))))))"  # le-trans (discharge.rs id 9)
+# MULT + DISTRIBUTIVITY + MONOTONICITY families -- the heavier natind/lemma certs (up to ~270 KB once inlined)
+# the earlier diamond never exercised on the gamma leg. All accept on BOTH checkers (measured); the SKIP guard
+# above still protects any that would exhaust interp's arena, so this only ADDS coverage, never flakes.
+dia "(All (All (= (m (v 1) (v 0)) (m (v 0) (v 1)))))"                              # x*y = y*x        (mult-comm)
+dia "(All (All (All (= (m (m (v 2) (v 1)) (v 0)) (m (v 2) (m (v 1) (v 0)))))))"    # (x*y)*z=x*(y*z)  (mult-assoc)
+dia "(All (All (All (= (m (p (v 2) (v 1)) (v 0)) (p (m (v 2) (v 0)) (m (v 1) (v 0)))))))"  # (x+y)*a=x*a+y*a (right-dist)
+dia "(All (All (All (-> (Le (v 2) (v 1)) (Le (p (v 2) (v 0)) (p (v 1) (v 0)))))))" # a<=b => a+c<=b+c (add-mono)
+dia "(All (All (All (-> (Lt (v 2) (v 1)) (Lt (p (v 2) (v 0)) (p (v 1) (v 0)))))))" # a<b  => a+c<b+c  (add-strict-mono)
+dia "(All (All (All (-> (Le (v 2) (v 1)) (Le (m (v 2) (v 0)) (m (v 1) (v 0)))))))" # a<=b => a*c<=b*c (mult-mono)
+dia "(All (All (All (All (-> (Le (v 3) (v 2)) (-> (Le (v 1) (v 0)) (Le (p (v 3) (v 1)) (p (v 2) (v 0)))))))))"  # a<=b & c<=d => a+c<=b+d (add_le_add)
+# ORDER + POSITIVITY + CANCELLATION -- forward-reasoning certs (order-cycle/order-eq refute via the banked
+# irreflexivity; positivity/cancel via sinj+natind). Small certs, but cert CLASSES the gamma leg hadn't seen.
+dia "(All (-> (Lt (v 0) (v 0)) (bot)))"                                            # a<a -> bot        (irreflexivity)
+dia "(All (All (-> (Lt (v 1) (v 0)) (-> (Lt (v 0) (v 1)) (bot)))))"                # a<b -> b<a -> bot (asymmetry)
+dia "(All (All (-> (Lt (v 1) (v 0)) (-> (= (v 1) (v 0)) (bot)))))"                 # a<b -> a=b -> bot (order-eq)
+dia "(All (All (-> (= (p (v 1) (v 0)) z) (= (v 1) z))))"                           # a+b=0 -> a=0      (positivity)
+dia "(All (All (-> (= (p (v 1) (v 0)) (v 1)) (= (v 0) z))))"                       # a+m=a -> m=0      (CANCEL0)
+dia "(All (All (All (-> (= (p (v 2) (v 0)) (p (v 1) (v 0))) (= (v 2) (v 1))))))"   # a+c=b+c => a=b    (add-cancel-right)
 
 echo "prover diamond (every prover cert accepted by BOTH check.beta AND checker.gamma): $PASS ok, $SKIP skipped (interp arena), $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1
