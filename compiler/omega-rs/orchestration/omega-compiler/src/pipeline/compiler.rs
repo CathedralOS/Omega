@@ -22,7 +22,25 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
 
 pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
-    Compiler::new(options).compile()
+    // Run the whole pipeline on a thread with a large explicit stack. The
+    // recursive-descent parser and the recursive tree/layout walks descend once
+    // per nesting level with heavy per-level frames (a full operator-precedence
+    // chain), so on the host's default stack -- as small as ~1 MiB on Windows --
+    // even modestly nested input overflows the stack before the parser's depth
+    // guard (`MAX_NESTING_DEPTH`) can reject it. A large stack guarantees the
+    // guard is what fires, turning pathological nesting into a clean diagnostic
+    // instead of a crash. The size is only reserved address space; pages commit
+    // lazily, so ordinary inputs pay nothing. A genuine panic (a compiler bug)
+    // is re-raised on the calling thread, preserving today's crash-on-bug
+    // behavior.
+    const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
+    std::thread::Builder::new()
+        .name("omega-compile".to_owned())
+        .stack_size(COMPILE_STACK_SIZE)
+        .spawn(move || Compiler::new(options).compile())
+        .expect("failed to spawn compiler thread")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }
 
 /// Builds the boundary provider registry from `provider` declarations, enforces

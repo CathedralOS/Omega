@@ -14,10 +14,26 @@ mod literals;
 
 pub(super) type ParseResult<'tokens, 'source, T> = Result<(T, Input<'tokens, 'source>), ParseError>;
 
+/// The most levels of `(`/`[` nesting the recursive-descent parser walks into
+/// before it rejects the input as too deeply nested. The parser recurses once
+/// per level at each of its two choke points (`parse_expression_handle_in` and
+/// `parse_type_reference_handle`), so unbounded nesting overflows the native
+/// stack on pathological-but-parseable input (e.g. `((((...))))`). This bound
+/// converts that crash into a clean diagnostic; it sits far above any nesting a
+/// real program reaches, yet far below the depth that would exhaust the large
+/// stack the pipeline runs on (see `compile`), so the guard -- not a crash --
+/// is always what fires first.
+pub(super) const MAX_NESTING_DEPTH: u16 = 1024;
+
 #[derive(Clone, Copy)]
 pub(super) struct Input<'tokens, 'source> {
     pub(super) source_id: SourceId,
     pub(super) tokens: &'tokens [Token<'source>],
+    /// Current `(`/`[` nesting depth, carried by value through the parse so the
+    /// choke points can bound it. Reconstructions that merely ADVANCE the token
+    /// cursor (`advanced`) preserve it; a fresh `new` (top-level item / guard
+    /// boundary) resets it to 0, giving each independent construct its own budget.
+    depth: u16,
 }
 
 impl<'tokens, 'source> Input<'tokens, 'source> {
@@ -25,7 +41,43 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         Self {
             source_id,
             tokens: skip_non_semantic_tokens(tokens),
+            depth: 0,
         }
+    }
+
+    /// Reconstruct the cursor over `tokens` while PRESERVING the nesting depth.
+    /// Use for every reconstruction that only advances within the same construct
+    /// (token consumption, splits) so accumulated depth is not lost.
+    fn advanced(&self, tokens: &'tokens [Token<'source>]) -> Self {
+        Self {
+            source_id: self.source_id,
+            tokens: skip_non_semantic_tokens(tokens),
+            depth: self.depth,
+        }
+    }
+
+    pub(super) fn depth(&self) -> u16 {
+        self.depth
+    }
+
+    /// Enter one more level of nesting, rejecting input that exceeds
+    /// [`MAX_NESTING_DEPTH`] before it can overflow the parser's stack. Called at
+    /// the recursion choke points; pair with [`Self::with_depth`] to restore the
+    /// outer depth on exit so sibling expressions do not accumulate.
+    pub(super) fn deepen(self) -> Result<Self, ParseError> {
+        if self.depth >= MAX_NESTING_DEPTH {
+            return Err(self.error_here(format!(
+                "expression or type nesting is too deep (exceeds the maximum of {MAX_NESTING_DEPTH} levels)"
+            )));
+        }
+        Ok(Self {
+            depth: self.depth + 1,
+            ..self
+        })
+    }
+
+    pub(super) fn with_depth(self, depth: u16) -> Self {
+        Self { depth, ..self }
     }
 
     pub(super) fn source_span(&self, token: &Token<'_>) -> SourceSpan {
@@ -43,7 +95,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     pub(super) fn expect_token(self) -> Result<(&'tokens Token<'source>, Self), ParseError> {
         match self.tokens.split_first() {
-            Some((token, rest)) => Ok((token, Self::new(self.source_id, rest))),
+            Some((token, rest)) => Ok((token, self.advanced(rest))),
             None => Err(diagnostics::unexpected_eof(self, "token")),
         }
     }
@@ -272,10 +324,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         let split_index =
             find_top_level_punctuation(self, delimiter).ok_or_else(|| self.error_here(message))?;
         let (prefix_tokens, rest_tokens) = self.tokens.split_at(split_index);
-        Ok((
-            Self::new(self.source_id, prefix_tokens),
-            Self::new(self.source_id, rest_tokens),
-        ))
+        Ok((self.advanced(prefix_tokens), self.advanced(rest_tokens)))
     }
 
     pub(super) fn skip_braced_block(self) -> Result<(usize, Self), ParseError> {
