@@ -36,6 +36,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_negated_boolean_nesting_guard_exit", 70),
     ("arithmetic/runtime_guard_feature_composition_exit", 70),
     ("arithmetic/runtime_saturating_narrow_add_sub_exit", 70),
+    ("arithmetic/runtime_unsigned_high_bit_u32_ops_exit", 70),
     ("arithmetic/runtime_integer_casts_exit", 70),
     ("arithmetic/runtime_mixed_width_sign_exit", 70),
     ("arithmetic/runtime_saturating_narrow_divide_exit", 70),
