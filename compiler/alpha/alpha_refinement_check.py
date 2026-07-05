@@ -37,6 +37,7 @@ MN_PRELUDE = '(data 6 2 0 0)'                          # the monus constructor (
 SV_PRELUDE = '(data 7 1 1 0)'                          # the stream-element constructor (k 7 t) = input[t]
 SSUM_PRELUDE = '(data 8 2 0 0)'                        # the stream-sum constructor (k 8 lo hi) = Σ input[lo..hi)
 COND_PRELUDE = '(data 9 3 0 0) (data 10 2 0 0) (data 11 2 0 0) (data 12 2 0 0) (data 13 2 0 0)'
+DIVMOD_PRELUDE = '(data 14 2 0 0) (data 15 2 0 0)'     # div (k 14 a b) = a/b and mod (k 15 a b) = a%b — opaque
                                                        # (k 9 b t f) = if b then t else f; (k 10..13 L R) = </<=/==/!=
 
 # ---- a minimal raw-byte Alpha assembler (encoding per alpha_ref.py) ---------------------------------
@@ -99,6 +100,9 @@ AUTO_SAMPLES = [
     ("boolval   (STORED COMPARISON as a value)", "refinement-samples/boolval.beta"),
     ("condloop  (CONDITIONAL DELTA in a loop body)", "refinement-samples/condloop.beta"),
     ("bufcopy   (BUFFER COPY →segment/cond reads)", "refinement-samples/bufcopy.beta"),
+    ("divten    (INTEGER DIVISION a/10)", "refinement-samples/divten.beta"),
+    ("modten    (REMAINDER a%10)",  "refinement-samples/modten.beta"),
+    ("divmod    ((a/10)*10 + a%10)", "refinement-samples/divmod.beta"),
     ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
     ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
     ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),
@@ -160,7 +164,8 @@ def prove_equiv(label, text, tape, ok_msg, quiet_perturb=False, trials=40, teeth
                        + (' ' + MN_PRELUDE if '(k 6 ' in g else '')
                        + (' ' + SV_PRELUDE if '(k 7 ' in g else '')
                        + (' ' + SSUM_PRELUDE if '(k 8 ' in g else '')
-                       + (' ' + COND_PRELUDE if any(('(k %d ' % i) in g for i in (9, 10, 11, 12, 13)) else ''))
+                       + (' ' + COND_PRELUDE if any(('(k %d ' % i) in g for i in (9, 10, 11, 12, 13)) else '')
+                       + (' ' + DIVMOD_PRELUDE if any(('(k %d ' % i) in g for i in (14, 15)) else ''))
             proof = '(refl %s)' % cterm                # can't parse these, so emit a direct refl cert (valid iff
             for _ in range(nC):                        # C conv rhs) with the needed decls prepended; check.beta decides
                 proof = '(gen %s)' % proof

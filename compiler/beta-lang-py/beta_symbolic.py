@@ -65,6 +65,11 @@ SSUM_CID = 8
 # lives in the two differentially-pinned evaluators.
 COND_CID = 9
 BOOL_CID = {'blt': 10, 'ble': 11, 'beq': 12, 'bne': 13}
+# DIV_CID / MOD_CID: integer division and remainder as OPAQUE binary constructors — ('div', a, b) = a / b,
+# ('mod', a, b) = a % b (signed truncated, matching the machine). The SOURCE side must derive the SAME term the
+# bytecode side does (alpha_symbolic), so the refinement equivalence is refl — no division axioms in the kernel.
+DIV_CID = 14
+MOD_CID = 15
 
 def render(t):
     h = t[0]
@@ -77,6 +82,8 @@ def render(t):
     if h == 'sv': return '(k %d %s)' % (SV_CID, render(_term(t[1])))
     if h == 'ssum': return '(k %d %s %s)' % (SSUM_CID, render(_term(t[1])), render(_term(t[2])))
     if h == 'cond': return '(k %d %s %s %s)' % (COND_CID, render(t[1]), render(_term(t[2])), render(_term(t[3])))
+    if h == 'div': return '(k %d %s %s)' % (DIV_CID, render(_term(t[1])), render(_term(t[2])))
+    if h == 'mod': return '(k %d %s %s)' % (MOD_CID, render(_term(t[1])), render(_term(t[2])))
     if h in BOOL_CID: return '(k %d %s %s)' % (BOOL_CID[h], render(_term(t[1])), render(_term(t[2])))
     return '(%s %s %s)' % (h, render(t[1]), render(t[2]))
 
@@ -90,6 +97,10 @@ def evaluate(t, env):                  # concrete value under {var_index: int} (
     if h == 'sv': return env['in'][evaluate(_term(t[1]), env)]
     if h == 'ssum': return sum(env['in'][evaluate(_term(t[1]), env):evaluate(_term(t[2]), env)])
     if h == 'cond': return evaluate(_term(t[2]), env) if evaluate(t[1], env) else evaluate(_term(t[3]), env)
+    if h == 'div': return _trunc_div(evaluate(_term(t[1]), env), evaluate(_term(t[2]), env))
+    if h == 'mod':
+        a = evaluate(_term(t[1]), env); b = evaluate(_term(t[2]), env)
+        return a - _trunc_div(a, b) * b
     if h == 'blt': return 1 if evaluate(_term(t[1]), env) < evaluate(_term(t[2]), env) else 0
     if h == 'ble': return 1 if evaluate(_term(t[1]), env) <= evaluate(_term(t[2]), env) else 0
     if h == 'beq': return 1 if evaluate(_term(t[1]), env) == evaluate(_term(t[2]), env) else 0
@@ -139,6 +150,23 @@ def _sub(a, b):                        # (pa-na) - (pb-nb) = (pa+nb) - (na+pb)
         return ('zz', _padd(pa, nb), _padd(na, pb))
     (pa, na), (pb, nb) = _as_zz(a), _as_zz(b)
     return ('zz', _padd(pa, nb), _padd(na, pb))
+
+def _s64(x):                           # a concrete 64-bit word as signed
+    return x - (1 << 64) if x >= (1 << 63) else x
+
+def _trunc_div(a, b):                  # signed division truncated toward zero (matches the machine)
+    if b == 0:
+        raise Unsupported('division by zero')   # the machine traps; not modelled
+    q = abs(a) // abs(b)
+    return q if (a < 0) == (b < 0) else -q
+
+def _divmod(op, a, b):                  # op in {'div','mod'}: fold two concretes (matching the machine), else an
+    if isinstance(a, int) and isinstance(b, int):   # OPAQUE symbolic term identical to alpha_symbolic's
+        q = _trunc_div(_s64(a), _s64(b))
+        return (q if op == 'div' else _s64(a) - q * _s64(b)) & MASK
+    if _is_zz(a) or _is_zz(b):
+        raise Unsupported('div/mod on a signed (ℤ-pair) operand — not modelled yet')
+    return (op, _term(a), _term(b))
 
 def _concrete(v, why):
     if not isinstance(v, int):
@@ -444,6 +472,8 @@ class SymInterp:
             if op == '+':  return _add(a, b)
             if op == '*':  return _mul(a, b)
             if op == '-':  return _sub(a, b)
+            if op == '/':  return _divmod('div', a, b)
+            if op == '%':  return _divmod('mod', a, b)
             # comparisons: concrete operands decide to 0/1; a SYMBOLIC operand yields a boolean TERM
             # (blt/ble/beq/bne, >/>= normalized by bc's own operand swap) — the machine materializes the
             # same 0/1 the term evaluates to, so stored booleans and boolean arithmetic stay congruent.
