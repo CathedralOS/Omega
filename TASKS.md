@@ -128,7 +128,11 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   doesn't recognize (free machines + their sub-states are not in `program.machines()`;
   contained/cross-machine/dispatch calls resolve via backend paths). CLEAN FIX needs the
   COMPLETE value-call target resolver (matching lowering), not the partial bounds one;
-  a focused session.
+  a focused session. NOTE 2026-07-05 (commit 0a2abd4c6): for a RESOLVED value-call the
+  path now enforces argument ARITY too (shared `report_argument_count_mismatch`, was
+  statement-position only -- `let r = self.pick(1)` for a 2-param `pick` silently read a
+  ZII arg), alongside the existing class/narrowing/nominal checks. Only the UNRESOLVED
+  fall-through (this bullet's nonexistent-target case) remains.
 - **[ ] ARRAY/aggregate field DEFAULTS — silently dropped + unvalidated (found
   2026-07-05).** A valid array default is not emitted (`xs: [i32;3] = [1,2,3]` reads
   `xs[2]==0`; scalar defaults ARE emitted, so emission is scalar-only), and length +
