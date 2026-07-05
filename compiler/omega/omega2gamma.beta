@@ -3261,8 +3261,8 @@ proc emit_array_zeros(ai, count) {
 
 proc render() {
     state h {
-        to arrhelp when (word[6000040] > 0)             ; entry uses arrays -> prepend nth/setl
-        to outhelp
+        to arrhelp when (word[6000040] > 0)             ; entry uses arrays -> prepend nth/setl (+ listeq/listcat)
+        to strhelp0                                     ; no arrays -> maybe just the string helpers
     }
     state arrhelp {
         emit("(def nth (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nth t (- k 1)))))) ")
@@ -3270,6 +3270,15 @@ proc render() {
         emit("(def len (xs) (match xs (Nil 0) ((Cons h t) (+ 1 (len t))))) ")
         emit("(def drop (xs k) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) xs (drop t (- k 1)))))) ")
         emit("(def take (xs k) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) Nil (Cons h (take t (- k 1))))))) ")
+        emit("(def listeq (a b) (match a (Nil (match b (Nil 1) ((Cons bh bt) 0))) ((Cons ah at) (match b (Nil 0) ((Cons bh bt) (if (eq ah bh) (listeq at bt) 0)))))) ")
+        emit("(def listcat (a b) (match a (Nil b) ((Cons h t) (Cons h (listcat t b))))) ")
+        to outhelp
+    }
+    state strhelp0 {                                    ; no arrays: string ops still need listeq/listcat (String fields are lists, not arrays)
+        to strhelp when (word[6000120] == 1)            ; STR_FLAG -> the program uses string literals
+        to outhelp
+    }
+    state strhelp {
         emit("(def listeq (a b) (match a (Nil (match b (Nil 1) ((Cons bh bt) 0))) ((Cons ah at) (match b (Nil 0) ((Cons bh bt) (if (eq ah bh) (listeq at bt) 0)))))) ")
         emit("(def listcat (a b) (match a (Nil b) ((Cons h t) (Cons h (listcat t b))))) ")
         to outhelp
@@ -3314,9 +3323,23 @@ proc render() {
     state fin { write_byte(')')  write_byte(10)  return 0 }
 }
 
+proc scan_strings() {                  ; STR_FLAG=1 if the source contains a `"` (string literal -> needs listeq/listcat)
+    word[6000120] = 0
+    let k = 0
+    state loop {
+        to done when (k == word[2097136])          ; LEN
+        to hit when (byte[2097152 + k] == 34)      ; a double-quote -> the program uses strings
+        k = k + 1
+        to loop
+    }
+    state hit { word[6000120] = 1  return 0 }
+    state done { return 0 }
+}
+
 proc main() {
     slurp()
     word[6000016] = 0                  ; FRESH
+    scan_strings()                     ; STR_FLAG (6000120): does the source use string literals? (gates listeq/listcat when no arrays)
     find_machines()
     let mi = 0
     state ploop {

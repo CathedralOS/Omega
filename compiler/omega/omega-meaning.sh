@@ -99,6 +99,7 @@ om inventory_system          # 70 — 3-field record array in a nested instance 
 om traffic_light             # 70 — case-valued nested field, zero-init normalized to the zero case
 om text_greeting             # 70 — string concatenation (listcat) + concat assignment to a carrier
 om status_report             # 70 — string building + comparison
+om string_catalog            # 70 — String fields in NESTED structs (no declared array): `==`/`+` on deep paths self.catalog.entry1.name; needed listeq/listcat emitted for string programs, not only array programs (STR_FLAG gate)
 om inventory_lookup          # 20 — string equality (structural listeq) + string-literal expression values
 om text_padding              # 6  — string-carrier fields: "ALERT temp" assignment, .len arithmetic, write_line(field); dual-channel
 om collatz_sequence          # 111 — hailstone steps for seed 27
