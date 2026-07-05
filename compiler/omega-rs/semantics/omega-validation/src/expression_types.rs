@@ -201,13 +201,17 @@ impl ValueClass {
 /// this never false-positives on them.
 fn value_class(
     program: &TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
+    machine: Option<&omega_typed_trees::machine::Machine>,
     state: Option<&omega_typed_trees::state::State>,
     value: ExpressionHandle,
 ) -> Option<ValueClass> {
     if let Some(class) = ValueClass::of_literal(program, value) {
         return Some(class);
     }
+    // A place RHS (`self.field`, a local) needs the machine/state to resolve its
+    // declared type. Without a machine context (e.g. a data field DEFAULT, which is
+    // always a literal/const), only the literal path above applies.
+    let machine = machine?;
     let primitive = crate::places::declared_place_type(program, machine, state, value)
         .and_then(|handle| program.primitive_type_reference(handle))?;
     Some(ValueClass::of_primitive(primitive))
@@ -220,7 +224,7 @@ fn value_class(
 /// typed slot, and both silently miscompiled on a cross-class scalar.
 pub(crate) fn cross_class_conflict(
     program: &TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
+    machine: Option<&omega_typed_trees::machine::Machine>,
     state: Option<&omega_typed_trees::state::State>,
     value: ExpressionHandle,
     target: PrimitiveType,
@@ -239,7 +243,7 @@ pub(crate) fn cross_class_conflict(
 /// position -- the class complement of `arithmetic_domains::check_value_narrowing`.
 pub(crate) fn report_cross_class_store(
     program: &TypedTrees,
-    machine: &omega_typed_trees::machine::Machine,
+    machine: Option<&omega_typed_trees::machine::Machine>,
     state: Option<&omega_typed_trees::state::State>,
     value: ExpressionHandle,
     target: PrimitiveType,

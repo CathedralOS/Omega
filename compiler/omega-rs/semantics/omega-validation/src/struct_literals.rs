@@ -276,7 +276,7 @@ fn enforce_construction_field_obligations(
         if let Some(field_primitive) = program.primitive_type_reference(field_type) {
             if crate::expression_types::report_cross_class_store(
                 program,
-                machine,
+                Some(machine),
                 Some(state),
                 field.value,
                 field_primitive,
@@ -438,7 +438,7 @@ pub(crate) fn validate_array_literal_elements(
                 // Class check first; a cross-class element is not also narrowing-checked.
                 if crate::expression_types::report_cross_class_store(
                     program,
-                    machine,
+                    Some(machine),
                     Some(state),
                     *element,
                     element_primitive,

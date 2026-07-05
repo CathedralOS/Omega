@@ -223,7 +223,7 @@ fn validate_state_statement_node(
             if let Some(target_primitive) = assignment_target_primitive {
                 expression_types::report_cross_class_store(
                     program,
-                    machine,
+                    Some(machine),
                     machine_symbols.state(state_name),
                     assignment.value,
                     target_primitive,
@@ -331,7 +331,7 @@ fn validate_state_statement_node(
                 if let Some(target_primitive) = return_primitive {
                     expression_types::report_cross_class_store(
                         program,
-                        machine,
+                        Some(machine),
                         Some(state),
                         *expression,
                         target_primitive,
@@ -426,7 +426,7 @@ fn validate_state_statement_node(
             {
                 expression_types::report_cross_class_store(
                     program,
-                    machine,
+                    Some(machine),
                     machine_symbols.state(state_name),
                     local_data.initial_value,
                     target_primitive,
@@ -546,7 +546,7 @@ fn validate_state_statement_node(
                         {
                             expression_types::report_cross_class_store(
                                 program,
-                                machine,
+                                Some(machine),
                                 Some(state),
                                 *return_expression,
                                 return_primitive,

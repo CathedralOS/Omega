@@ -1,0 +1,1 @@
+default stores a boolean into a `i32` field, which holds a numeric value
