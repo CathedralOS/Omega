@@ -22,7 +22,7 @@ use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{
     StatementNode, TableCall, TransitionGuardNode, TransitionTargetNode,
 };
-use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
+use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_call_node(
@@ -1009,6 +1009,23 @@ fn scan_expression_calls(
             );
         }
         ExpressionNode::Cast(cast) => {
+            // An `as` target must be a scalar primitive. A cast to an unknown type
+            // (`x as Bogus`) or a non-scalar type (`x as Foo`, a data type) otherwise
+            // compiles SILENTLY as identity -- the target resolves to no primitive, so
+            // the conversion is a no-op and the value passes through with the wrong type.
+            if let Some(target) = program
+                .expression_table
+                .name_path_members(cast.target_type)
+                .last()
+                && PrimitiveType::from_name(target.as_str()).is_none()
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` state `{}` casts with `as {target}`, but `{target}` is not \
+                     a scalar type; `as` converts between scalar types only",
+                    machine.name.as_str(),
+                    state.name.as_str(),
+                )));
+            }
             scan_expression_calls(
                 program,
                 machine,

@@ -1,0 +1,1 @@
+casts with `as Foo`, but `Foo` is not a scalar type; `as` converts between scalar types only

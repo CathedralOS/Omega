@@ -21077,6 +21077,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/recursive_data_infinite_size",
     "data/fixed_array_too_large",
+    "expressions/cast_to_non_scalar_type_rejected",
     "arithmetic/undeclared_bare_name_rejected",
     "arithmetic/indexed_element_class_rejected",
     "arithmetic/indexed_element_narrowing_rejected",
