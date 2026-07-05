@@ -118,6 +118,7 @@ om turn_combat               # 1
 om width_mixer               # 70 — self-verified (mixed-width fields, casts in range)
 om format_number             # 70 — self-verified: digit extraction via / 10 and % 10, char codes (+48), as u8 narrowing
 om stdin_rot1                # 0  — EOF-driven stdin filter (read-loop to the -1 sentinel; empty input -> 0 bytes -> exit 0)
+om atomics_cross             # 70 — AtomicU32 single-threaded desugar: store=field write, fetch_add=old-then-`+=`, compare_exchange=branchless swap `f + (f==e)*(n-f)`; memory orderings are no-ops
 
 # feature tests (constructs not isolated by any committed sample):
 omt cross_data               # 63 — Counter::bump/get unify self.value with Main's self.counter.value
