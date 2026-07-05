@@ -883,6 +883,30 @@ fn unknown_field_write_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn unknown_field_read_rejected_canary_is_rejected() {
+    // A READ of a nonexistent field (a typo) in an expression is rejected at
+    // type-check ("reads `self.cont`, but data X has no field `cont`"), not silently
+    // passed.
+    let canary = fail_canary("arithmetic/unknown_field_read_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected unknown-field read canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("has no field `cont`"),
+        "expected a clear unknown-field diagnostic for the read, got:\n{combined}"
+    );
+}
+
+#[test]
 fn u64_literal_above_i64_max_canary_is_rejected() {
     // A u64 literal above i64::MAX (the literal value is carried as i64 through the IR) is
     // rejected with a CLEAR "exceeds the i64 range" diagnostic that names the real

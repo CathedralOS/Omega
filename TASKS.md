@@ -3023,23 +3023,23 @@ exit.
   still does not close. This points at needing a registered Omega window class
   plus a real WndProc/close path instead of relying on borrowed
   predefined-class DefWindowProc behavior.
-- [ ] UNKNOWN-FIELD validation -- WRITE side LANDED 2026-07-04, READ side remains.
-  A direct `self.<field>` WRITE to a nonexistent field (a typo `self.cont`) now gives
-  a clear "data `Main` has no field `cont`" at type-check (places.rs
-  `validate_assignment_target_handle` + `direct_self_field_member` +
-  `machine_attached_data`, reusing struct_literals `data_declares_field`), instead of
-  the misleading "not mutable" / opaque backend "needs mutation lowering". Scoped to
-  DIRECT `self.<field>` (checked against top-level fields = exactly the writable set);
-  VERSIONED data is excluded (its fields are version-specific -- `is_version_selector`
-  guard -- else it false-positived on cross_version_field_access `timestamp`). Locked
-  by fail canary arithmetic/unknown_field_write_rejected.
-  STILL OPEN: (a) a READ (`let x = self.cont`) passes `--check` SILENTLY (no error);
-  full compile fails opaquely. (b) NESTED `self.a.b` and non-self member reads/writes
-  are unchecked. The general fix is a member-expression validation walk over ALL
-  member accesses keyed on the resolved member symbol's validity (an unknown field
-  leaves an invalid symbol; name_paths.rs), careful across the valid member forms
-  (case payloads, era fields, domain members). A "did you mean `count`?" edit-distance
-  suggestion would further improve the write message.
+- [ ] UNKNOWN-FIELD validation -- direct `self.<field>` READ + WRITE both LANDED
+  2026-07-04. A nonexistent field (a typo `self.cont` for `self.count`) is now caught
+  at type-check in BOTH positions: a WRITE via places.rs
+  `validate_assignment_target_handle` ("data `Main` has no field `cont`"), a READ via
+  a check at the top of calls.rs `scan_expression_calls` (the full read-position
+  expression walk: values, args, guards, let inits) ("reads `self.cont`, but data
+  `Main` has no field `cont`"). Shared helpers `direct_self_field_member` +
+  `machine_attached_data` (places.rs, pub(crate)) + struct_literals `data_declares_field`.
+  Scoped to DIRECT `self.<field>` vs top-level data fields (exactly the accessible set);
+  VERSIONED data excluded (`is_version_selector`). Locked by fail canaries
+  unknown_field_{write,read}_rejected; full suite 579 + samples-compile clean (no
+  false-positive across 150+ samples' field reads).
+  STILL OPEN: NESTED `self.a.b` and non-self member accesses (`local.field`) are
+  unchecked -- the direct-self scope leaves `b`/receiver-typed members to a general
+  member-symbol-validity walk (an unknown field leaves an invalid symbol; name_paths.rs),
+  which must handle the valid member forms (case payloads, era fields, domain members).
+  A "did you mean `count`?" edit-distance suggestion would further help.
 - [ ] Broaden persistent machine/state mutation coverage beyond isolated
   micro-shapes toward dungeon-sample blockers.
 - [ ] Link final-image imports/fixups back to source and lowered boundary-edge

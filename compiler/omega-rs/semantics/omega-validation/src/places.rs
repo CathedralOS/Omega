@@ -100,7 +100,7 @@ fn expression_root_name_handle(program: &TypedTrees, expression: ExpressionHandl
 /// The field name of a DIRECT `self.<field>` place, whether it lowered as a
 /// `Member(Name([self]), field)` or a two-segment `Name([self, field])` path.
 /// `None` for anything deeper (`self.a.b`), a bare local, or a non-`self` receiver.
-fn direct_self_field_member(program: &TypedTrees, target: ExpressionHandle) -> Option<&str> {
+pub(crate) fn direct_self_field_member(program: &TypedTrees, target: ExpressionHandle) -> Option<&str> {
     match program.expression_table.expression(target) {
         ExpressionNode::Member(member) => {
             let ExpressionNode::Name(path) =
@@ -123,7 +123,7 @@ fn direct_self_field_member(program: &TypedTrees, target: ExpressionHandle) -> O
 
 /// The machine's attached-data `DataDefinition`, resolved by name. `None` for a
 /// machine with no attached data (a free machine) or an unresolvable data name.
-fn machine_attached_data<'a>(
+pub(crate) fn machine_attached_data<'a>(
     program: &'a TypedTrees,
     machine: &Machine,
 ) -> Option<&'a DataDefinition> {
