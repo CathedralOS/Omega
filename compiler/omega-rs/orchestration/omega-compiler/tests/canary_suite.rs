@@ -7141,6 +7141,36 @@ fn runtime_negated_boolean_nesting_guard_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_guard_feature_composition_exit_canary_runs() {
+    // Shift + cast comparisons composed INSIDE boolean nesting (&&, ||, and an Or
+    // nested in an And) -- the guard value-operand path and distribute-to-DNF
+    // together. Locks the integration of the guard-subject features (each canaried
+    // alone). Values built at runtime; discriminates -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_guard_feature_composition_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-guard-compose-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guard-feature-composition canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guard-feature-composition canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected composed shift/cast + boolean-nested guards to evaluate + discriminate (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_narrow_signed_wrap_boundaries_exit_canary_runs() {
     // Signed two's-complement wrap-around at narrow boundaries (i8: 127->-128, -128->127;
     // i16 analogues), both ends, in-Wrapping. Complements the saturating narrow canaries.
