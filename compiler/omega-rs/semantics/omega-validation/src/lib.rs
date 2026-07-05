@@ -279,6 +279,7 @@ fn validate_state_statement_node(
                 return;
             }
 
+            let shape_before = diagnostics.len();
             validate_expression_type_handle(
                 program,
                 *expression,
@@ -294,6 +295,25 @@ fn validate_state_statement_node(
                 machine.name
             );
             let return_primitive = program.primitive_type_reference(state.return_type);
+            // The shape gate above rejects a cross-class LITERAL terminal return
+            // (`-> i32 { true }`) but blanket-accepts place/name values, so a bool
+            // FIELD returned from an `-> i32` machine slips. Add the class check for
+            // those -- only when the shape gate did not already error, so a literal
+            // is not double-reported.
+            if diagnostics.len() == shape_before
+                && let Some(target_primitive) = return_primitive
+            {
+                expression_types::report_cross_class_store(
+                    program,
+                    machine,
+                    Some(state),
+                    *expression,
+                    target_primitive,
+                    &format!("machine `{}` state `{state_name}`", machine.name),
+                    "return value",
+                    diagnostics,
+                );
+            }
             let before = diagnostics.len();
             let (return_interval, source_primitive) = arithmetic_domains::validate_value_range(
                 program,

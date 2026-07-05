@@ -1197,6 +1197,31 @@ fn return_value_class_mismatch_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn terminal_return_class_mismatch_rejected_canary_is_rejected() {
+    // A cross-class TERMINAL return of a PLACE (`machine -> i32 { self.bool_field }`)
+    // is rejected. The shape gate rejects a cross-class literal but blanket-accepts
+    // place values, so this was a SILENT MISCOMPILE; the terminal-return path now
+    // class-checks place values (gated to avoid double-reporting a literal).
+    let canary = fail_canary("arithmetic/terminal_return_class_mismatch_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected terminal-return class-mismatch canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("stores a boolean into a `i32` return value"),
+        "expected a clear cross-class terminal-return diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
 fn unknown_field_read_rejected_canary_is_rejected() {
     // A READ of a nonexistent field (a typo) in an expression is rejected at
     // type-check ("reads `self.cont`, but data X has no field `cont`"), not silently
