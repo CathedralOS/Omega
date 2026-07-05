@@ -647,11 +647,20 @@ fn validate_value_call_argument_classes(
     callee_state: &State,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // Arity first: value-position calls (`let r = self.pick(1)`) reach only this
-    // path, never `validate_call_arguments_handles`, so without this a wrong
-    // argument count compiled silently (a missing arg then read its ZII default).
-    // Safe here because this function runs only on a RESOLVED callee -- the
-    // resolver's blind spots fall through earlier without reaching it.
+    // NOTE: a void-callee-in-value-position check (`let r: i32 = self.act()` for a
+    // unit `act`, which silently binds a ZII 0) does NOT belong here -- the resolved
+    // `callee_state.return_type` is EMPTY for terminating/transition machine shapes
+    // (a `-> usize` after a `terminates` block, or a value returned via a transition
+    // arm), so keying off it false-positives on machines that DO return a value
+    // (verified: it flagged `weaken -> usize` and `table_size() -> usize`). That
+    // check needs reliable per-call return-type resolution (the complete value-call
+    // resolver), the same frontier as the nonexistent-value-call gap in TASKS.
+
+    // Arity: value-position calls (`let r = self.pick(1)`) reach only this path,
+    // never `validate_call_arguments_handles`, so without this a wrong argument
+    // count compiled silently (a missing arg then read its ZII default). Safe here
+    // because this function runs only on a RESOLVED callee -- the resolver's blind
+    // spots fall through earlier without reaching it.
     if report_argument_count_mismatch(
         callee_state.name.as_str(),
         program.state_parameters(callee_state),

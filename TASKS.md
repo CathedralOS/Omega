@@ -133,6 +133,16 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   statement-position only -- `let r = self.pick(1)` for a 2-param `pick` silently read a
   ZII arg), alongside the existing class/narrowing/nominal checks. Only the UNRESOLVED
   fall-through (this bullet's nonexistent-target case) remains.
+  SIBLINGS in the SAME frontier (found 2026-07-05, both silently bind a ZII 0; both need
+  the complete resolver, NOT tick-sized): (a) a VOID callee used in value position
+  (`let r: i32 = self.act()` for a unit `act`); (b) a value-returning machine with an
+  EMPTY/no-value body (`machine get -> i32 { }`). ATTEMPTED + REVERTED (a) 2026-07-05:
+  keying the check off the resolved `callee_state.return_type` false-positived on
+  terminating/transition machines (`weaken -> usize`, `table_size() -> usize`) whose
+  entry-state return_type is EMPTY; `call_return_type` can't help either -- it filters to
+  states with a VALID return type, so a resolved-void callee and an unresolved call both
+  yield None (indistinguishable), and it's self/attached-only. Distinguishing "resolved
+  void" from "unresolved" is precisely what the complete value-call resolver provides.
 - **[ ] ARRAY/aggregate field DEFAULTS — silently dropped + unvalidated (found
   2026-07-05).** A valid array default is not emitted (`xs: [i32;3] = [1,2,3]` reads
   `xs[2]==0`; scalar defaults ARE emitted, so emission is scalar-only), and length +
