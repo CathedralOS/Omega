@@ -1,0 +1,27 @@
+// FAIL canary: a cross-CLASS struct-literal field value -- a `bool` (`true`)
+// stored into a numeric (`i32`) field at CONSTRUCTION -- is rejected at
+// type-check. This was a SILENT MISCOMPILE, the construction-position sibling of
+// the assignment / call-argument cross-class holes: `Point { x: true, ... }`
+// passed `--check` and `--build-dir` and stored `true` as `1`. The construction
+// field-obligation check now resolves each primitive field's class and rejects a
+// cross-class store, for range-constrained AND plain fields alike. Same-class
+// numeric field values (`x: self.i8_field`) are untouched.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Point {
+    x: i32 in Wrapping;
+    y: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    p: Point;
+}
+
+machine Main::main(&mut self) {
+    self.p = Point { x: true, y: 0 }; // bool into a numeric field -- would store 1
+    self.console.exit_process(self.p.x);
+}

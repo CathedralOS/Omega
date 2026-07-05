@@ -1053,6 +1053,30 @@ fn transition_value_overflow_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn struct_literal_class_mismatch_rejected_canary_is_rejected() {
+    // A cross-class struct-literal field value (`Point { x: true }`, bool -> i32
+    // field) is rejected. This was a SILENT MISCOMPILE at construction, the
+    // sibling of the assignment / call-arg cross-class holes.
+    let canary = fail_canary("arithmetic/struct_literal_class_mismatch_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected struct-literal-class-mismatch canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("stores a boolean into a `i32` field"),
+        "expected a clear cross-class construction diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
 fn unknown_field_read_rejected_canary_is_rejected() {
     // A READ of a nonexistent field (a typo) in an expression is rejected at
     // type-check ("reads `self.cont`, but data X has no field `cont`"), not silently
