@@ -3132,6 +3132,21 @@ exit.
   enforce the cross-class guard (assignment, let-init, call/transition/host/
   value-position arg, struct field, array element, transition-value + terminal
   return).
+- [ ] NOMINAL type confusion at a call ARGUMENT -- SILENT MISCOMPILE, the STRUCT/
+  user-type analog of the (now-complete) cross-class SCALAR family (found + PARKED
+  2026-07-04). `take_foo(&self.bar)` where `take_foo` expects `&Foo` compiles + runs
+  silently: the arg shape gate (argument_matches_type_reference_handle) BLANKET-
+  ACCEPTS a place/name value against ANY `Named` param, comparing only shape (it's a
+  place), never the type NAME -- so `f.a` reads Bar's storage at Foo's offset.
+  Part of the "full argument type-checking is a documented frontier". Repro +
+  safe-subset fix sketch parked at
+  `canaries/pending/arithmetic/wrong_struct_type_argument_not_checked`. SAFE SUBSET:
+  in validate_call_arguments_handles, reject IFF both param and arg unwrap to
+  CONCRETE DATA type names (in program.data_definitions()) that DIFFER -- traits/
+  boundary/generic-params/versioned/computed-values all fall outside "concrete data
+  name" and are skipped, so low false-positive risk. Deferred to a focused session
+  (nominal compat has more edge cases -- self-type params, nested/bounded generics --
+  than the 3-class scalar work; verify the WHOLE tail incl. samples_compile).
 - [x] CROSS-CLASS LET-INITIALIZER -- SILENT MISCOMPILE CLOSED 2026-07-04 (7th
   position; a gap in THIS session's own coverage -- the LocalData path carried the
   narrowing check but not the class check, so `let x: i32 = true` / `= self.b`
