@@ -3114,6 +3114,15 @@ exit.
   value_call_arg_class_mismatch_rejected.
   Whole cross-class-store family (assignment literal/place + call/transition/host
   arg + value-position arg) now CLOSED -- see [[literal-class-assignment-miscompile]].
+- [x] CROSS-CLASS LET-INITIALIZER -- SILENT MISCOMPILE CLOSED 2026-07-04 (7th
+  position; a gap in THIS session's own coverage -- the LocalData path carried the
+  narrowing check but not the class check, so `let x: i32 = true` / `= self.b`
+  stored 1 silently). Fixed via the shared `report_cross_class_store` in the
+  lib.rs LocalData path, GATED on `initial_value.is_valid()` (a bare `let x: bool;`
+  filled by an `&mut` out-param has an invalid initializer -- caught a false
+  positive on canary control_flow/runtime_nested_branch_prelude_value that the
+  WHOLE-TAIL suite check surfaced; `grep|head` would have hidden it). Locked by
+  fail canary let_init_class_mismatch_rejected.
 - [x] CROSS-CLASS struct-literal FIELD construction -- SILENT MISCOMPILE CLOSED
   2026-07-04 (5th position, found by dogfooding the "value into typed slot"
   positions). `Point { x: true }` (bool into a numeric field) and

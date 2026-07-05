@@ -1,0 +1,21 @@
+// FAIL canary: a cross-CLASS let-initializer -- `let x: i32 = true` stores a bool
+// into a numeric LOCAL -- is rejected at type-check. This was a SILENT MISCOMPILE
+// (stored true as 1), the let-init sibling of the assignment / call-arg / field /
+// element cross-class holes closed earlier this session; the LocalData path
+// carried the narrowing check but not the class check. Now every scalar
+// value-binding position (assignment, let-init, argument, field, array element)
+// enforces the same cross-class guard via the shared report_cross_class_store.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let x: i32 in Wrapping = true; // bool into a numeric local -- would store 1
+    let code: i32 = x;
+    self.console.exit_process(code);
+}
