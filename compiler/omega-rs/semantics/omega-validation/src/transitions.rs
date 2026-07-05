@@ -4,11 +4,16 @@ use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::ExpressionHandle;
+use omega_typed_trees::machine::Machine;
 use omega_typed_trees::signature::StateParameter;
+use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_transition_target_node(
     program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: Option<&State>,
     target: TransitionTargetHandle,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -31,6 +36,8 @@ pub(crate) fn validate_transition_target_node(
 
         validate_transition_arguments_handles(
             program,
+            current_machine,
+            current_state,
             arguments,
             state.name.as_str(),
             program.state_parameters(state),
@@ -48,6 +55,8 @@ pub(crate) fn validate_transition_target_node(
 
         validate_transition_arguments_handles(
             program,
+            current_machine,
+            current_state,
             arguments,
             state.name.as_str(),
             program.state_parameters(state),
@@ -80,6 +89,8 @@ pub(crate) fn validate_transition_target_node(
 
         validate_transition_arguments_handles(
             program,
+            current_machine,
+            current_state,
             arguments,
             &state.name,
             program.state_parameters(state),
@@ -89,8 +100,11 @@ pub(crate) fn validate_transition_target_node(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn validate_transition_arguments_handles(
     program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: Option<&State>,
     arguments: &[ExpressionHandle],
     target_name: &str,
     parameters: &[StateParameter],
@@ -99,6 +113,8 @@ fn validate_transition_arguments_handles(
 ) {
     validate_call_arguments_handles(
         program,
+        current_machine,
+        current_state,
         arguments,
         target_name,
         parameters,

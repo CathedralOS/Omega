@@ -3060,12 +3060,31 @@ exit.
   narrowing/mutation-lowering checks (verified: they still error via THOSE checks,
   not this gate). Locked by fail canaries literal_class_mismatch_rejected +
   member_class_mismatch_rejected; full suite + samples-compile clean.
-  STILL OPEN (NON-silent today, so lower priority): value-position call ARG
-  type-compat (`f(true)` for an i32 param) is the documented
-  `validate_call_arguments_handles` frontier -- the arg's own analysis errors, not
-  a miscompile. And an RHS whose class we don't resolve (a value-call returning
-  bool into an i32 field) would slip -- but value-position calls are separately
-  fenced. Revisit if a silent case surfaces.
+- [ ] CROSS-CLASS call/transition ARGUMENT -- SILENT MISCOMPILE CLOSED 2026-07-04
+  (3rd wave, same family). A `bool`/`String` field passed where an `i32` parameter
+  is expected -- `take_int(self.b)` (transition), `self.contained.f(self.b)`
+  (machine call), `self.console.exit_process(self.b)` (host/boundary) -- ALL passed
+  `--check` + `--build-dir` with NO error; the arg reached the backend/host encoder
+  as a raw byte and was read as garbage (exit 0/1). NB I again WRONGLY assumed this
+  was non-silent (the `validate_call_arguments_handles` "documented frontier"); the
+  existing shape gate `argument_matches_type_reference_handle` BLANKET-ACCEPTS
+  place/name args (Member/Name) against ANY primitive param, so the class conflict
+  slipped. Fix: reuse `cross_class_conflict` (the assignment gate, renamed from
+  `assignment_class_conflict`) inside `validate_call_arguments_handles` -- for each
+  arg that PASSES the shape gate, resolve its scalar class and reject a cross-class
+  store. Threaded `current_machine` + `current_state` through the fn + all 6
+  callsites (calls.rs x4, transitions.rs) so place args resolve via
+  `declared_place_type`. ALSO added arg validation to the boundary/trait-call
+  branch (calls.rs ~249) which previously skipped it entirely ("validation lives
+  elsewhere" -- only the backend host-encoder caught anything, and only literals);
+  full validate_call_arguments_handles there is safe (582 canaries + samples-compile
+  clean, no arity/shape regression). Only fires on args that pass the shape gate, so
+  no double-report with cross-class LITERAL args (the shape gate already rejects
+  those). Locked by fail canary arg_class_mismatch_rejected.
+  STILL OPEN: VALUE-position call args (`let r = self.pick(self.b)`) go through
+  `validate_value_position_calls` (BOUND-check only, decision-13 residue), NOT
+  `validate_call_arguments_handles` -- a cross-class value-position arg may still
+  slip. Next probe target in this family.
 - [ ] Broaden persistent machine/state mutation coverage beyond isolated
   micro-shapes toward dungeon-sample blockers.
 - [ ] Link final-image imports/fixups back to source and lowered boundary-edge

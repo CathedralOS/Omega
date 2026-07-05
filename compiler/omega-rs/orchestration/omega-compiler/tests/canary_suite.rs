@@ -931,6 +931,30 @@ fn member_class_mismatch_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn arg_class_mismatch_rejected_canary_is_rejected() {
+    // A cross-class call ARGUMENT (`exit_process(self.bool_field)` for an i32
+    // parameter) is rejected. Like the assignment cases this was a SILENT
+    // MISCOMPILE -- the bool arg reached the host encoder as a raw byte.
+    let canary = fail_canary("arithmetic/arg_class_mismatch_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected arg-class-mismatch canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("stores a boolean into a `i32` parameter"),
+        "expected a clear cross-class argument diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
 fn unknown_field_read_rejected_canary_is_rejected() {
     // A READ of a nonexistent field (a typo) in an expression is rejected at
     // type-check ("reads `self.cont`, but data X has no field `cont`"), not silently
