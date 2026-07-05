@@ -208,30 +208,45 @@ fn value_class(
     if let Some(class) = ValueClass::of_literal(program, value) {
         return Some(class);
     }
-    // An arithmetic binary (`+ - * / % << >>`) over NUMERIC/bool operands yields a
-    // numeric result -- even with bool operands, since bool feeds arithmetic as its
-    // 0/1 value (the match desugar relies on this) and the sum/product can leave
-    // `{0, 1}`. Classifying it as numeric catches storing such a result into a
-    // `bool` target -- e.g. `let x: bool = b + b`, which otherwise silently produced
-    // a bool holding 2. But `+` is OVERLOADED: `string + string` is concatenation,
-    // which yields text, so classify by the operands -- a text operand means concat
-    // (Text), otherwise numeric. Comparison / logical / bitwise binaries stay
-    // unclassified (None -> blanket-accepted): the first two yield a real bool, and
-    // bitwise `& | ^` preserve `{0, 1}` for bool operands.
-    if let ExpressionNode::Binary(binary) = program.expression_table.expression(value)
-        && crate::arithmetic_domains::is_arithmetic(binary.operator)
-    {
+    // Classify a computed binary so that storing an out-of-range result into a
+    // `bool` (or a number into text) is caught. Comparison / logical binaries stay
+    // unclassified (None -> blanket-accepted): a raw comparison / logical result IS
+    // an intended 0/1 coercion into a numeric slot -- runtime_comparison_value_signedness
+    // stores `a > b` straight into an `i32` -- so it must NOT be flagged. (The narrow
+    // cost: an arithmetic/bitwise op OVER raw comparison results, `(a == 1) + (a == 1)`,
+    // stored into a bool is not caught -- its comparison operands classify as None.)
+    if let ExpressionNode::Binary(binary) = program.expression_table.expression(value) {
+        use omega_typed_trees::expression::BinaryOperator;
         let left = value_class(program, machine, state, binary.left);
         let right = value_class(program, machine, state, binary.right);
-        return match (left, right) {
-            // `string + string` concatenation -- a text result, not a cross-class store.
-            (Some(ValueClass::Text), _) | (_, Some(ValueClass::Text)) => Some(ValueClass::Text),
-            // Any numeric/bool operand makes this integer arithmetic.
-            (Some(_), _) | (_, Some(_)) => Some(ValueClass::Numeric),
-            // Neither operand classifiable (e.g. nested comparison results, calls):
-            // leave to the blanket gate rather than risk a false positive.
-            (None, None) => None,
-        };
+        if crate::arithmetic_domains::is_arithmetic(binary.operator) {
+            // Arithmetic / shift (`+ - * / % << >>`) is integer arithmetic even over
+            // bool operands, since bool feeds in as its 0/1 value (the match desugar
+            // relies on this) and the result can leave `{0, 1}` -- so `let x: bool =
+            // b + b` (which silently produced a bool holding 2) is caught. But `+` is
+            // OVERLOADED: `string + string` is concatenation, so a text operand means
+            // concat (Text); any numeric/bool operand means numeric.
+            return match (left, right) {
+                (Some(ValueClass::Text), _) | (_, Some(ValueClass::Text)) => Some(ValueClass::Text),
+                (Some(_), _) | (_, Some(_)) => Some(ValueClass::Numeric),
+                (None, None) => None,
+            };
+        }
+        if matches!(
+            binary.operator,
+            BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor
+        ) {
+            // Bitwise `& | ^` preserve `{0, 1}` for bool operands, so `b & b` into a
+            // bool stays fine -- only a NUMERIC operand makes the result numeric
+            // (`let x: bool = 2 & 3`, which silently produced a bool holding 2, is
+            // caught). Bool-only bitwise stays unclassified.
+            return match (left, right) {
+                (Some(ValueClass::Numeric), _) | (_, Some(ValueClass::Numeric)) => {
+                    Some(ValueClass::Numeric)
+                }
+                _ => None,
+            };
+        }
     }
     // A place RHS (`self.field`, a local) needs the machine/state to resolve its
     // declared type. Without a machine context (e.g. a data field DEFAULT, which is
