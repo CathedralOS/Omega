@@ -103,6 +103,8 @@ AUTO_SAMPLES = [
     ("divten    (INTEGER DIVISION a/10)", "refinement-samples/divten.beta"),
     ("modten    (REMAINDER a%10)",  "refinement-samples/modten.beta"),
     ("divmod    ((a/10)*10 + a%10)", "refinement-samples/divmod.beta"),
+    ("divplus   (VAR divisor a/(b+1))", "refinement-samples/divplus.beta"),
+    ("divguard  (GUARDED b!=0 ? a/b : 0)", "refinement-samples/divguard.beta"),
     ("sumto(10) (concrete LOOP)",   "../beta-lang-rs/examples/sumto.beta"),
     ("fact(5)   (RECURSION)",       "../beta-lang-rs/examples/factorial.beta"),
     ("answer    (6*7)",             "../beta-lang-rs/examples/answer.beta"),
