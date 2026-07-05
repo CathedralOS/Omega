@@ -208,6 +208,31 @@ fn value_class(
     if let Some(class) = ValueClass::of_literal(program, value) {
         return Some(class);
     }
+    // An arithmetic binary (`+ - * / % << >>`) over NUMERIC/bool operands yields a
+    // numeric result -- even with bool operands, since bool feeds arithmetic as its
+    // 0/1 value (the match desugar relies on this) and the sum/product can leave
+    // `{0, 1}`. Classifying it as numeric catches storing such a result into a
+    // `bool` target -- e.g. `let x: bool = b + b`, which otherwise silently produced
+    // a bool holding 2. But `+` is OVERLOADED: `string + string` is concatenation,
+    // which yields text, so classify by the operands -- a text operand means concat
+    // (Text), otherwise numeric. Comparison / logical / bitwise binaries stay
+    // unclassified (None -> blanket-accepted): the first two yield a real bool, and
+    // bitwise `& | ^` preserve `{0, 1}` for bool operands.
+    if let ExpressionNode::Binary(binary) = program.expression_table.expression(value)
+        && crate::arithmetic_domains::is_arithmetic(binary.operator)
+    {
+        let left = value_class(program, machine, state, binary.left);
+        let right = value_class(program, machine, state, binary.right);
+        return match (left, right) {
+            // `string + string` concatenation -- a text result, not a cross-class store.
+            (Some(ValueClass::Text), _) | (_, Some(ValueClass::Text)) => Some(ValueClass::Text),
+            // Any numeric/bool operand makes this integer arithmetic.
+            (Some(_), _) | (_, Some(_)) => Some(ValueClass::Numeric),
+            // Neither operand classifiable (e.g. nested comparison results, calls):
+            // leave to the blanket gate rather than risk a false positive.
+            (None, None) => None,
+        };
+    }
     // A place RHS (`self.field`, a local) needs the machine/state to resolve its
     // declared type. Without a machine context (e.g. a data field DEFAULT, which is
     // always a literal/const), only the literal path above applies.
