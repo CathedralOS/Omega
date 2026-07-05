@@ -1,0 +1,10 @@
+// An inverted range `[10..=5]` (low bound > high bound) is the empty set -- no value
+// can satisfy it. It used to compile silently AND disable range checking: every value
+// "passed" the malformed bound (100, 7, 3, -50 all accepted into `[10..=5]`), so the
+// declaration looked bounded but enforced nothing. Now rejected at the declaration.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let y: i32 [10..=5] = 7; // inverted range -- rejected
+    self.console.exit_process(0);
+}
