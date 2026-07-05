@@ -621,6 +621,34 @@ pub(crate) fn check_narrowing_assignment(
     }
 }
 
+/// Report the decision-17 narrowing-store obligation for a `value` flowing into a
+/// `target` scalar slot: analyze the value's interval (honoring the flow facts in
+/// `env`) and flag it if it may not fit the target's width. The value's OWN
+/// arithmetic obligations are reported by the normal statement walk, so they go to
+/// a THROWAWAY buffer here -- only the narrowing check contributes to `diagnostics`.
+/// SINGLE SOURCE OF TRUTH for the "does this value fit its typed scalar slot?"
+/// obligation, shared by every store position: call/transition arguments,
+/// struct-literal field construction, and array-literal elements. Pass the
+/// statement `value_env` for flow-sensitive positions, or `&ValueEnv::new()` where
+/// no per-statement env is threaded (construction).
+pub(crate) fn check_value_narrowing(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    value: ExpressionHandle,
+    target: PrimitiveType,
+    env: &ValueEnv,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut throwaway = Vec::new();
+    let (interval, source) =
+        validate_value_range(program, machine, state, value, env, Some(target), owner, &mut throwaway);
+    if throwaway.is_empty() {
+        check_narrowing_assignment(Some(target), interval, source, owner, diagnostics);
+    }
+}
+
 /// The representable range of an integer primitive. `None` for non-integers
 /// (`bool`/`f32`/`f64`/`String`) and for `u64`/`usize` whose maximum exceeds
 /// `i64` (their high end is left unbounded -- an over-approximation that still
