@@ -126,6 +126,21 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   (b) REJECT non-scalar field defaults with a clear diagnostic so the silent drop
   becomes visible. NOT a live overflow (defaults not emitted). Repro:
   `canaries/pending/arithmetic/array_field_default_silent`.
+- **[ ] DEEPLY-NESTED INPUT stack-overflows the compiler (found 2026-07-05).** The
+  recursive-descent parser and the recursive tree/layout walks recurse once per nesting
+  level, so a ~4000-deep array TYPE (`[[...[i32;1]...;1];1]`) and a ~6000-deep
+  parenthesized EXPRESSION (`((((...1...))))`) crash with "has overflowed its stack".
+  Reproduce: generate with `'[' * n + 'i32' + '; 1]' * n` / `'(' * n + '1' + ')' * n`.
+  Pathological input only (no real program nests that deep), so LOW priority, but a
+  crash on parseable input. ATTEMPTED + REVERTED 2026-07-05: wrapping `compile()` on a
+  128 MiB-stack worker thread is INSUFFICIENT -- the layout walk runs on WorkerPool
+  threads (default stack, overflowed on a `<unknown>` thread) and the parser's ~10
+  frames/level chain still overflowed 128 MiB at 6000 deep. CLEAN FIX = PARSER DEPTH
+  LIMITS: a depth counter at the two recursion choke points (`parse_expression_handle_in`
+  + `parse_type_reference_handle`) that rejects with a "nesting too deep" diagnostic
+  before overflow -- multi-site (the `Input` cursor is Copy-passed through many
+  `Self::new` sites, so a depth field must thread through, or a depth param through the
+  expr/type parse chain) but bounded; a focused session, not a background tick.
 
 ## Cathedral first-boot ladder — remaining language readiness
 
