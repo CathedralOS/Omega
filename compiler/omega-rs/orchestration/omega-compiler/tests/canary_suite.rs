@@ -1077,6 +1077,31 @@ fn struct_literal_class_mismatch_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn struct_literal_narrowing_rejected_canary_is_rejected() {
+    // Decision-17 narrowing at the struct-literal construction boundary
+    // (`Small { v: self.i64_field }` into an i8 field): a SILENT truncation, now
+    // rejected. The construction check enforces the field's type width for every
+    // primitive field, not only `[a..=b]`-refined ones.
+    let canary = fail_canary("arithmetic/struct_literal_narrowing_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected struct-literal-narrowing canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("narrowing store") && combined.contains("construction of `Small` field `v`"),
+        "expected a narrowing diagnostic at the construction boundary, got:\n{combined}"
+    );
+}
+
+#[test]
 fn unknown_field_read_rejected_canary_is_rejected() {
     // A READ of a nonexistent field (a typo) in an expression is rejected at
     // type-check ("reads `self.cont`, but data X has no field `cont`"), not silently
