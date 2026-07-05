@@ -119,9 +119,9 @@ def prop(g, funs):
         return '(Or %s %s)' % (prop(g[1], funs), prop(g[2], funs))
     if g[0] == 'bot':
         return 'Bot'
-    if g[0] == 'rel':                              # Mem (777) / ProdIs (778) / Perm (779) live as Rel props
+    if g[0] == 'Rel':                              # Mem (777) / ProdIs (778) / Perm (779) live as Rel props
         return '(Rel %s %s %s)' % (g[1], term(g[2], funs), term(g[3], funs))
-    if g[0] == 'pred':
+    if g[0] == 'Pred':
         return '(Pred %s %s)' % (g[1], term(g[2], funs))
     raise SystemExit('untranslatable prop head: %s' % g[0])
 
