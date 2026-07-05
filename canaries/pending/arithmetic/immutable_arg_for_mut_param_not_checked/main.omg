@@ -1,0 +1,36 @@
+// PARKED REPRO (borrow-safety gap -- mutability compat NOT enforced). `handle`
+// takes `c: &mut Counter` (it may mutate through it), but `main` passes an
+// IMMUTABLE reference `&self.c`. This compiles at --check with no error: the
+// caller lent only immutable access, yet the callee holds a `&mut` and may write
+// through it. A borrow-rule violation that goes unenforced.
+//
+// PRECISE LOCATION: `validate_call_arguments_handles` (omega-validation/calls.rs)
+// handles a mutability mismatch by `continue`-ing (it SKIPS the argument's checks)
+// when `parameter.is_mutable && !is_mutable`, rather than pushing a diagnostic. The
+// SAFE direction (`&mut x` for a `&` parameter) is correctly accepted; only the
+// unsafe direction (immutable arg -> `&mut` param) needs rejecting.
+//
+// This is a facet of the KNOWN "ownership enforcement is frontend-modeled but not
+// enforced" subsystem (see TASKS + memory drop-bodies-not-executed: drop bodies
+// don't run, use-after-move isn't rejected). Fence-vs-implement is Zach's call --
+// converting the `continue` to an error changes language surface (code may rely on
+// the laxity), so it is NOT fenced unilaterally. It belongs to the eventual move/
+// borrow checker. Memory-safe today (value semantics + drop-is-no-op).
+//
+// FIX SKETCH (for the borrow checker): replace the `continue` on
+// `parameter.is_mutable && !is_mutable` with a diagnostic ("argument expects a
+// `&mut` reference but got an immutable borrow"); verify the WHOLE test tail incl.
+// samples_compile for reliance on the current laxity before landing.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Counter { n: i32 in Wrapping; }
+data Main { console: Console; c: Counter; }
+
+machine Main::main(&mut self) {
+    transition { _ -> handle(&self.c) } // &self.c (immutable) for a `&mut Counter` param
+    state handle(&mut self, c: &mut Counter) {
+        c.n = c.n + 1; // mutates through a borrow the caller lent immutably
+        self.console.exit_process(c.n);
+    }
+}
