@@ -1,0 +1,62 @@
+// And-of-Or in a guard subject -- a disjunction (`||`) nested inside a conjunction
+// (`&&`), e.g. `a && (b || c)` -- now lowers. The guard build distributes such a
+// tree to DNF (`(a && b) || (a && c)`) without re-factoring, and the disjunction
+// lowering (which already handles a full DNF) takes it. Values are built at runtime
+// so the guards run in codegen; the canary DISCRIMINATES (true and false arms via
+// different operands). Differential-checked native==interpreter.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    c: i32 in Wrapping;
+    i: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.a = 0;
+    self.b = 0;
+    self.c = 0;
+    self.i = 0;
+    transition { _ -> build() }
+
+    state build(&mut self) {
+        transition self.i < 5 { true -> step() _ -> and_or_via_leaf() }
+    }
+    state step(&mut self) {
+        self.a = self.a + 1;  // -> 5
+        self.i = self.i + 1;
+        transition { _ -> build() }
+    }
+
+    // a=5, b=0, c=0 at runtime from here.
+    state and_or_via_leaf(&mut self) {
+        // `a > 0 && (b > 0 || c > 0)` true VIA THE c LEAF of the inner Or:
+        // a>0 true; b>0 false; make c>0 true. (true && (false || true)) == true.
+        self.c = 7;
+        transition self.a > 0 && (self.b > 0 || self.c > 0) { true -> and_or_false() _ -> bad() }
+    }
+    state and_or_false(&mut self) {
+        // Inner Or now FALSE (b=0, c=0) so the whole conjunction is false ->
+        // (true && (false || false)) == false -> the FALSE arm is correct.
+        self.c = 0;
+        transition self.a > 0 && (self.b > 0 || self.c > 0) { true -> bad() _ -> or_and_form() }
+    }
+    state or_and_form(&mut self) {
+        // The mirror shape `(a || b) && c`: (a>0 || b>0) true, c>0 true ->
+        // ((true || false) && true) == true.
+        self.c = 3;
+        transition (self.a > 0 || self.b > 0) && self.c > 0 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
