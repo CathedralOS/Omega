@@ -1,0 +1,24 @@
+// FAIL canary: a cross-CLASS call ARGUMENT -- a `bool` field passed where an
+// `i32` parameter is expected -- is rejected at type-check. Like the assignment
+// cases (literal_/member_class_mismatch_rejected) this was a SILENT MISCOMPILE:
+// `self.console.exit_process(self.b)` passed `--check` and `--build-dir` with NO
+// error, and the boundary/host encoder read the bool byte as an i32. The shape
+// gate blanket-accepts place arguments against any primitive parameter, so the
+// class conflict slipped; the argument's scalar class is now resolved and a
+// cross-class store is rejected in every arg position (host/boundary, contained-
+// machine, and transition-target calls). Same-class numeric args (`i8` field for
+// an `i32` param) are untouched.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    b: bool;
+}
+
+machine Main::main(&mut self) {
+    self.b = true;
+    self.console.exit_process(self.b); // bool arg for an i32 parameter
+}

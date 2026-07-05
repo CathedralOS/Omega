@@ -213,10 +213,12 @@ fn value_class(
     Some(ValueClass::of_primitive(primitive))
 }
 
-/// If the RHS `value`'s scalar class conflicts with the `target` primitive's,
-/// return `(value_class, target_class)` for a diagnostic. Returns `None` for
-/// in-class assignments and for any RHS whose class is not resolvable here.
-pub(crate) fn assignment_class_conflict(
+/// If the `value`'s scalar class conflicts with the `target` primitive's, return
+/// `(value_class, target_class)` for a diagnostic. Returns `None` for in-class
+/// stores and for any value whose class is not resolvable here. Used for both
+/// assignment RHS and call/transition ARGUMENTS -- both store a value into a
+/// typed slot, and both silently miscompiled on a cross-class scalar.
+pub(crate) fn cross_class_conflict(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: Option<&omega_typed_trees::state::State>,

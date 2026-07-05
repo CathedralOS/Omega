@@ -1,5 +1,5 @@
 use crate::expression_types::{
-    argument_matches_type_reference_handle, expression_type_name_handle,
+    argument_matches_type_reference_handle, cross_class_conflict, expression_type_name_handle,
 };
 use crate::locals::WritableRoots;
 use crate::places::declared_place_type;
@@ -60,6 +60,8 @@ pub(crate) fn validate_call_node(
             );
             validate_call_arguments_handles(
                 program,
+                current_machine,
+                machine_symbols.state(state_name),
                 arguments,
                 state.name.as_str(),
                 program.state_parameters(state),
@@ -114,6 +116,8 @@ pub(crate) fn validate_call_node(
         );
         validate_call_arguments_handles(
             program,
+            current_machine,
+            machine_symbols.state(state_name),
             arguments,
             call.target.as_str(),
             program.state_parameters(state),
@@ -162,6 +166,8 @@ pub(crate) fn validate_call_node(
         );
         validate_call_arguments_handles(
             program,
+            current_machine,
+            machine_symbols.state(state_name),
             arguments,
             &state_signature.name,
             program.state_signature_parameters(state_signature),
@@ -183,6 +189,8 @@ pub(crate) fn validate_call_node(
             validate_result_use(program, call, &state.name, state.return_type, diagnostics);
             validate_call_arguments_handles(
                 program,
+                current_machine,
+                machine_symbols.state(state_name),
                 arguments,
                 &state.name,
                 program.state_parameters(state),
@@ -216,6 +224,8 @@ pub(crate) fn validate_call_node(
         validate_result_use(program, call, &state.name, state.return_type, diagnostics);
         validate_call_arguments_handles(
             program,
+            current_machine,
+            machine_symbols.state(state_name),
             arguments,
             &state.name,
             program.state_parameters(state),
@@ -237,8 +247,10 @@ pub(crate) fn validate_call_node(
     }
 
     // Boundary/trait receivers (e.g. `self.console.exit_process(0)`) resolve to a
-    // trait machine signature. Argument validation for trait calls lives elsewhere;
-    // strict result use still applies here.
+    // trait machine signature. Strict result use plus argument validation apply
+    // here -- a boundary is still a typed call, and a cross-class argument
+    // (`exit_process(self.bool_field)`) would otherwise reach the host encoder as
+    // a raw byte and be read as garbage with no frontend error.
     if let Some(signature) = receiver_type
         .and_then(|type_name| symbols.trait_definition(type_name))
         .and_then(|trait_definition| {
@@ -253,6 +265,16 @@ pub(crate) fn validate_call_node(
             call,
             &signature.name,
             signature.return_type,
+            diagnostics,
+        );
+        validate_call_arguments_handles(
+            program,
+            current_machine,
+            machine_symbols.state(state_name),
+            arguments,
+            &signature.name,
+            program.state_signature_parameters(signature),
+            writable_roots,
             diagnostics,
         );
         return;
@@ -391,8 +413,11 @@ fn validate_result_use(
     )));
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_call_arguments_handles(
     program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: Option<&State>,
     arguments: &[ExpressionHandle],
     target_name: &str,
     parameters: &[StateParameter],
@@ -441,6 +466,29 @@ pub(crate) fn validate_call_arguments_handles(
                 target_name,
                 expected_type,
                 expression_type_name_handle(program, *argument)
+            )));
+        } else if let Some(parameter_primitive) =
+            program.primitive_type_reference(parameter.type_reference)
+            && let Some((value_class, target_class)) = cross_class_conflict(
+                program,
+                current_machine,
+                current_state,
+                *argument,
+                parameter_primitive,
+            )
+        {
+            // The shape gate blanket-accepts place/name arguments (`self.field`,
+            // a local) against ANY primitive parameter, so a `bool` field passed
+            // for an `i32` parameter slips through and the backend silently reads
+            // it as garbage. Resolve the argument's scalar class and reject a
+            // cross-class store, exactly as the assignment path does.
+            diagnostics.push(Diagnostic::error(format!(
+                "argument `{}` for state `{}` stores {} into a `{}` parameter, which holds {}",
+                parameter.name,
+                target_name,
+                value_class.describe(),
+                parameter_primitive.name(),
+                target_class.describe(),
             )));
         }
     }

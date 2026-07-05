@@ -189,7 +189,7 @@ fn validate_state_statement_node(
             // place. Reject the unambiguous cross-class cases before value-range
             // analysis (which assumes a class-compatible RHS).
             if let Some(target_primitive) = assignment_target_primitive
-                && let Some((value_class, target_class)) = expression_types::assignment_class_conflict(
+                && let Some((value_class, target_class)) = expression_types::cross_class_conflict(
                     program,
                     machine,
                     machine_symbols.state(state_name),
@@ -361,6 +361,8 @@ fn validate_state_statement_node(
         StatementNode::Transition(transition) => {
             validate_transition_target_node(
                 program,
+                machine,
+                machine_symbols.state(state_name),
                 transition.target,
                 machine_symbols,
                 symbols,
@@ -371,6 +373,8 @@ fn validate_state_statement_node(
             if transition.continuation.is_valid() {
                 validate_transition_target_node(
                     program,
+                    machine,
+                    machine_symbols.state(state_name),
                     transition.continuation,
                     machine_symbols,
                     symbols,
