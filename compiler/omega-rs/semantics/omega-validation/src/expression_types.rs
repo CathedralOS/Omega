@@ -147,23 +147,24 @@ pub(crate) fn validate_expression_type_handle(
     }
 }
 
-/// The three disjoint literal value CLASSES a scalar assignment can conflate.
-/// A literal RHS names its class unambiguously; a target primitive names one
-/// too. Assigning across classes (e.g. a `bool` literal into an `i32` field)
-/// is a type error the backend would otherwise SILENTLY miscompile -- `true`
-/// stored as `1`, `"hi"` stored as garbage. We deliberately fold every integer
-/// AND float primitive into a single `Numeric` class so that numeric-literal
-/// coercions (`f64 = 5`, `i8 = 300`) are NOT flagged here -- those are the
-/// province of the narrowing/domain checks, which carry their own precise
-/// diagnostics. This gate fires ONLY on cross-class literal conflicts.
+/// The three disjoint scalar value CLASSES a scalar assignment can conflate.
+/// A literal RHS or a resolvable place (`self.field`, a local) names its class
+/// unambiguously; a target primitive names one too. Assigning across classes
+/// (e.g. a `bool` into an `i32` field) is a type error the backend would
+/// otherwise SILENTLY miscompile -- `true` stored as `1`, `"hi"` stored as
+/// garbage. We deliberately fold every integer AND float primitive into a
+/// single `Numeric` class so that numeric coercions (`f64 = 5`, `i8 = 300`,
+/// `i32 = self.i8_field`) are NOT flagged here -- those are the province of the
+/// narrowing/domain checks, which carry their own precise diagnostics. This
+/// gate fires ONLY on cross-class conflicts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum LiteralClass {
+pub(crate) enum ValueClass {
     Boolean,
     Text,
     Numeric,
 }
 
-impl LiteralClass {
+impl ValueClass {
     pub(crate) fn describe(self) -> &'static str {
         match self {
             Self::Boolean => "a boolean",
@@ -172,9 +173,7 @@ impl LiteralClass {
         }
     }
 
-    /// The class of a literal RHS, or `None` for any non-literal expression
-    /// (computed values, member/named places, calls) -- those are left to the
-    /// blanket-accepting general gate, so this never false-positives on them.
+    /// The class of a literal RHS, or `None` for a non-literal expression.
     fn of_literal(program: &TypedTrees, value: ExpressionHandle) -> Option<Self> {
         match program.expression_table.expression(value) {
             ExpressionNode::Boolean(_) => Some(Self::Boolean),
@@ -194,17 +193,39 @@ impl LiteralClass {
     }
 }
 
-/// If `value` is a literal whose class conflicts with the `target` primitive,
-/// return `(literal_class, target_class)` for a diagnostic. Returns `None` for
-/// in-class assignments and for any non-literal RHS.
-pub(crate) fn literal_class_conflict(
+/// The value class of an assignment RHS, if it is unambiguously determinable:
+/// a literal (its literal class) OR a resolvable place -- `self.field`, a local
+/// -- whose declared type is a scalar primitive. Returns `None` for any
+/// computed expression (binary, call, cast, indexed) whose result type we do
+/// not resolve here -- those are left to the blanket-accepting general gate, so
+/// this never false-positives on them.
+fn value_class(
     program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    value: ExpressionHandle,
+) -> Option<ValueClass> {
+    if let Some(class) = ValueClass::of_literal(program, value) {
+        return Some(class);
+    }
+    let primitive = crate::places::declared_place_type(program, machine, state, value)
+        .and_then(|handle| program.primitive_type_reference(handle))?;
+    Some(ValueClass::of_primitive(primitive))
+}
+
+/// If the RHS `value`'s scalar class conflicts with the `target` primitive's,
+/// return `(value_class, target_class)` for a diagnostic. Returns `None` for
+/// in-class assignments and for any RHS whose class is not resolvable here.
+pub(crate) fn assignment_class_conflict(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
     value: ExpressionHandle,
     target: PrimitiveType,
-) -> Option<(LiteralClass, LiteralClass)> {
-    let literal_class = LiteralClass::of_literal(program, value)?;
-    let target_class = LiteralClass::of_primitive(target);
-    (literal_class != target_class).then_some((literal_class, target_class))
+) -> Option<(ValueClass, ValueClass)> {
+    let value_class = value_class(program, machine, state, value)?;
+    let target_class = ValueClass::of_primitive(target);
+    (value_class != target_class).then_some((value_class, target_class))
 }
 
 pub(crate) fn expression_type_name_handle(
