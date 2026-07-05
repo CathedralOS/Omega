@@ -134,12 +134,38 @@ def falsify(prop):                                     # --perturb: turn the con
     return '(%s (s %s) %s)' % (op, b, a)               # s(b) </<= a: false whenever a </<= b
 
 
+_MOD = re.compile(r'(\w+|\([^()]*\))\s*%\s*(\d+)')
+
+
+def lift_modulo(reqs, enss, params):
+    # Model `EXPR % K` (K a positive constant) as a fresh variable carrying the modulo operator's RANGE FACT
+    # `fresh < K` (a nonnegative remainder is strictly below the divisor). The prover has no `%`, and the trust
+    # core needs none: the ensures is discharged against the operator's postcondition -- exactly how omega-rs
+    # bounds an operator result. Each distinct `EXPR % K` becomes one fresh param + one `fresh < K` antecedent,
+    # substituted textually into every requires/ensures line so the normal clause machinery handles the rest.
+    seen, extra_params, extra_reqs = {}, [], []
+
+    def repl(line):
+        def sub(m):
+            key = (m.group(1).strip(), m.group(2))
+            if key not in seen:
+                fresh = '__mod%d' % len(seen)
+                seen[key] = fresh
+                extra_params.append(fresh)
+                extra_reqs.append('%s < %s' % (fresh, m.group(2)))
+            return seen[key]
+        return _MOD.sub(sub, line)
+
+    new_reqs = [repl(r) for r in reqs]      # run repl over BOTH lists (populating extra_reqs/params) BEFORE
+    new_enss = [repl(e) for e in enss]      # concatenating -- else the range-fact antecedents get dropped
+    return new_reqs + extra_reqs, new_enss, params + extra_params
+
+
 def main():
     src = sys.stdin.read()
     for mm in re.finditer(r'machine\s+(\w+)\s*\(([^)]*)\)(.*?)\{', src, re.S):
         name, params_s, body = mm.group(1), mm.group(2), mm.group(3)
         params = [p.split(':')[0].strip() for p in params_s.split(',') if ':' in p]
-        env = {p: len(params) - 1 - i for i, p in enumerate(params)}   # de Bruijn under the ∀-prefix
         reqs, enss, mode = [], [], None
         for ln in body.splitlines():
             w = ln.strip()
@@ -151,6 +177,8 @@ def main():
                 mode.append(w)
         if not enss:
             continue
+        reqs, enss, params = lift_modulo(reqs, enss, params)   # `EXPR % K` -> fresh var + range-fact antecedent
+        env = {p: len(params) - 1 - i for i, p in enumerate(params)}   # de Bruijn under the ∀-prefix
         rl = [clauses(r, env) for r in reqs]                # each line -> a LIST of props (a range -> 2 bounds)
         el = [clauses(e, env) for e in enss]
         if any(x is None for x in rl) or any(x is None for x in el):
