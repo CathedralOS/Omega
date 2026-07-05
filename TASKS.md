@@ -115,6 +115,20 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   decision, not landed unilaterally. See memory `contained-machine-same-type-aliasing`.
 - u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
+- **[ ] VALUE-position call to a NONEXISTENT machine compiles silently (found
+  2026-07-05).** `let y: i32 = bogus_fn(1)` compiles and yields 0 (silent miscompile);
+  statement-position `bogus_fn(1);` is correctly rejected by `validate_call_node` ("has
+  no local state"). The value path (`validate_expression_call_bounds`) is a PARTIAL
+  best-effort resolver -- unresolved = skip the bounds check, NOT an error. ATTEMPTED +
+  REVERTED 2026-07-05 TWICE: (1) erroring when its three receiverless branches
+  (self-state / attached-sibling / free-machine-entry) all miss broke ~40 canaries; (2)
+  erroring only when the target names NOTHING anywhere (a global scan of machine names +
+  every machine's states + platform states, excluding `min`/`max`/`sqrt`) STILL broke
+  ~40 -- so valid value-calls reach the fall-through with targets a naive global scan
+  doesn't recognize (free machines + their sub-states are not in `program.machines()`;
+  contained/cross-machine/dispatch calls resolve via backend paths). CLEAN FIX needs the
+  COMPLETE value-call target resolver (matching lowering), not the partial bounds one;
+  a focused session.
 - **[ ] ARRAY/aggregate field DEFAULTS — silently dropped + unvalidated (found
   2026-07-05).** A valid array default is not emitted (`xs: [i32;3] = [1,2,3]` reads
   `xs[2]==0`; scalar defaults ARE emitted, so emission is scalar-only), and length +
