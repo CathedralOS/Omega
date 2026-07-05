@@ -8,11 +8,13 @@
 # irrationality, the list/number-theory library — 200+ proofs) were only ever run through check.beta.
 #
 # This gate re-runs the ENTIRE library through check_ref.py — the independent, auditable Python reference
-# checker — and requires ACCEPT-and-AGREE on every proof. A divergence would expose a bug in a checker OR an
-# elaborator cert that exploits a check.beta-specific quirk. NEGATIVE CONTROLS (a goal-perturbed proof and
-# hand-crafted false claims) must be REJECTED by BOTH, so the agreement is discriminating, not vacuous.
-# (checker.gamma covers only ~8 of these forms — integers/predicates/etc. are beyond its current surface — and
-# those are already triple-checked by checker-diamond.sh; this gate is the check.beta vs check_ref leg for ALL.)
+# checker — AND, where refcert_to_gamma.py can translate it, through checker.gamma (the gamma-language checker
+# on the reference interpreter — the MOST diverse implementation, a different language at a different rung).
+# Every proof must be ACCEPTED-and-AGREE on the legs that run. A divergence would expose a bug in a checker OR
+# an elaborator cert that exploits a check.beta-specific quirk. NEGATIVE CONTROLS (a goal-perturbed proof and
+# hand-crafted false claims) must be REJECTED, so the agreement is discriminating, not vacuous. The gamma leg
+# INLINES the def/use lemma prelude (checker.gamma has no def/use); a few big heavily-cited proofs (the FTA
+# etc.) then exceed interp's arena and are SKIPPED on that leg only (still check.beta + check_ref verified).
 cd "$(dirname "$0")"
 command -v python3 >/dev/null 2>&1 || { echo "proofs-crosscheck: skipped (python3 absent)"; exit 0; }
 . ../alpha/seed_env.sh
@@ -20,18 +22,26 @@ SEED=../alpha/$ALPHA_SEED
 ASM=../beta/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 ( cd ../beta-lang-rs && sh build.sh ../beta-lang/bc.beta >/dev/null 2>&1 ) || { echo "proofs-crosscheck: bc build failed"; exit 1; }
-../beta-lang-rs/build/bc.exe < check.beta > "$T/p.asm" 2>/dev/null && "$ASM" < "$T/p.asm" > "$T/p.tape" 2>/dev/null \
-  && stamp_seed "$T/p.tape" "$SEED" "$T/check.exe" >/dev/null 2>&1 || { echo "proofs-crosscheck: check.beta build failed"; exit 1; }
-CHECK="$T/check.exe"
+bcc() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/a.asm" 2>/dev/null && "$ASM" < "$T/a.asm" > "$T/a.tape" 2>/dev/null && stamp_seed "$T/a.tape" "$SEED" "$2" >/dev/null 2>&1; }
+bcc check.beta "$T/check.exe"          || { echo "proofs-crosscheck: check.beta build failed"; exit 1; }
+bcc ../gamma/interp.beta "$T/interp.exe" || { echo "proofs-crosscheck: interp.beta build failed"; exit 1; }
+CHECK="$T/check.exe"; DEFS=$(cat ../gamma/checker.gamma)
 
-PASS=0; FAIL=0
+PASS=0; FAIL=0; GAMMA=0; GSKIP=0
 for f in proofs/*.elab; do
   cert=$(python3 elab.py < "$f" 2>/dev/null)
   if [ -z "$cert" ]; then FAIL=$((FAIL+1)); echo "  FAIL $f : elaboration errored"; continue; fi
   vb=$(printf '%s' "$cert" | "$CHECK" 2>/dev/null)
   vr=$(printf '%s' "$cert" | python3 check_ref.py 2>/dev/null)
   if [ "$vb" = accept ] && [ "$vr" = accept ]; then PASS=$((PASS+1))
-  else FAIL=$((FAIL+1)); echo "  FAIL $(basename "$f") : check.beta=$vb check_ref=$vr (must both accept)"; fi
+  else FAIL=$((FAIL+1)); echo "  FAIL $(basename "$f") : check.beta=$vb check_ref=$vr (must both accept)"; continue; fi
+  # THIRD leg: checker.gamma (via refcert_to_gamma). Untranslatable/arena-exhaust -> skip; REJECT -> fail.
+  gg=$(printf '%s' "$cert" | python3 ../gamma/refcert_to_gamma.py 2>/dev/null)
+  if [ -z "$gg" ]; then GSKIP=$((GSKIP+1)); continue; fi
+  ( printf '%s\n%s\n' "$DEFS" "$gg" | perl -e 'alarm 30; exec @ARGV' "$T/interp.exe" >/dev/null 2>&1 ) 2>/dev/null; eg=$?
+  if [ "$eg" = 1 ]; then GAMMA=$((GAMMA+1))
+  elif [ "$eg" = 0 ]; then FAIL=$((FAIL+1)); echo "  FAIL $(basename "$f") : checker.gamma REJECTED a check.beta+check_ref-accepted proof"
+  else GSKIP=$((GSKIP+1)); fi
 done
 
 # NEGATIVE CONTROLS — both checkers must REJECT. (1) a goal-perturbed real proof (a+0=a becomes a+0=s a);
@@ -48,5 +58,5 @@ ncheck "$badcert"
 ncheck '(= (s z) z) (refl (s z))'                                   # 1 = 0
 ncheck '(All (= (v 0) (s (v 0)))) (gen (refl (v 0)))'               # a = s a
 
-echo "proof-library cross-check (every proofs/*.elab accepted by check.beta AND the independent check_ref.py; perturbations rejected by both): $PASS proofs cross-checked, $NEGOK/$NEG negative controls rejected"
+echo "proof-library cross-check (every proofs/*.elab decided identically by check.beta + check_ref.py, and by checker.gamma where translatable; perturbations rejected): $PASS cross-checked (beta+ref), $GAMMA also checker.gamma-verified, $GSKIP gamma-skipped (arena/untranslatable), $NEGOK/$NEG negative controls rejected"
 [ "$FAIL" = 0 ] && [ "$PASS" -gt 0 ] && [ "$NEGOK" = "$NEG" ]
