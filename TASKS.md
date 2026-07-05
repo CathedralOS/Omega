@@ -3100,6 +3100,29 @@ exit.
   value_call_arg_class_mismatch_rejected.
   Whole cross-class-store family (assignment literal/place + call/transition/host
   arg + value-position arg) now CLOSED -- see [[literal-class-assignment-miscompile]].
+- [ ] NARROWING at the CALL-ARGUMENT boundary -- SILENT MISCOMPILE, decision-17
+  5th boundary NOT enforced (found 2026-07-04 while completing the cross-class arg
+  work; PARKED, not yet fixed). Passing a wider numeric to a narrower param --
+  `self.take_i8(self.big)` where `big: i64 = 300`, param `x: i8` -- compiles clean
+  at --check AND --build-dir and RUNS, silently truncating 300 -> 44 (300 & 0xFF).
+  The ASSIGNMENT boundary rejects the analogue (`let z: i8 = self.big` => narrowing
+  proof obligation), but call args are unchecked. This is the RANGE/width check
+  (arithmetic_domains), NOT the class check -- `cross_class_conflict` folds all
+  numerics into one class ON PURPOSE and leaves width to this. Repro parked at
+  `canaries/pending/arithmetic/narrowing_call_arg_not_checked`.
+  FIX SKETCH (deferred -- multi-position + regression surface, wants its own
+  session): thread `&ValueEnv` into validate_call_node / the transition path /
+  validate_call_arguments_handles (same threading as the class check last tick;
+  validate_value_range takes `&ValueEnv`, read-only), and per primitive-typed param
+  run validate_value_range(arg, env, Some(param_primitive)) + check_narrowing_
+  assignment -- honors dominating guards, so no false positive on guarded args.
+  WRINKLE: value-position calls run in a SEPARATE post-pass (lib.rs ~137) with the
+  env in its FINAL, not per-statement, state -- that sub-case needs the value-
+  position arg walk moved inside the per-statement loop first. WATCH: args were
+  never range-checked before, so expect NEW overflow diagnostics to surface on
+  existing samples (run the full corpus before landing). Same recipe extends to
+  transition-VALUE overflow (the sibling gap noted in
+  [[narrowing-store-proof-obligation]]).
 - [ ] Broaden persistent machine/state mutation coverage beyond isolated
   micro-shapes toward dungeon-sample blockers.
 - [ ] Link final-image imports/fixups back to source and lowered boundary-edge
