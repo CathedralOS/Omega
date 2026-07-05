@@ -1483,7 +1483,9 @@ remains tracked in its bullet below.
   contracts/domain facts (no typing scope there), and written-equals
   signature matching against `&Self` (validation accepts `Self` in trait
   signatures; substitution per conformance is unchecked).
-- [ ] **Case members: remaining halves.** EXHAUSTIVENESS COUNTING LANDED
+- [x] **Case members: remaining halves.** (Both halves closed 2026-06-11 -- see
+  the closing note at the end of this entry; checkbox synced 2026-07-04.)
+  EXHAUSTIVENESS COUNTING LANDED
   (2026-06-11), over implicit case-domains AND case-subset domains: a
   dispatch run (consecutive transitions, the shape every block desugars to)
   whose arms classify a case-bearing subject must cover every case or close
@@ -1742,13 +1744,9 @@ remains tracked in its bullet below.
   data/runtime_array_literal_string_field_exit (two elements, distinct
   literals, runtime-indexed guards on each element's scalar sibling and
   String field plus an element-0-vs-element-1-literal cross check; exit 70).
-- [ ] Signed/unsigned residue, two sibling shapes (found while shrinking, not
-  yet canaried): (1) a modulo whose operand is a CAST — `((seed >> 32) as
-  u32) % 199` inside a convert/value-operand chain — still picks the signed
-  encoding because `resolve_runtime_storage_is_signed_in_table` cannot see
-  through Cast nodes (returns None -> signed fallback); the non-table
-  `select_runtime_binary_mutation_write` (writes/mutation.rs) also never
-  adjusts. (2) Trailing-state STALE READS of threaded `&mut` param fields:
+- [ ] Signed/unsigned residue, sibling shape (2) only -- shape (1) is DONE (see
+  the `[x]` entry immediately below; checkbox scope corrected 2026-07-04).
+  (2) Trailing-state STALE READS of threaded `&mut` param fields:
   a transition-guard SUBJECT read of `random.calls` in a state appended
   after build_main_hall_1 saw the post-seed snapshot (0), and a `let hi =
   (random.seed >> 32) as u32` in a state appended after build_main_hall_4

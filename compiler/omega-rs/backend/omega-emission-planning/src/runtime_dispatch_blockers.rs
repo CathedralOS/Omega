@@ -65,11 +65,12 @@ pub(super) fn runtime_dispatch_loop_blocker(input: &EmissionPlanningInput<'_>) -
             &format!(
                 "transition guard in state {3} could not be lowered to a native comparison: a \
                  guard subject must be a conjunction (`&&`) of simple-value comparisons, \
-                 optionally within a top-level disjunction (`||`). Bind a complex subexpression \
-                 -- a shift, a cast, a value-call result, or a disjunction (`||`) nested inside a \
-                 conjunction (`&&`, e.g. `a && (b || c)`) -- to a field or local first, then \
-                 compare that local. (guard lowering {guard_lowering:?}; dispatch loop {0} \
-                 case(s), {1} edge(s), {2} cycle(s)){4}",
+                 optionally within a top-level disjunction (`||`). (Shifts and casts in a guard \
+                 subject DO lower directly.) Bind a still-unsupported subexpression -- a \
+                 value-call result, or a disjunction (`||`) nested inside a conjunction (`&&`, \
+                 e.g. `a && (b || c)`) -- to a field or local first, then compare that local. \
+                 (guard lowering {guard_lowering:?}; dispatch loop {0} case(s), {1} edge(s), {2} \
+                 cycle(s)){4}",
                 input.runtime_dispatch_loop.cases.len(),
                 input.runtime_dispatch_loop.edges.len(),
                 input.runtime_flow.cycles.len(),
