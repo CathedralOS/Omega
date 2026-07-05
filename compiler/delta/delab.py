@@ -89,6 +89,7 @@ def dpf(n, iv, hy, c):  # decompile a proof
     if h == 'natind': x = c.fresh('x'); return "(natind %s %s %s %s)" % (x, dp(n[1], iv + [x], c), dpf(n[2], iv, hy, c), dpf(n[3], iv, hy, c))
     if h == 'listind':x = c.fresh('x'); return "(listind %s %s %s %s)" % (x, dp(n[1], iv + [x], c), dpf(n[2], iv, hy, c), dpf(n[3], iv, hy, c))
     if h == 'rec':    x = c.fresh('x'); return "(rec %s %s %s %s %s %s)" % (n[1], n[2], x, dp(n[3], iv + [x], c), dpf(n[4], iv, hy, c), dpf(n[5], iv, hy, c))
+    if h == 'prodrec':x = c.fresh('x'); return "(prodrec %s %s %s %s)" % (n[1], x, dp(n[2], iv + [x], c), dpf(n[3], iv, hy, c))
     if h == 'memhead':return "(memhead %s %s)" % (dt(n[1], iv), dt(n[2], iv))
     if h == 'memtail':return "(memtail %s %s)" % (dt(n[1], iv), dpf(n[2], iv, hy, c))
     if h == 'memcons':return "(memcons %s)" % dpf(n[1], iv, hy, c)
@@ -108,6 +109,8 @@ def decompile(src):
         c = Ctx()
         if isinstance(f, list) and f and f[0] == 'data':
             out.append("(data %s)" % ' '.join(f[1:])); i += 1
+        elif isinstance(f, list) and f and f[0] == 'prod':
+            out.append("(prod %s)" % f[1]); i += 1
         elif isinstance(f, list) and f and f[0] == 'fun':
             out.append("(fun %s %s %s)" % (f[1], f[2], dt(f[3], []))); i += 1
         elif isinstance(f, list) and f and f[0] == 'def':

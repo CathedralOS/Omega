@@ -140,6 +140,8 @@ def epf(n, iv, hy):  # elaborate a proof term
     if h == 'natind': return "(natind %s %s %s)" % (ep(n[2], iv + [n[1]]), epf(n[3], iv, hy), epf(n[4], iv, hy))
     if h == 'listind':return "(listind %s %s %s)" % (ep(n[2], iv + [n[1]]), epf(n[3], iv, hy), epf(n[4], iv, hy))
     if h == 'rec':    return "(rec %s %s %s %s %s)" % (n[1], n[2], ep(n[4], iv + [n[3]]), epf(n[5], iv, hy), epf(n[6], iv, hy))
+    if h == 'prodrec':# (prodrec CID x MOT CASE) — product elim: from MOT on the sole ctor conclude ∀x. MOT
+        return "(prodrec %s %s %s)" % (n[1], ep(n[3], iv + [n[2]]), epf(n[4], iv, hy))
     if h == 'memhead':return "(memhead %s %s)" % (et(n[1], iv), et(n[2], iv))      # Mem(x, cons x t)
     if h == 'memtail':return "(memtail %s %s)" % (et(n[1], iv), epf(n[2], iv, hy)) # Mem(x,t) -> Mem(x, cons h t)
     if h == 'memcons':return "(memcons %s)" % epf(n[1], iv, hy)                    # invert on cons
@@ -163,6 +165,9 @@ def elaborate(src):
         if isinstance(f, list) and f and f[0] == 'data':
             # (data cid arity r0 r1) — all literals, pass through
             out.append("(data %s)" % ' '.join(f[1:])); i += 1
+        elif isinstance(f, list) and f and f[0] == 'prod':
+            # (prod cid) — sole-constructor product marker, licenses prodrec; literal pass-through
+            out.append("(prod %s)" % f[1]); i += 1
         elif isinstance(f, list) and f and f[0] == 'fun':
             # (fun FID CID body) — body is a term over (y k) args / (rec i) recursion
             out.append("(fun %s %s %s)" % (f[1], f[2], et(f[3], []))); i += 1
