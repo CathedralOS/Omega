@@ -556,7 +556,19 @@ proc parse_term() {
         skip_ws()
         to lsub when (cbyte() == '.')
         adv()                          ; consume ']'
+        to lfield when (cbyte() == '.')          ; LOCAL[ix].field — struct-slice element field access
         return alloc(12, lookup_local(off), lx, 0)
+    }
+    state lfield {                     ; s[ix].field: extract `field` from the slice element (nth s ix)
+        adv()                          ; consume '.'
+        let lfo = word[2097144]
+        skip_ident()                   ; past the field name
+        to lftyped when (word[6200000 + (word[6000032] * 16 + lookup_local(off)) * 8] > 0)
+        return alloc(12, lookup_local(off), lx, 0)   ; untracked local (type unknown): 1-field identity, as before
+    }
+    state lftyped {                    ; param slice `&[Tname]`: resolve Tname now (dtypes are collected by render)
+        let ldt = dt2_idx(word[6200000 + (word[6000032] * 16 + lookup_local(off)) * 8])
+        return alloc(21, lookup_local(off), lx, case_like_pack(dt2_fidx(ldt, lfo), word[7030000 + ldt * 8]))
     }
     state lsub {
         adv()  adv()                   ; consume '..'
@@ -1527,6 +1539,7 @@ proc print_expr(node) {
         to isnnth when (word[node] == 16)
         to isndrop when (word[node] == 17)
         to isntake when (word[node] == 18)
+        to iselemfl when (word[node] == 21)
         to isbin
     }
     state islen { emit("(len ")  print_acurname(word[node + 8])  write_byte(')')  return 0 }
@@ -1554,6 +1567,22 @@ proc print_expr(node) {
     state ef_f0 { emit("ea))")  return 0 }
     state ef_f1x { emit("eb))")  return 0 }
     state ef_f1 { emit("(match eb ((Pair ec ed) ec))))")  return 0 }
+    state iselemfl {                   ; field of a LOCAL/param struct-slice element: extract from (nth lK ix)
+        let elk = word[node + 24] / 8
+        let eln = word[node + 24] - elk * 8
+        to efl_solo when (eln == 1)
+        emit("(match (nth ")  print_curname(word[node + 8])  write_byte(' ')
+        print_expr(word[node + 16])  emit(") ((Pair ea eb) ")
+        to efl_f0 when (elk == 0)
+        to efl_f1x when (eln == 2)
+        to efl_f1 when (elk == 1)
+        emit("(match eb ((Pair ec ed) ed))))")
+        return 0
+    }
+    state efl_solo { emit("(nth ")  print_curname(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state efl_f0 { emit("ea))")  return 0 }
+    state efl_f1x { emit("eb))")  return 0 }
+    state efl_f1 { emit("(match eb ((Pair ec ed) ec))))")  return 0 }
     state ispair {
         emit("(Pair ")  print_expr(word[node + 8])  write_byte(' ')
         print_expr(word[node + 16])  write_byte(')')
@@ -2356,14 +2385,26 @@ proc parse_machine_header() {
         skip_ws()
         to toclose when (cbyte() == ')')
         word[6100000 + (mc * 16 + word[6010600 + mc * 8]) * 8] = word[2097144]   ; M_LNAME[mc][PCNT] = name
+        word[6200000 + (mc * 16 + word[6010600 + mc * 8]) * 8] = 0               ; PARM_STYPE[mc][PCNT] = 0 (not a struct slice)
         word[6010600 + mc * 8] = word[6010600 + mc * 8] + 1                      ; M_PCNT++
         skip_ident()
         to parmskip
     }
-    state parmskip {
+    state parmskip {                   ; skip this param's type; a `&[Tname]` struct-slice records Tname's offset
         to parmnext when (cbyte() == ',')
         to toclose when (cbyte() == ')')
+        to parmarr when (cbyte() == '[')
         adv()
+        to parmskip
+    }
+    state parmarr {
+        adv()                          ; consume '['
+        skip_ws()
+        to parmstruct when (is_upper(cbyte()) == 1)
+        to parmskip                    ; scalar-element slice `&[i32 ..]` -> leave PARM_STYPE 0
+    }
+    state parmstruct {                 ; `&[Tname]` -> record the element type name's source offset for this param
+        word[6200000 + (mc * 16 + (word[6010600 + mc * 8] - 1)) * 8] = word[2097144]
         to parmskip
     }
     state parmnext { adv()  to parmloop }
