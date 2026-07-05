@@ -803,8 +803,10 @@ fn analyze(
                 diagnostics.push(Diagnostic::error(format!(
                     "exact arithmetic in {owner} may overflow `{}`: the operands are not provably \
                      in range (decision 17 -- exact arithmetic is a proof obligation). Widen with \
-                     an `as` cast to a larger type, constrain the operands' range, or opt into a \
-                     defined-overflow domain (`{} in Wrapping`/`Saturating`/`Trapping`).{}",
+                     an `as` cast to a larger type, constrain the operands' range (bound a \
+                     parameter with a `requires` clause, or narrow a value with a dominating \
+                     guard), or opt into a defined-overflow domain \
+                     (`{} in Wrapping`/`Saturating`/`Trapping`).{}",
                     primitive_name(primitive),
                     primitive_name(primitive),
                     call_hint,
