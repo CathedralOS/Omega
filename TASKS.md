@@ -797,7 +797,18 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >   indexed writes, slice reads -- ~10 canaries), which have their own operand
 >   paths and must NOT be hoisted. Only a SCALAR `arr[i].field` should hoist, which
 >   needs a TYPE-AWARE hoist (typed layer) or a backend operand resolver, not a
->   frontend predicate. The `let t = arr[i].field; use t` idiom is the workaround),
+>   frontend predicate. The `let t = arr[i].field; use t` idiom is the workaround.
+>   RE-SCOPED 2026-07-04 (2 ticks of instrumented pinning): the backend fix is PATH B
+>   -- a NEW machine-indexed struct-field VALUE OPERAND (`base + i*elem + field_off`)
+>   + x86_64 emission, NOT the earlier "contained" hope. Pinned: struct
+>   `cells[i].x+5` fails at resolve_runtime_value_operand_in_table's storage fallback
+>   (Member unresolvable); plain `nums[i]+5` does NOT use the generic resolver (a
+>   third, unpinned path), so machine arrays aren't FrameIndexed operands and the fix
+>   can't reuse FrameIndexed -- add the new branch using
+>   resolve_runtime_machine_indexed_target_in_table (which already computes the
+>   machine Member(Indexed)+suffix for WRITES). The entity/particle pattern is
+>   demonstrated working today via the field-temp idiom in
+>   samples/cli/collections/entity_list. See array-of-structs-indexing memory),
 >   `arr[i]=arr[j]` both-runtime
 >   (#38 -- NARROWED 2026-07-03: this is the last BARE-source case into an indexed
 >   target; a binary/literal/field source already selects, only a bare local or
