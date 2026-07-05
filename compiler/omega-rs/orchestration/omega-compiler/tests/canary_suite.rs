@@ -1247,6 +1247,30 @@ fn wrong_struct_type_argument_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn wrong_struct_type_assignment_rejected_canary_is_rejected() {
+    // NOMINAL type confusion at an assignment (`self.foo = self.bar`, Bar into a
+    // Foo place) is rejected -- a distinct position from the call-argument canary,
+    // sharing report_data_type_conflict.
+    let canary = fail_canary("arithmetic/wrong_struct_type_assignment_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected wrong-struct-type-assignment canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("expects the `Foo` data type but got `Bar`"),
+        "expected a clear nominal-type-mismatch diagnostic at the assignment, got:\n{combined}"
+    );
+}
+
+#[test]
 fn unknown_field_read_rejected_canary_is_rejected() {
     // A READ of a nonexistent field (a typo) in an expression is rejected at
     // type-check ("reads `self.cont`, but data X has no field `cont`"), not silently
