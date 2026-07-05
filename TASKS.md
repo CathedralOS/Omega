@@ -822,8 +822,21 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 - **Demolition (after the engine):** rip out `ByteSequencePredicate` + the blessed-predicate
   grant path; move encodings to `core` as recursive-predicate domains; rewrite every
   `domain ... when valid_utf8(self)` site (~dozens + dungeon); re-green corpus.
-- **Still open (design):** the fold-predicate SYNTAX inside the domain block + how `as`
-  references it.
+- **Invariant spelling (settled 2026-07-05):** NO `predicate` or `invariant` keyword —
+  the domain block body IS the boolean expression (`domain P::Vulnerable { self.health >= 1
+  && !self.in_cutscene }`). A "predicate" is just a comptime-eligible (pure+total) machine
+  returning bool (reuse the machine substrate; array accesses ride the existing bounds
+  prover via `&&` short-circuit). RECURSION IS BANNED, so a sequence walk is a STATE MACHINE
+  transitioning to itself with a NARROWED SLICE (slicing over indexing; no `usize`). See the
+  canonical `utf8_ok` recognizer in memory encoding-domains-no-intrinsics.
+- **State param scope (settled 2026-07-05):** THREADED — pass what each state needs, NO
+  whole-machine/global param access (keeps the borrow checker transition-local; `&mut`
+  splitting is a linearity issue). Global access = a possible follow-up, compatible via
+  SHADOWING. CONSEQUENCE: flips the bare-name scoping — the whole-machine-scope allowance +
+  `bare_name_scopes` canary shipped this session become WRONG; the reverted per-state check
+  was correct. Undo when threaded scope lands.
+- **Still open (design):** `as` referencing the invariant machine + the mint-obligation
+  spelling at the call site.
 
 ## Outstanding (pick up next)
 
