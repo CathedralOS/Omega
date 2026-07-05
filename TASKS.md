@@ -2846,6 +2846,19 @@ exit.
     moved-out bindings and rejects subsequent reads. Fence-vs-implement is Zach's
     call, same as drops. Treat "ownership enforcement" as ONE in-progress
     subsystem; don't re-probe it expecting rejection.
+  - SIBLING (probe 2026-07-04): borrow MUTABILITY compat is NOT enforced either.
+    Passing an IMMUTABLE reference where a `&mut` parameter is expected --
+    `handle(&self.c)` for a `c: &mut Counter` param -- COMPILES clean (the callee
+    may then mutate through a borrow the caller only lent immutably). Precisely
+    located: `validate_call_arguments_handles` (calls.rs) `CONTINUE`s on a
+    mutability mismatch (`parameter.is_mutable && !is_mutable`) instead of erroring
+    -- it SKIPS the arg entirely rather than rejecting. (The reverse, `&mut x` for a
+    `&` param, is SAFE and correctly accepted.) Repro parked at
+    `canaries/pending/arithmetic/immutable_arg_for_mut_param_not_checked`. Same
+    Zach-gated fence-vs-implement subsystem as drops/moves -- converting the skip to
+    an error changes language surface (some code may rely on the laxity), so NOT
+    fenced unilaterally in a background fire; part of the eventual move/borrow
+    checker. Memory-safe today (value semantics + drop-is-no-op).
 
 ### Array, Vec, String, And Views
 
