@@ -96,6 +96,15 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 
 ## Open latent bugs / fenced gaps
 
+- **[ ] Float BITWISE/SHIFT/MODULO passes `--check`, fails the BACKEND (found 2026-07-05).**
+  `f & g` / `f << 2` / `f % g` for float `f`,`g` compile at `--check` but the x86_64 backend
+  errors "runtime float binary operator `BitwiseAnd` is not implemented yet" (the interpreter
+  says "float modulo/shift/bitwise not supported"). These operators are semantically undefined
+  for floats (you would cast to int bits first), so the clean fix is a VALIDATION reject with a
+  clear "operator not defined for float operands" message -- BUT the backend wording ("not
+  implemented YET") is ambiguous about whether float-bitwise is a permanent semantic error or a
+  planned feature; confirm the intent before turning it into a hard frontend error. Not silent
+  (the build fails), so lower priority than a miscompile.
 - **[RESOLVED 2026-07-03]** `arr[i] = <binary>` (a computed value into a
   runtime-indexed target) now selects. The remaining fenced sources into an
   indexed target are BARE places only: `arr[i] = <bare local>` and `arr[i] =
