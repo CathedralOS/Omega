@@ -156,33 +156,20 @@ fn builtin_type_layout(
     None
 }
 
+/// Thin wrapper over the shared `omega_layout::primitive_layout` -- supplies this
+/// crate's pointer geometry and the fat `{ptr, len}` String descriptor (two
+/// pointers, pointer-aligned) and delegates, so the byte-width match is
+/// single-sourced in omega-layout.
 fn primitive_layout(context: &RuntimeStorageContext, primitive_type: PrimitiveType) -> TypeLayout {
-    match primitive_type {
-        PrimitiveType::Bool | PrimitiveType::I8 | PrimitiveType::U8 => TypeLayout {
-            size: 1,
-            alignment: 1,
-        },
-        PrimitiveType::I16 | PrimitiveType::U16 => TypeLayout {
-            size: 2,
-            alignment: 2,
-        },
-        PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => TypeLayout {
-            size: 4,
-            alignment: 4,
-        },
-        PrimitiveType::F64 | PrimitiveType::I64 | PrimitiveType::U64 => TypeLayout {
-            size: 8,
-            alignment: 8,
-        },
-        PrimitiveType::Usize | PrimitiveType::Isize | PrimitiveType::Addr => TypeLayout {
-            size: context.target.pointer_size,
-            alignment: context.target.pointer_alignment,
-        },
-        PrimitiveType::String => TypeLayout {
+    omega_layout::primitive_layout(
+        context.target.pointer_size,
+        context.target.pointer_alignment,
+        TypeLayout {
             size: context.target.pointer_size * 2,
             alignment: context.target.pointer_alignment,
         },
-    }
+        primitive_type,
+    )
 }
 
 pub(super) fn align_to(offset: usize, alignment: usize) -> usize {
