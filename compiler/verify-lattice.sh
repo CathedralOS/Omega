@@ -86,6 +86,7 @@ step "seam — corpus theorems: proved AND operationally true" delta soundness-s
 step "seam — FUZZ: random +/* defeq vs operational eval" delta     seam-fuzz.sh gamma
 step "seam — recx accumulator recursion vs independent evaluation (check.beta + check_ref + checker.gamma agree)" delta recx-soundness.sh gamma beta beta-lang beta-lang-rs
 step "contract discharge (omega source) — math_proofs requires/ensures translated to delta props and proven by check.beta + check_ref + checker.gamma (perturbation rejected)" delta math-contracts.sh gamma beta beta-lang beta-lang-rs ../samples
+step "termination discharge (omega source) — 'decreases s -> Slice::Length' tail-recursion tied to a 3-checker measure-decrease lemma (reversed measure rejected)" delta termination-obligations.sh gamma beta beta-lang beta-lang-rs ../samples
 step "forall-input theorem — count(xs,n)=len(xs)+n proven for ALL inputs by induction (check.beta + check_ref + checker.gamma; perturbation rejected)" delta forall-input.sh gamma beta beta-lang beta-lang-rs
 step "checker diamond — FUZZ: random props, check.beta vs checker.gamma" delta checker-diamond-fuzz.sh gamma
 step "logic diamond — FUZZ: random propositional proofs, all 3 checkers" delta logic-diamond-fuzz.sh gamma
