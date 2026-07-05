@@ -1,6 +1,7 @@
 use crate::arithmetic_domains::{self, ValueEnv};
 use crate::expression_types::{
     argument_matches_type_reference_handle, expression_type_name_handle, report_cross_class_store,
+    report_data_type_conflict,
 };
 use crate::locals::WritableRoots;
 use crate::places::declared_place_type;
@@ -519,6 +520,23 @@ pub(crate) fn validate_call_arguments_handles(
                 diagnostics,
             );
         }
+        // Nominal guard: the shape gate blanket-accepts a place/name argument
+        // against ANY `Named` parameter, so `take_foo(&self.bar)` (a `&Bar` for a
+        // `&Foo` parameter) is silently accepted and reads the wrong storage.
+        // Reject when both parameter and argument resolve to concrete data types
+        // that differ (every non-data form is skipped, so no false positive on
+        // trait/generic parameters or computed arguments).
+        let slot_context = format!("argument `{}` for state `{target_name}`", parameter.name);
+        report_data_type_conflict(
+            program,
+            current_machine,
+            current_state,
+            *argument,
+            parameter.type_reference,
+            &slot_context,
+            "argument",
+            diagnostics,
+        );
     }
 
     let _ = (writable_roots, diagnostics);
@@ -639,6 +657,24 @@ fn validate_value_call_argument_classes(
                 diagnostics,
             );
         }
+        // Nominal guard (value-position complement): `let r = self.take_foo(&self.bar)`
+        // with a `&Foo` parameter is silently accepted -- the same wrong-data-type
+        // hole the statement/transition path has.
+        let slot_context = format!(
+            "argument `{}` for state `{}`",
+            parameter.name,
+            callee_state.name.as_str()
+        );
+        report_data_type_conflict(
+            program,
+            current_machine,
+            Some(current_state),
+            *argument,
+            parameter.type_reference,
+            &slot_context,
+            "argument",
+            diagnostics,
+        );
     }
 }
 

@@ -3132,21 +3132,26 @@ exit.
   enforce the cross-class guard (assignment, let-init, call/transition/host/
   value-position arg, struct field, array element, transition-value + terminal
   return).
-- [ ] NOMINAL type confusion at a call ARGUMENT -- SILENT MISCOMPILE, the STRUCT/
-  user-type analog of the (now-complete) cross-class SCALAR family (found + PARKED
-  2026-07-04). `take_foo(&self.bar)` where `take_foo` expects `&Foo` compiles + runs
-  silently: the arg shape gate (argument_matches_type_reference_handle) BLANKET-
-  ACCEPTS a place/name value against ANY `Named` param, comparing only shape (it's a
-  place), never the type NAME -- so `f.a` reads Bar's storage at Foo's offset.
-  Part of the "full argument type-checking is a documented frontier". Repro +
-  safe-subset fix sketch parked at
-  `canaries/pending/arithmetic/wrong_struct_type_argument_not_checked`. SAFE SUBSET:
-  in validate_call_arguments_handles, reject IFF both param and arg unwrap to
-  CONCRETE DATA type names (in program.data_definitions()) that DIFFER -- traits/
-  boundary/generic-params/versioned/computed-values all fall outside "concrete data
-  name" and are skipped, so low false-positive risk. Deferred to a focused session
-  (nominal compat has more edge cases -- self-type params, nested/bounded generics --
-  than the 3-class scalar work; verify the WHOLE tail incl. samples_compile).
+- [~] NOMINAL type confusion at a call ARGUMENT -- SILENT MISCOMPILE, the STRUCT/
+  user-type analog of the cross-class SCALAR family. CALL ARGS CLOSED 2026-07-04
+  (parked one tick, implemented the next once confident the safe subset was clean).
+  `take_foo(&self.bar)` where `take_foo` expects `&Foo` compiled+ran silently (the
+  arg shape gate blanket-accepts a place against ANY `Named` param, comparing shape
+  not the type NAME, so `f.a` read Bar's storage at Foo's offset). Fix:
+  `expression_types::report_data_type_conflict` + `concrete_data_type_name` (unwrap
+  Reference/Constrained to the base Named, require it be in `program.data_definitions()`,
+  exclude version selectors) -- rejects IFF BOTH param and arg resolve to concrete
+  data names that DIFFER; every other form (trait/boundary/generic param, array,
+  versioned, COMPUTED non-place arg) is skipped. Wired into BOTH the statement/
+  transition path (validate_call_arguments_handles) AND the value-position path
+  (validate_value_call_argument_classes). ZERO false positives across the struct-
+  heavy corpus (596 canaries + samples-compile, whole tail). Locked by fail canary
+  wrong_struct_type_argument_rejected.
+  REMAINING (same helper, other positions -- lower priority): wrong-data-type at an
+  ASSIGNMENT (`self.foo = self.bar`), a struct FIELD (`C { foo: self.bar }`), a
+  let-init, or a RETURN. The helper is reusable; probe + wire each like the scalar
+  family. Also a data-typed ARRAY element mismatch. Broader nominal edge cases
+  (self-type params, bounded generics) remain the full-type-compat frontier.
 - [x] CROSS-CLASS LET-INITIALIZER -- SILENT MISCOMPILE CLOSED 2026-07-04 (7th
   position; a gap in THIS session's own coverage -- the LocalData path carried the
   narrowing check but not the class check, so `let x: i32 = true` / `= self.b`
