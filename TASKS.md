@@ -780,6 +780,51 @@ parallel (declares the table structs + field bindings), so it is the target.
 Cost is a one-time transcription of each table struct's fields in spec order
 (BootServices ≈ 27 to reach ExitBootServices) — the auditability the model buys.
 
+## TASK — encodings are library code, not compiler intrinsics (settled 2026-07-05, Zach)
+
+Foundational reframe of #66/#21/#22. FULL detail in memory `encoding-domains-no-intrinsics`.
+Design-only; nothing built. THESIS: the compiler has ZERO encoding intrinsics — Utf8 is
+no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library domains
+(plausibly `core`). Utf8 is one domain among peers. Litmus: delete every encoding from
+`core` → the compiler must still lex/parse.
+- **Compiler's ONLY string privilege = quoted-text → bytes.** COPY source bytes; never
+  synthesize/interpret. A string literal is raw `&[u8]`, NO domain. Byte-escapes only
+  (`\n \r \t \0 \\ \" \xNN`; `\\`/`\"` are irreducibly parse-time). NO `\u{}` in the front
+  end (codepoint→bytes is the leak; make it a `core` comptime helper). Source must be
+  ASCII-transparent (UTF-8's real, minimal "special relationship" = an input-format
+  precondition, not value semantics). FORBID raw newlines in `"..."` (determinism);
+  join lines with `"a" + "b"` (comptime-folded concat); multiline later = explicit LF-spec'd.
+- **Domains = recursive predicates.** `domain <carrier>::<Name> { <invariants> }`, invariants
+  ONLY. KILL the `when` keyword (currently `... when valid_utf8(self)`, ~dozens of sites).
+  Operators = ordinary machines `machine <carrier>::<Name>::<method>`. Two tiers: Tier-1
+  local per-element (Ascii/NoNul, prover-native) vs Tier-2 recursive/fold (Utf8 =
+  `valid(b)=empty ∨ (well-formed 1-4B codepoint ∧ valid(rest))`). The invariant language
+  MUST admit recursive/fold predicates (+ `decreases`); the `valid_utf8` intrinsic exists
+  ONLY to paper over that missing expressiveness.
+- **`as` is the whole mint.** `bytes as [u8] in Utf8` compiles iff invariants provably hold.
+  LITERAL → CHECK (decide the predicate over known bytes at comptime, Lean `decide` role).
+  RUNTIME → inductive proof (a validator's byte-walk LOOP is the induction; loop-invariant
+  discharge, Dafny model; no stored `is_utf8` bool = that would be RTTI + forgeable).
+- **#22 RECAST:** the "derived core `Schema::validate -> Valid|Invalid`" is REJECTED. Runtime
+  cased validation is USER code (user cased data + checking loop + `as`). Only compiler
+  mint = `as`. **#21:** `as` stays the sole mint construct.
+- **Forgery guard:** an empty invariant is VACUOUSLY satisfied → free `as` → forgery. A mint
+  target may NOT have a vacuous invariant. Empty domains stay legit as BRAND tokens guarded
+  by constructor VISIBILITY (not for Utf8). Trusted base = the recursive predicate's `core`
+  definition (predicate IS the spec; accept = definitional membership) — tiny/audited, like
+  Rust `from_utf8_unchecked` forced into ONE place. Any UNCHECKED mint = a conspicuous
+  distinct construct, NEVER `as`.
+- **THE REAL COST = a Dafny-style prover engine** (loop-invariant / inductive-predicate
+  discharge for the runtime case) — parallel-thread-sized, beyond current interval +
+  guard-narrowing. Copy Dafny (recursive `predicate`+`decreases`; `while`+loop-invariant;
+  Boogie→Z3), Lean the other precedent (`decide`/`native_decide` for literals). Prerequisite
+  under all of it: comptime-eval-in-value-position (the literal `decide` path).
+- **Demolition (after the engine):** rip out `ByteSequencePredicate` + the blessed-predicate
+  grant path; move encodings to `core` as recursive-predicate domains; rewrite every
+  `domain ... when valid_utf8(self)` site (~dozens + dungeon); re-green corpus.
+- **Still open (design):** the fold-predicate SYNTAX inside the domain block + how `as`
+  references it.
+
 ## Outstanding (pick up next)
 
 > **CURRENT OPEN WORK (2026-07-04, post-MILESTONE-1).** "Hello from Omega" boots
@@ -861,10 +906,14 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >
 > **Mint arc remainder (library-grade; the boot path used the boundary-vouch
 > shortcut):**
-> - **#22 validate-mint** — the GENERAL `Schema::validate(&bytes) -> Valid(view)
->   | Invalid` deriver (copy-out cut settled; the borrowed-view half re-opens
->   view-lifetime questions — surface, don't settle, if hit).
-> - **#21 recast** — `as` weaken-only re-view + the plan-implication validator.
+> - **#22 validate-mint — RECAST 2026-07-05 (Zach; see "encodings are library
+>   code" section above + memory encoding-domains-no-intrinsics).** The
+>   "derived core `Schema::validate -> Valid|Invalid`" is REJECTED: runtime cased
+>   validation is USER code (user cased data + a checking loop + `as`), NOT a core
+>   or compiler construct. The only compiler mint is `as`.
+> - **#21 recast** — `as` is the sole mint construct; literal→check (comptime
+>   decide), runtime→loop-invariant/inductive discharge. Gated on the Dafny-style
+>   prover engine + comptime-eval-in-value-position.
 > - **Rung-2 finish** — std-source the `CompactBinary` policy; retire the Rust
 >   agreement walk once the policy is the sole author.
 >
