@@ -265,6 +265,10 @@ fn enforce_construction_field_obligations(
         ) else {
             continue;
         };
+        // An array-literal field value (`Holder { arr: [300, ..] }`) is checked
+        // element-wise against the field's `[T; N]` element type. The scalar guards
+        // below no-op on a non-primitive (array) field, so this is the complement.
+        validate_array_literal_elements(program, machine, state, field.value, field_type, diagnostics);
         // Cross-class guard: a `bool`/text value stored into a numeric field (or
         // vice versa) at construction is a silent miscompile, exactly as at the
         // assignment / call-argument positions. Reject it before the range check

@@ -3216,11 +3216,12 @@ exit.
   samples-compile clean, whole tail verified -- array-heavy samples like maze_flood
   all have in-range elements). Locked by fail canary
   array_literal_element_narrowing_rejected.
-  REMAINING (rarer positions, deferred): an array literal in a STRUCT FIELD
-  (`Foo { arr: [300,..] }`), a let-init, or a call-arg is not yet element-checked --
-  the helper is ready; wiring it into enforce_construction_field_obligations (when
-  field_type is a FixedArray) + the let/arg paths would close them. Same flow-
-  insensitivity note as the other construction checks.
+  ALL FOUR array-literal positions now covered (2026-07-04): ASSIGNMENT (lib.rs),
+  STRUCT FIELD (enforce_construction_field_obligations), LET-INIT (lib.rs LocalData),
+  and CALL-ARG (validate_call_arguments_handles) all call the shared
+  validate_array_literal_elements. Zero blast radius across all wirings. Flow-
+  insensitive (empty env) -- a construction/arg from a flow-narrowed wider place
+  over-rejects; shared with the other construction checks, deferred.
 - [ ] Broaden persistent machine/state mutation coverage beyond isolated
   micro-shapes toward dungeon-sample blockers.
 - [ ] Link final-image imports/fixups back to source and lowered boundary-edge

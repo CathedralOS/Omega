@@ -1126,6 +1126,29 @@ fn array_literal_element_narrowing_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn array_literal_let_init_narrowing_rejected_canary_is_rejected() {
+    // Array-literal element narrowing at the LET-INITIALIZER position -- a distinct
+    // wiring of the shared array-element check from the assignment one.
+    let canary = fail_canary("arithmetic/array_literal_let_init_narrowing_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected array-literal let-init narrowing canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("narrowing store") && combined.contains("array literal element"),
+        "expected a narrowing diagnostic at the array-literal let-init boundary, got:\n{combined}"
+    );
+}
+
+#[test]
 fn unknown_field_read_rejected_canary_is_rejected() {
     // A READ of a nonexistent field (a typo) in an expression is rejected at
     // type-check ("reads `self.cont`, but data X has no field `cont`"), not silently
