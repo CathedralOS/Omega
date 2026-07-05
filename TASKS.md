@@ -798,15 +798,6 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >   paths and must NOT be hoisted. Only a SCALAR `arr[i].field` should hoist, which
 >   needs a TYPE-AWARE hoist (typed layer) or a backend operand resolver, not a
 >   frontend predicate. The `let t = arr[i].field; use t` idiom is the workaround),
->   boolean guard nesting -- NARROWED 2026-07-04 to ONLY And-of-Or (`a&&(b||c)`,
->   `(a||b)&&c`): the parser disambiguation (fix 1) landed, so parenthesized
->   cast/arith subjects + Or-of-And DNF (`(a&&b)||c`) now work; only an And CONTAINING
->   an Or remains (clean error naming the nested `||`, fail canary
->   and_of_or_guard_rejected; fix 2 CORRECTED 2026-07-04c: NOT just DNF-normalize --
->   the disjunction lowering handles `conjunction || LEAF` only, not `conjunction ||
->   conjunction`, and simplify_expression ALREADY distributes And-over-Or at
->   build_state_guard.rs:330 into that unsupported form; fix 2 = GENERALIZE the
->   disjunction lowering to a full DNF of arbitrary conjunctions),
 >   `arr[i]=arr[j]` both-runtime
 >   (#38 -- NARROWED 2026-07-03: this is the last BARE-source case into an indexed
 >   target; a binary/literal/field source already selects, only a bare local or
@@ -840,8 +831,9 @@ Cost is a one-time transcription of each table struct's fields in spec order
 >   reuses the existing Convert emit. fail canary cast_in_guard_rejected removed.
 >   ZII cleanup: added `PrimitiveType::scalar_byte_size()` (single source of truth;
 >   convert_scalar_byte_size now delegates). Parenthesized guard subjects (incl.
->   `(cast) OP x`) now parse too as of 2026-07-04 -- the boolean-guard-nesting parser
->   fix (fix 1); only And-of-Or (`a&&(b||c)`) remains a clean error.
+>   `(cast) OP x`) parse as of 2026-07-04, and boolean guard nesting is now FULLY
+>   done -- And-of-Or (`a&&(b||c)`) lowers via a distribute-to-DNF pass. See
+>   boolean-guard-nesting-gap memory.
 >
 > **Mint arc remainder (library-grade; the boot path used the boundary-vouch
 > shortcut):**

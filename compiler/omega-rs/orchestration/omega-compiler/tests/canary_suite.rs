@@ -7081,28 +7081,33 @@ fn runtime_parenthesized_guard_subjects_exit_canary_runs() {
 }
 
 #[test]
-fn and_of_or_guard_rejected_canary_is_rejected() {
-    // A disjunction (`||`) nested inside a conjunction (`&&`) in a guard subject
-    // (`a && (b || c)`) is not yet lowerable (Or-of-And works; And-of-Or needs DNF
-    // normalization). The dispatch-guard blocker must reject it cleanly rather than
-    // miscompile. Pins the boundary: if And-of-Or ever compiles silently, this fails.
-    let canary = fail_canary("arithmetic/and_of_or_guard_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected And-of-Or guard canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
-    let combined = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        combined.contains("conjunction") || combined.contains("disjunction"),
-        "expected a guard-lowering rejection naming the nested-disjunction case, got:\n{combined}"
+fn runtime_and_of_or_guard_exit_canary_runs() {
+    // And-of-Or in a guard subject (`a && (b || c)`) now lowers: the guard build
+    // distributes it to DNF without re-factoring, and the disjunction lowering
+    // (which already handles a full DNF) takes it. The canary discriminates true
+    // and false arms via different operands; all must be correct -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_and_of_or_guard_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-and-of-or-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("and-of-or-guard canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("and-of-or-guard canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected And-of-Or guard subjects to evaluate + discriminate correctly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
     );
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]

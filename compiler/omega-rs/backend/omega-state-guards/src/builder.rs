@@ -6,7 +6,8 @@ use crate::{
 };
 use omega_checked_trees::CheckedTrees;
 use omega_checked_trees::expression::{
-    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable, TableBinaryExpression,
+    BinaryExpression, BinaryOperator, Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
+    TableBinaryExpression,
 };
 use omega_checked_trees::machine::Machine;
 use omega_control_flow::{ControlFlowPlan, StateKey};
@@ -332,7 +333,75 @@ fn normalized_guard_expression(
         source_machine,
         &source_expressions.to_tree(source_guard),
     );
-    normalize_guard_expression_into_table(simplified_guard, normalized_expressions)
+    // The guard lowering supports a full DNF (a top-level disjunction of
+    // conjunction-of-comparison clauses), but `simplify_expression` leaves an
+    // `And` CONTAINING an `Or` un-lowerable: `boolean_and` distributes
+    // `a && (b || c)` to `(a && b) || (a && c)`, then `boolean_or`'s
+    // common-conjunct factoring immediately folds it BACK to `a && (b || c)`.
+    // Re-distribute here (And over Or, without re-factoring) so an And-of-Or lands
+    // as DNF the lowering accepts. A guard with no `Or` inside an `And` is returned
+    // unchanged.
+    let dnf_guard = distribute_guard_to_dnf(simplified_guard);
+    normalize_guard_expression_into_table(dnf_guard, normalized_expressions)
+}
+
+/// Push `And`s inside `Or`s so a boolean guard tree becomes a flat DNF (a
+/// disjunction of conjunctions), the shape the guard lowering accepts. Unlike
+/// `boolean_and`/`boolean_or` this does NOT re-factor common conjuncts (that
+/// factoring is what re-creates the un-lowerable And-of-Or), and it does not
+/// otherwise simplify. A subtree with no `Or` under an `And` is returned as-is.
+/// Guards are tiny, so the worst-case DNF blow-up is a non-issue here.
+fn distribute_guard_to_dnf(expression: Expression) -> Expression {
+    match expression {
+        Expression::Binary(binary) if binary.operator == BinaryOperator::And => {
+            let BinaryExpression { left, right, .. } = *binary;
+            distribute_and_over_or(
+                distribute_guard_to_dnf(left),
+                distribute_guard_to_dnf(right),
+            )
+        }
+        Expression::Binary(binary) if binary.operator == BinaryOperator::Or => {
+            let BinaryExpression { left, right, .. } = *binary;
+            Expression::Binary(Box::new(BinaryExpression {
+                left: distribute_guard_to_dnf(left),
+                operator: BinaryOperator::Or,
+                right: distribute_guard_to_dnf(right),
+            }))
+        }
+        other => other,
+    }
+}
+
+/// `And(left, right)` where both are already DNF: distribute over any top-level
+/// `Or` on either side so the result stays DNF. `And(Or(p, q), r)` becomes
+/// `Or(And(p, r), And(q, r))`; symmetric for a right-side `Or`; if neither side is
+/// an `Or`, emit the plain `And`.
+fn distribute_and_over_or(left: Expression, right: Expression) -> Expression {
+    if let Expression::Binary(binary) = &left
+        && binary.operator == BinaryOperator::Or
+    {
+        let (p, q) = (binary.left.clone(), binary.right.clone());
+        return Expression::Binary(Box::new(BinaryExpression {
+            left: distribute_and_over_or(p, right.clone()),
+            operator: BinaryOperator::Or,
+            right: distribute_and_over_or(q, right),
+        }));
+    }
+    if let Expression::Binary(binary) = &right
+        && binary.operator == BinaryOperator::Or
+    {
+        let (p, q) = (binary.left.clone(), binary.right.clone());
+        return Expression::Binary(Box::new(BinaryExpression {
+            left: distribute_and_over_or(left.clone(), p),
+            operator: BinaryOperator::Or,
+            right: distribute_and_over_or(left, q),
+        }));
+    }
+    Expression::Binary(Box::new(BinaryExpression {
+        left,
+        operator: BinaryOperator::And,
+        right,
+    }))
 }
 
 fn normalized_direct_place_boolean_guard(
