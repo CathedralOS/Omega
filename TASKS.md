@@ -3040,29 +3040,32 @@ exit.
   member-symbol-validity walk (an unknown field leaves an invalid symbol; name_paths.rs),
   which must handle the valid member forms (case payloads, era fields, domain members).
   A "did you mean `count`?" edit-distance suggestion would further help.
-- [ ] CROSS-CLASS LITERAL assignment -- SILENT MISCOMPILE CLOSED 2026-07-04.
-  `self.i32 = true` (a `bool` literal into a numeric field) used to pass BOTH
-  `--check` and `--build-dir` with NO error at any phase, and the backend stored
-  `true` as `1` -- a silent soundness hole (sibling of the #27 narrowing hole).
-  Fix: a `literal_class_conflict` gate (expression_types.rs) folds every scalar
-  into three DISJOINT literal classes -- boolean / text / numeric -- and rejects a
-  literal RHS whose class differs from the target primitive's, in the Assignment
-  path (lib.rs) BEFORE value-range analysis. Deliberately narrow: fires ONLY on
-  LITERAL RHS (Boolean/String/Integer/Float nodes) -- non-literals (member/name/
-  binary/call) are left to the blanket-accepting general gate, so ZERO false
-  positive on computed values; and int-vs-float are the SAME (numeric) class, so
-  coercions like `f64 = 5` / `i8 = 300` are untouched (those stay the province of
-  the narrowing/domain checks). Catches: bool/text/int-lit crossed into any other
-  class. Locked by fail canary literal_class_mismatch_rejected; full suite (580) +
-  samples-compile clean.
-  STILL OPEN (same frontier as unknown-field, NON-silent -- opaque backend error,
-  not a miscompile): a NON-literal cross-class RHS (`self.i32 = self.bool_field`,
-  a Member) reaches the backend as "needs mutation lowering". Closing it needs the
-  general place-type-compatibility walk (resolve both sides' primitives via
-  `declared_place_type`/`expression_type_name_handle`), the same walk the nested
-  unknown-field case wants. Value-position call ARG type-compat (`f(true)` for an
-  i32 param) is the documented `validate_call_arguments_handles` frontier -- also
-  non-silent today (the arg's own analysis errors), tracked there.
+- [ ] CROSS-CLASS scalar assignment -- SILENT MISCOMPILE CLOSED 2026-07-04
+  (literal + place, two waves same day). `self.i32 = true` (a `bool` literal) AND
+  `self.i32 = self.bool_field` (a bool PLACE) BOTH used to pass `--check` and
+  `--build-dir` with NO error at any phase; the backend stored the bool as `1` --
+  a silent soundness hole (sibling of the #27 narrowing hole). NB the non-literal
+  place case was WRONGLY assumed non-silent at first (I expected "needs mutation
+  lowering"); dogfooding showed `i32 = self.bool_field` compiles+runs silently.
+  Fix: `assignment_class_conflict` gate (expression_types.rs) folds every scalar
+  into three DISJOINT value classes -- boolean / text / numeric -- and rejects an
+  RHS whose class differs from the target primitive's, in the Assignment path
+  (lib.rs) BEFORE value-range analysis. Resolves the RHS class two ways: a literal
+  node's class, OR a resolvable PLACE (`self.field`/local) via
+  `declared_place_type` -> primitive. Deliberately narrow: computed exprs
+  (binary/call/cast/indexed) resolve to None and are left to the blanket general
+  gate (ZERO false positive on computed values); int and float are the SAME
+  (numeric) class, so numeric copies/coercions (`f64 = 5`, `i8 = 300`,
+  `i32 = self.i8_field`) are untouched -- those stay the province of the
+  narrowing/mutation-lowering checks (verified: they still error via THOSE checks,
+  not this gate). Locked by fail canaries literal_class_mismatch_rejected +
+  member_class_mismatch_rejected; full suite + samples-compile clean.
+  STILL OPEN (NON-silent today, so lower priority): value-position call ARG
+  type-compat (`f(true)` for an i32 param) is the documented
+  `validate_call_arguments_handles` frontier -- the arg's own analysis errors, not
+  a miscompile. And an RHS whose class we don't resolve (a value-call returning
+  bool into an i32 field) would slip -- but value-position calls are separately
+  fenced. Revisit if a silent case surfaces.
 - [ ] Broaden persistent machine/state mutation coverage beyond isolated
   micro-shapes toward dungeon-sample blockers.
 - [ ] Link final-image imports/fixups back to source and lowered boundary-edge
