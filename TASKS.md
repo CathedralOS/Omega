@@ -3147,11 +3147,17 @@ exit.
   (validate_value_call_argument_classes). ZERO false positives across the struct-
   heavy corpus (596 canaries + samples-compile, whole tail). Locked by fail canary
   wrong_struct_type_argument_rejected.
-  REMAINING (same helper, other positions -- lower priority): wrong-data-type at an
-  ASSIGNMENT (`self.foo = self.bar`), a struct FIELD (`C { foo: self.bar }`), a
-  let-init, or a RETURN. The helper is reusable; probe + wire each like the scalar
-  family. Also a data-typed ARRAY element mismatch. Broader nominal edge cases
-  (self-type params, bounded generics) remain the full-type-compat frontier.
+  ALL non-arg positions ALSO CLOSED 2026-07-04 (same helper wired in): ASSIGNMENT
+  (`self.foo = self.bar`), struct FIELD (`C { f: self.bar }`),
+  LET-INIT (`let x: Foo = self.bar`), and RETURN (terminal + transition-value,
+  `-> Foo { self.bar }`). ZERO false positives (597 canaries + samples-compile,
+  whole tail). Locked by fail canaries wrong_struct_type_{argument,assignment}_
+  rejected. So the nominal wrong-data-type guard now covers the SAME position set as
+  the scalar cross-class family, via the shared report_data_type_conflict.
+  REMAINING (frontier): data-typed ARRAY element mismatch (`[Foo;N] = [self.bar,..]`);
+  and the broader full-type-compat edge cases (self-type params, bounded/nested
+  generics, trait-object variance) -- deliberately out of the concrete-data-name
+  safe subset.
 - [x] CROSS-CLASS LET-INITIALIZER -- SILENT MISCOMPILE CLOSED 2026-07-04 (7th
   position; a gap in THIS session's own coverage -- the LocalData path carried the
   narrowing check but not the class check, so `let x: i32 = true` / `= self.b`

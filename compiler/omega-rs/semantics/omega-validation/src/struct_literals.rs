@@ -272,8 +272,8 @@ fn enforce_construction_field_obligations(
         // assignment / call-argument positions. Reject it before the range check
         // (which only applies to `[a..=b]`-constrained fields), so every primitive
         // field -- range-constrained or not -- is class-checked.
+        let slot_context = format!("construction of `{type_name}` field `{}`", field.name.as_str());
         if let Some(field_primitive) = program.primitive_type_reference(field_type) {
-            let slot_context = format!("construction of `{type_name}` field `{}`", field.name.as_str());
             if crate::expression_types::report_cross_class_store(
                 program,
                 machine,
@@ -286,6 +286,19 @@ fn enforce_construction_field_obligations(
             ) {
                 continue;
             }
+        } else if crate::expression_types::report_data_type_conflict(
+            // Nominal guard: `Cont { f: self.bar }` puts a `Bar` value into a `Foo`
+            // field -- wrong data type. Only runs for non-primitive (data) fields.
+            program,
+            machine,
+            Some(state),
+            field.value,
+            field_type,
+            &slot_context,
+            "field",
+            diagnostics,
+        ) {
+            continue;
         }
         // Narrowing guard (any primitive field): a value that does not fit the
         // field's TYPE -- `Small { v: self.i64_field }` into an `i8 v` -- is a

@@ -221,6 +221,21 @@ fn validate_state_statement_node(
                     diagnostics,
                 );
             }
+            // Nominal guard: `self.foo = self.bar` (a `Bar` value into a `Foo` place)
+            // is silently accepted -- the wrong-data-type complement of the scalar
+            // guard above.
+            if let Some(target_type) = assignment_target_type {
+                expression_types::report_data_type_conflict(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    assignment.value,
+                    target_type,
+                    &owner,
+                    "place",
+                    diagnostics,
+                );
+            }
             let before = diagnostics.len();
             let (interval, source_primitive) = arithmetic_domains::validate_value_range(
                 program,
@@ -300,16 +315,28 @@ fn validate_state_statement_node(
             // FIELD returned from an `-> i32` machine slips. Add the class check for
             // those -- only when the shape gate did not already error, so a literal
             // is not double-reported.
-            if diagnostics.len() == shape_before
-                && let Some(target_primitive) = return_primitive
-            {
-                expression_types::report_cross_class_store(
+            if diagnostics.len() == shape_before {
+                let slot_context = format!("machine `{}` state `{state_name}`", machine.name);
+                if let Some(target_primitive) = return_primitive {
+                    expression_types::report_cross_class_store(
+                        program,
+                        machine,
+                        Some(state),
+                        *expression,
+                        target_primitive,
+                        &slot_context,
+                        "return value",
+                        diagnostics,
+                    );
+                }
+                // Nominal guard: `-> Foo { self.bar }` returns a `Bar` as a `Foo`.
+                expression_types::report_data_type_conflict(
                     program,
                     machine,
                     Some(state),
                     *expression,
-                    target_primitive,
-                    &format!("machine `{}` state `{state_name}`", machine.name),
+                    state.return_type,
+                    &slot_context,
                     "return value",
                     diagnostics,
                 );
@@ -392,6 +419,20 @@ fn validate_state_statement_node(
                     machine_symbols.state(state_name),
                     local_data.initial_value,
                     target_primitive,
+                    &owner,
+                    "local",
+                    diagnostics,
+                );
+            }
+            // Nominal guard: `let f: Foo = self.bar` binds a `Bar` value to a `Foo`
+            // local -- wrong data type. Only an initialized `let` has a value.
+            if local_data.initial_value.is_valid() {
+                expression_types::report_data_type_conflict(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    local_data.initial_value,
+                    local_data.type_reference,
                     &owner,
                     "local",
                     diagnostics,
@@ -503,6 +544,18 @@ fn validate_state_statement_node(
                                 diagnostics,
                             );
                         }
+                        // Nominal guard: `-> Foo { transition { _ -> (self.bar) } }`
+                        // returns a `Bar` as a `Foo`.
+                        expression_types::report_data_type_conflict(
+                            program,
+                            machine,
+                            Some(state),
+                            *return_expression,
+                            state.return_type,
+                            &format!("machine `{}` state `{state_name}`", machine.name),
+                            "return value",
+                            diagnostics,
+                        );
                         arithmetic_domains::validate_return_value_range(
                             program,
                             machine,
