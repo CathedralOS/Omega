@@ -85,7 +85,7 @@ step "seam — propositional logic vs classical truth-table"  delta   logic-soun
 step "seam — corpus theorems: proved AND operationally true" delta soundness-sweep.sh gamma
 step "seam — FUZZ: random +/* defeq vs operational eval" delta     seam-fuzz.sh gamma
 step "seam — recx accumulator recursion vs independent evaluation (check.beta + check_ref + checker.gamma agree)" delta recx-soundness.sh gamma beta beta-lang beta-lang-rs
-step "seam — prodrec product eliminator: check.beta + check_ref decide identically (guard + soundness controls rejected by both)" delta prodrec-seam.sh beta beta-lang beta-lang-rs
+step "seam — prodrec product eliminator DIAMOND: check.beta + check_ref + checker.gamma decide identically (guard + soundness controls rejected by all three)" delta prodrec-seam.sh gamma beta beta-lang beta-lang-rs
 step "contract discharge (omega source) — math_proofs requires/ensures translated to delta props and proven by check.beta + check_ref + checker.gamma (perturbation rejected)" delta math-contracts.sh gamma beta beta-lang beta-lang-rs ../samples
 step "termination discharge (omega source) — 'decreases s -> Slice::Length' tail-recursion tied to a 3-checker measure-decrease lemma (reversed measure rejected)" delta termination-obligations.sh gamma beta beta-lang beta-lang-rs ../samples
 step "forall-input theorem — count(xs,n)=len(xs)+n proven for ALL inputs by induction (check.beta + check_ref + checker.gamma; perturbation rejected)" delta forall-input.sh gamma beta beta-lang beta-lang-rs

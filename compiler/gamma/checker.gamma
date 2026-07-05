@@ -395,6 +395,12 @@
           (if (teq (infer cA ctx) (concase ca aa r0a r1a motive))
             (if (teq (infer cB ctx) (concase cb ab r0b r1b motive)) (All motive) Bad)
             Bad))))))
+    ((Prodrec spec motive case)                             ; SINGLE-constructor product elimination
+      (match spec                                           ; SOUNDNESS GUARD: the spec must be a Mkprod, which
+        ((Mkprod cid arity r0 r1)                           ; the translator emits ONLY for (prod cid)-declared
+          (if (teq (infer case ctx) (concase cid arity r0 r1 motive))  ; cids; a plain Mkspec (undeclared) falls
+            (All motive) Bad))                              ; through to Bad — mirrors check.beta's PRODUCTS guard.
+        (z Bad)))
     ((Disj pf)                                              ; no-confusion: 0 != s t
       (match (infer pf ctx)
         ((Eq a b)
