@@ -54,9 +54,15 @@ pub(super) fn fold_binary_expression(
         Op::GreaterOrEqual => fold_integer_compare(left, right, |a, b| a >= b, operator),
         Op::Less => fold_integer_compare(left, right, |a, b| a < b, operator),
         Op::LessOrEqual => fold_integer_compare(left, right, |a, b| a <= b, operator),
-        Op::Add => fold_integer_math(left, right, |a, b| a + b, operator),
-        Op::Subtract => fold_integer_math(left, right, |a, b| a - b, operator),
-        Op::Multiply => fold_integer_math(left, right, |a, b| a * b, operator),
+        // Wrapping arithmetic so const-folding a value that overflows i64 (`9e18 +
+        // 9e18`, `4e9 * 4e9`) does NOT panic the compiler ("attempt to add/multiply
+        // with overflow"). Overflow into an EXACT domain is caught earlier by the
+        // decision-17 obligation (validation, before this backend fold); the folder's
+        // job is only to compute a value without crashing, and i64 wrapping matches
+        // native execution.
+        Op::Add => fold_integer_math(left, right, |a, b| a.wrapping_add(b), operator),
+        Op::Subtract => fold_integer_math(left, right, |a, b| a.wrapping_sub(b), operator),
+        Op::Multiply => fold_integer_math(left, right, |a, b| a.wrapping_mul(b), operator),
         Op::Divide => match (&left, &right) {
             (Expression::Integer(_), Expression::Integer(0)) => {
                 Expression::Binary(Box::new(BinaryExpression {
@@ -65,7 +71,11 @@ pub(super) fn fold_binary_expression(
                     right,
                 }))
             }
-            (Expression::Integer(a), Expression::Integer(b)) => Expression::Integer(a / b),
+            // `wrapping_div` so `i64::MIN / -1` (reachable as `(1 << 63) / -1`) does not
+            // panic; div-by-zero is already left unfolded above.
+            (Expression::Integer(a), Expression::Integer(b)) => {
+                Expression::Integer(a.wrapping_div(*b))
+            }
             _ => Expression::Binary(Box::new(BinaryExpression {
                 left,
                 operator,
@@ -80,7 +90,11 @@ pub(super) fn fold_binary_expression(
                     right,
                 }))
             }
-            (Expression::Integer(a), Expression::Integer(b)) => Expression::Integer(a % b),
+            // `wrapping_rem` so `i64::MIN % -1` does not panic; mod-by-zero is already
+            // left unfolded above.
+            (Expression::Integer(a), Expression::Integer(b)) => {
+                Expression::Integer(a.wrapping_rem(*b))
+            }
             _ => Expression::Binary(Box::new(BinaryExpression {
                 left,
                 operator,
