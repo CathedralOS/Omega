@@ -214,7 +214,7 @@ fn validate_literal_field_names(
     }
 }
 
-fn data_declares_field(
+pub(crate) fn data_declares_field(
     program: &TypedTrees,
     data_definition: &DataDefinition,
     field_name: &str,
