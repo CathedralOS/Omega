@@ -1,0 +1,29 @@
+// FAIL canary: an Exact (undomained) arithmetic op whose operand is a value-machine
+// CALL with an unconstrained integer return is rejected by decision-17 (the return
+// range is unproven). The diagnostic must NAME the call and point at the actionable
+// fix -- annotate the CALLEE'S return type -- rather than only the generic "constrain
+// the operands' range" (which is unactionable at the call site). Locks the
+// value-call-aware overflow hint.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    s: i32 in Wrapping;
+}
+
+machine Main::triple(&self, x: i32 in Wrapping) -> i32 {
+    let t: i32 in Wrapping = x * 3;
+    transition { _ -> t }
+}
+
+machine Main::main(&mut self) {
+    // `self.triple(4)` returns an unconstrained `i32`; `+ 100` is Exact -> unprovable.
+    self.s = self.triple(4) + 100;
+    transition { _ -> done() }
+    state done(&mut self) {
+        self.console.exit_process(self.s);
+    }
+}

@@ -828,6 +828,31 @@ fn computed_host_arg_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn exact_overflow_value_call_hint_canary_is_rejected() {
+    // Exact arithmetic over a value-machine call with an unconstrained return is a
+    // decision-17 overflow; the diagnostic must NAME the call and point at annotating
+    // the callee's return (not just the generic "constrain the operands' range").
+    let canary = fail_canary("arithmetic/exact_overflow_value_call_hint");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected exact-overflow-over-value-call canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("value-machine call") && combined.contains("annotate its return"),
+        "expected the overflow diagnostic to name the value-call operand and point at the \
+         callee's return annotation, got:\n{combined}"
+    );
+}
+
+#[test]
 fn u64_literal_above_i64_max_canary_is_rejected() {
     // A u64 literal above i64::MAX (the literal value is carried as i64 through the IR) is
     // rejected with a CLEAR "exceeds the i64 range" diagnostic that names the real

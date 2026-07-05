@@ -784,13 +784,30 @@ fn analyze(
                 && let Some(range) = primitive_range(primitive)
                 && !range.contains(interval)
             {
+                // When an operand is a value-machine CALL, "constrain the operands'
+                // range" is unactionable at the call site -- the fix is to annotate
+                // the CALLEE's return type. Name it so the user knows where to look.
+                let call_hint = overflow_operand_value_call_target(program, machine, binary.left)
+                    .or_else(|| {
+                        overflow_operand_value_call_target(program, machine, binary.right)
+                    })
+                    .map(|target| {
+                        format!(
+                            " Here the operand `{target}(..)` is a value-machine call whose \
+                             return range is unproven -- annotate its return type with a range or \
+                             domain (e.g. `-> {} in Wrapping`).",
+                            primitive_name(primitive)
+                        )
+                    })
+                    .unwrap_or_default();
                 diagnostics.push(Diagnostic::error(format!(
                     "exact arithmetic in {owner} may overflow `{}`: the operands are not provably \
                      in range (decision 17 -- exact arithmetic is a proof obligation). Widen with \
                      an `as` cast to a larger type, constrain the operands' range, or opt into a \
-                     defined-overflow domain (`{} in Wrapping`/`Saturating`/`Trapping`).",
+                     defined-overflow domain (`{} in Wrapping`/`Saturating`/`Trapping`).{}",
                     primitive_name(primitive),
                     primitive_name(primitive),
+                    call_hint,
                 )));
             }
 
@@ -975,6 +992,27 @@ pub(crate) fn range_constraint_interval(
 /// data as the caller, with a state named after the call target) are resolved;
 /// an external receiver, an ambiguous match, or no match returns `None` (no
 /// narrowing). Soundness rests on uniqueness: bail rather than guess.
+/// If `operand` is a value-machine call resolving to a self/sibling machine with an
+/// INTEGER return type, return the call's target name (for the decision-17 overflow
+/// hint). `None` for non-calls, builtins/external-receiver calls (unresolved), and
+/// non-integer returns -- so the hint only fires where "annotate the callee's return"
+/// is the actionable fix.
+fn overflow_operand_value_call_target(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    operand: ExpressionHandle,
+) -> Option<String> {
+    let ExpressionNode::Call(call) = program.expression_table.expression(operand) else {
+        return None;
+    };
+    let call = call.clone();
+    let return_type = call_return_type(program, current_machine, &call)?;
+    program
+        .primitive_type_reference(return_type)
+        .filter(|primitive| primitive.accepts_integer_literal())
+        .map(|_| call.target.as_str().to_string())
+}
+
 fn call_return_type(
     program: &TypedTrees,
     current_machine: &Machine,
