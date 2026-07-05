@@ -48,7 +48,15 @@ fn parse_expression_handle_in<'tokens, 'source>(
     input: Input<'tokens, 'source>,
     context: ExpressionContext,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    parse_or_expression_handle(syntax_trees, input, context)
+    // Bound recursion depth here: every nested expression (parenthesized group,
+    // call argument, index) re-enters through this single choke point. Deepen on
+    // entry to catch pathological nesting before it overflows the stack, then
+    // restore the caller's depth on exit so a flat run of siblings (args, binary
+    // operands) does not accumulate toward the limit.
+    let outer_depth = input.depth();
+    let input = input.deepen()?;
+    let (handle, rest) = parse_or_expression_handle(syntax_trees, input, context)?;
+    Ok((handle, rest.with_depth(outer_depth)))
 }
 
 fn parse_or_expression_handle<'tokens, 'source>(

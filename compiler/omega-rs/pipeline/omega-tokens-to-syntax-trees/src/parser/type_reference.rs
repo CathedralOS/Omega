@@ -13,6 +13,20 @@ pub(super) fn parse_type_reference_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
+    // Bound nesting depth: nested array types (`[[...;1];1]`) recurse through
+    // this choke point. Deepen on entry to reject pathological nesting before it
+    // overflows the stack, restoring the caller's depth on exit (see the mirror
+    // in `parse_expression_handle_in`).
+    let outer_depth = input.depth();
+    let input = input.deepen()?;
+    let (type_reference, rest) = parse_type_reference_handle_inner(syntax_trees, input)?;
+    Ok((type_reference, rest.with_depth(outer_depth)))
+}
+
+fn parse_type_reference_handle_inner<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
     if input.at_punctuation(PunctuationKind::LeftParen) {
         let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
         let input = input.take_punctuation(PunctuationKind::RightParen, ")")?;
