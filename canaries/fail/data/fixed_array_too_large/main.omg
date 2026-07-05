@@ -1,0 +1,6 @@
+// A fixed array whose element count times its element size exceeds the addressable
+// size (`[i32; 5e18]` -> 2e19 bytes > usize::MAX) used to PANIC the compiler with
+// "attempt to multiply with overflow" during layout. It must be a clean diagnostic.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; xs: [i32; 5000000000000000000]; }
+machine Main::main(&mut self) { self.console.exit_process(0); }

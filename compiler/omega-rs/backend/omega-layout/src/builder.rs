@@ -650,8 +650,20 @@ impl<'program> LayoutBuilder<'program> {
                     return Ok(TypeLayout::default());
                 };
 
+                // `count * element_size` can exceed the addressable size for an absurd
+                // length (`[i32; 5e18]`); use checked arithmetic so a too-large array is a
+                // clean diagnostic, never a compiler panic on `attempt to multiply with
+                // overflow`.
+                let Some(size) = element_layout.size.checked_mul(*length) else {
+                    return Err(Diagnostic::error(format!(
+                        "fixed array `[_; {length}]` is too large: {length} elements of {} \
+                         byte(s) each overflow the addressable size",
+                        element_layout.size,
+                    )));
+                };
+
                 Ok(TypeLayout {
-                    size: element_layout.size * length,
+                    size,
                     alignment: element_layout.alignment,
                 })
             }
