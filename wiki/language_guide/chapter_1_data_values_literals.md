@@ -306,6 +306,50 @@ pub const EFI_SUCCESS: EfiStatus = EfiStatus { code: 0 };
   subtree — see
   [Constants & the Static Root](../design_briefs/static_root_and_constants.md)).
 
+## String Literals And Bytes
+
+A quoted literal is **raw bytes**, nothing more. The compiler's only string job
+is turning quoted text into bytes; it knows nothing about encodings (that is
+library code — see [Chapter 8](chapter_8_domains.md)). So a string literal has
+type `&[u8]` and carries **no** encoding domain until one is explicitly
+established.
+
+```omega
+let greeting = "Hello, Omega.";   // : &[u8]  -- just bytes, no Utf8 yet
+```
+
+The rule is **copy, never synthesize or interpret**:
+
+- The lexer copies the source bytes between the quotes verbatim. `"café"` typed
+  directly copies whatever bytes the editor saved — the compiler does not decode
+  anything.
+- **Byte-level escapes** produce one specific byte and need no encoding
+  knowledge: `\n \r \t \0 \\ \" \xNN`. `\\` and `\"` are required so the lexer
+  can find the closing quote.
+- **No `\u{...}` codepoint escapes.** Encoding a codepoint to bytes *is* an
+  encoding decision, which the front end does not make; a codepoint is produced
+  by a library compile-time helper (e.g. `utf8::encode(0x1F600)`) and joined with
+  `+`, not smuggled into literal syntax.
+- **No raw newlines inside `"..."`.** A program's meaning must not depend on how
+  the file was checked out (CRLF vs LF), so a newline is written `\n`; span
+  source lines by joining literals, which folds at compile time:
+
+  ```omega
+  let banner = "line one\n"
+             + "line two\n";
+  ```
+
+- **Source must be ASCII-transparent** (UTF-8 in practice). Only ASCII bytes are
+  syntactically significant; any non-ASCII byte appears solely as opaque payload
+  inside a literal or comment. This is a fact about the *input format*, not about
+  value semantics — it is the one and only place UTF-8 has a privileged
+  relationship, and even that is minimizable.
+
+To treat a literal as text, establish the encoding domain explicitly
+(`"hi" as [u8] in Utf8`, which the compiler discharges by checking the bytes at
+compile time — [Chapter 8](chapter_8_domains.md)). The literal itself stays raw
+bytes.
+
 ## Parameters
 
 Parameters are explicit entry values.
