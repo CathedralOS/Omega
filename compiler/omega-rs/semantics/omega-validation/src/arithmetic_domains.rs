@@ -649,6 +649,35 @@ pub(crate) fn check_value_narrowing(
     }
 }
 
+/// Narrowing check for a data field DEFAULT (`b: i8 = 300`), which is always a
+/// literal/const. Machine-free: an integer literal contributes its exact interval,
+/// checked against the field's target type via the shared `check_narrowing_assignment`
+/// core. A non-integer-literal default (a `const` name, a computed expression) is left
+/// to the value's own analysis and skipped here -- so this only ever rejects the
+/// unambiguous literal-out-of-range case.
+pub(crate) fn check_literal_default_narrowing(
+    program: &TypedTrees,
+    value: ExpressionHandle,
+    target: PrimitiveType,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut node = program.expression_table.expression(value);
+    while let ExpressionNode::Mutable(inner) = node {
+        node = program.expression_table.expression(*inner);
+    }
+    let ExpressionNode::Integer(literal) = node else {
+        return;
+    };
+    check_narrowing_assignment(
+        Some(target),
+        Interval::constant(*literal),
+        None,
+        owner,
+        diagnostics,
+    );
+}
+
 /// The representable range of an integer primitive. `None` for non-integers
 /// (`bool`/`f32`/`f64`/`String`) and for `u64`/`usize` whose maximum exceeds
 /// `i64` (their high end is left unbounded -- an over-approximation that still

@@ -566,7 +566,7 @@ fn report_cross_class_argument(
     let slot_context = format!("argument `{}` for state `{target_name}`", parameter.name);
     report_cross_class_store(
         program,
-        current_machine,
+        Some(current_machine),
         current_state,
         argument,
         parameter_primitive,

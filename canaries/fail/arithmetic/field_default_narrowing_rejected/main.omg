@@ -1,0 +1,6 @@
+// The narrowing complement: a field DEFAULT whose literal does not fit the field's
+// integer type (`b: i8 = 300`) truncated silently. Field defaults now carry the
+// decision-17 narrowing proof obligation like every other value-binding slot.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; b: i8 = 300; } // 300 does not fit i8 -- rejected
+machine Main::main(&mut self) { self.console.exit_process(0); }

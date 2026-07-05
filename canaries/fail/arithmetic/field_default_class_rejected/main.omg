@@ -1,0 +1,8 @@
+// A cross-class field DEFAULT was a silent store miscompile: `x: i32 = true` stored
+// the bool as 1 into the i32 field (defaults ARE emitted -- a scalar default reads
+// back), with NO error. Field-default initializers now get the same cross-class store
+// check as every other value-binding slot (checked in data.rs since a default has no
+// machine/state context; defaults are always literals, so the machine-free path fits).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; x: i32 = true; } // bool default into an i32 field -- rejected
+machine Main::main(&mut self) { let g: i32 = self.x; self.console.exit_process(g); }
