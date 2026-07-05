@@ -405,6 +405,47 @@ pub(crate) fn report_data_type_conflict(
     true
 }
 
+/// Reject a binary operator that MIXES a text operand with a numeric/bool one:
+/// `n == s` (`n: i32`, `s: String`) and `b + s` compile and run on a meaningless
+/// comparison/combination of a number and a string pointer. Fires ONLY when one
+/// operand resolves to `Text` and the other to a resolved `Numeric`/`Boolean` --
+/// both-text (string equality / concatenation) and numeric<->bool (the 0/1
+/// coercion) are fine, and an operand that does not classify (a call result, a
+/// nested comparison) is skipped, so this never false-positives on them.
+pub(crate) fn report_cross_class_binary_operands(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let left_class = value_class(program, Some(machine), state, left);
+    let right_class = value_class(program, Some(machine), state, right);
+    let mixed = matches!(
+        (left_class, right_class),
+        (
+            Some(ValueClass::Text),
+            Some(ValueClass::Numeric | ValueClass::Boolean),
+        ) | (
+            Some(ValueClass::Numeric | ValueClass::Boolean),
+            Some(ValueClass::Text),
+        )
+    );
+    if !mixed {
+        return false;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}` applies an operator to {} and {} -- text and non-text \
+         operands cannot be compared or combined",
+        machine.name.as_str(),
+        state.map(|state| state.name.as_str()).unwrap_or(""),
+        left_class.unwrap().describe(),
+        right_class.unwrap().describe(),
+    )));
+    true
+}
+
 pub(crate) fn expression_type_name_handle(
     program: &TypedTrees,
     argument: ExpressionHandle,

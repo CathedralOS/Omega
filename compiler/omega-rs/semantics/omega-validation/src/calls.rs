@@ -1057,6 +1057,15 @@ fn scan_expression_calls(
             }
         }
         ExpressionNode::Binary(binary) => {
+            let (left, right) = (binary.left, binary.right);
+            crate::expression_types::report_cross_class_binary_operands(
+                program,
+                machine,
+                Some(state),
+                left,
+                right,
+                diagnostics,
+            );
             scan_expression_calls(
                 program,
                 machine,

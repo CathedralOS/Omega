@@ -1,0 +1,1 @@
+text and non-text operands cannot be compared or combined

@@ -1,0 +1,7 @@
+// Mixing a text operand with a numeric one in a binary operator (`n == s` for
+// an i32 and a String) used to compile, build, and RUN -- comparing a number to a
+// string pointer (n=5 == "5" gave false). Rejected now. String-vs-String and
+// numeric-vs-bool operations are unaffected.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { let n: i32 = 5; let s: String = "5"; let r: bool = n == s; let x: i32 = r as i32; self.console.exit_process(x); }
