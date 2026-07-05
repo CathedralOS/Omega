@@ -55,6 +55,8 @@ verify "generated k=3 (3 per elem -> 3*len)" "python3 forall-gen.py 3"
 verify "sum-forall (add-the-element fold; uadd commutative monoid)" "cat sum-forall.elab"
 verify "pair-forall (TWO-accumulator fold: sum AND count threaded together, via a pair + pair congruence)" \
   "cat pair-forall.elab" '/^(all xs/ s|(k 70 (f 21 (f 94 xs) s)|(k 70 (k 3 (f 21 (f 94 xs) s))|'
+verify "prod-forall (MULTIPLICATIVE fold: prodfold(xs,n)=listprod(xs)*n; umul a commutative semiring)" \
+  "cat prod-forall.elab" '/^(all xs/ s|(f 22 (f 98 xs) n)|(k 3 (f 22 (f 98 xs) n))|'
 
 echo "forall-input theorem (per-vector input proofs made universal AND mechanical; all three checkers agree, perturbations rejected): $( [ $fail = 0 ] && echo PASS || echo FAIL )"
 [ $fail = 0 ]
