@@ -699,7 +699,13 @@ fn primitive_range(primitive: PrimitiveType) -> Option<Interval> {
     Some(Interval { low, high })
 }
 
-fn is_arithmetic(operator: BinaryOperator) -> bool {
+/// The operators whose result is genuine integer arithmetic and can therefore
+/// exceed the `{0, 1}` range even when the operands are bools (bool feeds in as
+/// its 0/1 value). Excludes bitwise `& | ^` (which preserve `{0, 1}` for `{0, 1}`
+/// operands) and comparison/logical ops (which yield a bool). Used both for the
+/// overflow analysis here and, via `expression_types`, to classify an arithmetic
+/// result as numeric for the cross-class store check.
+pub(crate) fn is_arithmetic(operator: BinaryOperator) -> bool {
     matches!(
         operator,
         BinaryOperator::Add
