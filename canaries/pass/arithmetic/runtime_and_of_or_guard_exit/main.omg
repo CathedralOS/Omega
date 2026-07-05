@@ -50,7 +50,21 @@ machine Main::main(&mut self) {
         // The mirror shape `(a || b) && c`: (a>0 || b>0) true, c>0 true ->
         // ((true || false) && true) == true.
         self.c = 3;
-        transition (self.a > 0 || self.b > 0) && self.c > 0 { true -> good() _ -> bad() }
+        transition (self.a > 0 || self.b > 0) && self.c > 0 { true -> two_ors() _ -> bad() }
+    }
+    state two_ors(&mut self) {
+        // TWO disjunctions ANDed -- distributes to a 4-way DNF
+        // `(a&&c)||(a&&d)||(b&&c)||(b&&d)`. b=0, d set false, so only the a&&c
+        // conjunct holds: (a>0 || b>0) && (c>0 || d>0) == (T||F) && (T||F) == true.
+        self.b = 0;
+        self.c = 3;
+        transition (self.a > 0 || self.b > 0) && (self.c > 0 || self.b > 0) { true -> two_ors_false() _ -> bad() }
+    }
+    state two_ors_false(&mut self) {
+        // Make the SECOND disjunction false (c=0, b=0) so the 4-way DNF is false ->
+        // (a>0 || b>0) && (c>0 || b>0) == (T||F) && (F||F) == false -> false arm.
+        self.c = 0;
+        transition (self.a > 0 || self.b > 0) && (self.c > 0 || self.b > 0) { true -> bad() _ -> good() }
     }
 
     state good(&mut self) {
