@@ -345,6 +345,18 @@ fn validate_state_statement_node(
             );
             let local_target_primitive =
                 program.primitive_type_reference(local_data.type_reference);
+            // An array-literal initializer (`let a: [T; N] = [300, ..]`) is checked
+            // element-wise against T.
+            if let Some(current_state) = machine_symbols.state(state_name) {
+                struct_literals::validate_array_literal_elements(
+                    program,
+                    machine,
+                    current_state,
+                    local_data.initial_value,
+                    local_data.type_reference,
+                    diagnostics,
+                );
+            }
             let owner = format!(
                 "machine `{}` state `{state_name}` local `{}`",
                 machine.name,

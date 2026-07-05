@@ -506,6 +506,19 @@ pub(crate) fn validate_call_arguments_handles(
                 diagnostics,
             );
         }
+        // An array-literal argument (`sink([300, ..])`) is checked element-wise
+        // against the parameter's `[T; N]` element type -- the scalar guards above
+        // no-op on a non-primitive (array) parameter.
+        if let Some(state) = current_state {
+            crate::struct_literals::validate_array_literal_elements(
+                program,
+                current_machine,
+                state,
+                *argument,
+                parameter.type_reference,
+                diagnostics,
+            );
+        }
     }
 
     let _ = (writable_roots, diagnostics);
