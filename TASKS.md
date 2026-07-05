@@ -647,6 +647,19 @@ feature 1 exists.
 
 ## Cathedral MILESTONE-2 ladder — own the machine (2026-07-04)
 
+> **Priority nudge (Zach): worth pulling forward ahead of the next soundness
+> cluster.** This is the one task that unblocks the *other* repo — Cathedral has
+> been idle-waiting on it since M1 booted, with the target code already written
+> (`own_machine.omg` + `region.omg`), so every day it stays unpicked is a day
+> Cathedral makes zero forward progress. It's also *cheaper now than when filed*:
+> the soundness passes that have been landing (indexed reads, boolean-nested
+> guards, `self.<field>` validation, cross-class `u32`/`u64` narrowing) are
+> exactly the fences the memory-map walk leans on — the ground under it is already
+> paved. And unlike another isolated canary, it's a real end-to-end integration
+> of the boot/FFI stack (vtable dispatch + `&mut` out-params + runtime-offset
+> recast under one roof), which surfaces gaps no single-feature test will. Net:
+> highest-leverage next pick — it turns a booting toy into an OS that owns its RAM.
+
 Milestone 1 booted; milestone 2 is the memory-map dance → `ExitBootServices` →
 the first `Region` mint (the origin of Cathedral's authority graph). The target
 is landed Cathedral-side: `../Cathedral/source/boot/uefi/own_machine.omg` +
