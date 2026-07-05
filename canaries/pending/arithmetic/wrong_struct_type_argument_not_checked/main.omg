@@ -1,0 +1,49 @@
+// PARKED REPRO (silent miscompile -- NOMINAL type confusion at a call argument).
+// `take_foo` expects `&Foo`, but `main` passes `&self.bar` (a `&Bar`). This
+// compiles at --check and --build-dir and RUNS with no error: the argument
+// shape gate (argument_matches_type_reference_handle) BLANKET-ACCEPTS a place /
+// name value (Member/Name) against ANY `Named` parameter type, comparing only the
+// SHAPE (it's a place), never the type NAME. So `f.a` inside take_foo reads Bar's
+// storage at Foo's `a` offset -- reading a different field (or past the struct) as
+// garbage. The nominal analog of the cross-class SCALAR store family (which is now
+// complete); this is the STRUCT/user-type case, part of the "full argument
+// type-checking is a documented frontier" (see validate_call_arguments_handles).
+//
+// SAFE-SUBSET FIX SKETCH (the tractable, low-false-positive slice):
+//   In validate_call_arguments_handles, for each arg that PASSES the shape gate:
+//   resolve the arg's declared place type (declared_place_type) and the param's
+//   type, unwrap Reference/Constrained shells to the base `Named` name on each
+//   side, and reject IFF BOTH names are CONCRETE DATA types
+//   (program.data_definitions() contains them) AND they DIFFER. Guards that keep
+//   it false-positive-free:
+//     - param is a TRAIT / boundary / platform  -> not in data_definitions -> skip
+//       (a data value passed to a trait/dyn param is legitimately accepted).
+//     - param is a GENERIC type parameter (`&T`) -> not a concrete data name -> skip.
+//     - VERSIONED data (`Foo::v1`)               -> exclude via is_version_selector
+//       (same guard the unknown-field check uses).
+//     - arg is a COMPUTED value (not a place)    -> declared_place_type None -> skip.
+//     - references / mutability (`&Foo` vs `&mut Foo`) unwrap to the same Named
+//       name -> no conflict (mutability is a separate check).
+//   Blast radius: the full suite + samples are struct-heavy, so a false positive
+//   would surface immediately -- verify the WHOLE test tail (canary_suite AND
+//   samples_compile), per verify-samples-compile-not-just-canaries.
+//   Deferred to a focused session: nominal type compat has more edge cases than the
+//   3-class scalar work (self-type params, nested generics, trait-bound generics),
+//   and rushing it risks subtle false positives.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Foo { a: i32 in Wrapping; }
+data Bar { b: i32 in Wrapping; c: i32 in Wrapping; }
+
+data Main { console: Console; foo: Foo; bar: Bar; }
+
+machine Main::take_foo(&mut self, f: &Foo) -> i32 {
+    transition { _ -> (f.a) }
+}
+
+machine Main::main(&mut self) {
+    self.bar.b = 7;
+    let r: i32 = self.take_foo(&self.bar); // &Bar where &Foo expected -- silently accepted
+    self.console.exit_process(r);
+}
