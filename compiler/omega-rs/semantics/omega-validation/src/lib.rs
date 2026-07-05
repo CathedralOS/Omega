@@ -391,10 +391,25 @@ fn validate_state_statement_node(
                 );
             }
 
-            // S4: a transition VALUE target (`_ -> (expr)`) is a return value. When
-            // the state's return type declares a `[a..=b]`, enforce the value
-            // is provably within it (so call-site narrowing that trusts the range
-            // is sound). Gated on the range constraint inside
+            // Decision 17 completeness: an arm fires only when its guard holds, so
+            // BOTH a value return (`n > 0 { true -> (n - 1) }`) and a call argument
+            // (`count_down(n - 1)`) may assume the guard's bound. Narrow the env by
+            // the arm's guard once, up front, for both. `guard_narrowed_env`
+            // intersects each bounded place with its type range (so a one-sided
+            // `n > 0` keeps the type's other end) and negates for the `false` arm,
+            // so an unguarded (or wrong-arm) decrement is still correctly rejected.
+            let narrowed = arithmetic_domains::guard_narrowed_env(
+                program,
+                machine,
+                machine_symbols.state(state_name),
+                &transition.guard,
+                value_env,
+            );
+
+            // A transition VALUE target (`_ -> (expr)`) is a return value. When the
+            // state's return type declares a `[a..=b]`, enforce the value is provably
+            // within it (so call-site narrowing that trusts the range is sound); the
+            // exact-overflow + narrowing obligations apply too. Gated inside
             // `validate_return_value_range`, so plain returns are unaffected.
             if let Some(state) = machine_symbols.state(state_name)
                 && state.return_type.is_valid()
@@ -411,7 +426,7 @@ fn validate_state_statement_node(
                             machine,
                             state,
                             *return_expression,
-                            value_env,
+                            &narrowed,
                             &format!(
                                 "machine `{}` state `{state_name}` return value",
                                 machine.name
@@ -422,18 +437,6 @@ fn validate_state_statement_node(
                 }
             }
 
-            // Decision 17 completeness: a transition-arm CALL ARGUMENT carries the
-            // exact-arith proof obligation too (`count_down(n - 1)`). The arm fires
-            // only when its guard holds, so the env is narrowed by the guard first
-            // -- `n > 0` proves `n - 1` in range, while an unguarded decrement is
-            // (correctly) rejected and must opt into a domain or a range.
-            let narrowed = arithmetic_domains::guard_narrowed_env(
-                program,
-                machine,
-                machine_symbols.state(state_name),
-                &transition.guard,
-                value_env,
-            );
             for target in [transition.target, transition.continuation] {
                 if !target.is_valid() {
                     continue;

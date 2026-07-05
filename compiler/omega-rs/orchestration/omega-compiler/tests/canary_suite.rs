@@ -7064,6 +7064,36 @@ fn runtime_transition_arg_guard_narrowing_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// Decision 17 transition-VALUE return + dominating-guard narrowing: `n > 0`
+/// narrows `n` so the value return `(n - 1)` proves Exact. Mirrors the
+/// transition-arg canary for the return-value boundary (which previously used the
+/// un-narrowed env and over-rejected). dec(43) = 42.
+#[test]
+fn runtime_transition_value_guard_narrowing_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_transition_value_guard_narrowing_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-transition-value-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guarded transition-value decrement should compile (guard narrows n-1 to Exact)");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("transition-value guard narrowing canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "expected guarded (n-1) return to prove Exact and run to 42; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 /// Decision 17 transition-arg narrowing on the FALSE arm: the arm fires when
 /// `n >= 70` is FALSE (negate `>=` -> `<`), so `n + 1` proves Exact. Runs to 70.
 #[test]
@@ -20415,6 +20445,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_fnv1a_hash_exit",
     "arithmetic/runtime_min_max_clamp_narrowing_exit",
     "arithmetic/runtime_transition_arg_guard_narrowing_exit",
+    "arithmetic/runtime_transition_value_guard_narrowing_exit",
     "arithmetic/runtime_transition_arg_false_arm_narrowing_exit",
     "arithmetic/runtime_transition_arg_saturating_exit",
     "arithmetic/runtime_cast_element_accumulator_exit",

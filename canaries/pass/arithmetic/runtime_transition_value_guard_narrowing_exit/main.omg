@@ -1,0 +1,26 @@
+// RUN canary (decision 17 transition-VALUE return + dominating-guard narrowing).
+// The value return `(n - 1)` carries the exact-arith proof obligation; it proves
+// EXACT (no `Wrapping`) ONLY because the arm's guard `n > 0` narrows `n` to
+// `[1, ..]` so `n - 1` is in range. This mirrors the transition-ARGUMENT canary
+// runtime_transition_arg_guard_narrowing_exit, but for the return-VALUE boundary,
+// which previously used the un-narrowed env and (over-)rejected the guarded return.
+// An UNGUARDED `_ -> (n - 1)` is still rejected (see the fail sibling), and the
+// `false` arm (where `n <= 0`) may not assume the bound.
+//
+// dec(43) = 42; main exits 42.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+
+machine Main::dec(&mut self, n: u32) -> u32 {
+    transition n > 0 {
+        true -> (n - 1)
+        false -> (0)
+    }
+}
+
+machine Main::main(&mut self) {
+    let result: u32 = self.dec(43);
+    let code: i32 = result as i32;
+    self.console.exit_process(code);
+}
