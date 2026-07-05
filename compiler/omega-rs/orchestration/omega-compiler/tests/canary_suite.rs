@@ -1004,6 +1004,30 @@ fn narrowing_call_arg_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn narrowing_value_call_arg_rejected_canary_is_rejected() {
+    // Decision-17 narrowing enforced at the VALUE-position call-argument boundary
+    // (`let v: i32 = self.take_i8(self.big)`, i64 -> i8): the last silent
+    // miscompile in the call-argument narrowing family, now rejected.
+    let canary = fail_canary("arithmetic/narrowing_value_call_arg_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected narrowing value-call-arg canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("narrowing store") && combined.contains("argument `x`"),
+        "expected a narrowing diagnostic naming the argument, got:\n{combined}"
+    );
+}
+
+#[test]
 fn unknown_field_read_rejected_canary_is_rejected() {
     // A READ of a nonexistent field (a typo) in an expression is rejected at
     // type-check ("reads `self.cont`, but data X has no field `cont`"), not silently

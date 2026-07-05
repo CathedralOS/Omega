@@ -47,15 +47,15 @@ use crate::traits::{
 use crate::transitions::validate_transition_target_node;
 use crate::type_references::{TypeReferenceOwner, validate_type_reference_handle};
 pub use effects::validate_effect_plan;
+use omega_core::diagnostics::Diagnostic;
+use omega_typed_trees::TypedTrees;
+use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
 /// The declared type of a simple place argument (bare name / `self.field`,
 /// through the `&mut` marker), WITH its Constrained shells -- exposed for the
 /// typed-trees machine-monomorphization pass's param-position inference.
 pub use places::declared_place_type_raw;
 pub use places::unwrapped_type_reference;
 pub use properties::{declared_property_names, type_satisfies_declared_property};
-use omega_core::diagnostics::Diagnostic;
-use omega_typed_trees::TypedTrees;
-use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -117,6 +117,25 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 arithmetic_domains::ValueEnv::new()
             };
             for statement in program.statement_table.statements(state.statement_nodes) {
+                // VALUE-position calls inside this statement's expression trees
+                // (LocalData initializers, transition arguments, guard subjects,
+                // etc.) are not reached by `validate_state_statement_node`; run
+                // their bound + argument checks here, BEFORE the statement records
+                // its own effects, so the flow-sensitive `value_env` reflects the
+                // state in which the arguments are actually evaluated (a narrowing
+                // arg like `self.take_i8(self.big)` is judged against `big`'s
+                // pre-statement interval).
+                validate_value_position_calls(
+                    program,
+                    machine,
+                    state,
+                    statement,
+                    &machine_symbols,
+                    &symbols,
+                    &writable_roots,
+                    &value_env,
+                    &mut diagnostics,
+                );
                 validate_state_statement_node(
                     program,
                     machine,
@@ -129,20 +148,6 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     &mut diagnostics,
                 );
             }
-
-            // VALUE-position calls inside expression trees (LocalData
-            // initializers, transition arguments, guard subjects, etc.)
-            // are not reached by `validate_state_statement_node`; run the
-            // bound check for them separately.
-            validate_value_position_calls(
-                program,
-                machine,
-                state,
-                &machine_symbols,
-                &symbols,
-                &writable_roots,
-                &mut diagnostics,
-            );
         }
     }
 

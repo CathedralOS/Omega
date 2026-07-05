@@ -1,13 +1,13 @@
+use crate::arithmetic_domains::{self, ValueEnv};
 use crate::expression_types::{
     argument_matches_type_reference_handle, cross_class_conflict, expression_type_name_handle,
 };
-use crate::arithmetic_domains::{self, ValueEnv};
 use crate::locals::WritableRoots;
 use crate::places::declared_place_type;
-use crate::struct_literals::data_declares_field;
 use crate::properties::{
     declared_property_names, referenced_type_parameter, type_satisfies_declared_property,
 };
+use crate::struct_literals::data_declares_field;
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::type_references::type_reference_label;
 use omega_core::diagnostics::Diagnostic;
@@ -531,9 +531,13 @@ fn report_cross_class_argument(
     else {
         return false;
     };
-    let Some((value_class, target_class)) =
-        cross_class_conflict(program, current_machine, current_state, argument, parameter_primitive)
-    else {
+    let Some((value_class, target_class)) = cross_class_conflict(
+        program,
+        current_machine,
+        current_state,
+        argument,
+        parameter_primitive,
+    ) else {
         return false;
     };
     diagnostics.push(Diagnostic::error(format!(
@@ -603,6 +607,7 @@ fn validate_value_call_argument_classes(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: &State,
+    value_env: &ValueEnv,
     arguments: &[ExpressionHandle],
     callee_state: &State,
     diagnostics: &mut Vec<Diagnostic>,
@@ -613,7 +618,10 @@ fn validate_value_call_argument_classes(
             .iter()
             .filter(|parameter| !parameter.is_self),
     ) {
-        report_cross_class_argument(
+        // Class check first; narrowing only when the classes agree (a same-class
+        // numeric arg), so a cross-class arg is not double-reported. Mirrors the
+        // statement/transition path in `validate_call_arguments_handles`.
+        if !report_cross_class_argument(
             program,
             current_machine,
             Some(current_state),
@@ -621,7 +629,18 @@ fn validate_value_call_argument_classes(
             parameter,
             callee_state.name.as_str(),
             diagnostics,
-        );
+        ) {
+            report_narrowing_argument(
+                program,
+                current_machine,
+                Some(current_state),
+                value_env,
+                *argument,
+                parameter,
+                callee_state.name.as_str(),
+                diagnostics,
+            );
+        }
     }
 }
 
@@ -645,14 +664,31 @@ pub(crate) fn validate_value_position_calls(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
+    statement: &StatementNode,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
+    value_env: &ValueEnv,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    for statement in program.statement_table.statements(state.statement_nodes) {
-        match statement {
-            StatementNode::Assignment(assignment) => {
+    match statement {
+        StatementNode::Assignment(assignment) => {
+            scan_expression_calls(
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                writable_roots,
+                value_env,
+                assignment.value,
+                diagnostics,
+            );
+            // target is a place (Name/Member/Indexed), no calls to validate
+        }
+        StatementNode::Call(call) => {
+            // Statement-position call arguments may themselves be value calls.
+            for argument in program.statement_table.expression_handles(call.arguments) {
                 scan_expression_calls(
                     program,
                     machine,
@@ -660,84 +696,60 @@ pub(crate) fn validate_value_position_calls(
                     machine_symbols,
                     symbols,
                     writable_roots,
-                    assignment.value,
+                    value_env,
+                    *argument,
                     diagnostics,
                 );
-                // target is a place (Name/Member/Indexed), no calls to validate
             }
-            StatementNode::Call(call) => {
-                // Statement-position call arguments may themselves be value calls.
-                for argument in program.statement_table.expression_handles(call.arguments) {
-                    scan_expression_calls(
-                        program,
-                        machine,
-                        state,
-                        machine_symbols,
-                        symbols,
-                        writable_roots,
-                        *argument,
-                        diagnostics,
-                    );
+        }
+        StatementNode::Expression(expression) => {
+            scan_expression_calls(
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                writable_roots,
+                value_env,
+                *expression,
+                diagnostics,
+            );
+        }
+        StatementNode::LocalData(local_data) => {
+            scan_expression_calls(
+                program,
+                machine,
+                state,
+                machine_symbols,
+                symbols,
+                writable_roots,
+                value_env,
+                local_data.initial_value,
+                diagnostics,
+            );
+        }
+        StatementNode::Transition(transition) => {
+            if let TransitionGuardNode::When(guard) = transition.guard {
+                scan_expression_calls(
+                    program,
+                    machine,
+                    state,
+                    machine_symbols,
+                    symbols,
+                    writable_roots,
+                    value_env,
+                    guard,
+                    diagnostics,
+                );
+            }
+            for target_handle in [transition.target, transition.continuation] {
+                if !target_handle.is_valid() {
+                    continue;
                 }
-            }
-            StatementNode::Expression(expression) => {
-                scan_expression_calls(
-                    program,
-                    machine,
-                    state,
-                    machine_symbols,
-                    symbols,
-                    writable_roots,
-                    *expression,
-                    diagnostics,
-                );
-            }
-            StatementNode::LocalData(local_data) => {
-                scan_expression_calls(
-                    program,
-                    machine,
-                    state,
-                    machine_symbols,
-                    symbols,
-                    writable_roots,
-                    local_data.initial_value,
-                    diagnostics,
-                );
-            }
-            StatementNode::Transition(transition) => {
-                if let TransitionGuardNode::When(guard) = transition.guard {
-                    scan_expression_calls(
-                        program,
-                        machine,
-                        state,
-                        machine_symbols,
-                        symbols,
-                        writable_roots,
-                        guard,
-                        diagnostics,
-                    );
-                }
-                for target_handle in [transition.target, transition.continuation] {
-                    if !target_handle.is_valid() {
-                        continue;
-                    }
-                    let target = program.statement_table.transition_target(target_handle);
-                    match target {
-                        TransitionTargetNode::Named { arguments, .. } => {
-                            for argument in program.statement_table.expression_handles(*arguments) {
-                                scan_expression_calls(
-                                    program,
-                                    machine,
-                                    state,
-                                    machine_symbols,
-                                    symbols,
-                                    writable_roots,
-                                    *argument,
-                                    diagnostics,
-                                );
-                            }
-                        }
-                        TransitionTargetNode::Value(expression) => {
+                let target = program.statement_table.transition_target(target_handle);
+                match target {
+                    TransitionTargetNode::Named { arguments, .. } => {
+                        for argument in program.statement_table.expression_handles(*arguments) {
                             scan_expression_calls(
                                 program,
                                 machine,
@@ -745,12 +757,26 @@ pub(crate) fn validate_value_position_calls(
                                 machine_symbols,
                                 symbols,
                                 writable_roots,
-                                *expression,
+                                value_env,
+                                *argument,
                                 diagnostics,
                             );
                         }
-                        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
                     }
+                    TransitionTargetNode::Value(expression) => {
+                        scan_expression_calls(
+                            program,
+                            machine,
+                            state,
+                            machine_symbols,
+                            symbols,
+                            writable_roots,
+                            value_env,
+                            *expression,
+                            diagnostics,
+                        );
+                    }
+                    TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => {}
                 }
             }
         }
@@ -767,6 +793,7 @@ fn scan_expression_calls(
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
+    value_env: &ValueEnv,
     expression: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -801,6 +828,7 @@ fn scan_expression_calls(
                 machine_symbols,
                 symbols,
                 writable_roots,
+                value_env,
                 &call,
                 diagnostics,
             );
@@ -813,6 +841,7 @@ fn scan_expression_calls(
                     machine_symbols,
                     symbols,
                     writable_roots,
+                    value_env,
                     call.receiver,
                     diagnostics,
                 );
@@ -825,6 +854,7 @@ fn scan_expression_calls(
                     machine_symbols,
                     symbols,
                     writable_roots,
+                    value_env,
                     *argument,
                     diagnostics,
                 );
@@ -838,6 +868,7 @@ fn scan_expression_calls(
                 machine_symbols,
                 symbols,
                 writable_roots,
+                value_env,
                 binary.left,
                 diagnostics,
             );
@@ -848,6 +879,7 @@ fn scan_expression_calls(
                 machine_symbols,
                 symbols,
                 writable_roots,
+                value_env,
                 binary.right,
                 diagnostics,
             );
@@ -860,6 +892,7 @@ fn scan_expression_calls(
                 machine_symbols,
                 symbols,
                 writable_roots,
+                value_env,
                 cast.value,
                 diagnostics,
             );
@@ -872,6 +905,7 @@ fn scan_expression_calls(
                 machine_symbols,
                 symbols,
                 writable_roots,
+                value_env,
                 indexed.collection,
                 diagnostics,
             );
@@ -882,6 +916,7 @@ fn scan_expression_calls(
                 machine_symbols,
                 symbols,
                 writable_roots,
+                value_env,
                 indexed.index,
                 diagnostics,
             );
@@ -894,6 +929,7 @@ fn scan_expression_calls(
                 machine_symbols,
                 symbols,
                 writable_roots,
+                value_env,
                 member.receiver,
                 diagnostics,
             );
@@ -906,6 +942,7 @@ fn scan_expression_calls(
                 machine_symbols,
                 symbols,
                 writable_roots,
+                value_env,
                 *inner,
                 diagnostics,
             );
@@ -918,6 +955,7 @@ fn scan_expression_calls(
                 machine_symbols,
                 symbols,
                 writable_roots,
+                value_env,
                 unary.operand,
                 diagnostics,
             );
@@ -932,6 +970,7 @@ fn scan_expression_calls(
                     machine_symbols,
                     symbols,
                     writable_roots,
+                    value_env,
                     *element,
                     diagnostics,
                 );
@@ -947,6 +986,7 @@ fn scan_expression_calls(
                     machine_symbols,
                     symbols,
                     writable_roots,
+                    value_env,
                     field.value,
                     diagnostics,
                 );
@@ -960,6 +1000,7 @@ fn scan_expression_calls(
                 machine_symbols,
                 symbols,
                 writable_roots,
+                value_env,
                 range.start,
                 diagnostics,
             );
@@ -970,6 +1011,7 @@ fn scan_expression_calls(
                 machine_symbols,
                 symbols,
                 writable_roots,
+                value_env,
                 range.end,
                 diagnostics,
             );
@@ -1018,6 +1060,7 @@ fn validate_expression_call_bounds(
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
+    value_env: &ValueEnv,
     call: &TableCallExpression,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
@@ -1029,9 +1072,7 @@ fn validate_expression_call_bounds(
         &[]
     } else {
         match program.expression_table.expression(call.receiver) {
-            ExpressionNode::Name(path) => {
-                program.expression_table.name_path_members(path.members)
-            }
+            ExpressionNode::Name(path) => program.expression_table.name_path_members(path.members),
             _ => &[],
         }
     };
@@ -1041,9 +1082,7 @@ fn validate_expression_call_bounds(
     // Self-call or `self`-prefixed call: the callee is a state of the
     // current machine, an attached-data sibling machine, or a free machine.
     // Mirrors the same three-way fallback in `validate_call_node`.
-    if receiver_members.is_empty()
-        || matches!(receiver_members, [r] if r.as_str() == "self")
-    {
+    if receiver_members.is_empty() || matches!(receiver_members, [r] if r.as_str() == "self") {
         if let Some(callee_state) = machine_symbols.state(call.target.as_str()) {
             validate_machine_call_type_parameter_bounds(
                 program,
@@ -1060,6 +1099,7 @@ fn validate_expression_call_bounds(
                 program,
                 current_machine,
                 current_state,
+                value_env,
                 arguments,
                 callee_state,
                 diagnostics,
@@ -1099,6 +1139,7 @@ fn validate_expression_call_bounds(
                 program,
                 current_machine,
                 current_state,
+                value_env,
                 arguments,
                 callee_state,
                 diagnostics,
@@ -1126,6 +1167,7 @@ fn validate_expression_call_bounds(
                 program,
                 current_machine,
                 current_state,
+                value_env,
                 arguments,
                 callee_state,
                 diagnostics,
@@ -1166,6 +1208,7 @@ fn validate_expression_call_bounds(
                 program,
                 current_machine,
                 current_state,
+                value_env,
                 arguments,
                 callee_state,
                 diagnostics,
@@ -1194,6 +1237,7 @@ fn validate_expression_call_bounds(
             program,
             current_machine,
             current_state,
+            value_env,
             arguments,
             callee_state,
             diagnostics,
