@@ -40,7 +40,15 @@ def parse(src):
 def term(t, funs):
     if t == 'z':
         return 'Ze'
+    if t == 'nil':
+        return 'Lnil'
     h = t[0]
+    if h == 'cons':
+        return '(Lcons %s %s)' % (term(t[1], funs), term(t[2], funs))
+    if h == 'app':                                 # built-in list APPEND (distinct from proof application)
+        return '(Lapp %s %s)' % (term(t[1], funs), term(t[2], funs))
+    if h == 'len':
+        return '(Llen %s)' % term(t[1], funs)
     if h == 's':
         return '(Su %s)' % term(t[1], funs)
     if h == 'p':
@@ -111,6 +119,10 @@ def prop(g, funs):
         return '(Or %s %s)' % (prop(g[1], funs), prop(g[2], funs))
     if g[0] == 'bot':
         return 'Bot'
+    if g[0] == 'rel':                              # Mem (777) / ProdIs (778) / Perm (779) live as Rel props
+        return '(Rel %s %s %s)' % (g[1], term(g[2], funs), term(g[3], funs))
+    if g[0] == 'pred':
+        return '(Pred %s %s)' % (g[1], term(g[2], funs))
     raise SystemExit('untranslatable prop head: %s' % g[0])
 
 
@@ -136,6 +148,36 @@ def proof(p, funs):
         return '(Rec (Mkspec %d %d %d %d) (Mkspec %d %d %d %d) %s %s %s)' % (
             p[1], sa[0], sa[1], sa[2], p[2], sb[0], sb[1], sb[2],
             prop(p[3], funs), proof(p[4], funs), proof(p[5], funs))
+    # --- lemma citation: checker.gamma has no def/use, so INLINE the lemma's (closed) proof at each use ---
+    if p[0] == 'use':
+        return proof(funs['#defs'][int(p[1])], funs)
+    # --- conjunction / disjunction / falsity / existential (checker.gamma nodes; arities match the cert) ---
+    if p[0] == 'pair':   return '(Pair %s %s)' % (proof(p[1], funs), proof(p[2], funs))
+    if p[0] == 'fst':    return '(Fst %s)' % proof(p[1], funs)
+    if p[0] == 'snd':    return '(Snd %s)' % proof(p[1], funs)
+    if p[0] == 'inl':    return '(Inl %s %s)' % (prop(p[1], funs), proof(p[2], funs))
+    if p[0] == 'inr':    return '(Inr %s %s)' % (prop(p[1], funs), proof(p[2], funs))
+    if p[0] == 'case':   return '(Case %s %s %s)' % (proof(p[1], funs), proof(p[2], funs), proof(p[3], funs))
+    if p[0] == 'absurd': return '(Absurd %s %s)' % (prop(p[1], funs), proof(p[2], funs))
+    if p[0] == 'disj':   return '(Disj %s)' % proof(p[1], funs)
+    if p[0] == 'sinj':   return '(Sinj %s)' % proof(p[1], funs)
+    if p[0] == 'wit':    return '(Wit %s %s %s)' % (prop(p[1], funs), term(p[2], funs), proof(p[3], funs))
+    if p[0] == 'unpack': return '(Unpack %s %s)' % (proof(p[1], funs), proof(p[2], funs))
+    if p[0] == 'listind':                          # built-in-list induction (nil / cons cases)
+        return '(Listind %s %s %s)' % (prop(p[1], funs), proof(p[2], funs), proof(p[3], funs))
+    # --- inductive relational predicates: Mem (777), ProdIs (778), Perm (779) intros + inversions ---
+    if p[0] == 'memhead': return '(MemHead %s %s)' % (term(p[1], funs), term(p[2], funs))
+    if p[0] == 'memtail': return '(MemTail %s %s)' % (term(p[1], funs), proof(p[2], funs))
+    if p[0] == 'memcons': return '(MemCons %s)' % proof(p[1], funs)
+    if p[0] == 'memnil':  return '(MemNil %s)' % proof(p[1], funs)
+    if p[0] == 'pnil':    return '(Pnil)'
+    if p[0] == 'pcons':   return '(Pcons %s %s)' % (term(p[1], funs), proof(p[2], funs))
+    if p[0] == 'prodnilinv':  return '(Prodnilinv %s)' % proof(p[1], funs)
+    if p[0] == 'prodconsinv': return '(Prodconsinv %s)' % proof(p[1], funs)
+    if p[0] == 'permnil':  return '(Permnil)'
+    if p[0] == 'permskip': return '(Permskip %s %s)' % (term(p[1], funs), proof(p[2], funs))
+    if p[0] == 'permswap': return '(Permswap %s %s %s)' % (term(p[1], funs), term(p[2], funs), term(p[3], funs))
+    if p[0] == 'permtrans':return '(Permtrans %s %s)' % (proof(p[1], funs), proof(p[2], funs))
     raise SystemExit('untranslatable proof head: %s' % p[0])
 
 
@@ -143,6 +185,7 @@ def main():
     forms = parse(sys.stdin.read())
     funs = {}                                      # fid -> [(cidA, bodyA), (cidB, bodyB)]
     specs = {}                                     # cid -> (arity, r0, r1)
+    defs = {}                                      # lemma id -> its (closed) proof, inlined at each (use N)
     body = []
     for f in forms:
         if isinstance(f, list) and f and f[0] == 'data':
@@ -151,11 +194,15 @@ def main():
         if isinstance(f, list) and f and f[0] == 'fun':
             funs.setdefault(f[1], []).append((f[2], f[3]))
             continue
+        if isinstance(f, list) and f and f[0] == 'def':       # (def N type proof) — a lemma; the type (f[2])
+            defs[int(f[1])] = f[3]                             # is re-inferred when the proof is inlined at (use N)
+            continue
         body.append(f)
     if len(body) != 2:
         raise SystemExit('expected exactly <goal> <proof> after declarations')
-    funs['#tab'] = build_tab({k: v for k, v in funs.items() if k != '#tab'})
+    funs['#tab'] = build_tab({k: v for k, v in funs.items() if k not in ('#tab', '#data', '#defs')})
     funs['#data'] = specs
+    funs['#defs'] = defs
     print('(check %s %s)' % (proof(body[1], funs), prop(body[0], funs)))
 
 
