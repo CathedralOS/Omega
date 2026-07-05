@@ -424,18 +424,18 @@ fn validate_result_use(
     )));
 }
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn validate_call_arguments_handles(
-    program: &TypedTrees,
-    current_machine: &Machine,
-    current_state: Option<&State>,
-    value_env: &ValueEnv,
-    arguments: &[ExpressionHandle],
+/// Reports the "state `X` expects N argument(s), got M" error when `arguments`
+/// does not match the callee's callable (non-`self`) parameter count, returning
+/// `true` on a mismatch so callers skip the per-argument checks (which zip the
+/// two and would misalign). SINGLE SOURCE OF TRUTH for call arity across the
+/// statement-position (`validate_call_arguments_handles`) and value-position
+/// (`validate_value_call_argument_classes`) paths.
+pub(crate) fn report_argument_count_mismatch(
     target_name: &str,
     parameters: &[StateParameter],
-    writable_roots: &WritableRoots<'_, '_>,
+    arguments: &[ExpressionHandle],
     diagnostics: &mut Vec<Diagnostic>,
-) {
+) -> bool {
     let callable_parameter_count = parameters
         .iter()
         .filter(|parameter| !parameter.is_self)
@@ -448,6 +448,24 @@ pub(crate) fn validate_call_arguments_handles(
             callable_parameter_count,
             arguments.len()
         )));
+        return true;
+    }
+    false
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn validate_call_arguments_handles(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: Option<&State>,
+    value_env: &ValueEnv,
+    arguments: &[ExpressionHandle],
+    target_name: &str,
+    parameters: &[StateParameter],
+    writable_roots: &WritableRoots<'_, '_>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if report_argument_count_mismatch(target_name, parameters, arguments, diagnostics) {
         return;
     }
 
@@ -629,6 +647,20 @@ fn validate_value_call_argument_classes(
     callee_state: &State,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // Arity first: value-position calls (`let r = self.pick(1)`) reach only this
+    // path, never `validate_call_arguments_handles`, so without this a wrong
+    // argument count compiled silently (a missing arg then read its ZII default).
+    // Safe here because this function runs only on a RESOLVED callee -- the
+    // resolver's blind spots fall through earlier without reaching it.
+    if report_argument_count_mismatch(
+        callee_state.name.as_str(),
+        program.state_parameters(callee_state),
+        arguments,
+        diagnostics,
+    ) {
+        return;
+    }
+
     for (argument, parameter) in arguments.iter().zip(
         program
             .state_parameters(callee_state)
@@ -690,10 +722,12 @@ fn validate_value_call_argument_classes(
 /// Scope: covers all expression positions that feed into statements
 /// (LocalData initializers, assignment values/targets, guard expressions,
 /// transition arguments, terminal expressions) and recurses into nested
-/// call arguments.  Only the BOUND check (type-parameter property
-/// satisfaction) is enforced here; full argument count/type checking for
-/// value-position calls is a documented frontier -- see
-/// `validate_call_arguments_handles`.
+/// call arguments.  Enforces the type-parameter BOUND check plus, for a
+/// RESOLVED callee, argument arity (`report_argument_count_mismatch`) and the
+/// per-argument class/narrowing/nominal checks (`validate_value_call_argument_classes`).
+/// The remaining frontier is the UNRESOLVED callee: a value call whose target
+/// no branch resolves falls through silently (the nonexistent-value-call gap),
+/// which needs the complete value-call target resolver.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_value_position_calls(
     program: &TypedTrees,
