@@ -1,0 +1,55 @@
+// Runtime UNSIGNED ops on a high-bit u32 field (value > 2^31, so its i32
+// reinterpretation is NEGATIVE): divide, modulo, logical right shift, and an
+// ordered compare, all on the SAME field. This is the runtime (storage-signedness-
+// resolved) counterpart of the const-fold signedness miscompile -- the field path
+// must pick the UNSIGNED form of each op. The compare is the sharpest check: a
+// SIGNED `3e9 > 2e9` would be false (3e9 as i32 is negative), so exit 70 requires
+// the unsigned compare. Differential-checked native==interpreter.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    f: u32 in Wrapping;
+    g: u32 in Wrapping;
+    r: u32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.f = 3000000000; // > 2^31; 0xB2D05E00, negative as i32
+    self.g = 7;
+
+    // unsigned divide: 3000000000 / 7 == 428571428 (a signed idiv would misread the
+    // dividend as negative).
+    self.r = self.f / self.g;
+    transition self.r == 428571428 { true -> u_mod() _ -> bad() }
+
+    state u_mod(&mut self) {
+        // unsigned modulo: 3000000000 % 7 == 4.
+        self.r = self.f % self.g;
+        transition self.r == 4 { true -> u_shr() _ -> bad() }
+    }
+    state u_shr(&mut self) {
+        // logical right shift (shr, not sar): 3000000000 >> 1 == 1500000000.
+        self.r = self.f >> 1;
+        transition self.r == 1500000000 { true -> u_cmp_high() _ -> bad() }
+    }
+    state u_cmp_high(&mut self) {
+        // unsigned ordered compare: 3000000000 > 2000000000 is TRUE (a signed
+        // compare would be false since 3e9 reinterpreted as i32 is negative).
+        transition self.f > 2000000000 { true -> u_cmp_low() _ -> bad() }
+    }
+    state u_cmp_low(&mut self) {
+        // and the low side: 3000000000 < 100 is FALSE.
+        transition self.f < 100 { true -> bad() _ -> good() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
