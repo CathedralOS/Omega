@@ -61,6 +61,13 @@ SSUM_CID = 8
 # lives in the two differentially-pinned evaluators.
 COND_CID = 9
 BOOL_CID = {'blt': 10, 'ble': 11, 'beq': 12, 'bne': 13}
+# DIV_CID / MOD_CID: integer division and remainder as OPAQUE binary constructors — ('div', a, b) = a / b and
+# ('mod', a, b) = a % b (signed truncated, matching the VM). Like every constructor family: the kernel only
+# checks refl on identical terms (both the bytecode and the source derive the SAME div/mod term, so equivalence
+# is refl — no division axioms in the trust core), and the two differentially-pinned evaluators carry the
+# meaning. The observable is mod 256, and for the gate's non-negative byte inputs trunc = floor = ℕ division.
+DIV_CID = 14
+MOD_CID = 15
 RDV = -8                               # the virtual slot holding the read position (no real slot is negative)
 SEGK = -16                             # BMEM key holding fill SEGMENTS: ((base, trip, rdbase), ...) — a copy
                                        # loop's closed form: byte[base+j] = input[rdbase+j] for j < trip
@@ -77,6 +84,8 @@ def render(t):                         # -> check.beta / prover term syntax
     if h == 'sv': return '(k %d %s)' % (SV_CID, render(_term(t[1])))
     if h == 'ssum': return '(k %d %s %s)' % (SSUM_CID, render(_term(t[1])), render(_term(t[2])))
     if h == 'cond': return '(k %d %s %s %s)' % (COND_CID, render(t[1]), render(_term(t[2])), render(_term(t[3])))
+    if h == 'div': return '(k %d %s %s)' % (DIV_CID, render(_term(t[1])), render(_term(t[2])))
+    if h == 'mod': return '(k %d %s %s)' % (MOD_CID, render(_term(t[1])), render(_term(t[2])))
     if h in BOOL_CID: return '(k %d %s %s)' % (BOOL_CID[h], render(_term(t[1])), render(_term(t[2])))
     return '(%s %s %s)' % (h, render(t[1]), render(t[2]))
 
@@ -90,6 +99,10 @@ def evaluate(t, env):                  # concrete integer value (ℤ; the gate o
     if h == 'sv': return env['in'][evaluate(_term(t[1]), env)]
     if h == 'ssum': return sum(env['in'][evaluate(_term(t[1]), env):evaluate(_term(t[2]), env)])
     if h == 'cond': return evaluate(_term(t[2]), env) if evaluate(t[1], env) else evaluate(_term(t[3]), env)
+    if h == 'div': return _trunc_div(evaluate(_term(t[1]), env), evaluate(_term(t[2]), env))
+    if h == 'mod':
+        a = evaluate(_term(t[1]), env); b = evaluate(_term(t[2]), env)
+        return a - _trunc_div(a, b) * b
     if h == 'blt': return 1 if evaluate(_term(t[1]), env) < evaluate(_term(t[2]), env) else 0
     if h == 'ble': return 1 if evaluate(_term(t[1]), env) <= evaluate(_term(t[2]), env) else 0
     if h == 'beq': return 1 if evaluate(_term(t[1]), env) == evaluate(_term(t[2]), env) else 0
@@ -155,6 +168,20 @@ def _concrete(v, why):
     if not isinstance(v, int):
         raise Unsupported(why)
     return v
+
+def _trunc_div(a, b):                  # signed division truncated toward zero (matches the VM's trunc_div)
+    if b == 0:
+        raise Unsupported('division by zero')   # the machine traps (SIGILL); not modelled
+    q = abs(a) // abs(b)
+    return q if (a < 0) == (b < 0) else -q
+
+def _divmod(op, a, b):                  # op in {'div','mod'}: opaque constructor over the operands. Both concrete
+    if isinstance(a, int) and isinstance(b, int):   # -> fold now (matches the VM); else an opaque symbolic term
+        q = _trunc_div(_s64(a), _s64(b))
+        return (q if op == 'div' else _s64(a) - q * _s64(b)) & MASK
+    if _is_zz(a) or _is_zz(b):
+        raise Unsupported('div/mod on a signed (ℤ-pair) operand — not modelled yet')
+    return (op, _term(a), _term(b))
 
 # ---- data-dependent loop summarization (bytecode side) -----------------------------------------------
 # A value ('cmp', 'lt'|'eq', L, R) is a SYMBOLIC boolean produced when a comparison has a symbolic operand
@@ -787,7 +814,8 @@ def _exec(tape, backedges, pc, R, MEM, BMEM, sp, ncell, fork_depth):
         elif op == 0x05:                                 # mul d, s
             d = tape[pc + 1]; R[d] = _mul(reg(d), reg(tape[pc + 2])); pc += 3
         elif op == 0x06 or op == 0x07:                   # div / mod
-            raise Unsupported('div/mod not modelled yet')
+            d = tape[pc + 1]
+            R[d] = _divmod('div' if op == 0x06 else 'mod', reg(d), reg(tape[pc + 2])); pc += 3
         elif op == 0x0A:                                 # load d, s  (word) — concrete address
             a = _concrete(reg(tape[pc + 2]), 'load from symbolic address')
             if BMEM and any(a <= bb < a + 8 for bb in BMEM):
