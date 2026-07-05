@@ -180,13 +180,29 @@ fn validate_state_statement_node(
                 machine,
                 state_name,
             );
-            let assignment_target_primitive = places::declared_place_type(
+            let assignment_target_type = places::declared_place_type(
                 program,
                 machine,
                 machine_symbols.state(state_name),
                 assignment.target,
-            )
-            .and_then(|handle| program.primitive_type_reference(handle));
+            );
+            let assignment_target_primitive =
+                assignment_target_type.and_then(|handle| program.primitive_type_reference(handle));
+            // An array-literal RHS into a `[T; N]` target: check each element's
+            // class + narrowing against T. The scalar guards below skip a non-
+            // primitive (array) target, so this is the element-level complement.
+            if let Some(current_state) = machine_symbols.state(state_name)
+                && let Some(target_type) = assignment_target_type
+            {
+                struct_literals::validate_array_literal_elements(
+                    program,
+                    machine,
+                    current_state,
+                    assignment.value,
+                    target_type,
+                    diagnostics,
+                );
+            }
             let owner = format!("machine `{}` state `{state_name}` assignment", machine.name);
             // Cross-class scalar guard: `self.i32 = true` (a bool into a numeric
             // field) is a soundness hole -- the backend silently stores `1` --

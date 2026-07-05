@@ -3204,6 +3204,23 @@ exit.
   (inc(41)=42, differential interp==native).
   With this, decision-17's interval engine has no known soundness OR one-sided-
   precision gaps at the value-binding boundaries.
+- [x] CROSS-CLASS + NARROWING at ARRAY-LITERAL elements -- SILENT MISCOMPILE
+  CLOSED 2026-07-04 (6th "value into typed slot" position). `self.a = [300, 0, 0]`
+  into `[i8; 3]` truncated 300->44, and `[true, 0, 0]` stored 1 -- the scalar
+  assignment guards only see the ARRAY target (non-primitive), so element values
+  slipped. New shared `struct_literals::validate_array_literal_elements(value,
+  expected_type)` resolves the FixedArray element primitive and runs the SAME
+  cross_class_conflict + validate_value_range/check_narrowing_assignment per element
+  (flow-insensitive, like the construction checks). Wired into the ASSIGNMENT path
+  (lib.rs) which knows the target's array type. ZERO blast radius (591 canaries +
+  samples-compile clean, whole tail verified -- array-heavy samples like maze_flood
+  all have in-range elements). Locked by fail canary
+  array_literal_element_narrowing_rejected.
+  REMAINING (rarer positions, deferred): an array literal in a STRUCT FIELD
+  (`Foo { arr: [300,..] }`), a let-init, or a call-arg is not yet element-checked --
+  the helper is ready; wiring it into enforce_construction_field_obligations (when
+  field_type is a FixedArray) + the let/arg paths would close them. Same flow-
+  insensitivity note as the other construction checks.
 - [ ] Broaden persistent machine/state mutation coverage beyond isolated
   micro-shapes toward dungeon-sample blockers.
 - [ ] Link final-image imports/fixups back to source and lowered boundary-edge

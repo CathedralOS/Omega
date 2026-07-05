@@ -14,6 +14,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataDefinition, DataMember};
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
+use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
@@ -377,6 +378,68 @@ fn enforce_construction_field_obligations(
                     )));
                 }
             }
+        }
+    }
+}
+
+/// Enforce each ELEMENT of an array literal against the array's declared element
+/// type -- the same cross-class + narrowing obligations a scalar store carries.
+/// `[300, ..]` into a `[i8; N]` truncates silently; `[true, ..]` into `[i8; N]`
+/// stores garbage. Does nothing unless `value` is an array literal and
+/// `expected_type` is a fixed array of a scalar primitive. Flow-insensitive (empty
+/// env), matching the construction field-obligation checks. Reused across the
+/// binding sites that know the array's expected type (assignment target, etc.).
+pub(crate) fn validate_array_literal_elements(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    value: ExpressionHandle,
+    expected_type: TypeReferenceHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let ExpressionNode::ArrayLiteral(elements) = program.expression_table.expression(value) else {
+        return;
+    };
+    let TypeReferenceNode::FixedArray { element_type, .. } =
+        program.type_reference_table.type_reference(expected_type)
+    else {
+        return;
+    };
+    let Some(element_primitive) = program.primitive_type_reference(*element_type) else {
+        return;
+    };
+    let owner = format!("array literal element of type `{}`", element_primitive.name());
+    for element in program.expression_table.expression_handles(*elements) {
+        // Class check first; a cross-class element is not also narrowing-checked.
+        if let Some((value_class, target_class)) = crate::expression_types::cross_class_conflict(
+            program,
+            machine,
+            Some(state),
+            *element,
+            element_primitive,
+        ) {
+            diagnostics.push(Diagnostic::error(format!(
+                "array literal element stores {} into a `{}` element, which holds {}",
+                value_class.describe(),
+                element_primitive.name(),
+                target_class.describe(),
+            )));
+            continue;
+        }
+        // Narrowing check: the element must fit the element type's width.
+        let mut throwaway = Vec::new();
+        let (interval, source) = validate_value_range(
+            program,
+            machine,
+            Some(state),
+            *element,
+            &ValueEnv::new(),
+            Some(element_primitive),
+            &owner,
+            &mut throwaway,
+        );
+        if throwaway.is_empty() {
+            check_narrowing_assignment(Some(element_primitive), interval, source, &owner, diagnostics);
         }
     }
 }
