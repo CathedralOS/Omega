@@ -55,6 +55,7 @@
 ;             35 NIL  36 CONS(h,t)  37 APPEND(l1,l2)  38 LEN(l)
 ;             50 CON(cid)  51 APPLY(f,a)   ; user constructors: CON head + APPLY spine
 ;        term  40 USE(N)  41 REC((99 (98 cidA cidB) motive) (99 caseA caseB))
+;              61 PRODREC((99 cid motive) case)   ; product elim; cid must be (prod cid)-declared
 
 proc slurp() {
     let n = 0
@@ -803,7 +804,16 @@ proc parse_term() {
     state do_permsk { x = parse_nat()  y = parse_term()  expect(')')  return alloc(58, x, y) }   ; permskip x pf
     state do_permsw { x = parse_nat()  y = parse_nat()  z = parse_nat()  expect(')')  return alloc(59, x, alloc(99, y, z)) }  ; permswap x y r (r is a list term)
     state is_pr { to is_pinv when (kc2 == 'r')  to do_pair }    ; prod*inv : ProdIs inversion
-    state is_pinv { to do_pnilinv when (kc5 == 'n')  to do_pconsinv }
+    state is_pinv { to do_prodrec when (kc5 == 'r')  to pinv2 }   ; prodrec (kc5 r) vs prod{nil,cons}inv
+    state pinv2 { to do_pnilinv when (kc5 == 'n')  to do_pconsinv }
+    state do_prodrec {           ; (prodrec CID motive case) — product elimination: from P on the type's
+        skip_ws()                ; sole constructor conclude forall x. P(x). CID must be (prod CID)-declared.
+        x = parse_number()       ; CID (the declared-sole product constructor)
+        y = parse_type()         ; motive P(x), eliminated var = Ivar 0
+        z = parse_term()         ; case : con_case(CID, motive) = forall a b. P(CON CID a b)
+        expect(')')
+        return alloc(61, alloc(99, x, y), z)   ; (99 CID motive) + case
+    }
     state do_pnilinv { x = parse_term()  expect(')')  return alloc(48, x, 0) }
     state do_pconsinv { x = parse_term()  expect(')')  return alloc(49, x, 0) }
     state do_pair { x = parse_term()  y = parse_term()  expect(')')  return alloc(13, x, y) }
@@ -935,7 +945,7 @@ proc ctx_pop() {
 }
 
 ; build the expected CASE type for constructor `cid` under motive P (var = Ivar 0).
-; Tables: ARITY 5505024, REC0 5636096, REC1 5767168 (indexed by cid).
+; Tables: ARITY 5505024, REC0 5636096, REC1 5767168, PRODUCTS 6291456 (indexed by cid).
 proc con_case(cid, motive) {
     let arity = word[5505024 + cid * 8]
     let r0 = word[5636096 + cid * 8]
@@ -1087,7 +1097,7 @@ proc infer(term) {
     }
     state d20 { to refl when (tag == 20)  to d41 }
     state refl { return alloc(5, word[term + 8], word[term + 8]) }    ; REFL t : (= t t)
-    state d41 { to rec when (tag == 41)  to d40 }
+    state d41 { to rec when (tag == 41)  to d61 }
     state rec {                  ; REC cidA cidB motive caseA caseB : structural induction
         t1 = word[term + 8]      ; (99 (98 cidA cidB) motive)
         t2 = word[t1 + 8]        ; (98 cidA cidB)
@@ -1104,6 +1114,22 @@ proc infer(term) {
     state rec2 {
         to reject when (type_eq(t3, con_case(word[t2 + 16], word[t1 + 16])) == 0)
         return alloc(6, word[t1 + 16], 0)                ; forall x. P(x)
+    }
+    state d61 { to prodrec when (tag == 61)  to d40 }
+    state prodrec {              ; PRODREC cid motive case : SINGLE-constructor product elimination.
+        t1 = word[term + 8]      ; (99 cid motive)
+        ; SOUNDNESS GUARD: prodrec proves forall x.P from ONE case, so it is sound only when cid is its
+        ; type's SOLE constructor. Unlike REC (locked to two cases, hence used only on 2-constructor types),
+        ; one case aimed at a SUM constructor would prove a bogus universal. So cid must be explicitly
+        ; declared a product via (prod cid) — PRODUCTS[cid] == 1 — an auditable, opt-in assertion.
+        to reject when (word[6291456 + word[t1 + 8] * 8] != 1)
+        t3 = infer(word[term + 16])                      ; typeof case
+        to reject when (t3 == 0)
+        to prodrec1
+    }
+    state prodrec1 {
+        to reject when (type_eq(t3, con_case(word[t1 + 8], word[t1 + 16])) == 0)
+        return alloc(6, word[t1 + 16], 0)                ; forall x. motive(x)
     }
     state d40 { to use when (tag == 40)  to d21 }
     state use { return word[5242880 + word[term + 8] * 8] }   ; USE N : the lemma's type
@@ -1401,7 +1427,9 @@ proc at_def() {
         to setr when (cbyte() == 'd')    ; (def / (data
         to chkf
     }
-    state chkf { to setr when (cbyte() == 'f')  to done }   ; (fun
+    state chkf { to setr when (cbyte() == 'f')  to chkp }   ; (fun
+    state chkp { to setr when (cbyte() == 'p')  to done }   ; (prod — the only 'p'-headed leading decl
+                                                            ; (goal is a prop, never lowercase-'p'-headed)
     state setr { r = 1  to done }
     state done { word[2097144] = save  return r }
 }
@@ -1423,6 +1451,7 @@ proc main() {
         adv()                    ; '('
         skip_ws()
         to kfun when (cbyte() == 'f')     ; (fun FID CID body)
+        to kprod when (cbyte() == 'p')    ; (prod CID) — mark a sole-constructor product
         adv()                    ; 'd'
         kind = cbyte()           ; 'e' = def (lemma) ; 'a' = data (constructor decl)
         skip_ident()             ; rest of "def" / "data"
@@ -1450,6 +1479,14 @@ proc main() {
         skip_ws()
         word[5767168 + n * 8] = parse_number()       ; REC1
         expect(')')
+        to defloop
+    }
+    state kprod {                ; (prod CID) — assert CID is its type's SOLE constructor, licensing prodrec
+        skip_ident()             ; "prod"  (cursor is at 'p'; not yet advanced)
+        skip_ws()
+        n = parse_number()       ; CID
+        expect(')')
+        word[6291456 + n * 8] = 1                     ; PRODUCTS[CID] = 1
         to defloop
     }
     state kdef {
