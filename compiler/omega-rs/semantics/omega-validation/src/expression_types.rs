@@ -260,6 +260,81 @@ pub(crate) fn report_cross_class_store(
     true
 }
 
+/// The name of the CONCRETE DATA type a `handle` denotes, looking through
+/// `Reference`/`Constrained` shells -- or `None` for anything that is not a plain
+/// data type (a primitive, a trait / boundary / platform, a generic type
+/// parameter, an array, a versioned selector). The `None` cases are exactly the
+/// ones a nominal argument check must NOT flag, so a data value passed to a trait
+/// or generic parameter is never a "wrong type".
+fn concrete_data_type_name(program: &TypedTrees, handle: TypeReferenceHandle) -> Option<&str> {
+    if !handle.is_valid() {
+        return None;
+    }
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => concrete_data_type_name(program, *referee),
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            concrete_data_type_name(program, *base_type)
+        }
+        TypeReferenceNode::Named { name, .. } => {
+            let name = name.as_str();
+            // Versioned selectors (`Foo::v1`) are excluded -- conservative, avoids
+            // treating `Foo::v1` and `Foo` as different concrete data types.
+            if name
+                .rsplit("::")
+                .next()
+                .is_some_and(omega_core::versioning::is_version_selector)
+            {
+                return None;
+            }
+            program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.name.as_str() == name)
+                .map(|_| name)
+        }
+        _ => None,
+    }
+}
+
+/// If the place `value`'s declared CONCRETE DATA type differs from the
+/// `expected_type`'s concrete data type, push a diagnostic and return `true`.
+/// BOTH sides must resolve to a concrete data type name; every other form (a
+/// primitive, a trait / boundary / generic parameter, an array, a versioned type,
+/// or a COMPUTED non-place argument whose place type is unresolved) yields `None`
+/// on one side and is skipped -- so this only ever rejects the unambiguous
+/// `&Bar`-for-`&Foo` type confusion. The nominal complement of
+/// `report_cross_class_store`.
+pub(crate) fn report_data_type_conflict(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    value: ExpressionHandle,
+    expected_type: TypeReferenceHandle,
+    slot_context: &str,
+    slot_noun: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let Some(expected) = concrete_data_type_name(program, expected_type) else {
+        return false;
+    };
+    let Some(value_type) = crate::places::declared_place_type(program, machine, state, value)
+    else {
+        return false;
+    };
+    let Some(got) = concrete_data_type_name(program, value_type) else {
+        return false;
+    };
+    if expected == got {
+        return false;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "{slot_context} expects the `{expected}` data type but got `{got}` in the `{slot_noun}` \
+         position; these are incompatible data types (a place is accepted structurally, but its \
+         declared type must match)",
+    )));
+    true
+}
+
 pub(crate) fn expression_type_name_handle(
     program: &TypedTrees,
     argument: ExpressionHandle,

@@ -1222,6 +1222,31 @@ fn terminal_return_class_mismatch_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn wrong_struct_type_argument_rejected_canary_is_rejected() {
+    // NOMINAL type confusion at a call argument (`take_foo(&self.bar)` for a `&Foo`
+    // parameter) is rejected. This was a SILENT MISCOMPILE -- the shape gate
+    // blanket-accepts a place against any Named parameter, comparing only shape not
+    // the type name. The user-type complement of the cross-class scalar family.
+    let canary = fail_canary("arithmetic/wrong_struct_type_argument_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected wrong-struct-type-argument canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("expects the `Foo` data type but got `Bar`"),
+        "expected a clear nominal-type-mismatch diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
 fn unknown_field_read_rejected_canary_is_rejected() {
     // A READ of a nonexistent field (a typo) in an expression is rejected at
     // type-check ("reads `self.cont`, but data X has no field `cont`"), not silently
