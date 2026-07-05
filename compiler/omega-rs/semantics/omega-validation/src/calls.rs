@@ -969,9 +969,10 @@ fn scan_expression_calls(
     // String indexing are separate. String is excluded because text carries a
     // `.len`/byte view.
     let primitive_access = match program.expression_table.expression(expression) {
-        ExpressionNode::Member(member) => {
-            Some((member.receiver, format!("member `{}`", member.member.as_str())))
-        }
+        ExpressionNode::Member(member) => Some((
+            member.receiver,
+            format!("member `{}`", member.member.as_str()),
+        )),
         ExpressionNode::Indexed(indexed) => Some((indexed.collection, "an index".to_owned())),
         _ => None,
     };
