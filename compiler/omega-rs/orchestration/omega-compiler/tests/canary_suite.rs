@@ -21088,6 +21088,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "expressions/match_duplicate_pattern_rejected",
     "expressions/primitive_member_access_rejected",
     "expressions/cross_class_binary_operands_rejected",
+    "expressions/float_bitwise_rejected",
     "calls/value_call_wrong_argument_count_rejected",
     "expressions/cast_to_non_scalar_type_rejected",
     "constraints/inverted_range_rejected",
