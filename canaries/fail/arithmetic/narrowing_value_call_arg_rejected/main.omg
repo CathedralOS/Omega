@@ -1,0 +1,35 @@
+// FAIL canary: decision-17 narrowing at the VALUE-POSITION call-argument boundary.
+// `let v: i32 = self.take_i8(self.big)` where `big: i64 = 300` passes an i64 to an
+// i8 parameter -- a narrowing store that is not provably in range. This was the
+// last silent miscompile in the call-argument narrowing family: value-position
+// calls (`let r = self.f(...)`) run through validate_value_position_calls, which
+// validated only type-parameter bounds. It compiled + ran, truncating 300 to 44.
+// Now rejected exactly as the statement/transition arg positions and the
+// assignment boundary are (narrowing_call_arg_rejected covers those). Honors
+// dominating guards via the flow-sensitive value environment; explicit `as` casts
+// and provably-in-range values stay fine.
+
+boundary trait Console {
+    machine exit_process(code: i32)
+    effects
+        process_exit;
+}
+
+data Main {
+    console: Console;
+    big: i64 in Wrapping;
+}
+
+machine Main::take_i8(&mut self, x: i8) -> i32 {
+    transition { _ -> (x as i32) }
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.big = 300;
+    let v: i32 = self.take_i8(self.big); // i64 -> i8 param, value-position: narrowing
+
+    transition { _ -> done(v) }
+    state done(&mut self, code: i32) {
+        self.console.exit_process(code);
+    }
+}

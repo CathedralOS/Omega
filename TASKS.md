@@ -3100,31 +3100,28 @@ exit.
   value_call_arg_class_mismatch_rejected.
   Whole cross-class-store family (assignment literal/place + call/transition/host
   arg + value-position arg) now CLOSED -- see [[literal-class-assignment-miscompile]].
-- [~] NARROWING at the CALL-ARGUMENT boundary -- decision-17 5th boundary, SILENT
-  MISCOMPILE. STATEMENT-call + TRANSITION-target args LANDED 2026-07-04; value-
-  position args REMAIN (below). `self.take_i8(self.big)` where `big: i64 = 300`,
-  param `x: i8` used to compile+run silently truncating 300 -> 44; now the
-  statement/transition positions reject it like the assignment boundary does.
+- [x] NARROWING at the CALL-ARGUMENT boundary -- decision-17 5th boundary, SILENT
+  MISCOMPILE, FULLY CLOSED 2026-07-04 (2 commits). All arg positions --
+  statement-call, transition-target, host/boundary, AND value-position
+  (`let v: i32 = self.take_i8(self.big)`) -- used to compile+run silently
+  truncating i64 300 -> i8 44; now rejected like the assignment boundary.
   Fix: `report_narrowing_argument` (calls.rs) runs validate_value_range(arg, env,
   Some(param_primitive)) into a THROWAWAY buffer + check_narrowing_assignment into
-  the real diagnostics (so ONLY narrowing is added, not the arg's own overflow
-  obligation). Threaded `&ValueEnv` through validate_call_node (5 sites) +
-  validate_transition_target_node -> validate_call_arguments_handles. Honors
-  dominating guards via the flow-sensitive env (a one-sided `< 100` guard still
-  rejects -- low end unbounded -- proving the env is consulted). Class check runs
-  first; narrowing only when classes agree (so no double-report). Message reworded
-  "narrowing assignment" -> "narrowing store" (reads for both boundaries; no test
-  asserted on it). ZERO blast radius (584 canaries + samples-compile clean -- real
-  code never relied on implicit arg narrowing, matching the assignment rollout).
-  Locked by fail canary narrowing_call_arg_rejected.
-  STILL OPEN -- VALUE-position args (`let v: i32 = self.take_i8(self.big)`, repro
-  `canaries/pending/arithmetic/narrowing_call_arg_not_checked`): these run in the
-  SEPARATE post-pass validate_value_position_calls (lib.rs ~137) with the env in
-  its FINAL, not per-statement, state. Fix = move that walk inside the per-statement
-  loop (pass the current `&ValueEnv`), then add `report_narrowing_argument` beside
-  the existing `report_cross_class_argument` at the 5 branches of
-  validate_expression_call_bounds. Sibling: transition-VALUE overflow
-  ([[narrowing-store-proof-obligation]]).
+  the real diagnostics (ONLY narrowing added, not the arg's own overflow). Threaded
+  `&ValueEnv` through validate_call_node (5 sites) + validate_transition_target_node
+  + validate_call_arguments_handles (statement/transition), AND through
+  scan_expression_calls -> validate_expression_call_bounds ->
+  validate_value_call_argument_classes (value-position). The value-position pass
+  was RESTRUCTURED from a post-pass to run PER-STATEMENT (lib.rs) so it sees the
+  correct flow-sensitive env (before the statement records its own effects). Class
+  check runs first; narrowing only when classes agree (no double-report). Honors
+  dominating guards (a one-sided `< 100` guard still rejects -- low end unbounded --
+  proving the env is consulted). Message reworded "narrowing assignment" ->
+  "narrowing store". ZERO blast radius (585 canaries + samples-compile clean).
+  Locked by fail canaries narrowing_call_arg_rejected (statement/transition) +
+  narrowing_value_call_arg_rejected (value-position).
+  SIBLING still open: transition-VALUE overflow (`_ -> (a+b)` arithmetic overflow),
+  noted in [[narrowing-store-proof-obligation]] -- distinct from narrowing.
 - [ ] Broaden persistent machine/state mutation coverage beyond isolated
   micro-shapes toward dungeon-sample blockers.
 - [ ] Link final-image imports/fixups back to source and lowered boundary-edge
