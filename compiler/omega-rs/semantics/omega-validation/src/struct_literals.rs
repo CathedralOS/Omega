@@ -496,6 +496,27 @@ pub(crate) fn validate_array_literal_elements(
                 );
             }
         }
+        // NESTED array element type (`[[i32; 2]; 2] = [[1, 2], [3, 4, 5]]`): each
+        // element is itself an array literal, so recurse to check its length +
+        // elements against the inner element type. Without this the inner
+        // over-length was silently accepted (the extra element truncated away). The
+        // recursion terminates: the element type is strictly smaller each level.
+        None if matches!(
+            program.type_reference_table.type_reference(element_type),
+            TypeReferenceNode::FixedArray { .. }
+        ) =>
+        {
+            for element in element_handles {
+                validate_array_literal_elements(
+                    program,
+                    machine,
+                    state,
+                    *element,
+                    element_type,
+                    diagnostics,
+                );
+            }
+        }
         // DATA (non-primitive) element type: a wrong-data-type element
         // (`[Foo; N] = [self.bar, ..]`) is otherwise silently accepted. Nominal guard.
         None => {
