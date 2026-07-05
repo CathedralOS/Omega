@@ -500,14 +500,55 @@ exist, and `String`/`Bytes` are not among them:
 &[u8]   in Utf8           // text view, zero-copy
 Vec<u8> in Utf8           // owned text (needs the allocator)
 [u8; N] in Utf8           // fixed text buffer
-
-// Encodings are validity domains over the byte container. (`[u8]` is the
-// surface spelling of `Slice<u8>`, which is the nominal carrier the domain
-// binds to -- the same move as `domain i32::Degrees`, one generic level up.)
-domain Slice<u8>::Utf8  when valid_utf8(self)      { /* facts decode relies on */ }
-domain Slice<u8>::Ascii when all_below(self, 0x80) { self in Slice<u8>::Utf8; }
-domain Slice<u8>::NoNul when no_interior_nul(self) { }
 ```
+
+**Encodings are ordinary library code — the compiler has ZERO encoding
+intrinsics (settled 2026-07-05).** `Utf8` is no more special than `Ascii`,
+`Utf16`, or Shift-JIS; each is a validity *domain* over the byte container,
+defined in `core`, with no compiler privilege. There is no blessed `valid_utf8`
+primitive. A domain's body **is** its predicate; the compiler's only string
+job is turning quoted text into bytes (copy source bytes + byte-level escapes;
+no codepoint synthesis, ASCII-transparent source). Litmus: delete every encoding
+from the library and the compiler must still lex and parse — it just can't
+establish `in <encoding>` on anything, which is correct.
+
+Simple, *per-element* encodings are a boolean expression directly; a *sequence*
+property like UTF-8 is a pure, terminating machine over the bytes (see the
+recogniser below):
+
+```omega
+domain Slice<u8>::Ascii { all_below(self, 0x80) }   // per-element predicate (library code)
+domain Slice<u8>::NoNul { no_interior_nul(self) }   // per-element predicate
+domain Slice<u8>::Utf8  { utf8_ok(self) }           // sequence recogniser (below)
+```
+
+`utf8_ok` is an ordinary machine, not a builtin. Recursion is banned (a machine
+self-call is a stack call), so a sequence walk is a **state machine that narrows
+the slice** — slicing over indexing, no index variable:
+
+```omega
+machine utf8_ok(b: &[u8]) -> bool {
+    transition { _ -> scan(b) }
+    state scan(b: &[u8]) {
+        transition {
+            b.len == 0          -> accept()
+            b[0] < 0x80         -> scan(b[1..])                            // ASCII
+            b[0] in 0xC2..=0xDF && b.len >= 2 && cont(b[1]) -> scan(b[2..]) // 2-byte
+            // 3-/4-byte arms; E0/ED/F0/F4 tighten cont(b[1]) to a lead-specific
+            // range to exclude overlong/surrogate encodings
+            _                   -> reject()
+        }
+    }
+    state accept() -> bool { true }
+    state reject() -> bool { false }
+}
+machine cont(x: u8) -> bool { x in 0x80..=0xBF }
+```
+
+The bytes' bounds fall out of the arm guards (`b.len == 0` + the `b.len >= k`
+checks), so the walk is memory-safe by the ordinary array-access proofs. The
+same machine evaluates over a literal at compile time (to discharge an `as`) and
+runs at runtime to establish membership — one definition, no separate spec.
 
 Host and ABI boundaries then ask for the domain they actually need, with no
 bespoke type per case:
@@ -554,8 +595,8 @@ The hard part is not the surface idea; it is proving sequence-wide invariants
 over runtime text, which is why this is staged rather than a single
 byte-by-byte predicate everywhere:
 
-- validate the encoding ONCE at the ingest boundary (the `when valid_utf8`
-  classifier/checker), establishing `in Utf8` as a fact;
+- validate the encoding ONCE at the ingest boundary (running the `utf8_ok`
+  recogniser), establishing `in Utf8` as a fact;
 - carry that fact; never re-scan;
 - prove a small set of *preservation* lemmas as operator contracts (concat
   preserves `Utf8`; boundary-`slice` preserves it) so downstream code keeps the

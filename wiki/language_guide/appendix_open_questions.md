@@ -347,11 +347,14 @@ This page tracks design pressure that is not fully nailed down yet.
 - How should Omega express and prove sequence-wide domains over runtime text
   (decided direction; see ch8 "Domains On Strings And Encodings")? Encoding
   validity is a domain over the byte container (`Slice<u8>::Utf8`, `::NoNul`,
-  ...); the byte-level proof tax is avoided by validating once at the ingest
-  boundary (a `when valid_utf8` classifier/checker), carrying `in Utf8` as a
-  fact, and discharging a few preservation lemmas as operator contracts (concat
-  and boundary-slice preserve UTF-8) so downstream code never re-scans. Richer
-  sequence-wide invariants are staged later.
+  ...) with ZERO compiler encoding intrinsics (settled 2026-07-05) — the domain
+  body is a pure predicate, and a sequence property is a recursion-free state
+  machine that narrows the slice (the `utf8_ok` recogniser in ch8), not a blessed
+  `valid_utf8` primitive. The byte-level proof tax is avoided by validating once
+  at the ingest boundary (running that recogniser), carrying `in Utf8` as a fact,
+  and discharging a few preservation lemmas as operator contracts (concat and
+  boundary-slice preserve UTF-8) so downstream code never re-scans. Richer
+  sequence-wide invariants (the loop-invariant/inductive prover) are staged later.
 - When domains can participate in operator resolution, what exact ambiguity
   rules should apply, and which concepts should remain ordinary value domains
   versus a separate evaluation-mode/policy system?
