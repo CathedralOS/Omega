@@ -464,6 +464,25 @@ fn validate_state_statement_node(
                     if let TransitionTargetNode::Value(return_expression) =
                         program.statement_table.transition_target(target)
                     {
+                        // Cross-class guard: `_ -> (true)` returning a bool from an
+                        // i32-returning machine is a silent miscompile. The terminal
+                        // `{ true }` return form is caught by the general shape gate;
+                        // the transition-VALUE form was not. Class complement of the
+                        // range/overflow/narrowing check below.
+                        if let Some(return_primitive) =
+                            program.primitive_type_reference(state.return_type)
+                        {
+                            expression_types::report_cross_class_store(
+                                program,
+                                machine,
+                                Some(state),
+                                *return_expression,
+                                return_primitive,
+                                &format!("machine `{}` state `{state_name}`", machine.name),
+                                "return value",
+                                diagnostics,
+                            );
+                        }
                         arithmetic_domains::validate_return_value_range(
                             program,
                             machine,
