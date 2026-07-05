@@ -112,6 +112,7 @@ step "contracts — static discharge and runtime asserts agree (soundness)" epsi
 # untrusted proof elaborator (named binders -> raw certs); skipped if python3 is absent
 if command -v python3 >/dev/null 2>&1; then
   step "tool — proof elaborator (named binders -> check.beta)" delta elab-test.sh gamma
+  step "tool — proof-library cross-check (WHOLE corpus decided identically by check.beta AND check_ref.py; perturbations rejected)" delta proofs-crosscheck.sh gamma beta beta-lang beta-lang-rs
   step "tool — elaborator/de-elaborator round-trip on the corpus" delta delab-roundtrip.sh gamma
   step "tool — proof-search front line (prover discharges; check.beta validates)" delta prover-test.sh gamma
   step "tool — prover diamond (prover certs accepted by check.beta AND checker.gamma)" delta prover-diamond.sh gamma
