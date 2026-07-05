@@ -822,6 +822,15 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 - **Demolition (after the engine):** rip out `ByteSequencePredicate` + the blessed-predicate
   grant path; move encodings to `core` as recursive-predicate domains; rewrite every
   `domain ... when valid_utf8(self)` site (~dozens + dungeon); re-green corpus.
+- [ ] **TASK — KILL builtin `string` / `String` (Zach, 2026-07-05: "how is this not
+  retired yet").** The `PrimitiveType::String` builtin + the `string` unsized view must go;
+  text is `[u8] in <encoding domain>`, never a nominal type. This is #66's endgame. Blocked
+  on the mint being real: `<literal|bytes> as [u8] in Utf8` needs (a) comptime-eval in
+  value/refinement position and (b) the loop-invariant/inductive prover for the runtime case
+  (both above). Once minting works: sweep ~185 files + ~57 canaries + the dungeon off
+  `string`/`String` onto `[u8] in Utf8`, delete `PrimitiveType::String` and its ~16 backend
+  special-cases, retire the `string` keyword. Recipe: wiki/architecture/string_retirement_execution.md.
+  NOT a background-tick item — it's the capstone of the whole encoding-domains arc.
 - **Invariant spelling (settled 2026-07-05):** NO `predicate` or `invariant` keyword —
   the domain block body IS the boolean expression (`domain P::Vulnerable { self.health >= 1
   && !self.in_cutscene }`). A "predicate" is just a comptime-eligible (pure+total) machine
