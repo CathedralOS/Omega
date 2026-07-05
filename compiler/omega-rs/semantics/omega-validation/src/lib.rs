@@ -172,7 +172,7 @@ fn validate_state_statement_node(
                 assignment.target,
                 writable_roots,
                 diagnostics,
-                machine.name.as_str(),
+                machine,
                 state_name,
             );
             let assignment_target_primitive = places::declared_place_type(

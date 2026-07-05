@@ -1,0 +1,23 @@
+// FAIL canary: a direct `self.<field>` write to a field that does not exist (a typo
+// -- `self.cont` for `self.count`) is rejected at type-check with a clear "data X has
+// no field Y" error, NOT the misleading "not mutable" message and NOT an opaque
+// backend "needs mutation lowering". The check is scoped to direct `self.<field>`
+// targets against the machine's top-level data fields; nested / local / versioned
+// targets are left to the writable-roots and version-access diagnostics.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    count: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.cont = 5; // typo -- the field is `count`
+    transition { _ -> done() }
+    state done(&mut self) {
+        self.console.exit_process(self.count);
+    }
+}

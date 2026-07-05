@@ -859,6 +859,30 @@ fn exact_overflow_value_call_hint_canary_is_rejected() {
 }
 
 #[test]
+fn unknown_field_write_rejected_canary_is_rejected() {
+    // A direct `self.<field>` write to a nonexistent field (a typo) is rejected at
+    // type-check with a clear "data X has no field Y", not the misleading "not
+    // mutable" or an opaque backend lowering error.
+    let canary = fail_canary("arithmetic/unknown_field_write_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected unknown-field write canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("has no field `cont`"),
+        "expected a clear unknown-field diagnostic naming the missing field, got:\n{combined}"
+    );
+}
+
+#[test]
 fn u64_literal_above_i64_max_canary_is_rejected() {
     // A u64 literal above i64::MAX (the literal value is carried as i64 through the IR) is
     // rejected with a CLEAR "exceeds the i64 range" diagnostic that names the real

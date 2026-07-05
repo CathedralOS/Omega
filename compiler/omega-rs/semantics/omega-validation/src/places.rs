@@ -1,7 +1,10 @@
 use crate::locals::WritableRoots;
+use crate::struct_literals::data_declares_field;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
+use omega_typed_trees::data::DataDefinition;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_typed_trees::machine::Machine;
 use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn validate_assignment_target_handle(
@@ -9,12 +12,32 @@ pub(crate) fn validate_assignment_target_handle(
     target: ExpressionHandle,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
-    machine_name: &str,
+    machine: &Machine,
     state_name: &str,
 ) {
+    let machine_name = machine.name.as_str();
     if !is_mutable_place_handle(program, target) {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{machine_name}` state `{state_name}` assignment target must be a named place"
+        )));
+        return;
+    }
+
+    // A direct `self.<field>` target must name an actual field of the machine's
+    // attached data. An unknown field (a typo) gets a clear "no field" error instead
+    // of falling through to the "not mutable" message, which cannot tell a
+    // nonexistent field from a real-but-immutable one. Scoped to the DIRECT
+    // `self.<field>` shape (checked against the top-level data fields, which is
+    // exactly the set writable via `self.<field>`); nested `self.a.b` and bare locals
+    // are left to the existing writable-roots check.
+    if let Some(field_name) = direct_self_field_member(program, target)
+        && let Some(data) = machine_attached_data(program, machine)
+        && !data_declares_field(program, data, field_name)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{machine_name}` state `{state_name}` assignment: data `{}` has no field \
+             `{field_name}` (check the spelling of the field name)",
+            data.name.as_str()
         )));
         return;
     }
@@ -72,6 +95,56 @@ fn expression_root_name_handle(program: &TypedTrees, expression: ExpressionHandl
             .map(|name| name.as_str()),
         _ => None,
     }
+}
+
+/// The field name of a DIRECT `self.<field>` place, whether it lowered as a
+/// `Member(Name([self]), field)` or a two-segment `Name([self, field])` path.
+/// `None` for anything deeper (`self.a.b`), a bare local, or a non-`self` receiver.
+fn direct_self_field_member(program: &TypedTrees, target: ExpressionHandle) -> Option<&str> {
+    match program.expression_table.expression(target) {
+        ExpressionNode::Member(member) => {
+            let ExpressionNode::Name(path) =
+                program.expression_table.expression(member.receiver)
+            else {
+                return None;
+            };
+            let receiver = program.expression_table.name_path_members(path.members);
+            (receiver.len() == 1 && receiver[0].as_str() == "self")
+                .then(|| member.member.as_str())
+        }
+        ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            (members.len() == 2 && members[0].as_str() == "self")
+                .then(|| members[1].as_str())
+        }
+        _ => None,
+    }
+}
+
+/// The machine's attached-data `DataDefinition`, resolved by name. `None` for a
+/// machine with no attached data (a free machine) or an unresolvable data name.
+fn machine_attached_data<'a>(
+    program: &'a TypedTrees,
+    machine: &Machine,
+) -> Option<&'a DataDefinition> {
+    let attached = machine.attached_data.as_ref()?;
+    // VERSIONED data (`Counter::v1`) has version-specific fields that a naive
+    // top-level field list does not capture (a cross-version field like `timestamp`
+    // is legally reachable but not in this version's `data_members`). Skip the
+    // unknown-field check for it -- leave those to the version-access / writable-roots
+    // diagnostics -- rather than mis-report "no field".
+    if attached
+        .as_str()
+        .rsplit("::")
+        .next()
+        .is_some_and(omega_core::versioning::is_version_selector)
+    {
+        return None;
+    }
+    program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == attached.as_str())
 }
 
 /// The DECLARED type of a simple place argument: a bare local/parameter name

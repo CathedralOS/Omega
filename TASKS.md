@@ -3023,24 +3023,23 @@ exit.
   still does not close. This points at needing a registered Omega window class
   plus a real WndProc/close path instead of relying on borrowed
   predefined-class DefWindowProc behavior.
-- [ ] DIAGNOSTIC GAP (dogfooded 2026-07-04): an UNKNOWN FIELD access (a typo like
-  `self.cont` for `self.count`) is NOT validated at type-check. In a READ position
-  (`let x = self.cont`) `--check` passes SILENTLY (exit 0, no error); in a WRITE
-  (`self.cont = 5`) it is MISDIAGNOSED as "cannot write `cont` because it is not
-  mutable in this state" (places.rs:28 -- writable_roots.contains(root) is false for
-  a nonexistent field AND an immutable one, conflating them). A full compile then
-  fails opaquely ("`self.cont` ... needs mutation lowering") -- NOT a silent
-  miscompile, but bad UX (the backend catches what the type checker should). FIX =
-  a member-field-existence validation pass emitting "data `Main` has no field `cont`"
-  (ideally "did you mean `count`?"). CARE (why it's a focused session, not a tick):
-  member access has MANY valid forms -- data fields, case payloads, era fields,
-  domain members, boundary methods, nested `a.b.c` -- so a naive "field exists"
-  check false-positives; and a bare-local write (`x = 5`) must NOT be checked
-  against data fields. Distinguish by target shape (`self.<member>` -> check the
-  data type's fields; bare Name -> locals). Detectable signal: an unknown field
-  leaves an invalid member symbol (name_paths.rs lowers the tail to the resolved
-  field symbol; unresolved = invalid). Sibling existing checks: struct_literals.rs
-  ("data X has no field Y"), wire.rs.
+- [ ] UNKNOWN-FIELD validation -- WRITE side LANDED 2026-07-04, READ side remains.
+  A direct `self.<field>` WRITE to a nonexistent field (a typo `self.cont`) now gives
+  a clear "data `Main` has no field `cont`" at type-check (places.rs
+  `validate_assignment_target_handle` + `direct_self_field_member` +
+  `machine_attached_data`, reusing struct_literals `data_declares_field`), instead of
+  the misleading "not mutable" / opaque backend "needs mutation lowering". Scoped to
+  DIRECT `self.<field>` (checked against top-level fields = exactly the writable set);
+  VERSIONED data is excluded (its fields are version-specific -- `is_version_selector`
+  guard -- else it false-positived on cross_version_field_access `timestamp`). Locked
+  by fail canary arithmetic/unknown_field_write_rejected.
+  STILL OPEN: (a) a READ (`let x = self.cont`) passes `--check` SILENTLY (no error);
+  full compile fails opaquely. (b) NESTED `self.a.b` and non-self member reads/writes
+  are unchecked. The general fix is a member-expression validation walk over ALL
+  member accesses keyed on the resolved member symbol's validity (an unknown field
+  leaves an invalid symbol; name_paths.rs), careful across the valid member forms
+  (case payloads, era fields, domain members). A "did you mean `count`?" edit-distance
+  suggestion would further improve the write message.
 - [ ] Broaden persistent machine/state mutation coverage beyond isolated
   micro-shapes toward dungeon-sample blockers.
 - [ ] Link final-image imports/fixups back to source and lowered boundary-edge
