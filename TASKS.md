@@ -3154,10 +3154,16 @@ exit.
   whole tail). Locked by fail canaries wrong_struct_type_{argument,assignment}_
   rejected. So the nominal wrong-data-type guard now covers the SAME position set as
   the scalar cross-class family, via the shared report_data_type_conflict.
-  REMAINING (frontier): data-typed ARRAY element mismatch (`[Foo;N] = [self.bar,..]`);
-  and the broader full-type-compat edge cases (self-type params, bounded/nested
-  generics, trait-object variance) -- deliberately out of the concrete-data-name
-  safe subset.
+  DATA-TYPED ARRAY ELEMENTS ALSO CLOSED 2026-07-04: `[Foo; N] = [self.bar, ..]`
+  (validate_array_literal_elements now branches -- scalar element => class+narrowing,
+  data element => report_data_type_conflict per element; wired at all 4 array
+  positions via the existing helper). Zero blast radius (598 canaries). Canary
+  wrong_struct_type_array_element_rejected. So the nominal guard now covers EVERY
+  position the scalar family does, plus array elements.
+  REMAINING (genuine full-type-compat frontier, deliberately outside the concrete-
+  data-name safe subset): self-type params, bounded/nested generics, trait-object
+  variance, versioned-data compat -- a focused type-checker feature, not a store-
+  position sweep.
 - [x] CROSS-CLASS LET-INITIALIZER -- SILENT MISCOMPILE CLOSED 2026-07-04 (7th
   position; a gap in THIS session's own coverage -- the LocalData path carried the
   narrowing check but not the class check, so `let x: i32 = true` / `= self.b`

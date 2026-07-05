@@ -1271,6 +1271,30 @@ fn wrong_struct_type_assignment_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn wrong_struct_type_array_element_rejected_canary_is_rejected() {
+    // NOMINAL type confusion at an array-literal element (`[self.bar, ..]` into a
+    // `[Foo; 2]`) is rejected -- the array element check now runs the nominal guard
+    // for data element types, not only the scalar class/width check.
+    let canary = fail_canary("arithmetic/wrong_struct_type_array_element_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected wrong-struct-type-array-element canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("expects the `Foo` data type but got `Bar`"),
+        "expected a clear nominal-type-mismatch diagnostic at the array element, got:\n{combined}"
+    );
+}
+
+#[test]
 fn unknown_field_read_rejected_canary_is_rejected() {
     // A READ of a nonexistent field (a typo) in an expression is rejected at
     // type-check ("reads `self.cont`, but data X has no field `cont`"), not silently
