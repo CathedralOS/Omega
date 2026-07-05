@@ -20470,6 +20470,7 @@ fn executable_name() -> &'static str {
 }
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
+    "arithmetic/bare_name_scopes",
     "traits/boundary_trait_effects_host_call",
     "traits/dyn_trait_object_dispatch",
     "capabilities/uses_caller_folder",
@@ -21074,6 +21075,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "arithmetic/undeclared_bare_name_rejected",
     "layouts/plan_laid_dynamic_plan",
     "layouts/plan_laid_policy_without_plan_machine",
     "control_flow/if_statement_retired",

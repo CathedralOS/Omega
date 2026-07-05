@@ -13,6 +13,7 @@ use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::type_references::type_reference_label;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
+use omega_typed_trees::data::DataMember;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use omega_typed_trees::machine::Machine;
 use omega_typed_trees::name::Identifier;
@@ -817,6 +818,71 @@ pub(crate) fn validate_value_position_calls(
     }
 }
 
+/// Is `name` a legal single-segment BARE name in the body of `machine`?
+///
+/// A bare `Name` resolves to a field (implicit `self`), a top-level symbol (type
+/// / machine / platform / trait), an enum case constant (`Red`), or a local/
+/// parameter. The binding scope for locals and parameters is the WHOLE machine,
+/// not one state: a sub-state legitimately reads a parameter or `let` declared on
+/// the machine's entry (or an ancestor) state (`state nonpos` reading the entry
+/// state's `n`). We therefore scan every state's parameters and `LocalData`.
+///
+/// The allow-list is deliberately GENEROUS -- scanning ALL states over-approximates
+/// the true lexical scope, so an out-of-scope-but-declared name is accepted (an
+/// UNDER-rejection, never a false rejection of a real name). The sole goal is to
+/// catch a name that exists NOWHERE (a typo reading as 0/garbage).
+fn is_known_bare_name(
+    program: &TypedTrees,
+    machine: &Machine,
+    machine_symbols: &MachineSymbols<'_>,
+    symbols: &TopLevelSymbols<'_>,
+    name: &str,
+) -> bool {
+    // Field of the receiver data (bare `fld` == `self.fld`), owned data, or a
+    // contained object.
+    if machine_symbols.has_member(name)
+        || machine_symbols.has_owned_data(name)
+        || machine_symbols.contained_type(name).is_some()
+    {
+        return true;
+    }
+    // Top-level symbol: a type, machine, platform, or trait spelled bare.
+    if symbols.has_type(name)
+        || symbols.machine(name).is_some()
+        || symbols.platform(name).is_some()
+        || symbols.trait_definition(name).is_some()
+    {
+        return true;
+    }
+    // Enum case constant used bare (`let s: Signal = Red`).
+    for definition in program.data_definitions() {
+        for member in program.data_members(definition) {
+            if let DataMember::Variant(variant) = member
+                && variant.name.as_str() == name
+            {
+                return true;
+            }
+        }
+    }
+    // Parameter or local declared on ANY state of this machine (whole-machine
+    // scope -- see the doc comment).
+    for other in program.machine_states(machine) {
+        for parameter in program.state_parameters(other) {
+            if parameter.name.as_str() == name {
+                return true;
+            }
+        }
+        for statement in program.statement_table.statements(other.statement_nodes) {
+            if let StatementNode::LocalData(local) = statement
+                && local.name.as_str() == name
+            {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 /// Recursively scan `expression` for `ExpressionNode::Call` nodes and
 /// validate machine-call type-parameter bounds for each one found.
 #[allow(clippy::too_many_arguments)]
@@ -851,6 +917,30 @@ fn scan_expression_calls(
             state.name.as_str(),
             data.name.as_str()
         )));
+    }
+    // Unknown BARE NAME: a SINGLE-segment name (`undeclared_var`, not `self.x` or
+    // `Type::Case`) that resolves to nothing is otherwise silently accepted and reads
+    // as 0/garbage. Reject it when it is none of the legal bare-name forms. The scope
+    // is the whole MACHINE (a sub-state may read the entry state's params/locals), and
+    // `true`/`false` are single-segment `Name` nodes here, so they are skipped. The
+    // allow-list is deliberately GENEROUS -- an unrecognised valid form only
+    // UNDER-rejects (misses a typo), never falsely rejects a real name.
+    if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+        && let [only] = program.expression_table.name_path_members(path.members)
+    {
+        let name = only.as_str();
+        if name != "self"
+            && name != "true"
+            && name != "false"
+            && !is_known_bare_name(program, machine, machine_symbols, symbols, name)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}` uses `{name}`, which is not a declared local, \
+                 parameter, field, or type (check the spelling)",
+                machine.name.as_str(),
+                state.name.as_str(),
+            )));
+        }
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Call(call) => {
