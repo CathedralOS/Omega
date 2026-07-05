@@ -20471,6 +20471,7 @@ fn executable_name() -> &'static str {
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/bare_name_scopes",
+    "arithmetic/shift_amount_over_width_compiles",
     "traits/boundary_trait_effects_host_call",
     "traits/dyn_trait_object_dispatch",
     "capabilities/uses_caller_folder",
