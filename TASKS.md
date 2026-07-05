@@ -3149,6 +3149,18 @@ exit.
   value_call_arg_class_mismatch_rejected.
   Whole cross-class-store family (assignment literal/place + call/transition/host
   arg + value-position arg) now CLOSED -- see [[literal-class-assignment-miscompile]].
+- [x] ARRAY-LITERAL LENGTH MISMATCH -- SILENT MISCOMPILE CLOSED 2026-07-05. A fixed-
+  array literal whose element count != the target `[T; N]` compiled with NO error:
+  `[i32; 2] = [1,2,3,4]` wrote 4 elements PAST the 2-slot storage into adjacent fields
+  (a BUFFER OVERFLOW / memory corruption -- verified silent), and `[i32; 4] = [1,2,3]`
+  left the trailing slot reading uninitialized. `validate_array_literal_elements`
+  checked each element's class/narrowing/nominal but never the COUNT. Fix: bind the
+  `FixedArray` `length` and, for a resolved `Literal` N, require exactly N elements
+  (returns before per-element checks so the count error isn't buried; generic
+  `ConstParameter` lengths skipped -- unknown until instantiation). Applies at ALL
+  FOUR array-literal positions (assignment/struct-field/let-init/call-arg) for free.
+  Zero regressions (whole tail: canaries + samples_compile + differential; no sample
+  relied on partial/over-init). Fail canaries array_literal_too_{few,many}_rejected.
 - [x] RUNTIME-INDEXED ELEMENT STORE -- SILENT MISCOMPILE CLOSED 2026-07-04 (9th store
   position). `self.xs[self.i] = true` stored the bool as `1` into an `[i32; N]`
   element (verified silent: exit 1) and `self.xs[i] = 300` into `[i8; N]` skipped the

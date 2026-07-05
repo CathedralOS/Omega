@@ -1,0 +1,13 @@
+// A fixed-array literal with MORE elements than the target `[T; N]` used to compile
+// silently and write PAST the array's storage into adjacent fields -- a buffer
+// overflow / memory corruption with no error at any phase (verified: 4 elements into
+// `[i32; 2]` compiled + ran). A `[T; N]` literal must supply exactly N elements.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main { console: Console; xs: [i32; 2]; }
+
+machine Main::main(&mut self) {
+    self.xs = [1, 2, 3, 4]; // 4 elements into [i32; 2] -- overflows past bounds, must be rejected
+    self.console.exit_process(0);
+}
