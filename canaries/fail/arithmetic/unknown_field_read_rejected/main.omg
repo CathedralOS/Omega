@@ -1,0 +1,23 @@
+// FAIL canary: a READ of a nonexistent field (a typo -- `self.cont` for `self.count`)
+// in an expression is now rejected at type-check with "reads `self.cont`, but data X
+// has no field `cont`", instead of silently passing `--check` and only failing later
+// with an opaque backend error. Complements unknown_field_write_rejected (the write
+// side). Same scoping: direct `self.<field>` against top-level data fields.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    count: i32 in Wrapping;
+    r: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.r = self.cont + 1; // typo -- the field is `count`
+    transition { _ -> done() }
+    state done(&mut self) {
+        self.console.exit_process(self.r);
+    }
+}

@@ -3,6 +3,7 @@ use crate::expression_types::{
 };
 use crate::locals::WritableRoots;
 use crate::places::declared_place_type;
+use crate::struct_literals::data_declares_field;
 use crate::properties::{
     declared_property_names, referenced_type_parameter, type_satisfies_declared_property,
 };
@@ -594,6 +595,24 @@ fn scan_expression_calls(
 ) {
     if !expression.is_valid() {
         return;
+    }
+    // Unknown-field READ: a direct `self.<field>` read of a nonexistent field (a typo)
+    // gets a clear error instead of silently passing type-check. Mirrors the
+    // assignment-target write check (places.rs): scoped to a direct `self.<field>`
+    // against the machine's top-level data fields, versioned data excluded. Nested
+    // `self.a.b` (checked at `a` when the recursion reaches the receiver) and non-self
+    // members are left alone. The recursion continues afterward.
+    if let Some(field_name) = crate::places::direct_self_field_member(program, expression)
+        && let Some(data) = crate::places::machine_attached_data(program, machine)
+        && !data_declares_field(program, data, field_name)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` reads `self.{field_name}`, but data `{}` has no field \
+             `{field_name}` (check the spelling of the field name)",
+            machine.name.as_str(),
+            state.name.as_str(),
+            data.name.as_str()
+        )));
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Call(call) => {
