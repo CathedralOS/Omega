@@ -13,18 +13,30 @@
 // LOCAL (`let`), a PARAMETER, or a FIELD (implicit `self`, e.g. bare `fld` == `self.fld`).
 // All three verified accepted; a nonexistent bare name verified silently accepted.
 //
-// FIX SKETCH: in scan_expression_calls (calls.rs -- the value-position expression
-// walk, right beside the unknown-field READ check), for an `ExpressionNode::Name`
-// with EXACTLY ONE segment `n` (skip `self`): reject with "unknown name `n`" when
-// `n` is NOT a field (machine_symbols) AND NOT a local (state's LocalData names) AND
-// NOT a parameter (program.state_parameters(state)) AND NOT a top-level symbol
-// (machine / data / trait -- conservative). UNVERIFIED false-positive risk to
-// resolve first: whether a bare (single-segment) ENUM CASE constant is legal (the
-// corpus uses `Type::Case`, `::`-qualified, so bare cases appear unused -- but
-// CONFIRM before landing). Also the symbol-lookup API (has_member etc.) needs
-// locating -- it did not grep cleanly under `fn has_member`. MEASURE with the WHOLE
-// test tail incl. samples_compile (125 struct/enum-heavy samples) before landing;
-// this touches core name resolution, so the false-positive surface is real.
+// FIX SKETCH -- ATTEMPTED + REVERTED 2026-07-04 (18 whole-tail false positives).
+// The naive "1-segment Name not in {field, local, param, top-level symbol, enum
+// case}" check in scan_expression_calls IS NOT SUFFICIENT. The allow-list built
+// from machine_symbols.has_member/has_owned_data/contained_type + symbols.has_type/
+// machine/platform/trait_definition + state params + state LocalData + data-variant
+// cases correctly accepted a bare field/local/enum-case in isolation, but the whole
+// corpus surfaced TWO more legal forms it wrongly rejected:
+//   1. `true` / `false` are represented as single-segment `Name` nodes here (NOT
+//      Boolean-literal nodes) in some lowerings -- so a bare boolean tripped the
+//      check. Must special-case `true`/`false` (or, better, detect boolean-literal
+//      names earlier).
+//   2. CROSS-STATE SCOPE: a SUB-state reads a param/local of the machine's ENTRY (or
+//      an ancestor) state -- e.g. `state nonpos` reads `n`, `state mark_current_room`
+//      reads `room_index` -- which are declared on a DIFFERENT state. Looking up only
+//      `program.state_parameters(<current state>)` + the current state's LocalData
+//      MISSES these. The real scope is the machine's threaded binding environment
+//      across states, not one state's params/locals.
+// So the check needs the actual NAME-RESOLUTION SCOPE (threaded params/locals across
+// a machine's states + boolean-literal names), i.e. real name resolution -- a
+// focused-session feature, NOT the local-lookup sketch. Symbol API located (for the
+// eventual work): MachineSymbols::{has_member,has_owned_data,contained_type};
+// TopLevelSymbols::{has_type,machine,platform,trait_definition}; cases via
+// program.data_members -> DataMember::Variant. Bare enum cases ARE legal
+// (`let s: Signal = Red` compiles). MEASURE the whole tail (18 fp last time).
 
 boundary trait Console { machine exit_process(return_code: i32); }
 

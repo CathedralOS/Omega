@@ -3077,13 +3077,20 @@ exit.
   resolved for value but never checked for EXISTENCE. (`exit_process(undeclared)` is
   the related case the backend host-encoder catches with a MISLEADING "no encodable
   call sequence", not "unknown name".) Valid bare-name set probed: local / param /
-  field (implicit self). Repro + fix sketch parked at
-  `canaries/pending/arithmetic/undeclared_bare_name_not_checked`: check in
-  scan_expression_calls (beside the unknown-field READ check) for a 1-segment Name
-  not in {field, local, param, top-level symbol}. UNVERIFIED before landing: whether
-  a bare (unqualified) enum-case constant is legal (corpus uses `Type::Case`), and
-  the has_member symbol API location; MEASURE the whole tail incl. samples_compile --
-  touches core name resolution, real false-positive surface.
+  field (implicit self). Repro + FINDINGS parked at
+  `canaries/pending/arithmetic/undeclared_bare_name_not_checked`. NAIVE FIX ATTEMPTED
+  + REVERTED 2026-07-04 (18 whole-tail false positives): a "1-segment Name not in
+  {field, local, param, top-level symbol, enum case}" check in scan_expression_calls
+  is NOT sufficient -- two more legal forms it wrongly rejected: (1) `true`/`false`
+  are single-segment `Name` nodes (not Boolean-literal nodes) in some lowerings; (2)
+  CROSS-STATE SCOPE -- a sub-state reads a param/local of the ENTRY/ancestor state
+  (`state nonpos` reads `n`; `state mark_current_room` reads `room_index`), so one
+  state's params/locals is the WRONG scope. Needs REAL name-resolution scope
+  (threaded bindings across a machine's states + boolean-literal handling) = a
+  focused-session feature, not the local-lookup sketch. Bare enum cases ARE legal
+  (confirmed). Symbol API located: MachineSymbols::{has_member,has_owned_data,
+  contained_type}; TopLevelSymbols::{has_type,machine,platform,trait_definition};
+  cases via program.data_members -> DataMember::Variant.
 - [ ] CROSS-CLASS scalar assignment -- SILENT MISCOMPILE CLOSED 2026-07-04
   (literal + place, two waves same day). `self.i32 = true` (a `bool` literal) AND
   `self.i32 = self.bool_field` (a bool PLACE) BOTH used to pass `--check` and
