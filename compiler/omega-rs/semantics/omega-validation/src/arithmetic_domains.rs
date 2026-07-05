@@ -1262,12 +1262,13 @@ pub(crate) fn validate_return_value_range(
         enforce_declared_return_range(program, state.return_type, interval, owner, diagnostics);
         return;
     }
-    // Unconstrained return: this boundary does NOT overflow-check its expression
-    // today (a pre-existing gap, distinct from narrowing), so analyze into a
-    // THROWAWAY buffer to preserve that behavior, and add ONLY the narrowing
-    // store obligation -- a value that cleanly fits its source type but not the
-    // return type (`-> i8 { transition { _ -> (300) } }`) is a silent truncation.
-    let mut throwaway = Vec::new();
+    // Unconstrained return: analyze into the REAL diagnostics, emitting any exact-
+    // arithmetic overflow obligation just like every other value-binding boundary
+    // (`_ -> (x + y)` with full-range Exact operands would otherwise wrap silently).
+    // On a clean value, add the narrowing store obligation too -- a value that fits
+    // its source type but not the return type (`-> i8 { _ -> (300) }`) is a silent
+    // truncation.
+    let before = diagnostics.len();
     let (interval, source) = validate_value_range(
         program,
         machine,
@@ -1276,9 +1277,9 @@ pub(crate) fn validate_return_value_range(
         env,
         return_primitive,
         owner,
-        &mut throwaway,
+        diagnostics,
     );
-    if throwaway.is_empty() {
+    if diagnostics.len() == before {
         check_narrowing_assignment(return_primitive, interval, source, owner, diagnostics);
     }
 }

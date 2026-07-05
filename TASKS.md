@@ -3133,8 +3133,26 @@ exit.
   "narrowing store". ZERO blast radius (585 canaries + samples-compile clean).
   Locked by fail canaries narrowing_call_arg_rejected (statement/transition) +
   narrowing_value_call_arg_rejected (value-position).
-  SIBLING still open: transition-VALUE overflow (`_ -> (a+b)` arithmetic overflow),
-  noted in [[narrowing-store-proof-obligation]] -- distinct from narrowing.
+  SIBLING CLOSED 2026-07-04 (below): transition-VALUE arithmetic overflow.
+- [x] TRANSITION-VALUE arithmetic OVERFLOW -- decision-17 exact-arith at the
+  transition-value return boundary, SILENT MISCOMPILE, CLOSED 2026-07-04. The last
+  value-binding boundary that skipped the exact-overflow proof obligation:
+  `machine sum -> i32 { transition { _ -> (x + y) } }` with full-range Exact params
+  compiled + wrapped silently, while the ASSIGNMENT / LET / TERMINAL-expression
+  forms of the same `x + y` all errored. Fix: `validate_return_value_range`
+  (arithmetic_domains.rs) unconstrained branch stopped THROWING AWAY the analysis
+  buffer -- it now emits the overflow obligation into real diagnostics (then the
+  narrowing check on a clean value), mirroring the range-constrained branch beside
+  it. ZERO blast radius (586 canaries + samples-compile clean -- no sample relied on
+  the silent wrap). Locked by fail canary transition_value_overflow_rejected. Now
+  ALL value-binding boundaries (assignment, let-init, terminal, transition-value,
+  call-arg) enforce both decision-17 obligations (exact-overflow + narrowing)
+  uniformly.
+  NOTE (pre-existing, ALL boundaries, NOT introduced here): a one-sided
+  `requires x < 100` does NOT prove `x + 1` in range (the interval keeps x's low end
+  unbounded rather than intersecting the type's i32 low) -- terminal-expr rejects it
+  too. An interval-precision completeness gap (intersect a requires-bounded operand
+  with its type range), not a soundness issue; separate follow-up.
 - [ ] Broaden persistent machine/state mutation coverage beyond isolated
   micro-shapes toward dungeon-sample blockers.
 - [ ] Link final-image imports/fixups back to source and lowered boundary-edge
