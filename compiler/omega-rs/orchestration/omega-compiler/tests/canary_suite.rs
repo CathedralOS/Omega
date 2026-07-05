@@ -1173,6 +1173,30 @@ fn let_init_class_mismatch_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn return_value_class_mismatch_rejected_canary_is_rejected() {
+    // A cross-class transition-value return (`_ -> (true)` from an -> i32 machine)
+    // is rejected. This was a SILENT MISCOMPILE -- the terminal `{ true }` form was
+    // shape-gated, but the transition-value form was not class-checked.
+    let canary = fail_canary("arithmetic/return_value_class_mismatch_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected return-value class-mismatch canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("stores a boolean into a `i32` return value"),
+        "expected a clear cross-class return-value diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
 fn unknown_field_read_rejected_canary_is_rejected() {
     // A READ of a nonexistent field (a typo) in an expression is rejected at
     // type-check ("reads `self.cont`, but data X has no field `cont`"), not silently

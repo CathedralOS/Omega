@@ -3114,6 +3114,17 @@ exit.
   value_call_arg_class_mismatch_rejected.
   Whole cross-class-store family (assignment literal/place + call/transition/host
   arg + value-position arg) now CLOSED -- see [[literal-class-assignment-miscompile]].
+- [x] CROSS-CLASS transition-VALUE RETURN -- SILENT MISCOMPILE CLOSED 2026-07-04
+  (8th & final store position). `machine -> i32 { transition { _ -> (true) } }`
+  returned the bool as 1 silently: the TERMINAL `{ true }` return form is caught by
+  the general shape gate (validate_expression_type_handle), but the transition-value
+  form went through validate_return_value_range (range/overflow/narrowing) with no
+  class check. Fixed via the shared report_cross_class_store (slot_noun "return
+  value") beside the range check in lib.rs. Zero blast radius (594 canaries +
+  samples-compile, whole tail). Locked by fail canary
+  return_value_class_mismatch_rejected. ALL scalar value-binding positions --
+  assignment, let-init, call/transition/host/value-position arg, struct field,
+  array element, return value -- now enforce the cross-class guard.
 - [x] CROSS-CLASS LET-INITIALIZER -- SILENT MISCOMPILE CLOSED 2026-07-04 (7th
   position; a gap in THIS session's own coverage -- the LocalData path carried the
   narrowing check but not the class check, so `let x: i32 = true` / `= self.b`
