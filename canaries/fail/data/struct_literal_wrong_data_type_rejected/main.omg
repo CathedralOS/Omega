@@ -1,0 +1,9 @@
+// A struct literal of the wrong DATA type bound to a differently-typed slot
+// (`let a: A = B { .. }`) used to compile silently. The nominal check resolved a
+// PLACE value type but not a struct literal is own type name; now it does. Mirrors
+// the `&Bar`-for-`&Foo` place rejection.
+boundary trait Console { machine exit_process(return_code: i32); }
+data A { x: i32; }
+data B { y: i32; }
+data Main { console: Console; }
+machine Main::main(&mut self) { let a: A = B { y: 1 }; self.console.exit_process(0); }
