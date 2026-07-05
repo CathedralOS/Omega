@@ -46,8 +46,13 @@
 use omega::language::std::console;
 
 data State [copy, zero_init] {
-    multiplier: i32;
-    addend: i32;
+    // Wrapping so the value-return arithmetic below (`n * multiplier`,
+    // `n + addend`) has a defined overflow domain -- an Exact `n * field` over a
+    // full-range param carries a decision-17 overflow obligation at the
+    // transition-value return boundary. The probe's values are small (<= 28), so
+    // Wrapping is behaviourally identical here.
+    multiplier: i32 in Wrapping;
+    addend: i32 in Wrapping;
 }
 
 data Main {
@@ -57,14 +62,14 @@ data Main {
 }
 
 // Value-returning machine that reads self.st.multiplier.
-machine Main::scale(&mut self, n: i32) -> i32 {
+machine Main::scale(&mut self, n: i32 in Wrapping) -> i32 {
     transition {
         _ -> (n * self.st.multiplier)
     }
 }
 
 // Value-returning machine that reads self.st.addend.
-machine Main::offset_add(&mut self, n: i32) -> i32 {
+machine Main::offset_add(&mut self, n: i32 in Wrapping) -> i32 {
     transition {
         _ -> (n + self.st.addend)
     }
