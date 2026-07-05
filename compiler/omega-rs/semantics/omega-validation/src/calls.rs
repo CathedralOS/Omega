@@ -591,21 +591,13 @@ fn report_narrowing_argument(
         "machine `{}` state `{target_name}` argument `{}`",
         current_machine.name, parameter.name,
     );
-    let mut throwaway = Vec::new();
-    let (interval, source_primitive) = arithmetic_domains::validate_value_range(
+    arithmetic_domains::check_value_narrowing(
         program,
         current_machine,
         current_state,
         argument,
+        parameter_primitive,
         value_env,
-        Some(parameter_primitive),
-        &owner,
-        &mut throwaway,
-    );
-    arithmetic_domains::check_narrowing_assignment(
-        Some(parameter_primitive),
-        interval,
-        source_primitive,
         &owner,
         diagnostics,
     );

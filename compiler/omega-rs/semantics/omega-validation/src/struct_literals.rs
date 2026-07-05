@@ -7,9 +7,7 @@
 //! definition in this program (or is generic, where member types depend on
 //! instantiation) are left to later layers.
 
-use crate::arithmetic_domains::{
-    ValueEnv, check_narrowing_assignment, validate_arithmetic_domains, validate_value_range,
-};
+use crate::arithmetic_domains::{ValueEnv, check_value_narrowing, validate_arithmetic_domains};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::data::{DataDefinition, DataMember};
@@ -297,36 +295,23 @@ fn enforce_construction_field_obligations(
         // silent truncation at construction, the same decision-17 narrowing store
         // obligation the assignment / call-arg positions carry. The field range
         // check below only covers `[a..=b]`-refined fields; this covers the plain
-        // scalar width. The value's OWN arithmetic obligation is reported by the
-        // normal statement walk, so it goes to a throwaway buffer; only a clean
-        // value's narrowing is added here. (Flow-insensitive -- an empty env, like
-        // the field-range check below -- so a wider place must be `as`-cast or
-        // constrained at construction.)
+        // scalar width. Flow-insensitive (empty env, like the field-range check
+        // below), so a wider place must be `as`-cast or constrained at construction.
         if let Some(field_primitive) = program.primitive_type_reference(field_type) {
             let owner = format!(
                 "construction of `{type_name}` field `{}`",
                 field.name.as_str()
             );
-            let mut throwaway = Vec::new();
-            let (interval, source) = validate_value_range(
+            check_value_narrowing(
                 program,
                 machine,
                 Some(state),
                 field.value,
+                field_primitive,
                 &ValueEnv::new(),
-                Some(field_primitive),
                 &owner,
-                &mut throwaway,
+                diagnostics,
             );
-            if throwaway.is_empty() {
-                check_narrowing_assignment(
-                    Some(field_primitive),
-                    interval,
-                    source,
-                    &owner,
-                    diagnostics,
-                );
-            }
         }
         let Some(range) = crate::arithmetic_domains::range_constraint_interval(program, field_type)
         else {
@@ -431,20 +416,16 @@ pub(crate) fn validate_array_literal_elements(
             continue;
         }
         // Narrowing check: the element must fit the element type's width.
-        let mut throwaway = Vec::new();
-        let (interval, source) = validate_value_range(
+        check_value_narrowing(
             program,
             machine,
             Some(state),
             *element,
+            element_primitive,
             &ValueEnv::new(),
-            Some(element_primitive),
             &owner,
-            &mut throwaway,
+            diagnostics,
         );
-        if throwaway.is_empty() {
-            check_narrowing_assignment(Some(element_primitive), interval, source, &owner, diagnostics);
-        }
     }
 }
 
