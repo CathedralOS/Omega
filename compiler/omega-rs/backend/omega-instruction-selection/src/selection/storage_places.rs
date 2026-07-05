@@ -2746,37 +2746,21 @@ fn builtin_type_layout(
     None
 }
 
+/// Thin wrapper over the shared `omega_layout::primitive_layout` -- extracts this
+/// crate's pointer geometry + text-window descriptor from the runtime ABI and
+/// delegates, so the byte-width match is single-sourced in omega-layout.
 fn primitive_layout(
     input: &InstructionSelectionInput<'_>,
     primitive_type: PrimitiveType,
 ) -> TypeLayout {
-    match primitive_type {
-        PrimitiveType::Bool | PrimitiveType::I8 | PrimitiveType::U8 => TypeLayout {
-            size: 1,
-            alignment: 1,
+    let descriptor = input.runtime_abi.text_descriptor();
+    omega_layout::primitive_layout(
+        input.runtime_abi.pointer_size,
+        input.runtime_abi.pointer_alignment,
+        TypeLayout {
+            size: descriptor.total_size(),
+            alignment: descriptor.align(),
         },
-        PrimitiveType::I16 | PrimitiveType::U16 => TypeLayout {
-            size: 2,
-            alignment: 2,
-        },
-        PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => TypeLayout {
-            size: 4,
-            alignment: 4,
-        },
-        PrimitiveType::F64 | PrimitiveType::I64 | PrimitiveType::U64 => TypeLayout {
-            size: 8,
-            alignment: 8,
-        },
-        PrimitiveType::Usize | PrimitiveType::Isize | PrimitiveType::Addr => TypeLayout {
-            size: input.runtime_abi.pointer_size,
-            alignment: input.runtime_abi.pointer_alignment,
-        },
-        PrimitiveType::String => {
-            let descriptor = input.runtime_abi.text_descriptor();
-            TypeLayout {
-                size: descriptor.total_size(),
-                alignment: descriptor.align(),
-            }
-        }
-    }
+        primitive_type,
+    )
 }

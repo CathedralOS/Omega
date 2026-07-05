@@ -8,6 +8,7 @@ mod packing;
 mod sizing;
 
 pub use builder::build_layout_plan;
+pub use sizing::primitive_layout;
 
 /// Size (and alignment) of the i32 case tag that prefixes every enum-shaped
 /// data value. Comparing an enum value against a case constant compares ONLY

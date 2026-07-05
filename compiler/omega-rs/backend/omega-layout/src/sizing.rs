@@ -15,8 +15,20 @@ pub(super) fn fat_descriptor_layout(target: NativeTarget) -> TypeLayout {
     }
 }
 
-pub(super) fn primitive_type_layout(
-    target: NativeTarget,
+/// The canonical `TypeLayout` of a scalar primitive, given the target's pointer
+/// geometry and the fat-descriptor layout to use for `String`.
+///
+/// SINGLE SOURCE OF TRUTH for the primitive -> layout mapping shared by the
+/// backend crates that resolve storage sizes (omega-layout, omega-instruction-
+/// selection, omega-runtime-storage). Each caller supplies the pointer geometry
+/// from its own ABI context and the `String` descriptor layout it derives from
+/// `omega-runtime-abi` (a two-pointer, pointer-aligned fat `{ptr, len}`), so this
+/// helper stays free of any ABI-plan dependency while collapsing the byte-width
+/// match that previously lived, identically, in three crates.
+pub fn primitive_layout(
+    pointer_size: usize,
+    pointer_alignment: usize,
+    string_layout: TypeLayout,
     primitive_type: PrimitiveType,
 ) -> TypeLayout {
     match primitive_type {
@@ -37,9 +49,21 @@ pub(super) fn primitive_type_layout(
             alignment: 8,
         },
         PrimitiveType::Usize | PrimitiveType::Isize | PrimitiveType::Addr => TypeLayout {
-            size: target.pointer_size,
-            alignment: target.pointer_alignment,
+            size: pointer_size,
+            alignment: pointer_alignment,
         },
-        PrimitiveType::String => fat_descriptor_layout(target),
+        PrimitiveType::String => string_layout,
     }
+}
+
+pub(super) fn primitive_type_layout(
+    target: NativeTarget,
+    primitive_type: PrimitiveType,
+) -> TypeLayout {
+    primitive_layout(
+        target.pointer_size,
+        target.pointer_alignment,
+        fat_descriptor_layout(target),
+        primitive_type,
+    )
 }
