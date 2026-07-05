@@ -1102,6 +1102,30 @@ fn struct_literal_narrowing_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn array_literal_element_narrowing_rejected_canary_is_rejected() {
+    // Decision-17 narrowing at the array-literal element boundary (`[300, 0, 0]`
+    // into a `[i8; 3]`): a SILENT truncation (300 -> 44), now rejected. Each
+    // element is checked against the array's element type.
+    let canary = fail_canary("arithmetic/array_literal_element_narrowing_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected array-literal-element-narrowing canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("narrowing store") && combined.contains("array literal element"),
+        "expected a narrowing diagnostic at the array-literal element boundary, got:\n{combined}"
+    );
+}
+
+#[test]
 fn unknown_field_read_rejected_canary_is_rejected() {
     // A READ of a nonexistent field (a typo) in an expression is rejected at
     // type-check ("reads `self.cont`, but data X has no field `cont`"), not silently
