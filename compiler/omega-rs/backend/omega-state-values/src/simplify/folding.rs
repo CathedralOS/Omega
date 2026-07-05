@@ -87,12 +87,37 @@ pub(super) fn fold_binary_expression(
                 right,
             })),
         },
-        Op::ShiftLeft => fold_integer_math(left, right, |a, b| a << b, operator),
-        Op::ShiftRight => fold_integer_math(left, right, |a, b| a >> b, operator),
+        Op::ShiftLeft => fold_integer_shift(left, right, operator, i64::checked_shl),
+        Op::ShiftRight => fold_integer_shift(left, right, operator, i64::checked_shr),
         Op::BitwiseAnd => fold_integer_math(left, right, |a, b| a & b, operator),
         Op::BitwiseOr => fold_integer_math(left, right, |a, b| a | b, operator),
         Op::BitwiseXor => fold_integer_math(left, right, |a, b| a ^ b, operator),
     }
+}
+
+/// Fold a constant SHIFT (`1 << 100`) only when the shift amount is a valid,
+/// in-range count. `i64::checked_shl`/`checked_shr` return `None` for an amount
+/// >= 64, and a negative amount fails the `u32` conversion -- in both cases the
+/// naive `a << b` would PANIC the compiler ("attempt to shift with overflow"), so
+/// we leave the expression unfolded for the backend/runtime (whose out-of-range
+/// shift semantics are a separate, target-defined question) instead of crashing.
+fn fold_integer_shift(
+    left: Expression,
+    right: Expression,
+    operator: BinaryOperator,
+    operation: impl FnOnce(i64, u32) -> Option<i64>,
+) -> Expression {
+    if let (Expression::Integer(a), Expression::Integer(b)) = (&left, &right)
+        && let Ok(amount) = u32::try_from(*b)
+        && let Some(result) = operation(*a, amount)
+    {
+        return Expression::Integer(result);
+    }
+    Expression::Binary(Box::new(BinaryExpression {
+        left,
+        operator,
+        right,
+    }))
 }
 
 fn fold_integer_math(
