@@ -7064,6 +7064,37 @@ fn runtime_transition_arg_guard_narrowing_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// Decision 17 + S4 requires-seeding precision: a ONE-sided `requires x < 100`
+/// bounds only x's high end, yet `x + 1` proves Exact because the operand's env
+/// interval is intersected with its declared type range (`[None, 99] ∩ i32 =
+/// [i32::MIN, 99]`). Before that intersection the low end stayed unbounded and
+/// this over-rejected. inc(41) = 42.
+#[test]
+fn runtime_requires_one_sided_bound_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_requires_one_sided_bound_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-requires-one-sided-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("one-sided requires x<100 should prove x+1 Exact (env interval ∩ type range)");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("requires one-sided bound canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "expected requires x<100 to prove x+1 Exact and run to 42; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 /// Decision 17 transition-VALUE return + dominating-guard narrowing: `n > 0`
 /// narrows `n` so the value return `(n - 1)` proves Exact. Mirrors the
 /// transition-arg canary for the return-value boundary (which previously used the
@@ -20446,6 +20477,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_min_max_clamp_narrowing_exit",
     "arithmetic/runtime_transition_arg_guard_narrowing_exit",
     "arithmetic/runtime_transition_value_guard_narrowing_exit",
+    "arithmetic/runtime_requires_one_sided_bound_exit",
     "arithmetic/runtime_transition_arg_false_arm_narrowing_exit",
     "arithmetic/runtime_transition_arg_saturating_exit",
     "arithmetic/runtime_cast_element_accumulator_exit",

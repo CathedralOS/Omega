@@ -938,10 +938,17 @@ fn analyze(
                     .unwrap_or(Interval::UNBOUNDED);
                 // Narrowest sound interval: a value PROVEN on this path (flow env)
                 // wins; else a declared `[min..max]` range constraint (S4); else
-                // the full type width.
+                // the full type width. A proven interval is INTERSECTED with the
+                // type range, because a typed value is ALWAYS within its type even
+                // when the proof only bounds ONE end -- a one-sided `requires x <
+                // 100` gives the env `[None, 99]`, and `[None, 99] ∩ i32 = [i32::MIN,
+                // 99]` keeps the type's low end so `x + 1` proves Exact (a Wrapping-
+                // spilled interval is likewise clamped back to the type). The same
+                // intersect-with-source-type keystone the narrowing store uses.
                 let interval = place_path(program, expression)
                     .and_then(|path| env.get(&path))
                     .or_else(|| range_constraint_interval(program, handle))
+                    .map(|proven| proven.intersect(type_range))
                     .unwrap_or(type_range);
                 // Atomic integer types (AtomicU32, ...) have hardware wrap-around
                 // semantics, so their arithmetic is Wrapping, not Exact -- a
