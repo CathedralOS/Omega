@@ -2,9 +2,14 @@
 // both SILENT, and the fix is a design/backend call (not a unilateral surface change):
 //
 // (1) SILENTLY DROPPED. A VALID array default is not emitted: `xs: [i32;3] = [1,2,3]`
-//     then reading `xs[2]` returns 0, not 3 (scalar defaults ARE emitted -- `x: i32 = 42`
-//     reads back 42 -- so emission is scalar-only; arrays/carriers/aggregates are ignored).
-//     Per "no silent anything" this declared default silently does nothing.
+//     then reading `xs[2]` returns 0, not 3. PRECISE SCOPE (verified 2026-07-05 via the
+//     runtime_field_default_exit canary): SCALAR literal defaults emit (`x: i32 = 42` -> 42)
+//     AND nested-RECORD defaults emit (a `data`-typed field gets its record's own field
+//     defaults at the accumulated offset). The gap is specifically INLINE AGGREGATE-LITERAL
+//     defaults -- an array literal `[..]` (and presumably a struct literal `Foo{..}`) in
+//     default position. So the "support" option = emit inline aggregate literals; scalars
+//     and nested records already work. Per "no silent anything" this declared default
+//     silently does nothing.
 // (2) UNVALIDATED. Length + element class are unchecked at this position: `[i32;2] =
 //     [1,2,3,4]` (too many) and `[i32;3] = [true,2,3]` (cross-class element) both compile.
 //     `validate_array_literal_elements` (struct_literals.rs) already does length + element
