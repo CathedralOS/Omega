@@ -2854,11 +2854,14 @@ exit.
     mutability mismatch (`parameter.is_mutable && !is_mutable`) instead of erroring
     -- it SKIPS the arg entirely rather than rejecting. (The reverse, `&mut x` for a
     `&` param, is SAFE and correctly accepted.) Repro parked at
-    `canaries/pending/arithmetic/immutable_arg_for_mut_param_not_checked`. Same
-    Zach-gated fence-vs-implement subsystem as drops/moves -- converting the skip to
-    an error changes language surface (some code may rely on the laxity), so NOT
-    fenced unilaterally in a background fire; part of the eventual move/borrow
-    checker. Memory-safe today (value semantics + drop-is-no-op).
+    `canaries/pending/arithmetic/immutable_arg_for_mut_param_not_checked`. NOT a
+    one-liner (analysis 2026-07-04): `is_mutable` there is SYNTACTIC
+    (`matches!(arg, Mutable(_))`), so a naive `continue`->error FALSE-POSITIVES on a
+    valid `&mut` FORWARD (`a(x: &mut Counter)` passing `x` to a `&mut` param --
+    `x` = Name, not a Mutable node, is_mutable=false; verified it compiles today).
+    The real check needs SEMANTIC mutability (resolve the arg's declared reference
+    mutability), i.e. borrow-checker work -- confirming the ownership-enforcement
+    subsystem deferral. Memory-safe today (value semantics + drop-is-no-op).
 
 ### Array, Vec, String, And Views
 

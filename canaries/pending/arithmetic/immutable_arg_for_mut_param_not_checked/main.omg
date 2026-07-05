@@ -17,10 +17,19 @@
 // the laxity), so it is NOT fenced unilaterally. It belongs to the eventual move/
 // borrow checker. Memory-safe today (value semantics + drop-is-no-op).
 //
-// FIX SKETCH (for the borrow checker): replace the `continue` on
-// `parameter.is_mutable && !is_mutable` with a diagnostic ("argument expects a
-// `&mut` reference but got an immutable borrow"); verify the WHOLE test tail incl.
-// samples_compile for reliance on the current laxity before landing.
+// FIX SKETCH -- NOT a one-liner (corrected 2026-07-04 after analysis): the
+// tempting "replace the `continue` with a diagnostic" is WRONG. `is_mutable` at
+// that site is a SYNTACTIC check -- `matches!(arg, ExpressionNode::Mutable(_))`,
+// i.e. "is the argument literally `&mut ...` syntax". A valid `&mut` FORWARD --
+// `state a(x: &mut Counter) { transition { _ -> b(x) } }` passing `x` onward to a
+// `&mut Counter` param -- has `arg = Name(x)`, which is NOT a Mutable node, so
+// is_mutable(x) = FALSE. Erroring on `parameter.is_mutable && !is_mutable` would
+// FALSE-POSITIVE on that forwarding (verified: the forward compiles today via the
+// `continue`). So the real check needs SEMANTIC mutability: resolve the argument's
+// declared reference mutability (via declared_place_type_raw -> is the base a
+// `&mut`?) and reject only when the arg is provably an IMMUTABLE borrow of a place
+// for a `&mut` parameter. That is borrow-checker work (mutability tracking through
+// bindings), consistent with the ownership-enforcement subsystem being deferred.
 
 boundary trait Console { machine exit_process(return_code: i32); }
 
