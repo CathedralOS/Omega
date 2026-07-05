@@ -21086,6 +21086,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/divide_by_zero_rejected",
     "arithmetic/modulo_by_zero_rejected",
     "arithmetic/bool_arithmetic_into_bool_rejected",
+    "arithmetic/bitwise_numeric_into_bool_rejected",
     "arithmetic/undeclared_bare_name_rejected",
     "arithmetic/indexed_element_class_rejected",
     "arithmetic/indexed_element_narrowing_rejected",
