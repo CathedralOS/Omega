@@ -209,21 +209,17 @@ fn validate_state_statement_node(
             // whether the bool arrives as a literal or through a `self.bool_field`
             // place. Reject the unambiguous cross-class cases before value-range
             // analysis (which assumes a class-compatible RHS).
-            if let Some(target_primitive) = assignment_target_primitive
-                && let Some((value_class, target_class)) = expression_types::cross_class_conflict(
+            if let Some(target_primitive) = assignment_target_primitive {
+                expression_types::report_cross_class_store(
                     program,
                     machine,
                     machine_symbols.state(state_name),
                     assignment.value,
                     target_primitive,
-                )
-            {
-                diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
-                    "{owner} stores {} into a `{}` place, which holds {}",
-                    value_class.describe(),
-                    target_primitive.name(),
-                    target_class.describe(),
-                )));
+                    &owner,
+                    "place",
+                    diagnostics,
+                );
             }
             let before = diagnostics.len();
             let (interval, source_primitive) = arithmetic_domains::validate_value_range(

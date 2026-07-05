@@ -1871,8 +1871,6 @@ remains tracked in its bullet below.
   Regression net: canaries/pass/dungeon/runtime_threaded_mut_arg_interrupt_soak_exit
   (50M pointer-threaded increments across many timer ticks; pre-fix encoder
   fails it 4/5 runs, post-fix deterministic exit 70).
-- [ ] Borrow layer records free-machine value-call targets as `invalid` in
-  checked trees (cosmetic today).
 - [x] Borrow layer records free-machine value-call targets as `invalid` in
   checked trees: fixed by the call-requires soundness wave (receiverless
   free-machine targets now resolve to the entry state in symbol resolution,
