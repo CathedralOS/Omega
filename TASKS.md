@@ -3070,6 +3070,20 @@ exit.
   member-symbol-validity walk (an unknown field leaves an invalid symbol; name_paths.rs),
   which must handle the valid member forms (case payloads, era fields, domain members).
   A "did you mean `count`?" edit-distance suggestion would further help.
+- [ ] UNDECLARED BARE NAME -- SILENT MISCOMPILE (found + parked 2026-07-04). Sibling
+  of the unknown-field check above, one level up: a single-segment bare name that is
+  NOT a local / parameter / field -- `let x: i32 = undeclared_var` -- COMPILES at
+  --check AND --build-dir and RUNS (exit 0; the name reads as 0). A bare name is
+  resolved for value but never checked for EXISTENCE. (`exit_process(undeclared)` is
+  the related case the backend host-encoder catches with a MISLEADING "no encodable
+  call sequence", not "unknown name".) Valid bare-name set probed: local / param /
+  field (implicit self). Repro + fix sketch parked at
+  `canaries/pending/arithmetic/undeclared_bare_name_not_checked`: check in
+  scan_expression_calls (beside the unknown-field READ check) for a 1-segment Name
+  not in {field, local, param, top-level symbol}. UNVERIFIED before landing: whether
+  a bare (unqualified) enum-case constant is legal (corpus uses `Type::Case`), and
+  the has_member symbol API location; MEASURE the whole tail incl. samples_compile --
+  touches core name resolution, real false-positive surface.
 - [ ] CROSS-CLASS scalar assignment -- SILENT MISCOMPILE CLOSED 2026-07-04
   (literal + place, two waves same day). `self.i32 = true` (a `bool` literal) AND
   `self.i32 = self.bool_field` (a bool PLACE) BOTH used to pass `--check` and

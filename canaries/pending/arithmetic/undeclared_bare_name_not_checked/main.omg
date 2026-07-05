@@ -1,0 +1,36 @@
+// PARKED REPRO (silent miscompile -- an UNDECLARED bare name is accepted). `let x
+// = undeclared_var` where `undeclared_var` is not a local, parameter, or field
+// COMPILES at --check AND --build-dir and RUNS (exit 0 -- the undeclared name reads
+// as 0/garbage). No error at any phase. A bare name is resolved for value but never
+// checked for EXISTENCE. (The `self.<field>` typo case IS caught -- see
+// unknown_field_read_rejected -- but a bare single-segment name is not.)
+//
+// A related opaque case: `exit_process(undeclared_var)` errors, but with a
+// misleading "host operation has no encodable call sequence" from the BACKEND
+// encoder, not "unknown name" from the checker.
+//
+// VALID bare-name set (probed 2026-07-04): a single-segment bare name resolves to a
+// LOCAL (`let`), a PARAMETER, or a FIELD (implicit `self`, e.g. bare `fld` == `self.fld`).
+// All three verified accepted; a nonexistent bare name verified silently accepted.
+//
+// FIX SKETCH: in scan_expression_calls (calls.rs -- the value-position expression
+// walk, right beside the unknown-field READ check), for an `ExpressionNode::Name`
+// with EXACTLY ONE segment `n` (skip `self`): reject with "unknown name `n`" when
+// `n` is NOT a field (machine_symbols) AND NOT a local (state's LocalData names) AND
+// NOT a parameter (program.state_parameters(state)) AND NOT a top-level symbol
+// (machine / data / trait -- conservative). UNVERIFIED false-positive risk to
+// resolve first: whether a bare (single-segment) ENUM CASE constant is legal (the
+// corpus uses `Type::Case`, `::`-qualified, so bare cases appear unused -- but
+// CONFIRM before landing). Also the symbol-lookup API (has_member etc.) needs
+// locating -- it did not grep cleanly under `fn has_member`. MEASURE with the WHOLE
+// test tail incl. samples_compile (125 struct/enum-heavy samples) before landing;
+// this touches core name resolution, so the false-positive surface is real.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+    let x: i32 in Wrapping = undeclared_var; // undeclared bare name -- silently accepted, reads 0
+    self.console.exit_process(x);
+}
