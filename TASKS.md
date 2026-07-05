@@ -3116,6 +3116,16 @@ exit.
   value_call_arg_class_mismatch_rejected.
   Whole cross-class-store family (assignment literal/place + call/transition/host
   arg + value-position arg) now CLOSED -- see [[literal-class-assignment-miscompile]].
+- [x] CROSS-CLASS struct-literal FIELD construction -- SILENT MISCOMPILE CLOSED
+  2026-07-04 (5th position, found by dogfooding the "value into typed slot"
+  positions). `Point { x: true }` (bool into a numeric field) and
+  `Point { x: self.bool_field }` compiled + ran storing 1 -- construction was the
+  one "value into typed slot" position not yet class-checked. Fix: added the
+  `cross_class_conflict` check to struct_literals.rs's per-field loop (renamed
+  `enforce_construction_field_ranges` -> `enforce_construction_field_obligations`);
+  it runs for EVERY primitive field before the range check (which only applied to
+  `[a..=b]`-constrained fields), so plain `x: i32` fields are covered. Locked by
+  fail canary struct_literal_class_mismatch_rejected. Zero blast radius.
 - [x] NARROWING at the CALL-ARGUMENT boundary -- decision-17 5th boundary, SILENT
   MISCOMPILE, FULLY CLOSED 2026-07-04 (2 commits). All arg positions --
   statement-call, transition-target, host/boundary, AND value-position

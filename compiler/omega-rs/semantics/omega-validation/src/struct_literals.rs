@@ -96,7 +96,7 @@ fn scan_expression(
     match program.expression_table.expression(expression) {
         ExpressionNode::StructLiteral(literal) => {
             validate_literal_field_names(program, &literal, diagnostics);
-            enforce_construction_field_ranges(program, machine, state, &literal, diagnostics);
+            enforce_construction_field_obligations(program, machine, state, &literal, diagnostics);
             for field in program.expression_table.struct_fields(literal.fields) {
                 scan_expression(program, machine, state,field.value, diagnostics);
             }
@@ -224,15 +224,17 @@ pub(crate) fn data_declares_field(
     )
 }
 
-/// Decision-17 / fact-catalog soundness: a field declared with a range
-/// refinement (`index: i32 [0..=15]`) must be CONSTRUCTED with a value provably
-/// in that range -- otherwise a destructure / field read that trusts the range
-/// (S4 narrowing in `places::declared_place_type_raw`) would rest on an
+/// Enforce a constructed field's value against its declared type: (1) the
+/// cross-CLASS check -- a `bool`/text value into a numeric field (or vice versa)
+/// is a silent miscompile at construction, same as the assignment / call-arg
+/// positions; and (2) the decision-17 / fact-catalog RANGE check -- a field with
+/// a range refinement (`index: i32 [0..=15]`) must be CONSTRUCTED with a value
+/// provably in that range, otherwise a destructure / field read that trusts the
+/// range (S4 narrowing in `places::declared_place_type_raw`) would rest on an
 /// unenforced bound. An integer literal is checked exactly; a non-literal value
 /// is accepted when its PROVEN interval (type ranges + the flow facts visible
-/// here) is within the field range -- e.g. copying a same-range field -- and
-/// rejected otherwise. Without this, the field-fact narrowing is unsound.
-fn enforce_construction_field_ranges(
+/// here) is within the field range -- e.g. copying a same-range field.
+fn enforce_construction_field_obligations(
     program: &TypedTrees,
     machine: &Machine,
     state: &State,
@@ -260,6 +262,29 @@ fn enforce_construction_field_ranges(
         ) else {
             continue;
         };
+        // Cross-class guard: a `bool`/text value stored into a numeric field (or
+        // vice versa) at construction is a silent miscompile, exactly as at the
+        // assignment / call-argument positions. Reject it before the range check
+        // (which only applies to `[a..=b]`-constrained fields), so every primitive
+        // field -- range-constrained or not -- is class-checked.
+        if let Some(field_primitive) = program.primitive_type_reference(field_type)
+            && let Some((value_class, target_class)) = crate::expression_types::cross_class_conflict(
+                program,
+                machine,
+                Some(state),
+                field.value,
+                field_primitive,
+            )
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "construction of `{type_name}` field `{}` stores {} into a `{}` field, which holds {}",
+                field.name.as_str(),
+                value_class.describe(),
+                field_primitive.name(),
+                target_class.describe(),
+            )));
+            continue;
+        }
         let Some(range) = crate::arithmetic_domains::range_constraint_interval(program, field_type)
         else {
             continue;
