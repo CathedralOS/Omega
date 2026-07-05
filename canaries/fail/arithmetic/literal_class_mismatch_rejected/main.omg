@@ -1,0 +1,25 @@
+// FAIL canary: a cross-CLASS literal assignment -- a `bool` literal (`true`)
+// stored into a numeric (`i32`) field -- is rejected at type-check. This was a
+// SILENT MISCOMPILE: `--check` and `--build-dir` both passed, and the backend
+// stored `true` as `1`, so the program ran with `self.n == 1` and NO error
+// anywhere. The three literal classes (boolean / text / numeric) are disjoint;
+// crossing them with a literal is a type error. Int-vs-float within the numeric
+// class is NOT flagged here (`self.f = 5` is a coercion) -- that is the domain
+// of the narrowing checks. Complements unknown_field_{read,write}_rejected.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    n: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.n = true; // bool literal into a numeric place -- would silently store 1
+    transition { _ -> done() }
+    state done(&mut self) {
+        self.console.exit_process(self.n);
+    }
+}

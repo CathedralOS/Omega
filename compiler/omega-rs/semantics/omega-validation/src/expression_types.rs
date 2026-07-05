@@ -147,6 +147,66 @@ pub(crate) fn validate_expression_type_handle(
     }
 }
 
+/// The three disjoint literal value CLASSES a scalar assignment can conflate.
+/// A literal RHS names its class unambiguously; a target primitive names one
+/// too. Assigning across classes (e.g. a `bool` literal into an `i32` field)
+/// is a type error the backend would otherwise SILENTLY miscompile -- `true`
+/// stored as `1`, `"hi"` stored as garbage. We deliberately fold every integer
+/// AND float primitive into a single `Numeric` class so that numeric-literal
+/// coercions (`f64 = 5`, `i8 = 300`) are NOT flagged here -- those are the
+/// province of the narrowing/domain checks, which carry their own precise
+/// diagnostics. This gate fires ONLY on cross-class literal conflicts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LiteralClass {
+    Boolean,
+    Text,
+    Numeric,
+}
+
+impl LiteralClass {
+    pub(crate) fn describe(self) -> &'static str {
+        match self {
+            Self::Boolean => "a boolean",
+            Self::Text => "text",
+            Self::Numeric => "a numeric value",
+        }
+    }
+
+    /// The class of a literal RHS, or `None` for any non-literal expression
+    /// (computed values, member/named places, calls) -- those are left to the
+    /// blanket-accepting general gate, so this never false-positives on them.
+    fn of_literal(program: &TypedTrees, value: ExpressionHandle) -> Option<Self> {
+        match program.expression_table.expression(value) {
+            ExpressionNode::Boolean(_) => Some(Self::Boolean),
+            ExpressionNode::String(_) => Some(Self::Text),
+            ExpressionNode::Integer(_) | ExpressionNode::Float(_) => Some(Self::Numeric),
+            ExpressionNode::Mutable(inner) => Self::of_literal(program, *inner),
+            _ => None,
+        }
+    }
+
+    fn of_primitive(primitive: PrimitiveType) -> Self {
+        match primitive {
+            PrimitiveType::Bool => Self::Boolean,
+            PrimitiveType::String => Self::Text,
+            _ => Self::Numeric,
+        }
+    }
+}
+
+/// If `value` is a literal whose class conflicts with the `target` primitive,
+/// return `(literal_class, target_class)` for a diagnostic. Returns `None` for
+/// in-class assignments and for any non-literal RHS.
+pub(crate) fn literal_class_conflict(
+    program: &TypedTrees,
+    value: ExpressionHandle,
+    target: PrimitiveType,
+) -> Option<(LiteralClass, LiteralClass)> {
+    let literal_class = LiteralClass::of_literal(program, value)?;
+    let target_class = LiteralClass::of_primitive(target);
+    (literal_class != target_class).then_some((literal_class, target_class))
+}
+
 pub(crate) fn expression_type_name_handle(
     program: &TypedTrees,
     argument: ExpressionHandle,

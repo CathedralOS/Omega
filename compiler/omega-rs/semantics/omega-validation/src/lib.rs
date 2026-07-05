@@ -183,6 +183,24 @@ fn validate_state_statement_node(
             )
             .and_then(|handle| program.primitive_type_reference(handle));
             let owner = format!("machine `{}` state `{state_name}` assignment", machine.name);
+            // Cross-class literal guard: `self.i32 = true` (a bool literal into a
+            // numeric field) is a soundness hole -- the backend silently stores
+            // `1`. Reject the unambiguous cross-class literal cases before the
+            // value-range analysis (which assumes a class-compatible RHS).
+            if let Some(target_primitive) = assignment_target_primitive
+                && let Some((literal_class, target_class)) = expression_types::literal_class_conflict(
+                    program,
+                    assignment.value,
+                    target_primitive,
+                )
+            {
+                diagnostics.push(omega_core::diagnostics::Diagnostic::error(format!(
+                    "{owner} stores {} into a `{}` place, which holds {}",
+                    literal_class.describe(),
+                    target_primitive.name(),
+                    target_class.describe(),
+                )));
+            }
             let before = diagnostics.len();
             let (interval, source_primitive) = arithmetic_domains::validate_value_range(
                 program,

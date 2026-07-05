@@ -883,6 +883,30 @@ fn unknown_field_write_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn literal_class_mismatch_rejected_canary_is_rejected() {
+    // A cross-class literal assignment (`self.i32 = true`) is rejected at
+    // type-check. This was a SILENT MISCOMPILE -- the backend stored the bool
+    // literal as an integer with no error at any phase.
+    let canary = fail_canary("arithmetic/literal_class_mismatch_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected literal-class-mismatch canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("stores a boolean into a `i32` place"),
+        "expected a clear cross-class literal diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
 fn unknown_field_read_rejected_canary_is_rejected() {
     // A READ of a nonexistent field (a typo) in an expression is rejected at
     // type-check ("reads `self.cont`, but data X has no field `cont`"), not silently
