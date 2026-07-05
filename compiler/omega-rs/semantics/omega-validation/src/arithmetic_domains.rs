@@ -612,7 +612,7 @@ pub(crate) fn check_narrowing_assignment(
     // (unknown) end permissive rather than turn "unknown" into a spurious error.
     if effective.low().is_some() && effective.high().is_some() && !range.contains(effective) {
         diagnostics.push(Diagnostic::error(format!(
-            "narrowing assignment in {owner} may not fit `{}`: the value is not provably \
+            "narrowing store in {owner} may not fit `{}`: the value is not provably \
              in range (decision 17 -- a narrowing store is a proof obligation, like exact \
              arithmetic). Truncate explicitly with an `as` cast, or constrain the source's \
              range.",

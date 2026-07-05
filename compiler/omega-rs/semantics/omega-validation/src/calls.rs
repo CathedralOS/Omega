@@ -1,6 +1,7 @@
 use crate::expression_types::{
     argument_matches_type_reference_handle, cross_class_conflict, expression_type_name_handle,
 };
+use crate::arithmetic_domains::{self, ValueEnv};
 use crate::locals::WritableRoots;
 use crate::places::declared_place_type;
 use crate::struct_literals::data_declares_field;
@@ -21,6 +22,7 @@ use omega_typed_trees::statement::{
 };
 use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_call_node(
     program: &TypedTrees,
     call: &TableCall,
@@ -29,6 +31,7 @@ pub(crate) fn validate_call_node(
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
     writable_roots: &WritableRoots<'_, '_>,
+    value_env: &ValueEnv,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let receiver_members = program.statement_table.name_path_members(call.receiver);
@@ -62,6 +65,7 @@ pub(crate) fn validate_call_node(
                 program,
                 current_machine,
                 machine_symbols.state(state_name),
+                value_env,
                 arguments,
                 state.name.as_str(),
                 program.state_parameters(state),
@@ -118,6 +122,7 @@ pub(crate) fn validate_call_node(
             program,
             current_machine,
             machine_symbols.state(state_name),
+            value_env,
             arguments,
             call.target.as_str(),
             program.state_parameters(state),
@@ -168,6 +173,7 @@ pub(crate) fn validate_call_node(
             program,
             current_machine,
             machine_symbols.state(state_name),
+            value_env,
             arguments,
             &state_signature.name,
             program.state_signature_parameters(state_signature),
@@ -191,6 +197,7 @@ pub(crate) fn validate_call_node(
                 program,
                 current_machine,
                 machine_symbols.state(state_name),
+                value_env,
                 arguments,
                 &state.name,
                 program.state_parameters(state),
@@ -226,6 +233,7 @@ pub(crate) fn validate_call_node(
             program,
             current_machine,
             machine_symbols.state(state_name),
+            value_env,
             arguments,
             &state.name,
             program.state_parameters(state),
@@ -271,6 +279,7 @@ pub(crate) fn validate_call_node(
             program,
             current_machine,
             machine_symbols.state(state_name),
+            value_env,
             arguments,
             &signature.name,
             program.state_signature_parameters(signature),
@@ -418,6 +427,7 @@ pub(crate) fn validate_call_arguments_handles(
     program: &TypedTrees,
     current_machine: &Machine,
     current_state: Option<&State>,
+    value_env: &ValueEnv,
     arguments: &[ExpressionHandle],
     target_name: &str,
     parameters: &[StateParameter],
@@ -467,18 +477,29 @@ pub(crate) fn validate_call_arguments_handles(
                 expected_type,
                 expression_type_name_handle(program, *argument)
             )));
-        } else {
+        } else if !report_cross_class_argument(
+            program,
+            current_machine,
+            current_state,
+            *argument,
+            parameter,
+            target_name,
+            diagnostics,
+        ) {
             // The shape gate blanket-accepts place/name arguments (`self.field`,
             // a local) against ANY primitive parameter, so a `bool` field passed
             // for an `i32` parameter slips through and the backend silently reads
             // it as garbage. Resolve the argument's scalar class and reject a
             // cross-class store, exactly as the assignment path does. Only args
             // that PASSED the shape gate reach here, so cross-class LITERALS (which
-            // the shape gate already rejects above) are not double-reported.
-            report_cross_class_argument(
+            // the shape gate already rejects above) are not double-reported. When
+            // the classes DO agree (a same-class numeric arg), check the narrowing
+            // obligation -- `take_i8(self.i64_field)` would silently truncate.
+            report_narrowing_argument(
                 program,
                 current_machine,
                 current_state,
+                value_env,
                 *argument,
                 parameter,
                 target_name,
@@ -524,6 +545,53 @@ fn report_cross_class_argument(
         target_class.describe(),
     )));
     true
+}
+
+/// Reject a single numeric ARGUMENT that NARROWS into its `parameter` -- a wider
+/// value (`self.big: i64 = 300`) passed where a narrower integer parameter is
+/// expected (`x: i8`), which the backend would otherwise silently truncate
+/// (300 -> 44). Decision-17's narrowing proof obligation, applied at the call
+/// boundary exactly as `check_narrowing_assignment` applies it at the assignment
+/// boundary. Honors dominating guards via the flow-sensitive `value_env`, so a
+/// guarded-in-range argument is not flagged. The argument's OWN arithmetic is
+/// analyzed into a THROWAWAY buffer, so only the narrowing check contributes a
+/// diagnostic here (an arg's exact-overflow obligation is not this gate's job).
+fn report_narrowing_argument(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: Option<&State>,
+    value_env: &ValueEnv,
+    argument: ExpressionHandle,
+    parameter: &StateParameter,
+    target_name: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(parameter_primitive) = program.primitive_type_reference(parameter.type_reference)
+    else {
+        return;
+    };
+    let owner = format!(
+        "machine `{}` state `{target_name}` argument `{}`",
+        current_machine.name, parameter.name,
+    );
+    let mut throwaway = Vec::new();
+    let (interval, source_primitive) = arithmetic_domains::validate_value_range(
+        program,
+        current_machine,
+        current_state,
+        argument,
+        value_env,
+        Some(parameter_primitive),
+        &owner,
+        &mut throwaway,
+    );
+    arithmetic_domains::check_narrowing_assignment(
+        Some(parameter_primitive),
+        interval,
+        source_primitive,
+        &owner,
+        diagnostics,
+    );
 }
 
 /// Reject cross-class scalar ARGUMENTS at a VALUE-position call site
