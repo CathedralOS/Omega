@@ -118,13 +118,13 @@
     ((Lcons h t) (Lcons (pnorm h) (pnorm t)))
     ((Lapp a b) (lapp (pnorm a) (pnorm b)))
     ((Llen l) (llen (pnorm l))) ((Con q) (Con q)) ((Apply f g) (Apply (pnorm f) (pnorm g)))
-    ((Fapp arg rA rB)              ; (Fbundle x y) arg = BINARY (extra y); else unary
+    ((Fapp arg rA rB)              ; (Fbundle x y) arg = BINARY (extra y); else unary. pnorm BOTH x and the
+      (match arg                   ; extra y: a stuck binary application (x symbolic) must still normalize its
+        ((Fbundle x y) (ffire (pnorm x) (pnorm y) rA rB))   ; extra, or a reducible accumulator (e.g. fst of a
+        (z (ffire (pnorm arg) Bad rA rB))))                 ; pair, in a two-accumulator fold) stays stuck here
+    ((Fap tab gid arg)             ; while check.beta reduces it -- the two checkers would then disagree.
       (match arg
-        ((Fbundle x y) (ffire (pnorm x) y rA rB))
-        (z (ffire (pnorm arg) Bad rA rB))))
-    ((Fap tab gid arg)             ; table-carrying application: same shape, rules via tfind
-      (match arg
-        ((Fbundle x y) (ffire2 (pnorm x) y tab gid))
+        ((Fbundle x y) (ffire2 (pnorm x) (pnorm y) tab gid))
         (z (ffire2 (pnorm arg) Bad tab gid))))))
 (def nateq (a b)                   ; structural — incl. stuck Pl/Mu (open normal forms)
   (match a
