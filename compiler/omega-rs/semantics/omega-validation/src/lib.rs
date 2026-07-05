@@ -241,6 +241,7 @@ fn validate_state_statement_node(
                 machine_symbols,
                 symbols,
                 writable_roots,
+                value_env,
                 diagnostics,
             );
             // A call may mutate fields through `&mut`, so the linear value
@@ -363,6 +364,7 @@ fn validate_state_statement_node(
                 program,
                 machine,
                 machine_symbols.state(state_name),
+                value_env,
                 transition.target,
                 machine_symbols,
                 symbols,
@@ -375,6 +377,7 @@ fn validate_state_statement_node(
                     program,
                     machine,
                     machine_symbols.state(state_name),
+                    value_env,
                     transition.continuation,
                     machine_symbols,
                     symbols,
