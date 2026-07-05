@@ -115,6 +115,17 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   decision, not landed unilaterally. See memory `contained-machine-same-type-aliasing`.
 - u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
+- **[ ] ARRAY/aggregate field DEFAULTS — silently dropped + unvalidated (found
+  2026-07-05).** A valid array default is not emitted (`xs: [i32;3] = [1,2,3]` reads
+  `xs[2]==0`; scalar defaults ARE emitted, so emission is scalar-only), and length +
+  element class are unchecked here (`[i32;2] = [1,2,3,4]`, `[i32;3] = [true,2,3]`
+  compile). `validate_array_literal_elements` already does those checks but takes
+  `&Machine`/`&State`; `data.rs`'s field loop only got the machine-free SCALAR checks.
+  DECISION NEEDED (Zach): (a) SUPPORT array defaults (emit + wire the element checker
+  into data.rs via the `Option<&Machine>` generalization the scalar fix started), or
+  (b) REJECT non-scalar field defaults with a clear diagnostic so the silent drop
+  becomes visible. NOT a live overflow (defaults not emitted). Repro:
+  `canaries/pending/arithmetic/array_field_default_silent`.
 
 ## Cathedral first-boot ladder — remaining language readiness
 
