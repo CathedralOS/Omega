@@ -479,6 +479,12 @@ def infer(pf, ctx, idep=0):                            # ctx: list of (prop, pus
         if tB is None or not prop_eq(tB, con_case(cidB, motive)):
             return None
         return ['All', motive]                         # forall x. P(x)
+    if h == 'prodrec':                                 # (prodrec cid motive case): SINGLE-constructor product
+        cid, motive, case = pf[1], pf[2], pf[3]         # elimination — from P holding on the type's sole
+        tC = infer(case, ctx, idep)                     # constructor, conclude forall x. P(x). PROTOTYPE SPIKE:
+        if tC is None or not prop_eq(tC, con_case(cid, motive)):   # check.beta has no prodrec, so this is inert
+            return None                                 # (nothing emits it) AND the diamond catches any misuse
+        return ['All', motive]                         # (check.beta rejects prodrec, so a disagreement surfaces).
     return None
 
 def register(forms):
