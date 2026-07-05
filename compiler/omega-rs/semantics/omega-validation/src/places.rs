@@ -388,6 +388,34 @@ fn data_field_or_payload_type(
 
 /// Unwrap reference and constraint shells so the structural type underneath
 /// (`[u8; N]`, `usize`, a data name) is inspectable.
+/// The declared ELEMENT type of an indexed assignment target (`self.xs[i]`,
+/// `buf[k]`), unwrapped like [`declared_place_type`]. `collect_member_path`
+/// stops at an `Indexed` node, so `declared_place_type` returns `None` for an
+/// indexed place -- which used to EXEMPT indexed-element stores from the
+/// cross-class / narrowing / nominal store checks (a `bool` silently stored as
+/// `1` into an `[i32; N]` element). This resolves the collection's `[T; N]` /
+/// `[T]` type and hands back `T` so those checks see the real slot type.
+/// `None` for a non-indexed target, an unresolvable collection, or a collection
+/// that is not an array/slice.
+pub(crate) fn declared_indexed_element_type(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: Option<&omega_typed_trees::state::State>,
+    target: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
+        return None;
+    };
+    let collection_type =
+        declared_place_type(program, current_machine, current_state, indexed.collection)?;
+    let element_type = match program.type_reference_table.type_reference(collection_type) {
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => *element_type,
+        _ => return None,
+    };
+    unwrapped_type_reference(program, element_type)
+}
+
 pub fn unwrapped_type_reference(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,

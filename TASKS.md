@@ -3149,6 +3149,18 @@ exit.
   value_call_arg_class_mismatch_rejected.
   Whole cross-class-store family (assignment literal/place + call/transition/host
   arg + value-position arg) now CLOSED -- see [[literal-class-assignment-miscompile]].
+- [x] RUNTIME-INDEXED ELEMENT STORE -- SILENT MISCOMPILE CLOSED 2026-07-04 (9th store
+  position). `self.xs[self.i] = true` stored the bool as `1` into an `[i32; N]`
+  element (verified silent: exit 1) and `self.xs[i] = 300` into `[i8; N]` skipped the
+  narrowing proof obligation -- because `collect_member_path` stops at an `Indexed`
+  node, so `declared_place_type` returned None and the indexed target was EXEMPT from
+  ALL THREE store checks (class + narrowing + nominal). Fix: `declared_indexed_element_type`
+  (places.rs) resolves the collection's `[T; N]`/`[T]` element type (unwrapped) and is
+  wired as an `.or_else` fallback for `assignment_target_type` in lib.rs, so every
+  existing store check applies to the element slot with NO new checkpoints. The
+  runtime-indexed complement of the array-LITERAL element checks. Zero regressions
+  (599 canaries + samples-compile + differential, whole tail). Fail canaries
+  indexed_element_{class,narrowing}_rejected.
 - [x] CROSS-CLASS transition-VALUE RETURN -- SILENT MISCOMPILE CLOSED 2026-07-04
   (8th & final store position). `machine -> i32 { transition { _ -> (true) } }`
   returned the bool as 1 silently: the TERMINAL `{ true }` return form is caught by
