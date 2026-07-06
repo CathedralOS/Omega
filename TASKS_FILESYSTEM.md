@@ -10,6 +10,32 @@ disjoint from the bootstrap-lattice files (`compiler/{alpha,beta,delta,gamma}`).
 
 ## Status (2026-07-05)
 
+### ✅✅ NATIVE fs CRUD RUNS END-TO-END
+
+`canaries/pass/filesystem/native_crud/main.omg` builds to a mach-o that, when
+run, performs a real round-trip on macOS syscalls and prints
+`PASS: native fs CRUD round-trip (creat+write+read 17B+close+unlink)` — the file
+is created (`0644`), written, read back (17 bytes), and deleted. The raw
+boundary layer is VALUE-RETURNING (`creat`/`open_read`/`read_bytes`/`write_bytes`/
+`close`/`unlink`, each returning its syscall result). What made it work:
+
+- **aarch64 value-returning host calls** — built the missing primitive (store the
+  return register into a caller place); disassembly-verified.
+- **`RuntimeStorageAddress`** aarch64 call operand — a place's address for
+  buffer pointers (`read`).
+- **NUL-terminated static string literals** (terminator kept out of the byte
+  span) — C-string paths for `_open`/`_creat`/`_unlink`.
+- **`creat` not `open` for creation** — `open`'s mode is variadic (stack-passed
+  on arm64, so dropped); `creat`'s mode is a named/register param.
+
+Remaining ergonomics (not blocking): a thin Omega `std` layer wrapping the raw
+value-returning ops into the `File`/outcome-enum API; runtime-buffer `write`
+(currently literal payloads); registering the canary once `canary_suite.rs` is
+free. The interpreter fs (below) remains the ergonomic + oracle surface.
+
+---
+
+
 - **DONE — the API surface, fully type/flow/ownership-checked.**
   [omega/language/std/filesystem.omg](omega/language/std/filesystem.omg): the
   `Path` byte-domain (`when no_nul(self)`), the ZII `File` handle
