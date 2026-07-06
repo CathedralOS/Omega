@@ -1,3 +1,4 @@
+use super::text_writes::string_literal_data_handle;
 use super::writes::{
     emit_runtime_frame_slot_slice_descriptor_write_in_table,
     select_runtime_frame_slot_value_write_in_table_with_source_anchor,
@@ -206,6 +207,34 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             selected_instructions,
         ) {
             continue;
+        }
+
+        // A bare STRING / byte-slice LITERAL argument (`self.put(fd, "hello")`): the
+        // literal has NO frame place -- its bytes live in a rodata data object -- so
+        // none of the place/subslice strategies above (or below) fire, and the
+        // 16-byte descriptor slot would keep its zero bytes (ptr 0, len 0), i.e. an
+        // empty slice. Materialize the full `{ptr -> rodata, len}` descriptor in one
+        // shot with `WriteRuntimeFrameString`, exactly as a string local/field
+        // initializer does. (This is the forwarded-slice-length fix -- see
+        // TASKS_FS.md step 14: it unblocks passing a slice literal as a machine-call
+        // argument, e.g. the ergonomic `write_all`/`copy` wrappers.)
+        if slot.byte_size == input.runtime_abi.slice_descriptor_size()
+            && let Some(literal) = expressions.string_literal_value(argument)
+        {
+            let data =
+                string_literal_data_handle(input, argument_source_key, statement_index, &literal);
+            if data.is_valid() {
+                selected_instructions.push(SelectedInstruction {
+                    kind: SelectedInstructionKind::WriteRuntimeFrameString {
+                        byte_offset: slot.byte_offset,
+                        data,
+                        byte_length: literal.len(),
+                    },
+                    source_key,
+                    source_statement: statement_index,
+                });
+                continue;
+            }
         }
 
         if matches!(expressions.expression(argument), ExpressionNode::Call(_))
