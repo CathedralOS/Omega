@@ -181,3 +181,7 @@ fn native_value_call_let_chain_passes() { assert_pass("native_value_call_let_cha
 // The SHIPPED ergonomic Filesystem wrapper natively (step 14 COMPLETE, all 5 layers)
 #[test]
 fn native_wrapper_write_all_passes() { assert_pass("native_wrapper_write_all"); }
+// STAT wrapper `Filesystem::exists` natively via TERMINAL-VALUE COMPLETION —
+// the no-transition workaround for the value-call guard-ordering bug.
+#[test]
+fn native_wrapper_exists_passes() { assert_pass("native_wrapper_exists"); }
