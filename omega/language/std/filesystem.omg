@@ -81,12 +81,14 @@ data Permissions [copy, zero_init] {
 
 // File metadata (Rust `std::fs::Metadata`). `len` is the size in bytes; `is_dir`
 // distinguishes a directory from a regular file; `mode` is the raw `st_mode`
-// (format bits + permission bits). Read from the darwin `stat` record's
-// `st_size`/`st_mode`. (`modified` time follows once `st_mtime` @48 is decoded.)
+// (format bits + permission bits); `modified_secs` is the last-modification time
+// as whole seconds since the Unix epoch (`st_mtime`). All decoded from the
+// darwin `stat` record (`st_size`@96, `st_mode`@4, `st_mtimespec.tv_sec`@48).
 data Metadata [copy, zero_init] {
     len: i64;
     is_dir: bool;
     mode: u32;
+    modified_secs: i64;
 }
 
 // Rust `Metadata::is_file` — a regular file (here: anything that is not a
@@ -105,6 +107,12 @@ machine Metadata::readonly(&self) -> bool {
 // masked with 0o777 = 511) as a `Permissions`.
 machine Metadata::permissions(&self) -> Permissions {
     Permissions { mode: self.mode & 511 }
+}
+
+// Rust `Metadata::modified()` — the last-modification time. Rust returns a
+// `SystemTime`; Omega returns whole seconds since the Unix epoch (`st_mtime`).
+machine Metadata::modified(&self) -> i64 {
+    self.modified_secs
 }
 data MetadataResult {
     case Error(kind: ErrorKind);
@@ -321,7 +329,15 @@ machine Filesystem::metadata_path(&mut self, path: &[u8] in Path) -> MetadataRes
             | ((self.stat_buf[103] as i64) << 56);
         let mode: i32 = (self.stat_buf[4] as i32) | ((self.stat_buf[5] as i32) << 8);
         let is_dir: bool = (mode & 61440) == 16384;
-        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, mode: mode as u32 } }
+        let mtime: i64 = (self.stat_buf[48] as i64)
+            | ((self.stat_buf[49] as i64) << 8)
+            | ((self.stat_buf[50] as i64) << 16)
+            | ((self.stat_buf[51] as i64) << 24)
+            | ((self.stat_buf[52] as i64) << 32)
+            | ((self.stat_buf[53] as i64) << 40)
+            | ((self.stat_buf[54] as i64) << 48)
+            | ((self.stat_buf[55] as i64) << 56);
+        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, mode: mode as u32, modified_secs: mtime } }
     }
     state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
 }
@@ -441,6 +457,6 @@ machine Filesystem::metadata(&mut self, file: File) -> MetadataResult {
     // so `is_dir` is false. The seek-based path cannot read the real mode, so it
     // reports a conventional rw-r--r-- (0o644 = 420); use `metadata_path` for the
     // accurate `mode`/`readonly`/`permissions` from `stat`.
-    state ok(&mut self, len: i64) -> MetadataResult { MetadataResult::Ok { meta: Metadata { len: len, is_dir: false, mode: 420 } } }
+    state ok(&mut self, len: i64) -> MetadataResult { MetadataResult::Ok { meta: Metadata { len: len, is_dir: false, mode: 420, modified_secs: 0 } } }
     state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
 }

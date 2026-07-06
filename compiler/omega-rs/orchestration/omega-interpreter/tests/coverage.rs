@@ -1845,3 +1845,47 @@ machine Main::main(&mut self) {
         "fresh file: is_file & writable; after chmod 0o444: readonly & permissions().mode == 292"
     );
 }
+
+/// `Metadata::modified` (Rust `Metadata::modified()`), decoded from the stat
+/// record's `st_mtimespec.tv_sec` (i64 @48). The hermetic FS reports a fixed
+/// modeled epoch (1_000_000_000), so this asserts that exact value; native
+/// `stat` returns the real time (see the `native_stat` canary family).
+#[test]
+fn filesystem_std_module_metadata_modified() {
+    let main_path = write_program(
+        "fs-meta-mtime",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("/t.txt", "when");
+    transition self.unit_result { UnitResult::Ok -> statit() _ -> fail() }
+    state statit(&mut self) {
+        self.meta_result = self.fs.metadata_path("/t.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> checkmtime(meta) _ -> fail() }
+    }
+    state checkmtime(&mut self, meta: Metadata) {
+        self.unit_result = self.fs.remove("/t.txt");
+        transition meta.modified() == 1000000000 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("metadata-modified program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "metadata_modified: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "metadata_path.modified() must decode the modeled st_mtime (1_000_000_000)"
+    );
+}
