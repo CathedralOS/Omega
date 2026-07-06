@@ -21179,6 +21179,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "expressions/cross_enum_case_membership_rejected",
     "expressions/mismatched_width_comparison_rejected",
     "expressions/mismatched_width_bitwise_rejected",
+    "expressions/bool_numeric_operand_mixing_rejected",
     "expressions/non_bool_logical_operand_rejected",
     "expressions/array_operator_rejected",
     "expressions/struct_operator_undeclared_rejected",
