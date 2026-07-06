@@ -1,0 +1,39 @@
+// RUN canary: the `as`-widen is the sanctioned way to compare different-width
+// integers (see the fail canary mismatched_width_comparison_rejected). This locks
+// that the widened compare evaluates CORRECTLY -- i.e. the wider operand is NOT
+// truncated to the narrower width.
+//
+// `self.small` is i8 44; `self.big` is i32 300 (low byte 0x2C == 44). A truncating
+// compare (the rejected bug) would read `44 == (300 & 0xFF == 44)` -> TRUE; the
+// correct widened compare reads `44 == 300` -> FALSE. A second check confirms the
+// widen still matches a genuinely equal value (44 == 44). Both correct -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    small: i8;
+    big: i32;
+    same: i32;
+}
+
+machine Main::main(&mut self) {
+    self.small = 44;
+    self.big = 300;
+    self.same = 44;
+
+    // Widened 44 must NOT equal 300 (truncation would make it equal).
+    transition self.small as i32 == self.big { true -> truncated() _ -> confirm_equal() }
+
+    // Widened 44 MUST equal 44 (the widen preserves the value).
+    state confirm_equal(&mut self) {
+        transition self.small as i32 == self.same { true -> correct() _ -> missed() }
+    }
+
+    state correct(&mut self) { self.console.exit_process(70); }
+    // The wider operand was truncated to the narrower width -- the rejected bug.
+    state truncated(&mut self) { self.console.exit_process(71); }
+    // The widen broke a genuine equality.
+    state missed(&mut self) { self.console.exit_process(72); }
+}

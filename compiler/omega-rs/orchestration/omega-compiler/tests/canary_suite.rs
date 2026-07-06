@@ -3771,6 +3771,42 @@ fn runtime_numeric_cast_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_widened_comparison_exit_canary_runs() {
+    // The `as`-widen is the sanctioned way to compare different-width integers
+    // (fail canary mismatched_width_comparison_rejected). Lock that the widened
+    // compare does NOT truncate the wider operand: `44 as i32 == 300` is FALSE
+    // (a truncating compare would read `44 == (300 & 0xFF == 44)` -> TRUE), while
+    // `44 as i32 == 44` stays TRUE. Both correct -> exit 70.
+    let canary = pass_canary("expressions/runtime_widened_comparison_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-widened-cmp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("widened comparison canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("widened comparison canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the widened compare to avoid truncation (44 as i32 != 300, 44 as i32 == 44) and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_16bit_cast_exit_canary_runs() {
     let canary = pass_canary("expressions/runtime_16bit_cast_exit");
     let build_dir =
