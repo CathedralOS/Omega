@@ -151,6 +151,25 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   on the data-type positional-expansion hole. Canary cross_type_equality_rejected. Refactor: extracted the shared "value's concrete data name"
   resolver (`value_concrete_data_name`, expression_types.rs) now used by `report_data_type_conflict`
   + the cast-source check.
+- **[RESOLVED 2026-07-05] `==`/`!=` on ARRAY operands (`self.xs == self.ys`).** Structs expand to
+  synthesized structural equality and text carriers compare by content, but an array operand never
+  expands -- there is no element-wise array equality -- so `xs == ys` reached the backend as a
+  multi-byte runtime compare it cannot encode ("cannot load N-byte runtime operands"); DIFFERENT-length
+  arrays (`[i32;3] == [i32;2]`) were not caught at the frontend either. `report_array_operator_operands`
+  had EXCLUDED `==`/`!=` (assuming structural expansion); now it rejects them on non-text array operands
+  with a precise message (ordering/arithmetic keep their existing wording; `&&`/`||` stay with the
+  non-bool-logical check; String/`[u8;N]` text carriers excluded, so string equality stays valid).
+  Element-wise array equality is a plausible future feature. Canary array_equality_rejected.
+- **[ ] DESIGN QUESTION (found 2026-07-05): bool operands MIX with numeric in arithmetic/comparison.**
+  `let n: i32 = self.b + 5` (-> 6), `self.b < self.n` (bool vs i32 guard -> 1), `self.b == self.n`
+  (-> 1) all COMPILE + RUN with a well-defined C-style bool->{0,1} coercion (NOT garbage, so not a
+  soundness hole -- a language-surface decision). Modern languages (Rust) reject all three; Zach's
+  `!int` ruling ("prefer modern languages, not C") points the same way. BUT the cross-class design
+  explicitly recorded `int==bool` (0/1 coercion) as INTENDED and "comparison result coerces to int is
+  intended" (the over-reach that was REVERTED), so reversing it is a DESIGN change, not known-direction
+  -- needs a settle in chat before touching the surface. Detection would live in `value_class` /
+  `report_cross_class_binary_operands` (add a Boolean-vs-Numeric operand-mismatch arm), but ONLY for
+  arithmetic + ordering, NOT equality (equality's 0/1 coercion is the load-bearing intended case).
 - **[RESOLVED 2026-07-05, a902653ce]** Float BITWISE/SHIFT/MODULO rejected at `--check`
   (matching the interpreter's existing rejection). Canary float_bitwise_rejected.
 - **[RESOLVED 2026-07-03]** `arr[i] = <binary>` (computed value into a runtime-indexed

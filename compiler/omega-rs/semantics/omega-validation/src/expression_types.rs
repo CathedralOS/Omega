@@ -873,21 +873,31 @@ fn report_array_operator_operands(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
     use omega_typed_trees::expression::BinaryOperator;
-    if matches!(
-        operator,
-        BinaryOperator::Equal | BinaryOperator::NotEqual | BinaryOperator::And | BinaryOperator::Or
-    ) {
+    // Logical `&&`/`||` on a non-bool array operand are the province of the
+    // non-bool-logical check (which reports a bool-operand requirement); skip them.
+    if matches!(operator, BinaryOperator::And | BinaryOperator::Or) {
         return false;
     }
+    // `==`/`!=` are excluded for STRUCT/data operands (they expand to synthesized
+    // structural equality) but an ARRAY operand never expands -- there is no array
+    // element-wise equality yet, so `xs == ys` reaches the backend as a multi-byte
+    // runtime compare it cannot encode ("cannot load N-byte runtime operands"). Give
+    // it a precise message here instead, alongside the ordering/arithmetic rejection.
+    let is_equality = matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual);
     for operand in [left, right] {
         if let Some(operand_type) =
             crate::places::declared_place_type(program, machine, state, operand)
             && type_reference_is_array(program, operand_type)
             && !type_reference_is_text_carrier(program, operand_type)
         {
+            let detail = if is_equality {
+                "arrays do not support `==` / `!=` yet (element-wise array equality is not \
+                 synthesized -- compare elements individually)"
+            } else {
+                "ordering, arithmetic, and bitwise operators are not defined for arrays"
+            };
             diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` applies `{operator:?}` to an array operand, but \
-                 ordering, arithmetic, and bitwise operators are not defined for arrays",
+                "machine `{}` state `{}` applies `{operator:?}` to an array operand, but {detail}",
                 machine.name.as_str(),
                 state.map(|state| state.name.as_str()).unwrap_or(""),
             )));
