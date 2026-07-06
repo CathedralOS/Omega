@@ -1133,22 +1133,38 @@ fn scan_expression_calls(
                     state.name.as_str(),
                 )));
             }
-            // `<number> as bool` reinterprets bits into a non-{0,1} bool silently;
-            // there is no number->bool `as` conversion (write `n != 0`).
-            if program
+            // The SOURCE side of a cast. `<number> as bool` reinterprets bits into a
+            // non-{0,1} bool (no number->bool `as`; write `n != 0`). A NUMERIC/address
+            // target (`as i32`, `as f64`, `as addr`) from a text / struct / array source
+            // (`s as i32`) reinterprets bytes to garbage. Both are silent otherwise.
+            let target_primitive = program
                 .expression_table
                 .name_path_members(cast.target_type)
                 .last()
-                .and_then(|target| PrimitiveType::from_name(target.as_str()))
-                == Some(PrimitiveType::Bool)
-            {
-                crate::expression_types::report_number_to_bool_cast(
-                    program,
-                    machine,
-                    Some(state),
-                    cast.value,
-                    diagnostics,
-                );
+                .and_then(|target| PrimitiveType::from_name(target.as_str()));
+            match target_primitive {
+                Some(PrimitiveType::Bool) => {
+                    crate::expression_types::report_number_to_bool_cast(
+                        program,
+                        machine,
+                        Some(state),
+                        cast.value,
+                        diagnostics,
+                    );
+                }
+                // Every scalar target except `bool` and the `String` carrier is a
+                // numeric/address type that only accepts a numeric/bool scalar source.
+                Some(primitive) if primitive != PrimitiveType::String => {
+                    crate::expression_types::report_invalid_numeric_cast_source(
+                        program,
+                        machine,
+                        Some(state),
+                        cast.value,
+                        primitive.name(),
+                        diagnostics,
+                    );
+                }
+                _ => {}
             }
             scan_expression_calls(
                 program,

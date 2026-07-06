@@ -120,6 +120,19 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   operator (`self.a + self.b` for plain `data P`) rejected via `resolve_spelling` (empty
   candidate set for a concrete-data left operand = undeclared; domain ops stay valid).
   Lesson in memory [[literal-class-assignment-miscompile]]. Canary struct_operator_undeclared_rejected.
+- **[RESOLVED 2026-07-05] Cast to a numeric/address scalar from a TEXT/STRUCT/ARRAY source.**
+  `self.s as i32` (a `String` carrier), `self.p as i32` (a struct), `self.xs as i32` (an array)
+  all compiled + RAN to garbage (exit 0): the Cast arm validated the TARGET (must be a scalar
+  primitive) and `as bool`, but never the SOURCE for numeric targets, so `as` resolved the
+  target primitive, found no scalar conversion, and passed the bytes through unchanged. Fix:
+  `report_invalid_numeric_cast_source` (expression_types.rs), wired in the Cast arm for every
+  scalar target except `bool` (handled by `report_number_to_bool_cast`) and `String`. Rejects a
+  PROVABLY non-scalar/text source: `value_class == Text` (text), `value_shape_is_array == Some(true)`
+  (array), or a struct-literal / concrete-data-place name (struct); a numeric/bool source, a
+  comparison, or an unresolvable computed source (a call) is left alone -- so `(a==1) as i32` and
+  `bool as f64` stay valid. Canaries cast_{text,struct,array}_to_number_rejected. NOTE: the other
+  direction (`n as String`, `p as String`) is NOT silent -- it hits the "needs mutation lowering"
+  guard (crude but safe), so no soundness hole there; a diagnostic-quality follow-up at most.
 - **[RESOLVED 2026-07-05, a902653ce]** Float BITWISE/SHIFT/MODULO rejected at `--check`
   (matching the interpreter's existing rejection). Canary float_bitwise_rejected.
 - **[RESOLVED 2026-07-03]** `arr[i] = <binary>` (computed value into a runtime-indexed
