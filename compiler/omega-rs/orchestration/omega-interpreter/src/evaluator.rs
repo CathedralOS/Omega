@@ -2736,7 +2736,7 @@ impl<'program> Evaluator<'program> {
         };
         let cell = self.deref_cell(cell);
         if let Value::Array(cells) = &*cell.borrow() {
-            let mut put = |offset: usize, byte: u8| {
+            let put = |offset: usize, byte: u8| {
                 if let Some(slot) = cells.get(offset) {
                     *slot.borrow_mut() = Value::Int(i64::from(byte));
                 }
