@@ -216,6 +216,27 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **🅿️ LOOP STATUS — PRODUCTIVE PLATEAU (2026-07-06, for the user to review).** The
+  `std::fs` surface is functionally COMPLETE: (1) the raw `FilesystemHost` seam is fully
+  native on macOS/aarch64 with 44 run-verified regression canaries (every op: CRUD,
+  seek, positioned I/O, dirs+iteration, links/rename/truncate/perms/ownership, the full
+  metadata-decode set, sync family, `*at` ops, errno); (2) the ergonomic `Filesystem`
+  wrapper (Rust-parity `File`/result-enum API incl. `create_dir_all`/`read_dir`/
+  `remove_dir_all`/`copy`) is COMPLETE + coverage-tested in the interpreter. The SINGLE
+  remaining item is native lowering of the ergonomic wrapper (step 14), blocked on ONE
+  general (non-fs) codegen bug: a value-call forwarding a slice literal to a callee param
+  materializes the descriptor LEN as 0. Prior fires + this one agree it is deep,
+  multi-layer backend work unsuited to 5-min loop iterations (a turnkey repro is parked
+  at `canaries/run/filesystem/value_call_slice_literal_len`). The remaining clean fs
+  "slices" are essentially mined out; the only other open item is speculative cross-
+  platform structural prep (step 15, untested, macOS-is-the-only-target mandate).
+  **JUDGMENT / recommendation:** the loop is kept scheduled (the unschedule gate —
+  "entirely complete, or blocked solely by a user-only design decision" — is not strictly
+  met, since this is a technical blocker, not a design decision). But the user may
+  reasonably choose to either (a) `CronDelete 371842c4` and convert step 14 into a
+  dedicated focused session, or (b) let the loop continue on lower-value structural prep.
+  This is flagged, not decided, per "defer genuinely hard/irreversible calls."
+
 - **✅ NATIVE fs regression coverage 8 → 44 canaries (2026-07-06).** The whole native
   fs surface is now under the automated `native_filesystem_canaries` harness, not just
   8 ops. Earlier fires BUILT + hand-ran ~36 native canaries (each carried a "NOT
