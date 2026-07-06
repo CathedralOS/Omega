@@ -766,6 +766,39 @@ crate tests; interpreter fs coverage) and commits.
       calls, not just fs). Better suited to a dedicated focused session than a 5-min
       loop fire. The raw `FilesystemHost` seam remains fully native; the ergonomic
       wrapper stays interpreter/const-eval until this is done as a deliberate effort.
+    - **SURGICAL PINPOINT (deeper read-only trace, a later fire — the diagnosis is
+      now precise enough to fix in one focused sitting).** THE file is
+      `omega-instruction-selection/src/selection/runtime_dispatch/argument_materialization.rs`.
+      Its main loop tries an ORDERED CHAIN of strategies to materialize each
+      transition/state-call argument into the callee's param slot (enum-tag →
+      `emit_runtime_detached_frame_slice_argument_materialization` (as_slice, writes
+      BOTH ptr+len) → `emit_runtime_frame_slot_slice_descriptor_write_in_table`
+      (literal-SUBSLICE `buf[a..b]`, runtime-subslice, `as_slice`) → call-result
+      place-copy → fixed-array → pointee → indexed → same-size place-copy → Indexed
+      value → local-initial-value → static integer/bool → float → struct-literal).
+      A BARE STRING LITERAL (`"hello"`) is a `StringLiteral` node that matches NONE
+      of these: it is not a Call (`as_slice`), not an `Indexed`+`Range` (literal
+      subslice), not a same-size storage PLACE (a literal has no frame place; its
+      bytes are a rodata DATA OBJECT), and not a static scalar. So it FALLS THROUGH
+      the whole chain and the 16-byte descriptor slot keeps its zero bytes → ptr 0,
+      len 0 (matching the repro: seek-to-end == 0). THE FIX is a new ADDITIVE
+      strategy in that loop: when the argument is a slice-typed `StringLiteral` (or a
+      literal-backed slice) and the slot is `slice_descriptor_size()`, resolve its
+      DATA OBJECT (cf. `find_data_object` in the host-call literal path) and emit the
+      descriptor-write PAIR — an address-write of the data object into the slot's ptr
+      field + a `WriteRuntimeStorageInteger` of the byte length into
+      `slot.byte_offset + descriptor.len_offset()` (exactly the pattern
+      `emit_runtime_fixed_array_slice_argument_materialization` uses at lines
+      ~956–975, but sourcing the address from RODATA instead of a frame place).
+      LOW BLAST RADIUS: the arm only fires for a case that is currently 100% broken
+      (writes 0 bytes), so it cannot regress any working call. OPEN QUESTION for the
+      implementer: whether an existing `SelectedInstructionKind` writes a rodata
+      DATA-OBJECT address into a runtime-frame slot (the existing
+      `WriteRuntimeStorageAddressToRuntimeFrame` takes a frame-PLACE source, not a
+      data object). If none exists, one must be added (enum + aarch64/x86 encoders +
+      width + layout, in lockstep) — that is the only part that could push this past
+      a single focused fire. This unblocks the ergonomic wrapper's `write_all`/`copy`
+      and every forwarded-slice-literal call.
 15. [ ] **x86_64 / linux / windows seams** — see the reference below. Tables only;
     macOS is the only TESTED target now. Note: linux value-return needs the
     value-returning result-store wired into the `svc` syscall path (today only the
