@@ -163,21 +163,46 @@ crate tests; interpreter fs coverage) and commits.
    per AAPCS64; today host-call args go in registers, so the mode is dropped —
    the same D4 issue that routed `create`→`_creat`). Until a variadic-mode host
    call lands, use `create` for the create-and-truncate case. See D8-open.
-8. [ ] **Error model** — negative raw return → typed Omega error `data` cases
-   (Rust `io::ErrorKind`). Needs the `__error()` host call (pointer return +
-   deref of errno) to distinguish ENOENT/EACCES/EEXIST/… . Medium.
-8. [ ] **Richer `Metadata`** via `fstat` — `st_size`/mode/times. Needs a
-   stat-buffer out-param + struct-field reads (darwin arm64 `st_size` at off 96).
-   Unlocks `is_file`/`is_dir`/permissions/modified. Medium-large.
-9. [ ] **`read_dir`** (opendir/readdir) — directory iteration. Large (returns a
-   growing sequence; needs an iterator/handle shape). Defer until an iteration
-   idiom is settled.
-10. [ ] **[deep, parallel] Native wrapper lowering** — forwarded-param →
+8. [x] **Whole-file one-shot helpers** (Rust `fs::write` / `fs::read`) — DONE.
+   `Filesystem::write_all(path, bytes) -> UnitResult` (create+write+close) and
+   `Filesystem::read_all(path, buffer, count) -> IoResult` (open+read+close). All
+   raw ops run in the ENTRY (no slice threaded through a state): a create/open
+   failure leaves fd<0 so the write/read/close no-op with errors and the `n >= 0`
+   guard reports Error. Pure Omega, no new native op — the primitives are already
+   native-verified by `native_crud` (and the ergonomic wrapper doesn't lower
+   natively yet, D5/step 12), so no redundant native canary. Coverage
+   `filesystem_std_module_whole_file_helpers` (15-byte round-trip + read_all on a
+   missing path == Error). Rust returns a grown `Vec`; Omega fills a caller buffer
+   to keep the std surface allocation-free (size it via `metadata().len`).
+9. [ ] **Error model** — negative raw return → typed Omega error `data` cases
+   (Rust `io::ErrorKind`: NotFound/PermissionDenied/AlreadyExists/…). PLAN
+   (worked out, not yet built): darwin libSystem wrappers return -1 and set the
+   thread-local errno, read via `__error()` which returns `int*`. Add a raw op
+   `read_errno` whose value-returning lowering, AFTER the `BL __error`, emits one
+   extra `ldr w0,[x0]` (0xB9400000) to deref the pointer before the result store
+   — keeping the deref entirely in the backend (no language-level raw pointer).
+   ⚠ RISK found this fire: the value-returning relocation offsets are computed
+   ANALYTICALLY (`external_calls.rs`: BL offset = Σ arg widths; the result-store
+   adrp/add offsets in `data_addresses.rs` are likewise fixed-layout), so
+   inserting the `ldr` shifts several offset computations and the width function
+   `host_call_sequence_width_from_operands` — all must move together (+4) or
+   relocations desync (the same width-mismatch bug class as the 154 pre-existing
+   failures). Do it as its OWN careful fire with a disassembly check, not folded
+   into another change. Then wire errno→ErrorKind and thread the kind into the
+   result enums (`OpenResult::Error(kind)` etc.); interpreter models errno by
+   returning specific `-errno` from the virtual ops. Medium-large, multi-fire.
+10. [ ] **Richer `Metadata`** via `fstat` — `st_size`/mode/times. Needs a
+    stat-buffer out-param + struct-field reads (darwin arm64 `st_size` at off 96).
+    Unlocks `is_file`/`is_dir`/permissions/modified. Medium-large.
+11. [ ] **`read_dir`** (opendir/readdir) — directory iteration. Large (returns a
+    growing sequence; needs an iterator/handle shape). Defer until an iteration
+    idiom is settled.
+12. [ ] **[deep, parallel] Native wrapper lowering** — forwarded-param →
     storage-place resolution across the machine-call boundary; store enum result
     through a wrapper `&mut out`; const-folded-literal-arg fix. Then the ergonomic
     wrapper lowers natively (today it runs only in the interpreter; the raw seam
     lowers natively). Deep backend work; see D5.
-11. [ ] **x86_64 / linux / windows seams** — see the reference below. Tables only;
+13. [ ] **x86_64 / linux / windows seams** — see the reference below. Tables only;
     macOS is the only TESTED target now. Note: linux value-return needs the
     value-returning result-store wired into the `svc` syscall path (today only the
     darwin `BL`/Import path stores the return register — see D8 when started).
