@@ -175,6 +175,12 @@ pub enum HostOperation {
     /// `S_IFLNK` (0o120000), so `Metadata::is_symlink()` is true. Identical operand
     /// shape to `Stat` (path pointer + buffer pointer).
     LStat,
+    /// `realpath(path, resolved)` -- resolve a path to its canonical absolute form,
+    /// following every symlink, into a caller buffer (>= PATH_MAX). Rust
+    /// `fs::canonicalize`. Returns the `resolved` pointer (non-NULL) on success or
+    /// NULL on error, so the stored i64 is just a success flag (no deref). Same
+    /// operand shape as `Stat` (path pointer + buffer pointer).
+    Realpath,
     /// `ftruncate(fd, length)` -- set a file's length (Rust `File::set_len`).
     SetLen,
     /// `fsync(fd)` -- flush a file's buffered data + metadata to the storage
@@ -242,6 +248,7 @@ impl HostOperation {
             "getdirentries64" => Self::ReadDir,
             "stat" => Self::Stat,
             "lstat" => Self::LStat,
+            "realpath" => Self::Realpath,
             "ftruncate" => Self::SetLen,
             "fsync" => Self::Sync,
             "read_errno" => Self::ReadErrno,
@@ -288,6 +295,7 @@ impl HostOperation {
             Self::ReadDir => "getdirentries64",
             Self::Stat => "stat",
             Self::LStat => "lstat",
+            Self::Realpath => "realpath",
             Self::SetLen => "ftruncate",
             Self::Sync => "fsync",
             Self::ReadErrno => "read_errno",

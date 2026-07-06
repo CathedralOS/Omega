@@ -1,0 +1,55 @@
+// NATIVE fs canonicalize via realpath (Rust fs::canonicalize). Creates a file
+// under /tmp, then canonicalizes its path. On macOS /tmp is a symlink to
+// /private/tmp, so realpath resolves the canonical path to "/private/tmp/...".
+// The buffer therefore begins "/private/tmp/": buffer[0]=='/', buffer[1]=='p'
+// (NOT 't' — that's the resolution proof), buffer[8]=='/'. Proves the realpath
+// op lowers and runs on real macOS syscalls, resolving symlinks for real.
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine canonicalize(path: &[u8] in Path, buffer: &mut [u8]) -> i64;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+}
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    fd: i32;
+    rc: i64;
+    b0: u8;
+    b1: u8;
+    b8: u8;
+    n: i64;
+    buffer: [u8; 1024];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.fd = self.fs.create("/tmp/omega_canon.txt", self.mode);
+    self.n = self.fs.close(self.fd);
+    self.rc = self.fs.canonicalize("/tmp/omega_canon.txt", &mut self.buffer);
+    self.n = self.fs.remove("/tmp/omega_canon.txt");
+    transition self.rc != 0 { true -> decode() _ -> fail() }
+    state decode(&mut self) {
+        // realpath resolves /tmp -> /private/tmp: the canonical path is
+        // "/private/tmp/omega_canon.txt".
+        self.b0 = self.buffer[0];
+        self.b1 = self.buffer[1];
+        self.b8 = self.buffer[8];
+        transition self.b0 == 47 { true -> checkp() _ -> fail() }
+    }
+    state checkp(&mut self) {
+        // buffer[1] == 'p' (of "private") proves /tmp was resolved, not left as-is
+        transition self.b1 == 112 { true -> checkslash() _ -> fail() }
+    }
+    state checkslash(&mut self) {
+        transition self.b8 == 47 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: canonicalize resolves /tmp -> /private/tmp\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: canonicalize\n"); }
+}

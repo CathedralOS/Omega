@@ -2478,6 +2478,27 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
+            "canonicalize" => {
+                // `realpath(path, buf)`: resolve `path` to its canonical absolute
+                // form and write it NUL-terminated into the buffer. The hermetic FS
+                // is already absolute and does not resolve `.`/`..`; it follows one
+                // symlink level (matching `read_link`). Returns a non-zero success
+                // flag (native returns the resolved-buffer pointer) or 0 (NULL) +
+                // ENOENT when the target does not exist.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let resolved = self.virtual_symlinks.get(&path).cloned().unwrap_or(path);
+                let exists = self.virtual_files.contains_key(&resolved)
+                    || self.virtual_dirs.contains(&resolved);
+                if exists {
+                    let mut bytes = resolved;
+                    bytes.push(0); // NUL-terminate like realpath's C string
+                    self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                    1
+                } else {
+                    self.virtual_errno = 2; // ENOENT
+                    0
+                }
+            }
             "read_dir" => {
                 // `read_dir(fd, buf, count, &position)`: on the first call
                 // (position == 0) pack the directory's entries as darwin `dirent`

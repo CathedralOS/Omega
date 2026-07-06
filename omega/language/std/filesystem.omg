@@ -176,6 +176,11 @@ boundary trait FilesystemHost {
     machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32;
     machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> i32;
     machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: usize) -> i64;
+    // Resolve `path` to its canonical absolute form (following every symlink) into
+    // `buffer` (must be >= PATH_MAX = 1024), NUL-terminated (Rust `fs::canonicalize`
+    // -> `realpath`). Returns the resolved-buffer pointer as an i64 (non-zero) on
+    // success, or 0 (NULL) on error — a success FLAG, not a byte count.
+    machine canonicalize(path: &[u8] in Path, buffer: &mut [u8]) -> i64;
     // Read directory entries (Rust `fs::read_dir`) into `buffer` as packed
     // darwin dirent records — on darwin arm64 this is `___getdirentries64`
     // (classic `getdirentries` is unavailable with 64-bit inodes). `position`
@@ -560,6 +565,19 @@ machine Filesystem::read_link(&mut self, path: &[u8] in Path, buffer: &mut [u8],
     transition n >= 0 { true -> ok(n) _ -> err() }
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+// Resolve a path to its canonical absolute form, following every symlink (Rust
+// `std::fs::canonicalize`). On `Ok` the NUL-terminated absolute path is in
+// `buffer` (provide >= 1024 bytes); Rust returns a fresh `PathBuf`, Omega fills a
+// caller buffer to stay allocation-free. The buffer stays a valid `Path` (a
+// NUL-terminated C string) so it can be fed straight back into another fs op. The
+// raw call returns the resolved pointer as a success flag (non-zero), not a count.
+machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult {
+    let rc: i64 = self.host.canonicalize(path, buffer);
+    transition rc != 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
 }
 
 // Set an OPEN file's permission bits (Rust `File::set_permissions`), the fd-based
