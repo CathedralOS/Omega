@@ -212,6 +212,9 @@ struct VirtualFd {
     path: Vec<u8>,
     cursor: usize,
     writable: bool,
+    /// A descriptor over a DIRECTORY (opened read-only for `read_dir`); a normal
+    /// `read`/`write` on it is EISDIR.
+    is_dir: bool,
 }
 
 struct Evaluator<'program> {
@@ -2475,6 +2478,45 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
+            "read_dir" => {
+                // `read_dir(fd, buf, count, &position)`: on the first call
+                // (position == 0) pack the directory's entries as darwin `dirent`
+                // records (`.`, `..`, then each immediate child) into the buffer
+                // and set `position`; a later call returns 0 (end). The record
+                // layout matches native `___getdirentries64` so a parser is
+                // identical on both engines.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let dir_path = self
+                    .virtual_fds
+                    .get(&fd)
+                    .filter(|descriptor| descriptor.is_dir)
+                    .map(|descriptor| descriptor.path.clone());
+                match dir_path {
+                    None => {
+                        // Unknown fd -> EBADF; a live non-dir fd -> ENOTDIR.
+                        self.virtual_errno = if self.virtual_fds.contains_key(&fd) {
+                            20 // ENOTDIR
+                        } else {
+                            9 // EBADF
+                        };
+                        -1
+                    }
+                    Some(path) => {
+                        let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                        let position = self.read_fs_position(arguments.get(3).copied(), frame);
+                        if position != 0 {
+                            0
+                        } else {
+                            let records = self.build_dirent_records(&path);
+                            let n = records.len().min(count);
+                            self.write_fs_buffer(arguments.get(1).copied(), frame, &records[..n]);
+                            // Any non-zero marker so the next call reports end.
+                            self.write_fs_position(arguments.get(3).copied(), frame, n.max(1) as i64);
+                            n as i64
+                        }
+                    }
+                }
+            }
             "read_metadata" => {
                 // `stat(path, buf)`: fill the buffer's st_mode (off 4, u16) and
                 // st_size (off 96, i64) as the darwin kernel would. A regular
@@ -2607,6 +2649,73 @@ impl<'program> Evaluator<'program> {
         }
     }
 
+    /// Read the current value of a `&mut i64` argument (the in/out `position`
+    /// cursor of `read_dir`), 0 if unresolvable.
+    fn read_fs_position(&mut self, argument: Option<ExpressionHandle>, frame: &Frame) -> i64 {
+        let Some(argument) = argument else {
+            return 0;
+        };
+        let Ok(cell) = self.resolve_place(argument, frame) else {
+            return 0;
+        };
+        let value = self.deref_cell(cell).borrow().as_int().unwrap_or(0);
+        value
+    }
+
+    /// Write back a `&mut i64` argument (the in/out `position` cursor).
+    fn write_fs_position(&mut self, argument: Option<ExpressionHandle>, frame: &Frame, value: i64) {
+        let Some(argument) = argument else {
+            return;
+        };
+        let Ok(cell) = self.resolve_place(argument, frame) else {
+            return;
+        };
+        *self.deref_cell(cell).borrow_mut() = Value::Int(value);
+    }
+
+    /// Build the packed darwin `dirent` records for a directory: `.` and `..`
+    /// then each IMMEDIATE child (files in `virtual_files`, subdirs in
+    /// `virtual_dirs` directly under `dir_path/`). Each record is
+    /// `[d_ino(8) d_seekoff(8) d_reclen@16(u16) d_namlen@18(u16) d_type@20(u8)
+    /// d_name@21(namlen) NUL pad]`, `d_reclen = round_up_8(25 + namlen)` — the
+    /// exact layout `___getdirentries64` produces, so byte counts and a parser
+    /// agree with native.
+    fn build_dirent_records(&self, dir_path: &[u8]) -> Vec<u8> {
+        let mut entries: Vec<(Vec<u8>, u8)> = vec![(b".".to_vec(), 4), (b"..".to_vec(), 4)];
+        let mut prefix = dir_path.to_vec();
+        prefix.push(b'/');
+        let immediate_child = |path: &[u8]| -> Option<Vec<u8>> {
+            let rest = path.strip_prefix(prefix.as_slice())?;
+            if rest.is_empty() || rest.contains(&b'/') {
+                None
+            } else {
+                Some(rest.to_vec())
+            }
+        };
+        for path in self.virtual_files.keys() {
+            if let Some(name) = immediate_child(path) {
+                entries.push((name, 8)); // DT_REG
+            }
+        }
+        for path in &self.virtual_dirs {
+            if let Some(name) = immediate_child(path) {
+                entries.push((name, 4)); // DT_DIR
+            }
+        }
+        let mut buffer = Vec::new();
+        for (name, d_type) in entries {
+            let namlen = name.len();
+            let reclen = (25 + namlen).div_ceil(8) * 8;
+            let start = buffer.len();
+            buffer.resize(start + reclen, 0);
+            buffer[start + 16..start + 18].copy_from_slice(&(reclen as u16).to_le_bytes());
+            buffer[start + 18..start + 20].copy_from_slice(&(namlen as u16).to_le_bytes());
+            buffer[start + 20] = d_type;
+            buffer[start + 21..start + 21 + namlen].copy_from_slice(&name);
+        }
+        buffer
+    }
+
     /// Fill a caller stat buffer (`&mut [u8]` of at least 144 bytes) the way the
     /// darwin kernel writes `struct stat`: `st_mode` (u16) at byte offset 4 and
     /// `st_size` (i64) at byte offset 96, both little-endian. The Omega layer
@@ -2657,6 +2766,7 @@ impl<'program> Evaluator<'program> {
                 path,
                 cursor: 0,
                 writable,
+                is_dir: false,
             },
         );
         fd
@@ -2727,6 +2837,24 @@ impl<'program> Evaluator<'program> {
             self.virtual_errno = 13; // EACCES
             return -1;
         }
+        // Read-open of a DIRECTORY: POSIX allows opening a dir read-only (the
+        // basis for `read_dir`). Mint a dir descriptor. Checked before the ENOENT
+        // test since a dir path is never in `virtual_files`. (This also aligns
+        // `exists`/`try_exists` on a dir with native, where opening a dir works.)
+        if !writable && self.virtual_dirs.contains(&path) {
+            let fd = self.virtual_next_fd;
+            self.virtual_next_fd += 1;
+            self.virtual_fds.insert(
+                fd,
+                VirtualFd {
+                    path,
+                    cursor: 0,
+                    writable: false,
+                    is_dir: true,
+                },
+            );
+            return fd;
+        }
         if !exists && !o_creat {
             self.virtual_errno = 2; // ENOENT
             return -1;
@@ -2747,6 +2875,7 @@ impl<'program> Evaluator<'program> {
                 path,
                 cursor,
                 writable,
+                is_dir: false,
             },
         );
         fd
