@@ -1247,6 +1247,14 @@ fn scan_expression_calls(
             );
         }
         ExpressionNode::Unary(unary) => {
+            // Logical `!` is bool-only (bitwise-not is `~`); reject `!<non-bool>`.
+            crate::expression_types::report_non_bool_logical_not(
+                program,
+                machine,
+                Some(state),
+                unary.operand,
+                diagnostics,
+            );
             scan_expression_calls(
                 program,
                 machine,

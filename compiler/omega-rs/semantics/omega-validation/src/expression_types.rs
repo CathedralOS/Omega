@@ -469,6 +469,33 @@ fn type_reference_is_text_carrier(program: &TypedTrees, handle: TypeReferenceHan
     }
 }
 
+/// Reject logical `!` on a NON-bool operand (`!5`, `!x` for `x: i32`). `!` is
+/// bool-only in Omega; bitwise-not is the separate `~`. Only a PROVABLY non-bool
+/// operand is flagged -- a numeric/text literal, an arithmetic result, or a place
+/// whose declared type is a numeric/text primitive (all classify as Numeric/Text).
+/// A comparison / logical / call / unresolved operand classifies as None and is
+/// allowed, so a real bool (including a bare `a == 1`) is never rejected.
+pub(crate) fn report_non_bool_logical_not(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    operand: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let class = value_class(program, Some(machine), state, operand);
+    if !matches!(class, Some(ValueClass::Numeric) | Some(ValueClass::Text)) {
+        return false;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}` applies logical `!` to {}, but `!` requires a `bool` operand \
+         (bitwise-not is spelled `~`)",
+        machine.name.as_str(),
+        state.map(|state| state.name.as_str()).unwrap_or(""),
+        class.unwrap().describe(),
+    )));
+    true
+}
+
 /// Map a binary operator to its overloadable spelling, or `None` for operators
 /// that cannot carry a domain meaning here: `==`/`!=` (the structural-equality /
 /// Equatable path owns those), the logical `&&`/`||`, and bitwise/shift (which
