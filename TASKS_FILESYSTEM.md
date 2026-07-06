@@ -144,6 +144,36 @@ matched by the interpreter oracle.
 - [x] **1c. Path type.** `domain [u8]::Path when no_nul(self)` — `no_nul` is a
   compiler-recognized byte predicate, so it checks today, and NUL-free is the
   real POSIX path invariant. Deliberately not `Utf8`.
+### ⛔ BLOCKER discovered 2026-07-05: aarch64 has no value-returning host calls
+
+The native fs value-return path on **darwin/aarch64 (this Mac) is gated on a
+foundational, NON-fs capability the backend lacks: value-returning host calls.**
+
+- On **x86_64**, value-returning host ops (`TickCount`, `KeyState`, `Gui`) route
+  through `encode_win64_import_call(operands, /*value_returning*/ true)` —
+  operand[0] = result place, the return is stored into it.
+- On **aarch64**, `encode_host_call_sequence` ignores the operation key and loads
+  **every** operand into an arg register (`append_call_operands`) — there is **no
+  result-store path**. Grep for one is empty.
+- **Empirically confirmed:** a minimal `self.t = self.clock.tick_count()` fails
+  to build for `Aarch64/MachO` with `no native lowering … Aarch64` AND
+  `needs mutation lowering` (a second aarch64 gap on the assignment-result path).
+
+Consequence: every USEFUL fs op needs its syscall return (fd / count / rc) —
+which requires value-returning host calls — so ALL of them are blocked on
+aarch64 until that primitive exists. `close` only "works" natively because it is
+VOID (we discard its `-errno`; it can't detect a close error). `read`'s buffer
+fill would work (the kernel writes through the pointer arg), but its byte-count
+return would not.
+
+**The unblock (a general ISA feature, not fs):** in the aarch64 backend, add a
+value-returning host-call sequence — treat operand[0] as the result place, load
+operands[1..] as args, `BL`, then `str x0/w0` into the result place — plus the
+assignment-result ("mutation lowering") path. Bounded but foundational ISA work;
+best done as its own focused, verifiable piece (and native exec is flaky on this
+box, so it verifies via emitted bytes, not by running). Until then, native fs
+CRUD on this Mac stays at `close`; the **interpreter fs is the working CRUD**.
+
 ### Ratified 2026-07-05: value-return + Omega wrap (surface reshape)
 
 The remaining ops turn a syscall return into an outcome. **Decision: the raw
