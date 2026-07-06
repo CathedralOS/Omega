@@ -196,6 +196,11 @@ pub enum HostOperation {
     Realpath,
     /// `ftruncate(fd, length)` -- set a file's length (Rust `File::set_len`).
     SetLen,
+    /// `futimens(fd, times[2])` -- set a file's access + modification timestamps
+    /// (Rust `File::set_times`). `times` is a caller buffer holding two
+    /// `struct timespec` (atime then mtime, each {tv_sec i64, tv_nsec i64}); the
+    /// operand shape is the SAME as `fstat` (`[result, fd, buffer pointer]`).
+    SetFileTimes,
     /// `fsync(fd)` -- flush a file's buffered data + metadata to the storage
     /// device (Rust `File::sync_all`). Same shape as `close`: one fd arg, rc.
     Sync,
@@ -270,6 +275,7 @@ impl HostOperation {
             "lstat" => Self::LStat,
             "realpath" => Self::Realpath,
             "ftruncate" => Self::SetLen,
+            "futimens" => Self::SetFileTimes,
             "fsync" => Self::Sync,
             "dup" => Self::Dup,
             "read_errno" => Self::ReadErrno,
@@ -321,6 +327,7 @@ impl HostOperation {
             Self::LStat => "lstat",
             Self::Realpath => "realpath",
             Self::SetLen => "ftruncate",
+            Self::SetFileTimes => "futimens",
             Self::Sync => "fsync",
             Self::Dup => "dup",
             Self::ReadErrno => "read_errno",

@@ -254,6 +254,11 @@ struct Evaluator<'program> {
     /// hermetic model stores and returns targets but does NOT resolve them on
     /// open/stat (see TASKS_FS.md); native symlinks resolve for real.
     virtual_symlinks: BTreeMap<Vec<u8>, Vec<u8>>,
+    /// Explicitly-set modification times: path -> mtime seconds (`set_file_times`
+    /// / `File::set_times`). `stat`/`fstat` report this when present, else the fixed
+    /// modeled epoch. The hermetic model round-trips MODIFIED time (whole seconds);
+    /// access time is set natively but the model reports the fixed modeled atime.
+    virtual_times: BTreeMap<Vec<u8>, i64>,
     /// The thread-local `errno` model: set to a POSIX code when a virtual fs op
     /// fails (ENOENT=2, EACCES=13, EEXIST=17, EBADF=9), read back by
     /// `read_errno` (darwin `___error()`). Mirrors the native seam so the typed
@@ -292,6 +297,7 @@ impl<'program> Evaluator<'program> {
             virtual_dirs: std::collections::BTreeSet::new(),
             virtual_perms: BTreeMap::new(),
             virtual_symlinks: BTreeMap::new(),
+            virtual_times: BTreeMap::new(),
             virtual_errno: 0,
             host_boundary_touched: false,
             steps: 0,
@@ -2424,6 +2430,31 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
+            "set_file_times" => {
+                // `futimens(fd, times)`: `times` is two packed `struct timespec`
+                // (atime then mtime, {tv_sec i64, tv_nsec i64} each). Read the
+                // modification seconds -- times[1].tv_sec at byte offset 16 -- and
+                // record it against the fd's path so stat/fstat report it. EBADF if
+                // the descriptor is unknown.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let times = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                match self.virtual_fds.get(&fd) {
+                    Some(descriptor) => {
+                        let path = descriptor.path.clone();
+                        let mtime = times
+                            .get(16..24)
+                            .and_then(|s| <[u8; 8]>::try_from(s).ok())
+                            .map(i64::from_le_bytes)
+                            .unwrap_or(0);
+                        self.virtual_times.insert(path, mtime);
+                        0
+                    }
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                }
+            }
             "sync" => {
                 // `fsync(fd)`: flush to durable storage. In the hermetic
                 // in-memory FS the bytes are already "durable", so this is a
@@ -2619,17 +2650,16 @@ impl<'program> Evaluator<'program> {
                 };
                 match meta {
                     Some((mode, size)) => {
-                        // The hermetic FS has no real clock, so every entry gets a
-                        // fixed modeled mtime (a plausible epoch); native `stat`
-                        // returns the real time. Tests assert exact == in the
-                        // interpreter and a lower bound natively.
-                        self.write_fs_stat(
-                            arguments.get(1).copied(),
-                            frame,
-                            mode,
-                            size,
-                            VIRTUAL_MTIME_SECS,
-                        );
+                        // A `set_file_times` mtime shows through; otherwise the
+                        // hermetic FS has no clock, so it reports a fixed modeled
+                        // mtime (native `stat` returns the real time -- tests assert
+                        // exact == in the interpreter and a lower bound natively).
+                        let mtime = self
+                            .virtual_times
+                            .get(&path)
+                            .copied()
+                            .unwrap_or(VIRTUAL_MTIME_SECS);
+                        self.write_fs_stat(arguments.get(1).copied(), frame, mode, size, mtime);
                         0
                     }
                     None => {
@@ -2646,27 +2676,27 @@ impl<'program> Evaluator<'program> {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let path = self.virtual_fds.get(&fd).map(|descriptor| descriptor.path.clone());
                 let meta = path.and_then(|path| {
+                    // A `set_file_times` mtime shows through; else the modeled epoch.
+                    let mtime = self
+                        .virtual_times
+                        .get(&path)
+                        .copied()
+                        .unwrap_or(VIRTUAL_MTIME_SECS);
                     let chmod_perm = self
                         .virtual_perms
                         .get(&path)
                         .map(|mode| (*mode as u16) & 0o7777);
                     if let Some(content) = self.virtual_files.get(&path) {
-                        Some((0o100_000u16 | chmod_perm.unwrap_or(0o644), content.len() as i64))
+                        Some((0o100_000u16 | chmod_perm.unwrap_or(0o644), content.len() as i64, mtime))
                     } else if self.virtual_dirs.contains(&path) {
-                        Some((0o040_000u16 | chmod_perm.unwrap_or(0o755), 0i64))
+                        Some((0o040_000u16 | chmod_perm.unwrap_or(0o755), 0i64, mtime))
                     } else {
                         None
                     }
                 });
                 match meta {
-                    Some((mode, size)) => {
-                        self.write_fs_stat(
-                            arguments.get(1).copied(),
-                            frame,
-                            mode,
-                            size,
-                            VIRTUAL_MTIME_SECS,
-                        );
+                    Some((mode, size, mtime)) => {
+                        self.write_fs_stat(arguments.get(1).copied(), frame, mode, size, mtime);
                         0
                     }
                     None => {
@@ -2751,6 +2781,19 @@ impl<'program> Evaluator<'program> {
                     bytes.push(cell.borrow().as_int().unwrap_or(0) as u8);
                 }
                 Ok(bytes)
+            }
+            // `&mut buffer` / `&buffer`: a reference to a caller field/local (e.g. a
+            // `set_file_times` timespec buffer built in place). Deref to the array.
+            Value::Ref(target) => {
+                if let Value::Array(cells) = &*target.borrow() {
+                    let mut bytes = Vec::with_capacity(cells.len());
+                    for cell in cells {
+                        bytes.push(cell.borrow().as_int().unwrap_or(0) as u8);
+                    }
+                    Ok(bytes)
+                } else {
+                    unsupported("filesystem call expected byte data behind a reference".to_owned())
+                }
             }
             other => unsupported(format!("filesystem call expected byte data, got {other:?}")),
         }
