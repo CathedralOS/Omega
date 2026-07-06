@@ -42,6 +42,16 @@ data UnitResult {
     case Ok;
 }
 
+// File metadata (Rust `std::fs::Metadata`). `len` is the size in bytes; more
+// fields (permissions, times, kind) follow once `fstat` lands.
+data Metadata [copy, zero_init] {
+    len: i64;
+}
+data MetadataResult {
+    case Error;
+    case Ok(meta: Metadata);
+}
+
 // The RAW, VALUE-RETURNING per-OS boundary. Human names; the ugly libc spellings
 // (_creat/_unlink/_lseek) live only in the per-target binding table.
 boundary trait FilesystemHost {
@@ -145,4 +155,22 @@ machine Filesystem::set_len(&mut self, file: File, length: i64) -> UnitResult {
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { UnitResult::Error }
+}
+
+// Metadata of an open file (Rust `File::metadata`). Composes the raw `seek` op:
+// remember the cursor (SEEK_CUR), measure the size (SEEK_END), then restore the
+// cursor (SEEK_SET) so `metadata` is non-destructive. `len` is the byte size.
+machine Filesystem::metadata(&mut self, file: File) -> MetadataResult {
+    let cursor: i64 = self.host.seek(file.fd, 0, 1);
+    transition cursor >= 0 { true -> measure(file, cursor) _ -> err() }
+    state measure(&mut self, file: File, cursor: i64) -> MetadataResult {
+        let len: i64 = self.host.seek(file.fd, 0, 2);
+        transition len >= 0 { true -> restore(file, cursor, len) _ -> err() }
+    }
+    state restore(&mut self, file: File, cursor: i64, len: i64) -> MetadataResult {
+        let back: i64 = self.host.seek(file.fd, cursor, 0);
+        transition back >= 0 { true -> ok(len) _ -> err() }
+    }
+    state ok(&mut self, len: i64) -> MetadataResult { MetadataResult::Ok { meta: Metadata { len: len } } }
+    state err(&mut self) -> MetadataResult { MetadataResult::Error }
 }
