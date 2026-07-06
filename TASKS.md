@@ -116,34 +116,15 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   via `is_version_selector` in `machine_attached_data`, but that is name-suffix-based and
   does not catch a nested versioned container.)
 
-- **[RESOLVED 2026-07-05]** Arithmetic/ordering on a STRUCT with no declared operator
-  (`self.a + self.b` for a plain `data P`) now rejected. It used to build + RUN to garbage.
-  A blanket lowering-phase reject was ATTEMPTED + REVERTED (false-positived on DOMAIN
-  operators -- `Quantity + Quantity` is VALID via `domain Quantity::Additive`). RESOLVED
-  by gating on the use-site authority `omega_typed_trees::operator::resolve_spelling`: for a
-  concrete-data (struct) left operand and an overloadable operator (`+ - * / % < <= > >=`),
-  an EMPTY candidate set means the operator is undeclared -> reject; a non-empty set means
-  it is declared and admissibility (the proof context) is enforced downstream, so a valid
-  domain op is never rejected (verified: domain_operator_proven_fact / requires_discharged
-  still compile). `report_undeclared_struct_operator` in the Binary arm of
-  `scan_expression_calls`. Canary struct_operator_undeclared_rejected.
-
-- **[RESOLVED 2026-07-05]** Float BITWISE/SHIFT/MODULO now rejected at `--check`.
-  `f & g` / `f << 2` / `f % g` used to pass `--check` and fail only in the backend ("not
-  implemented yet"). RESOLVED the intent question by confirming the INTERPRETER (the oracle)
-  already rejects the exact set ("float modulo/shift/bitwise not supported") -- so these are
-  invalid by current language semantics, not a planned feature, and a frontend reject just
-  moves the existing rejection earlier with a clear message (like the constant div-by-zero
-  alignment). Fix: `expression_is_float_typed` + a check in the Binary arm of
-  `scan_expression_calls` (calls.rs) forbidding `& | ^ << >> %` when either operand is a
-  float; float `+ - * /` and integer bitwise untouched. Canary float_bitwise_rejected.
-- **[RESOLVED 2026-07-03]** `arr[i] = <binary>` (a computed value into a
-  runtime-indexed target) now selects. The remaining fenced sources into an
-  indexed target are BARE places only: `arr[i] = <bare local>` and `arr[i] =
-  arr[j]` (bare indexed) both hit NeedsMachineOwnedWrite -- a BINARY/literal/
-  field source works, a bare local or bare indexed read does not. Backend
-  mutation-selection gap (not a frontend hoist); a FIELD temp is the working
-  workaround.
+- **[RESOLVED 2026-07-05, 5faa7928b]** Arithmetic/ordering on a STRUCT with no declared
+  operator (`self.a + self.b` for plain `data P`) rejected via `resolve_spelling` (empty
+  candidate set for a concrete-data left operand = undeclared; domain ops stay valid).
+  Lesson in memory [[literal-class-assignment-miscompile]]. Canary struct_operator_undeclared_rejected.
+- **[RESOLVED 2026-07-05, a902653ce]** Float BITWISE/SHIFT/MODULO rejected at `--check`
+  (matching the interpreter's existing rejection). Canary float_bitwise_rejected.
+- **[RESOLVED 2026-07-03]** `arr[i] = <binary>` (computed value into a runtime-indexed
+  target) selects. Still fenced: bare-place sources `arr[i] = <bare local>` / `arr[i] =
+  arr[j]` hit NeedsMachineOwnedWrite (backend mutation-selection gap; FIELD-temp workaround).
 - Same-type contained-machine METHOD-CALL aliasing is a SILENT miscompile,
   re-confirmed on current code 2026-07-03: `a: Counter; b: Counter` +
   `self.b.increment()` mutates `self.a` (dispatch resolves the receiver region by
@@ -195,22 +176,10 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   (b) REJECT non-scalar field defaults with a clear diagnostic so the silent drop
   becomes visible. NOT a live overflow (defaults not emitted). Repro:
   `canaries/pending/arithmetic/array_field_default_silent`.
-- **[RESOLVED 2026-07-05]** DEEPLY-NESTED INPUT no longer crashes the compiler. A
-  ~4000-deep array TYPE (`[[...[i32;1]...;1];1]`) and a ~6000-deep parenthesized
-  EXPRESSION (`((((...1...))))`) used to overflow the stack. Fixed with the two-part
-  design the earlier revert pointed at: (1) a `depth: u16` carried by value on the
-  parser `Input` cursor (preserved across token-advancing reconstructions via
-  `advanced`, reset to 0 at top-level/guard `new` boundaries), incremented at the two
-  recursion choke points (`parse_expression_handle_in`, `parse_type_reference_handle`)
-  and RESTORED on exit (`with_depth`) so sibling args/operands don't accumulate; over
-  `MAX_NESTING_DEPTH` (1024) it rejects with "expression or type nesting is too deep".
-  (2) `compile()` now runs the whole pipeline on a 256 MiB-stack thread (lazy commit,
-  free for ordinary inputs; panics re-raised via `resume_unwind`), so the guard -- not
-  a crash -- always fires first. This is why the earlier 128 MiB attempt failed: WITHOUT
-  a parser guard the deep tree got built and the layout walk (on default-stack workers)
-  overflowed; WITH the guard the tree is shallow, so no later walk ever sees deep input.
-  Canaries: `fail/parser/nesting_exceeds_max_depth`, `pass/parser/deep_nesting_within_limit`
-  (300 levels -- deep enough to have crashed the old default-stack parser, now compiles).
+- **[RESOLVED 2026-07-05]** DEEPLY-NESTED INPUT no longer crashes the compiler: parser
+  `MAX_NESTING_DEPTH`=1024 depth guard + `compile()` on a 256 MiB-stack thread (both
+  load-bearing). Detail in memory [[parser-depth-and-compile-stack]]. Canaries
+  parser/{nesting_exceeds_max_depth, deep_nesting_within_limit}.
 
 ## Cathedral first-boot ladder — remaining language readiness
 
