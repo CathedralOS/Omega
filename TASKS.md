@@ -141,12 +141,12 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   currently-compiling code -> needs a Zach decision, not landed unilaterally.
 - u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
-- **[ ] `!` must require a `bool` operand (agreed 2026-07-05, Zach: prefer modern langs).**
-  `!x` on an `i32` compiles today with C-style truthiness (`!5` -> `0`). Modern strict langs
-  (Rust/Swift/Go/Zig) have no int-in-bool coercion; Rust's `!int` being *bitwise*-not is a
-  Not-trait overload quirk we don't copy — Omega already spells bitwise-not `~` (separate,
-  currently unsupported). So make logical `!` bool-only: `!<non-bool>` is a type error.
-  Small frontend check (the unary operand type gate). NOT design-gated -- decided.
+- **[RESOLVED 2026-07-05]** Logical `!` now requires a `bool` operand. `!x` on an `i32`
+  used to compile with C truthiness (`!5` -> `0`); modern strict langs reject int-in-bool
+  and Omega spells bitwise-not `~` separately. Fix: `report_non_bool_logical_not`
+  (expression_types.rs) in the Unary arm of `scan_expression_calls` -- rejects when the
+  operand's `value_class` is Numeric/Text; a comparison/logical/call operand (None) is
+  allowed, so `!bool`, `!(a==1)`, `!(x && y)` stay valid. Canary logical_not_non_bool_rejected.
 - **[ ] VALUE-position call to a NONEXISTENT machine compiles silently (found
   2026-07-05).** `let y: i32 = bogus_fn(1)` compiles and yields 0 (silent miscompile);
   statement-position `bogus_fn(1);` is correctly rejected by `validate_call_node` ("has

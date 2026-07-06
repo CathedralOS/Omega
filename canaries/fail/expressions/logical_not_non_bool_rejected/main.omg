@@ -1,0 +1,6 @@
+// Logical `!` is bool-only in Omega (bitwise-not is the separate `~`). `!x` on an
+// i32 used to compile with C-style truthiness (`!5` -> 0); modern strict languages
+// reject int-in-bool. Rejected now. `!bool`, `!(a == 1)`, `!(x && y)` stay valid.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { let x: i32 = 5; let r: bool = !x; let n: i32 = r as i32; self.console.exit_process(n); }
