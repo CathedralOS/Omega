@@ -192,6 +192,12 @@ crate tests; interpreter fs coverage) and commits.
   LOCK_EX → EWOULDBLOCK → release → reacquire); wrapper `lock`/`try_lock`(→
   `TryLockResult`)/`unlock` in coverage `filesystem_std_module_locking`. Reused the
   `SetLen` fd+scalar operand arm (zero new backend). fs coverage 40.
+- **File-type classification complete** (10q) — Rust `FileType`/`FileTypeExt`.
+  `Metadata::is_char_device`/`is_block_device`/`is_fifo`/`is_socket` decode from
+  `mode & S_IFMT` (pure Omega, no backend); `is_file()` fixed to mean S_IFREG.
+  `native_filetype` canary PASS (`/dev/null` → char device); coverage
+  `filesystem_std_module_file_type` (interpreter models `/dev/null` as S_IFCHR).
+  fs coverage 42.
 - **File ownership RUNS natively** (10p) — Rust `os::unix::fs::chown`/`fchown`/
   `lchown`. `native_chown` canary PASS (no-op chown/fchown succeed, change to root
   → EPERM(1)); wrappers `set_owner`/`set_owner_no_follow`/`set_file_owner` in
@@ -683,6 +689,25 @@ crate tests; interpreter fs coverage) and commits.
     differs from `chown` only on symlinks, which the hermetic FS never follows on
     ownership ops, so both behave identically in the interpreter; native `lchown`
     is wired + lowered but the canary exercises chown/fchown.)
+10q. [x] **File-type classification — `FileType` + `FileTypeExt`** (Rust
+    `Metadata::is_file`/`is_dir`/`is_symlink` + `os::unix::fs::FileTypeExt::
+    is_char_device`/`is_block_device`/`is_fifo`/`is_socket`) — DONE, complete
+    NATIVE vertical, DECODE-ONLY (no new syscall/op/backend). The four special
+    accessors are PURE `Metadata` methods over the already-stored `mode`:
+    `(mode & S_IFMT) == S_IFxxx` (S_IFMT=61440; S_IFCHR=8192, S_IFBLK=24576,
+    S_IFIFO=4096, S_IFSOCK=49152). **Latent bug fixed:** `Metadata::is_file()` was
+    `!is_dir && !is_symlink`, which wrongly reports a char/block/fifo/socket as a
+    regular file; now it checks `(mode & S_IFMT) == S_IFREG` (32768) directly —
+    identical for regular/dir/symlink (existing tests green), correct for the
+    special types. Interpreter models `/dev/null`/`/dev/zero` as char devices
+    (`virtual_char_devices`, seeded at construction; `read_metadata` reports
+    `S_IFCHR|0o666`), so BOTH engines agree on `/dev/null` → char device (a tight
+    differential, not a native-only split). DIFFERENTIAL: native `native_filetype`
+    canary RUNS on real macOS (stat `/dev/null` → S_IFCHR format bits 8192; a fresh
+    regular file → S_IFREG 32768 → PASS) AND coverage `filesystem_std_module_file_type`
+    (`/dev/null` → is_char_device & !is_file & !block/fifo/socket; regular file →
+    is_file & !is_char_device). fs coverage 42. `Metadata` is now at full
+    `FileType`/`FileTypeExt` parity.
 12. [x] **`copy(from, to)`** (Rust `fs::copy`) — DONE (interpreter). Enabled by a
     small interpreter fix: `eval_fs_bytes` now accepts a `Value::Array` (a byte
     array or a subslice view) as a host-call byte arg — the write-side mirror of

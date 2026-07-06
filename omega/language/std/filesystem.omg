@@ -137,11 +137,29 @@ data Metadata [copy, zero_init] {
     changed_secs: i64;
 }
 
-// Rust `Metadata::is_file` — a regular file: neither a directory nor a symlink.
-// `is_symlink` is only ever set by `symlink_metadata` (lstat); path/fd metadata
-// follows links (stat), so it never sees a symlink and `is_file` stays `!is_dir`.
+// Rust `Metadata::is_file` — a REGULAR file specifically (S_IFREG). Checks the
+// st_mode format bits directly (mode & S_IFMT == S_IFREG) rather than `!is_dir &&
+// !is_symlink`, so a special file (char/block device, fifo, socket) is correctly
+// NOT a regular file. `S_IFMT = 0o170000 = 61440`, `S_IFREG = 0o100000 = 32768`.
 machine Metadata::is_file(&self) -> bool {
-    !self.is_dir && !self.is_symlink
+    (self.mode & 61440) == 32768
+}
+
+// Rust `os::unix::fs::FileTypeExt` — the special (non-regular, non-dir, non-link)
+// file types, decoded from the same st_mode format bits (mode & S_IFMT).
+// S_IFCHR = 0o020000 = 8192, S_IFBLK = 0o060000 = 24576, S_IFIFO = 0o010000 =
+// 4096, S_IFSOCK = 0o140000 = 49152.
+machine Metadata::is_char_device(&self) -> bool {
+    (self.mode & 61440) == 8192
+}
+machine Metadata::is_block_device(&self) -> bool {
+    (self.mode & 61440) == 24576
+}
+machine Metadata::is_fifo(&self) -> bool {
+    (self.mode & 61440) == 4096
+}
+machine Metadata::is_socket(&self) -> bool {
+    (self.mode & 61440) == 49152
 }
 
 // Rust `Metadata::permissions().readonly()` — true when the owner-write bit

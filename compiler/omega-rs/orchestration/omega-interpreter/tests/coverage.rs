@@ -2795,6 +2795,76 @@ machine Main::main(&mut self) {
     );
 }
 
+/// File-type classification (Rust `FileType` / `os::unix::fs::FileTypeExt`) via
+/// `st_mode`. `/dev/null` is a CHARACTER device (`is_char_device()`, and NOT a
+/// regular file); a regular file is `is_file()` and none of the special types.
+/// Both engines agree: the interpreter models `/dev/null` as `S_IFCHR`, and the
+/// `native_filetype` canary asserts the same against the real device node.
+#[test]
+fn filesystem_std_module_file_type() {
+    let main_path = write_program(
+        "fs-filetype",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+}
+machine Main::main(&mut self) {
+    // /dev/null -> character device, NOT a regular file, not the other kinds
+    self.meta_result = self.fs.metadata_path("/dev/null");
+    transition self.meta_result { MetadataResult::Ok { meta } -> checkchar(meta) _ -> fail() }
+    state checkchar(&mut self, meta: Metadata) {
+        transition meta.is_char_device() { true -> charnotfile(meta) _ -> fail() }
+    }
+    state charnotfile(&mut self, meta: Metadata) {
+        transition meta.is_file() { true -> fail() _ -> charnotother(meta) }
+    }
+    state charnotother(&mut self, meta: Metadata) {
+        // exactly one kind: not block / fifo / socket
+        transition meta.is_block_device() { true -> fail() _ -> charnotfifo(meta) }
+    }
+    state charnotfifo(&mut self, meta: Metadata) {
+        transition meta.is_fifo() { true -> fail() _ -> charnotsock(meta) }
+    }
+    state charnotsock(&mut self, meta: Metadata) {
+        transition meta.is_socket() { true -> fail() _ -> mkfile() }
+    }
+    state mkfile(&mut self) {
+        self.unit_result = self.fs.write_all("/reg.txt", "hi");
+        transition self.unit_result { UnitResult::Ok -> statreg() _ -> fail() }
+    }
+    state statreg(&mut self) {
+        self.meta_result = self.fs.metadata_path("/reg.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> checkreg(meta) _ -> fail() }
+    }
+    state checkreg(&mut self, meta: Metadata) {
+        // a regular file is is_file() and NOT a char device
+        transition meta.is_file() { true -> regnotchar(meta) _ -> fail() }
+    }
+    state regnotchar(&mut self, meta: Metadata) {
+        self.unit_result = self.fs.remove("/reg.txt");
+        transition meta.is_char_device() { true -> fail() _ -> ok() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("file_type program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "file_type: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "file_type: /dev/null is_char_device & !is_file; regular file is_file & !is_char_device"
+    );
+}
+
 /// `canonicalize` (Rust `fs::canonicalize`, via `realpath`): resolve a path to its
 /// canonical absolute form, FOLLOWING symlinks. Here a `/link` -> `/target.txt`
 /// symlink canonicalizes to the target's path (buffer begins "/t..."), and a
