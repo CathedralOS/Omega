@@ -469,6 +469,34 @@ fn type_reference_is_text_carrier(program: &TypedTrees, handle: TypeReferenceHan
     }
 }
 
+/// Reject `<number/text> as bool` (`5 as bool`). Such a cast reinterprets the
+/// source bits into a `bool` without normalizing to `{0, 1}`, producing an INVALID
+/// bool (`5 as bool` yields a bool holding 5). `as` has no meaningful number->bool
+/// conversion -- write an explicit comparison (`n != 0`). Only a PROVABLY non-bool
+/// source (Numeric/Text) is flagged; a comparison / logical / call source (None) or
+/// a `bool` source is allowed, so `(a == 1) as bool` and `b as bool` stay fine.
+/// (Same no-int-in-bool principle as `report_non_bool_logical_not`.)
+pub(crate) fn report_number_to_bool_cast(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    value: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let class = value_class(program, Some(machine), state, value);
+    if !matches!(class, Some(ValueClass::Numeric) | Some(ValueClass::Text)) {
+        return false;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}` casts {} to `bool`, but `as` has no number-to-bool conversion \
+         (a `bool` is {{0, 1}}; write an explicit comparison like `n != 0`)",
+        machine.name.as_str(),
+        state.map(|state| state.name.as_str()).unwrap_or(""),
+        class.unwrap().describe(),
+    )));
+    true
+}
+
 /// Reject logical `!` on a NON-bool operand (`!5`, `!x` for `x: i32`). `!` is
 /// bool-only in Omega; bitwise-not is the separate `~`. Only a PROVABLY non-bool
 /// operand is flagged -- a numeric/text literal, an arithmetic result, or a place

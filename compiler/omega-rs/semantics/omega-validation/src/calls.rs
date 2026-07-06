@@ -1184,6 +1184,23 @@ fn scan_expression_calls(
                     state.name.as_str(),
                 )));
             }
+            // `<number> as bool` reinterprets bits into a non-{0,1} bool silently;
+            // there is no number->bool `as` conversion (write `n != 0`).
+            if program
+                .expression_table
+                .name_path_members(cast.target_type)
+                .last()
+                .and_then(|target| PrimitiveType::from_name(target.as_str()))
+                == Some(PrimitiveType::Bool)
+            {
+                crate::expression_types::report_number_to_bool_cast(
+                    program,
+                    machine,
+                    Some(state),
+                    cast.value,
+                    diagnostics,
+                );
+            }
             scan_expression_calls(
                 program,
                 machine,
