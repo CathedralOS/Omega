@@ -266,6 +266,22 @@ crate tests; interpreter fs coverage) and commits.
     (chmod read-only → open_with(write) → Error kind PermissionDenied). A full
     `Permissions` builder (readonly()/set_readonly) waits on `fstat` supplying the
     current mode (step 11).
+10c. [x] **`hard_link`** (Rust `std::fs::hard_link`) via `_link` — DONE, complete
+    NATIVE vertical. `HostOperation::Link` (op `link` → darwin `_link`); reuses
+    the two-path `rename` operand shape (`find_nth_data_object` ×2), so no new
+    operand/encoder work — just added `Link` to that match arm. Raw
+    `FilesystemHost::hard_link(original, link)`; wrapper
+    `Filesystem::hard_link(original, link) -> UnitResult`. DIFFERENTIAL: native
+    `native_hard_link` canary RUNS (link a file, read the alias back → same 11
+    bytes → PASS) AND coverage `filesystem_std_module_hard_link` (alias reads 12
+    bytes AFTER the original is removed; relinking onto an existing name is
+    `AlreadyExists`). ⚠ INTERPRETER APPROXIMATION: the hermetic FS has no inodes,
+    so `hard_link` COPIES the bytes — a later write to one name is NOT reflected
+    in the other (native hard links DO share). Faithful only for create/readback/
+    removal, which is all the tests assert. A shared-inode virtual model
+    (path→Rc<RefCell<Vec>>) is a future refinement. `symlink`/`read_link` (the
+    other link ops) need a buffer out-param (readlink) + open-time resolution
+    modeling — deferred.
 11. [ ] **Richer `Metadata`** via `fstat` — `st_size`/mode/times. Needs a
     stat-buffer out-param + struct-field reads (darwin arm64 `st_size` at off 96).
     Unlocks `is_file`/`is_dir`/permissions/modified. Medium-large. NOTE: `repr

@@ -103,6 +103,7 @@ boundary trait FilesystemHost {
     machine remove_dir(path: &[u8] in Path) -> i32;
     machine set_permissions(path: &[u8] in Path, mode: u32) -> i32;
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
+    machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32;
     machine set_len(fd: i32, length: i64) -> i32;
     machine sync(fd: i32) -> i32;
     // Read the thread-local errno (darwin `___error()` -> `&errno`, dereferenced
@@ -353,6 +354,17 @@ machine Filesystem::set_permissions(&mut self, path: &[u8] in Path, perms: Permi
 // Move/rename a path.
 machine Filesystem::rename(&mut self, from: &[u8] in Path, to: &[u8] in Path) -> UnitResult {
     let rc: i32 = self.host.rename(from, to);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Create a hard link `link` referring to the same file as `original` (Rust
+// `std::fs::hard_link`). Both names then refer to one inode; removing one leaves
+// the other. Fails with `AlreadyExists` if `link` is taken, `NotFound` if
+// `original` is absent.
+machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult {
+    let rc: i32 = self.host.hard_link(original, link);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }

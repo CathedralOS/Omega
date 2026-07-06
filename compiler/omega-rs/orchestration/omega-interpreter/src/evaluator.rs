@@ -2389,6 +2389,25 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
+            "hard_link" => {
+                // `link(original, link)`: a second name for the same inode.
+                // ENOENT if the original is absent; EEXIST if the link name is
+                // taken. The hermetic FS has no inodes, so this COPIES the bytes
+                // (approximate: a later write to one name won't show in the
+                // other — see TASKS_FS.md). Enough to model create+readback.
+                let original = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let link = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                if self.virtual_files.contains_key(&link) || self.virtual_dirs.contains(&link) {
+                    self.virtual_errno = 17; // EEXIST
+                    -1
+                } else if let Some(content) = self.virtual_files.get(&original).cloned() {
+                    self.virtual_files.insert(link, content);
+                    0
+                } else {
+                    self.virtual_errno = 2; // ENOENT
+                    -1
+                }
+            }
             _ => return Ok(None),
         };
         Ok(Some(Value::Int(result)))

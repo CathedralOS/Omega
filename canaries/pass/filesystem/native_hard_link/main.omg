@@ -1,0 +1,56 @@
+// NATIVE fs hard_link (Rust fs::hard_link) via _link. Creates a file, hard-links
+// it to a second name, then reads the LINK back and confirms it sees the
+// original's 11 bytes ("hardlinked!") — proving both names refer to the same
+// inode on real macOS syscalls. Prints PASS iff the link reads 11 bytes starting
+// with 'h' (104).
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine open(path: &[u8] in Path, flags: i32) -> i32;
+    machine read(fd: i32, buffer: &mut [u8], count: usize) -> i64;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32;
+}
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    rdonly: i32;
+    cap: usize;
+    fd: i32;
+    rc: i32;
+    got: i64;
+    first: u8;
+    n: i64;
+    buffer: [u8; 32];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.rdonly = 0;
+    self.cap = 32;
+    self.fd = self.fs.create("/tmp/omega_link_a.txt", self.mode);
+    self.n = self.fs.write(self.fd, "hardlinked!");
+    self.n = self.fs.close(self.fd);
+    self.rc = self.fs.hard_link("/tmp/omega_link_a.txt", "/tmp/omega_link_b.txt");
+    transition self.rc == 0 { true -> readlink() _ -> fail() }
+    state readlink(&mut self) {
+        self.fd = self.fs.open("/tmp/omega_link_b.txt", self.rdonly);
+        self.got = self.fs.read(self.fd, &mut self.buffer, self.cap);
+        self.n = self.fs.close(self.fd);
+        self.n = self.fs.remove("/tmp/omega_link_a.txt");
+        self.n = self.fs.remove("/tmp/omega_link_b.txt");
+        self.first = self.buffer[0];
+        transition self.got == 11 { true -> checkbyte() _ -> fail() }
+    }
+    state checkbyte(&mut self) {
+        transition self.first == 104 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: hard_link alias reads the same 11 bytes\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: hard_link\n"); }
+}

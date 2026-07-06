@@ -331,11 +331,12 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
-        (HostCapability::Filesystem, HostOperation::Rename) => {
-            // Value-returning `rc = rename(from, to) -> _rename(from, to)`.
-            // operand[0]=result, [1]=from POINTER, [2]=to POINTER. Two path
-            // LITERALS in one statement, resolved by creation order.
-            // (Runtime-path rename is a future extension.)
+        (HostCapability::Filesystem, HostOperation::Rename | HostOperation::Link) => {
+            // Value-returning `rc = rename(from, to) -> _rename(from, to)` and
+            // `rc = hard_link(original, link) -> _link(original, link)`.
+            // operand[0]=result, [1]=from/original POINTER, [2]=to/link POINTER.
+            // Two path LITERALS in one statement, resolved by creation order.
+            // (Runtime-path forms are a future extension.)
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let from = find_nth_data_object(input, host_call, 0);
             let to = find_nth_data_object(input, host_call, 1);
