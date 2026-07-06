@@ -275,7 +275,20 @@ fn runtime_slice_descriptor_member_layout(
 fn is_slice_descriptor(descriptor: &TypeLayoutDescriptor) -> bool {
     match descriptor {
         TypeLayoutDescriptor::Reference { referee, .. } => {
-            matches!(referee.as_ref(), TypeLayoutDescriptor::Slice { .. })
+            // A domain-constrained slice view (`&[u8] in Path`) is
+            // `Reference { Constrained { Slice } }`: the constraint is a
+            // compile-time fact that does NOT change the `{ptr, len}` storage
+            // shape (see omega-layout `builder.rs`, which unwraps `Constrained`
+            // past the referee before deciding sized-ness). Peel any `Constrained`
+            // wrappers off the referee before checking for the Slice -- otherwise
+            // a domained-slice param's `.len` guard operand fails to resolve to
+            // storage and the guard is refused (silently-dropped-guard backstop),
+            // even though a plain `&[T]` param's `.len` resolves fine.
+            let mut referee = referee.as_ref();
+            while let TypeLayoutDescriptor::Constrained { base_type, .. } = referee {
+                referee = base_type.as_ref();
+            }
+            matches!(referee, TypeLayoutDescriptor::Slice { .. })
         }
         TypeLayoutDescriptor::Constrained { base_type, .. } => is_slice_descriptor(base_type),
         _ => false,

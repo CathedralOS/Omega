@@ -1,0 +1,53 @@
+// A runtime-END subslice `sub[0..self.k]` whose END bound is a MACHINE FIELD
+// (`self.k`, Machine region -- not a frame param/local), passed as a transition
+// argument. Before the fix, `resolve_subslice_bound` accepted only RuntimeFrame
+// bounds, so a machine-field end declined and the descriptor-argument blocker
+// fired. The END now lowers through a region-tagged `Storage` operand of the
+// length `Subtract` (`new.len = self.k - 0`); the START stays frame-only (its
+// indexed-address instruction has no index region). Undomained here to isolate
+// the Machine-region-END mechanism from the domain guard. Exits 70 (len == 3).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Entry {
+    value: i32;
+}
+
+data Main {
+    console: Console;
+    entries: [Entry; 4];
+    k: usize;
+}
+
+machine Main::main(&mut self) {
+    self.k = 3;
+    let view: &[Entry] = self.entries.as_slice();
+    transition {
+        _ -> self.check(view)
+    }
+}
+
+machine Main::check(&mut self, sub: &[Entry]) {
+    transition self.k < sub.len {
+        true -> self.verify(sub[0..self.k])
+        false -> bad()
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::verify(&mut self, prefix: &[Entry]) {
+    transition prefix.len == 3 {
+        true -> good()
+        false -> wrong()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(71);
+    }
+}
