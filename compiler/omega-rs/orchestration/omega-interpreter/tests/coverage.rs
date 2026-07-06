@@ -1194,3 +1194,85 @@ machine Main::main(&mut self) {
         "sync must return UnitResult::Ok and leave the 17 written bytes intact"
     );
 }
+
+/// `OpenOptions` via the std module (Rust `OpenOptions::open`): the wrapper
+/// composes POSIX flags from the option bools. Exercises the append flag
+/// (O_APPEND: writes land at end -> file grows 11 -> 14) and the truncate flag
+/// (O_TRUNC: reopening empties the file -> len 0), proving the computed
+/// `access | append | truncate` bits drive real IO.
+#[test]
+fn filesystem_std_module_open_options() {
+    let main_path = write_program(
+        "fs-openopts",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    open_result: OpenResult;
+    io_result: IoResult;
+    meta_result: MetadataResult;
+    unit_result: UnitResult;
+    close_rc: i32;
+    append_opts: OpenOptions;
+    trunc_opts: OpenOptions;
+}
+machine Main::main(&mut self) {
+    self.append_opts = OpenOptions { read: false, write: false, append: true, truncate: false };
+    self.trunc_opts = OpenOptions { read: false, write: true, append: false, truncate: true };
+    self.open_result = self.fs.create("/o.txt");
+    transition self.open_result { OpenResult::Ok { file } -> wrote(file) _ -> fail() }
+    state wrote(&mut self, file: File) {
+        self.io_result = self.fs.write(file, "hello world");
+        self.close_rc = self.fs.close(file);
+        self.open_result = self.fs.open_with("/o.txt", self.append_opts);
+        transition self.open_result { OpenResult::Ok { file } -> appended(file) _ -> fail() }
+    }
+    state appended(&mut self, file: File) {
+        self.io_result = self.fs.write(file, "!!!");
+        self.close_rc = self.fs.close(file);
+        self.open_result = self.fs.open("/o.txt");
+        transition self.open_result { OpenResult::Ok { file } -> checkgrown(file) _ -> fail() }
+    }
+    state checkgrown(&mut self, file: File) {
+        self.meta_result = self.fs.metadata(file);
+        self.close_rc = self.fs.close(file);
+        transition self.meta_result { MetadataResult::Ok { meta } -> grownlen(meta) _ -> fail() }
+    }
+    state grownlen(&mut self, meta: Metadata) {
+        transition meta.len == 14 { true -> dotrunc() _ -> fail() }
+    }
+    state dotrunc(&mut self) {
+        self.open_result = self.fs.open_with("/o.txt", self.trunc_opts);
+        transition self.open_result { OpenResult::Ok { file } -> truncated(file) _ -> fail() }
+    }
+    state truncated(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.open_result = self.fs.open("/o.txt");
+        transition self.open_result { OpenResult::Ok { file } -> checkempty(file) _ -> fail() }
+    }
+    state checkempty(&mut self, file: File) {
+        self.meta_result = self.fs.metadata(file);
+        self.close_rc = self.fs.close(file);
+        self.unit_result = self.fs.remove("/o.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> emptylen(meta) _ -> fail() }
+    }
+    state emptylen(&mut self, meta: Metadata) {
+        transition meta.len == 0 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("open_options program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "open_options: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "open_with(append) must grow 11->14 and open_with(truncate) must empty to 0"
+    );
+}
