@@ -1193,6 +1193,86 @@ machine Main::main(&mut self) {
     );
 }
 
+/// The shipped `Filesystem::read_dir_nth` — index-based `DirEntry` iteration with
+/// NAME EXTRACTION (the dirent name copied into the entry's fixed field via a
+/// field-cursor loop). Builds `/it` with files `aaa`, `bbb` and dir `ccc` (dirent
+/// order: `.`, `..`, then sorted files, then sorted dirs), then asserts child 0 is
+/// the file `aaa`, child 2 is the dir `ccc`, and child 3 is `End`.
+#[test]
+fn filesystem_std_module_read_dir_nth() {
+    let main_path = write_program(
+        "fs-std-readdir-nth",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    entry_result: DirEntryResult;
+    open_result: OpenResult;
+    close_rc: i32;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.create_dir("/it");
+    self.open_result = self.fs.create("/it/aaa");
+    transition self.open_result { OpenResult::Ok { file } -> m1(file) _ -> fail() }
+    state m1(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.open_result = self.fs.create("/it/bbb");
+        transition self.open_result { OpenResult::Ok { file } -> m2(file) _ -> fail() }
+    }
+    state m2(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.unit_result = self.fs.create_dir("/it/ccc");
+        self.entry_result = self.fs.read_dir_nth("/it", 0);
+        transition self.entry_result { DirEntryResult::Ok { entry } -> c0(entry) _ -> fail() }
+    }
+    state c0(&mut self, entry: DirEntry) {
+        // child 0 = file "aaa"
+        transition entry.name_len == 3 { true -> c0a(entry) _ -> fail() }
+    }
+    state c0a(&mut self, entry: DirEntry) {
+        transition entry.name[0] == 97 { true -> c0b(entry) _ -> fail() }
+    }
+    state c0b(&mut self, entry: DirEntry) {
+        transition entry.is_file { true -> checkdir() _ -> fail() }
+    }
+    state checkdir(&mut self) {
+        self.entry_result = self.fs.read_dir_nth("/it", 2);
+        transition self.entry_result { DirEntryResult::Ok { entry } -> c2(entry) _ -> fail() }
+    }
+    state c2(&mut self, entry: DirEntry) {
+        // child 2 = dir "ccc"
+        transition entry.is_dir { true -> c2a(entry) _ -> fail() }
+    }
+    state c2a(&mut self, entry: DirEntry) {
+        transition entry.name[0] == 99 { true -> checkend() _ -> fail() }
+    }
+    state checkend(&mut self) {
+        self.entry_result = self.fs.read_dir_nth("/it", 3);
+        transition self.entry_result { DirEntryResult::End -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("read_dir_nth program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "read_dir_nth should run, got {:?}",
+        outcome.error
+    );
+    assert_eq!(
+        outcome.exit_code, 70,
+        "read_dir_nth: child 0 = file aaa, child 2 = dir ccc, child 3 = End"
+    );
+}
+
 /// The REAL shipped std module `omega/language/std/filesystem.omg`, imported via
 /// `use` and driven through its ergonomic `Filesystem` API — a full CRUD
 /// round-trip in the interpreter. Proves the canonical std::fs surface (not an

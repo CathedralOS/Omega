@@ -216,6 +216,32 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **✅ `read_dir_nth` — `DirEntry` iteration WITH NAME EXTRACTION (2026-07-06).** The
+  name-bearing rung that unblocks `remove_dir_all`. `Filesystem::read_dir_nth(path, n)
+  -> DirEntryResult` fetches the N-th CHILD entry (caller loops n = 0,1,2,… until
+  `End`): walks the single-fill dirent buffer to record `n + 2` (skip "."/".."), then
+  EXTRACTS the name by copying `dir_buf[off+21+j]` into the `DirEntry`'s `[u8; 256]`
+  name field with a FIELD-CURSOR loop, and reads `d_type` for `is_dir`/`is_file`. New
+  `DirEntry [copy] { name, name_len, is_dir, is_file }` + 3-way `DirEntryResult
+  { Ok(entry) | End | Error(kind) }`. RUNS: coverage `filesystem_std_module_read_dir_nth`
+  (files `aaa`,`bbb` + dir `ccc` -> child 0 = file `aaa`, child 2 = dir `ccc`, child 3
+  = `End`). fs coverage 62. Pure Omega, no compiler change.
+  - **CORRECTED COMPILER INSIGHT (supersedes last fire's note):** a field-cursor
+    index fact DOES thread across state hops (>=2 verified) and discharge a
+    **fixed-array** (`[u8; N]`) STATIC bound -- proven by probe and now by
+    `read_dir_nth`'s name copy (`dir_buf[off+21+j]` guarded `ridx < 512`,
+    `entry_name[j]` guarded `j < 255`, paramless loop, no `decreases`). What does
+    NOT thread is a field index against a **SLICE**'s DYNAMIC length (`s[self.j]` with
+    `j < s.len`); that still needs the index threaded as a PARAM (cf. `create_dir_all`
+    `path[i]`). So: copy dirent bytes into FIXED fields (works); compare against a
+    caller `&[u8]` at a field index (blocked -- would need the param-threaded shape).
+  - **JUDGEMENT CALL (D-readdir extends):** single-fill (a directory larger than the
+    512-byte buffer iterates only up to one `getdirentries`); a name > 255 bytes is
+    truncated (`name_len` = copied length); child n = record n+2 (relies on "."/".."
+    first). `remove_dir_all` (recurse subdirs / unlink files by name) is now unblocked
+    on the read side; it additionally needs PATH CONCAT (parent + "/" + name into a
+    buffer -- another field-cursor copy) + bounded-depth recursion.
+
 - **✅ `read_dir_stats` — type-aware dir summary (2026-07-06).** Added
   `Filesystem::read_dir_stats(path) -> DirStatsResult` (`DirStats { entries, subdirs,
   files }`): the type-aware companion to `read_dir_count`. Same single-fill dirent
