@@ -2308,6 +2308,38 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
+            "read_at" => {
+                // `pread(fd, buf, count, offset)`: read at an absolute offset
+                // WITHOUT moving the cursor (Rust `FileExt::read_at`).
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let offset = self.eval_fs_scalar(arguments.get(3).copied(), frame)?;
+                match self.virtual_read_at(fd, offset, count) {
+                    Some(bytes) => {
+                        let n = bytes.len() as i64;
+                        self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                        n
+                    }
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                }
+            }
+            "write_at" => {
+                // `pwrite(fd, buf, count, offset)`: write at an absolute offset
+                // WITHOUT moving the cursor (Rust `FileExt::write_at`).
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let bytes = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                let offset = self.eval_fs_scalar(arguments.get(2).copied(), frame)?;
+                match self.virtual_write_at(fd, offset, &bytes) {
+                    Some(count) => count as i64,
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                }
+            }
             "close" => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 if self.virtual_fds.remove(&fd).is_some() {
@@ -2930,6 +2962,43 @@ impl<'program> Evaluator<'program> {
             descriptor.cursor = cursor + take;
         }
         Some(bytes)
+    }
+
+    /// Read up to `count` bytes starting at absolute `offset` WITHOUT moving the
+    /// cursor (Rust `FileExt::read_at` / `pread`). `None` if the fd is unknown or
+    /// the offset is negative. A read past end-of-file yields fewer (or zero) bytes.
+    fn virtual_read_at(&mut self, fd: i32, offset: i64, count: usize) -> Option<Vec<u8>> {
+        if offset < 0 {
+            return None;
+        }
+        let descriptor = self.virtual_fds.get(&fd)?;
+        let path = descriptor.path.clone();
+        let content = self.virtual_files.get(&path)?;
+        let available = content.get(offset as usize..).unwrap_or(&[]);
+        let take = available.len().min(count);
+        Some(available[..take].to_vec())
+    }
+
+    /// Write `bytes` at absolute `offset` (extending + zero-filling any gap) WITHOUT
+    /// moving the cursor (Rust `FileExt::write_at` / `pwrite`). `None` if the fd is
+    /// unknown, not writable, or the offset is negative.
+    fn virtual_write_at(&mut self, fd: i32, offset: i64, bytes: &[u8]) -> Option<usize> {
+        if offset < 0 {
+            return None;
+        }
+        let descriptor = self.virtual_fds.get(&fd)?;
+        if !descriptor.writable {
+            return None;
+        }
+        let path = descriptor.path.clone();
+        let start = offset as usize;
+        let content = self.virtual_files.get_mut(&path)?;
+        let end = start + bytes.len();
+        if content.len() < end {
+            content.resize(end, 0);
+        }
+        content[start..end].copy_from_slice(bytes);
+        Some(bytes.len())
     }
 
     /// `open(path, flags)`: model the O_CREAT/O_TRUNC/O_APPEND/access bits.

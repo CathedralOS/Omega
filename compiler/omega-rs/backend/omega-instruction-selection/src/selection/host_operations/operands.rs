@@ -267,6 +267,63 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Filesystem, HostOperation::PRead) => {
+            // Value-returning `n = read_at(fd, buf, count, offset) -> _pread(fd,
+            // buf, count, offset)`. Same as `read` plus a trailing offset scalar:
+            // operand[0]=result, [1]=fd, [2]=buffer POINTER, [3]=count, [4]=offset.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let fd = scalar_argument_operand_at(input, host_call, dispatch_index, 1);
+            let buffer = address_argument_operand_at(input, host_call, dispatch_index, 2);
+            let count = scalar_argument_operand_at(input, host_call, dispatch_index, 3);
+            let offset = scalar_argument_operand_at(input, host_call, dispatch_index, 4);
+            match (result, fd, buffer, count, offset) {
+                (Some(result), Some(fd), Some(buffer), Some(count), Some(offset)) => operands
+                    .insert_many([
+                        operand(result),
+                        operand(fd),
+                        operand(buffer),
+                        operand(count),
+                        operand(offset),
+                    ]),
+                _ => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::Filesystem, HostOperation::PWrite) => {
+            // Value-returning `n = write_at(fd, bytes, offset) -> _pwrite(fd, buf,
+            // len, offset)`. Same as `write` (literal or runtime slice payload)
+            // plus a trailing offset scalar: operand[0]=result, [1]=fd,
+            // [2]=buffer POINTER, [3]=length, [4]=offset. `bytes` is arg 2, so the
+            // offset is arg 3.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let fd = scalar_argument_operand_at(input, host_call, dispatch_index, 1);
+            let offset = scalar_argument_operand_at(input, host_call, dispatch_index, 3);
+            let data = find_data_object(input, host_call);
+            match (result, fd, offset) {
+                (Some(result), Some(fd), Some(offset)) if data.is_valid() => {
+                    let length = data_object_byte_count(input, data);
+                    operands.insert_many([
+                        operand(result),
+                        operand(fd),
+                        operand(InstructionOperandKind::DataAddress { data }),
+                        operand(InstructionOperandKind::ByteLength(length)),
+                        operand(offset),
+                    ])
+                }
+                (Some(result), Some(fd), Some(offset)) => {
+                    match slice_argument_operands(input, host_call, dispatch_index, 2) {
+                        Some((pointer, length)) => operands.insert_many([
+                            operand(result),
+                            operand(fd),
+                            operand(pointer),
+                            operand(length),
+                            operand(offset),
+                        ]),
+                        None => HandleSpan::empty(),
+                    }
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::Filesystem, HostOperation::FStat) => {
             // Value-returning `rc = read_file_metadata(fd, buf) -> _fstat(fd, buf)`.
             // operand[0]=result, [1]=fd scalar, [2]=buffer POINTER (the kernel writes

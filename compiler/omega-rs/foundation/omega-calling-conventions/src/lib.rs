@@ -122,6 +122,14 @@ pub enum HostOperation {
     ReadFile,
     Write,
     WriteFile,
+    /// `pread(fd, buf, count, offset)` -- read at an absolute file offset WITHOUT
+    /// moving the descriptor's cursor (Rust `FileExt::read_at`). Same as `read`
+    /// plus a trailing offset scalar: `[result, fd, buffer ptr, count, offset]`.
+    PRead,
+    /// `pwrite(fd, buf, count, offset)` -- write at an absolute file offset WITHOUT
+    /// moving the cursor (Rust `FileExt::write_at`). Same as `write` plus a trailing
+    /// offset scalar: `[result, fd, buffer ptr, length, offset]`.
+    PWrite,
     /// `open`/`openat` -- open a path, returning a file descriptor (or -errno).
     Open,
     /// `creat(path, mode)` -- create/truncate a path for writing. Unlike `open`
@@ -241,6 +249,8 @@ impl HostOperation {
             "read_file" => Self::ReadFile,
             "write" => Self::Write,
             "write_file" => Self::WriteFile,
+            "pread" => Self::PRead,
+            "pwrite" => Self::PWrite,
             "open" => Self::Open,
             "creat" => Self::Creat,
             "close" => Self::Close,
@@ -290,6 +300,8 @@ impl HostOperation {
             Self::ReadFile => "read_file",
             Self::Write => "write",
             Self::WriteFile => "write_file",
+            Self::PRead => "pread",
+            Self::PWrite => "pwrite",
             Self::Open => "open",
             Self::Creat => "creat",
             Self::Close => "close",
