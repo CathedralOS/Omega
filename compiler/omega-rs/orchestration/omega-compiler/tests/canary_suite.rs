@@ -21094,6 +21094,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "expressions/float_bitwise_rejected",
     "expressions/logical_not_non_bool_rejected",
     "expressions/number_to_bool_cast_rejected",
+    "expressions/text_arithmetic_operator_rejected",
     "expressions/array_operator_rejected",
     "expressions/struct_operator_undeclared_rejected",
     "calls/value_call_wrong_argument_count_rejected",

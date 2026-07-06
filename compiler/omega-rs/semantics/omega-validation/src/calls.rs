@@ -1095,6 +1095,17 @@ fn scan_expression_calls(
                 right,
                 diagnostics,
             );
+            // Non-`+` arithmetic / shift / bitwise on TEXT operands (`s - t`, `s * s`)
+            // is meaningless -- text supports only `+` (concat), `==`, `!=`.
+            crate::expression_types::report_invalid_text_operator(
+                program,
+                machine,
+                Some(state),
+                operator,
+                left,
+                right,
+                diagnostics,
+            );
             // Ordering / arithmetic / bitwise on an array operand (`xs < ys`) is
             // meaningless -- arrays cannot carry domain operators, so it otherwise
             // lowers to a garbage byte op.
