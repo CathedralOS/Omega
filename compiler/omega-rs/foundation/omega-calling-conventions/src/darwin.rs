@@ -75,50 +75,52 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
     );
     // std::fs — the RAW, VALUE-RETURNING boundary layer (each op returns its
     // syscall result: fd / byte count / rc; a thin Omega layer wraps these into
-    // File/outcome enums). Method names are distinct from Console's (`write` is
-    // already a Console lowering under the `*` wildcard), so `read`/`write` are
-    // spelled `read_bytes`/`write_bytes` here. All marshal declared args
-    // straight through (PlatformCallData::None); the value-returning result
-    // store is driven by `HostOperationKey::returns_value()`.
+    // File/result enums). HUMAN method names (create/open/read/write/close/
+    // remove) — NO legacy C abbreviations in the Omega surface; the ugly libc
+    // spellings (`_creat`,`_unlink`) live only in the binding symbols above.
+    // Registered under the raw trait `FilesystemHost` (not `*`) so `write`/`read`
+    // win the exact-platform lookup over Console's wildcard `write`. All marshal
+    // declared args straight through (PlatformCallData::None); the value-returning
+    // result store is driven by `HostOperationKey::returns_value()`.
     insert_platform_lowering(
         plan,
-        "*",
-        "open_read",
+        "FilesystemHost",
+        "open",
         [host_operation("Filesystem", "open")],
         PlatformCallData::None,
     );
     insert_platform_lowering(
         plan,
-        "*",
-        "creat",
+        "FilesystemHost",
+        "create",
         [host_operation("Filesystem", "creat")],
         PlatformCallData::None,
     );
     insert_platform_lowering(
         plan,
-        "*",
-        "read_bytes",
+        "FilesystemHost",
+        "read",
         [host_operation("Filesystem", "read")],
         PlatformCallData::None,
     );
     insert_platform_lowering(
         plan,
-        "*",
-        "write_bytes",
+        "FilesystemHost",
+        "write",
         [host_operation("Filesystem", "write")],
         PlatformCallData::None,
     );
     insert_platform_lowering(
         plan,
-        "*",
+        "FilesystemHost",
         "close",
         [host_operation("Filesystem", "close")],
         PlatformCallData::None,
     );
     insert_platform_lowering(
         plan,
-        "*",
-        "unlink",
+        "FilesystemHost",
+        "remove",
         [host_operation("Filesystem", "unlink")],
         PlatformCallData::None,
     );

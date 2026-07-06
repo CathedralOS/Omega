@@ -172,11 +172,7 @@ pub(crate) fn find_platform_call_lowering_by_target<'abi>(
     platform_name: &str,
     target: &omega_checked_trees::name::Identifier,
 ) -> Option<(PlatformCallLoweringHandle, &'abi PlatformCallLowering)> {
-    host_abi
-        .platform_call_lowerings
-        .iter()
-        .find(|(_, lowering)| lowering_matches(lowering, platform_name, target))
-        .map(|(handle, lowering)| (handle, lowering))
+    find_lowering_prefer_exact(host_abi, platform_name, target)
 }
 
 pub(crate) fn find_platform_call_lowering<'abi>(
@@ -184,10 +180,29 @@ pub(crate) fn find_platform_call_lowering<'abi>(
     platform_name: &str,
     call: &TableCall,
 ) -> Option<(PlatformCallLoweringHandle, &'abi PlatformCallLowering)> {
+    find_lowering_prefer_exact(host_abi, platform_name, &call.target)
+}
+
+/// Resolve a lowering, PREFERRING an exact platform (boundary-trait) match over
+/// the `"*"` wildcard. This lets a per-trait lowering (e.g. `FilesystemHost`'s
+/// `write`) win over a wildcard one (Console's `*::write`), so both surfaces can
+/// use the same human method name without colliding.
+fn find_lowering_prefer_exact<'abi>(
+    host_abi: &'abi HostAbiPlan,
+    platform_name: &str,
+    state_name: &str,
+) -> Option<(PlatformCallLoweringHandle, &'abi PlatformCallLowering)> {
     host_abi
         .platform_call_lowerings
         .iter()
-        .find(|(_, lowering)| lowering_matches(lowering, platform_name, &call.target))
+        .find(|(_, lowering)| {
+            lowering.platform.as_ref() == platform_name && lowering.state.as_ref() == state_name
+        })
+        .or_else(|| {
+            host_abi.platform_call_lowerings.iter().find(|(_, lowering)| {
+                lowering.platform.as_ref() == "*" && lowering.state.as_ref() == state_name
+            })
+        })
         .map(|(handle, lowering)| (handle, lowering))
 }
 
@@ -249,14 +264,6 @@ pub(crate) fn platform_call_name(program: &CheckedTrees, call: &TableCall) -> St
     display
 }
 
-fn lowering_matches(
-    lowering: &PlatformCallLowering,
-    platform_name: &str,
-    state_name: &str,
-) -> bool {
-    (lowering.platform.as_ref() == "*" || lowering.platform.as_ref() == platform_name)
-        && lowering.state.as_ref() == state_name
-}
 
 pub(crate) fn lower_host_call_argument(
     program: &CheckedTrees,
