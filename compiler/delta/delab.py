@@ -47,6 +47,7 @@ def dt(n, iv):  # decompile a term
     if h == 'k':   return "(k %s)" % ' '.join([n[1]] + [dt(a, iv) for a in n[2:]])
     if h == 'f':   return "(f %s)" % ' '.join([n[1]] + [dt(a, iv) for a in n[2:]])
     if h == 'rec': return "(rec %s)" % n[1]
+    if h == 'recx':return "(recx %s %s)" % (n[1], dt(n[2], iv))    # accumulator recursion: field i, extra E
     if h == 'y':   return "(y %s)" % n[1]
     raise SystemExit("delab: bad term %r" % (n,))
 
