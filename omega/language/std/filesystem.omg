@@ -72,11 +72,25 @@ data OpenOptions [copy, zero_init] {
 }
 
 // A file's permission bits (Rust `std::fs::Permissions`). `mode` is the POSIX
-// octal mode (e.g. 0o644 = 420 = rw-r--r--, 0o444 = 292 = read-only). A helper
-// exposes the common read-only question the way Rust's `Permissions::readonly`
-// does; a full builder waits on `fstat` supplying the current mode.
+// octal mode (e.g. 0o644 = 420 = rw-r--r--, 0o444 = 292 = read-only).
 data Permissions [copy, zero_init] {
     mode: u32;
+}
+
+// Rust `Permissions::readonly()` — true when the owner-write bit (0o200 = 128)
+// is clear.
+machine Permissions::readonly(&self) -> bool {
+    (self.mode & 128) == 0
+}
+
+// Rust `Permissions::set_readonly(bool)` — clear the write bits (owner/group/
+// other, 0o222 = 146) to make read-only, or set them to make writable. The
+// masks stay within the 9 permission bits (0o777 = 511; 511 ^ 146 = 365 keeps
+// read+execute while clearing write).
+machine Permissions::set_readonly(&mut self, readonly: bool) {
+    transition readonly { true -> lock() _ -> unlock() }
+    state lock(&mut self) { self.mode = self.mode & 365; }
+    state unlock(&mut self) { self.mode = self.mode | 146; }
 }
 
 // File metadata (Rust `std::fs::Metadata`). `len` is the size in bytes; `is_dir`
