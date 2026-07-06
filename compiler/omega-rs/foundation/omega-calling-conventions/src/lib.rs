@@ -213,6 +213,18 @@ pub enum HostOperation {
     /// bitmask: LOCK_SH=1, LOCK_EX=2, LOCK_NB=4, LOCK_UN=8. Same operand shape as
     /// `ftruncate` (`[result, fd, operation]` -- fd + one scalar), returns 0 / -1.
     Flock,
+    /// `chown(path, uid, gid)` -- change a file's owner/group, following symlinks
+    /// (Rust `os::unix::fs::chown`). uid/gid of -1 leaves that component
+    /// unchanged. Operand shape `[result, path pointer, uid, gid]` (path + two
+    /// scalars). Returns 0 / -1 (EPERM if the caller may not change ownership).
+    Chown,
+    /// `lchown(path, uid, gid)` -- like `chown` but does NOT follow a final
+    /// symlink (Rust `os::unix::fs::lchown`). Same operand shape as `chown`.
+    LChown,
+    /// `fchown(fd, uid, gid)` -- change owner/group by open descriptor (Rust
+    /// `os::unix::fs::fchown`). Same operand shape as `lseek` (`[result, fd, uid,
+    /// gid]` -- fd + two scalars).
+    Fchown,
     /// `___error()` -- darwin's thread-local errno accessor; returns `int*`.
     /// Takes NO args and its result is DEREFERENCED once (see
     /// `HostOperationKey::dereferences_result`) so the stored value is `errno`
@@ -284,6 +296,9 @@ impl HostOperation {
             "fsync" => Self::Sync,
             "dup" => Self::Dup,
             "flock" => Self::Flock,
+            "chown" => Self::Chown,
+            "lchown" => Self::LChown,
+            "fchown" => Self::Fchown,
             "read_errno" => Self::ReadErrno,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
@@ -337,6 +352,9 @@ impl HostOperation {
             Self::Sync => "fsync",
             Self::Dup => "dup",
             Self::Flock => "flock",
+            Self::Chown => "chown",
+            Self::LChown => "lchown",
+            Self::Fchown => "fchown",
             Self::ReadErrno => "read_errno",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",

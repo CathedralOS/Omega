@@ -2998,6 +2998,75 @@ machine Main::main(&mut self) {
     );
 }
 
+/// File ownership (Rust `os::unix::fs::chown`/`fchown`). As a normal user, a
+/// no-op change (uid/gid -1, or the current owner) succeeds, but changing to
+/// another owner (root, uid 0) is `PermissionDenied` (EPERM) — the same rule on
+/// both engines. A `chown` on a missing path is `NotFound`.
+#[test]
+fn filesystem_std_module_ownership() {
+    let main_path = write_program(
+        "fs-ownership",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    open_result: OpenResult;
+    rc: i32;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("/own.txt", "hi");
+    transition self.unit_result { UnitResult::Ok -> missing() _ -> fail() }
+    state missing(&mut self) {
+        // chown a path that does not exist -> NotFound
+        self.unit_result = self.fs.set_owner("/nope.txt", -1, -1);
+        transition self.unit_result { UnitResult::Error { kind } -> checkmissing(kind) _ -> fail() }
+    }
+    state checkmissing(&mut self, kind: ErrorKind) {
+        transition kind { ErrorKind::NotFound -> nooppath() _ -> fail() }
+    }
+    state nooppath(&mut self) {
+        // path no-op chown (uid/gid -1) -> Ok
+        self.unit_result = self.fs.set_owner("/own.txt", -1, -1);
+        transition self.unit_result { UnitResult::Ok -> openit() _ -> fail() }
+    }
+    state openit(&mut self) {
+        self.open_result = self.fs.open("/own.txt");
+        transition self.open_result { OpenResult::Ok { file } -> noopfd(file) _ -> fail() }
+    }
+    state noopfd(&mut self, file: File) {
+        // fd no-op fchown -> Ok
+        self.unit_result = self.fs.set_file_owner(file, -1, -1);
+        transition self.unit_result { UnitResult::Ok -> denyroot(file) _ -> fail() }
+    }
+    state denyroot(&mut self, file: File) {
+        // real change to root -> PermissionDenied
+        self.unit_result = self.fs.set_file_owner(file, 0, 0);
+        self.rc = self.fs.close(file);
+        transition self.unit_result { UnitResult::Error { kind } -> checkdenied(kind) _ -> fail() }
+    }
+    state checkdenied(&mut self, kind: ErrorKind) {
+        self.unit_result = self.fs.remove("/own.txt");
+        transition kind { ErrorKind::PermissionDenied -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("ownership program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "ownership: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "ownership: no-op chown ok, missing path NotFound, change-to-root PermissionDenied"
+    );
+}
+
 /// `try_exists` (Rust `Path::try_exists`) — the error-distinguishing existence
 /// check, now STAT-based (agrees with `exists`): `Yes` for a present file, `No`
 /// only for a missing path (ENOENT). A present-but-unreadable path (chmod 0) is

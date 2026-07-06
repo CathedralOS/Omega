@@ -42,6 +42,9 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("Filesystem", "fsync", "_fsync", &policy),
         darwin_import("Filesystem", "dup", "_dup", &policy),
         darwin_import("Filesystem", "flock", "_flock", &policy),
+        darwin_import("Filesystem", "chown", "_chown", &policy),
+        darwin_import("Filesystem", "lchown", "_lchown", &policy),
+        darwin_import("Filesystem", "fchown", "_fchown", &policy),
         darwin_import("Filesystem", "read_errno", "___error", &policy),
     ]);
 
@@ -300,6 +303,27 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "FilesystemHost",
         "lock_file",
         [host_operation("Filesystem", "flock")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "change_owner",
+        [host_operation("Filesystem", "chown")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "change_owner_no_follow",
+        [host_operation("Filesystem", "lchown")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "change_file_owner",
+        [host_operation("Filesystem", "fchown")],
         PlatformCallData::None,
     );
     // errno accessor: `___error()` returns `&errno`; the value-returning lowering

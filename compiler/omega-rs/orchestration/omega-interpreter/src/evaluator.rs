@@ -2572,6 +2572,42 @@ impl<'program> Evaluator<'program> {
                     -1
                 }
             }
+            "change_owner" | "change_owner_no_follow" => {
+                // `chown`/`lchown(path, uid, gid)`: change owner/group. ENOENT if
+                // the path is absent. The hermetic model's process identity is
+                // VIRTUAL_UID/GID (a normal, non-root user), so only a NO-OP change
+                // is permitted: a uid/gid of -1 leaves that component alone, and
+                // setting the CURRENT owner succeeds; any OTHER owner is EPERM --
+                // exactly what native `chown` does when run as a normal user.
+                // (`lchown` differs from `chown` only on symlinks, which the
+                // hermetic FS never follows on ownership ops, so they behave
+                // identically here.)
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let uid = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let gid = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
+                let exists = self.virtual_files.contains_key(&path)
+                    || self.virtual_dirs.contains(&path)
+                    || self.virtual_symlinks.contains_key(&path);
+                if !exists {
+                    self.virtual_errno = 2; // ENOENT
+                    -1
+                } else {
+                    self.virtual_chown_result(uid, gid)
+                }
+            }
+            "change_file_owner" => {
+                // `fchown(fd, uid, gid)`: like `chown` by descriptor. EBADF for an
+                // unknown fd; otherwise the same non-root ownership rule.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let uid = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let gid = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
+                if self.virtual_fds.contains_key(&fd) {
+                    self.virtual_chown_result(uid, gid)
+                } else {
+                    self.virtual_errno = 9; // EBADF
+                    -1
+                }
+            }
             "rename" => {
                 let from = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let to = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
@@ -3236,6 +3272,23 @@ impl<'program> Evaluator<'program> {
         };
         content.resize(length.max(0) as usize, 0);
         0
+    }
+
+    /// The non-root `chown`/`fchown`/`lchown` rule shared by the ownership
+    /// handlers: a change to the CURRENT owner -- or a uid/gid of -1, meaning
+    /// "leave that component unchanged" -- is a permitted no-op (returns 0); any
+    /// OTHER owner is EPERM (sets errno 1, returns -1). Mirrors what the native
+    /// syscalls do for a normal (non-root) user, keeping the two engines'
+    /// differential consistent.
+    fn virtual_chown_result(&mut self, uid: i32, gid: i32) -> i64 {
+        let effective_uid = if uid == -1 { VIRTUAL_UID as i32 } else { uid };
+        let effective_gid = if gid == -1 { VIRTUAL_GID as i32 } else { gid };
+        if effective_uid == VIRTUAL_UID as i32 && effective_gid == VIRTUAL_GID as i32 {
+            0
+        } else {
+            self.virtual_errno = 1; // EPERM
+            -1
+        }
     }
 
     /// The boundary-trait type name of a call's receiver field (e.g. `console`

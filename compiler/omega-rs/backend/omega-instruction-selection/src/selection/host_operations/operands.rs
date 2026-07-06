@@ -497,9 +497,11 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
-        (HostCapability::Filesystem, HostOperation::Seek) => {
+        (HostCapability::Filesystem, HostOperation::Seek | HostOperation::Fchown) => {
             // Value-returning `pos = seek(fd, offset, whence) -> _lseek(fd,
-            // offset, whence)`. operand[0]=result, then the three scalar args.
+            // offset, whence)` and `rc = change_file_owner(fd, uid, gid) ->
+            // _fchown(fd, uid, gid)` -- both fd + two scalars. operand[0]=result,
+            // then the three scalar args.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let fd = scalar_argument_operand_at(input, host_call, dispatch_index, 1);
             let offset = scalar_argument_operand_at(input, host_call, dispatch_index, 2);
@@ -510,6 +512,24 @@ pub(super) fn select_host_operation_operands(
                     operand(fd),
                     operand(offset),
                     operand(whence),
+                ]),
+                _ => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::Filesystem, HostOperation::Chown | HostOperation::LChown) => {
+            // Value-returning `rc = change_owner(path, uid, gid) -> _chown(path,
+            // uid, gid)` (and `_lchown`, no-symlink-follow). operand[0]=result,
+            // [1]=path POINTER (NUL-terminated C string), [2]=uid, [3]=gid.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let path = path_pointer_operand(input, host_call, dispatch_index, 1);
+            let uid = scalar_argument_operand_at(input, host_call, dispatch_index, 2);
+            let gid = scalar_argument_operand_at(input, host_call, dispatch_index, 3);
+            match (result, path, uid, gid) {
+                (Some(result), Some(path), Some(uid), Some(gid)) => operands.insert_many([
+                    operand(result),
+                    operand(path),
+                    operand(uid),
+                    operand(gid),
                 ]),
                 _ => HandleSpan::empty(),
             }
