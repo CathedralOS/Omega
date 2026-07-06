@@ -63,12 +63,35 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             return Ok(None);
         }
 
-        let type_name = match self.operand_data_type_name(binary.left) {
+        // Reject a compare between two DIFFERENT data types BEFORE expansion.
+        // Equality is synthesized by pairing the operands' fields by POSITION using
+        // ONE resolved type name, so `P == Q` would silently read `q`'s bytes as if
+        // they were a `P` (`p.x == q.<first field> && ..`) and run to a garbage bool.
+        // Both operands must name the same type; when only one (or neither) types,
+        // fall through to the existing single-name behavior. Case literals resolve to
+        // their BASE type name (`Event::Score { .. }` -> `Event`), so a value-vs-case
+        // compare of the same sum stays same-named and is not flagged.
+        let left_type = self.operand_data_type_name(binary.left);
+        let right_type = self.operand_data_type_name(binary.right);
+        // Both names must be actual DATA definitions -- `operand_data_type_name` also
+        // resolves primitive names (`i32`, `String`), and a primitive-vs-primitive or
+        // primitive-vs-text mismatch (`n == s`) is owned by the validation-phase
+        // cross-class / text-operator checks with their own diagnostics. This gate
+        // fires only on the data-type positional-expansion hole (`P == Q`, `Color ==
+        // Direction`).
+        if let (Some(left_name), Some(right_name)) = (&left_type, &right_type)
+            && left_name != right_name
+            && data_definition_by_name(program, left_name).is_some()
+            && data_definition_by_name(program, right_name).is_some()
+        {
+            return Err(Diagnostic::error(format!(
+                "cannot compare `{left_name}` and `{right_name}` with `==`/`!=`: the operands are \
+                 different data types (equality requires both operands to be the same type)"
+            )));
+        }
+        let type_name = match left_type.or(right_type) {
             Some(name) => name,
-            None => match self.operand_data_type_name(binary.right) {
-                Some(name) => name,
-                None => return Ok(None),
-            },
+            None => return Ok(None),
         };
         let Some(data) = data_definition_by_name(program, &type_name) else {
             return Ok(None);

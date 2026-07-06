@@ -133,6 +133,24 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   `bool as f64` stay valid. Canaries cast_{text,struct,array}_to_number_rejected. NOTE: the other
   direction (`n as String`, `p as String`) is NOT silent -- it hits the "needs mutation lowering"
   guard (crude but safe), so no soundness hole there; a diagnostic-quality follow-up at most.
+- **[RESOLVED 2026-07-05] `==`/`!=` between two DIFFERENT data types (`self.p == self.q`).**
+  Synthesized structural equality resolves ONE type name (from whichever operand types first) and
+  pairs BOTH operands' fields by POSITION, so `P == Q` silently expanded to `p.x == q.x && ..` --
+  reading Q's bytes as a P -- and ran to a garbage bool (confirmed: `let b = self.p == self.q`
+  built + ran, exit 0). Fix in the EXPANSION site (`structural_equality.rs try_lower_structural_
+  equality`, symbol-resolved->typed pipeline), NOT validation: by the time validation runs the
+  compare is already expanded to `i32 == i32` field compares, so the type info is gone. Resolve
+  BOTH operand type names; if both resolve and DIFFER, reject before expanding. Placed after the
+  classifier-reference gate (so match-arm `subject == Case` desugars are untouched) and before the
+  structural-shape branch, so it also covers payload-less sums / enums (`Color == Direction`). Case
+  literals resolve to their BASE type name, so same-sum value-vs-`Case { .. }` compares stay valid.
+  ⚠️ SCOPING (found via a canary regression): `operand_data_type_name` resolves PRIMITIVE names too
+  (`i32`, `String`), so the gate additionally requires BOTH names to be `data_definition_by_name` --
+  a primitive/text mismatch (`n == s`) stays owned by the validation-phase cross-class / text-operator
+  checks (which give the "text and non-text" message the cross_class canary asserts); this fires ONLY
+  on the data-type positional-expansion hole. Canary cross_type_equality_rejected. Refactor: extracted the shared "value's concrete data name"
+  resolver (`value_concrete_data_name`, expression_types.rs) now used by `report_data_type_conflict`
+  + the cast-source check.
 - **[RESOLVED 2026-07-05, a902653ce]** Float BITWISE/SHIFT/MODULO rejected at `--check`
   (matching the interpreter's existing rejection). Canary float_bitwise_rejected.
 - **[RESOLVED 2026-07-03]** `arr[i] = <binary>` (computed value into a runtime-indexed

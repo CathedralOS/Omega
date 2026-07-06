@@ -367,6 +367,24 @@ fn struct_literal_type_name(program: &TypedTrees, value: ExpressionHandle) -> Op
     }
 }
 
+/// The concrete data type NAME a `value` expression denotes: a struct LITERAL's own
+/// type name (`B { .. }` -> `"B"`), or failing that a PLACE's declared concrete data
+/// type (`self.bar` -> `"Bar"`). `None` for a primitive, array, generic, versioned,
+/// or unresolvable computed value. The shared resolver behind the nominal checks
+/// (`report_data_type_conflict` value-vs-target, `report_cross_type_equality`
+/// operand-vs-operand) and the cast-source non-scalar detection.
+fn value_concrete_data_name<'program>(
+    program: &'program TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    value: ExpressionHandle,
+) -> Option<&'program str> {
+    struct_literal_type_name(program, value).or_else(|| {
+        crate::places::declared_place_type(program, machine, state, value)
+            .and_then(|value_type| concrete_data_type_name(program, value_type))
+    })
+}
+
 /// If `value`'s CONCRETE DATA type differs from the `expected_type`'s concrete
 /// data type, push a diagnostic and return `true`. BOTH sides must resolve to a
 /// concrete data type name; every other form (a primitive, a trait / boundary /
@@ -388,10 +406,7 @@ pub(crate) fn report_data_type_conflict(
     let Some(expected) = concrete_data_type_name(program, expected_type) else {
         return false;
     };
-    let Some(got) = struct_literal_type_name(program, value).or_else(|| {
-        crate::places::declared_place_type(program, machine, state, value)
-            .and_then(|value_type| concrete_data_type_name(program, value_type))
-    }) else {
+    let Some(got) = value_concrete_data_name(program, machine, state, value) else {
         return false;
     };
     if expected == got {
@@ -701,10 +716,7 @@ pub(crate) fn report_invalid_numeric_cast_source(
     }
     // Struct source (`self.p as i32` / `P { .. } as i32`) -- a struct literal names
     // its own type; a struct place resolves to a concrete data type name.
-    if let Some(name) = struct_literal_type_name(program, source).or_else(|| {
-        crate::places::declared_place_type(program, machine, state, source)
-            .and_then(|handle| concrete_data_type_name(program, handle))
-    }) {
+    if let Some(name) = value_concrete_data_name(program, machine, state, source) {
         return reject(format!("casts a `{name}` value"));
     }
     false

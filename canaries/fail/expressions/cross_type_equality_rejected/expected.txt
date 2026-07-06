@@ -1,0 +1,1 @@
+different data types (equality requires both operands
