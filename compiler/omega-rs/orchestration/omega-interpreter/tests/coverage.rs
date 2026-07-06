@@ -1395,6 +1395,58 @@ machine Main::main(&mut self) {
     );
 }
 
+/// `MetadataExt::ino`/`uid`/`gid` via the std module (Rust `os::unix::fs::
+/// MetadataExt`): decoded from `st_ino` (@8), `st_uid` (@16), `st_gid` (@20). The
+/// hermetic FS reports fixed modeled identity/ownership (no real inodes or process
+/// identity), so the interpreter asserts the exact modeled constants; the native
+/// `native_metadata_ino` canary asserts the real relationships (hard links share an
+/// inode; sibling files share an owner).
+#[test]
+fn filesystem_std_module_metadata_ext() {
+    let main_path = write_program(
+        "fs-metadata-ext",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("/me.txt", "hi");
+    transition self.unit_result { UnitResult::Ok -> statit() _ -> fail() }
+    state statit(&mut self) {
+        self.meta_result = self.fs.metadata_path("/me.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> checkino(meta) _ -> fail() }
+    }
+    state checkino(&mut self, meta: Metadata) {
+        transition meta.ino() == 1000000 { true -> checkuid(meta) _ -> fail() }
+    }
+    state checkuid(&mut self, meta: Metadata) {
+        transition meta.uid() == 501 { true -> checkgid(meta) _ -> fail() }
+    }
+    state checkgid(&mut self, meta: Metadata) {
+        self.unit_result = self.fs.remove("/me.txt");
+        transition meta.gid() == 20 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("metadata_ext program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "metadata_ext: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "MetadataExt: modeled ino == 1000000, uid == 501, gid == 20"
+    );
+}
+
 /// `File::sync_all` via the std module: create → write → `sync` returns
 /// `UnitResult::Ok` → the file's bytes survive the flush (metadata().len still
 /// reports the written size). Exercises the shipped `Filesystem::sync` wrapper

@@ -145,9 +145,11 @@ crate tests; interpreter fs coverage) and commits.
   reusing the `fstat` fd+buffer operand shape. `native_set_times` canary RUNS: set
   mtime, fstat confirms. Introduced the `x as u8 in Wrapping` byte-decompose idiom
   + a `virtual_times` interpreter model. See step 10j.
-- **`MetadataExt::nlink()` landed** (Rust unix ext) — decode-only from `st_nlink`
-  (u16 @6), no new op. `native_metadata_nlink` canary RUNS: nlink 1→2 via
-  `hard_link`. First MetadataExt field (ino/uid/gid deferred). See step 10k.
+- **`MetadataExt` core landed** (Rust unix ext) — `nlink`/`ino`/`uid`/`gid`,
+  decode-only from the stat record (st_nlink u16@6, st_ino u64@8, st_uid u32@16,
+  st_gid u32@20), no new op. `native_metadata_nlink` (1→2 via hard_link) +
+  `native_metadata_ino` (hard links share an inode; siblings share an owner)
+  canaries RUN. See steps 10k/10l.
 - **`File::metadata` upgraded to `fstat`** (Rust `File::metadata`) via `_fstat`,
   a new `[result, fd, buffer]` operand arm; `metadata(file)` now reports the REAL
   mode/times (was a seek-based fake) and the stat/lstat/fstat trio is complete.
@@ -478,10 +480,21 @@ crate tests; interpreter fs coverage) and commits.
     1; the real 1→2 increment is a NATIVE-only assertion. DIFFERENTIAL SPLIT: native
     `native_metadata_nlink` canary RUNS (create → nlink 1; `hard_link` → re-stat the
     original → nlink 2 → PASS) AND coverage `filesystem_std_module_metadata_nlink`
-    (a fresh file reports nlink 1). First `MetadataExt` field; `ino`/`uid`/`gid` are
-    the same decode-only pattern (st_ino u64 @8, st_uid u32 @16, st_gid u32 @20) but
-    need a shared-inode interpreter model to test the hard-link identity cases, so
-    they are deferred (a future refinement, same class as the `hard_link` copy note).
+    (a fresh file reports nlink 1). First `MetadataExt` field; `ino`/`uid`/`gid`
+    followed in step 10l.
+10l. [x] **`MetadataExt::ino()`/`uid()`/`gid()`** (Rust unix ext) — DONE, complete
+    NATIVE vertical, DECODE-ONLY. `Metadata` gains `ino: u64`/`uid: u32`/`gid: u32`,
+    decoded from `st_ino` (u64 @8), `st_uid` (u32 @16), `st_gid` (u32 @20) in all
+    three stat decoders; accessors `ino()`/`uid()`/`gid()`. Interpreter reports FIXED
+    modeled constants (`VIRTUAL_INO`=1000000, `VIRTUAL_UID`=501, `VIRTUAL_GID`=20)
+    written by `write_fs_stat` -- it has no real inodes or process identity, so it
+    can't model inode SHARING (its `hard_link` copies). DIFFERENTIAL SPLIT: native
+    `native_metadata_ino` canary RUNS and asserts the REAL relationships (two sibling
+    files share an owner uid/gid but have DISTINCT inodes; a `hard_link` shares the
+    original's inode → PASS); coverage `filesystem_std_module_metadata_ext` asserts
+    the exact modeled constants (ino 1000000, uid 501, gid 20). MetadataExt core
+    (nlink/ino/uid/gid) is now complete. The remaining `MetadataExt` fields (dev,
+    rdev, blocks, blksize, ctime) are the same decode-only pattern if ever needed.
 11. [x] **Richer `Metadata`** via `stat` — DONE, complete NATIVE vertical (used
     `stat(path)`, not `fstat(fd)`, so it works on DIRECTORIES with no open/read
     perm). `HostOperation::Stat` (op `stat` → darwin `_stat`); operand arm

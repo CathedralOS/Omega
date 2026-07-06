@@ -37,6 +37,14 @@ const CALL_DEPTH_BUDGET: u32 = 512;
 const VIRTUAL_MTIME_SECS: i64 = 1_000_000_000;
 const VIRTUAL_ATIME_SECS: i64 = 1_000_000_100;
 const VIRTUAL_BIRTHTIME_SECS: i64 = 999_999_900;
+/// The hermetic FS reports FIXED identity/ownership fields (`st_ino`/`st_uid`/
+/// `st_gid`): it has no real inodes or process identity. Native `stat` returns the
+/// real values; tests assert these exact constants in the interpreter and only the
+/// deterministic relationships (two hard links share an inode; two files share an
+/// owner) natively.
+const VIRTUAL_INO: u64 = 1_000_000;
+const VIRTUAL_UID: u32 = 501;
+const VIRTUAL_GID: u32 = 20;
 
 pub(crate) fn run(checked: &TypedTrees, stdin: &[u8]) -> InterpretOutcome {
     // Run on a worker thread with a generous stack: the tree-walker recurses with the
@@ -2948,10 +2956,15 @@ impl<'program> Evaluator<'program> {
             put(6, 1);
             put(7, 0);
             for i in 0..8 {
+                put(8 + i, (VIRTUAL_INO >> (8 * i)) as u8); // st_ino (u64)
                 put(32 + i, (VIRTUAL_ATIME_SECS >> (8 * i)) as u8); // st_atimespec.tv_sec
                 put(48 + i, (mtime_secs >> (8 * i)) as u8); // st_mtimespec.tv_sec
                 put(80 + i, (VIRTUAL_BIRTHTIME_SECS >> (8 * i)) as u8); // st_birthtimespec.tv_sec
                 put(96 + i, (size >> (8 * i)) as u8); // st_size
+            }
+            for i in 0..4 {
+                put(16 + i, (VIRTUAL_UID >> (8 * i)) as u8); // st_uid (u32)
+                put(20 + i, (VIRTUAL_GID >> (8 * i)) as u8); // st_gid (u32)
             }
         }
     }
