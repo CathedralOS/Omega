@@ -1,6 +1,6 @@
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
-use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
 use omega_typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 use std::fmt;
 
@@ -444,6 +444,55 @@ pub(crate) fn validate_binary_operand_types(
     );
 }
 
+/// Validate an `as` cast -- the single entry point for the Cast arm of
+/// `scan_expression_calls` (mirrors `validate_binary_operand_types`). The TARGET
+/// must be a scalar primitive (`x as Foo` / `x as Bogus` otherwise lowers as a
+/// silent identity no-op), and the SOURCE must be convertible to it: no `<number>
+/// as bool` (which yields a non-`{0, 1}` bool) and no text / struct / array source
+/// for a numeric/address target (which reinterprets bytes to garbage).
+pub(crate) fn validate_cast_types(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    cast: &TableCastExpression,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let target_name = program
+        .expression_table
+        .name_path_members(cast.target_type)
+        .last();
+    // Target must be a scalar primitive.
+    if let Some(target) = target_name
+        && PrimitiveType::from_name(target.as_str()).is_none()
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` casts with `as {target}`, but `{target}` is not a scalar \
+             type; `as` converts between scalar types only",
+            machine.name.as_str(),
+            state.map(|state| state.name.as_str()).unwrap_or(""),
+        )));
+    }
+    // Source-side checks keyed by the target primitive.
+    match target_name.and_then(|target| PrimitiveType::from_name(target.as_str())) {
+        Some(PrimitiveType::Bool) => {
+            report_number_to_bool_cast(program, machine, state, cast.value, diagnostics);
+        }
+        // Every scalar target except `bool` and the `String` carrier is a
+        // numeric/address type that only accepts a numeric/bool scalar source.
+        Some(primitive) if primitive != PrimitiveType::String => {
+            report_invalid_numeric_cast_source(
+                program,
+                machine,
+                state,
+                cast.value,
+                primitive.name(),
+                diagnostics,
+            );
+        }
+        _ => {}
+    }
+}
+
 /// Whether `operand`'s type is a float (`f32`/`f64`): a float literal, or a place
 /// whose declared type resolves to a float primitive. Looks through `Mutable`.
 fn expression_is_float_typed(
@@ -663,7 +712,7 @@ fn report_invalid_text_operator(
 /// source (Numeric/Text) is flagged; a comparison / logical / call source (None) or
 /// a `bool` source is allowed, so `(a == 1) as bool` and `b as bool` stay fine.
 /// (Same no-int-in-bool principle as `report_non_bool_logical_not`.)
-pub(crate) fn report_number_to_bool_cast(
+fn report_number_to_bool_cast(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: Option<&omega_typed_trees::state::State>,
@@ -692,7 +741,7 @@ pub(crate) fn report_number_to_bool_cast(
 /// is flagged; a numeric/bool source, a comparison result, or an unresolvable computed
 /// source (a call) classifies as scalar/unknown and is left alone. (`as bool` targets
 /// are handled by `report_number_to_bool_cast`; this covers the numeric/addr targets.)
-pub(crate) fn report_invalid_numeric_cast_source(
+fn report_invalid_numeric_cast_source(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: Option<&omega_typed_trees::state::State>,
