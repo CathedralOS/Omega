@@ -141,16 +141,16 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 - **[RESOLVED]** Comparison against an OUT-OF-RANGE integer literal (`self.b == 300` for u8) truncated the literal to operand width; `report_out_of_range_comparison_literal` (decision-17 sibling for comparison operands). Canary out_of_range_comparison_literal_rejected.
 - **[RESOLVED]** DIFFERENT-WIDTH integer operands in COMPARISON + BITWISE (`i8 == i32`, `u32 | u8`) compiled at the narrower width, truncating the wider; `report_mismatched_width_operands`. Arithmetic (overflow-caught) + shift (count operand) correctly excluded. Canaries mismatched_width_{comparison,bitwise}_rejected.
 
-- **[ ] DESIGN QUESTION (found 2026-07-05): bool operands MIX with numeric in arithmetic/comparison.**
-  `let n: i32 = self.b + 5` (-> 6), `self.b < self.n` (bool vs i32 guard -> 1), `self.b == self.n`
-  (-> 1) all COMPILE + RUN with a well-defined C-style bool->{0,1} coercion (NOT garbage, so not a
-  soundness hole -- a language-surface decision). Modern languages (Rust) reject all three; Zach's
-  `!int` ruling ("prefer modern languages, not C") points the same way. BUT the cross-class design
-  explicitly recorded `int==bool` (0/1 coercion) as INTENDED and "comparison result coerces to int is
-  intended" (the over-reach that was REVERTED), so reversing it is a DESIGN change, not known-direction
-  -- needs a settle in chat before touching the surface. Detection would live in `value_class` /
-  `report_cross_class_binary_operands` (add a Boolean-vs-Numeric operand-mismatch arm), but ONLY for
-  arithmetic + ordering, NOT equality (equality's 0/1 coercion is the load-bearing intended case).
+- **[RESOLVED 2026-07-05, Zach settled] bool operands mixing with numeric REJECTED (no magic coercion).**
+  `self.b + 5` (-> 6), `self.b < self.n`, `self.b == self.n` used to compile with a C-style bool->{0,1}
+  coercion. Zach: "prefer not having magic coercion bullshit, if modern languages ditch this" (Rust rejects
+  all three as mismatched types). `report_cross_class_binary_operands` generalized: ANY two DIFFERENT
+  resolved value classes (Boolean/Numeric/Text) in one binary op are rejected -- covers Boolean-vs-Numeric
+  (new) alongside the existing Text-vs-X, for ALL operators incl. equality. ⚠️ KEY: only a PROVABLE class
+  on each side counts, so a comparison RESULT (`value_class` None, e.g. `(a == b)`) is NOT Boolean --
+  `let n: i32 = a < b` (the intended 0/1 coercion of a comparison INTO a numeric slot) stays valid; that
+  is a store, not an operand. Text cases keep their exact message (canaries unchanged). Canary
+  bool_numeric_operand_mixing_rejected.
 - **[RESOLVED 2026-07-05, a902653ce]** Float BITWISE/SHIFT/MODULO rejected at `--check`
   (matching the interpreter's existing rejection). Canary float_bitwise_rejected.
 - **[RESOLVED 2026-07-03]** `arr[i] = <binary>` (computed value into a runtime-indexed

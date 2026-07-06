@@ -567,28 +567,36 @@ fn report_cross_class_binary_operands(
     right: ExpressionHandle,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
-    let left_class = value_class(program, Some(machine), state, left);
-    let right_class = value_class(program, Some(machine), state, right);
-    let mixed = matches!(
-        (left_class, right_class),
-        (
-            Some(ValueClass::Text),
-            Some(ValueClass::Numeric | ValueClass::Boolean),
-        ) | (
-            Some(ValueClass::Numeric | ValueClass::Boolean),
-            Some(ValueClass::Text),
-        )
-    );
-    if !mixed {
+    let (Some(left_class), Some(right_class)) = (
+        value_class(program, Some(machine), state, left),
+        value_class(program, Some(machine), state, right),
+    ) else {
+        return false;
+    };
+    // Any two DIFFERENT value classes mixed in one binary op is an implicit
+    // coercion Omega does not perform: a `bool` fed to arithmetic/comparison as its
+    // `{0, 1}` value (`self.flag + 5`, `self.flag == self.count`), or text combined
+    // with a number. Both are rejected -- write the conversion explicitly. Only a
+    // PROVABLE class on each side counts, so a comparison RESULT (value_class None,
+    // e.g. `(a == b)`) is NOT a Boolean here: `let n: i32 = (a == b)` (the intended
+    // 0/1 coercion of a comparison into a numeric slot) is untouched.
+    if left_class == right_class {
         return false;
     }
+    let detail =
+        if matches!(left_class, ValueClass::Text) || matches!(right_class, ValueClass::Text) {
+            "text and non-text operands cannot be compared or combined"
+        } else {
+            // Boolean vs Numeric: the magic 0/1 coercion modern languages reject.
+            "Omega does not coerce a boolean to a number -- compare booleans directly \
+             (`b == true`) or convert a number explicitly (`n != 0`)"
+        };
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{}` state `{}` applies an operator to {} and {} -- text and non-text \
-         operands cannot be compared or combined",
+        "machine `{}` state `{}` applies an operator to {} and {} -- {detail}",
         machine.name.as_str(),
         state.map(|state| state.name.as_str()).unwrap_or(""),
-        left_class.unwrap().describe(),
-        right_class.unwrap().describe(),
+        left_class.describe(),
+        right_class.describe(),
     )));
     true
 }
