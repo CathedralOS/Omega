@@ -145,6 +145,9 @@ pub enum HostOperation {
     Chmod,
     /// `rename(from, to)` -- move/rename a path (Rust `rename`). Two path args.
     Rename,
+    /// `link(original, link)` -- create a hard link (Rust `hard_link`): a second
+    /// directory entry for the same inode. Two path args, same shape as `rename`.
+    Link,
     /// `ftruncate(fd, length)` -- set a file's length (Rust `File::set_len`).
     SetLen,
     /// `fsync(fd)` -- flush a file's buffered data + metadata to the storage
@@ -205,6 +208,7 @@ impl HostOperation {
             "rmdir" => Self::RemoveDir,
             "chmod" => Self::Chmod,
             "rename" => Self::Rename,
+            "link" => Self::Link,
             "ftruncate" => Self::SetLen,
             "fsync" => Self::Sync,
             "read_errno" => Self::ReadErrno,
@@ -244,6 +248,7 @@ impl HostOperation {
             Self::RemoveDir => "rmdir",
             Self::Chmod => "chmod",
             Self::Rename => "rename",
+            Self::Link => "link",
             Self::SetLen => "ftruncate",
             Self::Sync => "fsync",
             Self::ReadErrno => "read_errno",

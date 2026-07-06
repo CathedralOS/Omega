@@ -640,6 +640,7 @@ boundary trait FilesystemHost {
     machine remove_dir(path: &[u8] in Path) -> i32;
     machine set_permissions(path: &[u8] in Path, mode: u32) -> i32;
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
+    machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32;
     machine set_len(fd: i32, length: i64) -> i32;
     machine sync(fd: i32) -> i32;
     machine errno() -> i32;
@@ -1649,5 +1650,71 @@ machine Main::main(&mut self) {
     assert_eq!(
         outcome.exit_code, 70,
         "chmod read-only then write-open must be Error with kind PermissionDenied"
+    );
+}
+
+/// `hard_link` (Rust `std::fs::hard_link`): after linking, the new name reads
+/// back the original's bytes, AND the link survives removal of the original.
+/// Also asserts the failure path: linking onto an existing name is
+/// `AlreadyExists`.
+#[test]
+fn filesystem_std_module_hard_link() {
+    let main_path = write_program(
+        "fs-hardlink",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    io_result: IoResult;
+    cap: usize;
+    first: u8;
+    buffer: [u8; 32];
+}
+machine Main::main(&mut self) {
+    self.cap = 32;
+    self.unit_result = self.fs.write_all("/orig.txt", "linked bytes");
+    transition self.unit_result { UnitResult::Ok -> linkit() _ -> fail() }
+    state linkit(&mut self) {
+        self.unit_result = self.fs.hard_link("/orig.txt", "/alias.txt");
+        transition self.unit_result { UnitResult::Ok -> dupfails() _ -> fail() }
+    }
+    state dupfails(&mut self) {
+        // linking onto an existing name is AlreadyExists
+        self.unit_result = self.fs.hard_link("/orig.txt", "/alias.txt");
+        transition self.unit_result { UnitResult::Error { kind } -> checkdup(kind) _ -> fail() }
+    }
+    state checkdup(&mut self, kind: ErrorKind) {
+        transition kind { ErrorKind::AlreadyExists -> dropsrc() _ -> fail() }
+    }
+    state dropsrc(&mut self) {
+        // remove the original; the link must still read back the content
+        self.unit_result = self.fs.remove("/orig.txt");
+        self.io_result = self.fs.read_all("/alias.txt", &mut self.buffer, self.cap);
+        transition self.io_result { IoResult::Ok { count } -> checklen(count) _ -> fail() }
+    }
+    state checklen(&mut self, count: usize) {
+        transition count == 12 { true -> checkbyte() _ -> fail() }
+    }
+    state checkbyte(&mut self) {
+        self.first = self.buffer[0];
+        self.unit_result = self.fs.remove("/alias.txt");
+        transition self.first == 108 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("hard-link program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "hard_link: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "hard_link: alias reads 12 bytes after original removed; relink is AlreadyExists"
     );
 }
