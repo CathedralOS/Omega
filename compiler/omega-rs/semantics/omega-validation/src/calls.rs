@@ -1107,6 +1107,17 @@ fn scan_expression_calls(
                 right,
                 diagnostics,
             );
+            // Arithmetic / ordering on a STRUCT with no declared operator (`P + P`
+            // for a plain `data P`) likewise lowers to a garbage byte op; a domain
+            // operator (`Quantity + Quantity`) stays valid.
+            crate::expression_types::report_undeclared_struct_operator(
+                program,
+                machine,
+                Some(state),
+                operator,
+                left,
+                diagnostics,
+            );
             // Bitwise / shift / modulo are not defined for FLOAT operands: the
             // interpreter rejects them ("float modulo/shift/bitwise not supported")
             // and the backend cannot encode them, but `--check` passed silently.

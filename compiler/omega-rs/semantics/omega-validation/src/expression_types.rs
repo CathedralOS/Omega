@@ -469,6 +469,71 @@ fn type_reference_is_text_carrier(program: &TypedTrees, handle: TypeReferenceHan
     }
 }
 
+/// Map a binary operator to its overloadable spelling, or `None` for operators
+/// that cannot carry a domain meaning here: `==`/`!=` (the structural-equality /
+/// Equatable path owns those), the logical `&&`/`||`, and bitwise/shift (which
+/// have no `OperatorSpelling`, so no domain operator can be declared for them).
+fn binary_operator_spelling(
+    operator: omega_typed_trees::expression::BinaryOperator,
+) -> Option<omega_core::operator_spelling::OperatorSpelling> {
+    use omega_core::operator_spelling::OperatorSpelling;
+    use omega_typed_trees::expression::BinaryOperator;
+    Some(match operator {
+        BinaryOperator::Add => OperatorSpelling::Add,
+        BinaryOperator::Subtract => OperatorSpelling::Subtract,
+        BinaryOperator::Multiply => OperatorSpelling::Multiply,
+        BinaryOperator::Divide => OperatorSpelling::Divide,
+        BinaryOperator::Modulo => OperatorSpelling::Modulo,
+        BinaryOperator::Less => OperatorSpelling::Less,
+        BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
+        BinaryOperator::Greater => OperatorSpelling::Greater,
+        BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
+        _ => return None,
+    })
+}
+
+/// Reject an arithmetic / ordering operator on a STRUCT operand for which no
+/// operator with that spelling is DECLARED (`self.a + self.b` for a plain
+/// `data P {}` lowered to a garbage byte op). A struct's only such operators are
+/// DOMAIN operators (`domain Quantity::Additive { operator add ... spelling + }`),
+/// so we ask the use-site authority `resolve_spelling`: an EMPTY candidate set for
+/// a concrete-data receiver means the operator is undeclared. Scalars (intrinsic
+/// builtins) and arrays are not concrete-data receivers, so they are untouched;
+/// when candidates DO exist, admissibility (the proof context) is enforced
+/// downstream, so a valid domain op (`Quantity + Quantity`) is never rejected.
+pub(crate) fn report_undeclared_struct_operator(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    operator: omega_typed_trees::expression::BinaryOperator,
+    left: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let Some(spelling) = binary_operator_spelling(operator) else {
+        return false;
+    };
+    let Some(receiver_type) = crate::places::declared_place_type(program, machine, state, left)
+    else {
+        return false;
+    };
+    let Some(type_name) = concrete_data_type_name(program, receiver_type) else {
+        return false;
+    };
+    if !omega_typed_trees::operator::resolve_spelling(program, spelling, Some(receiver_type))
+        .is_empty()
+    {
+        return false;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}` applies `{operator:?}` to a `{type_name}` value, but no such \
+         operator is declared for it -- only `==`/`!=` (via `{type_name} satisfies Equatable`) \
+         or a `domain {type_name}::... {{ operator ... }}` meaning operates on a data type",
+        machine.name.as_str(),
+        state.map(|state| state.name.as_str()).unwrap_or(""),
+    )));
+    true
+}
+
 /// Reject an ordering / arithmetic / bitwise operator whose operand is a NON-TEXT
 /// array (`xs < ys`, `xs + ys` for `[i32; N]`). Arrays cannot carry domain
 /// operators (only data types can, e.g. `Quantity::Additive`'s `+`), so these are
