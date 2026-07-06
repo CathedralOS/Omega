@@ -216,6 +216,35 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **✅ `*at` OPS (`open_at`/`unlink_at`) — the `remove_dir_all` FOUNDATION (2026-07-06).**
+  Added two dirfd-relative raw ops to the canonical `filesystem_host.omg` boundary:
+  `open_at(dirfd, name, flags) -> i32` (Rust `openat`) and `unlink_at(dirfd, name,
+  flags) -> i32` (Rust `unlinkat`; `flags & AT_REMOVEDIR(0x80=128)` rmdirs an empty
+  dir, else unlinks a file). **The name is a PLAIN `&[u8]`, NOT `in Path`** — the
+  crux of the redirect: a directory-listing name (no_nul by construction) flows in
+  with NO domain re-proof, and the path-joining (`dirfd`'s path + "/" + name) happens
+  in the OS (native `openat`) / the interpreter's virtual FS (`virtual_at_path`
+  helper), NEVER built in Omega. So `remove_dir_all` needs neither the carrier concat
+  NOR the name-domain proof. Interpreter handlers + coverage `filesystem_openat_unlinkat`
+  (build `/atd` with a file + subdir; `open_at` the file, `unlink_at` the file,
+  `unlink_at(…,128)` the subdir, confirm gone). fs coverage 66; native fs canaries
+  6/6 still green (the unbound ops don't affect them, like `open_create`).
+  - **JUDGEMENT CALL (D-at):** the `*at` name is plain `&[u8]` (a TRUSTED relative
+    component), not `in Path` — deliberate, so extracted listing names pass without a
+    domain proof. The `AT_REMOVEDIR` flag uses darwin's bit (0x80=128); per-OS native
+    lowering remaps if a target differs (linux 0x200). Native lowering of `open_at`/
+    `unlink_at` (to `openat`/`unlinkat`) is pending; interpreter-modeled today.
+  - **NEXT: the recursive `remove_dir_all` wrapper.** Design (fd-based, no path
+    building): `open(path) -> dfd`; `rda_drain(dfd, fuel)` = a state loop that
+    re-reads `dfd` (reset `position` to 0), finds the FIRST non-dot entry, and
+    removes it — `unlink_at(dfd, name, 0)` for a file, or `open_at(dfd, name) -> sub`,
+    recurse `rda_drain(sub, fuel-1)` (`decreases fuel`, bounds depth), `unlink_at(dfd,
+    name, 128)` for a dir — looping until the dir is empty; then `close(dfd)` +
+    `remove_dir(path)`. The re-read-first-entry loop dodges the shared-`dir_buf`-vs-
+    recursion clobber (each iteration re-reads fresh). The name passed to `*at` is the
+    extracted `entry.name[0..name_len]` subslice (plain `&[u8]`, bound-guarded). This
+    is a big (~15-state) machine — a dedicated fire.
+
 - **✅ Domained PATH BUILDING by carrier concat WORKS + `remove_dir_all` route
   clarified (2026-07-06).** Probed the path-building `remove_dir_all` needs and
   proved a real capability: `self.child = self.parent + "/kid"` into a

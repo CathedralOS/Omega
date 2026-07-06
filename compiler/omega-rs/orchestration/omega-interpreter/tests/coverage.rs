@@ -733,6 +733,65 @@ machine Main::main(&mut self) {
     );
 }
 
+/// The `*at` raw ops (`open_at`/`unlink_at`) — dirfd-relative operations that are
+/// the foundation of `remove_dir_all` (they let a directory-listing name flow in as
+/// a plain trusted `&[u8]`, and do the path-joining in the OS/interpreter, not
+/// Omega). Builds `/atd` with a file `kid` + a subdir `sub`, opens `/atd` -> dirfd,
+/// then: `open_at(dirfd, "kid")` opens the file, `unlink_at(dirfd, "kid", 0)` removes
+/// it, `unlink_at(dirfd, "sub", 128=AT_REMOVEDIR)` rmdirs the subdir, and a final
+/// `open_at(dirfd, "kid")` fails (gone). Exit 70.
+#[test]
+fn filesystem_openat_unlinkat() {
+    interpret_fs(
+        "fs-at-ops",
+        r#"
+data Main {
+    fs: FilesystemHost;
+    console: Console;
+    dirfd: i32;
+    fd: i32;
+    rc: i32;
+    rdonly: i32;
+    filemode: i32;
+    dirmode: i32;
+    n: i64;
+}
+machine Main::main(&mut self) {
+    self.rdonly = 0;
+    self.filemode = 420;
+    self.dirmode = 493;
+    self.rc = self.fs.create_dir("/atd", self.dirmode);
+    self.fd = self.fs.create("/atd/kid", self.filemode);
+    self.n = self.fs.close(self.fd);
+    self.rc = self.fs.create_dir("/atd/sub", self.dirmode);
+    self.dirfd = self.fs.open("/atd", self.rdonly);
+    transition self.dirfd >= 0 { true -> openat_kid() _ -> fail() }
+    state openat_kid(&mut self) {
+        self.fd = self.fs.open_at(self.dirfd, "kid", self.rdonly);
+        transition self.fd >= 0 { true -> unlink_kid() _ -> fail() }
+    }
+    state unlink_kid(&mut self) {
+        self.n = self.fs.close(self.fd);
+        self.rc = self.fs.unlink_at(self.dirfd, "kid", 0);
+        transition self.rc == 0 { true -> rmdir_sub() _ -> fail() }
+    }
+    state rmdir_sub(&mut self) {
+        self.rc = self.fs.unlink_at(self.dirfd, "sub", 128);
+        transition self.rc == 0 { true -> verify_gone() _ -> fail() }
+    }
+    state verify_gone(&mut self) {
+        self.fd = self.fs.open_at(self.dirfd, "kid", self.rdonly);
+        transition self.fd < 0 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+        70,
+        "open_at/unlink_at do dirfd-relative open + file/dir removal",
+    );
+}
+
 /// Full CRUD round-trip over the value-returning seam: create -> write 17B ->
 /// close -> open -> read (17) -> close -> remove. Exit 70 only if read returns
 /// exactly the 17 bytes written.

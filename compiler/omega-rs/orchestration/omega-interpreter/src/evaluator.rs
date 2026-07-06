@@ -2595,6 +2595,47 @@ impl<'program> Evaluator<'program> {
                     -1
                 }
             }
+            "open_at" => {
+                // `openat(dirfd, name, flags)`: open `name` relative to the open
+                // directory `dirfd`. The full path (dirfd's path + "/" + name) is
+                // joined HERE (the OS does it natively), so no Omega path build.
+                let dirfd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let name = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                let flags = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
+                match self.virtual_at_path(dirfd, &name) {
+                    Some(full) => self.virtual_open_flags(full, flags) as i64,
+                    None => {
+                        self.virtual_errno = 9; // EBADF (dirfd not an open directory)
+                        -1
+                    }
+                }
+            }
+            "unlink_at" => {
+                // `unlinkat(dirfd, name, flags)`: remove `name` relative to `dirfd`.
+                // flags & AT_REMOVEDIR(0x80) removes an empty directory, else a file.
+                let dirfd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let name = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                let flags = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
+                match self.virtual_at_path(dirfd, &name) {
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                    Some(full) => {
+                        let removed = if (flags & 128) != 0 {
+                            self.virtual_dirs.remove(&full)
+                        } else {
+                            self.virtual_files.remove(&full).is_some()
+                        };
+                        if removed {
+                            0
+                        } else {
+                            self.virtual_errno = 2; // ENOENT
+                            -1
+                        }
+                    }
+                }
+            }
             "set_permissions" => {
                 // `chmod(path, mode)`: record the mode. ENOENT if the path names
                 // neither a file nor a directory. `mode` is the second arg.
@@ -3024,6 +3065,22 @@ impl<'program> Evaluator<'program> {
     /// d_name@21(namlen) NUL pad]`, `d_reclen = round_up_8(25 + namlen)` — the
     /// exact layout `___getdirentries64` produces, so byte counts and a parser
     /// agree with native.
+    /// Resolve `name` RELATIVE to the open directory `dirfd` to a full virtual
+    /// path (`dirfd`'s path + "/" + name). Returns None if `dirfd` is not an open
+    /// directory descriptor. The `*at` ops do their path-joining here -- in Rust,
+    /// the way the OS does natively -- so the Omega layer never builds a path.
+    fn virtual_at_path(&self, dirfd: i32, name: &[u8]) -> Option<Vec<u8>> {
+        let dir = self
+            .virtual_fds
+            .get(&dirfd)
+            .filter(|descriptor| descriptor.is_dir)
+            .map(|descriptor| descriptor.path.clone())?;
+        let mut full = dir;
+        full.push(b'/');
+        full.extend_from_slice(name);
+        Some(full)
+    }
+
     fn build_dirent_records(&self, dir_path: &[u8]) -> Vec<u8> {
         let mut entries: Vec<(Vec<u8>, u8)> = vec![(b".".to_vec(), 4), (b"..".to_vec(), 4)];
         let mut prefix = dir_path.to_vec();
