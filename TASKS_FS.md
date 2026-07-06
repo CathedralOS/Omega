@@ -216,14 +216,27 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
-- **✅ STEP 14 layers 1+2+3 LANDED — `let`-bound value-call host calls work natively
-  (2026-07-07). ONE wrinkle left before the shipped wrapper is native.** The value-call
-  literal-forwarding bug was a THREE-layer chain; ALL THREE are now fixed for a
-  SAME-data-type callee, so `let x = self.host.op(literal)` forwarded through a value-call
-  now lowers + runs natively (canary `native_value_call_local` — a `let`-bound host-call
-  value-call round-trips 5 bytes; was silently dropped before). Gates: native fs harness
-  **47/47**; canary_suite **514/85 IDENTICAL** with/without the whole change (stash-diff),
-  so the high-blast-radius collection change is exact-zero-regression.
+- **🎉 STEP 14 COMPLETE — the SHIPPED ergonomic `Filesystem` wrapper runs NATIVELY
+  (2026-07-08).** `Filesystem::write_all`/`read_all`/`remove` — the Rust-parity API,
+  reached via a value-call to the `Filesystem` sub-machine (`fs: Filesystem`, a DIFFERENT
+  data type via a field) — now COMPILES + RUNS on real macOS/aarch64: canary
+  `native_wrapper_write_all` round-trips "hello" through `write_all`→`read_all`→`remove`
+  (PASS). This closes the multi-fire value-call-forwarding effort. **The FINAL layer 5
+  (2026-07-08): alias-aware scalar/address arg resolution.** The wrapper forwards scalar
+  (`count`) and slice/address (`buffer`) PARAMS into `self.host.read(fd, buffer, count)`;
+  `scalar_argument_operand_at`/`address_argument_operand_at` were NOT alias-aware, so a
+  forwarded param resolved to no place ("no result storage operand"). FIX: new
+  `alias_resolved_place_at` helper (the scalar/address analog of fix #1's
+  `aliased_literal_data_object`) follows the alias chain to the caller's arg place;
+  threaded `alias_context` through both resolvers + all ~35 call sites (Gui passes None —
+  it never forwards value-call params). VERIFIED: native fs harness **49/49**; canary_suite
+  **515/85 IDENTICAL** with/without (exact zero-regression, stash-diff); the wrapper canary
+  stash-diff-confirmed to FAIL without the fix. **All 5 layers of the chain now land** —
+  see the layer detail below; the whole thing is exact-zero-regression on canary_suite.
+  Both engines now run the ergonomic std::fs API (interpreter + native).
+
+  Earlier milestone (2026-07-07): `let`-bound value-call host calls work natively for a
+  SAME-data-type callee (canary `native_value_call_local`). Gates then: 47/47, 514/85.
   - **✅ layer 4 [FIXED 2026-07-08] — boundary-call-result LOCALS get frame slots.** The
     earlier "through-field frame slot missing" note was a MIS-diagnosis: the real cause is
     SLOT ELISION, not through-field-ness. `local_data_requires_storage`
@@ -241,19 +254,16 @@ crate tests; interpreter fs coverage) and commits.
     runs `let fd=create; let w=write(fd,bytes); let rc=close(fd)` → writes 5 bytes;
     stash-diff-confirmed to FAIL without the fix); native fs harness **48/48**; canary_suite
     **515/85 IDENTICAL** with/without (exact zero-regression, stash-diff).
-  - **THE REMAINING PIECE — alias-aware scalar/address PARAM resolution (through-field).**
-    With layer 4, the same-machine ergonomic shape works. The SHIPPED wrapper
-    (`self.fs.read_all(path, buffer, count)`, `fs: Filesystem` a different data type via a
-    field) still fails: its scalar param `count` (aliased to the caller's arg) does not
-    resolve — `scalar_argument_operand_at` (and `address_argument_operand_at` for `buffer`)
-    are NOT alias-aware, unlike the literal path (fix #1). So a forwarded scalar/slice PARAM
-    of a value-call callee resolves to no place. FIX (next): thread `alias_context` into
-    `scalar_argument_operand_at`/`address_argument_operand_at` and follow the alias to the
-    caller's arg place (the scalar/address analog of fix #1's `aliased_literal_data_object`).
-    Repro parked at `canaries/run/filesystem/wrapper_write_all_through_field`. The RAW seam
-    stays fully native (48 canaries); the ergonomic wrapper stays interpreter-only until
-    this lands.
-  Layer detail (all three now landed for same-machine):
+  - **✅ layer 5 [FIXED 2026-07-08] — alias-aware scalar/address PARAM resolution.** With
+    layer 4 the same-machine shape worked; the SHIPPED through-field wrapper still failed
+    because forwarded scalar (`count`) / slice-address (`buffer`) PARAMS aliased to the
+    caller's args did not resolve — `scalar_argument_operand_at`/`address_argument_operand_at`
+    were not alias-aware. FIX: `alias_resolved_place_at` (the scalar/address analog of fix
+    #1's `aliased_literal_data_object`) follows the alias chain to the caller's arg place,
+    threaded through both resolvers + their ~35 call sites (Gui passes `None`). This closed
+    the chain — the wrapper canary now RUNS (promoted to
+    `canaries/pass/filesystem/native_wrapper_write_all`). 49/49; 515/85 zero-regression.
+  Layer detail (all FIVE now landed — the ergonomic wrapper is native):
   1. **[FIXED] Aliased-literal operand resolution — BYTES + PATHS.** A literal
      forwarded through a value-call param (`fs.write_all(path,"hi")` → wrapper
      `write(fd,bytes)`; `fs.open(path)` → wrapper `open(path,..)`) arrives as the
