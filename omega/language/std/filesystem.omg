@@ -54,6 +54,20 @@ data IoResult {
     case Error(kind: ErrorKind);
     case Ok(count: usize);
 }
+// A directory's composition summary (`read_dir_stats`). `entries` is the total
+// child count (excluding "." and ".."); `subdirs` counts children with dirent
+// type DT_DIR, `files` those with DT_REG. `entries - subdirs - files` are the
+// other types (symlinks, fifos, …). On a filesystem that reports DT_UNKNOWN,
+// `subdirs`/`files` undercount (see D-readdir).
+data DirStats [copy, zero_init] {
+    entries: usize;
+    subdirs: usize;
+    files: usize;
+}
+data DirStatsResult {
+    case Error(kind: ErrorKind);
+    case Ok(stats: DirStats);
+}
 data UnitResult {
     case Error(kind: ErrorKind);
     case Ok;
@@ -367,6 +381,10 @@ data Filesystem {
     rd_lou: usize in Wrapping;
     rd_hiu: usize in Wrapping;
     rd_reclen: usize in Wrapping;
+    // `read_dir_stats`: the record's `d_type` byte + the per-type tallies.
+    rd_dtype: u8;
+    rd_dirs: i32 in Wrapping;
+    rd_files: i32 in Wrapping;
 }
 
 // Create (or truncate) a file for writing, returning an open `File`.
@@ -956,6 +974,80 @@ machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult {
     state rd_err(&mut self) -> IoResult {
         let kind: ErrorKind = self.last_error();
         IoResult::Error { kind: kind }
+    }
+}
+
+// Summarize a directory's composition in ONE walk (`DirStats { entries, subdirs,
+// files }`) -- the type-aware companion to `read_dir_count`. Same single-fill
+// dirent walk, additionally reading each record's `d_type` byte at offset +20
+// (within the `off < 480` bound, so the read is provably in the 512-byte buffer)
+// and tallying DT_DIR (4) vs DT_REG (8). "." and ".." are DT_DIR, so the child
+// counts subtract 2 from both `entries` and `subdirs`. Same single-fill /
+// DT_UNKNOWN caveats as `read_dir_count` (D-readdir). Establishes the `d_type`
+// dispatch that a `DirEntry` cursor and `remove_dir_all` (recurse into subdirs,
+// unlink files) will reuse.
+machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsResult {
+    self.read_flags = 0;
+    self.rd_position = 0;
+    self.rd_off = 0;
+    self.rd_count = 0;
+    self.rd_dirs = 0;
+    self.rd_files = 0;
+    let dfd: i32 = self.host.open(path, self.read_flags);
+    transition dfd >= 0 { true -> rds_read(dfd) _ -> rds_err() }
+    state rds_read(&mut self, dfd: i32) -> DirStatsResult {
+        let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
+        let closed: i32 = self.host.close(dfd);
+        self.rd_total = total as usize in Wrapping;
+        transition total > 0 { true -> rds_walk() _ -> rds_empty() }
+    }
+    state rds_walk(&mut self) -> DirStatsResult {
+        transition self.rd_off < 480 { true -> rds_body() _ -> rds_done() }
+    }
+    state rds_body(&mut self) -> DirStatsResult {
+        self.rd_idx = self.rd_off + 16;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 17;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = self.rd_lo as usize in Wrapping;
+        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
+        self.rd_idx = self.rd_off + 20;
+        self.rd_dtype = self.dir_buf[self.rd_idx];
+        self.rd_count = self.rd_count + 1;
+        self.rd_off = self.rd_off + self.rd_reclen;
+        transition self.rd_dtype == 4 { true -> rds_dir() _ -> rds_maybe_file() }
+    }
+    state rds_dir(&mut self) -> DirStatsResult {
+        self.rd_dirs = self.rd_dirs + 1;
+        transition self.rd_off < self.rd_total { true -> rds_walk() _ -> rds_done() }
+    }
+    state rds_maybe_file(&mut self) -> DirStatsResult {
+        transition self.rd_dtype == 8 { true -> rds_file() _ -> rds_cont() }
+    }
+    state rds_file(&mut self) -> DirStatsResult {
+        self.rd_files = self.rd_files + 1;
+        transition self.rd_off < self.rd_total { true -> rds_walk() _ -> rds_done() }
+    }
+    state rds_cont(&mut self) -> DirStatsResult {
+        transition self.rd_off < self.rd_total { true -> rds_walk() _ -> rds_done() }
+    }
+    state rds_done(&mut self) -> DirStatsResult {
+        transition self.rd_count > 2 { true -> rds_ok() _ -> rds_empty() }
+    }
+    state rds_ok(&mut self) -> DirStatsResult {
+        DirStatsResult::Ok { stats: DirStats {
+            entries: (self.rd_count - 2) as usize in Wrapping,
+            subdirs: (self.rd_dirs - 2) as usize in Wrapping,
+            files: self.rd_files as usize in Wrapping,
+        } }
+    }
+    state rds_empty(&mut self) -> DirStatsResult {
+        DirStatsResult::Ok { stats: DirStats { entries: 0, subdirs: 0, files: 0 } }
+    }
+    state rds_err(&mut self) -> DirStatsResult {
+        let kind: ErrorKind = self.last_error();
+        DirStatsResult::Error { kind: kind }
     }
 }
 

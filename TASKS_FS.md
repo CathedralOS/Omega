@@ -216,6 +216,31 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **✅ `read_dir_stats` — type-aware dir summary (2026-07-06).** Added
+  `Filesystem::read_dir_stats(path) -> DirStatsResult` (`DirStats { entries, subdirs,
+  files }`): the type-aware companion to `read_dir_count`. Same single-fill dirent
+  walk, additionally reading each record's `d_type` byte at offset +20 (within the
+  `off < 480` bound, provably inside the 512-byte buffer) and tallying DT_DIR(4) vs
+  DT_REG(8); "." and ".." are DT_DIR so both `entries` and `subdirs` subtract 2.
+  RUNS: coverage `filesystem_std_module_read_dir_stats` (2 files + 1 subdir ->
+  entries 3, subdirs 1, files 2). fs coverage 61. Same single-fill / DT_UNKNOWN
+  caveats as D-readdir. Establishes the `d_type` dispatch a `DirEntry` cursor and
+  `remove_dir_all` (recurse subdirs / unlink files) will reuse. Pure Omega, no
+  compiler change.
+  - **COMPILER INSIGHT (probed this fire, recorded for the name-extraction rung):**
+    a FIELD-based index fact does NOT thread across a state transition, but a
+    PARAM-based one does. `s[self.j]` in a state reached via a `self.j < s.len`
+    guard in a PRIOR state fails ("cannot prove index `self.j` is within unknown
+    slice length"), whereas `path[i]` with `i` a threaded PARAM proves fine (cf.
+    `create_dir_all`/`mkall_at`). This is why the dirent walks index a MACHINE-FIELD
+    buffer under a STATIC bound (`off < 480`), and why NAME EXTRACTION (a dynamic
+    slice-param byte index in a field-cursor loop) is blocked: it needs either the
+    recursive-machine (`decreases`) shape threading the index as a param, or a
+    checker fix that threads a field-index fact across a transition when the field
+    is provably unmutated (a flow change -- deferred as soundness-sensitive; an
+    earlier flow-invalidation change broke 8 canaries, so this rung wants a
+    dedicated, carefully-verified fire). Blocks `DirEntry` name / `remove_dir_all`.
+
 - **✅ `read_dir_count` — first ergonomic `read_dir` rung (2026-07-06).** Added
   `Filesystem::read_dir_count(path) -> IoResult` to the shipped wrapper: opens the
   directory, fills ONE buffer of packed darwin `dirent` records via the raw

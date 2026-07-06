@@ -1131,6 +1131,68 @@ machine Main::main(&mut self) {
     );
 }
 
+/// The shipped `Filesystem::read_dir_stats` — a one-walk directory composition
+/// summary (entries/subdirs/files via each dirent's `d_type`). Builds `/rs` with
+/// two files + one subdir and asserts entries==3, subdirs==1, files==2.
+#[test]
+fn filesystem_std_module_read_dir_stats() {
+    let main_path = write_program(
+        "fs-std-dirstats",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    stats_result: DirStatsResult;
+    open_result: OpenResult;
+    close_rc: i32;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.create_dir("/rs");
+    self.open_result = self.fs.create("/rs/f1");
+    transition self.open_result { OpenResult::Ok { file } -> made1(file) _ -> fail() }
+    state made1(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.open_result = self.fs.create("/rs/f2");
+        transition self.open_result { OpenResult::Ok { file } -> made2(file) _ -> fail() }
+    }
+    state made2(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.unit_result = self.fs.create_dir("/rs/d1");
+        self.stats_result = self.fs.read_dir_stats("/rs");
+        transition self.stats_result { DirStatsResult::Ok { stats } -> check(stats) _ -> fail() }
+    }
+    state check(&mut self, stats: DirStats) {
+        transition stats.entries == 3 { true -> checkdirs(stats) _ -> fail() }
+    }
+    state checkdirs(&mut self, stats: DirStats) {
+        transition stats.subdirs == 1 { true -> checkfiles(stats) _ -> fail() }
+    }
+    state checkfiles(&mut self, stats: DirStats) {
+        transition stats.files == 2 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("read_dir_stats program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "read_dir_stats should run, got {:?}",
+        outcome.error
+    );
+    assert_eq!(
+        outcome.exit_code, 70,
+        "read_dir_stats(/rs) must report entries=3, subdirs=1, files=2"
+    );
+}
+
 /// The REAL shipped std module `omega/language/std/filesystem.omg`, imported via
 /// `use` and driven through its ergonomic `Filesystem` API — a full CRUD
 /// round-trip in the interpreter. Proves the canonical std::fs surface (not an
