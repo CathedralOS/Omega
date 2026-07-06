@@ -111,16 +111,18 @@ machine Permissions::set_readonly(&mut self, readonly: bool) {
 data Metadata [copy, zero_init] {
     len: i64;
     is_dir: bool;
+    is_symlink: bool;
     mode: u32;
     modified_secs: i64;
     accessed_secs: i64;
     created_secs: i64;
 }
 
-// Rust `Metadata::is_file` — a regular file (here: anything that is not a
-// directory; symlinks/devices are not modeled).
+// Rust `Metadata::is_file` — a regular file: neither a directory nor a symlink.
+// `is_symlink` is only ever set by `symlink_metadata` (lstat); path/fd metadata
+// follows links (stat), so it never sees a symlink and `is_file` stays `!is_dir`.
 machine Metadata::is_file(&self) -> bool {
-    !self.is_dir
+    !self.is_dir && !self.is_symlink
 }
 
 // Rust `Metadata::permissions().readonly()` — true when the owner-write bit
@@ -185,6 +187,10 @@ boundary trait FilesystemHost {
     // Fill `buffer` (>= 144 bytes) with the path's `struct stat` record (Rust
     // `fs::metadata`). The Omega layer reads st_size/st_mode back out.
     machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
+    // Like `read_metadata` but via `lstat` — does NOT follow a final symlink, so
+    // a symlink reports its own record (st_mode file-type S_IFLNK). Rust
+    // `fs::symlink_metadata`.
+    machine read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
     machine set_len(fd: i32, length: i64) -> i32;
     machine sync(fd: i32) -> i32;
     // Read the thread-local errno (darwin `___error()` -> `&errno`, dereferenced
@@ -421,7 +427,55 @@ machine Filesystem::metadata_path(&mut self, path: &[u8] in Path) -> MetadataRes
             | ((self.stat_buf[85] as i64) << 40)
             | ((self.stat_buf[86] as i64) << 48)
             | ((self.stat_buf[87] as i64) << 56);
-        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, mode: mode as u32, modified_secs: mtime, accessed_secs: atime, created_secs: btime } }
+        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: false, mode: mode as u32, modified_secs: mtime, accessed_secs: atime, created_secs: btime } }
+    }
+    state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
+}
+
+// Rust `fs::symlink_metadata` — metadata of the path ITSELF, not following a
+// final symlink (via `lstat`). Same byte-decode as `metadata_path`, but a symlink
+// reports `is_symlink` true (st_mode file-type S_IFLNK = 0o120000 = 40960) and so
+// `is_file()` false. For a non-symlink it is identical to `metadata_path`.
+machine Filesystem::symlink_metadata(&mut self, path: &[u8] in Path) -> MetadataResult {
+    let rc: i32 = self.host.read_symlink_metadata(path, &mut self.stat_buf);
+    transition rc == 0 { true -> decode() _ -> err() }
+    state decode(&mut self) -> MetadataResult {
+        let len: i64 = (self.stat_buf[96] as i64)
+            | ((self.stat_buf[97] as i64) << 8)
+            | ((self.stat_buf[98] as i64) << 16)
+            | ((self.stat_buf[99] as i64) << 24)
+            | ((self.stat_buf[100] as i64) << 32)
+            | ((self.stat_buf[101] as i64) << 40)
+            | ((self.stat_buf[102] as i64) << 48)
+            | ((self.stat_buf[103] as i64) << 56);
+        let mode: i32 = (self.stat_buf[4] as i32) | ((self.stat_buf[5] as i32) << 8);
+        let is_dir: bool = (mode & 61440) == 16384;
+        let is_symlink: bool = (mode & 61440) == 40960;
+        let mtime: i64 = (self.stat_buf[48] as i64)
+            | ((self.stat_buf[49] as i64) << 8)
+            | ((self.stat_buf[50] as i64) << 16)
+            | ((self.stat_buf[51] as i64) << 24)
+            | ((self.stat_buf[52] as i64) << 32)
+            | ((self.stat_buf[53] as i64) << 40)
+            | ((self.stat_buf[54] as i64) << 48)
+            | ((self.stat_buf[55] as i64) << 56);
+        let atime: i64 = (self.stat_buf[32] as i64)
+            | ((self.stat_buf[33] as i64) << 8)
+            | ((self.stat_buf[34] as i64) << 16)
+            | ((self.stat_buf[35] as i64) << 24)
+            | ((self.stat_buf[36] as i64) << 32)
+            | ((self.stat_buf[37] as i64) << 40)
+            | ((self.stat_buf[38] as i64) << 48)
+            | ((self.stat_buf[39] as i64) << 56);
+        let btime: i64 = (self.stat_buf[80] as i64)
+            | ((self.stat_buf[81] as i64) << 8)
+            | ((self.stat_buf[82] as i64) << 16)
+            | ((self.stat_buf[83] as i64) << 24)
+            | ((self.stat_buf[84] as i64) << 32)
+            | ((self.stat_buf[85] as i64) << 40)
+            | ((self.stat_buf[86] as i64) << 48)
+            | ((self.stat_buf[87] as i64) << 56);
+        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: is_symlink, mode: mode as u32, modified_secs: mtime, accessed_secs: atime, created_secs: btime } }
     }
     state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
 }
@@ -570,6 +624,6 @@ machine Filesystem::metadata(&mut self, file: File) -> MetadataResult {
     // so `is_dir` is false. The seek-based path cannot read the real mode, so it
     // reports a conventional rw-r--r-- (0o644 = 420); use `metadata_path` for the
     // accurate `mode`/`readonly`/`permissions` from `stat`.
-    state ok(&mut self, len: i64) -> MetadataResult { MetadataResult::Ok { meta: Metadata { len: len, is_dir: false, mode: 420, modified_secs: 0, accessed_secs: 0, created_secs: 0 } } }
+    state ok(&mut self, len: i64) -> MetadataResult { MetadataResult::Ok { meta: Metadata { len: len, is_dir: false, is_symlink: false, mode: 420, modified_secs: 0, accessed_secs: 0, created_secs: 0 } } }
     state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
 }

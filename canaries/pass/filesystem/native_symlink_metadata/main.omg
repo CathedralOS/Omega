@@ -1,0 +1,63 @@
+// NATIVE fs symlink_metadata via lstat (Rust fs::symlink_metadata). Creates a
+// regular file, symlinks to it, then lstats BOTH the link and the file. lstat
+// does NOT follow the final symlink, so the link's st_mode file-type field is
+// S_IFLNK (0o120000 = 40960) while the file's is not. Proves the lstat op lowers
+// and runs on real macOS syscalls, distinguishing a symlink from its target.
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> i32;
+    machine read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
+}
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    fd: i32;
+    rc: i32;
+    st_mode: i32;
+    link_is_symlink: bool;
+    file_is_symlink: bool;
+    n: i64;
+    buffer: [u8; 144];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.fd = self.fs.create("/tmp/omega_lstat.txt", self.mode);
+    self.n = self.fs.write(self.fd, "1234567890");
+    self.n = self.fs.close(self.fd);
+    // defensive: clear a stale link from a prior failed run (rc ignored)
+    self.n = self.fs.remove("/tmp/omega_lstat_link");
+    self.rc = self.fs.symlink("/tmp/omega_lstat.txt", "/tmp/omega_lstat_link");
+    transition self.rc == 0 { true -> statlink() _ -> fail() }
+    state statlink(&mut self) {
+        self.rc = self.fs.read_symlink_metadata("/tmp/omega_lstat_link", &mut self.buffer);
+        transition self.rc == 0 { true -> decodelink() _ -> fail() }
+    }
+    state decodelink(&mut self) {
+        self.st_mode = (self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8);
+        // S_IFMT = 0o170000 = 61440; S_IFLNK = 0o120000 = 40960
+        self.link_is_symlink = (self.st_mode & 61440) == 40960;
+        transition self.link_is_symlink { true -> statfile() _ -> fail() }
+    }
+    state statfile(&mut self) {
+        self.rc = self.fs.read_symlink_metadata("/tmp/omega_lstat.txt", &mut self.buffer);
+        transition self.rc == 0 { true -> decodefile() _ -> fail() }
+    }
+    state decodefile(&mut self) {
+        self.st_mode = (self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8);
+        self.file_is_symlink = (self.st_mode & 61440) == 40960;
+        self.n = self.fs.remove("/tmp/omega_lstat_link");
+        self.n = self.fs.remove("/tmp/omega_lstat.txt");
+        transition self.file_is_symlink { true -> fail() _ -> good() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: lstat sees the symlink (S_IFLNK); the regular file is not a symlink\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: symlink_metadata\n"); }
+}

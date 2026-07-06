@@ -139,7 +139,12 @@ crate tests; interpreter fs coverage) and commits.
   by creation/offset order = arg order). `canaries/pass/filesystem/native_rename`
   RUNS: create A + write + rename A→B + read B back (16 bytes) → PASS.
 - Native raw ops now: create/open/read/write/close/remove/seek/create_dir/
-  remove_dir/rename — all run-verified on macOS.
+  remove_dir/rename/chmod/fchmod/link/symlink/readlink/stat/lstat/ftruncate/fsync —
+  all run-verified on macOS.
+- **`symlink_metadata` (lstat) landed natively** (Rust `fs::symlink_metadata`) via
+  `_lstat`, reusing the `Stat` operand shape (just a new symbol). `native_symlink_metadata`
+  canary RUNS: lstat distinguishes a symlink (S_IFLNK) from its target. `Metadata`
+  now has `is_symlink` + a faithful `is_file()`. The stat/lstat pair is complete.
 - **Append verified** (`canaries/pass/filesystem/native_append`): `open` with
   `O_WRONLY|O_APPEND` (0x9) appends; file grows 3→6 bytes. No new op — proves
   `open` handles arbitrary write flags (Rust `OpenOptions` parity). File-size is
@@ -312,6 +317,26 @@ crate tests; interpreter fs coverage) and commits.
     (native symlinks resolve for real) — so an open-through-a-symlink differential
     test would diverge; the tests only do symlink+read_link. Faithful resolution
     (follow links on path ops) is a future refinement.
+10e. [x] **`symlink_metadata`** (Rust `fs::symlink_metadata`) via `lstat` — DONE,
+    complete NATIVE vertical. `HostOperation::LStat` (op `lstat` → darwin `_lstat`);
+    added `LStat` to the EXISTING `Stat` operand arm (identical `[result, path ptr,
+    buffer ptr]` shape — lstat just doesn't follow a final symlink), so ZERO new
+    operand/encoder/width work. Raw `FilesystemHost::read_symlink_metadata(path,
+    buffer) -> i32`; wrapper `Filesystem::symlink_metadata(path) -> MetadataResult`
+    (same byte-decode as `metadata_path`, plus `is_symlink = (st_mode & S_IFMT) ==
+    S_IFLNK`, i.e. `(mode & 61440) == 40960`). `Metadata` gained an `is_symlink:
+    bool` field (module convention: a field like `is_dir`, not a method) and
+    `is_file()` is now `!is_dir && !is_symlink` so a symlink's lstat metadata is
+    correctly NOT a file. Interpreter `read_symlink_metadata` handler: a path in
+    `virtual_symlinks` → `S_IFLNK|0o777` with size = target byte length (POSIX
+    symlink size); otherwise identical to `stat`. DIFFERENTIAL: native
+    `native_symlink_metadata` canary RUNS on real macOS (lstat the link → S_IFLNK
+    is_symlink true; lstat the target file → not a symlink → PASS) AND coverage
+    `filesystem_std_module_symlink_metadata` (link: is_symlink, !is_file, len 11 =
+    "/target.txt"; file: is_file, len 5). `metadata_path` (stat) still FOLLOWS
+    links; the two now form the stat/lstat pair. NOTE: `as i64` casts on a host-call
+    result don't lower natively ("needs runtime value lowering") — assign the raw
+    i32 into the i64 field directly (implicit widen), as the other canaries do.
 11. [x] **Richer `Metadata`** via `stat` — DONE, complete NATIVE vertical (used
     `stat(path)`, not `fstat(fd)`, so it works on DIRECTORIES with no open/read
     perm). `HostOperation::Stat` (op `stat` → darwin `_stat`); operand arm
