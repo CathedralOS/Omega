@@ -123,34 +123,6 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   records/enums. Once the resolver is versioned-sound, gate the check on
   `resolve_nested_member_path(...).is_none()` for a 3+-segment self/local/param member read.
 
-> **Recently resolved — 2026-07-05 type-soundness sweep** (full detail in git commits +
-> memory [[literal-class-assignment-miscompile]] / [[narrowing-store-proof-obligation]];
-> condensed here to keep this section on *remaining* work). Each shipped a fail-canary.
-- **[RESOLVED 5faa7928b]** Arithmetic/ordering on a plain-`data` STRUCT (`self.a + self.b`) rejected via `resolve_spelling` (domain ops stay valid). Canary struct_operator_undeclared_rejected.
-- **[RESOLVED]** Cast to a numeric/addr scalar from a TEXT/STRUCT/ARRAY source (`self.s as i32`) ran to garbage; `report_invalid_numeric_cast_source` in the Cast arm. Canaries cast_{text,struct,array}_to_number_rejected.
-- **[RESOLVED]** `==`/`!=` between two DIFFERENT data types (`self.p == self.q`) positionally expanded to a garbage compare; rejected at the `structural_equality.rs` expansion site (both operand type names must match). Canary cross_type_equality_rejected.
-- **[RESOLVED]** `==`/`!=` between an enum value and a case of a DIFFERENT enum (`self.c == Direction::North`) tag-compared across unrelated enums; rejected at the classifier gate (case's enum must match value's). Canary cross_enum_case_comparison_rejected.
-- **[RESOLVED]** MEMBERSHIP `value in DifferentEnum::Case` — the `in` sibling; `reject_cross_type_case_membership` before the `Type::Case` lowering. Canary cross_enum_case_membership_rejected. (Cross-type enum surface now closed on `==`/`!=`/`in`.)
-- **[RESOLVED]** `==`/`!=` on ARRAY operands (`self.xs == self.ys`) hit a cryptic backend error / uncaught length mismatch; `report_array_operator_operands` now rejects them on non-text arrays (element-wise array eq = future feature). Canary array_equality_rejected.
-- **[RESOLVED]** SCALAR <-> DATA (struct/enum) shape mismatch at value-binding slots (`self.inner = 5`, `let n: i32 = self.inner`) silently clobbered/read-0; `report_scalar_data_shape_mismatch` wired at all 6 binding positions. Canary scalar_into_data_field_rejected. (Completes the scalar/array/data value-vs-target shape matrix.)
-- **[RESOLVED]** Comparison against an OUT-OF-RANGE integer literal (`self.b == 300` for u8) truncated the literal to operand width; `report_out_of_range_comparison_literal` (decision-17 sibling for comparison operands). Canary out_of_range_comparison_literal_rejected.
-- **[RESOLVED]** DIFFERENT-WIDTH integer operands in COMPARISON + BITWISE (`i8 == i32`, `u32 | u8`) compiled at the narrower width, truncating the wider; `report_mismatched_width_operands`. Arithmetic (overflow-caught) + shift (count operand) correctly excluded. Canaries mismatched_width_{comparison,bitwise}_rejected.
-
-- **[RESOLVED 2026-07-05, Zach settled] bool operands mixing with numeric REJECTED (no magic coercion).**
-  `self.b + 5` (-> 6), `self.b < self.n`, `self.b == self.n` used to compile with a C-style bool->{0,1}
-  coercion. Zach: "prefer not having magic coercion bullshit, if modern languages ditch this" (Rust rejects
-  all three as mismatched types). `report_cross_class_binary_operands` generalized: ANY two DIFFERENT
-  resolved value classes (Boolean/Numeric/Text) in one binary op are rejected -- covers Boolean-vs-Numeric
-  (new) alongside the existing Text-vs-X, for ALL operators incl. equality. ⚠️ KEY: only a PROVABLE class
-  on each side counts, so a comparison RESULT (`value_class` None, e.g. `(a == b)`) is NOT Boolean --
-  `let n: i32 = a < b` (the intended 0/1 coercion of a comparison INTO a numeric slot) stays valid; that
-  is a store, not an operand. Text cases keep their exact message (canaries unchanged). Canary
-  bool_numeric_operand_mixing_rejected.
-- **[RESOLVED 2026-07-05, a902653ce]** Float BITWISE/SHIFT/MODULO rejected at `--check`
-  (matching the interpreter's existing rejection). Canary float_bitwise_rejected.
-- **[RESOLVED 2026-07-03]** `arr[i] = <binary>` (computed value into a runtime-indexed
-  target) selects. Still fenced: bare-place sources `arr[i] = <bare local>` / `arr[i] =
-  arr[j]` hit NeedsMachineOwnedWrite (backend mutation-selection gap; FIELD-temp workaround).
 - Contained-machine METHOD-CALL storage resolution is a SILENT miscompile with TWO faces
   (see memory `contained-machine-same-type-aliasing`), both from the backend resolving a
   method-call receiver's `self`-base by machine TYPE rather than the receiver field:
@@ -167,21 +139,6 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   currently-compiling code -> needs a Zach decision, not landed unilaterally.
 - u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
-- **[RESOLVED]** Logical `!` now requires a `bool` operand (`!5` was C-truthiness `0`); `report_non_bool_logical_not` in the Unary arm. Canary logical_not_non_bool_rejected.
-- **[RESOLVED]** Text ORDERING (`s < t`) + INDEXING (`s[0]` read/write) interim-rejected — ordering folded/errored, `String`-carrier indexing read/wrote ZII 0; `[u8;N]` byte arrays untouched (lexicographic ordering + byte-access = future features). Canaries text_ordering_operator_rejected, text_string_index_{,write_}rejected.
-- **[RESOLVED 2026-07-06]** `.len` read into a LOCAL binding in a VALUE position (`let n = s.len`) read 0.
-  Root (traced, NOT a fence): the `let` allocated a frame slot but the local-initializer materialization
-  in the shared value-write resolver (`select_runtime_frame_slot_value_write_in_table`) DROPPED a `.len`
-  member source, so the slot stayed zeroed and a later `n == 5` guard read 0 (the guard-subject fold that
-  fixes the direct `s.len == 5` case never reached the slot). Two source shapes, two arms added there:
-  (1) FIXED-array-rooted `.len` (`self.arr.len`, `self.arr.as_slice().len`, or an as_slice-local alias) is
-  a compile-time constant -> emit it via `static_fixed_array_len_in_table` (the same resolver the working
-  guard path uses); (2) a runtime slice PARAM's `.len` into a wider `usize` slot -> the place resolver
-  reports the descriptor's low 4-byte word (i32 convention) which failed the exact-size copy; the
-  descriptor holds the full 8-byte len, so read it at the target width (bounded by `len_size()`). All four
-  faces (fixed / as_slice-local / slice-param / field-local) native==interp. Canaries
-  runtime_slice_length_local_binding_exit (exit 5) + runtime_slice_length_local_param_binding_exit (exit 6).
-  Memory [[slice-byteslice-native-consume]].
 - **[ ] Unresolved value-call returns 0 silently (found 2026-07-05).**
   `let y: i32 = bogus_fn(1)` compiles and yields 0 (silent miscompile);
   statement-position `bogus_fn(1);` is correctly rejected by `validate_call_node` ("has
@@ -210,14 +167,6 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   states with a VALID return type, so a resolved-void callee and an unresolved call both
   yield None (indistinguishable), and it's self/attached-only. Distinguishing "resolved
   void" from "unresolved" is precisely what the complete value-call resolver provides.
-- **[SUPERSEDED BY DESIGN 2026-07-05]** ARRAY/aggregate field DEFAULTS silently dropped +
-  unvalidated (`xs: [i32;3] = [1,2,3]` reads `xs[2]==0`; scalar defaults emit, arrays don't).
-  The "DECISION NEEDED (support vs reject)" is settled by the default-domain direction (see
-  the "invariants are the default domain; NO default values" TASK): default VALUES are
-  DROPPED entirely — ZII + construction-forced overrides. So this dissolves once that lands;
-  until then it remains a silent drop (not a live overflow — defaults aren't emitted). Repro:
-  `canaries/pending/arithmetic/array_field_default_silent`.
-- **[RESOLVED]** DEEPLY-NESTED INPUT no longer crashes: `MAX_NESTING_DEPTH`=1024 guard + `compile()` on a 256 MiB-stack thread. Memory [[parser-depth-and-compile-stack]]. Canaries parser/{nesting_exceeds_max_depth, deep_nesting_within_limit}.
 
 ## Cathedral first-boot ladder — remaining language readiness
 
