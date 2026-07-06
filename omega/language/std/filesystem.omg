@@ -1,0 +1,86 @@
+// Filesystem surface exposed by the Omega standard library.
+//
+// The app-facing CRUD API over files, shaped like Rust's std::fs but with
+// Omega idioms rather than Rust ones:
+//   - paths are a BYTE DOMAIN, not a language `String` (Omega has no String
+//     keyword; text/paths are bytes refined by a domain);
+//   - results are BESPOKE SUM TYPES, not `Result<T, E>` (an Err in Rust is
+//     usually a bespoke enum anyway, so we skip the wrapper);
+//   - the open-file handle is ZII: a zero-initialized `File` is Closed.
+//
+// Like console.omg this is the friendly boundary. Its per-target lowering
+// (open/read/write/close via syscalls or libSystem imports) lives in the
+// calling-convention tables; native execution is wired separately
+// (see TASKS_FILESYSTEM.md, step 1e/2). Under `--check` the surface and its
+// callers type/flow-check without that backend wiring.
+
+// A filesystem path: NUL-free bytes. This is the real POSIX invariant -- a C
+// path string is NUL-terminated, so its content cannot contain an interior
+// 0x00. Deliberately NOT `Utf8`: POSIX paths are arbitrary (nul-free) bytes,
+// and Windows re-encodes to UTF-16 at the boundary. `no_nul` is a
+// compiler-recognized byte predicate, so this domain checks today.
+domain [u8]::Path when no_nul(self) {
+}
+
+// An open file handle. ZII: the zero value is Closed. The standard streams
+// (fd 0/1/2) are never minted as `File` handles, so a zeroed `fd` is a safe
+// "not open" sentinel. `[copy]` so a handle passes by value into read/write/
+// close without a move.
+data File [copy, zero_init] {
+    fd: i32;
+}
+
+// ---- CRUD outcomes ---------------------------------------------------------
+//
+// Each outcome's FIRST case is the ZII zero case and means FAILURE, so an
+// untouched (zero-initialized) outcome reads as failure -- never as a spurious
+// success. The success case carries its payload. This pair is the bespoke
+// stand-in for Rust's `Result<T, E>`: the zero case is `Err`, the payload case
+// is `Ok(T)`. Error detail (an errno-style enum in the `Failed` payload) is a
+// deliberate follow-up; the first cut keeps `Failed` payload-free so it stays
+// the clean zero case.
+
+// `create` / `open_read`
+data OpenOutcome {
+    case Failed;
+    case Opened(file: File);
+}
+
+// `read`. `Read(0)` is end-of-file (a clean zero-byte read), distinct from
+// `Failed` (an error).
+data ReadOutcome {
+    case Failed;
+    case Read(count: usize);
+}
+
+// `write`
+data WriteOutcome {
+    case Failed;
+    case Wrote(count: usize);
+}
+
+// `remove`
+data RemoveOutcome {
+    case Failed;
+    case Removed;
+}
+
+// The app-facing filesystem boundary. Mirrors `boundary trait Console`: the
+// caller holds a `Filesystem` field and calls these as `self.fs.create(...)`.
+boundary trait Filesystem {
+    // CREATE: open for writing, creating the file (truncating if it exists).
+    machine create(path: &[u8] in Path, out: &mut OpenOutcome);
+
+    // READ: open an existing file for reading.
+    machine open_read(path: &[u8] in Path, out: &mut OpenOutcome);
+    machine read(file: File, buffer: &mut [u8], out: &mut ReadOutcome);
+
+    // UPDATE: write bytes to an open (writable) file.
+    machine write(file: File, bytes: &[u8], out: &mut WriteOutcome);
+
+    // Release an open handle.
+    machine close(file: File);
+
+    // DELETE: remove a path from the filesystem.
+    machine remove(path: &[u8] in Path, out: &mut RemoveOutcome);
+}
