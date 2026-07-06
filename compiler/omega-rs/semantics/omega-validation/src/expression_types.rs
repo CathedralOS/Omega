@@ -469,6 +469,51 @@ fn type_reference_is_text_carrier(program: &TypedTrees, handle: TypeReferenceHan
     }
 }
 
+/// Reject a non-`+` arithmetic / shift / bitwise operator on TEXT operands
+/// (`s - t`, `s * t` for strings). Text supports only `+` (concatenation) and
+/// `==`/`!=`; there is no subtraction/multiplication/shift/etc. of strings, and
+/// these otherwise lower to a garbage byte op. Fires ONLY when BOTH operands
+/// classify as Text -- a text-vs-numeric MIX is `report_cross_class_binary_operands`'s
+/// job, and a text-vs-unresolved pair is left alone. (Ordering `< <= > >=` on text is
+/// a separate, plausible-future case, not rejected here.)
+pub(crate) fn report_invalid_text_operator(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    operator: omega_typed_trees::expression::BinaryOperator,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    use omega_typed_trees::expression::BinaryOperator;
+    if !matches!(
+        operator,
+        BinaryOperator::Subtract
+            | BinaryOperator::Multiply
+            | BinaryOperator::Divide
+            | BinaryOperator::Modulo
+            | BinaryOperator::ShiftLeft
+            | BinaryOperator::ShiftRight
+            | BinaryOperator::BitwiseAnd
+            | BinaryOperator::BitwiseOr
+            | BinaryOperator::BitwiseXor
+    ) {
+        return false;
+    }
+    let is_text =
+        |value| value_class(program, Some(machine), state, value) == Some(ValueClass::Text);
+    if !is_text(left) || !is_text(right) {
+        return false;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}` applies `{operator:?}` to text operands, but text supports only \
+         concatenation (`+`), `==`, and `!=`",
+        machine.name.as_str(),
+        state.map(|state| state.name.as_str()).unwrap_or(""),
+    )));
+    true
+}
+
 /// Reject `<number/text> as bool` (`5 as bool`). Such a cast reinterprets the
 /// source bits into a `bool` without normalizing to `{0, 1}`, producing an INVALID
 /// bool (`5 as bool` yields a bool holding 5). `as` has no meaningful number->bool

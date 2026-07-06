@@ -147,7 +147,15 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   (expression_types.rs) in the Unary arm of `scan_expression_calls` -- rejects when the
   operand's `value_class` is Numeric/Text; a comparison/logical/call operand (None) is
   allowed, so `!bool`, `!(a==1)`, `!(x && y)` stay valid. Canary logical_not_non_bool_rejected.
-- **[ ] VALUE-position call to a NONEXISTENT machine compiles silently (found
+- **[ ] Text ORDERING and INDEXING compile but are not properly supported (found
+  2026-07-05).** `s < t` (string ordering) builds and RUNS to a meaningless result
+  (`"x" < "y"` -> 0, not lexicographic); `s[0]` (string byte index) also compiles.
+  Unlike non-`+` text ARITHMETIC (`s - t`, `s * s` — now REJECTED, see
+  text_arithmetic_operator_rejected), ordering + indexing are PLAUSIBLE FUTURE features
+  (lexicographic compare, byte access), so they were NOT blanket-rejected. DECISION (Zach):
+  implement them properly, or reject until then (the current silent-miscompile ordering is
+  the worse state). Detect: a comparison operator with both operands text (value_class Text)
+  for ordering; an `Indexed` whose collection is a text carrier for indexing.
   2026-07-05).** `let y: i32 = bogus_fn(1)` compiles and yields 0 (silent miscompile);
   statement-position `bogus_fn(1);` is correctly rejected by `validate_call_node` ("has
   no local state"). The value path (`validate_expression_call_bounds`) is a PARTIAL
