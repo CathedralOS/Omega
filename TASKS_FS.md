@@ -799,26 +799,35 @@ crate tests; interpreter fs coverage) and commits.
       width + layout, in lockstep) — that is the only part that could push this past
       a single focused fire. This unblocks the ergonomic wrapper's `write_all`/`copy`
       and every forwarded-slice-literal call.
-    - **FIX LANDED — TRANSITION path (this fire).** The additive strategy is now in
-      `argument_materialization.rs::select_runtime_dispatch_argument_materialization`
-      (the transition-EDGE arg materializer, called from `edges.rs`): for a slice-
-      typed `StringLiteral` arg into a `slice_descriptor_size()` slot, resolve its
-      rodata data object (`string_literal_data_handle`) and emit ONE
-      `WriteRuntimeFrameString { byte_offset: slot.byte_offset, data, byte_length }`
-      — the full `{ptr, len}` descriptor. No new instruction kind was needed:
-      `WriteRuntimeFrameString` already existed (used by string local/field
-      initializers). VERIFIED: `native_forwarded_slice_literal` canary RUNS
-      (`transition … -> forward("hello")` then `write(fd, bytes)` → 5 bytes → PASS;
-      was 0 before). Additive + safe: instr-sel 10 / reloc 5 / isa-aarch64 31 crate
-      tests green, fs coverage 38, Console cli_mvp green, and native_crud/read_dir/
-      positioned_io/try_clone (heavy transition users) still PASS.
-    - **REMAINING — VALUE-CALL path.** A slice literal passed to a machine that
-      RETURNS a value (`self.n = self.put(fd, "hello")`, and the ergonomic
-      `fs.write_all("/f","hello")` which is a value call) materializes its args via a
-      DIFFERENT path (NOT `edges.rs`; value/inline-branching arg setup). The same
-      additive `WriteRuntimeFrameString` strategy must be added to that path too. The
-      `fwd_repro` (value-call `self.put`) still writes 0 until then. Find the value-
-      call/inline-branching argument materializer and apply the identical fix.
+    - **FIX LANDED — SHARED WRITER, TRANSITION path works (this fire).** The fix is a
+      single ADDITIVE case at the TOP of the SHARED seam
+      `runtime_dispatch/writes/slice_descriptors.rs::
+      emit_runtime_frame_slot_slice_descriptor_write_in_table` (every descriptor
+      consumer routes through it — transition edges, value-call leaves, straight-line,
+      preludes): for a slice-typed `StringLiteral` value into a `slice_descriptor_size()`
+      slot, resolve its rodata data object (`string_literal_data_handle`) and emit ONE
+      `WriteRuntimeFrameString { byte_offset, data, byte_length }` — the full
+      `{ptr, len}` descriptor. No new instruction kind (WriteRuntimeFrameString already
+      existed for string local/field initializers). VERIFIED: `native_forwarded_slice_literal`
+      canary RUNS (`transition … -> forward("hello")` then `write(fd, bytes)` → 5 bytes →
+      PASS; was 0). Additive + safe: instr-sel 10 / reloc 5 / isa-aarch64 31 crate tests
+      green, fs coverage 38, Console cli_mvp green, native_crud/read_dir/positioned_io/
+      metadata_ino (heavy transition users) still PASS. (An earlier per-site copy in
+      `argument_materialization.rs` was consolidated INTO the shared seam.)
+    - **REMAINING — VALUE-CALL path (deeper than expected).** A slice literal passed to
+      a machine that RETURNS a value (`self.n = self.put(fd, "hello")`, and the ergonomic
+      `fs.write_all("/f","hello")`) STILL writes 0. Confirmed the argument does NOT reach
+      the shared descriptor writer as a `StringLiteral` at all: patching the value-call
+      leaf site (`branches/leaf.rs`, the `resolved_value` chain ~657) with the SAME
+      StringLiteral check did NOT fire, and the shared-writer case doesn't catch it
+      either. So for a value call the `"hello"` literal is TRANSFORMED before any
+      slice-descriptor writer sees it (folded into a temp local, or set up via a path
+      that never calls the descriptor writer). NEXT: trace how a VALUE-CALL argument
+      (role `CallArgument`, the `self.put(fd,"hello")` shape) is lowered end-to-end —
+      instrument/inspect what expression the `bytes` param slot receives (is it a Name
+      referring to a folded local? a place copy of a partial descriptor?) — then fix at
+      that true site (likely `branches/leaf.rs` value-call arg setup, or a local-fold in
+      `state_bodies.rs`). The transition-forwarded case is fully fixed and shipped.
 15. [ ] **x86_64 / linux / windows seams** — see the reference below. Tables only;
     macOS is the only TESTED target now. Note: linux value-return needs the
     value-returning result-store wired into the `svc` syscall path (today only the
