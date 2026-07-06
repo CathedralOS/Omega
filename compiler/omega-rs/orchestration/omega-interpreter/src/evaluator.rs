@@ -2414,10 +2414,17 @@ impl<'program> Evaluator<'program> {
                 // file is S_IFREG(0o100000)|0o644 with size = content length; a
                 // directory is S_IFDIR(0o040000)|0o755 size 0. ENOENT otherwise.
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                // st_mode = format bits (S_IFREG/S_IFDIR) | permission bits, so
+                // a prior `set_permissions` (chmod) shows through `readonly()`.
+                let chmod_perm = self
+                    .virtual_perms
+                    .get(&path)
+                    .map(|mode| (*mode as u16) & 0o7777);
                 let meta = if let Some(content) = self.virtual_files.get(&path) {
-                    Some((0o100_644u16, content.len() as i64))
+                    let size = content.len() as i64;
+                    Some((0o100_000u16 | chmod_perm.unwrap_or(0o644), size))
                 } else if self.virtual_dirs.contains(&path) {
-                    Some((0o040_755u16, 0i64))
+                    Some((0o040_000u16 | chmod_perm.unwrap_or(0o755), 0i64))
                 } else {
                     None
                 };

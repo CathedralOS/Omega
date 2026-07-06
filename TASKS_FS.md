@@ -296,8 +296,18 @@ crate tests; interpreter fs coverage) and commits.
     native `native_stat` canary RUNS (decodes len 10, is_dir false → PASS) AND
     coverage `filesystem_std_module_metadata_is_dir` (file → is_dir false len 3;
     dir → is_dir true). The fd-based `metadata(file)` stays seek-based (an open
-    `File` is always a regular file → is_dir false). NEXT on this: st_mtime
-    (i64 @48) for `modified`, and st_mode perm bits for a full `Permissions`.
+    `File` is always a regular file → is_dir false). st_mode perm bits DONE:
+    `Metadata` now carries `mode: u32`, with `Metadata::is_file()` (= !is_dir),
+    `Metadata::readonly()` (owner-write bit 0o200 clear), and
+    `Metadata::permissions() -> Permissions` (`st_mode & 0o777`) — all `&self`
+    methods on the `[copy]` data type (verified those + `!bool` work). The
+    interpreter's stat now folds `virtual_perms` into `st_mode`, so a prior
+    `set_permissions` shows through `readonly()`. DIFFERENTIAL: native
+    `native_metadata_readonly` canary RUNS (chmod 0o444 → stat → write bit clear
+    via runtime |,<<,& → PASS) AND coverage `filesystem_std_module_metadata_permissions`
+    (fresh file is_file & writable; after chmod 0o444: readonly & permissions().mode
+    == 292). NEXT on this: `st_mtime` (i64 @48) → `modified()` (the seconds; the
+    interpreter would model a fixed mtime, so its differential test is loose).
     - **D-bitwise (backend feature, general).** The byte-assembly needs runtime
       `|` on aarch64, which the MVP encoder REJECTED (only logical `And`/`Or` and
       the shifts were wired; `BitwiseAnd`/`BitwiseOr`/`BitwiseXor` fell to the
