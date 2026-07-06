@@ -31,7 +31,7 @@ hash_inputs() {
         -not -path '*/target/*' -not -path '*/build/*' -not -path '*/.git/*' \
         \( -name '*.beta' -o -name '*.alpha' -o -name '*.gamma' -o -name '*.alp' \
            -o -name '*.omg' -o -name '*.sh' -o -name '*.py' -o -name '*.rs' \
-           -o -name '*.s' -o -name '*.toml' -o -name '*.md5' \) -print 2>/dev/null
+           -o -name '*.s' -o -name '*.toml' -o -name '*.md5' -o -name '*.elab' \) -print 2>/dev/null
     done; } | sort | xargs shasum 2>/dev/null | shasum | cut -d' ' -f1
 }
 
