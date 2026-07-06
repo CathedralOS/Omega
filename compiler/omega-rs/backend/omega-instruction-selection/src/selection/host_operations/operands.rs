@@ -12,7 +12,7 @@ use super::runtime_text::{
 use crate::selection::storage_places::{
     resolve_fixed_array_length_in_table, resolve_runtime_storage_place_in_table,
 };
-use omega_checked_trees::expression::ExpressionNode;
+use omega_checked_trees::expression::{ExpressionNode, ExpressionTable};
 use omega_abstract_operations::{
     AbstractDataObject, AbstractDataObjectHandle, InstructionOperand, InstructionOperandKind,
 };
@@ -223,7 +223,21 @@ pub(super) fn select_host_operation_operands(
             // static length); a runtime buffer is a follow-up.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let fd = scalar_argument_operand_at(input, host_call, dispatch_index, 1);
-            let data = find_data_object(input, host_call);
+            // A slice-literal byte payload forwarded through a VALUE-CALL param
+            // (`fs.write_all(path, "hi")` -> wrapper `write(fd, bytes)`) arrives as
+            // the callee's `bytes` param aliased to the caller's literal. That
+            // literal's data object is keyed to the CALLER's statement, so
+            // `find_data_object` (keyed to THIS host-call's statement) misses it.
+            // Resolve the arg through the alias chain to its literal data object.
+            let data = {
+                let direct = find_data_object(input, host_call);
+                if direct.is_valid() {
+                    direct
+                } else {
+                    aliased_literal_data_object(input, host_call, alias_context, 2)
+                        .map_or_else(AbstractDataObjectHandle::invalid, |(handle, _)| handle)
+                }
+            };
             match (result, fd) {
                 (Some(result), Some(fd)) if data.is_valid() => {
                     // Literal payload: static data object + its length.
@@ -969,6 +983,64 @@ fn console_write_operands(
     }
 
     operands.insert_many([operand(first), operand(second)])
+}
+
+/// A string LITERAL forwarded through a value-call param (`fs.write_all(path,
+/// "hi")` -> the wrapper's `write(fd, bytes)`, or `open(path)` -> `host.open(path)`)
+/// reaches the callee host-call as its param NAME (`bytes`/`path`) ALIASED to the
+/// caller's literal. `find_data_object` keys on THIS host-call's own statement, so
+/// it misses the literal's data object (keyed to the CALLER's statement). This
+/// resolves the arg at `index` through the alias chain; if it lands on a string
+/// literal, it returns that literal's data object (matched by resolved source
+/// state + byte content) and length. Returns None when there is no alias context,
+/// the arg is not an aliased literal, or no matching data object exists — so a
+/// non-forwarded call is unaffected (it takes the `find_data_object` path).
+fn aliased_literal_data_object(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
+    index: usize,
+) -> Option<(AbstractDataObjectHandle, usize)> {
+    use crate::selection::bindings::{RuntimeAliasBuffer, resolve_runtime_alias_binding_handle};
+    let alias_context = alias_context?;
+    let argument = input
+        .host_calls
+        .arguments
+        .span(host_call.arguments)
+        .and_then(|arguments| arguments.get(index))?;
+    let HostCallArgumentKind::Expression(expression) = &argument.kind else {
+        return None;
+    };
+    let mut expressions = ExpressionTable::with_expression_capacity(
+        alias_context.aliases.len().saturating_add(4),
+    );
+    let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
+        alias_context.alias_expressions,
+        alias_context.aliases,
+        &mut expressions,
+    );
+    let expression_handle = expressions.copy_from(&input.host_calls.expressions, *expression);
+    let resolved = resolve_runtime_alias_binding_handle(
+        expression_handle,
+        host_call.source_key,
+        copied_aliases.bindings(),
+        &mut expressions,
+    );
+    let value = expressions.string_literal_value(resolved.expression)?;
+    let bytes = value.as_bytes();
+    input
+        .data
+        .objects
+        .iter()
+        .find(|(_, object)| {
+            object.source_key == resolved.source_key
+                && input
+                    .data
+                    .bytes
+                    .span(object.bytes)
+                    .is_some_and(|object_bytes| object_bytes == bytes)
+        })
+        .map(|(handle, _)| (handle, bytes.len()))
 }
 
 fn find_data_object(

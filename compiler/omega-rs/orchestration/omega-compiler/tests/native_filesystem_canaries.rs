@@ -95,6 +95,10 @@ fn native_errno_passes() { assert_pass("native_errno"); }
 #[test]
 fn native_fs_workflow_passes() { assert_pass("native_fs_workflow"); }
 
+// Value-call literal forwarding (aliased-literal operand resolution, step 14 fix #1)
+#[test]
+fn native_value_call_literal_passes() { assert_pass("native_value_call_literal"); }
+
 // Copy / buffer marshalling
 #[test]
 fn native_buffer_copy_passes() { assert_pass("native_buffer_copy"); }

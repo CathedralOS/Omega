@@ -216,6 +216,39 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **✅ STEP 14 fix #1 LANDED + native ergonomic-wrapper blocker fully root-caused
+  (2026-07-07).** The value-call literal-forwarding bug (which blocks native lowering
+  of the ergonomic `Filesystem` wrapper) is now a THREE-layer chain, precisely pinned;
+  one layer is fixed, two remain:
+  1. **[FIXED] Aliased-literal operand resolution.** A literal forwarded through a
+     value-call param (`fs.write_all(path,"hi")` → wrapper `write(fd,bytes)`) arrives as
+     the callee's `bytes` param ALIASED to the caller's literal, whose data object is
+     keyed to the CALLER's statement — so `find_data_object` (keyed to the callee's
+     statement) missed it and the write got a 0-length payload. New helper
+     `aliased_literal_data_object` (instruction-selection `host_operations/operands.rs`
+     Write arm) follows the alias to that literal's data object. VERIFIED: new passing
+     canary `native_value_call_literal` (a value-call forwarding "hello", FIELD-assigned
+     result) writes the 5 bytes; native fs harness **45/45**; canary_suite **514/85
+     IDENTICAL** with/without the fix (exact zero-regression, stash-diff confirmed).
+  2. **[OPEN — the remaining blocker] `let`-bound host calls are never COLLECTED.** The
+     real wrapper assigns host-call results to LOCALS (`let n = self.host.write(..)`). A
+     `let x = call()` is a `StatementNode::LocalData`, and `collect_state_host_calls`
+     (`omega-platform-interface/src/host_calls/collection.rs`) matches only `Assignment`
+     + `Call` — so the call is never inserted into `host_calls`, `host_call_for_statement`
+     returns None, and the write is dropped (file created, never written). FIX: add a
+     `LocalData` arm mirroring `collect_assignment_result_host_lowering`, synthesizing
+     the local's place as argument[0] (the hard part — building a `Name`/`TableNamePath`
+     for the local symbol, or reusing an existing use-site Name).
+  3. **[OPEN — complement of 2] Emit the collected LocalData host call.** Once (2) lands,
+     `runtime_dispatch.rs`'s `LocalStorage` branch must emit the host call (its result
+     operand writes the local's slot) instead of the value-only local-initializer write.
+     Drafted this fire, reverted (dormant until 2 lands).
+  Layers 2+3 touch the HIGH-BLAST-RADIUS host-call collection pass (every host call,
+  every program; only gate is the full canary_suite) — a DEDICATED session, not a loop
+  fire. Minimal repro parked at `canaries/run/filesystem/value_call_slice_literal_len`
+  (its header carries this chain). The RAW seam stays fully native; the wrapper stays
+  interpreter/const-eval until 2+3 land.
+
 - **🅿️ LOOP STATUS — PRODUCTIVE PLATEAU (2026-07-06, for the user to review).** The
   `std::fs` surface is functionally COMPLETE: (1) the raw `FilesystemHost` seam is fully
   native on macOS/aarch64 with 44 run-verified regression canaries (every op: CRUD,
@@ -1683,6 +1716,31 @@ crate tests; interpreter fs coverage) and commits.
       the fill site, and the fix is to emit the literal's `WriteRuntimeFrameString`
       into that source (or resolve the `bytes` alias to the literal at the host-call
       operand). Raw seam stays fully native; wrapper stays interpreter/const-eval.
+    - **RESOLVED to a 3-layer chain (2026-07-07) — the "fifth path" above was a red
+      herring; the SINK dump nailed it.** Dumping `SelectedInstructionSink::push` for
+      the parked repro showed there is NO descriptor write AND NO `bytes` copy at all —
+      putv's `write` host-op is simply ABSENT from the instruction stream (all host ops
+      belong to the caller). Two distinct bugs, plus a resolution gap:
+      (1) **operand resolution [FIXED, fix #1]** — the aliased literal's data object is
+      keyed to the caller's statement; `find_data_object` missed it. New
+      `aliased_literal_data_object` (operands.rs Write arm) follows the alias. Proven by
+      the FIELD-assigned variant (`self.n = write(fd,bytes)`), which now writes 5 bytes
+      → passing canary `native_value_call_literal`, canary_suite 514/85 unchanged.
+      (2) **collection [OPEN, the real blocker]** — the wrapper's `let n = write(..)` is
+      a `StatementNode::LocalData`; `collect_state_host_calls`
+      (`omega-platform-interface/.../host_calls/collection.rs`) matches only `Assignment`
+      + `Call`, so a `let`-bound host call is NEVER collected → `host_call_for_statement`
+      = None → the call is dropped. FIX: add a `LocalData` arm mirroring
+      `collect_assignment_result_host_lowering`, synthesizing the local's place as arg[0]
+      (build a `Name`/`TableNamePath` for the local symbol, or reuse an existing use-site
+      Name — the hard part).
+      (3) **emission [OPEN, complement of 2]** — once (2) collects it, the
+      `runtime_dispatch.rs` `LocalStorage` branch must emit the host call (result operand
+      → local slot) instead of the value-only local-init write. Drafted + reverted this
+      fire (dormant until 2). Layers 2+3 = the high-blast-radius collection pass → a
+      DEDICATED session (only gate is the full canary_suite). The prior bullets above are
+      superseded by this (their "temp folded into an unwritten slot" model was the
+      downstream SYMPTOM of the call never being collected).
 15. [ ] **x86_64 / linux / windows seams** — see the reference below. Tables only;
     macOS is the only TESTED target now. Note: linux value-return needs the
     value-returning result-store wired into the `svc` syscall path (today only the
