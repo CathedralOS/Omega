@@ -27,18 +27,33 @@ data File [copy, zero_init] {
     fd: i32;
 }
 
-// Bespoke result enums (Rust's `io::Result<T>`). First case = the ZII zero case
-// = the error, so an untouched result reads as failure, never spurious success.
+// The category of an I/O failure (Rust `std::io::ErrorKind`). First case is the
+// ZII zero case = `Other` (an unclassified/unknown errno). Grown as more errno
+// values get mapped; today covers the common file-op failures. Defined before
+// the result enums because their `Error` case carries an `ErrorKind`.
+data ErrorKind {
+    case Other;
+    case NotFound;         // ENOENT (2)
+    case PermissionDenied; // EACCES (13)
+    case AlreadyExists;    // EEXIST (17)
+    case BadDescriptor;    // EBADF  (9)
+}
+
+// Bespoke result enums (Rust's `io::Result<T>`, whose Err is `io::Error` — here
+// its `ErrorKind`). First case = the ZII zero case = the error, so an untouched
+// result reads as failure (`Error { kind: Other }`), never spurious success. The
+// wrapper machines fill `kind` by classifying errno at the point of failure
+// (`self.last_error()`), so a failed result self-describes — no separate call.
 data OpenResult {
-    case Error;
+    case Error(kind: ErrorKind);
     case Ok(file: File);
 }
 data IoResult {
-    case Error;
+    case Error(kind: ErrorKind);
     case Ok(count: usize);
 }
 data UnitResult {
-    case Error;
+    case Error(kind: ErrorKind);
     case Ok;
 }
 
@@ -61,7 +76,7 @@ data Metadata [copy, zero_init] {
     len: i64;
 }
 data MetadataResult {
-    case Error;
+    case Error(kind: ErrorKind);
     case Ok(meta: Metadata);
 }
 
@@ -85,17 +100,6 @@ boundary trait FilesystemHost {
     machine errno() -> i32;
 }
 
-// The category of an I/O failure (Rust `std::io::ErrorKind`). First case is the
-// ZII zero case = `Other` (an unclassified/unknown errno). Grown as more errno
-// values get mapped; today covers the common file-op failures.
-data ErrorKind {
-    case Other;
-    case NotFound;         // ENOENT (2)
-    case PermissionDenied; // EACCES (13)
-    case AlreadyExists;    // EEXIST (17)
-    case BadDescriptor;    // EBADF  (9)
-}
-
 // The ergonomic capability. Holds the raw host plus the portable flag/mode
 // constants it applies (staged in fields).
 data Filesystem {
@@ -111,7 +115,7 @@ machine Filesystem::create(&mut self, path: &[u8] in Path) -> OpenResult {
     let fd: i32 = self.host.create(path, self.create_mode);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
-    state err(&mut self) -> OpenResult { OpenResult::Error }
+    state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
 }
 
 // Open an existing file for reading.
@@ -120,7 +124,7 @@ machine Filesystem::open(&mut self, path: &[u8] in Path) -> OpenResult {
     let fd: i32 = self.host.open(path, self.read_flags);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
-    state err(&mut self) -> OpenResult { OpenResult::Error }
+    state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
 }
 
 // Open an existing file with explicit `OpenOptions` (Rust
@@ -146,7 +150,7 @@ machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptio
     let fd: i32 = self.host.open(path, flags);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
-    state err(&mut self) -> OpenResult { OpenResult::Error }
+    state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
 }
 
 // Open an existing file for appending (Rust `OpenOptions::new().append(true)`).
@@ -157,7 +161,7 @@ machine Filesystem::append(&mut self, path: &[u8] in Path) -> OpenResult {
     let fd: i32 = self.host.open(path, flags);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
-    state err(&mut self) -> OpenResult { OpenResult::Error }
+    state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
 }
 
 // Read up to `count` bytes into `buffer`; returns the number read (0 = EOF).
@@ -165,7 +169,7 @@ machine Filesystem::read(&mut self, file: File, buffer: &mut [u8], count: usize)
     let n: i64 = self.host.read(file.fd, buffer, count);
     transition n >= 0 { true -> ok(n) _ -> err() }
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
-    state err(&mut self) -> IoResult { IoResult::Error }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
 // Write `bytes`; returns the number written.
@@ -173,7 +177,7 @@ machine Filesystem::write(&mut self, file: File, bytes: &[u8]) -> IoResult {
     let n: i64 = self.host.write(file.fd, bytes);
     transition n >= 0 { true -> ok(n) _ -> err() }
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
-    state err(&mut self) -> IoResult { IoResult::Error }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
 // Close a file handle, returning the raw rc (0 on success).
@@ -194,7 +198,7 @@ machine Filesystem::write_all(&mut self, path: &[u8] in Path, bytes: &[u8]) -> U
     let rc: i32 = self.host.close(fd);
     transition n >= 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { UnitResult::Error }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
 }
 
 // Read a whole file into `buffer` in one shot (Rust `std::fs::read`): open the
@@ -210,7 +214,7 @@ machine Filesystem::read_all(&mut self, path: &[u8] in Path, buffer: &mut [u8], 
     let rc: i32 = self.host.close(fd);
     transition n >= 0 { true -> ok(n) _ -> err() }
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
-    state err(&mut self) -> IoResult { IoResult::Error }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
 // Remove a file.
@@ -218,7 +222,7 @@ machine Filesystem::remove(&mut self, path: &[u8] in Path) -> UnitResult {
     let rc: i32 = self.host.remove(path);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { UnitResult::Error }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
 }
 
 // Classify the most recent failure as an `ErrorKind` (Rust `io::Error::kind`).
@@ -250,7 +254,7 @@ machine Filesystem::create_dir(&mut self, path: &[u8] in Path) -> UnitResult {
     let rc: i32 = self.host.create_dir(path, self.dir_mode);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { UnitResult::Error }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
 }
 
 // Remove an empty directory.
@@ -258,7 +262,7 @@ machine Filesystem::remove_dir(&mut self, path: &[u8] in Path) -> UnitResult {
     let rc: i32 = self.host.remove_dir(path);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { UnitResult::Error }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
 }
 
 // Move/rename a path.
@@ -266,7 +270,7 @@ machine Filesystem::rename(&mut self, from: &[u8] in Path, to: &[u8] in Path) ->
     let rc: i32 = self.host.rename(from, to);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { UnitResult::Error }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
 }
 
 // Truncate or extend an open file to `length` bytes (Rust `File::set_len`).
@@ -274,7 +278,7 @@ machine Filesystem::set_len(&mut self, file: File, length: i64) -> UnitResult {
     let rc: i32 = self.host.set_len(file.fd, length);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { UnitResult::Error }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
 }
 
 // Flush all buffered data + metadata to durable storage (Rust `File::sync_all`).
@@ -282,7 +286,7 @@ machine Filesystem::sync(&mut self, file: File) -> UnitResult {
     let rc: i32 = self.host.sync(file.fd);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
-    state err(&mut self) -> UnitResult { UnitResult::Error }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
 }
 
 // Metadata of an open file (Rust `File::metadata`). Composes the raw `seek` op:
@@ -300,5 +304,5 @@ machine Filesystem::metadata(&mut self, file: File) -> MetadataResult {
         transition back >= 0 { true -> ok(len) _ -> err() }
     }
     state ok(&mut self, len: i64) -> MetadataResult { MetadataResult::Ok { meta: Metadata { len: len } } }
-    state err(&mut self) -> MetadataResult { MetadataResult::Error }
+    state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
 }

@@ -2266,13 +2266,22 @@ impl<'program> Evaluator<'program> {
                         self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
                         n
                     }
-                    None => -1,
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
                 }
             }
             "write" => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let bytes = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
-                self.virtual_write(fd, &bytes).map_or(-1, |count| count as i64)
+                match self.virtual_write(fd, &bytes) {
+                    Some(count) => count as i64,
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                }
             }
             "close" => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
@@ -2296,12 +2305,22 @@ impl<'program> Evaluator<'program> {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let offset = self.eval_fs_scalar(arguments.get(1).copied(), frame)?;
                 let whence = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
-                self.virtual_seek(fd, offset, whence).unwrap_or(-1)
+                match self.virtual_seek(fd, offset, whence) {
+                    Some(position) => position,
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                }
             }
             "set_len" => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let length = self.eval_fs_scalar(arguments.get(1).copied(), frame)?;
-                self.virtual_set_len(fd, length)
+                let rc = self.virtual_set_len(fd, length);
+                if rc < 0 {
+                    self.virtual_errno = 9; // EBADF
+                }
+                rc
             }
             "sync" => {
                 // `fsync(fd)`: flush to durable storage. In the hermetic
@@ -2344,7 +2363,10 @@ impl<'program> Evaluator<'program> {
                         self.virtual_files.insert(to, content);
                         0
                     }
-                    None => -1,
+                    None => {
+                        self.virtual_errno = 2; // ENOENT
+                        -1
+                    }
                 }
             }
             _ => return Ok(None),

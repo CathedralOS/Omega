@@ -107,6 +107,17 @@ crate tests; interpreter fs coverage) and commits.
   relocation offset is left ALONE (it precedes the ldr). First user:
   `Filesystem::read_errno` (darwin `___error`). Verify any new deref op by
   disassembly (`otool -tv`) as well as execution.
+- **D10. Machine-to-machine self-calls WORK** (verified this fire). A machine can
+  call a SIBLING machine on the same instance — `self.other_method(args)` — as a
+  value call, including from inside a nested state and returning a `data` enum.
+  Used to let every wrapper `err` state call `self.last_error()` to classify
+  errno once, instead of duplicating the errno→ErrorKind cascade in ~15 places.
+  This is a general composition primitive (not fs-specific): factor shared logic
+  into a helper machine and call it via `self.`. (The interpreter's value-call
+  resolution + the D7 receiver fix already handle it; no compiler change needed.)
+  NOTE the interpreter runs the wrapper; native wrapper lowering (step 12) is
+  still the separate deep track — so `self.last_error()` composition is proven on
+  the interpreter, and will need forwarded-arg lowering to run natively.
 
 ## Current state (update every fire)
 
@@ -186,9 +197,22 @@ crate tests; interpreter fs coverage) and commits.
    `filesystem_std_module_whole_file_helpers` (15-byte round-trip + read_all on a
    missing path == Error). Rust returns a grown `Vec`; Omega fills a caller buffer
    to keep the std surface allocation-free (size it via `metadata().len`).
-9. [~] **Error model** — the errno CAPABILITY + `ErrorKind` classification are
-   DONE (D9); wiring the kind INTO the result enums is the remaining follow-up.
-   Landed this fire:
+9. [x] **Error model** — DONE. Failures now SELF-DESCRIBE: each result enum's
+   `Error` case carries an `ErrorKind` (`OpenResult::Error { kind }` /
+   `IoResult` / `UnitResult` / `MetadataResult`), filled at the point of failure
+   by `self.last_error()` — a machine-to-machine self-call from each wrapper's
+   `err` state (see D10). ZII zero case is `Error { kind: Other }`. Interpreter
+   sets `virtual_errno` on EVERY failure site now (ENOENT open/remove/remove_dir/
+   rename, EEXIST create_dir, EBADF close/read/write/seek/set_len). Coverage
+   `filesystem_std_module_error_kind` proves the kind VARIES per cause:
+   open(missing) → NotFound, create_dir(existing) → AlreadyExists (a hard-wired
+   kind would fail the 2nd check). All 13 fs coverage tests green; no backend
+   change this fire, so native is untouched. Caveat (noted): errno is only valid
+   right after the failing op — the multi-syscall helpers `write_all`/`read_all`
+   run create/open then write/read/close in one entry, so on a first-op failure
+   the trailing ops clobber errno to EBADF; their reported kind is the LAST
+   syscall's, not the root cause. Faithful for all single-call wrappers. Below is
+   the errno CAPABILITY that this builds on (landed the prior fire):
    - **Backend deref host call** — `HostOperation::ReadErrno` (op `read_errno` →
      darwin `___error`) + `HostOperationKey::dereferences_result()`. Its aarch64
      lowering (`encode_host_call_sequence_value_returning_deref_from_operands`)
@@ -210,12 +234,9 @@ crate tests; interpreter fs coverage) and commits.
      `Filesystem::last_error() -> ErrorKind` classifies the errno. Coverage
      `filesystem_std_module_error_kind` (open(missing) → Error → last_error() ==
      NotFound).
-   - REMAINING: thread the kind INTO the result enums so failures self-describe
-     (`OpenResult::Error(kind)` / `IoResult::Error(kind)` etc.) instead of the
-     caller separately calling `last_error()`; map more errno codes; set errno in
-     the remaining virtual failure sites (read/write/seek/set_len/sync/rename).
-     Also errno is only valid immediately after a failing op (the wrapper ops do
-     one host call each, so `last_error()` right after works today).
+   - FOLLOW-UPS (minor): map more errno codes (EACCES/ENOSPC/EISDIR/…) as the
+     surface grows; make the multi-syscall helpers capture the root-cause errno
+     (needs a post-first-op branch, i.e. threading the slice through a state).
 10. [ ] **Richer `Metadata`** via `fstat` — `st_size`/mode/times. Needs a
     stat-buffer out-param + struct-field reads (darwin arm64 `st_size` at off 96).
     Unlocks `is_file`/`is_dir`/permissions/modified. Medium-large.
