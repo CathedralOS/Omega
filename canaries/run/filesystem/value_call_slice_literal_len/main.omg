@@ -1,0 +1,54 @@
+// PARKED REPRO (step 14, TASKS_FS.md — native ergonomic-wrapper blocker). A
+// VALUE-CALL to a Main sub-machine forwards a slice LITERAL "hello" to a param
+// `bytes: &[u8]`, which the callee writes via the raw seam. Natively the
+// forwarded descriptor's LEN materializes 0 -> the write is empty (seek-to-end
+// 0); the interpreter (oracle) writes 5. Exits FAIL natively, PASS in the
+// interpreter — a divergence, not a compile rejection, so it lives in run/ (an
+// ad-hoc probe, not a pass/fail contract) rather than pass/ or pending/.
+//
+// This is the minimal isolation of the value-call slice-literal argument bug
+// that blocks native lowering of the ergonomic `Filesystem` wrapper (write_all,
+// copy, and — via the `path: &[u8] in Path` param — open/create reopen). The raw
+// `FilesystemHost` seam is fully native; only the wrapper's value-call param
+// forwarding is affected.
+//
+// Diagnosis (2026-07-06 fire): the `bytes` fill does NOT flow through any of
+// select_runtime_dispatch_argument_materialization (transition-dispatch args),
+// select_runtime_frame_slot_value_write_in_table (16-byte descriptor slot), or
+// the branch-prelude Mutation / StateCall paths — all instrumented and silent
+// for this repro. So the machine value-call materializes `bytes` via a further
+// path (an inline-expansion alias or a direct branch place-copy from an
+// UNINITIALIZED descriptor source). The true fix must initialize that source
+// with the literal's {ptr,len} (a WriteRuntimeFrameString) — genuinely
+// multi-layer, a dedicated session (see TASKS_FS.md step 14).
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    fd: i32;
+    n: i64;
+    size: i64;
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.fd = self.fs.create("/tmp/omega_vc_repro.txt", self.mode);
+    transition self.fd >= 0 { true -> drive() _ -> fail() }
+    state drive(&mut self) {
+        self.n = self.putv(self.fd, "hello");
+        self.size = self.fs.seek(self.fd, 0, 2);
+        self.n = self.fs.close(self.fd);
+        self.n = self.fs.remove("/tmp/omega_vc_repro.txt");
+        transition self.size == 5 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: value-call slice literal wrote 5 bytes\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: value-call slice literal\n"); }
+}
+
+machine Main::putv(&mut self, fd: i32, bytes: &[u8]) -> i64 {
+    let w: i64 = self.fs.write(fd, bytes);
+    transition w >= 0 { true -> done(w) _ -> done(w) }
+    state done(&mut self, w: i64) -> i64 { w }
+}

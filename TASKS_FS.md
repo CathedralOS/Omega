@@ -1638,6 +1638,30 @@ crate tests; interpreter fs coverage) and commits.
       temp must be missing that routing). NEXT: find where the value-call arg temp/local
       for a literal is created and make its initializer emit `WriteRuntimeFrameString`
       (route through the shared writer). Genuinely multi-layer — a dedicated session.
+    - **COMMITTED REPRO + 4 RULED-OUT PATHS (2026-07-06 fire).** Parked a minimal,
+      turnkey repro at `canaries/run/filesystem/value_call_slice_literal_len/main.omg`
+      (`self.putv(fd, "hello")` value-call → callee `write(fd, bytes)` → native
+      seek-to-end 0, want 5). Instrumented FOUR candidate materialization sites and
+      confirmed NONE fire for this repro's `bytes` fill (env-gated `eprintln`s, all
+      reverted): (1) `select_runtime_dispatch_argument_materialization` — its ENTER
+      fires (for the `done(w)` transition args) but the per-param body never runs for
+      `bytes`, so this handles only transition-dispatch args, not value-call args;
+      (2) `select_runtime_frame_slot_value_write_in_table` with a 16-byte descriptor
+      slot — silent (the descriptor is not written via a value-write); (3) branch-
+      prelude `Mutation` path — silent; (4) branch-prelude `StateCall` path — silent
+      (so putv is NOT lowered as a prelude state call). NET: the machine value-call
+      fills `bytes` via a still-unfound FIFTH path — most likely a direct branch
+      place-copy (`branches/{leaf,straight_line}.rs` `CopyRuntimeStorage`) from an
+      UNINITIALIZED descriptor source slot, OR an inline-expansion where `bytes` is an
+      ALIAS resolved at the host-call operand site (`select_runtime_branch_prelude_
+      inline_state_call` sets args as aliases, not slot fills — see its body). NEXT
+      DEDICATED SESSION: instrument `SelectedInstructionSink::push` to dump every
+      `CopyRuntimeStorage`/`WriteRuntimeFrameString` with `{source_key, statement,
+      offsets}` while compiling the parked repro; the instruction that copies the
+      16-byte (or two 8-byte) `bytes` descriptor from an unwritten source pinpoints
+      the fill site, and the fix is to emit the literal's `WriteRuntimeFrameString`
+      into that source (or resolve the `bytes` alias to the literal at the host-call
+      operand). Raw seam stays fully native; wrapper stays interpreter/const-eval.
 15. [ ] **x86_64 / linux / windows seams** — see the reference below. Tables only;
     macOS is the only TESTED target now. Note: linux value-return needs the
     value-returning result-store wired into the `svc` syscall path (today only the
