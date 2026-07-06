@@ -178,8 +178,10 @@ pub(super) fn select_host_operation_operands(
                 None => HandleSpan::empty(),
             }
         }
-        (HostCapability::Filesystem, HostOperation::Close) => {
-            // Value-returning `rc = close(fd) -> _close(fd)`. operand[0] is the
+        (HostCapability::Filesystem, HostOperation::Close | HostOperation::Dup) => {
+            // Value-returning `rc = close(fd) -> _close(fd)` and
+            // `new_fd = duplicate(fd) -> _dup(fd)` (identical one-fd shape; dup
+            // returns the new fd instead of a status). operand[0] is the
             // result place (the assignment target, prepended by the
             // assignment-result collection); operand[1] is the fd. Either
             // unresolvable => no operands, so the encoder hard-errors rather

@@ -2404,6 +2404,74 @@ machine Main::main(&mut self) {
     );
 }
 
+/// `try_clone` (Rust `File::try_clone`, via `dup`): duplicate an open handle, then
+/// CLOSE the original and read through the clone — the clone stays a valid,
+/// independent descriptor to the same file (reads the 5 bytes "hello", first byte
+/// 'h'). The hermetic FS gives the clone its own cursor snapshotted from the
+/// source; native `dup` shares the offset, but a freshly-opened source starts at 0
+/// so both agree.
+#[test]
+fn filesystem_std_module_try_clone() {
+    let main_path = write_program(
+        "fs-try-clone",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    open_result: OpenResult;
+    clone_result: OpenResult;
+    io_result: IoResult;
+    rc: i32;
+    first: u8;
+    cap: usize;
+    buffer: [u8; 64];
+}
+machine Main::main(&mut self) {
+    self.cap = 64;
+    self.unit_result = self.fs.write_all("/dup.txt", "hello");
+    transition self.unit_result { UnitResult::Ok -> openit() _ -> fail() }
+    state openit(&mut self) {
+        self.open_result = self.fs.open("/dup.txt");
+        transition self.open_result { OpenResult::Ok { file } -> cloneit(file) _ -> fail() }
+    }
+    state cloneit(&mut self, orig: File) {
+        self.clone_result = self.fs.try_clone(orig);
+        // close the ORIGINAL handle; the clone must stay usable
+        self.rc = self.fs.close(orig);
+        transition self.clone_result { OpenResult::Ok { file } -> readclone(file) _ -> fail() }
+    }
+    state readclone(&mut self, file: File) {
+        self.io_result = self.fs.read(file, &mut self.buffer, self.cap);
+        self.rc = self.fs.close(file);
+        self.unit_result = self.fs.remove("/dup.txt");
+        transition self.io_result { IoResult::Ok { count } -> checkcount(count) _ -> fail() }
+    }
+    state checkcount(&mut self, count: usize) {
+        transition count == 5 { true -> checkbyte() _ -> fail() }
+    }
+    state checkbyte(&mut self) {
+        self.first = self.buffer[0];
+        transition self.first == 104 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("try_clone program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "try_clone: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "try_clone: clone reads 5 bytes ('hello') after the original is closed"
+    );
+}
+
 /// `try_exists` (Rust `Path::try_exists`) — the error-aware existence check:
 /// `Yes` for a present readable file, `No` for a missing path, and `Error`
 /// (PermissionDenied) for a present-but-unreadable path (chmod 0). Unlike
