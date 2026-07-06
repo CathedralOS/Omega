@@ -343,8 +343,16 @@ crate tests; interpreter fs coverage) and commits.
     = 1_000_000_000, it has no clock); native `stat` returns the real time.
     DIFFERENTIAL split accordingly: coverage `filesystem_std_module_metadata_modified`
     asserts `modified() == 1_000_000_000`, native `native_metadata_modified` canary
-    asserts `modified() > 1_000_000_000` (a real recent timestamp). `Metadata` is
-    now at good Rust parity: len/is_dir/is_file/readonly/permissions/modified.
+    asserts `modified() > 1_000_000_000` (a real recent timestamp). ALL THREE
+    TIMES DONE: added `Metadata::accessed()` (`st_atimespec.tv_sec` @32) and
+    `Metadata::created()` (`st_birthtimespec.tv_sec` @80, darwin's birth time)
+    alongside `modified()` — same i64 byte-assembly. The hermetic FS models
+    DISTINCT epochs (accessed 1_000_000_100, modified 1_000_000_000, created
+    999_999_900) so a decode-wrong-offset bug is caught: coverage
+    `filesystem_std_module_metadata_times` asserts each exact value; native
+    `native_metadata_times` canary asserts all three > 1_000_000_000 (real recent
+    times). `Metadata` is now at full Rust parity:
+    len/is_dir/is_file/readonly/permissions/modified/accessed/created.
     - **D-bitwise (backend feature, general).** The byte-assembly needs runtime
       `|` on aarch64, which the MVP encoder REJECTED (only logical `And`/`Or` and
       the shifts were wired; `BitwiseAnd`/`BitwiseOr`/`BitwiseXor` fell to the

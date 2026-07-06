@@ -1893,6 +1893,57 @@ machine Main::main(&mut self) {
     );
 }
 
+/// `Metadata::accessed`/`modified`/`created` (Rust `Metadata::accessed`/
+/// `modified`/`created`) each decode from their OWN stat offset (st_atime @32,
+/// st_mtime @48, st_birthtime @80). The hermetic FS models DISTINCT values so a
+/// single decode-wrong-offset bug is caught: accessed 1_000_000_100, modified
+/// 1_000_000_000, created 999_999_900.
+#[test]
+fn filesystem_std_module_metadata_times() {
+    let main_path = write_program(
+        "fs-meta-times",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("/t.txt", "when");
+    transition self.unit_result { UnitResult::Ok -> statit() _ -> fail() }
+    state statit(&mut self) {
+        self.meta_result = self.fs.metadata_path("/t.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> checkaccessed(meta) _ -> fail() }
+    }
+    state checkaccessed(&mut self, meta: Metadata) {
+        transition meta.accessed() == 1000000100 { true -> checkmodified(meta) _ -> fail() }
+    }
+    state checkmodified(&mut self, meta: Metadata) {
+        transition meta.modified() == 1000000000 { true -> checkcreated(meta) _ -> fail() }
+    }
+    state checkcreated(&mut self, meta: Metadata) {
+        self.unit_result = self.fs.remove("/t.txt");
+        transition meta.created() == 999999900 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("metadata-times program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "metadata_times: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "accessed/modified/created each decode their own st_*time offset"
+    );
+}
+
 /// `Permissions::readonly` / `set_readonly` (Rust `Permissions::readonly()` /
 /// `set_readonly(bool)`): a 0o644 mode is writable; set_readonly(true) clears the
 /// write bits (readonly true); set_readonly(false) restores them (readonly
