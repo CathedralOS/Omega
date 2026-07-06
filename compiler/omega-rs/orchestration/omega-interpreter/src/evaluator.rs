@@ -2334,6 +2334,24 @@ impl<'program> Evaluator<'program> {
                 }
                 rc
             }
+            "set_file_permissions" => {
+                // `fchmod(fd, mode)`: record the mode against the fd's path so a
+                // subsequent write-open sees it (mirrors path-based chmod). EBADF
+                // if the descriptor is unknown.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let mode = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as u32;
+                match self.virtual_fds.get(&fd) {
+                    Some(descriptor) => {
+                        let path = descriptor.path.clone();
+                        self.virtual_perms.insert(path, mode);
+                        0
+                    }
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                }
+            }
             "sync" => {
                 // `fsync(fd)`: flush to durable storage. In the hermetic
                 // in-memory FS the bytes are already "durable", so this is a

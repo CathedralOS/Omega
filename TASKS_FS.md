@@ -268,6 +268,11 @@ crate tests; interpreter fs coverage) and commits.
     `Permissions::set_readonly(bool)` (clear/set the write bits 0o222) round-trip
     (coverage `filesystem_std_module_permissions_set_readonly`), pairing with
     `metadata_path(..).permissions()` (step 11) for read-modify-write chmod.
+    fd-based variant DONE: `set_file_permissions(file, perms)` (Rust
+    `File::set_permissions`) via `_fchmod` — reuses the `set_len` operand shape
+    (`[result, fd, mode]`), no new operand/encoder work. Native `native_fchmod`
+    canary RUNS (fchmod 0o444 on an open fd → fresh write-open → EACCES(13) →
+    PASS); coverage `filesystem_std_module_set_file_permissions`.
 10c. [x] **`hard_link`** (Rust `std::fs::hard_link`) via `_link` — DONE, complete
     NATIVE vertical. `HostOperation::Link` (op `link` → darwin `_link`); reuses
     the two-path `rename` operand shape (`find_nth_data_object` ×2), so no new
@@ -379,9 +384,18 @@ crate tests; interpreter fs coverage) and commits.
     - **Forwarded byte-slice LENGTH.** `write_all` forwards its `bytes: &[u8]`
       param to `self.host.write(fd, bytes)`; the POINTER resolves (the file is
       created at the right path) but the write emits an EMPTY file — the
-      forwarded slice's LENGTH (`RuntimeStringLength` off the descriptor place)
-      comes out 0. `slice_argument_operands` resolves a forwarded param's pointer
-      but not its length.
+      forwarded slice's LENGTH comes out 0. NARROWED (this fire): it reproduces at
+      ONE machine hop with a LITERAL — `Main::put(bytes: &[u8]) { self.fs.write(fd,
+      bytes) }` called as `self.put(fd, "hello")` writes 0 bytes natively (5 in
+      the interpreter). So the descriptor's `len` field is not materialized into
+      the callee's param slot when a slice LITERAL is passed as a machine-call
+      argument (distinct from `descriptor_argument_blockers`, which only covers
+      SUBSLICE args). The fix is in the machine-call argument materialization for
+      slice descriptors (the caller must store {ptr, len} into the callee param
+      slot, not just ptr) — deep, in the abstract-operations/state-call lowering,
+      NOT in `slice_argument_operands` (which reads the descriptor place fine when
+      the descriptor is correctly materialized, as the raw-seam literal writes
+      prove).
     - **Wrapper self-field buffers.** `metadata_path` fills `self.stat_buf` (a
       `[u8;144]` FIELD of the `Filesystem` receiver) via `read_metadata`, then
       byte-decodes it; natively the decode is wrong (`is_file()` came back false

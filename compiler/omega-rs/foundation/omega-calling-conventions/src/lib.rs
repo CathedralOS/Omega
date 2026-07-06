@@ -143,6 +143,9 @@ pub enum HostOperation {
     /// `set_permissions`). Same shape as `mkdir`: a path pointer + a NAMED
     /// (register) mode scalar.
     Chmod,
+    /// `fchmod(fd, mode)` -- set an OPEN file's permission bits (Rust
+    /// `File::set_permissions`). Same shape as `set_len`: two scalars (fd, mode).
+    Fchmod,
     /// `rename(from, to)` -- move/rename a path (Rust `rename`). Two path args.
     Rename,
     /// `link(original, link)` -- create a hard link (Rust `hard_link`): a second
@@ -212,6 +215,7 @@ impl HostOperation {
             "mkdir" => Self::MakeDir,
             "rmdir" => Self::RemoveDir,
             "chmod" => Self::Chmod,
+            "fchmod" => Self::Fchmod,
             "rename" => Self::Rename,
             "link" => Self::Link,
             "stat" => Self::Stat,
@@ -253,6 +257,7 @@ impl HostOperation {
             Self::MakeDir => "mkdir",
             Self::RemoveDir => "rmdir",
             Self::Chmod => "chmod",
+            Self::Fchmod => "fchmod",
             Self::Rename => "rename",
             Self::Link => "link",
             Self::Stat => "stat",
