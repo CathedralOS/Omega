@@ -1,0 +1,42 @@
+// PARKED — hits a SEPARATE general encoder limitation (NOT step 14). Exercises
+// `Filesystem::exists` (stat-based), whose `&mut self.stat_buf` lands at byte
+// offset 1396 inside the large `Filesystem` wrapper (host + scalars + the 144-byte
+// stat_buf + 512-byte dir_buf + ...). Compiling it FAILS with "AArch64 MVP encoder
+// cannot load u64 from x0 at offset `1396` yet": `encode_load_x_from_x`
+// (omega-isa-aarch64/src/aarch64/primitives/memory.rs:142) handles only an 8-ALIGNED
+// scaled-LDR offset (<= 32760) or a non-aligned LDUR offset (<= 255); 1396 is
+// non-aligned AND > 255, so there is no path. THE FIX (general, not fs): emit
+// add-then-load (`add xN, base, #off; ldr xd, [xN]`) for out-of-range offsets --
+// note the return type is `[u8; 4]` (one instruction), so this needs a
+// variable-length return + a width-lockstep check at the callers. This blocks the
+// STAT-based ergonomic wrappers (exists/try_exists/metadata_path/read_dir, which
+// use the big stat_buf/dir_buf fields); write_all/read_all/remove (small locals +
+// forwarded params) are already native. TASKS_FS.md step 14 / "encoder large-offset".
+
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: Filesystem;
+    raw: FilesystemHost;
+    mode: i32;
+    fd: i32;
+    n: i64;
+    present1: bool;
+    present2: bool;
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.fd = self.raw.create("/tmp/omega_wexists.txt", self.mode);
+    self.n = self.raw.close(self.fd);
+    self.present1 = self.fs.exists("/tmp/omega_wexists.txt");
+    self.n = self.raw.remove("/tmp/omega_wexists.txt");
+    self.present2 = self.fs.exists("/tmp/omega_wexists.txt");
+    transition self.present1 { true -> check2() _ -> fail() }
+    state check2(&mut self) {
+        transition self.present2 { true -> fail() _ -> good() }
+    }
+    state good(&mut self) { self.n = self.raw.write(1, "PASS: ergonomic Filesystem::exists (self-field stat buffer)\n"); }
+    state fail(&mut self) { self.n = self.raw.write(1, "FAIL: wrapper exists\n"); }
+}
