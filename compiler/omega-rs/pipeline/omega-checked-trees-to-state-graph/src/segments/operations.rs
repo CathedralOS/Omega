@@ -109,21 +109,38 @@ fn expression_is_runtime_indexed(table: &ExpressionTable, handle: ExpressionHand
 /// `self.field[i]`) has no array index in its collection chain, so neither is refused. (Mirrors the
 /// READ fence `report_nested_runtime_indexed_read` in omega-validation.)
 fn target_is_nested_runtime_indexed(table: &ExpressionTable, target: ExpressionHandle) -> bool {
-    if !expression_is_runtime_indexed(table, target) {
-        return false;
-    }
-    let ExpressionNode::Indexed(indexed) = table.expression(target) else {
-        return false;
-    };
-    // Walk the collection's place chain (through Member receivers and Mutable): the shape no-ops
-    // whenever the base is itself reached through an array index, not only when the collection is
-    // DIRECTLY indexed (`rows[c].data[i]` is `Member(Indexed(rows, c), data)`).
-    let mut collection = indexed.collection;
+    // Walk EVERY level of the target's place chain (through Indexed collections, Member receivers,
+    // and Mutable). A runtime index is lowerable only when it is the BASE-CLOSEST index (its
+    // collection is a plain place); a runtime index sitting above another array index no-ops. This
+    // catches the final-index cases (`grid[c][j]`, `rows[c].data[j]`) AND a runtime index at an
+    // INNER level with a const outer index (`cube[a][b][0]`: `[b]` is runtime above `[a]`), which a
+    // top-index-only check misses.
+    let mut place = target;
     loop {
-        match table.expression(collection) {
+        match table.expression(place) {
+            ExpressionNode::Indexed(indexed) => {
+                if expression_is_runtime_indexed(table, place)
+                    && collection_chain_reaches_index(table, indexed.collection)
+                {
+                    return true;
+                }
+                place = indexed.collection;
+            }
+            ExpressionNode::Member(member) => place = member.receiver,
+            ExpressionNode::Mutable(inner) => place = *inner,
+            _ => return false,
+        }
+    }
+}
+
+/// Whether a place chain (through `Member` receivers and `Mutable`) reaches an `Indexed` node --
+/// i.e. the base is itself array-indexed.
+fn collection_chain_reaches_index(table: &ExpressionTable, mut place: ExpressionHandle) -> bool {
+    loop {
+        match table.expression(place) {
             ExpressionNode::Indexed(_) => return true,
-            ExpressionNode::Member(member) => collection = member.receiver,
-            ExpressionNode::Mutable(inner) => collection = *inner,
+            ExpressionNode::Member(member) => place = member.receiver,
+            ExpressionNode::Mutable(inner) => place = *inner,
             _ => return false,
         }
     }

@@ -21232,6 +21232,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "collections/nested_runtime_indexed_read_rejected",
     "collections/nested_runtime_indexed_struct_field_read_rejected",
     "collections/nested_runtime_indexed_struct_field_write_rejected",
+    "collections/deep_nested_runtime_indexed_write_rejected",
     "layouts/plan_laid_dynamic_plan",
     "layouts/plan_laid_policy_without_plan_machine",
     "control_flow/if_statement_retired",
