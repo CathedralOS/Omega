@@ -28,6 +28,22 @@ disjoint from the bootstrap-lattice files (`compiler/{alpha,beta,delta,gamma}`).
   That is the *only* class of error — the surface is sound. A green canary needs
   Step 1d/1e below. **Not yet registered in `ACTIVE_PASS_CANARIES`** (so it does
   not break the suite; the pass sweep only runs registered names).
+- **DONE — fs CRUD actually RUNS in the interpreter.** The native backend is not
+  on the interpreter's path (it runs on checked trees), so — following the
+  codebase's established "interpreter-only coverage ahead of native codegen"
+  pattern (see the case-payload tests) — `std::fs` executes today:
+  - Step 0 landed: `evaluator.rs` host dispatch now routes on the boundary
+    TRAIT (`receiver_boundary_type_name`), so `Filesystem::write` ≠
+    `Console::write`.
+  - A deterministic in-memory filesystem (`virtual_files`/`virtual_fds`, mirrors
+    `virtual_ticks`) backs create/open_read/read/write/close/remove, building
+    the ZII outcome enums into the `&mut out` params.
+  - `coverage.rs::filesystem_crud_round_trip_reads_back_written_bytes`:
+    create→write 21B→close→reopen→read→`count == 21`→remove→exit 70. **Green**
+    (14/14 coverage tests; Console tests still pass ⇒ Step 0 behavior-preserving).
+  - Not wired to the differential oracle yet (needs native fs first, or an
+    interpreter-only differential lane); the two failing differential tests in
+    the suite are PRE-EXISTING native-side mismatches on this branch, unrelated.
 
 ## How host I/O actually works today (the model fs must follow)
 
@@ -84,12 +100,14 @@ second `write` can't collide or silently drift between the two engines. No new
 feature — pure consolidation, guarded by the existing differential oracle
 (interpreter vs native must still match on every current sample).
 
-- [ ] **0a. Interpreter routes through `HostOperation`.** Replace the raw
-  `match call.target.as_str()` in `evaluator.rs::try_host_call` with a resolve
-  to `(HostCapability, HostOperation)` (share `HostOperation::from_name`, or
-  better, carry the resolved key on the checked-tree call node so the
-  interpreter never re-parses a name). Dispatch on the enum key, not the leaf
-  string.
+- [x] **0a. Interpreter dispatch is trait-keyed.** DONE (lighter than the
+  original idea): `evaluator.rs::try_host_call` resolves the receiver's boundary
+  trait (`receiver_boundary_type_name`) and routes `Filesystem` calls to
+  `try_filesystem_call` before the Console-centric `match`, so `Filesystem::write`
+  ≠ `Console::write`. Did NOT pull in the foundation `HostOperation` enum (the
+  interpreter doesn't depend on `omega-calling-conventions`); keying on the trait
+  name was enough. Sharing one enum with the native table is still worthwhile
+  when native fs lands — fold into 1d/1e then.
 - [ ] **0b. Disambiguate the platform wildcard.** Decide how a lowering keyed on
   a specific platform (`File`) beats/coexists with the `"*"` Console lowerings.
   Options: (i) exact-platform match wins over `"*"`; (ii) drop `"*"` and
@@ -143,10 +161,13 @@ matched by the interpreter oracle.
   `_unlink`, and `insert_platform_lowering` entries mapping the `Filesystem::*`
   methods to them. Extend the `HostCapability`/`HostOperation` enums (`lib.rs`
   `from_name`/`name`). Depends on 1d.
-- [ ] **1f. Interpreter oracle for fs** (see the hard problem below) — enough to
-  make the canary deterministic. Add handlers alongside the `"write"` arm in
-  `evaluator.rs` (via the Step-0 unified dispatch, so `File::write` ≠
-  `Console::write`).
+- [x] **1f. Interpreter fs execution.** DONE via a deterministic in-memory
+  filesystem in `evaluator.rs` (`virtual_files`/`virtual_fds`/`virtual_next_fd`,
+  `try_filesystem_call` + `virtual_open`/`virtual_write`/`virtual_read`). Chose
+  Option A (hermetic in-memory) from the oracle section — reproducible, no real
+  disk. Covered by `coverage.rs::filesystem_crud_round_trip_reads_back_written_bytes`.
+  Still TODO: wire into the differential oracle (needs native fs, or an
+  interpreter-only lane).
 - [ ] **1g. Register + expand.** Add `filesystem/crud_roundtrip` to
   `ACTIVE_PASS_CANARIES` once 1d–1f make it check green; add `fail` canaries
   (path-domain / authority rejections) and one `samples/cli/...` demo (samples
