@@ -160,6 +160,20 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   with a precise message (ordering/arithmetic keep their existing wording; `&&`/`||` stay with the
   non-bool-logical check; String/`[u8;N]` text carriers excluded, so string equality stays valid).
   Element-wise array equality is a plausible future feature. Canary array_equality_rejected.
+- **[RESOLVED 2026-07-05] SCALAR <-> DATA (struct/enum) shape mismatch at value-binding slots.**
+  `self.inner = 5` (a scalar into a struct field) silently clobbered the struct's leading bytes and
+  `let n: i32 = self.inner` (a struct into a scalar slot) silently read a ZII `0` -- both built + ran
+  (exit 0) with no diagnostic. This cross-shape case fell BETWEEN the two type gates: the scalar-CLASS
+  gate (`report_cross_class_store`) needs a primitive TARGET (a struct target has none, so it is
+  skipped), and the nominal gate (`report_data_type_conflict`) needs BOTH sides to resolve to data
+  names (a scalar does not). New `report_scalar_data_shape_mismatch` (expression_types.rs): rejects a
+  scalar value into a concrete-data target (`value_class` Some + target is `concrete_data_type_name`)
+  and a data value into a scalar target (`value_concrete_data_name` Some + target is a primitive).
+  Wired at ALL binding positions: assignment / terminal + transition return / let-init (lib.rs, beside
+  the array-shape check), call ARGUMENT (calls.rs x2 -- SAFE there unlike the array-shape check because
+  `&buffer`/`addr`/text args involve no data type on either side), construction FIELD and DATA-typed
+  array ELEMENT (struct_literals.rs). Canary scalar_into_data_field_rejected. Completes the value-vs-
+  target shape matrix (scalar/array/data all cross-checked); no known remaining shape hole.
 - **[ ] DESIGN QUESTION (found 2026-07-05): bool operands MIX with numeric in arithmetic/comparison.**
   `let n: i32 = self.b + 5` (-> 6), `self.b < self.n` (bool vs i32 guard -> 1), `self.b == self.n`
   (-> 1) all COMPILE + RUN with a well-defined C-style bool->{0,1} coercion (NOT garbage, so not a

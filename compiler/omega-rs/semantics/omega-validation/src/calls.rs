@@ -556,6 +556,21 @@ pub(crate) fn validate_call_arguments_handles(
             "argument",
             diagnostics,
         );
+        // Scalar-vs-data shape guard: `take_struct(5)` (a scalar for a struct param)
+        // or `take_int(self.struct)` (a struct for a scalar param). Unlike the
+        // array/scalar check below, this is SAFE at the argument position -- it fires
+        // only on scalar-vs-DATA-type crossings, and `&buffer`/`addr`/text args
+        // involve no data type on either side, so they never trigger it.
+        crate::expression_types::report_scalar_data_shape_mismatch(
+            program,
+            current_machine,
+            current_state,
+            *argument,
+            parameter.type_reference,
+            &slot_context,
+            "argument",
+            diagnostics,
+        );
         // NOTE: an array/scalar SHAPE check does NOT belong at the argument position
         // -- `&self.msg` (address-of a `[u8; N]` buffer) passed to an `addr`/pointer
         // param is a valid array-value-into-scalar-target flow, and boundary/host
@@ -714,6 +729,19 @@ fn validate_value_call_argument_classes(
             callee_state.name.as_str()
         );
         report_data_type_conflict(
+            program,
+            current_machine,
+            Some(current_state),
+            *argument,
+            parameter.type_reference,
+            &slot_context,
+            "argument",
+            diagnostics,
+        );
+        // Scalar-vs-data shape guard -- safe at the argument position (see the twin
+        // call in `validate_call_arguments_handles`): fires only on scalar-vs-DATA
+        // crossings, which `&buffer`/`addr`/text args never are.
+        crate::expression_types::report_scalar_data_shape_mismatch(
             program,
             current_machine,
             Some(current_state),
