@@ -1,3 +1,4 @@
+use super::super::text_writes::string_literal_data_handle;
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
@@ -475,6 +476,31 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
 ) -> bool {
     if slot.byte_size != input.runtime_abi.slice_descriptor_size() {
         return false;
+    }
+
+    // A bare STRING / byte-slice LITERAL (`"hello"` passed as a slice argument or
+    // bound to a `&[u8]` slot): its bytes live in a rodata data object with no frame
+    // place, so the subslice/as_slice strategies below all miss it and the descriptor
+    // slot would keep its zero bytes -- an EMPTY slice (ptr 0, len 0). Write the full
+    // `{ptr -> rodata, len}` descriptor in one shot with `WriteRuntimeFrameString`
+    // (the same instruction a string local/field initializer uses). Every consumer of
+    // this seam -- transition-edge args, value-call leaves, straight-line branches,
+    // preludes -- gets the fix here. (TASKS_FS.md step 14: the forwarded-slice-length
+    // bug; unblocks passing a slice literal as a machine-call argument.)
+    if let Some(literal) = expressions.string_literal_value(value) {
+        let data = string_literal_data_handle(input, value_source_key, statement_index, &literal);
+        if data.is_valid() {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteRuntimeFrameString {
+                    byte_offset: slot.byte_offset,
+                    data,
+                    byte_length: literal.len(),
+                },
+                source_key: value_source_key,
+                source_statement: statement_index,
+            });
+            return true;
+        }
     }
 
     if emit_runtime_frame_slot_literal_subslice_descriptor_write_in_table(
