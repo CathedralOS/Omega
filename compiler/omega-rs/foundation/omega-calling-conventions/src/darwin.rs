@@ -16,6 +16,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("Stderr", "write", "_write", &policy),
         darwin_import("Process", "exit", "_exit", &policy),
         darwin_import("Filesystem", "open", "_open", &policy),
+        darwin_import("Filesystem", "creat", "_creat", &policy),
         darwin_import("Filesystem", "read", "_read", &policy),
         darwin_import("Filesystem", "write", "_write", &policy),
         darwin_import("Filesystem", "close", "_close", &policy),
@@ -82,8 +83,15 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
     insert_platform_lowering(
         plan,
         "*",
-        "open",
+        "open_read",
         [host_operation("Filesystem", "open")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "creat",
+        [host_operation("Filesystem", "creat")],
         PlatformCallData::None,
     );
     insert_platform_lowering(

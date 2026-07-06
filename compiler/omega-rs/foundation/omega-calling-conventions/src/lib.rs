@@ -110,6 +110,10 @@ pub enum HostOperation {
     WriteFile,
     /// `open`/`openat` -- open a path, returning a file descriptor (or -errno).
     Open,
+    /// `creat(path, mode)` -- create/truncate a path for writing. Unlike `open`
+    /// its `mode` is a NAMED (non-variadic) parameter, so it marshals in a
+    /// register on arm64 (open's variadic mode would go on the stack).
+    Creat,
     /// `close(fd)` -- release a file descriptor.
     Close,
     /// `unlink`/`remove` -- delete a path.
@@ -156,6 +160,7 @@ impl HostOperation {
             "write" => Self::Write,
             "write_file" => Self::WriteFile,
             "open" => Self::Open,
+            "creat" => Self::Creat,
             "close" => Self::Close,
             "unlink" => Self::Unlink,
             "sleep" => Self::Sleep,
@@ -186,6 +191,7 @@ impl HostOperation {
             Self::Write => "write",
             Self::WriteFile => "write_file",
             Self::Open => "open",
+            Self::Creat => "creat",
             Self::Close => "close",
             Self::Unlink => "unlink",
             Self::Sleep => "sleep",

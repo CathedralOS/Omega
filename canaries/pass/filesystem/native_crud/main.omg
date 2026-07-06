@@ -1,0 +1,60 @@
+// FULL NATIVE std::fs CRUD round-trip — RUNS end-to-end on real macOS syscalls.
+// Verified by running the emitted mach-o: it prints
+//   "PASS: native fs CRUD round-trip (creat+write+read 17B+close+unlink)"
+// and the file is created (0644) then deleted.
+//
+// The raw boundary layer is VALUE-RETURNING (each op returns its syscall
+// result), lowered via the aarch64 value-returning host-call primitive. Uses
+// `creat` (not `open`) for creation because open's mode is variadic (stack-
+// passed on arm64); creat's mode is a named/register parameter.
+//
+// NOT registered in ACTIVE_PASS_CANARIES yet (canary_suite.rs is hot with
+// other work). A thin Omega std layer wrapping these into File/outcome enums
+// is the remaining ergonomics work (TASKS_FILESYSTEM.md).
+
+domain [u8]::Path when no_nul(self) {
+}
+boundary trait Filesystem {
+    machine creat(path: &[u8] in Path, mode: i32) -> i32;
+    machine open_read(path: &[u8] in Path, flags: i32) -> i32;
+    machine read_bytes(fd: i32, buffer: &mut [u8], count: usize) -> i64;
+    machine write_bytes(fd: i32, bytes: &[u8]) -> i64;
+    machine close(fd: i32) -> i32;
+    machine unlink(path: &[u8] in Path) -> i32;
+}
+data Main {
+    fs: Filesystem;
+    mode: i32;
+    flags_read: i32;
+    cap: usize;
+    fd: i32;
+    n: i64;
+    rn: i64;
+    buffer: [u8; 64];
+}
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.flags_read = 0;
+    self.cap = 64;
+    self.fd = self.fs.creat("/tmp/omega_crud.txt", self.mode);
+    transition self.fd >= 0 { true -> wrote() _ -> fail() }
+    state wrote(&mut self) {
+        self.n = self.fs.write_bytes(self.fd, "omega end to end\n");
+        self.n = self.fs.close(self.fd);
+        self.fd = self.fs.open_read("/tmp/omega_crud.txt", self.flags_read);
+        transition self.fd >= 0 { true -> rd() _ -> fail() }
+    }
+    state rd(&mut self) {
+        self.rn = self.fs.read_bytes(self.fd, &mut self.buffer, self.cap);
+        self.n = self.fs.close(self.fd);
+        transition self.rn == 17 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) {
+        self.n = self.fs.write_bytes(1, "PASS: native fs CRUD round-trip (creat+write+read 17B+close+unlink)\n");
+        self.n = self.fs.unlink("/tmp/omega_crud.txt");
+    }
+    state fail(&mut self) {
+        self.n = self.fs.write_bytes(1, "FAIL\n");
+        self.n = self.fs.unlink("/tmp/omega_crud.txt");
+    }
+}
