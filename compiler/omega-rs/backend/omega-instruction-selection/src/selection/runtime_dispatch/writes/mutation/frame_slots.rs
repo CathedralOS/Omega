@@ -9,6 +9,7 @@ use crate::selection::storage_places::{
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_arithmetic_domain_in_table,
     resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
+    static_fixed_array_len_in_table,
 };
 use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, SelectedInstructionKind, StateGuardOperator,
@@ -141,6 +142,32 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     source_anchor_byte_offset: usize,
 ) -> Option<SelectedInstructionKind> {
+    // `let n = arr.len` / `let n = s.len` where the receiver views a FIXED array
+    // (directly, through `.as_slice()`, or through an unmaterialized local alias):
+    // the length is a compile-time constant. Without this the resolver drops the
+    // `.len` member source (a fixed array has no runtime descriptor len slot to
+    // copy from), leaving the local slot UNWRITTEN -- a later guard/use then reads
+    // the zeroed slot (a silent read-0 miscompile; the direct guard `arr.len == N`
+    // already folds via this same resolver, so the captured-into-a-local form must
+    // agree). Emit the constant length directly. Placed first so a `.len` into a
+    // pointer-width (usize) slot is never mistaken for an address write below.
+    if supports_scalar_integer_write(slot.byte_size)
+        && let Some(length) = static_fixed_array_len_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            value,
+        )
+    {
+        return Some(SelectedInstructionKind::WriteRuntimeStorageInteger {
+            target_region: RuntimeStorageRegion::RuntimeFrame,
+            byte_offset: slot.byte_offset,
+            byte_size: slot.byte_size,
+            value: length,
+        });
+    }
+
     if slot.byte_size == input.runtime_abi.pointer_size
         && let Some(kind) = select_runtime_frame_slot_address_write_in_table(
             input,
@@ -231,6 +258,41 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
             target_region: RuntimeStorageRegion::RuntimeFrame,
             pointer_byte_offset: pointee.pointer_byte_offset,
             field_byte_offset: pointee.field_byte_offset,
+            target_offset: slot.byte_offset,
+            byte_count: slot.byte_size,
+        });
+    }
+
+    // `let n: usize = s.len` where `s` is a runtime slice DESCRIPTOR whose length
+    // is not statically known (a slice PARAM). The `.len` place resolver reports
+    // the descriptor's low 4-byte len word (the `i32`-assignable convention), so a
+    // wider `usize` (8-byte) local slot fails the exact-size copy below and the
+    // write is dropped -- the slot stays zeroed and the local reads 0 (a silent
+    // miscompile; the field-assign `self.count = s.len` works only because an
+    // `i32` count matches the 4-byte word). The descriptor's len is 8 bytes of
+    // storage holding the full `usize`, so read it at the target's width. Bounded
+    // by the descriptor's len-field size so the read stays inside the descriptor.
+    let value_is_len_member = match expressions.expression(value) {
+        ExpressionNode::Member(member) => member.member.as_str() == "len",
+        _ => false,
+    };
+    if slot.byte_size > 4
+        && supports_scalar_integer_write(slot.byte_size)
+        && value_is_len_member
+        && let Some(source_place) = resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            value,
+        )
+        && source_place.byte_count == 4
+        && slot.byte_size <= input.runtime_abi.slice_descriptor().len_size()
+    {
+        return Some(SelectedInstructionKind::CopyRuntimeStorage {
+            source_region: source_place.region,
+            source_offset: source_place.byte_offset,
+            target_region: RuntimeStorageRegion::RuntimeFrame,
             target_offset: slot.byte_offset,
             byte_count: slot.byte_size,
         });
