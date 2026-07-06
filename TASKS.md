@@ -96,6 +96,19 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 
 ## Open latent bugs / fenced gaps
 
+- **[ ] NON-`==` operators on a STRUCT with no declared operator compile silently
+  (found 2026-07-05).** `self.a + self.b` / `self.a < self.b` for a plain `data P {..}`
+  (no domain operator) builds and RUNS to garbage (`P+P` gave `c.x == 0`, not the sum) --
+  only `==`/`!=` is checked (structural_equality.rs, the Equatable requirement). ATTEMPTED
+  + REVERTED 2026-07-05: a lowering-phase "reject any non-`==` operator on a structural
+  data operand" false-positived on DOMAIN operators -- `Quantity + Quantity` is VALID via
+  `domain Quantity::Additive { operator add ... spelling + }` (chapter 8 domain-sensitive
+  operators). The clean fix must gate on "no operator with this spelling is DECLARED for
+  the operand type in any domain" -- the use-site domain-operator resolution
+  (`resolve_spelling` in omega-typed-trees + the proof context), NOT a blanket reject. A
+  focused session. (The ARRAY sibling IS fixed -- arrays can't carry domain operators, so
+  `array < array` is unconditionally rejected; commit follows.)
+
 - **[RESOLVED 2026-07-05]** Float BITWISE/SHIFT/MODULO now rejected at `--check`.
   `f & g` / `f << 2` / `f % g` used to pass `--check` and fail only in the backend ("not
   implemented yet"). RESOLVED the intent question by confirming the INTERPRETER (the oracle)

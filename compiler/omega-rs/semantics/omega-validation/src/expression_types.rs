@@ -469,6 +469,46 @@ fn type_reference_is_text_carrier(program: &TypedTrees, handle: TypeReferenceHan
     }
 }
 
+/// Reject an ordering / arithmetic / bitwise operator whose operand is a NON-TEXT
+/// array (`xs < ys`, `xs + ys` for `[i32; N]`). Arrays cannot carry domain
+/// operators (only data types can, e.g. `Quantity::Additive`'s `+`), so these are
+/// always meaningless and otherwise lower to a garbage byte op. `==`/`!=` and the
+/// logical `&&`/`||` are left alone; text carriers (`String`, `[u8]`) are excluded
+/// (string concat / comparison). Only PLACE operands are resolved.
+pub(crate) fn report_array_operator_operands(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    operator: omega_typed_trees::expression::BinaryOperator,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    use omega_typed_trees::expression::BinaryOperator;
+    if matches!(
+        operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual | BinaryOperator::And | BinaryOperator::Or
+    ) {
+        return false;
+    }
+    for operand in [left, right] {
+        if let Some(operand_type) =
+            crate::places::declared_place_type(program, machine, state, operand)
+            && type_reference_is_array(program, operand_type)
+            && !type_reference_is_text_carrier(program, operand_type)
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}` applies `{operator:?}` to an array operand, but \
+                 ordering, arithmetic, and bitwise operators are not defined for arrays",
+                machine.name.as_str(),
+                state.map(|state| state.name.as_str()).unwrap_or(""),
+            )));
+            return true;
+        }
+    }
+    false
+}
+
 /// Whether a type reference denotes an ARRAY (a fixed array or a slice), looking
 /// through `Reference`/`Constrained` shells.
 fn type_reference_is_array(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
