@@ -21096,6 +21096,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "expressions/number_to_bool_cast_rejected",
     "expressions/text_arithmetic_operator_rejected",
     "expressions/text_ordering_operator_rejected",
+    "expressions/text_string_index_rejected",
     "expressions/non_bool_logical_operand_rejected",
     "expressions/array_operator_rejected",
     "expressions/struct_operator_undeclared_rejected",
