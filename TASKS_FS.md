@@ -138,9 +138,13 @@ crate tests; interpreter fs coverage) and commits.
   needed a `find_nth_data_object` helper (two path literals in one call, resolved
   by creation/offset order = arg order). `canaries/pass/filesystem/native_rename`
   RUNS: create A + write + rename A→B + read B back (16 bytes) → PASS.
-- Native raw ops now: create/open/read/write/close/remove/seek/create_dir/
-  remove_dir/rename/chmod/fchmod/link/symlink/readlink/stat/lstat/fstat/realpath/
-  dup/ftruncate/fsync — all run-verified on macOS.
+- Native raw ops now: create/open/read/write/pread/pwrite/close/remove/seek/
+  create_dir/remove_dir/rename/chmod/fchmod/link/symlink/readlink/stat/lstat/fstat/
+  realpath/dup/ftruncate/futimens/fsync — all run-verified on macOS.
+- **`File::set_times` landed natively** (Rust `File::set_times`) via `_futimens`,
+  reusing the `fstat` fd+buffer operand shape. `native_set_times` canary RUNS: set
+  mtime, fstat confirms. Introduced the `x as u8 in Wrapping` byte-decompose idiom
+  + a `virtual_times` interpreter model. See step 10j.
 - **`File::metadata` upgraded to `fstat`** (Rust `File::metadata`) via `_fstat`,
   a new `[result, fd, buffer]` operand arm; `metadata(file)` now reports the REAL
   mode/times (was a seek-based fake) and the stat/lstat/fstat trio is complete.
@@ -439,6 +443,29 @@ crate tests; interpreter fs coverage) and commits.
     NOTE: `create` opens WRITE-ONLY (`_creat`), so a read_at needs a subsequent
     `open`/`open_with` with the read bit (the canary reopens O_RDWR). pwrite's
     literal-payload path is exercised by the "XY" write.
+10j. [x] **`File::set_times`** (Rust `File::set_times`) via `futimens` — DONE,
+    complete NATIVE vertical. `HostOperation::SetFileTimes` (op `futimens` → darwin
+    `_futimens`), added to the EXISTING `FStat` operand arm (SAME `[result, fd,
+    buffer pointer]` shape — fstat's kernel WRITES the buffer, futimens READS two
+    `struct timespec` from it), so ZERO new operand/encoder/width work. Raw
+    `FilesystemHost::set_file_times(fd, times: &mut [u8]) -> i32`; the caller packs
+    two timespec (atime @0, mtime @16; {tv_sec i64, tv_nsec i64} each, whole-second
+    precision, nsec=0). Wrapper `Filesystem::set_times(file, accessed, modified) ->
+    UnitResult` byte-decomposes both seconds into a `times_buf: [u8; 32]` field.
+    **Language idiom (recorded):** a narrowing `i64 -> u8` write uses the branch-free
+    `x as u8 in Wrapping` cast-exit (chapter 8) — the low 8 bits of a shifted second
+    (`(v >> 8) as u8 in Wrapping`); a plain narrowing cast needs a proof or a domain.
+    **Interpreter model:** new `virtual_times: BTreeMap<path, i64>` (mtime secs), set
+    by `set_file_times` (reads mtime from buffer bytes [16..24] LE), read by BOTH
+    `read_metadata` (stat) and `read_file_metadata` (fstat) so a set mtime shows
+    through `metadata`/`metadata_path`. Round-trips MODIFIED time only (whole
+    seconds); accessed time is set natively but the hermetic model reports the fixed
+    modeled atime (documented approximation). **Interpreter fix (general):**
+    `eval_fs_bytes` now derefs a `Value::Ref` (a `&mut buffer` passed by reference),
+    so any buffer-arg-by-reference host call works, not just literals/bare arrays.
+    DIFFERENTIAL: native `native_set_times` canary RUNS (futimens sets mtime
+    1500000000, fstat @48 confirms → PASS) AND coverage `filesystem_std_module_set_times`
+    (set_times → metadata(file).modified() == 1500000000).
 11. [x] **Richer `Metadata`** via `stat` — DONE, complete NATIVE vertical (used
     `stat(path)`, not `fstat(fd)`, so it works on DIRECTORIES with no open/read
     perm). `HostOperation::Stat` (op `stat` → darwin `_stat`); operand arm

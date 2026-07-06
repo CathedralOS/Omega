@@ -1293,6 +1293,63 @@ machine Main::main(&mut self) {
     );
 }
 
+/// `File::set_times` via the std module (Rust `File::set_times`, `futimens`): the
+/// wrapper byte-decomposes the modification time into a `timespec` buffer; the
+/// interpreter round-trips the MODIFIED seconds, so `metadata(file).modified()`
+/// reads back the value that was set. Exercises the `x as u8 in Wrapping`
+/// byte-decompose idiom in the shipped module.
+#[test]
+fn filesystem_std_module_set_times() {
+    let main_path = write_program(
+        "fs-set-times",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    open_result: OpenResult;
+    meta_result: MetadataResult;
+    close_rc: i32;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("/t.txt", "hi");
+    transition self.unit_result { UnitResult::Ok -> openit() _ -> fail() }
+    state openit(&mut self) {
+        self.open_result = self.fs.open("/t.txt");
+        transition self.open_result { OpenResult::Ok { file } -> settime(file) _ -> fail() }
+    }
+    state settime(&mut self, file: File) {
+        self.unit_result = self.fs.set_times(file, 1400000000, 1500000000);
+        transition self.unit_result { UnitResult::Ok -> statit(file) _ -> fail() }
+    }
+    state statit(&mut self, file: File) {
+        self.meta_result = self.fs.metadata(file);
+        self.close_rc = self.fs.close(file);
+        self.unit_result = self.fs.remove("/t.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> checkmtime(meta) _ -> fail() }
+    }
+    state checkmtime(&mut self, meta: Metadata) {
+        // the set modification time (1500000000) shows through metadata().modified()
+        transition meta.modified() == 1500000000 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("set_times program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "set_times: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "set_times(_, 1500000000) -> metadata().modified() == 1500000000"
+    );
+}
+
 /// `File::sync_all` via the std module: create → write → `sync` returns
 /// `UnitResult::Ok` → the file's bytes survive the flush (metadata().len still
 /// reports the written size). Exercises the shipped `Filesystem::sync` wrapper
