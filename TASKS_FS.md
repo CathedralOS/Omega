@@ -519,10 +519,11 @@ crate tests; interpreter fs coverage) and commits.
     `blksize()`. Interpreter writes fixed constants (`VIRTUAL_BLOCKS`=8,
     `VIRTUAL_BLKSIZE`=4096). Native `native_metadata_blocks` canary RUNS (asserts a
     real NONZERO blksize; blocks is fs-dependent so only decoded); coverage
-    `filesystem_std_module_metadata_blocks` (modeled blocks 8 / blksize 4096).
-    **`MetadataExt` is now COMPLETE for the common surface** (nlink/ino/dev/uid/gid +
-    a/m/c/btime + blocks/blksize); only the niche `rdev` remains (same trivial
-    pattern). fs coverage 39.
+    `filesystem_std_module_metadata_blocks` (modeled blocks 8 / blksize 4096). Also
+    added `rdev()` (`st_rdev` @24, the represented device — 0 for a regular file;
+    zero-init needs no `write_fs_stat` change; coverage asserts `rdev() == 0`).
+    **`MetadataExt` is now 100% COMPLETE**: nlink/ino/dev/rdev/uid/gid + accessed/
+    modified/changed/created + blocks/blksize. fs coverage 39.
 11. [x] **Richer `Metadata`** via `stat` — DONE, complete NATIVE vertical (used
     `stat(path)`, not `fstat(fd)`, so it works on DIRECTORIES with no open/read
     perm). `HostOperation::Stat` (op `stat` → darwin `_stat`); operand arm
@@ -858,6 +859,24 @@ crate tests; interpreter fs coverage) and commits.
       (hits several of these bugs at once, so it is not a clean single-bug isolation).
       The RAW `FilesystemHost` seam stays fully native; the ergonomic wrapper remains
       interpreter/const-eval. The transition-forwarded slice-literal fix IS shipped.
+    - **CONFIRMED via instrumentation (later fire): the value-call arg NEVER reaches
+      the shared descriptor writer.** Isolated the pure case with an ENTRY-write
+      value-call repro (`putv` does `self.fs.write(fd, bytes)` in its entry — matching
+      `write_all`'s shape — called `self.putv(fd,"hello")`): still writes 0. Added a
+      temporary `eprintln` at the TOP of `emit_runtime_frame_slot_slice_descriptor_write_in_table`
+      (the shared seam) dumping every slice-descriptor-sized slot it sees: it printed
+      NOTHING for this repro. So the value-call argument materialization emits its
+      16-byte `bytes` copy WITHOUT ever calling the shared writer — the shared-writer
+      approach (which fixed the transition edge) cannot reach it. The `bytes` copy is
+      one of the ~10 raw `SelectedInstructionKind::CopyRuntimeStorage` emission sites
+      (grep them: `runtime_dispatch.rs:868` is the value-call RESULT copy, NOT the arg;
+      the arg is set up by the INLINE-BRANCHING arg path — `branches/{leaf,straight_line,
+      prelude}.rs` + `writes/mutation.rs`). THE FIX for a value call: at the inline-
+      branching arg-setup site, when the arg is a slice-typed `StringLiteral`, emit
+      `WriteRuntimeFrameString` into the param slot INSTEAD OF the place-copy-from-an-
+      unwritten-source. FIND IT by instrumenting each CopyRuntimeStorage emission with a
+      `byte_count`/tag dump and compiling the entry-write repro; the site emitting the
+      16-byte copy for `bytes` is the one. This is turnkey for a dedicated session.
 15. [ ] **x86_64 / linux / windows seams** — see the reference below. Tables only;
     macOS is the only TESTED target now. Note: linux value-return needs the
     value-returning result-store wired into the `svc` syscall path (today only the

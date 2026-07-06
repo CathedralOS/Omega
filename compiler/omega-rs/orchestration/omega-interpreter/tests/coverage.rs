@@ -1525,8 +1525,12 @@ machine Main::main(&mut self) {
         transition meta.blocks() == 8 { true -> checkblksize(meta) _ -> fail() }
     }
     state checkblksize(&mut self, meta: Metadata) {
+        transition meta.blksize() == 4096 { true -> checkrdev(meta) _ -> fail() }
+    }
+    state checkrdev(&mut self, meta: Metadata) {
+        // a regular file represents no device, so rdev is 0
         self.unit_result = self.fs.remove("/bk.txt");
-        transition meta.blksize() == 4096 { true -> ok() _ -> fail() }
+        transition meta.rdev() == 0 { true -> ok() _ -> fail() }
     }
     state ok(&mut self) { self.console.exit_process(70); }
     state fail(&mut self) { self.console.exit_process(71); }
