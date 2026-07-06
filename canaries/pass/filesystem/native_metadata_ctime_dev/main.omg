@@ -1,0 +1,60 @@
+// NATIVE MetadataExt::ctime/dev via stat (Rust os::unix::fs::MetadataExt). Two
+// files on the same filesystem: st_ctime (@64) reads a real recent change time
+// (> 1e9), and both files share a NONZERO st_dev (@0) — the device of /tmp.
+// Proves the ctime and dev fields decode from the real stat record on macOS.
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
+}
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    fd: i32;
+    rc: i32;
+    ctime: i64;
+    dev_a: i32;
+    dev_b: i32;
+    n: i64;
+    buffer: [u8; 144];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.fd = self.fs.create("/tmp/omega_cd_a.txt", self.mode);
+    self.n = self.fs.write(self.fd, "a");
+    self.n = self.fs.close(self.fd);
+    self.fd = self.fs.create("/tmp/omega_cd_b.txt", self.mode);
+    self.n = self.fs.close(self.fd);
+    self.rc = self.fs.read_metadata("/tmp/omega_cd_a.txt", &mut self.buffer);
+    self.ctime = (self.buffer[64] as i64)
+        | ((self.buffer[65] as i64) << 8)
+        | ((self.buffer[66] as i64) << 16)
+        | ((self.buffer[67] as i64) << 24)
+        | ((self.buffer[68] as i64) << 32)
+        | ((self.buffer[69] as i64) << 40)
+        | ((self.buffer[70] as i64) << 48)
+        | ((self.buffer[71] as i64) << 56);
+    self.dev_a = (self.buffer[0] as i32) | ((self.buffer[1] as i32) << 8) | ((self.buffer[2] as i32) << 16) | ((self.buffer[3] as i32) << 24);
+    self.rc = self.fs.read_metadata("/tmp/omega_cd_b.txt", &mut self.buffer);
+    self.dev_b = (self.buffer[0] as i32) | ((self.buffer[1] as i32) << 8) | ((self.buffer[2] as i32) << 16) | ((self.buffer[3] as i32) << 24);
+    self.n = self.fs.remove("/tmp/omega_cd_a.txt");
+    self.n = self.fs.remove("/tmp/omega_cd_b.txt");
+    transition self.ctime > 1000000000 { true -> checkdev() _ -> fail() }
+    state checkdev(&mut self) {
+        // two files on the same filesystem share a device id
+        transition self.dev_a == self.dev_b { true -> checkdevnz() _ -> fail() }
+    }
+    state checkdevnz(&mut self) {
+        transition self.dev_a == 0 { true -> fail() _ -> good() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: ctime recent; two files share a nonzero device\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: ctime/dev\n"); }
+}
