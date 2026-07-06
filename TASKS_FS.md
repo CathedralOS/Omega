@@ -144,7 +144,7 @@ crate tests; interpreter fs coverage) and commits.
    place; store enum through `&mut out`; const-folded-literal-arg fix. Then the
    ergonomic wrapper lowers natively too.
 5. Error model: errno → bespoke Omega error `data` cases (negative raw returns).
-6. Remaining raw ops. Done: **`set_len`** (Rust `File::set_len` via `_ftruncate`)
+6. Rust-parity surface. Done: `set_len`, and **`metadata().len`** (Rust `File::metadata`) — implemented in the wrapper by composing `seek` (save/measure/restore cursor), non-destructive, NO new native op; `Metadata`/`MetadataResult` in the std module; coverage `filesystem_std_module_metadata_len`. Remaining raw ops: `set_len` DONE (Rust `File::set_len` via `_ftruncate`)
    — a COMPLETE vertical (native canary `native_set_len` runs: write 20 →
    set_len 5 → seek-end == 5; interpreter `virtual_set_len` + coverage; wrapper
    `Filesystem::set_len`). Next: `fsync`/`sync` (fd → i32, trivial like close),
