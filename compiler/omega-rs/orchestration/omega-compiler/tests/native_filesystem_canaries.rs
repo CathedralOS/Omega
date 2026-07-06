@@ -100,6 +100,11 @@ fn native_fs_workflow_passes() { assert_pass("native_fs_workflow"); }
 fn native_value_call_literal_passes() { assert_pass("native_value_call_literal"); }
 #[test]
 fn native_value_call_path_passes() { assert_pass("native_value_call_path"); }
+// `let`-bound host call forwarded through a same-machine value-call (step 14
+// layers 2+3: LocalData collection + LocalStorage emission) — the ergonomic
+// wrapper's shape, for a SAME-data-type callee.
+#[test]
+fn native_value_call_local_passes() { assert_pass("native_value_call_local"); }
 
 // Copy / buffer marshalling
 #[test]
