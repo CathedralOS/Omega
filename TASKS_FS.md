@@ -6,6 +6,13 @@
 > blocked only on a user-only design decision). Keep this file current every
 > fire: update **Current state**, **Next steps**, and **Design decisions** so the
 > next fire (fresh context) can continue.
+>
+> **PUSH TO MAIN each fire (user-authorized).** After committing, publish to
+> `origin/main`: `git fetch origin`; if behind, `git rebase origin/main` then
+> rebuild + re-verify the fs canaries; then `git push origin HEAD:main`. Our fs
+> work and the other omega-rs work are on DISJOINT files (rebases have been
+> conflict-free), and the bootstrap-lattice agent is on a separate line. Keep
+> main green.
 
 ## North star
 
