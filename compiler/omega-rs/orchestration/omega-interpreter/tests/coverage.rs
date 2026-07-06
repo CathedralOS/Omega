@@ -618,3 +618,129 @@ machine Main::main(&mut self) {
         "encode+decode of a `&[u8]` field must consume 5 bytes (length + raw bytes)"
     );
 }
+
+// ---- std::fs -----------------------------------------------------------------
+
+/// A full `std::fs` CRUD round-trip over the interpreter's virtual filesystem:
+/// create -> write 21 bytes -> close -> reopen -> read -> remove. The read must
+/// report the 21 bytes that were written (`count == 21`), proving the bytes
+/// actually round-tripped, then exit 70. This is interpreter-only coverage
+/// ahead of native fs lowering (the backend gates host lowering after checked
+/// trees, exactly like the case-payload coverage above). Also pins that a
+/// `Filesystem::write` is dispatched as an fs write, NOT a `Console::write`.
+#[test]
+fn filesystem_crud_round_trip_reads_back_written_bytes() {
+    let main_path = write_program(
+        "filesystem-crud",
+        r#"
+domain [u8]::Path when no_nul(self) {
+}
+
+data File [copy, zero_init] {
+    fd: i32;
+}
+
+data OpenOutcome {
+    case Failed;
+    case Opened(file: File);
+}
+data ReadOutcome {
+    case Failed;
+    case Read(count: usize);
+}
+data WriteOutcome {
+    case Failed;
+    case Wrote(count: usize);
+}
+data RemoveOutcome {
+    case Failed;
+    case Removed;
+}
+
+boundary trait Filesystem {
+    machine create(path: &[u8] in Path, out: &mut OpenOutcome);
+    machine open_read(path: &[u8] in Path, out: &mut OpenOutcome);
+    machine read(file: File, buffer: &mut [u8], out: &mut ReadOutcome);
+    machine write(file: File, bytes: &[u8], out: &mut WriteOutcome);
+    machine close(file: File);
+    machine remove(path: &[u8] in Path, out: &mut RemoveOutcome);
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    fs: Filesystem;
+    open_out: OpenOutcome;
+    write_out: WriteOutcome;
+    read_out: ReadOutcome;
+    remove_out: RemoveOutcome;
+    buffer: [u8; 64];
+}
+
+machine Main::main(&mut self) {
+    self.fs.create("/omega_it.txt", &mut self.open_out);
+    transition self.open_out {
+        OpenOutcome::Opened { file } -> wrote(file)
+        _ -> fail()
+    }
+
+    state wrote(&mut self, file: File) {
+        self.fs.write(file, "omega filesystem crud", &mut self.write_out);
+        self.fs.close(file);
+        transition self.write_out {
+            WriteOutcome::Wrote { count } -> reopen()
+            _ -> fail()
+        }
+    }
+
+    state reopen(&mut self) {
+        self.fs.open_read("/omega_it.txt", &mut self.open_out);
+        transition self.open_out {
+            OpenOutcome::Opened { file } -> got(file)
+            _ -> fail()
+        }
+    }
+
+    state got(&mut self, file: File) {
+        self.fs.read(file, &mut self.buffer, &mut self.read_out);
+        self.fs.close(file);
+        transition self.read_out {
+            ReadOutcome::Read { count } -> verify(count)
+            _ -> fail()
+        }
+    }
+
+    state verify(&mut self, count: usize) {
+        transition count == 21 {
+            true -> cleanup()
+            _ -> fail()
+        }
+    }
+
+    state cleanup(&mut self) {
+        self.fs.remove("/omega_it.txt", &mut self.remove_out);
+        self.console.exit_process(70);
+    }
+
+    state fail(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("fs CRUD program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "interpreter should support the std::fs CRUD surface, got {:?}",
+        outcome.error
+    );
+    assert_eq!(
+        outcome.exit_code, 70,
+        "create->write(21)->close->open->read must read back exactly 21 bytes"
+    );
+}

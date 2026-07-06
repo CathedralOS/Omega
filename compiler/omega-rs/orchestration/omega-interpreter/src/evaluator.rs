@@ -174,6 +174,19 @@ fn trap<T>(message: impl Into<String>) -> EvalResult<T> {
     Err(Halt::Trap(message.into()))
 }
 
+/// Build a `std::fs` outcome value (`OpenOutcome::Opened { file }`,
+/// `WriteOutcome::Wrote { count }`, `RemoveOutcome::Failed`, ...): a tagged enum
+/// carrying named payload cells. The tag is what a `transition` arm matches on.
+fn fs_enum(variant: &str, payload: Vec<(&str, Value)>) -> Value {
+    Value::Enum {
+        variant_name: variant.to_owned(),
+        payload: payload
+            .into_iter()
+            .map(|(name, value)| (name.to_owned(), value.cell()))
+            .collect(),
+    }
+}
+
 /// A lexical scope: parameter / local bindings by name, plus the receiver (`self`) cell.
 /// `locals` is behind a `RefCell` so `let` bindings can be added while the frame is
 /// shared by `&` during statement execution.
@@ -195,6 +208,14 @@ struct Frame {
     guard_call_results: RefCell<Vec<(ExpressionHandle, Value)>>,
 }
 
+/// One open descriptor in the interpreter's virtual filesystem: which path it
+/// refers to, the read/write cursor, and whether it was opened writable.
+struct VirtualFd {
+    path: Vec<u8>,
+    cursor: usize,
+    writable: bool,
+}
+
 struct Evaluator<'program> {
     program: &'program TypedTrees,
     stdout: Vec<u8>,
@@ -211,6 +232,15 @@ struct Evaluator<'program> {
     /// is_window > 0), never on concrete handle values.
     virtual_live_windows: std::collections::HashSet<i64>,
     virtual_window_next: i64,
+    /// A deterministic in-memory filesystem for `std::fs` programs: no real
+    /// disk, so the differential oracle stays reproducible (mirrors the other
+    /// `virtual_*` subsystems). `virtual_files` maps a path's bytes to its
+    /// content bytes; `virtual_fds` maps an open descriptor to its cursor +
+    /// writability. Descriptors start at 3 — 0/1/2 are the standard streams and
+    /// are never minted as `File` handles.
+    virtual_files: BTreeMap<Vec<u8>, Vec<u8>>,
+    virtual_fds: BTreeMap<i32, VirtualFd>,
+    virtual_next_fd: i32,
     /// Set whenever a host-boundary call is driven (statement position or the
     /// value-call fallback). The build-time evaluation entry rejects runs that
     /// touched the host: a dynamic backstop behind decision 12's static gate.
@@ -238,6 +268,9 @@ impl<'program> Evaluator<'program> {
             virtual_ticks: 0,
             virtual_live_windows: std::collections::HashSet::new(),
             virtual_window_next: 0,
+            virtual_files: BTreeMap::new(),
+            virtual_fds: BTreeMap::new(),
+            virtual_next_fd: 3,
             host_boundary_touched: false,
             steps: 0,
             step_budget: STEP_BUDGET,
@@ -2089,6 +2122,18 @@ impl<'program> Evaluator<'program> {
         // effect surface does not fold host-authority audit facts in yet).
         self.host_boundary_touched = true;
         let target = call.target.as_str();
+
+        // Host dispatch is keyed on the boundary TRAIT, not the bare method
+        // name: a `Filesystem` call routes to the fs handler so `File::write`
+        // is not mistaken for `Console::write` (they share the leaf name).
+        let receiver_trait = self.receiver_boundary_type_name(call, frame);
+        if receiver_trait
+            .as_deref()
+            .is_some_and(|name| name.contains("Filesystem"))
+        {
+            return self.try_filesystem_call(target, call, frame);
+        }
+
         let arguments = self
             .program
             .statement_table
@@ -2176,6 +2221,239 @@ impl<'program> Evaluator<'program> {
             }
             other => unsupported(format!("host boundary call `{other}` not yet supported")),
         }
+    }
+
+    /// Drive one `std::fs` boundary call against the interpreter's virtual
+    /// filesystem (create/open_read/read/write/close/remove). Every op writes a
+    /// ZII outcome enum into its `&mut out` argument; `File` handles carry their
+    /// fd directly as the `Opened` payload. Deterministic and hermetic — no real
+    /// disk touches, so the differential oracle stays reproducible.
+    fn try_filesystem_call(
+        &mut self,
+        method: &str,
+        call: &TableCall,
+        frame: &Frame,
+    ) -> EvalResult<Option<Value>> {
+        let arguments = self
+            .program
+            .statement_table
+            .expression_handles(call.arguments)
+            .to_vec();
+
+        match method {
+            "create" => {
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let fd = self.virtual_open(path, true, true);
+                let outcome = fs_enum("Opened", vec![("file", Value::Int(fd as i64))]);
+                self.store_fs_out(arguments.get(1).copied(), frame, outcome);
+                Ok(Some(Value::Unit))
+            }
+            "open_read" => {
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let outcome = if self.virtual_files.contains_key(&path) {
+                    let fd = self.virtual_open(path, false, false);
+                    fs_enum("Opened", vec![("file", Value::Int(fd as i64))])
+                } else {
+                    fs_enum("Failed", vec![])
+                };
+                self.store_fs_out(arguments.get(1).copied(), frame, outcome);
+                Ok(Some(Value::Unit))
+            }
+            "write" => {
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let bytes = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                let outcome = match self.virtual_write(fd, &bytes) {
+                    Some(count) => fs_enum("Wrote", vec![("count", Value::Int(count as i64))]),
+                    None => fs_enum("Failed", vec![]),
+                };
+                self.store_fs_out(arguments.get(2).copied(), frame, outcome);
+                Ok(Some(Value::Unit))
+            }
+            "read" => {
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let outcome = match self.virtual_read(fd) {
+                    Some(bytes) => {
+                        let count = bytes.len();
+                        self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                        fs_enum("Read", vec![("count", Value::Int(count as i64))])
+                    }
+                    None => fs_enum("Failed", vec![]),
+                };
+                self.store_fs_out(arguments.get(2).copied(), frame, outcome);
+                Ok(Some(Value::Unit))
+            }
+            "close" => {
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                self.virtual_fds.remove(&fd);
+                Ok(Some(Value::Unit))
+            }
+            "remove" => {
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let outcome = if self.virtual_files.remove(&path).is_some() {
+                    fs_enum("Removed", vec![])
+                } else {
+                    fs_enum("Failed", vec![])
+                };
+                self.store_fs_out(arguments.get(1).copied(), frame, outcome);
+                Ok(Some(Value::Unit))
+            }
+            other => unsupported(format!("filesystem host call `{other}` not yet supported")),
+        }
+    }
+
+    /// Evaluate an argument expected to be byte data (a path or a write payload).
+    fn eval_fs_bytes(
+        &mut self,
+        argument: Option<ExpressionHandle>,
+        frame: &Frame,
+    ) -> EvalResult<Vec<u8>> {
+        let Some(argument) = argument else {
+            return Ok(Vec::new());
+        };
+        match self.eval_expression(argument, frame)? {
+            Value::Str(text) => Ok(text.borrow().clone()),
+            other => unsupported(format!("filesystem call expected byte data, got {other:?}")),
+        }
+    }
+
+    /// Evaluate a `File` handle argument to its raw descriptor. The interpreter
+    /// carries the fd directly (see the `Opened` construction), but a wrapping
+    /// single-field struct is accepted defensively.
+    fn eval_fs_fd(
+        &mut self,
+        argument: Option<ExpressionHandle>,
+        frame: &Frame,
+    ) -> EvalResult<i32> {
+        let Some(argument) = argument else {
+            return trap("filesystem call missing file handle");
+        };
+        let value = self.eval_expression(argument, frame)?;
+        let fd = match &value {
+            Value::Struct { fields, .. } => {
+                fields.get("fd").and_then(|cell| cell.borrow().as_int())
+            }
+            other => other.as_int(),
+        };
+        fd.map(|fd| fd as i32)
+            .ok_or_else(|| Halt::Trap("filesystem call file handle is not an fd".to_owned()))
+    }
+
+    /// Write an outcome enum into a `&mut out` argument place.
+    fn store_fs_out(&mut self, argument: Option<ExpressionHandle>, frame: &Frame, outcome: Value) {
+        if let Some(argument) = argument
+            && let Ok(cell) = self.resolve_place(argument, frame)
+        {
+            let cell = self.deref_cell(cell);
+            *cell.borrow_mut() = outcome;
+        }
+    }
+
+    /// Copy read bytes into a caller `&mut [u8]` buffer (a text carrier or a byte
+    /// array), truncated to the buffer's length. Best-effort: the outcome's
+    /// `count` is authoritative; an unrecognized buffer shape is left untouched.
+    fn write_fs_buffer(&mut self, argument: Option<ExpressionHandle>, frame: &Frame, bytes: &[u8]) {
+        let Some(argument) = argument else {
+            return;
+        };
+        let Ok(cell) = self.resolve_place(argument, frame) else {
+            return;
+        };
+        let cell = self.deref_cell(cell);
+        let shape = cell.borrow().clone();
+        match shape {
+            Value::Str(text) => {
+                *text.borrow_mut() = bytes.to_vec();
+            }
+            Value::Array(cells) => {
+                let count = bytes.len().min(cells.len());
+                for (slot, byte) in cells.iter().zip(bytes.iter()).take(count) {
+                    *slot.borrow_mut() = Value::Int(*byte as i64);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Mint a fresh descriptor over `path`; `create` truncates (or creates) the
+    /// file first.
+    fn virtual_open(&mut self, path: Vec<u8>, writable: bool, create: bool) -> i32 {
+        if create {
+            self.virtual_files.insert(path.clone(), Vec::new());
+        }
+        let fd = self.virtual_next_fd;
+        self.virtual_next_fd += 1;
+        self.virtual_fds.insert(
+            fd,
+            VirtualFd {
+                path,
+                cursor: 0,
+                writable,
+            },
+        );
+        fd
+    }
+
+    /// Write `bytes` at the descriptor's cursor (extending the file as needed),
+    /// advancing the cursor. `None` if the fd is unknown or not writable.
+    fn virtual_write(&mut self, fd: i32, bytes: &[u8]) -> Option<usize> {
+        let descriptor = self.virtual_fds.get(&fd)?;
+        if !descriptor.writable {
+            return None;
+        }
+        let path = descriptor.path.clone();
+        let cursor = descriptor.cursor;
+        let content = self.virtual_files.get_mut(&path)?;
+        let end = cursor + bytes.len();
+        if content.len() < end {
+            content.resize(end, 0);
+        }
+        content[cursor..end].copy_from_slice(bytes);
+        if let Some(descriptor) = self.virtual_fds.get_mut(&fd) {
+            descriptor.cursor = end;
+        }
+        Some(bytes.len())
+    }
+
+    /// Read the remaining bytes from the descriptor's cursor to end, advancing
+    /// the cursor. `None` if the fd is unknown.
+    fn virtual_read(&mut self, fd: i32) -> Option<Vec<u8>> {
+        let descriptor = self.virtual_fds.get(&fd)?;
+        let path = descriptor.path.clone();
+        let cursor = descriptor.cursor;
+        let content = self.virtual_files.get(&path)?;
+        let available = content.get(cursor..).unwrap_or(&[]).to_vec();
+        if let Some(descriptor) = self.virtual_fds.get_mut(&fd) {
+            descriptor.cursor = cursor + available.len();
+        }
+        Some(available)
+    }
+
+    /// The boundary-trait type name of a call's receiver field (e.g. `console`
+    /// -> `Console`, `fs` -> `Filesystem`), used to key host dispatch on the
+    /// trait rather than the bare method name. `None` when the receiver is not a
+    /// `self` field of a boundary-trait type.
+    fn receiver_boundary_type_name(&self, call: &TableCall, frame: &Frame) -> Option<String> {
+        let leaf = self
+            .program
+            .statement_table
+            .name_path_members(call.receiver)
+            .last()
+            .map(|name| name.as_str().to_owned())?;
+        let self_type = match &*frame.self_cell.borrow() {
+            Value::Struct { type_name, .. } => type_name.clone(),
+            _ => return None,
+        };
+        let machine = self.find_machine_by_name(&self_type)?;
+        let data_name = machine.attached_data.as_ref()?;
+        let data = self.find_data_by_name(data_name.as_str())?;
+        for member in self.program.data_members(data) {
+            if let DataMember::Field(field) = member
+                && field.name.as_str() == leaf
+            {
+                return Some(self.program.display_type_reference(field.type_reference));
+            }
+        }
+        None
     }
 
     /// Consume the next line from the remaining stdin (without the line terminator). CRLF
