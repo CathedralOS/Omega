@@ -31,7 +31,12 @@ const CALL_DEPTH_BUDGET: u32 = 512;
 /// The modeled `st_mtime` (seconds since the Unix epoch) the hermetic virtual
 /// filesystem reports for every entry — it has no real clock. A recognizable
 /// round value (2001-09-09T01:46:40Z). Native `stat` returns the real time.
+/// The accessed/created times are offset to DISTINCT modeled values so a test
+/// can confirm each `st_*time` field is decoded from its own stat offset:
+/// created (birthtime) <= modified <= accessed, as is realistic.
 const VIRTUAL_MTIME_SECS: i64 = 1_000_000_000;
+const VIRTUAL_ATIME_SECS: i64 = 1_000_000_100;
+const VIRTUAL_BIRTHTIME_SECS: i64 = 999_999_900;
 
 pub(crate) fn run(checked: &TypedTrees, stdin: &[u8]) -> InterpretOutcome {
     // Run on a worker thread with a generous stack: the tree-walker recurses with the
@@ -2630,7 +2635,9 @@ impl<'program> Evaluator<'program> {
             put(4, (mode & 0xff) as u8);
             put(5, (mode >> 8) as u8);
             for i in 0..8 {
+                put(32 + i, (VIRTUAL_ATIME_SECS >> (8 * i)) as u8); // st_atimespec.tv_sec
                 put(48 + i, (mtime_secs >> (8 * i)) as u8); // st_mtimespec.tv_sec
+                put(80 + i, (VIRTUAL_BIRTHTIME_SECS >> (8 * i)) as u8); // st_birthtimespec.tv_sec
                 put(96 + i, (size >> (8 * i)) as u8); // st_size
             }
         }
