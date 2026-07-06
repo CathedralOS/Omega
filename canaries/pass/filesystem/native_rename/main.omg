@@ -1,0 +1,55 @@
+// NATIVE fs `rename` (Rust) via `_rename` — two path pointers in one call
+// (resolved by literal creation order). Creates A, writes to it, renames A->B,
+// then opens B for reading (proving the rename moved it) and reads it back.
+// Prints PASS. NOT registered in ACTIVE_PASS_CANARIES yet.
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine open(path: &[u8] in Path, flags: i32) -> i32;
+    machine read(fd: i32, buffer: &mut [u8], count: usize) -> i64;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
+}
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    read_flags: i32;
+    cap: usize;
+    fd: i32;
+    n: i64;
+    rn: i64;
+    rc: i32;
+    buffer: [u8; 64];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.read_flags = 0;
+    self.cap = 64;
+    self.fd = self.fs.create("/tmp/omega_ren_a.txt", self.mode);
+    transition self.fd >= 0 { true -> wrote() _ -> fail() }
+    state wrote(&mut self) {
+        self.n = self.fs.write(self.fd, "renamed content\n");
+        self.n = self.fs.close(self.fd);
+        self.rc = self.fs.rename("/tmp/omega_ren_a.txt", "/tmp/omega_ren_b.txt");
+        transition self.rc == 0 { true -> renamed() _ -> fail() }
+    }
+    state renamed(&mut self) {
+        self.fd = self.fs.open("/tmp/omega_ren_b.txt", self.read_flags);
+        transition self.fd >= 0 { true -> rd() _ -> fail() }
+    }
+    state rd(&mut self) {
+        self.rn = self.fs.read(self.fd, &mut self.buffer, self.cap);
+        self.n = self.fs.close(self.fd);
+        self.rc = self.fs.remove("/tmp/omega_ren_b.txt");
+        transition self.rn == 16 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: rename A->B, B holds the 16-byte content\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: rename\n"); }
+}

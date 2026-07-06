@@ -59,8 +59,12 @@ crate tests; interpreter fs coverage) and commits.
 - **`create_dir`/`remove_dir` (Rust) landed natively** via `_mkdir`/`_rmdir`
   (HostOperation::MakeDir/RemoveDir; reuse the create/remove operand shapes).
   `canaries/pass/filesystem/native_dirs` RUNS: mkdir + nested file + rmdir → PASS.
+- **`rename` (Rust) landed natively** via `_rename` (HostOperation::Rename) —
+  needed a `find_nth_data_object` helper (two path literals in one call, resolved
+  by creation/offset order = arg order). `canaries/pass/filesystem/native_rename`
+  RUNS: create A + write + rename A→B + read B back (16 bytes) → PASS.
 - Native raw ops now: create/open/read/write/close/remove/seek/create_dir/
-  remove_dir — all run-verified on macOS.
+  remove_dir/rename — all run-verified on macOS.
 - aarch64 value-returning host calls implemented (the foundational primitive).
 - Runtime slice/path host-call args implemented.
 - Ergonomic wrapper runs in the INTERPRETER; lowering it natively is a separate
@@ -71,16 +75,15 @@ crate tests; interpreter fs coverage) and commits.
 1. [x] **Rename raw ops to human words** — DONE (create/open/read/write/close/
    remove; `find_lowering_prefer_exact` compiler feature; canaries updated + run).
 2. **Raw-seam Rust-parity breadth (native, run-verified)** — the steady track
-   (D5). Done: `seek`, `create_dir`, `remove_dir`. Next candidates:
-   - `rename(from, to)` → `_rename` — TWO path pointers in one call; needs
-     two-literal marshalling (find_data_object finds only one; resolve by arg
-     index / two data objects). Small marshalling extension.
-   - append mode: `open` already takes `flags`; a wrapper passes `O_APPEND`
-     (0x8 on darwin) — no new raw op, just a canary + wrapper constant.
+   (D5). Done: `seek`, `create_dir`, `remove_dir`, `rename`. Next candidates:
+   - append mode: `open` already takes `flags`; O_APPEND=0x8 on darwin (needs
+     O_WRONLY|O_APPEND=0x9). No new raw op — a canary that opens an existing file
+     with 0x9 and appends, verifying the file grows. Quick, safe.
    - `metadata`/`stat`: `_fstat(fd, &stat_buf)` writes a `struct stat`; read
      `st_size` (darwin arm64 offset **96**, `off_t`/i64). Needs a stat-buffer
-     out-param + a struct-field read. Heavier — do after rename.
-   Check Rust `library/std/src/fs.rs` + `sys/pal/unix/fs.rs`.
+     out-param + a struct-field read. Heavier.
+   - `File::sync`/`fsync`, `set_len`/`ftruncate`, `read_dir` (opendir/readdir —
+     complex, defer). Check Rust `library/std/src/fs.rs` + `sys/pal/unix/fs.rs`.
 3. **[deep, parallel] Forwarded-param → storage-place resolution** so wrapper
    machines that pass a `&[u8]` param to the boundary lower natively; then store
    enum result through a wrapper `&mut out`; const-folded-literal-arg fix. Unlocks

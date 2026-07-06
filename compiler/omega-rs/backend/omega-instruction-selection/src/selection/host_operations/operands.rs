@@ -294,6 +294,23 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Filesystem, HostOperation::Rename) => {
+            // Value-returning `rc = rename(from, to) -> _rename(from, to)`.
+            // operand[0]=result, [1]=from POINTER, [2]=to POINTER. Two path
+            // LITERALS in one statement, resolved by creation order.
+            // (Runtime-path rename is a future extension.)
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let from = find_nth_data_object(input, host_call, 0);
+            let to = find_nth_data_object(input, host_call, 1);
+            match result {
+                Some(result) if from.is_valid() && to.is_valid() => operands.insert_many([
+                    operand(result),
+                    operand(InstructionOperandKind::DataAddress { data: from }),
+                    operand(InstructionOperandKind::DataAddress { data: to }),
+                ]),
+                _ => HandleSpan::empty(),
+            }
+        }
         _ => HandleSpan::empty(),
     }
 }
@@ -536,6 +553,33 @@ fn find_data_object(
                 && data_object.source_statement == host_call.statement_index
         })
         .map(|(handle, _)| handle)
+        .unwrap_or_else(AbstractDataObjectHandle::invalid)
+}
+
+/// The `n`-th static data object (string literal) of a host-call statement, in
+/// creation/offset order — for calls with MORE THAN ONE literal argument (e.g.
+/// `rename(from, to)`), where `find_data_object` (which returns the first match)
+/// is ambiguous. Literals are emitted in argument order, so index 0 is the
+/// first path literal, 1 the second.
+fn find_nth_data_object(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    n: usize,
+) -> AbstractDataObjectHandle {
+    let mut matches: Vec<(AbstractDataObjectHandle, usize)> = input
+        .data
+        .objects
+        .iter()
+        .filter(|(_, data_object)| {
+            data_object.source_key == host_call.source_key
+                && data_object.source_statement == host_call.statement_index
+        })
+        .map(|(handle, data_object)| (handle, data_object.offset))
+        .collect();
+    matches.sort_by_key(|(_, offset)| *offset);
+    matches
+        .get(n)
+        .map(|(handle, _)| *handle)
         .unwrap_or_else(AbstractDataObjectHandle::invalid)
 }
 
