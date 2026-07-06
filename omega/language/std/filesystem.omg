@@ -293,6 +293,16 @@ boundary trait FilesystemHost {
     // LOCK_UN=8 (release). Returns 0, or -1 (errno EWOULDBLOCK when a
     // non-blocking acquire is contended).
     machine lock_file(fd: i32, operation: i32) -> i32;
+    // Change a file's owner/group by path, following symlinks (Rust
+    // `os::unix::fs::chown` -> `chown`). A uid or gid of -1 leaves that component
+    // unchanged. Returns 0, or -1 (errno EPERM when not permitted).
+    machine change_owner(path: &[u8] in Path, uid: i32, gid: i32) -> i32;
+    // Like `change_owner` but does NOT follow a final symlink (Rust
+    // `os::unix::fs::lchown` -> `lchown`).
+    machine change_owner_no_follow(path: &[u8] in Path, uid: i32, gid: i32) -> i32;
+    // Change owner/group by open descriptor (Rust `os::unix::fs::fchown` ->
+    // `fchown`). Same -1 = unchanged convention.
+    machine change_file_owner(fd: i32, uid: i32, gid: i32) -> i32;
     // Read the thread-local errno (darwin `___error()` -> `&errno`, dereferenced
     // in the lowering). Call it immediately after a raw op returned negative.
     machine errno() -> i32;
@@ -702,7 +712,11 @@ machine Filesystem::last_error(&mut self) -> ErrorKind {
     let code: i32 = self.host.errno();
     transition code == 2 { true -> not_found() _ -> check_acces(code) }
     state check_acces(&mut self, code: i32) -> ErrorKind {
-        transition code == 13 { true -> denied() _ -> check_exist(code) }
+        transition code == 13 { true -> denied() _ -> check_eperm(code) }
+    }
+    state check_eperm(&mut self, code: i32) -> ErrorKind {
+        // EPERM (1) and EACCES (13) both surface as Rust `PermissionDenied`.
+        transition code == 1 { true -> denied() _ -> check_exist(code) }
     }
     state check_exist(&mut self, code: i32) -> ErrorKind {
         transition code == 17 { true -> exists() _ -> check_badf(code) }
@@ -931,6 +945,35 @@ machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
 // Release any lock held on this file (Rust `File::unlock`).
 machine Filesystem::unlock(&mut self, file: File) -> UnitResult {
     let rc: i32 = self.host.lock_file(file.fd, 8); // LOCK_UN
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Ownership (Rust `std::os::unix::fs::{chown, lchown, fchown}`). uid/gid of -1
+// leaves that component unchanged. Changing ownership generally requires
+// privilege (a normal user gets `PermissionDenied`); a no-op change to the
+// current owner succeeds.
+
+// Change a path's owner/group, following symlinks (Rust `chown`).
+machine Filesystem::set_owner(&mut self, path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult {
+    let rc: i32 = self.host.change_owner(path, uid, gid);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Change a path's owner/group WITHOUT following a final symlink (Rust `lchown`).
+machine Filesystem::set_owner_no_follow(&mut self, path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult {
+    let rc: i32 = self.host.change_owner_no_follow(path, uid, gid);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Change an open file's owner/group by descriptor (Rust `fchown`).
+machine Filesystem::set_file_owner(&mut self, file: File, uid: i32, gid: i32) -> UnitResult {
+    let rc: i32 = self.host.change_file_owner(file.fd, uid, gid);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }

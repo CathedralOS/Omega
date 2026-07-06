@@ -192,9 +192,15 @@ crate tests; interpreter fs coverage) and commits.
   LOCK_EX → EWOULDBLOCK → release → reacquire); wrapper `lock`/`try_lock`(→
   `TryLockResult`)/`unlock` in coverage `filesystem_std_module_locking`. Reused the
   `SetLen` fd+scalar operand arm (zero new backend). fs coverage 40.
+- **File ownership RUNS natively** (10p) — Rust `os::unix::fs::chown`/`fchown`/
+  `lchown`. `native_chown` canary PASS (no-op chown/fchown succeed, change to root
+  → EPERM(1)); wrappers `set_owner`/`set_owner_no_follow`/`set_file_owner` in
+  coverage `filesystem_std_module_ownership`. New path+2-scalar operand arm
+  (chown/lchown); fchown reuses the Seek arm. fs coverage 41.
 - Native raw ops now: create/open/read/write/pread/pwrite/close/remove/seek/
-  create_dir/remove_dir/rename/chmod/fchmod/link/symlink/readlink/stat/lstat/fstat/
-  realpath/dup/ftruncate/futimens/fsync/flock — all run-verified on macOS.
+  create_dir/remove_dir/rename/chmod/fchmod/chown/lchown/fchown/link/symlink/
+  readlink/stat/lstat/fstat/realpath/dup/ftruncate/futimens/fsync/flock — all
+  run-verified on macOS.
 - **`File::set_times` landed natively** (Rust `File::set_times`) via `_futimens`,
   reusing the `fstat` fd+buffer operand shape. `native_set_times` canary RUNS: set
   mtime, fstat confirms. Introduced the `x as u8 in Wrapping` byte-decompose idiom
@@ -654,6 +660,29 @@ crate tests; interpreter fs coverage) and commits.
     `try_lock`==WouldBlock/`unlock`/`try_lock`==Acquired). fs coverage 40. NOTE: an
     `as i64` cast on a host-call result still doesn't lower natively — assign the
     raw i32 into an i32 field (the recurring canary gotcha).
+10p. [x] **File ownership — `chown`/`fchown`/`lchown`** (Rust
+    `os::unix::fs::{chown, fchown, lchown}`) — DONE, complete NATIVE vertical.
+    Three `HostOperation`s: `Chown`/`LChown` (ops `chown`/`lchown` → `_chown`/
+    `_lchown`) share a NEW `[result, path ptr, uid, gid]` operand arm (path
+    pointer + two scalars); `Fchown` (op `fchown` → `_fchown`) rides the EXISTING
+    `Seek` arm (`[result, fd, uid, gid]` — fd + two scalars), so only ONE small
+    new arm. Raw seam `change_owner`/`change_owner_no_follow`/`change_file_owner`
+    (fd or path + `uid: i32`, `gid: i32`; **-1 = leave that component
+    unchanged**, the C `uid_t`/`gid_t` (-1) convention). Wrappers
+    `Filesystem::set_owner`/`set_owner_no_follow`/`set_file_owner` → `UnitResult`.
+    Added EPERM (1) → `ErrorKind::PermissionDenied` to the `last_error` cascade
+    (EPERM and EACCES both surface as Rust `PermissionDenied`). **Non-root
+    semantics** (the testable reality without root): a NO-OP change (uid/gid -1,
+    or the current owner) succeeds; a real change to another owner is EPERM. The
+    interpreter enforces the same rule via `virtual_chown_result` (current owner =
+    VIRTUAL_UID 501 / VIRTUAL_GID 20; else EPERM), keeping the differential
+    consistent. DIFFERENTIAL: native `native_chown` canary RUNS on real macOS
+    (path no-op chown → 0, fd no-op fchown → 0, fchown to root → EPERM(1) → PASS)
+    AND coverage `filesystem_std_module_ownership` (missing path → NotFound,
+    no-op → Ok, change-to-root → PermissionDenied). fs coverage 41. (`lchown`
+    differs from `chown` only on symlinks, which the hermetic FS never follows on
+    ownership ops, so both behave identically in the interpreter; native `lchown`
+    is wired + lowered but the canary exercises chown/fchown.)
 12. [x] **`copy(from, to)`** (Rust `fs::copy`) — DONE (interpreter). Enabled by a
     small interpreter fix: `eval_fs_bytes` now accepts a `Value::Array` (a byte
     array or a subslice view) as a host-call byte arg — the write-side mirror of

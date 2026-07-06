@@ -1,0 +1,64 @@
+// NATIVE file ownership via chown/fchown (Rust os::unix::fs::chown/fchown) on
+// real macOS syscalls, through the RAW seam. Changing ownership needs privilege,
+// so as a normal (non-root) user only a NO-OP is allowed: uid/gid of -1 leaves a
+// component unchanged and succeeds, while an actual change (to root, uid 0) is
+// denied with EPERM. The scenario:
+//   1. change_owner(path, -1, -1)      -> 0   (path no-op, follows symlinks)
+//   2. change_file_owner(fd, -1, -1)   -> 0   (fd no-op)
+//   3. change_file_owner(fd, 0, 0)     -> -1, errno EPERM (1)  (change to root)
+// Prints PASS iff all three match. Proves chown/fchown lower + execute with real
+// kernel permission semantics.
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine open(path: &[u8] in Path, flags: i32) -> i32;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    machine change_owner(path: &[u8] in Path, uid: i32, gid: i32) -> i32;
+    machine change_file_owner(fd: i32, uid: i32, gid: i32) -> i32;
+    machine errno() -> i32;
+}
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    rdonly: i32;
+    fd: i32;
+    rc: i32;
+    code: i32;
+    discard: i32;
+    n: i64;
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.rdonly = 0;
+    self.fd = self.fs.create("/tmp/omega_chown.txt", self.mode);
+    self.discard = self.fs.close(self.fd);
+    // 1: path-based no-op chown (uid/gid -1 = unchanged) -> succeeds
+    self.rc = self.fs.change_owner("/tmp/omega_chown.txt", -1, -1);
+    transition self.rc == 0 { true -> fchownnoop() _ -> fail() }
+    state fchownnoop(&mut self) {
+        // 2: fd-based no-op fchown -> succeeds
+        self.fd = self.fs.open("/tmp/omega_chown.txt", self.rdonly);
+        self.rc = self.fs.change_file_owner(self.fd, -1, -1);
+        transition self.rc == 0 { true -> denyroot() _ -> fail() }
+    }
+    state denyroot(&mut self) {
+        // 3: real change to root -> EPERM as a non-root user
+        self.rc = self.fs.change_file_owner(self.fd, 0, 0);
+        transition self.rc < 0 { true -> checkerrno() _ -> fail() }
+    }
+    state checkerrno(&mut self) {
+        self.code = self.fs.errno();
+        self.discard = self.fs.close(self.fd);
+        self.discard = self.fs.remove("/tmp/omega_chown.txt");
+        transition self.code == 1 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: chown/fchown no-op ok; change to root -> EPERM (1)\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: native chown\n"); }
+}
