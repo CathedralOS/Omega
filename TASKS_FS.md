@@ -216,6 +216,21 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **▶ NEXT FRONTIER — general encoder large-offset load (blocks STAT-based wrappers).**
+  With step 14 complete, the ergonomic wrapper's byte-I/O methods (write_all/read_all/
+  remove) are native. The STAT-based methods (`exists`/`try_exists`/`metadata_path`/
+  `read_dir`) fail to compile on a SEPARATE, GENERAL encoder gap (not step 14, not
+  fs-specific): `&mut self.stat_buf` lands at byte offset 1396 in the large `Filesystem`
+  wrapper, and `encode_load_x_from_x` (`omega-isa-aarch64/.../primitives/memory.rs:142`)
+  only encodes an 8-ALIGNED scaled-LDR offset (≤ 32760) or a non-aligned LDUR (≤ 255) —
+  1396 is non-aligned AND > 255 → "AArch64 MVP encoder cannot load u64 from x0 at offset
+  `1396` yet". FIX (general): emit add-then-load (`add xN, base, #off; ldr xd, [xN]`) for
+  out-of-range offsets — but the return type is `[u8; 4]` (one insn), so this needs a
+  variable-length return + a width-lockstep check at the ~10 callers (relocation/layout
+  widths must agree). Repro: `canaries/run/filesystem/wrapper_exists_large_field_offset`.
+  Judgement: general compiler work with lockstep complexity — a focused next fire. (The
+  fs SURFACE is complete; this is a codegen limitation shared by any large struct.)
+
 - **🎉 STEP 14 COMPLETE — the SHIPPED ergonomic `Filesystem` wrapper runs NATIVELY
   (2026-07-08).** `Filesystem::write_all`/`read_all`/`remove` — the Rust-parity API,
   reached via a value-call to the `Filesystem` sub-machine (`fs: Filesystem`, a DIFFERENT
