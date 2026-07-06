@@ -2945,6 +2945,24 @@ impl<'program> Evaluator<'program> {
         target: &str,
         frame: &Frame,
     ) -> EvalResult<(Machine, String, Cell)> {
+        // Whether this call is on `self` (or receiverless). A NON-self receiver
+        // (`self.host.create(..)`) must resolve on the RECEIVER's type, never on
+        // a same-named sibling state of the current machine -- else a wrapper
+        // machine `Filesystem::create` calling `self.host.create` would recurse
+        // into itself. Mirrors the validator's receiver-typed resolution fix.
+        let receiver_is_self = if !call.receiver.is_valid() {
+            true
+        } else {
+            match self.program.expression_table.expression(call.receiver) {
+                omega_typed_trees::expression::ExpressionNode::Name(path) => {
+                    let members = self.program.expression_table.name_path_members(path.members);
+                    members.is_empty()
+                        || (members.len() == 1 && members[0].as_str() == "self")
+                }
+                _ => false,
+            }
+        };
+
         // (1) Receiver expression resolving to a contained sub-machine / data instance
         // (e.g. `s.code()` where `s: &mut Circle`): run on that instance's machine.
         if call.receiver.is_valid() {
@@ -2959,20 +2977,25 @@ impl<'program> Evaluator<'program> {
             }
         }
 
-        // (2) Sibling state of the current machine.
-        if let Some(machine) = self.current_machine(frame) {
-            if self.find_state(machine, target).is_some() {
-                return Ok((
-                    machine.clone(),
-                    target.to_owned(),
-                    Rc::clone(&frame.self_cell),
-                ));
+        // (2) Sibling state of the current machine -- ONLY for self/receiverless
+        // calls (a non-self receiver was handled by (1) or falls to the host
+        // fallback below).
+        if receiver_is_self {
+            if let Some(machine) = self.current_machine(frame) {
+                if self.find_state(machine, target).is_some() {
+                    return Ok((
+                        machine.clone(),
+                        target.to_owned(),
+                        Rc::clone(&frame.self_cell),
+                    ));
+                }
             }
         }
 
-        // (3) A free helper machine.
+        // (3) A free helper machine (self/receiverless calls only).
         let machine = self
             .find_machine_for_call(target, frame)
+            .filter(|_| receiver_is_self)
             .ok_or_else(|| Halt::Unsupported(format!("unknown value-call target `{target}`")))?;
         let entry_state = self
             .machine_entry_state_name(&machine)

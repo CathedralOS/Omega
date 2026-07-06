@@ -50,13 +50,25 @@ crate tests; interpreter fs coverage) and commits.
   value-returning raw ops that DO lower natively (seek/stat/mkdir/…) and exercise
   them with run-verified canaries. The ergonomic wrapper already runs in the
   interpreter; native wrapper lowering is a separate track.
-- **D7. Ergonomic wrapper blocked by a method-resolution collision (found
-  2026-07-06).** A wrapper machine `Filesystem::create` that forwards to
-  `self.host.create` (the raw `FilesystemHost` op) mis-resolves the boundary call
-  to its own sibling STATE `create`. Right fix = the checker resolves a
-  receiver-qualified call `self.field.method(..)` by the field's TYPE before a
-  same-named sibling state; that's a general language fix (implement per the
-  loop mandate). Interim workaround = distinct raw names. See next-steps 3b.
+- **D7. FIXED (2026-07-06): receiver-typed value-call resolution.** A
+  value-position `self.<field>.<method>(..)` where the receiver is a MEMBER
+  expression (not a `self` name-path) was mis-classified as a self-call and
+  resolved to a same-named sibling STATE (so a wrapper `Filesystem::create`
+  calling `self.host.create` recursed / arg-count-mismatched). Fixed in BOTH
+  engines: (1) `omega-validation/src/calls.rs::validate_expression_call_bounds`
+  now extracts the receiver name from a `Member` receiver and only takes the
+  self-call branch for a genuine self/receiverless call; (2) the interpreter's
+  `resolve_value_call_target` guards its sibling-state / free-machine fallbacks
+  to self-receiver calls, so a non-self receiver falls to the host/instance
+  resolution. General language fix, not fs-specific. Added ZERO canary failures
+  (154 pre-existing == 154 after; those are unrelated backend width mismatches
+  on origin/main from the recent runtime-indexed-read work).
+- **⚠ Pre-existing: 154 canary_suite failures on origin/main** (backend
+  instruction-width mismatches, e.g. `CopyRuntimeMachineIndexedToRuntimeStorage`
+  — from the other omega-rs workstream's runtime-indexed-read commits, NOT fs,
+  disjoint files). Our mandated gates (Console lowering; instruction-selection/
+  relocations/calling-conventions crate tests; interpreter fs coverage) stay
+  green. Not ours to fix; flagged for the user.
 - **D6. Raw-seam file-op breadth is now essentially COMPLETE** (create/open/read/
   write/close/remove/seek/create_dir/remove_dir/rename + append via flags). The
   highest-value remaining work is the **ergonomic wrapper** (the "serious,
@@ -115,23 +127,13 @@ crate tests; interpreter fs coverage) and commits.
       value-call path (assignment-position `self.fd = self.fs.create(..)` — added
       fs routing to `eval_call_expression`'s host fallback). 4 new value-returning
       coverage tests (crud/append/seek+missing/dirs+rename) + 13 others green.
-   b. **[IN PROGRESS] Ergonomic `Filesystem` wrapper** (Omega machines returning
-      `File`/`Path`/result enums, hidden flags/mode) in the interpreter over the
-      raw seam. Language guide (ch3/ch4): machines RETURN values; terminal states
-      yield them (`state s { value }` / `_ -> (value)`); states can be `-> Type`.
-      Value-returning machines on a data field check + run (probed OK).
-      **BLOCKER FOUND (D7):** a wrapper machine named the SAME as the raw op it
-      forwards to — `Filesystem::create` calling `self.host.create` — MIS-RESOLVES
-      the boundary call to its own sibling state `create` ("state create expects
-      1 argument(s), got 2", i.e. it matched the 1-param state instead of the
-      2-param `FilesystemHost::create`). Confirmed: renaming the raw method to a
-      distinct name checks clean. Two paths (D7):
-        - workaround: raw `FilesystemHost` methods use distinct names from the
-          wrapper (ugly — both want the human word);
-        - **proper fix**: the checker should resolve `self.<field>.<method>` by
-          the FIELD's type BEFORE falling back to a same-named sibling state.
-      NEXT FIRE: implement the checker fix (resolve receiver-qualified calls by
-      receiver type first) — a general language improvement, not fs-specific.
+   b. [x] **Ergonomic `Filesystem` wrapper RUNS** (Rust-like, interpreter). DONE.
+      Value-returning machines (`create(path) -> OpenResult`, etc.) hide flags/
+      mode/fd behind `File`/result enums (`OpenResult`/`IoResult`/`UnitResult` —
+      Rust `io::Result` → Omega `data` cases); Main touches only the clean API;
+      SAME human names on both layers. Fixed the D7 blocker (below).
+      `coverage.rs::filesystem_ergonomic_wrapper_crud` runs the full round-trip
+      (create/write/close/open/read(19)/remove → exit 70). 18/18 coverage green.
 4. **[deep, parallel] Native wrapper lowering** — forwarded-param → storage
    place; store enum through `&mut out`; const-folded-literal-arg fix. Then the
    ergonomic wrapper lowers natively too.

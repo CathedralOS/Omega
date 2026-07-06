@@ -859,3 +859,109 @@ machine Main::main(&mut self) {
     );
 }
 
+
+/// The ERGONOMIC `Filesystem` wrapper (Rust-like): value-RETURNING machines
+/// (`create(path) -> OpenResult`) hide flags/mode/fd behind `File`/result enums
+/// over the raw `FilesystemHost` seam. `Main` touches only the clean API. Uses
+/// the SAME human method names on both layers (create/open/read/write/close/
+/// remove) — the receiver-typed call-resolution fix (D7) makes that work. Full
+/// CRUD round-trip, exit 70.
+#[test]
+fn filesystem_ergonomic_wrapper_crud() {
+    interpret_fs(
+        "fs-ergonomic",
+        r#"
+data File [copy, zero_init] { fd: i32; }
+data OpenResult { case Error; case Ok(file: File); }
+data IoResult { case Error; case Ok(count: usize); }
+data UnitResult { case Error; case Ok; }
+
+data Filesystem {
+    host: FilesystemHost;
+    create_mode: i32;
+    read_flags: i32;
+}
+machine Filesystem::create(&mut self, path: &[u8] in Path) -> OpenResult {
+    self.create_mode = 420;
+    let fd: i32 = self.host.create(path, self.create_mode);
+    transition fd >= 0 { true -> ok(fd) _ -> err() }
+    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(&mut self) -> OpenResult { OpenResult::Error }
+}
+machine Filesystem::open(&mut self, path: &[u8] in Path) -> OpenResult {
+    self.read_flags = 0;
+    let fd: i32 = self.host.open(path, self.read_flags);
+    transition fd >= 0 { true -> ok(fd) _ -> err() }
+    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(&mut self) -> OpenResult { OpenResult::Error }
+}
+machine Filesystem::write(&mut self, file: File, bytes: &[u8]) -> IoResult {
+    let n: i64 = self.host.write(file.fd, bytes);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state err(&mut self) -> IoResult { IoResult::Error }
+}
+machine Filesystem::read(&mut self, file: File, buffer: &mut [u8], count: usize) -> IoResult {
+    let n: i64 = self.host.read(file.fd, buffer, count);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state err(&mut self) -> IoResult { IoResult::Error }
+}
+machine Filesystem::close(&mut self, file: File) -> i32 {
+    self.host.close(file.fd)
+}
+machine Filesystem::remove(&mut self, path: &[u8] in Path) -> UnitResult {
+    let rc: i32 = self.host.remove(path);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { UnitResult::Error }
+}
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    open_result: OpenResult;
+    io_result: IoResult;
+    unit_result: UnitResult;
+    close_rc: i32;
+    cap: usize;
+    buffer: [u8; 64];
+}
+machine Main::main(&mut self) {
+    self.cap = 64;
+    self.open_result = self.fs.create("/erg.txt");
+    transition self.open_result {
+        OpenResult::Ok { file } -> wrote(file)
+        _ -> fail()
+    }
+    state wrote(&mut self, file: File) {
+        self.io_result = self.fs.write(file, "ergonomic omega fs\n");
+        self.close_rc = self.fs.close(file);
+        self.open_result = self.fs.open("/erg.txt");
+        transition self.open_result {
+            OpenResult::Ok { file } -> rd(file)
+            _ -> fail()
+        }
+    }
+    state rd(&mut self, file: File) {
+        self.io_result = self.fs.read(file, &mut self.buffer, self.cap);
+        self.close_rc = self.fs.close(file);
+        transition self.io_result {
+            IoResult::Ok { count } -> verify(count)
+            _ -> fail()
+        }
+    }
+    state verify(&mut self, count: usize) {
+        transition count == 19 { true -> cleanup() _ -> fail() }
+    }
+    state cleanup(&mut self) {
+        self.unit_result = self.fs.remove("/erg.txt");
+        self.console.exit_process(70);
+    }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+        70,
+        "ergonomic value-returning File API: create/write/close/open/read(19)/remove",
+    );
+}
