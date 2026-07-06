@@ -442,7 +442,7 @@ pub(crate) fn validate_binary_operand_types(
     crate::arithmetic_domains::report_out_of_range_comparison_literal(
         program, machine, state, operator, left, right, diagnostics,
     );
-    crate::arithmetic_domains::report_mismatched_width_comparison(
+    crate::arithmetic_domains::report_mismatched_width_operands(
         program, machine, state, operator, left, right, diagnostics,
     );
 }

@@ -218,17 +218,20 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   dispatcher (so it runs at every comparison site incl. guard subjects). In-range comparisons and the
   `as`-widen workaround (`(self.b as i32) == 300`) stay valid; two-place / float / bool / text pairings
   skipped. Canary out_of_range_comparison_literal_rejected.
-- **[RESOLVED 2026-07-05] Comparison between DIFFERENT-WIDTH integer places (`self.i8 == self.i32`).**
-  The place-vs-place sibling of the above: comparing two integer places of different primitive types
-  compiled at the NARROWER operand's width, silently truncating the wider one -- `i8(44) == i32(300)`
-  read TRUE because `300 & 0xFF == 44` (confirmed native, exit 1 when it should be false). New
-  `report_mismatched_width_comparison` (arithmetic_domains.rs): both operands must resolve to INTEGER
-  primitives (`primitive_range` Some) that DIFFER -> reject with "convert one with an `as` cast". Wired
-  into `validate_binary_operand_types`. ZERO blast radius (599 canaries + samples -- nothing compared
-  different-width places; it was a pure latent trap). Same-type comparisons, the `as`-widen workaround,
-  and literal / float / bool / text operands are all skipped (bool-vs-int stays the deferred DESIGN Q).
-  Canary mismatched_width_comparison_rejected. (Promotion-to-wider like C is a possible future ergonomic
-  enhancement; interim-reject closes the miscompile without precluding it.)
+- **[RESOLVED 2026-07-05] DIFFERENT-WIDTH integer operands in COMPARISON and BITWISE ops.**
+  The place-vs-place sibling of the OOR-literal check: an op between two integer places of different
+  primitive types compiled at the NARROWER operand's width, silently truncating the wider one.
+  COMPARISON `i8(44) == i32(300)` read TRUE (`300 & 0xFF == 44`); BITWISE `u32(256) | u8(1)` read `1`
+  not `257` (`256 & 0xFF == 0`, then `0 | 1`). Both confirmed native. `report_mismatched_width_operands`
+  (arithmetic_domains.rs, wired in `validate_binary_operand_types`): both operands resolve to INTEGER
+  primitives (`primitive_range` Some) that DIFFER -> reject, "convert one with an `as` cast". Covers
+  `==`/`!=`/`<`/`<=`/`>`/`>=` + `&`/`|`/`^`. NOT arithmetic (`+ - * / %` -- the decision-17 overflow
+  obligation already catches mismatch, treating the result as the narrower type; not silent) nor SHIFT
+  (`<<`/`>>` right operand is a bit COUNT, not width-matched -- `u32 << u8` verified correct). ZERO blast
+  radius (599 canaries + samples -- nothing combined different-width places; pure latent trap). Same-type,
+  `as`-widen workaround, and literal / float / bool / text operands skipped (bool-vs-int stays deferred
+  DESIGN Q). Canaries mismatched_width_{comparison,bitwise}_rejected. (Promotion-to-wider like C is a
+  possible future ergonomic enhancement; interim-reject closes the miscompile without precluding it.)
 - **[ ] DESIGN QUESTION (found 2026-07-05): bool operands MIX with numeric in arithmetic/comparison.**
   `let n: i32 = self.b + 5` (-> 6), `self.b < self.n` (bool vs i32 guard -> 1), `self.b == self.n`
   (-> 1) all COMPILE + RUN with a well-defined C-style bool->{0,1} coercion (NOT garbage, so not a
