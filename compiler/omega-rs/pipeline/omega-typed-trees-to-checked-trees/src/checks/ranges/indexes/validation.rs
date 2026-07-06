@@ -202,6 +202,8 @@ fn check_known_length_index(
     match program.expression_table.expression(index) {
         ExpressionNode::Range(range) => check_known_length_range_index(
             program,
+            machine,
+            state,
             facts,
             collection,
             index,
@@ -318,6 +320,8 @@ fn check_unknown_length_slice_index(
 
 fn check_known_length_range_index(
     program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
     facts: &RangeFacts<'_>,
     collection: ExpressionHandle,
     index: ExpressionHandle,
@@ -334,6 +338,16 @@ fn check_known_length_range_index(
         // independent of the collection's concrete extent), so fall back to it
         // before reporting a failure.
         if unknown_length_range_is_proven(program, facts, collection, range) {
+            return;
+        }
+        // A runtime end on a KNOWN-length array (`buffer[0..n]` where `n <= N` was
+        // established by a dominating `transition n <= N` guard) is proven from the
+        // INDEX upper-bound facts against the concrete length `N` -- the same facts
+        // a plain `buffer[i]` uses. (`unknown_length_range_is_proven` above only
+        // consults the range-bound vocabulary, which a guard does not record.)
+        if known_length_range_via_index_bounds_is_proven(
+            program, machine, state, facts, range, length,
+        ) {
             return;
         }
         let failure = known_length_range_value_failure(program, facts, range);
@@ -359,5 +373,61 @@ fn check_known_length_range_index(
             ),
             attribution,
         )));
+    }
+}
+
+/// A subslice `[a..b]` on a KNOWN-length (`N`) array whose END is a RUNTIME value
+/// can be discharged from the INDEX upper-bound facts a dominating guard records
+/// (`transition b <= N`) -- the same facts a plain `buffer[i]` access uses -- not
+/// only the range-bound vocabulary that `unknown_length_range_is_proven` consults
+/// (which a guard never records). Sound conditions:
+///   - the END is NON-NEGATIVE (unsigned by type, or a proven `>= 0`), so `[0..b]`
+///     is a real forward range;
+///   - the END is within the length: exclusive `..b` needs `b <= N` (a proven
+///     exclusive upper bound `<= N + 1`, since `b < N+1 <=> b <= N`); inclusive
+///     `..=b` needs `b < N` (a proven exclusive upper bound `<= N`);
+///   - the START is the literal `0`, so `0 <= b` holds for the non-negative end.
+///     A non-zero runtime start keeps the existing (range-bound) proof path.
+/// The exclusive upper bounds are seeded from `<`/`<=` guards and dropped on
+/// reassignment (see `RangeFacts`), so they reflect a relation live at the access.
+fn known_length_range_via_index_bounds_is_proven(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    facts: &RangeFacts<'_>,
+    range: &TableRangeExpression,
+    length: usize,
+) -> bool {
+    if !range.end.is_valid() {
+        return false;
+    }
+    let start_is_zero = if range.start.is_valid() {
+        expression_integer_value(program, facts, range.start) == Some(0)
+    } else {
+        true
+    };
+    if !start_is_zero {
+        return false;
+    }
+
+    let end_label = program.expression_table.display_name(range.end);
+    let end_non_negative = expression_is_unsigned_integer(program, machine, state, range.end)
+        || facts.non_negative_is_proven(&end_label)
+        || facts.non_negative_is_proven_via_ordering(&end_label);
+    if !end_non_negative {
+        return false;
+    }
+
+    if range.end_inclusive {
+        facts.index_upper_bound_is_proven(&end_label, length)
+            || facts.index_upper_bound_is_proven_via_ordering(&end_label, length)
+    } else {
+        match length.checked_add(1) {
+            Some(exclusive_bound) => {
+                facts.index_upper_bound_is_proven(&end_label, exclusive_bound)
+                    || facts.index_upper_bound_is_proven_via_ordering(&end_label, exclusive_bound)
+            }
+            None => false,
+        }
     }
 }
