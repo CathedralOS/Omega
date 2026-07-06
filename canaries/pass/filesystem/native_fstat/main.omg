@@ -4,16 +4,7 @@
 // is_dir false. Proves the fstat op — the fd-keyed [result, fd, buffer] operand
 // shape (like read without the count) — lowers and runs on real macOS syscalls.
 
-domain [u8]::Path when no_nul(self) {
-}
-
-boundary trait FilesystemHost {
-    machine create(path: &[u8] in Path, mode: i32) -> i32;
-    machine write(fd: i32, bytes: &[u8]) -> i64;
-    machine close(fd: i32) -> i32;
-    machine remove(path: &[u8] in Path) -> i32;
-    machine read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32;
-}
+use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

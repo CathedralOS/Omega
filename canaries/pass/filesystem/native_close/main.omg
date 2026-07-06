@@ -10,9 +10,7 @@
 // spelling `_close` lives only in the darwin binding table). NOT registered in
 // ACTIVE_PASS_CANARIES yet (canary_suite.rs is hot with other work).
 
-boundary trait FilesystemHost {
-    machine close(fd: i32) -> i32;
-}
+use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

@@ -5,18 +5,7 @@
 // [fd, buffer, count/len, offset] operand shapes (read/write plus a trailing
 // offset scalar) — lower and run on real macOS syscalls.
 
-domain [u8]::Path when no_nul(self) {
-}
-
-boundary trait FilesystemHost {
-    machine create(path: &[u8] in Path, mode: i32) -> i32;
-    machine open(path: &[u8] in Path, flags: i32) -> i32;
-    machine write(fd: i32, bytes: &[u8]) -> i64;
-    machine close(fd: i32) -> i32;
-    machine remove(path: &[u8] in Path) -> i32;
-    machine read_at(fd: i32, buffer: &mut [u8], count: usize, offset: i64) -> i64;
-    machine write_at(fd: i32, bytes: &[u8], offset: i64) -> i64;
-}
+use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

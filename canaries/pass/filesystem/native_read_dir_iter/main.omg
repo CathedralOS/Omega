@@ -7,19 +7,7 @@
 // runtime value) exercise `CopyRuntimeMachineIndexedToRuntimeStorage`, which now
 // lowers correctly on aarch64. Prints PASS iff exactly 4 entries are walked.
 
-domain [u8]::Path when no_nul(self) {
-}
-
-boundary trait FilesystemHost {
-    machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
-    machine remove_dir(path: &[u8] in Path) -> i32;
-    machine create(path: &[u8] in Path, mode: i32) -> i32;
-    machine open(path: &[u8] in Path, flags: i32) -> i32;
-    machine close(fd: i32) -> i32;
-    machine remove(path: &[u8] in Path) -> i32;
-    machine write(fd: i32, bytes: &[u8]) -> i64;
-    machine read_dir(fd: i32, buffer: &mut [u8], count: usize, position: &mut i64) -> i64;
-}
+use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

@@ -3,15 +3,7 @@
 // target bytes ("the_target!!", first byte 't' = 116). Proves symlink/readlink
 // on real macOS syscalls. Prints PASS iff read_link returns the target.
 
-domain [u8]::Path when no_nul(self) {
-}
-
-boundary trait FilesystemHost {
-    machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> i32;
-    machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: usize) -> i64;
-    machine remove(path: &[u8] in Path) -> i32;
-    machine write(fd: i32, bytes: &[u8]) -> i64;
-}
+use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

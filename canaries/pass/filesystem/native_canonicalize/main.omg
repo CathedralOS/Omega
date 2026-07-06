@@ -5,16 +5,7 @@
 // (NOT 't' — that's the resolution proof), buffer[8]=='/'. Proves the realpath
 // op lowers and runs on real macOS syscalls, resolving symlinks for real.
 
-domain [u8]::Path when no_nul(self) {
-}
-
-boundary trait FilesystemHost {
-    machine create(path: &[u8] in Path, mode: i32) -> i32;
-    machine close(fd: i32) -> i32;
-    machine remove(path: &[u8] in Path) -> i32;
-    machine canonicalize(path: &[u8] in Path, buffer: &mut [u8]) -> i64;
-    machine write(fd: i32, bytes: &[u8]) -> i64;
-}
+use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

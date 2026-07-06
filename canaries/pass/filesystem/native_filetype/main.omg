@@ -5,16 +5,7 @@
 // system; a freshly-created regular file is S_IFREG (0o100000 = 32768). Proves
 // is_char_device()/is_file() decode real device nodes, not just regular files.
 
-domain [u8]::Path when no_nul(self) {
-}
-
-boundary trait FilesystemHost {
-    machine create(path: &[u8] in Path, mode: i32) -> i32;
-    machine close(fd: i32) -> i32;
-    machine remove(path: &[u8] in Path) -> i32;
-    machine write(fd: i32, bytes: &[u8]) -> i64;
-    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
-}
+use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

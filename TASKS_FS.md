@@ -216,6 +216,31 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **✅ `FilesystemHost` CONSOLIDATED into a canonical std module (2026-07-06).** The
+  boundary trait was re-declared INLINE in 43 places (the ergonomic wrapper, the
+  interpreter `FS_PRELUDE`, and 41 native canaries) — a smell the user flagged. Now
+  there is ONE canonical declaration: `omega/language/std/filesystem_host.omg`
+  (the `Path` byte-domain + the full `FilesystemHost` boundary), and EVERYTHING
+  imports it via `use omega::language::std::filesystem_host;`:
+  - the ergonomic wrapper `filesystem.omg` (`use` at top; inline trait + domain deleted);
+  - the interpreter `FS_PRELUDE` (`use` + only the local `Console`);
+  - all 41 `canaries/pass/filesystem/native_*` (inline `domain [u8]::Path` +
+    `boundary trait FilesystemHost {…}` replaced by the one-line `use`; scripted
+    conversion, all method names were already an exact subset of the canonical trait).
+  Verified: import resolution is transitive (`while imports.has_pending()` worklist)
+  + bundled via `bundled_omega_root()` (repo `omega/`). Gates: wrapper coverage 41,
+  interpreter fs coverage 64/0, mandated backend crates green; and a NEW permanent
+  regression test `orchestration/omega-compiler/tests/native_filesystem_canaries.rs`
+  compiles + RUNS 6 representative native canaries (close/stat/crud/dirs/read_dir_iter/
+  flock) on macOS and asserts their "PASS" stdout — the FIRST automated coverage for
+  the native fs canaries (they were hand-run per fire before).
+  - **D-fs-host-module (judgement call):** the raw boundary lives in its OWN std
+    module (`filesystem_host`, = Rust `std::sys`) SEPARATE from the ergonomic
+    `filesystem` wrapper (= Rust `std::fs`), so a bare native canary imports ONLY the
+    boundary + `Path` (not the whole wrapper machine + result-type surface). Samples
+    reference the standard boundary the same way (build.omg `boundary omega::…` or a
+    `use`), never re-declaring it.
+
 - **✅ read_dir ITERATION validated + `read_dir_is_empty` shipped (2026-07-06).**
   - **Iteration loop proven:** coverage `filesystem_std_module_read_dir_iteration_loop`
     drives `read_dir_nth(path, n)` for n = 0,1,2,… until `End` (a `usize in Wrapping`

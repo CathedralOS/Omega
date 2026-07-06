@@ -3,18 +3,7 @@
 // of the path fails with EACCES (13). Proves fchmod takes effect on the real
 // inode via the open fd. Prints PASS iff the write-open fails with EACCES.
 
-domain [u8]::Path when no_nul(self) {
-}
-
-boundary trait FilesystemHost {
-    machine create(path: &[u8] in Path, mode: i32) -> i32;
-    machine open(path: &[u8] in Path, flags: i32) -> i32;
-    machine write(fd: i32, bytes: &[u8]) -> i64;
-    machine close(fd: i32) -> i32;
-    machine remove(path: &[u8] in Path) -> i32;
-    machine set_file_permissions(fd: i32, mode: u32) -> i32;
-    machine errno() -> i32;
-}
+use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

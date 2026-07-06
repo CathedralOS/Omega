@@ -9,19 +9,7 @@
 // Prints PASS iff all three match. Proves chown/fchown lower + execute with real
 // kernel permission semantics.
 
-domain [u8]::Path when no_nul(self) {
-}
-
-boundary trait FilesystemHost {
-    machine create(path: &[u8] in Path, mode: i32) -> i32;
-    machine open(path: &[u8] in Path, flags: i32) -> i32;
-    machine close(fd: i32) -> i32;
-    machine remove(path: &[u8] in Path) -> i32;
-    machine write(fd: i32, bytes: &[u8]) -> i64;
-    machine change_owner(path: &[u8] in Path, uid: i32, gid: i32) -> i32;
-    machine change_file_owner(fd: i32, uid: i32, gid: i32) -> i32;
-    machine errno() -> i32;
-}
+use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

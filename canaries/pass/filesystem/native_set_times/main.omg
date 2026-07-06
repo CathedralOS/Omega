@@ -5,17 +5,7 @@
 // st_mtimespec.tv_sec (@48) reads back 1500000000. Proves the futimens op (fd +
 // timespec-buffer pointer, the fstat operand shape) lowers and runs on macOS.
 
-domain [u8]::Path when no_nul(self) {
-}
-
-boundary trait FilesystemHost {
-    machine create(path: &[u8] in Path, mode: i32) -> i32;
-    machine close(fd: i32) -> i32;
-    machine remove(path: &[u8] in Path) -> i32;
-    machine write(fd: i32, bytes: &[u8]) -> i64;
-    machine set_file_times(fd: i32, times: &mut [u8]) -> i32;
-    machine read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32;
-}
+use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

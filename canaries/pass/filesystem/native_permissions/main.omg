@@ -3,18 +3,7 @@
 // reports EACCES (13). Proves chmod takes effect on real macOS syscalls and the
 // kernel enforces the mode. Prints PASS iff the write-open fails with EACCES.
 
-domain [u8]::Path when no_nul(self) {
-}
-
-boundary trait FilesystemHost {
-    machine create(path: &[u8] in Path, mode: i32) -> i32;
-    machine open(path: &[u8] in Path, flags: i32) -> i32;
-    machine write(fd: i32, bytes: &[u8]) -> i64;
-    machine close(fd: i32) -> i32;
-    machine remove(path: &[u8] in Path) -> i32;
-    machine set_permissions(path: &[u8] in Path, mode: u32) -> i32;
-    machine errno() -> i32;
-}
+use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;
