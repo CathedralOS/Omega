@@ -695,6 +695,44 @@ machine Main::mk(&mut self, path: &[u8] in Path) {
     );
 }
 
+/// Domained PATH BUILDING by concatenation into a bounded `[u8; N] in Path`
+/// carrier: `self.child = self.parent + "/kid"` where both are `[u8; N] in Path`
+/// carriers. Proves the `no_nul`/Path domain gets the same concat-PRESERVATION the
+/// Utf8 carrier does (concat of no_nul + no_nul is no_nul), the length-fits check
+/// passes (32-max parent + 4-byte literal <= 64), and `==` compares the built path.
+/// This is the domained path-building primitive `remove_dir_all` needs; the
+/// remaining gap is bridging an unbounded `&[u8]` SLICE into a bounded carrier
+/// (see TASKS_FS.md: the guard-aware carrier length bound).
+#[test]
+fn filesystem_path_carrier_concat() {
+    interpret_fs(
+        "fs-path-concat",
+        r#"
+domain [u8; 32]::Path when no_nul(self) {
+}
+domain [u8; 64]::Path when no_nul(self) {
+}
+data Main {
+    console: Console;
+    parent: [u8; 32] in Path;
+    child: [u8; 64] in Path;
+}
+machine Main::main(&mut self) {
+    // Pure-CARRIER concat: a bounded parent CARRIER + literal into a bounded
+    // child CARRIER. Isolates whether Path carrier concat works end to end
+    // (domain preserved + fits), independent of the slice->carrier length-bound.
+    self.parent = "/pp";
+    self.child = self.parent + "/kid";
+    transition self.child == "/pp/kid" { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+"#,
+        70,
+        "concat a &[u8] in Path slice + literal into a [u8; N] in Path carrier",
+    );
+}
+
 /// Full CRUD round-trip over the value-returning seam: create -> write 17B ->
 /// close -> open -> read (17) -> close -> remove. Exit 70 only if read returns
 /// exactly the 17 bytes written.

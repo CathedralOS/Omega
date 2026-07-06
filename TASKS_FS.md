@@ -216,6 +216,39 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **✅ Domained PATH BUILDING by carrier concat WORKS + `remove_dir_all` route
+  clarified (2026-07-06).** Probed the path-building `remove_dir_all` needs and
+  proved a real capability: `self.child = self.parent + "/kid"` into a
+  `[u8; N] in Path` bounded carrier COMPILES + RUNS — the `no_nul`/Path domain gets
+  the same concat-PRESERVATION as `Utf8` (the domain check passes; concat of no_nul +
+  no_nul is no_nul), and the length-fits check passes for bounded carriers. Shipped
+  as coverage `filesystem_path_carrier_concat`. fs coverage 65.
+  - **The two concat-route blockers (precisely isolated):**
+    1. **slice → carrier length bound.** An unbounded `&[u8]` slice (the `parent`
+       path param) can't be concatenated/assigned into a bounded `[u8; N]` carrier —
+       `static_max_byte_length` (checks/contracts/writes.rs) returns `None` for a
+       slice, and a dominating `parent.len < K` guard does NOT help because that
+       check is STATIC (uses an operand's DECLARED max like `[u8; 4]`, not flow
+       facts). A fix would make it guard-aware, but it's cross-pass (the length/index
+       guard facts live in the SEPARATE `checks/ranges` `RangeFacts`, not the carrier
+       check's `CheckFacts`) and soundness-sensitive (carrier capacity = overflow).
+    2. **name domain.** The dirent name extracted by `read_dir_nth` sits in a plain
+       `[u8; 256]` field; making it `in Path` (to concat) needs runtime validation or
+       a write-preservation grant (the guide's aspirational "validate operator" /
+       preservation lemmas). Deep.
+  - **✅ RECOMMENDED REDIRECT — the `*at` route sidesteps BOTH blockers.** Rust's
+    `remove_dir_all` uses `openat`/`unlinkat`/`fdopendir` on a dir FD + RELATIVE names
+    — it never builds full paths in-process. Mirror that: add `open_at(dirfd, name,
+    flags)` + `unlink_at(dirfd, name, flags)` raw ops (single syscalls, architecture-
+    clean) taking the name as a plain `&[u8]` (a trusted dirent component). The
+    path-joining then happens in the OS (native) / the interpreter's Rust virtual FS
+    (dirfd -> its path + "/" + name), NOT in Omega — so NO carrier concat and NO
+    name-domain proof are needed. `remove_dir_all` becomes: `open(path)` -> loop
+    `read_dir_nth`-style over the fd (name+type) -> `unlink_at(dirfd, name, 0)` for
+    files / recurse for dirs -> `unlink_at(dirfd, name, AT_REMOVEDIR)` -> `remove_dir`,
+    with bounded-depth recursion (fuel + `decreases`). NEXT FIRE: add the two `*at`
+    ops + interpreter models + a direct test, then the recursive wrapper.
+
 - **✅ `FilesystemHost` CONSOLIDATED into a canonical std module (2026-07-06).** The
   boundary trait was re-declared INLINE in 43 places (the ergonomic wrapper, the
   interpreter `FS_PRELUDE`, and 41 native canaries) — a smell the user flagged. Now
