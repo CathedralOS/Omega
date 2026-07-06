@@ -98,13 +98,16 @@ fn expression_is_runtime_indexed(table: &ExpressionTable, handle: ExpressionHand
     !matches!(table.expression(index), ExpressionNode::Integer(_))
 }
 
-/// A nested runtime-COLUMN indexed target -- `grid[anything][i]` where the outer/column index `i`
-/// is a runtime value and the collection is itself an indexed place. The static-assignment and
-/// constant-integer fast paths cannot lower this shape: they would silently NO-OP (the element
-/// never updates). Refusing the fast-path classification lets it fall to a regular `Assignment`,
-/// which is recorded as a runtime-storage write and reported cleanly by the storage blocker rather
-/// than vanishing. A const column (`grid[i][0]`) resolves to a fixed offset and IS lowerable, and a
-/// single index (`arr[i]`, `self.field[i]`) has a non-indexed collection, so neither is refused.
+/// A nested runtime-indexed target whose collection is reached THROUGH an array index and whose own
+/// index `i` is a runtime value -- `grid[anything][i]` (an Indexed collection) or `rows[c].data[i]`
+/// (a field array of an array-of-structs element; the collection is `Member(Indexed)`). The
+/// static-assignment and constant-integer fast paths cannot lower this shape: they would silently
+/// NO-OP (the element never updates). Refusing the fast-path classification lets it fall to a
+/// regular `Assignment`, which is recorded as a runtime-storage write and reported cleanly by the
+/// storage blocker rather than vanishing. A const index (`grid[i][0]`, `rows[i].data[0]`) resolves
+/// to a fixed offset and IS lowerable, and a single index over a non-indexed base (`arr[i]`,
+/// `self.field[i]`) has no array index in its collection chain, so neither is refused. (Mirrors the
+/// READ fence `report_nested_runtime_indexed_read` in omega-validation.)
 fn target_is_nested_runtime_indexed(table: &ExpressionTable, target: ExpressionHandle) -> bool {
     if !expression_is_runtime_indexed(table, target) {
         return false;
@@ -112,11 +115,18 @@ fn target_is_nested_runtime_indexed(table: &ExpressionTable, target: ExpressionH
     let ExpressionNode::Indexed(indexed) = table.expression(target) else {
         return false;
     };
+    // Walk the collection's place chain (through Member receivers and Mutable): the shape no-ops
+    // whenever the base is itself reached through an array index, not only when the collection is
+    // DIRECTLY indexed (`rows[c].data[i]` is `Member(Indexed(rows, c), data)`).
     let mut collection = indexed.collection;
-    while let ExpressionNode::Mutable(inner) = table.expression(collection) {
-        collection = *inner;
+    loop {
+        match table.expression(collection) {
+            ExpressionNode::Indexed(_) => return true,
+            ExpressionNode::Member(member) => collection = member.receiver,
+            ExpressionNode::Mutable(inner) => collection = *inner,
+            _ => return false,
+        }
     }
-    matches!(table.expression(collection), ExpressionNode::Indexed(_))
 }
 
 fn is_static_assignment(program: &CheckedTrees, assignment: TableAssignment) -> bool {

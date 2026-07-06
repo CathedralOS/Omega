@@ -513,9 +513,12 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >   selection + a both-arch deref-compare encoder) OR a routed hard error.
 >   Workaround proven (let-bind then guard). Dedicated fire, not loop-sized.
 > - **Backend miscompile fences** — a cluster of `clean error` gaps to complete:
->   nested-runtime-indexed write (`grid[*][i]`) + READ (`grid[c][j]` runtime column,
->   was a SILENT read-0, FENCED 2026-07-05 `report_nested_runtime_indexed_read`; real
->   fix = lower nested runtime-indexed access), array-of-structs as a binary
+>   nested runtime-indexed READ+WRITE both FENCED 2026-07-05/06 for BOTH shapes —
+>   `grid[c][j]` (direct-Indexed collection) AND `rows[c].data[j]` (Member-of-Indexed,
+>   a field array of an array-of-structs element); were SILENT read-0 / write-no-op.
+>   Read: `report_nested_runtime_indexed_read` (validation); write:
+>   `target_is_nested_runtime_indexed` (state-graph classifier). Real fix = lower
+>   nested runtime-indexed access (backend). Then array-of-structs as a binary
 >   operand (NARROWED 2026-07-03: the `let t = arr[i].field; use t` idiom now
 >   works. The DIRECT `self.r = arr[i].field + 22` still errors. A frontend
 >   operand-hoist of `arr[i].field` is TOO BROAD -- at the pre-resolution hoist
