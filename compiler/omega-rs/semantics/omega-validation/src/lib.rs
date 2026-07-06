@@ -180,6 +180,19 @@ fn validate_state_statement_node(
                 machine,
                 state_name,
             );
+            // Indexing the `String` carrier as an assignment TARGET (`s[i] = x`) is
+            // the write complement of the read rejection in `scan_expression_calls`:
+            // an indexed `String` resolves to no element type, so every store check
+            // below skips it and the write silently no-ops / corrupts. Same shared
+            // helper, `is_write = true`.
+            expression_types::report_string_index_access(
+                program,
+                machine,
+                machine_symbols.state(state_name),
+                assignment.target,
+                true,
+                diagnostics,
+            );
             let assignment_target_type = places::declared_place_type(
                 program,
                 machine,

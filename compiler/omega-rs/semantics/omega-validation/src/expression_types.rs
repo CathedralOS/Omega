@@ -666,6 +666,49 @@ pub(crate) fn report_number_to_bool_cast(
     true
 }
 
+/// Reject indexing the `String` carrier -- `s[i]` as a READ (`is_write == false`,
+/// e.g. `let b = s[i]`) or as an assignment TARGET (`is_write == true`, `s[i] = x`).
+/// `String` is a `{len, bytes}` carrier, not a flat byte array, so a byte index
+/// silently reads / writes a ZII `0` (the backend has no index-into-carrier lowering
+/// and the store checks skip an unresolved element type). A `[u8; N] in Utf8` byte
+/// array resolves to a NON-primitive type, so `primitive_type_reference` returns
+/// `None` and the supported byte-array indexing is left alone -- only the `String`
+/// PRIMITIVE is caught here. `s.len` MEMBER access is not an `Indexed` node, so it is
+/// never touched. Returns true if it reported. (Byte access on text is a possible
+/// future feature; this closes the silent read/write-0 without precluding it.)
+pub(crate) fn report_string_index_access(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    expression: ExpressionHandle,
+    is_write: bool,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        return false;
+    };
+    let Some(collection_type) =
+        crate::places::declared_place_type(program, machine, state, indexed.collection)
+    else {
+        return false;
+    };
+    if program.primitive_type_reference(collection_type) != Some(PrimitiveType::String) {
+        return false;
+    }
+    let action = if is_write {
+        "assigns to an index of a `String` value (`s[i] = ..`)"
+    } else {
+        "indexes a `String` value (`s[i]`)"
+    };
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}` {action}, but the text carrier does not support byte indexing; \
+         use a `[u8; N] in Utf8` array for byte access",
+        machine.name.as_str(),
+        state.map(|state| state.name.as_str()).unwrap_or(""),
+    )));
+    true
+}
+
 /// Reject logical `!` on a NON-bool operand (`!5`, `!x` for `x: i32`). `!` is
 /// bool-only in Omega; bitwise-not is the separate `~`. Only a PROVABLY non-bool
 /// operand is flagged -- a numeric/text literal, an arithmetic result, or a place

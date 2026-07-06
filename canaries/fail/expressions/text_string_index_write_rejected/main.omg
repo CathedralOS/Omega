@@ -1,0 +1,13 @@
+// Writing to an index of a `String` value (`s[0] = 90`) silently no-ops/corrupts:
+// the text carrier is `{len, bytes}`, not a flat array, and an indexed String
+// target resolves to no element type so every store check skips it. This is the
+// WRITE complement of the read rejection (text_string_index_rejected). Rejected at
+// check now. Byte writes via a `[u8; N] in Utf8` array (a non-primitive type) stay
+// valid, as does `s.len` member access.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; s: String; }
+machine Main::main(&mut self) {
+    self.s = "ABC";
+    self.s[0] = 90;
+    self.console.exit_process(0);
+}

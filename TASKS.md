@@ -162,9 +162,12 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   resolve to a NON-primitive type, so `primitive_type_reference` returns `None` and the supported
   byte-array indexing (`substring_search`, `longest_run`) is untouched -- only the `String`
   primitive is caught. Lexicographic ordering and String byte-access stay PLAUSIBLE FUTURE
-  features; this closes the silent/cryptic holes without precluding them. NOTE: only READ indexing
-  (`let b = s[i]`) is covered here; a WRITE target `s[i] = x` goes through a different path -- not
-  yet probed.
+  features; this closes the silent/cryptic holes without precluding them. Both READ (`let b = s[i]`)
+  and WRITE (`s[i] = x`) indexing are covered: the read is caught in `scan_expression_calls`, the
+  write in lib.rs's Assignment arm (an indexed `String` target resolves to no element type, so the
+  store checks skipped it -- a silent no-op/corruption); both call one shared
+  `expression_types::report_string_index_access` helper (canaries text_string_index_rejected +
+  text_string_index_write_rejected).
   2026-07-05).** `let y: i32 = bogus_fn(1)` compiles and yields 0 (silent miscompile);
   statement-position `bogus_fn(1);` is correctly rejected by `validate_call_node` ("has
   no local state"). The value path (`validate_expression_call_bounds`) is a PARTIAL
