@@ -201,6 +201,7 @@ pub(super) fn select_host_operation_operands(
             let data = find_data_object(input, host_call);
             match (result, fd) {
                 (Some(result), Some(fd)) if data.is_valid() => {
+                    // Literal payload: static data object + its length.
                     let length = data_object_byte_count(input, data);
                     operands.insert_many([
                         operand(result),
@@ -208,6 +209,19 @@ pub(super) fn select_host_operation_operands(
                         operand(InstructionOperandKind::DataAddress { data }),
                         operand(InstructionOperandKind::ByteLength(length)),
                     ])
+                }
+                (Some(result), Some(fd)) => {
+                    // Runtime slice payload (a `&[u8]` parameter/field): load the
+                    // data pointer + length out of its descriptor.
+                    match slice_argument_operands(input, host_call, dispatch_index, 2) {
+                        Some((pointer, length)) => operands.insert_many([
+                            operand(result),
+                            operand(fd),
+                            operand(pointer),
+                            operand(length),
+                        ]),
+                        None => HandleSpan::empty(),
+                    }
                 }
                 _ => HandleSpan::empty(),
             }
@@ -239,14 +253,12 @@ pub(super) fn select_host_operation_operands(
             // params; creation uses `creat` precisely because `open`'s mode is
             // variadic (stack-passed on arm64) and would be dropped.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let path = find_data_object(input, host_call);
+            let path = path_pointer_operand(input, host_call, dispatch_index, 1);
             let second = scalar_argument_operand_at(input, host_call, dispatch_index, 2);
-            match (result, second) {
-                (Some(result), Some(second)) if path.is_valid() => operands.insert_many([
-                    operand(result),
-                    operand(InstructionOperandKind::DataAddress { data: path }),
-                    operand(second),
-                ]),
+            match (result, path, second) {
+                (Some(result), Some(path), Some(second)) => {
+                    operands.insert_many([operand(result), operand(path), operand(second)])
+                }
                 _ => HandleSpan::empty(),
             }
         }
@@ -254,12 +266,11 @@ pub(super) fn select_host_operation_operands(
             // Value-returning `rc = unlink(path) -> _unlink(path)`.
             // operand[0]=result, [1]=path POINTER (NUL-terminated C string).
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let path = find_data_object(input, host_call);
-            match result {
-                Some(result) if path.is_valid() => operands.insert_many([
-                    operand(result),
-                    operand(InstructionOperandKind::DataAddress { data: path }),
-                ]),
+            let path = path_pointer_operand(input, host_call, dispatch_index, 1);
+            match (result, path) {
+                (Some(result), Some(path)) => {
+                    operands.insert_many([operand(result), operand(path)])
+                }
                 _ => HandleSpan::empty(),
             }
         }
@@ -402,6 +413,64 @@ fn address_argument_operand_at(
         region: place.region,
         byte_offset: place.byte_offset,
     })
+}
+
+/// Resolve a runtime `&[u8]` argument (a fat-pointer descriptor: `{ptr, len}`)
+/// at `index` to its DATA pointer + length operands — the shape `_write` needs
+/// when the payload is a slice value (a parameter/field), not a string literal.
+/// The `RuntimeString{Pointer,Length}` operands load the ptr and len out of the
+/// descriptor place; unlike `RuntimeStorageAddress` (a raw buffer address, used
+/// by `read`) this dereferences one level.
+fn slice_argument_operands(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    index: usize,
+) -> Option<(InstructionOperandKind, InstructionOperandKind)> {
+    let argument = input
+        .host_calls
+        .arguments
+        .span(host_call.arguments)
+        .and_then(|arguments| arguments.get(index))?;
+    let HostCallArgumentKind::Expression(expression) = &argument.kind else {
+        return None;
+    };
+    let place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index.unwrap_or(0),
+        host_call.source_key,
+        &input.host_calls.expressions,
+        *expression,
+    )?;
+    Some((
+        InstructionOperandKind::RuntimeStringPointer {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            is_bounded_buffer: false,
+        },
+        InstructionOperandKind::RuntimeStringLength {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            is_bounded_buffer: false,
+        },
+    ))
+}
+
+/// The path POINTER operand for `creat`/`open`/`unlink` at `index`: a static
+/// data object when the path is a literal, else the data pointer of a runtime
+/// `&[u8] in Path` slice (which points at a NUL-terminated literal underneath,
+/// so it is a valid C string). The length is irrelevant — these are C strings.
+fn path_pointer_operand(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    index: usize,
+) -> Option<InstructionOperandKind> {
+    let data = find_data_object(input, host_call);
+    if data.is_valid() {
+        return Some(InstructionOperandKind::DataAddress { data });
+    }
+    slice_argument_operands(input, host_call, dispatch_index, index).map(|(pointer, _)| pointer)
 }
 
 /// File descriptor marshalled as the first `write` argument on the
