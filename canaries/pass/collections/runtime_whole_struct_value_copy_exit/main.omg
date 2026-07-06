@@ -1,0 +1,39 @@
+// RUN canary: whole-struct value copy (`self.p1 = self.p2`) transfers every field
+// AND has VALUE semantics -- mutating the source after the copy must NOT alias the
+// destination. Complements runtime_whole_array_value_copy_exit for records.
+//
+// p2 = {30, 40}; p1 = p2 (copy); then p2.x = 99. A correct value copy leaves
+// p1 = {30, 40} (p1.x still 30, p1.y still 40); an aliasing bug would show p1.x = 99.
+// Both fields correct -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Point {
+    x: i32;
+    y: i32;
+}
+
+data Main {
+    console: Console;
+    p1: Point;
+    p2: Point;
+}
+
+machine Main::main(&mut self) {
+    self.p2 = Point { x: 30, y: 40 };
+    self.p1 = self.p2;   // whole-struct value copy
+    self.p2.x = 99;      // mutate the SOURCE after the copy
+
+    // p1 must be independent of p2: p1.x stayed 30 (not aliased to 99).
+    transition self.p1.x == 30 { true -> check_y() _ -> aliased() }
+
+    state check_y(&mut self) {
+        transition self.p1.y == 40 { true -> correct() _ -> wrong_y() }
+    }
+
+    state correct(&mut self) { self.console.exit_process(70); }
+    // p1.x followed p2.x to 99 -- the copy aliased instead of copying.
+    state aliased(&mut self) { self.console.exit_process(71); }
+    state wrong_y(&mut self) { self.console.exit_process(72); }
+}
