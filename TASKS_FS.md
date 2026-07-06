@@ -216,6 +216,26 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **✅ `read_dir_count` — first ergonomic `read_dir` rung (2026-07-06).** Added
+  `Filesystem::read_dir_count(path) -> IoResult` to the shipped wrapper: opens the
+  directory, fills ONE buffer of packed darwin `dirent` records via the raw
+  `read_dir` op, and WALKS them in-wrapper with a runtime-indexed cursor over the
+  LE `d_reclen` at record offset +16 (the `native_read_dir_iter` parse pattern,
+  now packaged as a reusable wrapper) -- returns the child count. Uses a PARAMLESS
+  state-transition loop (`rd_walk` <-> `rd_body` over Filesystem fields), which
+  needs NO `decreases` clause (a state-machine loop is inherent; only value-returning
+  recursive machine CALLS with args need a termination proof -- cf. `create_dir_all`).
+  RUNS in the interpreter: coverage `filesystem_std_module_read_dir_count` builds
+  `/rd` with two files + one subdir and asserts count == 3. fs coverage 60.
+  - **JUDGEMENT CALL (D-readdir):** counts a SINGLE `read_dir` fill (512-byte buffer
+    -- ample for a typical directory; a directory with more entries than fit is
+    undercounted, i.e. one `getdirentries` rather than a drain-to-empty loop) and
+    returns `records - 2` ("." and ".." are the first two records of every real
+    directory). Faithful for typical dirs; the multi-fill drain + name extraction /
+    a `DirEntry` cursor build on this same walk. No compiler change needed (pure
+    Omega + the existing runtime-indexed-read primitive); native lowering of the
+    wrapper is the separate D5 track.
+
 - **✅ `create_dir_all` SHIPPED (Rust `std::fs::create_dir_all` parity) — 2026-07-06.**
   The recursive dir op the whole path-subslice arc was building toward. Added to the
   shipped wrapper `omega/language/std/filesystem.omg` as `Filesystem::create_dir_all`
