@@ -231,6 +231,12 @@ struct Evaluator<'program> {
     virtual_next_fd: i32,
     /// Directories in the virtual filesystem (create_dir/remove_dir).
     virtual_dirs: std::collections::BTreeSet<Vec<u8>>,
+    /// Explicitly-set permission bits per path (`set_permissions`/chmod). A path
+    /// absent from this map is treated as writable (the default); only a path
+    /// chmod'd to drop the owner-write bit (mode & 0o200 == 0) makes a write-open
+    /// fail with EACCES — enough to model `set_permissions` without tracking a
+    /// mode for every created file.
+    virtual_perms: BTreeMap<Vec<u8>, u32>,
     /// The thread-local `errno` model: set to a POSIX code when a virtual fs op
     /// fails (ENOENT=2, EACCES=13, EEXIST=17, EBADF=9), read back by
     /// `read_errno` (darwin `___error()`). Mirrors the native seam so the typed
@@ -267,6 +273,7 @@ impl<'program> Evaluator<'program> {
             virtual_fds: BTreeMap::new(),
             virtual_next_fd: 3,
             virtual_dirs: std::collections::BTreeSet::new(),
+            virtual_perms: BTreeMap::new(),
             virtual_errno: 0,
             host_boundary_touched: false,
             steps: 0,
@@ -2355,6 +2362,19 @@ impl<'program> Evaluator<'program> {
                     -1
                 }
             }
+            "set_permissions" => {
+                // `chmod(path, mode)`: record the mode. ENOENT if the path names
+                // neither a file nor a directory. `mode` is the second arg.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let mode = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as u32;
+                if self.virtual_files.contains_key(&path) || self.virtual_dirs.contains(&path) {
+                    self.virtual_perms.insert(path, mode);
+                    0
+                } else {
+                    self.virtual_errno = 2; // ENOENT
+                    -1
+                }
+            }
             "rename" => {
                 let from = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let to = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
@@ -2529,6 +2549,17 @@ impl<'program> Evaluator<'program> {
         // reports the more specific kind.
         if self.virtual_dirs.contains(&path) && writable {
             self.virtual_errno = 21; // EISDIR
+            return -1;
+        }
+        // Permission enforcement: a write-open of a path chmod'd to drop the
+        // owner-write bit is EACCES (Rust `ErrorKind::PermissionDenied`).
+        if writable
+            && self
+                .virtual_perms
+                .get(&path)
+                .is_some_and(|mode| mode & 0o200 == 0)
+        {
+            self.virtual_errno = 13; // EACCES
             return -1;
         }
         if !exists && !o_creat {

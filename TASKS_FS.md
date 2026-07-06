@@ -251,6 +251,21 @@ crate tests; interpreter fs coverage) and commits.
     (present after create, absent after remove → PASS). CAVEAT: open-based
     `exists` reports false for an unreadable-but-present path (EACCES); a faithful
     stat-based `exists` waits on `fstat`.
+10b. [x] **`set_permissions`** (Rust `std::fs::set_permissions`) via `chmod` —
+    DONE, complete NATIVE vertical. `HostOperation::Chmod` (op `chmod` →
+    darwin `_chmod`); reuses the `mkdir`/`creat` operand shape (path pointer +
+    NAMED register mode scalar), so no new operand/encoder work. `data
+    Permissions { mode: u32 }`; raw `FilesystemHost::set_permissions(path,
+    mode: u32)`; wrapper `Filesystem::set_permissions(path, perms) ->
+    UnitResult`. Interpreter models enforcement: a `virtual_perms` map records a
+    chmod'd mode, and `virtual_open_flags` returns EACCES on a write-open when the
+    owner-write bit (0o200) is cleared (only chmod'd paths are checked; default
+    files stay writable, so existing tests are unaffected). DIFFERENTIAL-
+    consistent: native `native_permissions` canary RUNS (chmod 0o444 then
+    write-open → EACCES(13) → PASS) AND coverage `filesystem_std_module_set_permissions`
+    (chmod read-only → open_with(write) → Error kind PermissionDenied). A full
+    `Permissions` builder (readonly()/set_readonly) waits on `fstat` supplying the
+    current mode (step 11).
 11. [ ] **Richer `Metadata`** via `fstat` — `st_size`/mode/times. Needs a
     stat-buffer out-param + struct-field reads (darwin arm64 `st_size` at off 96).
     Unlocks `is_file`/`is_dir`/permissions/modified. Medium-large. NOTE: `repr

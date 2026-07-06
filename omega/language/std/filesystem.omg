@@ -71,6 +71,14 @@ data OpenOptions [copy, zero_init] {
     truncate: bool;
 }
 
+// A file's permission bits (Rust `std::fs::Permissions`). `mode` is the POSIX
+// octal mode (e.g. 0o644 = 420 = rw-r--r--, 0o444 = 292 = read-only). A helper
+// exposes the common read-only question the way Rust's `Permissions::readonly`
+// does; a full builder waits on `fstat` supplying the current mode.
+data Permissions [copy, zero_init] {
+    mode: u32;
+}
+
 // File metadata (Rust `std::fs::Metadata`). `len` is the size in bytes; more
 // fields (permissions, times, kind) follow once `fstat` lands.
 data Metadata [copy, zero_init] {
@@ -93,6 +101,7 @@ boundary trait FilesystemHost {
     machine seek(fd: i32, offset: i64, whence: i32) -> i64;
     machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
     machine remove_dir(path: &[u8] in Path) -> i32;
+    machine set_permissions(path: &[u8] in Path, mode: u32) -> i32;
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
     machine set_len(fd: i32, length: i64) -> i32;
     machine sync(fd: i32) -> i32;
@@ -326,6 +335,16 @@ machine Filesystem::create_dir(&mut self, path: &[u8] in Path) -> UnitResult {
 // Remove an empty directory.
 machine Filesystem::remove_dir(&mut self, path: &[u8] in Path) -> UnitResult {
     let rc: i32 = self.host.remove_dir(path);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Set a path's permission bits (Rust `std::fs::set_permissions`). A subsequent
+// write-open of a path whose owner-write bit was cleared fails with
+// `PermissionDenied` (EACCES).
+machine Filesystem::set_permissions(&mut self, path: &[u8] in Path, perms: Permissions) -> UnitResult {
+    let rc: i32 = self.host.set_permissions(path, perms.mode);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
