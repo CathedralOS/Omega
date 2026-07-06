@@ -446,6 +446,29 @@ pub(crate) fn report_cross_class_binary_operands(
     true
 }
 
+/// Whether a type reference is a TEXT carrier: the `String` primitive, or a fixed
+/// array / slice of `u8` (text is `&[u8]`, so a `String`, a byte slice, and a
+/// `[u8; N]` are the same shape family and values flow between them). The shape
+/// check skips these -- the array-vs-scalar dichotomy does not apply to text.
+fn type_reference_is_text_carrier(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
+    if !handle.is_valid() {
+        return false;
+    }
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_is_text_carrier(program, *referee)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_is_text_carrier(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => {
+            program.primitive_type_reference(*element_type) == Some(PrimitiveType::U8)
+        }
+        _ => program.primitive_type_reference(handle) == Some(PrimitiveType::String),
+    }
+}
+
 /// Whether a type reference denotes an ARRAY (a fixed array or a slice), looking
 /// through `Reference`/`Constrained` shells.
 fn type_reference_is_array(program: &TypedTrees, handle: TypeReferenceHandle) -> bool {
@@ -503,6 +526,18 @@ pub(crate) fn report_array_scalar_shape_mismatch(
     slot_noun: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
+    // TEXT is `&[u8]`-backed, so a `String`, a byte slice, and a `[u8; N]` are one
+    // shape family and values flow between them freely (`write_line([u8])` takes a
+    // String; a byte-slice value fills a String param). The array-vs-scalar
+    // dichotomy does not apply -- skip when EITHER side is a text carrier (the
+    // cross-class store gate still governs text-vs-numeric).
+    if type_reference_is_text_carrier(program, target_type)
+        || value_class(program, Some(machine), state, value) == Some(ValueClass::Text)
+        || crate::places::declared_place_type(program, machine, state, value)
+            .is_some_and(|value_type| type_reference_is_text_carrier(program, value_type))
+    {
+        return false;
+    }
     let Some(value_is_array) = value_shape_is_array(program, machine, state, value) else {
         return false;
     };

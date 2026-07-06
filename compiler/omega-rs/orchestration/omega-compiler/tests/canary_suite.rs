@@ -21086,6 +21086,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/struct_literal_wrong_data_type_rejected",
     "data/nested_array_literal_inner_length_rejected",
     "data/array_scalar_shape_mismatch_rejected",
+    "data/array_return_shape_mismatch_rejected",
+    "data/construction_field_shape_mismatch_rejected",
     "expressions/match_duplicate_pattern_rejected",
     "expressions/primitive_member_access_rejected",
     "expressions/cross_class_binary_operands_rejected",

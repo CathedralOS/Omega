@@ -308,6 +308,19 @@ fn enforce_construction_field_obligations(
         // (which only applies to `[a..=b]`-constrained fields), so every primitive
         // field -- range-constrained or not -- is class-checked.
         let slot_context = format!("construction of `{type_name}` field `{}`", field.name.as_str());
+        // Shape guard: `P { x: self.xs }` puts an array into a scalar field (or a
+        // scalar into an array field). Runs for EVERY field -- the scalar class
+        // guard and the data nominal guard below both no-op on an array value.
+        crate::expression_types::report_array_scalar_shape_mismatch(
+            program,
+            machine,
+            Some(state),
+            field.value,
+            field_type,
+            &slot_context,
+            "field",
+            diagnostics,
+        );
         if let Some(field_primitive) = program.primitive_type_reference(field_type) {
             if crate::expression_types::report_cross_class_store(
                 program,

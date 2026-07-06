@@ -246,6 +246,19 @@ fn validate_state_statement_node(
                     "place",
                     diagnostics,
                 );
+                // Shape guard: `self.scalar = self.xs` (array into a scalar place) --
+                // caught by the backend today (a crude `NeedsMachineOwnedWrite`); this
+                // gives a clear frontend message and covers the mirror.
+                expression_types::report_array_scalar_shape_mismatch(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    assignment.value,
+                    target_type,
+                    &owner,
+                    "place",
+                    diagnostics,
+                );
             }
             let before = diagnostics.len();
             let (interval, source_primitive) = arithmetic_domains::validate_value_range(
@@ -342,6 +355,17 @@ fn validate_state_statement_node(
                 }
                 // Nominal guard: `-> Foo { self.bar }` returns a `Bar` as a `Foo`.
                 expression_types::report_data_type_conflict(
+                    program,
+                    machine,
+                    Some(state),
+                    *expression,
+                    state.return_type,
+                    &slot_context,
+                    "return value",
+                    diagnostics,
+                );
+                // Shape guard: `-> i32 { self.xs }` returns an array as a scalar.
+                expression_types::report_array_scalar_shape_mismatch(
                     program,
                     machine,
                     Some(state),
@@ -571,6 +595,17 @@ fn validate_state_statement_node(
                         // Nominal guard: `-> Foo { transition { _ -> (self.bar) } }`
                         // returns a `Bar` as a `Foo`.
                         expression_types::report_data_type_conflict(
+                            program,
+                            machine,
+                            Some(state),
+                            *return_expression,
+                            state.return_type,
+                            &format!("machine `{}` state `{state_name}`", machine.name),
+                            "return value",
+                            diagnostics,
+                        );
+                        // Shape guard: an array returned as a scalar (or vice versa).
+                        expression_types::report_array_scalar_shape_mismatch(
                             program,
                             machine,
                             Some(state),
