@@ -145,6 +145,10 @@ crate tests; interpreter fs coverage) and commits.
   a new `[result, fd, buffer]` operand arm; `metadata(file)` now reports the REAL
   mode/times (was a seek-based fake) and the stat/lstat/fstat trio is complete.
   `native_fstat` canary RUNS. See step 10h.
+- **Positioned I/O `read_at`/`write_at` landed natively** (Rust `FileExt`) via
+  `_pread`/`_pwrite` — new `[fd, buffer, count/len, offset]` operand arms (read/write
+  + a trailing offset scalar). `native_positioned_io` canary RUNS: overwrite mid-file
+  + read a slice, cursor untouched. See step 10i.
 - **`try_clone` (dup) landed natively** (Rust `File::try_clone`) via `_dup`,
   reusing the `close` one-fd operand shape. `native_try_clone` canary RUNS: the
   clone stays valid after the original is closed. See step 10g.
@@ -416,6 +420,25 @@ crate tests; interpreter fs coverage) and commits.
     `metadata(file).len` tests stay green (fstat returns the real len too). The
     stat family is now complete: stat (path/follow) / lstat (path/no-follow) /
     fstat (open fd).
+10i. [x] **Positioned I/O — `read_at`/`write_at`** (Rust `os::unix::fs::FileExt::
+    read_at`/`write_at`) via `pread`/`pwrite` — DONE, complete NATIVE vertical.
+    `HostOperation::PRead`/`PWrite` (ops `pread`/`pwrite` → darwin `_pread`/`_pwrite`).
+    New operand arms = the `read`/`write` arms plus a TRAILING offset scalar:
+    PRead `[result, fd, buffer ptr, count, offset]`, PWrite `[result, fd, buffer
+    ptr, length, offset]` (PWrite keeps `write`'s literal-vs-runtime-slice split).
+    The value-returning encoder handled the 4-call-arg (x0..x3) shapes with no
+    changes. Raw `FilesystemHost::read_at(fd, buffer, count, offset) -> i64` /
+    `write_at(fd, bytes, offset) -> i64`; wrappers `Filesystem::read_at(file,
+    buffer, count, offset) -> IoResult` / `write_at(file, bytes, offset) ->
+    IoResult`. Interpreter `virtual_read_at`/`virtual_write_at` read/write at an
+    absolute offset WITHOUT moving the cursor (write_at zero-fills a gap past EOF);
+    negative offset or unknown/non-writable fd → failure. DIFFERENTIAL: native
+    `native_positioned_io` canary RUNS (write "0123456789", reopen O_RDWR,
+    write_at("XY",2) → "01XY456789", read_at(4,1) → "1XY4" → PASS) AND coverage
+    `filesystem_std_module_positioned_io` (same, via `open_with` for an RDWR fd).
+    NOTE: `create` opens WRITE-ONLY (`_creat`), so a read_at needs a subsequent
+    `open`/`open_with` with the read bit (the canary reopens O_RDWR). pwrite's
+    literal-payload path is exercised by the "XY" write.
 11. [x] **Richer `Metadata`** via `stat` — DONE, complete NATIVE vertical (used
     `stat(path)`, not `fstat(fd)`, so it works on DIRECTORIES with no open/read
     perm). `HostOperation::Stat` (op `stat` → darwin `_stat`); operand arm

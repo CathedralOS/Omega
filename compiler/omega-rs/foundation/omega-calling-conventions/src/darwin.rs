@@ -19,6 +19,8 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("Filesystem", "creat", "_creat", &policy),
         darwin_import("Filesystem", "read", "_read", &policy),
         darwin_import("Filesystem", "write", "_write", &policy),
+        darwin_import("Filesystem", "pread", "_pread", &policy),
+        darwin_import("Filesystem", "pwrite", "_pwrite", &policy),
         darwin_import("Filesystem", "close", "_close", &policy),
         darwin_import("Filesystem", "unlink", "_unlink", &policy),
         darwin_import("Filesystem", "lseek", "_lseek", &policy),
@@ -126,6 +128,20 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "FilesystemHost",
         "write",
         [host_operation("Filesystem", "write")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "read_at",
+        [host_operation("Filesystem", "pread")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "write_at",
+        [host_operation("Filesystem", "pwrite")],
         PlatformCallData::None,
     );
     insert_platform_lowering(

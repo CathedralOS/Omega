@@ -1220,6 +1220,79 @@ machine Main::main(&mut self) {
     );
 }
 
+/// Positioned I/O (Rust `FileExt::write_at`/`read_at`, via pwrite/pread): open a
+/// file "0123456789" read-write, `write_at("XY", 2)` overwrites bytes 2..4 ->
+/// "01XY456789", then `read_at(4, 1)` reads back "1XY4" ('1'=49, 'X'=88). Neither
+/// positioned op moves the cursor.
+#[test]
+fn filesystem_std_module_positioned_io() {
+    let main_path = write_program(
+        "fs-positioned-io",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    open_result: OpenResult;
+    io_result: IoResult;
+    rw_opts: OpenOptions;
+    close_rc: i32;
+    b0: u8;
+    b1: u8;
+    cap: usize;
+    buffer: [u8; 64];
+}
+machine Main::main(&mut self) {
+    self.cap = 64;
+    self.rw_opts = OpenOptions { read: true, write: true, append: false, truncate: false };
+    self.unit_result = self.fs.write_all("/pio.txt", "0123456789");
+    transition self.unit_result { UnitResult::Ok -> openit() _ -> fail() }
+    state openit(&mut self) {
+        self.open_result = self.fs.open_with("/pio.txt", self.rw_opts);
+        transition self.open_result { OpenResult::Ok { file } -> pwrite(file) _ -> fail() }
+    }
+    state pwrite(&mut self, file: File) {
+        self.io_result = self.fs.write_at(file, "XY", 2);
+        transition self.io_result { IoResult::Ok { count } -> checkwrote(file, count) _ -> fail() }
+    }
+    state checkwrote(&mut self, file: File, count: usize) {
+        transition count == 2 { true -> pread(file) _ -> fail() }
+    }
+    state pread(&mut self, file: File) {
+        self.io_result = self.fs.read_at(file, &mut self.buffer, 4, 1);
+        self.close_rc = self.fs.close(file);
+        self.unit_result = self.fs.remove("/pio.txt");
+        transition self.io_result { IoResult::Ok { count } -> checkread(count) _ -> fail() }
+    }
+    state checkread(&mut self, count: usize) {
+        transition count == 4 { true -> checkb0() _ -> fail() }
+    }
+    state checkb0(&mut self) {
+        self.b0 = self.buffer[0];
+        transition self.b0 == 49 { true -> checkb1() _ -> fail() }
+    }
+    state checkb1(&mut self) {
+        self.b1 = self.buffer[1];
+        transition self.b1 == 88 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("positioned_io program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "positioned_io: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "write_at('XY',2) -> 01XY456789; read_at(4,1) -> '1XY4' (49,88)"
+    );
+}
+
 /// `File::sync_all` via the std module: create → write → `sync` returns
 /// `UnitResult::Ok` → the file's bytes survive the flush (metadata().len still
 /// reports the written size). Exercises the shipped `Filesystem::sync` wrapper

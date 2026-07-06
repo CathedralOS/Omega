@@ -165,6 +165,10 @@ boundary trait FilesystemHost {
     machine open(path: &[u8] in Path, flags: i32) -> i32;
     machine read(fd: i32, buffer: &mut [u8], count: usize) -> i64;
     machine write(fd: i32, bytes: &[u8]) -> i64;
+    // Positioned I/O (Rust `FileExt::read_at`/`write_at`): read/write at an
+    // absolute `offset` WITHOUT moving the descriptor's cursor. `_pread`/`_pwrite`.
+    machine read_at(fd: i32, buffer: &mut [u8], count: usize, offset: i64) -> i64;
+    machine write_at(fd: i32, bytes: &[u8], offset: i64) -> i64;
     machine close(fd: i32) -> i32;
     machine remove(path: &[u8] in Path) -> i32;
     machine seek(fd: i32, offset: i64, whence: i32) -> i64;
@@ -286,6 +290,25 @@ machine Filesystem::read(&mut self, file: File, buffer: &mut [u8], count: usize)
 // Write `bytes`; returns the number written.
 machine Filesystem::write(&mut self, file: File, bytes: &[u8]) -> IoResult {
     let n: i64 = self.host.write(file.fd, bytes);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+// Read up to `count` bytes at absolute `offset` WITHOUT moving the cursor (Rust
+// `FileExt::read_at`) — a positioned read, so concurrent readers each track their
+// own offset. Returns the number read (0 = EOF at/after `offset`).
+machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: usize, offset: i64) -> IoResult {
+    let n: i64 = self.host.read_at(file.fd, buffer, count, offset);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+// Write `bytes` at absolute `offset` WITHOUT moving the cursor (Rust
+// `FileExt::write_at`) — a positioned write; a gap past end-of-file is zero-filled.
+machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult {
+    let n: i64 = self.host.write_at(file.fd, bytes, offset);
     transition n >= 0 { true -> ok(n) _ -> err() }
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
