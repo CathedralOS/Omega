@@ -27,6 +27,14 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
+        // Deref-result ops (errno) must be checked before the plain
+        // value-returning arm: they share `returns_value()` but insert an extra
+        // `ldr` to deref the returned pointer.
+        Architecture::Aarch64 if operation_key.dereferences_result() => {
+            aarch64::encode_host_call_sequence_value_returning_deref_from_operands(
+                operands.iter().map(aarch64_call_operand),
+            )
+        }
         Architecture::Aarch64 if operation_key.returns_value() => {
             aarch64::encode_host_call_sequence_value_returning_from_operands(
                 operands.iter().map(aarch64_call_operand),

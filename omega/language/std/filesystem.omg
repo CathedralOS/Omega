@@ -80,6 +80,20 @@ boundary trait FilesystemHost {
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
     machine set_len(fd: i32, length: i64) -> i32;
     machine sync(fd: i32) -> i32;
+    // Read the thread-local errno (darwin `___error()` -> `&errno`, dereferenced
+    // in the lowering). Call it immediately after a raw op returned negative.
+    machine errno() -> i32;
+}
+
+// The category of an I/O failure (Rust `std::io::ErrorKind`). First case is the
+// ZII zero case = `Other` (an unclassified/unknown errno). Grown as more errno
+// values get mapped; today covers the common file-op failures.
+data ErrorKind {
+    case Other;
+    case NotFound;         // ENOENT (2)
+    case PermissionDenied; // EACCES (13)
+    case AlreadyExists;    // EEXIST (17)
+    case BadDescriptor;    // EBADF  (9)
 }
 
 // The ergonomic capability. Holds the raw host plus the portable flag/mode
@@ -205,6 +219,29 @@ machine Filesystem::remove(&mut self, path: &[u8] in Path) -> UnitResult {
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { UnitResult::Error }
+}
+
+// Classify the most recent failure as an `ErrorKind` (Rust `io::Error::kind`).
+// Reads the thread-local errno via the raw seam and maps the common file-op
+// codes; call it IMMEDIATELY after an op returned an Error/negative value,
+// before any other host call (errno is only valid right after the failure).
+machine Filesystem::last_error(&mut self) -> ErrorKind {
+    let code: i32 = self.host.errno();
+    transition code == 2 { true -> not_found() _ -> check_acces(code) }
+    state check_acces(&mut self, code: i32) -> ErrorKind {
+        transition code == 13 { true -> denied() _ -> check_exist(code) }
+    }
+    state check_exist(&mut self, code: i32) -> ErrorKind {
+        transition code == 17 { true -> exists() _ -> check_badf(code) }
+    }
+    state check_badf(&mut self, code: i32) -> ErrorKind {
+        transition code == 9 { true -> bad_descriptor() _ -> other() }
+    }
+    state not_found(&mut self) -> ErrorKind { ErrorKind::NotFound }
+    state denied(&mut self) -> ErrorKind { ErrorKind::PermissionDenied }
+    state exists(&mut self) -> ErrorKind { ErrorKind::AlreadyExists }
+    state bad_descriptor(&mut self) -> ErrorKind { ErrorKind::BadDescriptor }
+    state other(&mut self) -> ErrorKind { ErrorKind::Other }
 }
 
 // Create a directory.

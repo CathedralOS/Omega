@@ -72,6 +72,50 @@ pub fn encode_host_call_sequence_value_returning_from_operands(
     Ok(bytes)
 }
 
+/// A value-returning host call whose callee returns a POINTER to the real
+/// result (darwin `___error()` -> `&errno`). Identical to
+/// `encode_host_call_sequence_value_returning_from_operands` except that, right
+/// after the `BL`, it derefs the return register once with `ldr w0,[x0]`
+/// (0xB9400000) so the stored value is `*x0` (the errno int), not the pointer.
+/// The single extra 4-byte load is why `dereferences_result` adds 4 to both the
+/// call-sequence width and the result-store data-address relocation offset — the
+/// store now sits 4 bytes later. `read_errno` takes no args, so the `BL`
+/// relocation (which precedes the load) is unaffected.
+pub fn encode_host_call_sequence_value_returning_deref_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all: Vec<Aarch64CallOperand> = operands.collect();
+    let Some((result, args)) = all.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 deref host call has no result storage operand",
+        ));
+    };
+    let RuntimeScalarInteger {
+        byte_offset,
+        byte_count,
+    } = *result
+    else {
+        return Err(Diagnostic::error(
+            "AArch64 deref host call result place did not lower to a runtime scalar",
+        ));
+    };
+    let mut bytes =
+        Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()) + 4);
+    append_call_operands(&mut bytes, args.iter().copied())?;
+    bytes.extend(encode_branch_link_placeholder());
+    // Deref the returned pointer: `ldr w0, [x0]` (load errno through &errno).
+    bytes.extend(encode_instruction(0xB940_0000));
+    // Result store: x16 <- result region base (adrp/add relocated), then store.
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    if byte_count >= 8 {
+        bytes.extend(encode_store_x_to_x(0, 16, byte_offset)?);
+    } else {
+        bytes.extend(encode_store_w_to_x(0, 16, byte_offset, byte_count)?);
+    }
+    Ok(bytes)
+}
+
 pub fn encode_syscall_sequence(
     operands: &[Aarch64CallOperand],
     syscall_number: u32,

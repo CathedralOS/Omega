@@ -27,6 +27,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("Filesystem", "rename", "_rename", &policy),
         darwin_import("Filesystem", "ftruncate", "_ftruncate", &policy),
         darwin_import("Filesystem", "fsync", "_fsync", &policy),
+        darwin_import("Filesystem", "read_errno", "___error", &policy),
     ]);
 
     insert_platform_lowering(
@@ -170,6 +171,16 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "FilesystemHost",
         "sync",
         [host_operation("Filesystem", "fsync")],
+        PlatformCallData::None,
+    );
+    // errno accessor: `___error()` returns `&errno`; the value-returning lowering
+    // derefs the returned pointer once (see `dereferences_result`) so the stored
+    // result is the errno integer, not the pointer. No args.
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "errno",
+        [host_operation("Filesystem", "read_errno")],
         PlatformCallData::None,
     );
 }

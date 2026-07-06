@@ -49,7 +49,11 @@ pub(crate) fn data_address_relocation_offset(
                 .sum::<usize>()
         };
         if operand_index == 0 {
-            return selected_text_offset + arg_bytes(1..operands.len()) + 4;
+            // The result store's adrp/add lands after the args + the BL (4). A
+            // deref-result op (errno) inserts an extra `ldr w0,[x0]` (4) between
+            // the BL and the store, pushing the store's page-pair 4 bytes later.
+            let deref_bytes = if operation_key.dereferences_result() { 4 } else { 0 };
+            return selected_text_offset + arg_bytes(1..operands.len()) + 4 + deref_bytes;
         }
         return selected_text_offset + arg_bytes(1..operand_index);
     }

@@ -641,6 +641,7 @@ boundary trait FilesystemHost {
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
     machine set_len(fd: i32, length: i64) -> i32;
     machine sync(fd: i32) -> i32;
+    machine errno() -> i32;
 }
 
 boundary trait Console {
@@ -1332,5 +1333,89 @@ machine Main::main(&mut self) {
     assert_eq!(
         outcome.exit_code, 70,
         "write_all/read_all must round-trip 15 bytes and read_all(missing) must be Error"
+    );
+}
+
+/// Raw `errno` seam: opening a missing path fails and `errno()` reports ENOENT
+/// (2); creating a directory twice reports EEXIST (17). Exercises the
+/// value-returning-with-deref op on the interpreter side (mirrors the native
+/// `___error()` deref).
+#[test]
+fn filesystem_value_returning_errno() {
+    interpret_fs(
+        "fs-vr-errno",
+        r#"
+data Main {
+    fs: FilesystemHost;
+    console: Console;
+    rdonly: i32;
+    mode: i32;
+    fd: i32;
+    rc: i32;
+    code: i32;
+}
+machine Main::main(&mut self) {
+    self.rdonly = 0;
+    self.mode = 493;
+    self.fd = self.fs.open("/nope.txt", self.rdonly);
+    transition self.fd < 0 { true -> checkenoent() _ -> fail() }
+    state checkenoent(&mut self) {
+        self.code = self.fs.errno();
+        transition self.code == 2 { true -> makedir() _ -> fail() }
+    }
+    state makedir(&mut self) {
+        self.rc = self.fs.create_dir("/d", self.mode);
+        self.rc = self.fs.create_dir("/d", self.mode);
+        transition self.rc < 0 { true -> checkeexist() _ -> fail() }
+    }
+    state checkeexist(&mut self) {
+        self.code = self.fs.errno();
+        transition self.code == 17 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+        70,
+        "errno must report ENOENT(2) for a missing open and EEXIST(17) for a duplicate mkdir",
+    );
+}
+
+/// The typed error model via the std module (Rust `io::Error::kind`):
+/// `Filesystem::open` a missing path returns Error, and `last_error()`
+/// classifies the errno as `ErrorKind::NotFound`.
+#[test]
+fn filesystem_std_module_error_kind() {
+    let main_path = write_program(
+        "fs-errorkind",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    open_result: OpenResult;
+    kind: ErrorKind;
+}
+machine Main::main(&mut self) {
+    self.open_result = self.fs.open("/absent.txt");
+    transition self.open_result { OpenResult::Error -> classify() _ -> fail() }
+    state classify(&mut self) {
+        self.kind = self.fs.last_error();
+        transition self.kind { ErrorKind::NotFound -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("error-kind program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "error_kind: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "open(missing) must be Error and last_error() must classify errno 2 as NotFound"
     );
 }

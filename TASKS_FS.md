@@ -95,6 +95,18 @@ crate tests; interpreter fs coverage) and commits.
   the right unblock; it's bounded backend work but deeper than a single loop
   fire, so deferred. Interim: `create` (→`_creat`, register mode) covers the
   common create-and-truncate case.
+- **D9. Deref-result host calls (a reusable backend capability).** A host op can
+  now return a POINTER whose pointee is the real result: `dereferences_result()`
+  on `HostOperationKey` marks it, and the aarch64 lowering inserts one `ldr
+  w0,[x0]` after the `BL` to deref before the store. This is GENERAL (not
+  fs-specific) — the pattern for any libc that returns `T*` to an out-value.
+  Correctness rule: the deref adds 4 bytes between the call and the result store,
+  so the +4 MUST be applied in lockstep at exactly three sites keyed on
+  `dereferences_result()` — `widths.rs` (layout width), `data_addresses.rs`
+  (result-store adrp/add offset, operand 0), and the encoder — while the `BL`
+  relocation offset is left ALONE (it precedes the ldr). First user:
+  `Filesystem::read_errno` (darwin `___error`). Verify any new deref op by
+  disassembly (`otool -tv`) as well as execution.
 
 ## Current state (update every fire)
 
@@ -174,23 +186,36 @@ crate tests; interpreter fs coverage) and commits.
    `filesystem_std_module_whole_file_helpers` (15-byte round-trip + read_all on a
    missing path == Error). Rust returns a grown `Vec`; Omega fills a caller buffer
    to keep the std surface allocation-free (size it via `metadata().len`).
-9. [ ] **Error model** — negative raw return → typed Omega error `data` cases
-   (Rust `io::ErrorKind`: NotFound/PermissionDenied/AlreadyExists/…). PLAN
-   (worked out, not yet built): darwin libSystem wrappers return -1 and set the
-   thread-local errno, read via `__error()` which returns `int*`. Add a raw op
-   `read_errno` whose value-returning lowering, AFTER the `BL __error`, emits one
-   extra `ldr w0,[x0]` (0xB9400000) to deref the pointer before the result store
-   — keeping the deref entirely in the backend (no language-level raw pointer).
-   ⚠ RISK found this fire: the value-returning relocation offsets are computed
-   ANALYTICALLY (`external_calls.rs`: BL offset = Σ arg widths; the result-store
-   adrp/add offsets in `data_addresses.rs` are likewise fixed-layout), so
-   inserting the `ldr` shifts several offset computations and the width function
-   `host_call_sequence_width_from_operands` — all must move together (+4) or
-   relocations desync (the same width-mismatch bug class as the 154 pre-existing
-   failures). Do it as its OWN careful fire with a disassembly check, not folded
-   into another change. Then wire errno→ErrorKind and thread the kind into the
-   result enums (`OpenResult::Error(kind)` etc.); interpreter models errno by
-   returning specific `-errno` from the virtual ops. Medium-large, multi-fire.
+9. [~] **Error model** — the errno CAPABILITY + `ErrorKind` classification are
+   DONE (D9); wiring the kind INTO the result enums is the remaining follow-up.
+   Landed this fire:
+   - **Backend deref host call** — `HostOperation::ReadErrno` (op `read_errno` →
+     darwin `___error`) + `HostOperationKey::dereferences_result()`. Its aarch64
+     lowering (`encode_host_call_sequence_value_returning_deref_from_operands`)
+     emits `BL ___error` then one `ldr w0,[x0]` (0xB9400000) to deref `&errno`
+     before the result store. The +4 shift is threaded through the THREE lockstep
+     sites keyed on `dereferences_result()`: the width fn (`widths.rs`), the
+     result-store data-address offset (`data_addresses.rs` operand 0), and the
+     encoder. The BL relocation is unaffected (BL precedes the ldr; no args).
+     DISASSEMBLY-VERIFIED: `bl <___error stub>; ldr w0,[x0]; adrp x16; add x16;
+     str w0,[x16,#8]`. Native `native_errno` canary RUNS → `errno == 2` (ENOENT)
+     for a missing open. No regressions (isa-aarch64 31 / instr-sel 10 / reloc 5
+     crate tests green; Console cli_mvp native green).
+   - **Interpreter errno model** — `virtual_errno` field, set on failures
+     (ENOENT=2 open/remove/remove_dir, EEXIST=17 create_dir, EBADF=9 close), read
+     by the `errno` op. Not cleared on success (POSIX). Coverage
+     `filesystem_value_returning_errno`.
+   - **Omega surface** — raw `FilesystemHost::errno() -> i32`; `data ErrorKind`
+     (Other/NotFound/PermissionDenied/AlreadyExists/BadDescriptor);
+     `Filesystem::last_error() -> ErrorKind` classifies the errno. Coverage
+     `filesystem_std_module_error_kind` (open(missing) → Error → last_error() ==
+     NotFound).
+   - REMAINING: thread the kind INTO the result enums so failures self-describe
+     (`OpenResult::Error(kind)` / `IoResult::Error(kind)` etc.) instead of the
+     caller separately calling `last_error()`; map more errno codes; set errno in
+     the remaining virtual failure sites (read/write/seek/set_len/sync/rename).
+     Also errno is only valid immediately after a failing op (the wrapper ops do
+     one host call each, so `last_error()` right after works today).
 10. [ ] **Richer `Metadata`** via `fstat` — `st_size`/mode/times. Needs a
     stat-buffer out-param + struct-field reads (darwin arm64 `st_size` at off 96).
     Unlocks `is_file`/`is_dir`/permissions/modified. Medium-large.
