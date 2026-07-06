@@ -289,6 +289,24 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Filesystem, HostOperation::ReadLink) => {
+            // Value-returning `n = read_link(path, buf, count) -> _readlink(path,
+            // buf, count)`. operand[0]=result, [1]=path POINTER (NUL-terminated),
+            // [2]=buffer POINTER (kernel writes the target there), [3]=count.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let path = path_pointer_operand(input, host_call, dispatch_index, 1);
+            let buffer = address_argument_operand_at(input, host_call, dispatch_index, 2);
+            let count = scalar_argument_operand_at(input, host_call, dispatch_index, 3);
+            match (result, path, buffer, count) {
+                (Some(result), Some(path), Some(buffer), Some(count)) => operands.insert_many([
+                    operand(result),
+                    operand(path),
+                    operand(buffer),
+                    operand(count),
+                ]),
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::Filesystem, HostOperation::Stat) => {
             // Value-returning `rc = read_metadata(path, buf) -> _stat(path, buf)`.
             // operand[0]=result, [1]=path POINTER (NUL-terminated C string),
@@ -346,10 +364,14 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
-        (HostCapability::Filesystem, HostOperation::Rename | HostOperation::Link) => {
-            // Value-returning `rc = rename(from, to) -> _rename(from, to)` and
-            // `rc = hard_link(original, link) -> _link(original, link)`.
-            // operand[0]=result, [1]=from/original POINTER, [2]=to/link POINTER.
+        (
+            HostCapability::Filesystem,
+            HostOperation::Rename | HostOperation::Link | HostOperation::Symlink,
+        ) => {
+            // Value-returning `rc = rename(from, to) -> _rename(from, to)`,
+            // `rc = hard_link(original, link) -> _link(original, link)`, and
+            // `rc = symlink(target, linkpath) -> _symlink(target, linkpath)`.
+            // operand[0]=result, [1]=first path POINTER, [2]=second path POINTER.
             // Two path LITERALS in one statement, resolved by creation order.
             // (Runtime-path forms are a future extension.)
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);

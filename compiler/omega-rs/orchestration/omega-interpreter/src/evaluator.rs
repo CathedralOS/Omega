@@ -242,6 +242,10 @@ struct Evaluator<'program> {
     /// fail with EACCES — enough to model `set_permissions` without tracking a
     /// mode for every created file.
     virtual_perms: BTreeMap<Vec<u8>, u32>,
+    /// Symbolic links: link path -> target bytes (`symlink`/`read_link`). The
+    /// hermetic model stores and returns targets but does NOT resolve them on
+    /// open/stat (see TASKS_FS.md); native symlinks resolve for real.
+    virtual_symlinks: BTreeMap<Vec<u8>, Vec<u8>>,
     /// The thread-local `errno` model: set to a POSIX code when a virtual fs op
     /// fails (ENOENT=2, EACCES=13, EEXIST=17, EBADF=9), read back by
     /// `read_errno` (darwin `___error()`). Mirrors the native seam so the typed
@@ -279,6 +283,7 @@ impl<'program> Evaluator<'program> {
             virtual_next_fd: 3,
             virtual_dirs: std::collections::BTreeSet::new(),
             virtual_perms: BTreeMap::new(),
+            virtual_symlinks: BTreeMap::new(),
             virtual_errno: 0,
             host_boundary_touched: false,
             steps: 0,
@@ -2429,6 +2434,40 @@ impl<'program> Evaluator<'program> {
                 } else {
                     self.virtual_errno = 2; // ENOENT
                     -1
+                }
+            }
+            "symlink" => {
+                // `symlink(target, linkpath)`: record the link -> target mapping.
+                // EEXIST if the link name already names a file/dir/symlink.
+                let target = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let link = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                if self.virtual_files.contains_key(&link)
+                    || self.virtual_dirs.contains(&link)
+                    || self.virtual_symlinks.contains_key(&link)
+                {
+                    self.virtual_errno = 17; // EEXIST
+                    -1
+                } else {
+                    self.virtual_symlinks.insert(link, target);
+                    0
+                }
+            }
+            "read_link" => {
+                // `readlink(path, buf, count)`: write the target bytes into the
+                // buffer (up to `count`), returning the number written. ENOENT if
+                // `path` is not a symlink in the hermetic model.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                match self.virtual_symlinks.get(&path).cloned() {
+                    Some(target) => {
+                        let n = target.len().min(count);
+                        self.write_fs_buffer(arguments.get(1).copied(), frame, &target[..n]);
+                        n as i64
+                    }
+                    None => {
+                        self.virtual_errno = 2; // ENOENT
+                        -1
+                    }
                 }
             }
             "read_metadata" => {

@@ -1,0 +1,41 @@
+// NATIVE fs symlink + read_link (Rust os::unix::fs::symlink + fs::read_link).
+// Creates a symlink to a target, then reads the link back and confirms the 12
+// target bytes ("the_target!!", first byte 't' = 116). Proves symlink/readlink
+// on real macOS syscalls. Prints PASS iff read_link returns the target.
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> i32;
+    machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: usize) -> i64;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+}
+
+data Main {
+    fs: FilesystemHost;
+    cap: usize;
+    rc: i32;
+    got: i64;
+    first: u8;
+    n: i64;
+    buffer: [u8; 64];
+}
+
+machine Main::main(&mut self) {
+    self.cap = 64;
+    self.rc = self.fs.symlink("the_target!!", "/tmp/omega_symlink");
+    transition self.rc == 0 { true -> readit() _ -> fail() }
+    state readit(&mut self) {
+        self.got = self.fs.read_link("/tmp/omega_symlink", &mut self.buffer, self.cap);
+        self.n = self.fs.remove("/tmp/omega_symlink");
+        self.first = self.buffer[0];
+        transition self.got == 12 { true -> checkbyte() _ -> fail() }
+    }
+    state checkbyte(&mut self) {
+        transition self.first == 116 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: read_link returns the 12-byte target\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: symlink\n"); }
+}

@@ -149,6 +149,8 @@ boundary trait FilesystemHost {
     machine set_file_permissions(fd: i32, mode: u32) -> i32;
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
     machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32;
+    machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> i32;
+    machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: usize) -> i64;
     // Fill `buffer` (>= 144 bytes) with the path's `struct stat` record (Rust
     // `fs::metadata`). The Omega layer reads st_size/st_mode back out.
     machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
@@ -417,6 +419,26 @@ machine Filesystem::set_permissions(&mut self, path: &[u8] in Path, perms: Permi
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Create a symbolic link `link` pointing at `target` (Rust
+// `std::os::unix::fs::symlink`). Fails with `AlreadyExists` if `link` is taken.
+machine Filesystem::symlink(&mut self, target: &[u8] in Path, link: &[u8] in Path) -> UnitResult {
+    let rc: i32 = self.host.symlink(target, link);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Read a symbolic link's target into `buffer` (Rust `std::fs::read_link`),
+// returning the number of target bytes written. (Rust returns a fresh `PathBuf`;
+// Omega fills a caller buffer to stay allocation-free — size it via
+// `metadata_path(link).len` or a generous fixed buffer.)
+machine Filesystem::read_link(&mut self, path: &[u8] in Path, buffer: &mut [u8], count: usize) -> IoResult {
+    let n: i64 = self.host.read_link(path, buffer, count);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
 // Set an OPEN file's permission bits (Rust `File::set_permissions`), the fd-based
