@@ -31,7 +31,7 @@ Surface syntax (s-expressions). Binders name their bound variable; references us
 Usage:  elab.py < proof.elab            # prints the raw certificate
         elab.py --check < proof.elab    # elaborate, then run check.beta, print accept/reject
 """
-import sys, re
+import sys, re, os
 
 def tokenize(s):
     s = re.sub(r';[^\n]*', ' ', s)               # strip ; comments
@@ -156,8 +156,32 @@ def epf(n, iv, hy):  # elaborate a proof term
     if h == 'permtrans':return "(permtrans %s %s)" % (epf(n[1], iv, hy), epf(n[2], iv, hy))  # Perm(a,b) & Perm(b,c) -> Perm(a,c)
     raise SystemExit("elab error: bad proof %r" % (n[0],))
 
+def _read_forms(path):
+    # resolve relative to CWD first, then to this script's directory (so libs are findable
+    # regardless of where elab is invoked from)
+    for cand in (path, os.path.join(os.path.dirname(os.path.abspath(__file__)), path)):
+        if os.path.exists(cand):
+            with open(cand) as fh:
+                return parse(tokenize(fh.read()))
+    raise SystemExit("elab error: include file not found: %r" % path)
+
 def elaborate(src):
-    forms = parse(tokenize(src))
+    # (include FILE) splices a shared library: its decls (data/prod/fun/def) are emitted, and its
+    # (lemma NAME TYPE PROOF) forms WRAP the main proof as nested `have`s (SRP: shared monoid lemmas
+    # live in ONE file, not copied into every fold proof). Purely front-end sugar — the emitted cert
+    # is still verified by all three checkers.
+    lemmas = []          # (name, type_ast, pf_ast), in declaration order; wrap the final proof
+    flat = []            # forms with includes expanded and lemmas hoisted out
+    def expand(forms):
+        for f in forms:
+            if isinstance(f, list) and f and f[0] == 'include':
+                expand(_read_forms(f[1]))
+            elif isinstance(f, list) and f and f[0] == 'lemma':
+                lemmas.append((f[1], f[2], f[3]))
+            else:
+                flat.append(f)
+    expand(parse(tokenize(src)))
+    forms = flat
     out = []
     i = 0
     while i < len(forms):
@@ -176,9 +200,12 @@ def elaborate(src):
             out.append("(def %s %s %s)" % (f[1], ep(f[2], []), epf(f[3], [], [])))
             i += 1
         else:
-            # remaining two forms: goal prop, then proof
+            # remaining two forms: goal prop, then proof — wrap the proof in any included lemmas
             goal = ep(forms[i], [])
-            proof = epf(forms[i + 1], [], [])
+            proof_ast = forms[i + 1]
+            for (name, ty, pf) in reversed(lemmas):
+                proof_ast = ['have', name, ty, pf, proof_ast]
+            proof = epf(proof_ast, [], [])
             out.append(goal); out.append(proof)
             i += 2
     return ' '.join(out)
