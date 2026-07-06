@@ -1412,6 +1412,100 @@ machine Main::main(&mut self) {
     );
 }
 
+/// `read_dir` ITERATION idiom: fill the buffer, then WALK the packed dirent
+/// records with a RUNTIME-INDEXED cursor — `d_reclen` is a u16 read at
+/// `buffer[off + 16]`/`buffer[off + 17]` (a runtime `off`, not a constant), and
+/// `off` advances by that record length until it reaches the filled byte count.
+/// A directory with two files yields four entries (`.`, `..`, and the two
+/// children), so the walk counts 4 regardless of entry order. This is the
+/// cursor an ergonomic `ReadDir` iterator uses; it exercises runtime-indexed
+/// buffer reads + runtime bitwise reconstruction of the little-endian u16, both
+/// of which the interpreter supports. (Native iteration is gated on the
+/// runtime-indexed-read backend blocker recorded in TASKS_FS.md step 13.)
+#[test]
+fn filesystem_read_dir_iteration() {
+    interpret_fs(
+        "fs-readdir-iter",
+        r#"
+data Main {
+    fs: FilesystemHost;
+    console: Console;
+    dirmode: i32;
+    filemode: i32;
+    rdonly: i32;
+    cap: usize;
+    rc: i32;
+    fd: i32;
+    dfd: i32;
+    n: i64;
+    total: i64;
+    totalu: usize in Wrapping;
+    position: i64;
+    off: usize in Wrapping;
+    idx: usize in Wrapping;
+    count: i32 in Wrapping;
+    lo: u8;
+    hi: u8;
+    lou: usize in Wrapping;
+    hiu: usize in Wrapping;
+    reclen: usize in Wrapping;
+    buffer: [u8; 512];
+}
+machine Main::main(&mut self) {
+    self.dirmode = 493;
+    self.filemode = 420;
+    self.rdonly = 0;
+    self.cap = 512;
+    self.position = 0;
+    self.off = 0;
+    self.count = 0;
+    self.rc = self.fs.create_dir("/d", self.dirmode);
+    self.fd = self.fs.create("/d/alpha", self.filemode);
+    self.n = self.fs.close(self.fd);
+    self.fd = self.fs.create("/d/beta", self.filemode);
+    self.n = self.fs.close(self.fd);
+    self.dfd = self.fs.open("/d", self.rdonly);
+    transition self.dfd >= 0 { true -> readit() _ -> fail() }
+    state readit(&mut self) {
+        self.total = self.fs.read_dir(self.dfd, &mut self.buffer, self.cap, &mut self.position);
+        self.totalu = self.total as usize in Wrapping;
+        transition self.total > 0 { true -> walk() _ -> fail() }
+    }
+    state walk(&mut self) {
+        // Bound the cursor so the record-header reads are provably in-buffer
+        // (dominating guard discharges the static index-bounds obligation).
+        transition self.off < 480 { true -> walkbody() _ -> fail() }
+    }
+    state walkbody(&mut self) {
+        // d_reclen: little-endian u16 at record offset + 16 (runtime-indexed read)
+        self.idx = self.off + 16;
+        self.lo = self.buffer[self.idx];
+        self.idx = self.off + 17;
+        self.hi = self.buffer[self.idx];
+        self.lou = self.lo as usize in Wrapping;
+        self.hiu = self.hi as usize in Wrapping;
+        self.reclen = (self.hiu << 8) | self.lou;
+        self.count = self.count + 1;
+        self.off = self.off + self.reclen;
+        transition self.off < self.totalu { true -> walk() _ -> done() }
+    }
+    state done(&mut self) {
+        self.n = self.fs.close(self.dfd);
+        self.n = self.fs.remove("/d/alpha");
+        self.n = self.fs.remove("/d/beta");
+        self.rc = self.fs.remove_dir("/d");
+        // entries: ".", "..", "alpha", "beta" => 4
+        transition self.count == 4 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+        70,
+        "read_dir iteration: runtime-indexed cursor walks dirent records by d_reclen, counts 4 entries",
+    );
+}
+
 /// Raw `errno` seam: opening a missing path fails and `errno()` reports ENOENT
 /// (2); creating a directory twice reports EEXIST (17). Exercises the
 /// value-returning-with-deref op on the interpreter side (mirrors the native
