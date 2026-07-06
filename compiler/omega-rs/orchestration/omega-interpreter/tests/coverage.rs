@@ -1779,3 +1779,69 @@ machine Main::main(&mut self) {
         "metadata_path: file -> is_dir false (len 3); directory -> is_dir true"
     );
 }
+
+/// `Metadata::is_file`/`readonly`/`permissions` (Rust `Metadata::is_file` +
+/// `Metadata::permissions().readonly()`), decoded from `st_mode`: a fresh file is
+/// a writable regular file (is_file, !readonly); after chmod to 0o444 the same
+/// path reports readonly and `permissions().mode == 292` (0o444).
+#[test]
+fn filesystem_std_module_metadata_permissions() {
+    let main_path = write_program(
+        "fs-meta-perms",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+    read_only: Permissions;
+    perms: Permissions;
+}
+machine Main::main(&mut self) {
+    self.read_only = Permissions { mode: 292 };
+    self.unit_result = self.fs.write_all("/rw.txt", "data");
+    transition self.unit_result { UnitResult::Ok -> statfresh() _ -> fail() }
+    state statfresh(&mut self) {
+        self.meta_result = self.fs.metadata_path("/rw.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> checkfresh(meta) _ -> fail() }
+    }
+    state checkfresh(&mut self, meta: Metadata) {
+        // a fresh regular file: is_file, and NOT read-only
+        transition meta.is_file() { true -> checkwritable(meta) _ -> fail() }
+    }
+    state checkwritable(&mut self, meta: Metadata) {
+        transition meta.readonly() { true -> fail() _ -> lockit() }
+    }
+    state lockit(&mut self) {
+        self.unit_result = self.fs.set_permissions("/rw.txt", self.read_only);
+        transition self.unit_result { UnitResult::Ok -> statlocked() _ -> fail() }
+    }
+    state statlocked(&mut self) {
+        self.meta_result = self.fs.metadata_path("/rw.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> checklocked(meta) _ -> fail() }
+    }
+    state checklocked(&mut self, meta: Metadata) {
+        self.perms = meta.permissions();
+        transition meta.readonly() { true -> checkperm() _ -> fail() }
+    }
+    state checkperm(&mut self) {
+        self.unit_result = self.fs.remove("/rw.txt");
+        transition self.perms.mode == 292 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("metadata-permissions program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "metadata_permissions: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "fresh file: is_file & writable; after chmod 0o444: readonly & permissions().mode == 292"
+    );
+}

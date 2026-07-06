@@ -80,12 +80,31 @@ data Permissions [copy, zero_init] {
 }
 
 // File metadata (Rust `std::fs::Metadata`). `len` is the size in bytes; `is_dir`
-// distinguishes a directory from a regular file (Rust `Metadata::is_dir`/
-// `is_file`). Read from the darwin `stat` record's `st_size`/`st_mode`. More
-// fields (permissions, times) follow as their `st_*` offsets are decoded.
+// distinguishes a directory from a regular file; `mode` is the raw `st_mode`
+// (format bits + permission bits). Read from the darwin `stat` record's
+// `st_size`/`st_mode`. (`modified` time follows once `st_mtime` @48 is decoded.)
 data Metadata [copy, zero_init] {
     len: i64;
     is_dir: bool;
+    mode: u32;
+}
+
+// Rust `Metadata::is_file` — a regular file (here: anything that is not a
+// directory; symlinks/devices are not modeled).
+machine Metadata::is_file(&self) -> bool {
+    !self.is_dir
+}
+
+// Rust `Metadata::permissions().readonly()` — true when the owner-write bit
+// (0o200 = 128) is clear in the permission bits.
+machine Metadata::readonly(&self) -> bool {
+    (self.mode & 128) == 0
+}
+
+// Rust `Metadata::permissions()` — the permission bits (low 9 of `st_mode`,
+// masked with 0o777 = 511) as a `Permissions`.
+machine Metadata::permissions(&self) -> Permissions {
+    Permissions { mode: self.mode & 511 }
 }
 data MetadataResult {
     case Error(kind: ErrorKind);
@@ -302,7 +321,7 @@ machine Filesystem::metadata_path(&mut self, path: &[u8] in Path) -> MetadataRes
             | ((self.stat_buf[103] as i64) << 56);
         let mode: i32 = (self.stat_buf[4] as i32) | ((self.stat_buf[5] as i32) << 8);
         let is_dir: bool = (mode & 61440) == 16384;
-        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir } }
+        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, mode: mode as u32 } }
     }
     state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
 }
@@ -419,7 +438,9 @@ machine Filesystem::metadata(&mut self, file: File) -> MetadataResult {
         transition back >= 0 { true -> ok(len) _ -> err() }
     }
     // An open `File` is a regular file (you cannot hold a `File` over a dir here),
-    // so `is_dir` is false; use `metadata_path` for the directory-aware form.
-    state ok(&mut self, len: i64) -> MetadataResult { MetadataResult::Ok { meta: Metadata { len: len, is_dir: false } } }
+    // so `is_dir` is false. The seek-based path cannot read the real mode, so it
+    // reports a conventional rw-r--r-- (0o644 = 420); use `metadata_path` for the
+    // accurate `mode`/`readonly`/`permissions` from `stat`.
+    state ok(&mut self, len: i64) -> MetadataResult { MetadataResult::Ok { meta: Metadata { len: len, is_dir: false, mode: 420 } } }
     state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
 }
