@@ -27,6 +27,11 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
+        Architecture::Aarch64 if operation_key.returns_value() => {
+            aarch64::encode_host_call_sequence_value_returning_from_operands(
+                operands.iter().map(aarch64_call_operand),
+            )
+        }
         Architecture::Aarch64 => aarch64::encode_host_call_sequence_from_operands(
             operands.iter().map(aarch64_call_operand),
         ),

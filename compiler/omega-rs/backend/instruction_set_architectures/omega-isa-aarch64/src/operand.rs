@@ -5,7 +5,7 @@ pub enum Aarch64CallOperand {
     RuntimeStringLength { byte_offset: usize },
     RuntimePointeeStringPointer { byte_offset: usize },
     RuntimePointeeStringLength { byte_offset: usize },
-    RuntimeScalarInteger { byte_offset: usize },
+    RuntimeScalarInteger { byte_offset: usize, byte_count: usize },
     ImmediateInteger(i64),
     ByteLength(usize),
 }
