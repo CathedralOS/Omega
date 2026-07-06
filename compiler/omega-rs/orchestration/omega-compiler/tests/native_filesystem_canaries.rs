@@ -178,3 +178,6 @@ fn native_metadata_readonly_passes() { assert_pass("native_metadata_readonly"); 
 
 #[test]
 fn native_value_call_let_chain_passes() { assert_pass("native_value_call_let_chain"); }
+// The SHIPPED ergonomic Filesystem wrapper natively (step 14 COMPLETE, all 5 layers)
+#[test]
+fn native_wrapper_write_all_passes() { assert_pass("native_wrapper_write_all"); }
