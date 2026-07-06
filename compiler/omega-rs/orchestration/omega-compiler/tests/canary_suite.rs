@@ -2709,6 +2709,81 @@ fn runtime_slice_length_field_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A runtime slice `.len` read into a LOCAL binding in a VALUE position (`let n =
+// s.len`), NOT as an operand or guard subject. The native side used to leave the
+// local slot unwritten (the descriptor length was never materialized), so a later
+// `n == 5` guard read the zeroed slot and took the false arm -- a silent read-0
+// miscompile the interpreter never had. `s` views a fixed `[i32; 5]` through
+// `.as_slice()`, so the length folds to 5 and the guard matches -> exit 5.
+#[test]
+fn runtime_slice_length_local_binding_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_slice_length_local_binding_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-slice-len-local-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("slice length local binding canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("slice length local binding canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(5),
+        "expected `let n = s.len` (as_slice-local) to materialize the length so \
+         `n == 5` matches -> exit 5, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// A runtime slice PARAM `.len` read into a LOCAL `usize` binding (`let n = s.len`).
+// The `.len` place resolver reports the descriptor's low 4-byte len word, so a
+// wider 8-byte `usize` slot failed the exact-size copy and the write was dropped
+// (the local read 0). The descriptor holds the full 8-byte len, now read at the
+// target's width. `s` views a fixed `[i32; 6]`, so `n == 6` matches -> exit 6.
+#[test]
+fn runtime_slice_length_local_param_binding_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_slice_length_local_param_binding_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-slice-len-param-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("slice length local param binding canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("slice length local param binding canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(6),
+        "expected `let n: usize = s.len` (slice param) to read the descriptor's \
+         full 8-byte length so `n == 6` matches -> exit 6, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 owned `[u8; N] in Utf8` carrier builder/concat, native: `self.text =
 // "Room " + self.label` materializes into the target carrier's inline storage --
 // the first literal initializes it, then the source carrier's content is appended
