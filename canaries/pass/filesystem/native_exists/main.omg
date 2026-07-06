@@ -1,43 +1,42 @@
-// NATIVE fs exists (Rust Path::exists) via open-probe. A freshly created file
-// opens (exists=true); after remove it fails to open (exists=false). Proves the
-// open-probe existence check on real macOS syscalls. Prints PASS iff the file
-// is present after create and absent after remove.
+// NATIVE fs exists (Rust Path::exists) via STAT. A freshly created file stats OK
+// (exists=true); after remove, stat fails (exists=false). stat -- unlike an
+// open-probe -- needs no read permission on the file, matching Rust's stat-based
+// Path::exists (and the ergonomic Filesystem::exists wrapper). Prints PASS iff the
+// file is present after create and absent after remove.
 
 domain [u8]::Path when no_nul(self) {
 }
 
 boundary trait FilesystemHost {
     machine create(path: &[u8] in Path, mode: i32) -> i32;
-    machine open(path: &[u8] in Path, flags: i32) -> i32;
     machine close(fd: i32) -> i32;
     machine remove(path: &[u8] in Path) -> i32;
+    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
     machine write(fd: i32, bytes: &[u8]) -> i64;
 }
 
 data Main {
     fs: FilesystemHost;
     mode: i32;
-    rdonly: i32;
     fd: i32;
-    probe: i32;
+    rc: i32;
     n: i64;
+    buffer: [u8; 144];
 }
 
 machine Main::main(&mut self) {
     self.mode = 420;
-    self.rdonly = 0;
     self.fd = self.fs.create("/tmp/omega_exists.txt", self.mode);
     self.n = self.fs.close(self.fd);
-    // exists? open-probe must succeed now
-    self.probe = self.fs.open("/tmp/omega_exists.txt", self.rdonly);
-    transition self.probe >= 0 { true -> present() _ -> fail() }
+    // exists? stat must succeed now (rc == 0)
+    self.rc = self.fs.read_metadata("/tmp/omega_exists.txt", &mut self.buffer);
+    transition self.rc == 0 { true -> present() _ -> fail() }
     state present(&mut self) {
-        self.n = self.fs.close(self.probe);
         self.n = self.fs.remove("/tmp/omega_exists.txt");
-        // exists? open-probe must now fail (file removed)
-        self.probe = self.fs.open("/tmp/omega_exists.txt", self.rdonly);
-        transition self.probe < 0 { true -> good() _ -> fail() }
+        // exists? stat must now fail (file removed)
+        self.rc = self.fs.read_metadata("/tmp/omega_exists.txt", &mut self.buffer);
+        transition self.rc == 0 { true -> fail() _ -> good() }
     }
-    state good(&mut self) { self.n = self.fs.write(1, "PASS: exists true after create, false after remove\n"); }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: exists true after create, false after remove (via stat)\n"); }
     state fail(&mut self) { self.n = self.fs.write(1, "FAIL: exists\n"); }
 }

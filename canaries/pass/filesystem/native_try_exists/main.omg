@@ -1,18 +1,20 @@
-// NATIVE fs try_exists logic (Rust Path::try_exists). Verifies the three-way
-// existence check on real macOS syscalls via open-probe + errno: a present file
-// opens (Yes); a missing path fails with ENOENT (2 = No); a chmod-0 file fails a
-// read-open with EACCES (13 = Error, distinct from absence). Prints PASS iff all
-// three outcomes match.
+// NATIVE fs try_exists logic (Rust Path::try_exists) via STAT + errno. The
+// three-way existence check on real macOS syscalls: a present file stats OK (Yes);
+// a missing path fails with ENOENT (2 = No); a chmod-0 (unreadable) file STILL
+// stats OK (Yes) -- stat needs no read permission, so a present-but-unreadable file
+// is Yes, not an error (matching Rust and the Filesystem::try_exists wrapper).
+// Error is reserved for a genuine non-ENOENT stat failure (e.g. an unsearchable
+// ancestor). Prints PASS iff Yes/No/Yes all match.
 
 domain [u8]::Path when no_nul(self) {
 }
 
 boundary trait FilesystemHost {
     machine create(path: &[u8] in Path, mode: i32) -> i32;
-    machine open(path: &[u8] in Path, flags: i32) -> i32;
     machine close(fd: i32) -> i32;
     machine remove(path: &[u8] in Path) -> i32;
     machine set_permissions(path: &[u8] in Path, mode: u32) -> i32;
+    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
     machine write(fd: i32, bytes: &[u8]) -> i64;
     machine errno() -> i32;
 }
@@ -21,46 +23,36 @@ data Main {
     fs: FilesystemHost;
     mode: i32;
     noaccess: u32;
-    rdonly: i32;
     fd: i32;
-    probe: i32;
+    rc: i32;
     code: i32;
     n: i64;
+    buffer: [u8; 144];
 }
 
 machine Main::main(&mut self) {
     self.mode = 420;
     self.noaccess = 0;
-    self.rdonly = 0;
     self.fd = self.fs.create("/tmp/omega_te.txt", self.mode);
     self.n = self.fs.close(self.fd);
-    // present -> opens
-    self.probe = self.fs.open("/tmp/omega_te.txt", self.rdonly);
-    transition self.probe >= 0 { true -> checkmissing() _ -> fail() }
+    // present -> stat succeeds (Yes)
+    self.rc = self.fs.read_metadata("/tmp/omega_te.txt", &mut self.buffer);
+    transition self.rc == 0 { true -> checkmissing() _ -> fail() }
     state checkmissing(&mut self) {
-        self.n = self.fs.close(self.probe);
-        self.probe = self.fs.open("/tmp/omega_missing_xyz.txt", self.rdonly);
-        transition self.probe < 0 { true -> confirmnoent() _ -> fail() }
+        self.rc = self.fs.read_metadata("/tmp/omega_missing_xyz.txt", &mut self.buffer);
+        transition self.rc == 0 { true -> fail() _ -> confirmnoent() }
     }
     state confirmnoent(&mut self) {
         self.code = self.fs.errno();
         transition self.code == 2 { true -> lockit() _ -> fail() }
     }
     state lockit(&mut self) {
+        // chmod 0: stat STILL succeeds (Yes) -- no read permission needed
         self.n = self.fs.set_permissions("/tmp/omega_te.txt", self.noaccess);
-        self.probe = self.fs.open("/tmp/omega_te.txt", self.rdonly);
-        transition self.probe < 0 { true -> confirmeacces() _ -> cleanupfail() }
-    }
-    state confirmeacces(&mut self) {
-        self.code = self.fs.errno();
+        self.rc = self.fs.read_metadata("/tmp/omega_te.txt", &mut self.buffer);
         self.n = self.fs.remove("/tmp/omega_te.txt");
-        transition self.code == 13 { true -> good() _ -> fail() }
+        transition self.rc == 0 { true -> good() _ -> fail() }
     }
-    state cleanupfail(&mut self) {
-        self.n = self.fs.close(self.probe);
-        self.n = self.fs.remove("/tmp/omega_te.txt");
-        self.n = self.fs.write(1, "FAIL: try_exists (read-open of chmod-0 succeeded)\n");
-    }
-    state good(&mut self) { self.n = self.fs.write(1, "PASS: try_exists Yes/No/Error(EACCES) all correct\n"); }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: try_exists Yes/No/Yes (chmod-0 present -> Yes via stat)\n"); }
     state fail(&mut self) { self.n = self.fs.write(1, "FAIL: try_exists\n"); }
 }

@@ -2071,6 +2071,7 @@ data Main {
     unit_result: UnitResult;
     meta_result: MetadataResult;
     present: bool;
+    no_access: Permissions;
 }
 machine Main::main(&mut self) {
     self.present = self.fs.exists("/q.txt");
@@ -2088,7 +2089,15 @@ machine Main::main(&mut self) {
         transition self.meta_result { MetadataResult::Ok { meta } -> verifylen(meta) _ -> fail() }
     }
     state verifylen(&mut self, meta: Metadata) {
-        transition meta.len == 12 { true -> removeit() _ -> fail() }
+        transition meta.len == 12 { true -> lockit() _ -> fail() }
+    }
+    state lockit(&mut self) {
+        // a present-but-unreadable (chmod-0) file STILL exists: stat-based `exists`
+        // needs no read permission (was false under the old open-probe).
+        self.no_access = Permissions { mode: 0 };
+        self.unit_result = self.fs.set_permissions("/q.txt", self.no_access);
+        self.present = self.fs.exists("/q.txt");
+        transition self.present { true -> removeit() _ -> fail() }
     }
     state removeit(&mut self) {
         self.unit_result = self.fs.remove("/q.txt");
@@ -2921,10 +2930,11 @@ machine Main::main(&mut self) {
     );
 }
 
-/// `try_exists` (Rust `Path::try_exists`) — the error-aware existence check:
-/// `Yes` for a present readable file, `No` for a missing path, and `Error`
-/// (PermissionDenied) for a present-but-unreadable path (chmod 0). Unlike
-/// `exists() -> bool`, the permission failure is distinguished from absence.
+/// `try_exists` (Rust `Path::try_exists`) — the error-distinguishing existence
+/// check, now STAT-based (agrees with `exists`): `Yes` for a present file, `No`
+/// only for a missing path (ENOENT). A present-but-unreadable path (chmod 0) is
+/// `Yes` (stat needs no read permission); `Error` is reserved for a genuine
+/// non-ENOENT stat failure (e.g. an unsearchable ancestor).
 #[test]
 fn filesystem_std_module_try_exists() {
     let main_path = write_program(
@@ -2953,13 +2963,12 @@ machine Main::main(&mut self) {
         transition self.exists_result { ExistsResult::No -> lockit() _ -> fail() }
     }
     state lockit(&mut self) {
+        // a present-but-unreadable (chmod-0) file still EXISTS: stat needs no read
+        // permission, so try_exists is Yes (was Error under the old open-probe).
         self.unit_result = self.fs.set_permissions("/te.txt", self.no_access);
         self.exists_result = self.fs.try_exists("/te.txt");
-        transition self.exists_result { ExistsResult::Error { kind } -> classify(kind) _ -> fail() }
-    }
-    state classify(&mut self, kind: ErrorKind) {
         self.unit_result = self.fs.remove("/te.txt");
-        transition kind { ErrorKind::PermissionDenied -> ok() _ -> fail() }
+        transition self.exists_result { ExistsResult::Yes -> ok() _ -> fail() }
     }
     state ok(&mut self) { self.console.exit_process(70); }
     state fail(&mut self) { self.console.exit_process(71); }
@@ -2972,6 +2981,6 @@ machine Main::main(&mut self) {
     assert!(!outcome.is_error(), "try_exists: {:?}", outcome.error);
     assert_eq!(
         outcome.exit_code, 70,
-        "try_exists: Yes for present, No for missing, Error(PermissionDenied) for chmod-0"
+        "try_exists (stat-based): Yes for present, No for missing, Yes for a chmod-0 (unreadable) file"
     );
 }

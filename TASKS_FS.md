@@ -284,18 +284,21 @@ crate tests; interpreter fs coverage) and commits.
     open+seek-end+close), the path-based counterparts to the fd-based ops. Pure
     Omega, open/seek/close only (no buffer/subslice/threading). Coverage
     `filesystem_std_module_path_queries` (exists false→true→false around
-    write/remove; metadata_path.len == 12); native `native_exists` canary RUNS
-    (present after create, absent after remove → PASS). CAVEAT: open-based
-    `exists` reports false for an unreadable-but-present path (EACCES); a faithful
-    stat-based `exists` waits on `fstat`. ADDED: `try_exists(path) -> ExistsResult`
-    (Rust `Path::try_exists`) — the error-aware form: `Yes` / `No` (only ENOENT) /
-    `Error(kind)` (any other errno), so a permission failure is surfaced, not
-    silently reported as absent. Interpreter open now enforces the READ bit too
-    (owner-read 0o400 for a read-open, mirroring the existing write-bit check), so
-    a chmod-0 path is EACCES on read — makes the `Error` case testable. DIFFERENTIAL:
-    native `native_try_exists` canary RUNS (present→open ok; missing→ENOENT;
-    chmod-0→EACCES on read → PASS) AND coverage `filesystem_std_module_try_exists`
-    (Yes/No/Error(PermissionDenied)).
+    write/remove; metadata_path.len == 12); native `native_exists` canary RUNS.
+    **FAITHFUL stat-based `exists`/`try_exists` (later fire).** Both now use `stat`
+    (`read_metadata`), not an open-probe. `stat` needs no read permission on the
+    file (only search perm on the parents), so a present-but-unreadable (chmod-0)
+    file is now correctly `exists()==true` / `try_exists()==Yes` — matching Rust's
+    stat-based `Path::exists`/`try_exists` (the old open-probe wrongly reported
+    false / `Error(PermissionDenied)`). `try_exists`: `Yes` if stat succeeds, `No`
+    only on ENOENT, `Error(kind)` on a genuine non-ENOENT failure (e.g. an
+    unsearchable ancestor — the darwin `EACCES` case, native-only; the hermetic FS
+    can't produce it). Rewrote BOTH native canaries to stat-based to keep the
+    differential consistent: `native_exists` (create→stat ok, remove→stat fails)
+    and `native_try_exists` (present→Yes, missing→No, **chmod-0→Yes**) RUN;
+    coverage `filesystem_std_module_path_queries` (adds chmod-0→exists true) and
+    `filesystem_std_module_try_exists` (chmod-0→Yes) updated. `try_exists` remains
+    `Yes`/`No`/`Error(kind)` (Rust `Path::try_exists`).
 10b. [x] **`set_permissions`** (Rust `std::fs::set_permissions`) via `chmod` —
     DONE, complete NATIVE vertical. `HostOperation::Chmod` (op `chmod` →
     darwin `_chmod`); reuses the `mkdir`/`creat` operand shape (path pointer +
