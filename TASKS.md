@@ -174,6 +174,17 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   in a guard refused (clean error); a tail of value-call corner cases.
 - **[RESOLVED]** Logical `!` now requires a `bool` operand (`!5` was C-truthiness `0`); `report_non_bool_logical_not` in the Unary arm. Canary logical_not_non_bool_rejected.
 - **[RESOLVED]** Text ORDERING (`s < t`) + INDEXING (`s[0]` read/write) interim-rejected — ordering folded/errored, `String`-carrier indexing read/wrote ZII 0; `[u8;N]` byte arrays untouched (lexicographic ordering + byte-access = future features). Canaries text_ordering_operator_rejected, text_string_index_{,write_}rejected.
+- **[ ] LOCAL `as_slice` binding `.len` in a VALUE position reads 0 (found 2026-07-06).**
+  `let s: &[T] = self.arr.as_slice(); let n: usize = s.len;` -> `n` is 0/garbage, not the length
+  (SILENT miscompile; both `&[u8]` and `&[i32]`, so not element-type-specific). Only the GUARD-subject
+  position works for a local `as_slice` binding (`transition s.len == 4` reads 4 correctly); the value-let
+  reads 0 and a field-assign (`self.count = s.len`) errors "needs runtime storage write lowering". A slice
+  PARAM's `.len` in a value/field position WORKS (canary runtime_slice_length_field_exit), and `.len` as an
+  operand (`i < s.len`) works -- so the trigger is a bare `.len` from a LOCAL slice binding in a NON-guard
+  slot. Root: value/leaf resolution doesn't materialize the local slice descriptor's len slot (sibling of
+  the storage_places.rs descriptor-len place fixes, but for a local `as_slice` binding). NOT yet fenced
+  (narrow + context-dependent; a mis-scoped fence would hit the working param/guard/operand cases). Detail
+  + matrix in memory [[slice-byteslice-native-consume]]. Workaround: use `.len` in a guard, or a slice PARAM.
 - **[ ] Unresolved value-call returns 0 silently (found 2026-07-05).**
   `let y: i32 = bogus_fn(1)` compiles and yields 0 (silent miscompile);
   statement-position `bogus_fn(1);` is correctly rejected by `validate_call_node` ("has
