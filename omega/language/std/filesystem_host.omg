@@ -38,6 +38,19 @@ boundary trait FilesystemHost {
     machine seek(fd: i32, offset: i64, whence: i32) -> i64;
     machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
     machine remove_dir(path: &[u8] in Path) -> i32;
+    // Open `name` RELATIVE to the open directory `dirfd` (Rust's `openat`, the
+    // `*at` family used by `remove_dir_all` etc.). The name is a TRUSTED relative
+    // component -- a directory-listing entry is `no_nul` by construction -- so it
+    // is a PLAIN `&[u8]`, NOT `in Path`: this is exactly what lets a name extracted
+    // from `read_dir` flow straight into `open_at`/`unlink_at` with no domain
+    // re-proof. Path-joining (`dirfd`'s path + "/" + name) happens in the OS
+    // (native `openat`) / the interpreter's virtual FS, never built in Omega.
+    // Returns the new fd, or -1.
+    machine open_at(dirfd: i32, name: &[u8], flags: i32) -> i32;
+    // Remove `name` RELATIVE to `dirfd` (Rust's `unlinkat`). `flags` = 0 removes a
+    // FILE (unlink); AT_REMOVEDIR (0x80 = 128 on darwin) removes an EMPTY DIRECTORY
+    // (rmdir). Same trusted-plain-name basis as `open_at`. Returns 0, or -1.
+    machine unlink_at(dirfd: i32, name: &[u8], flags: i32) -> i32;
     machine set_permissions(path: &[u8] in Path, mode: u32) -> i32;
     machine set_file_permissions(fd: i32, mode: u32) -> i32;
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
