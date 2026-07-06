@@ -71,3 +71,96 @@ fn native_flock_still_passes() { assert_pass("native_flock"); }
 fn native_at_ops_passes() { assert_pass("native_at_ops"); }
 #[test]
 fn native_at_runtime_name_passes() { assert_pass("native_at_runtime_name"); }
+
+// --- Promoted coverage -------------------------------------------------------
+// These canaries were built + run BY HAND in earlier fires and never wired into
+// this harness (each carried a "NOT registered … yet" note). All 36 compile to a
+// native mach-o and PASS on real macOS/aarch64 (audited 2026-07-06); wiring them
+// in gives the whole native fs surface automated regression coverage, not just
+// the original 8. Grouped by the Rust std::fs area each exercises.
+
+// Core byte I/O + open modes
+#[test]
+fn native_append_passes() { assert_pass("native_append"); }
+#[test]
+fn native_open_rw_passes() { assert_pass("native_open_rw"); }
+#[test]
+fn native_open_create_passes() { assert_pass("native_open_create"); }
+#[test]
+fn native_seek_passes() { assert_pass("native_seek"); }
+#[test]
+fn native_positioned_io_passes() { assert_pass("native_positioned_io"); }
+#[test]
+fn native_errno_passes() { assert_pass("native_errno"); }
+#[test]
+fn native_fs_workflow_passes() { assert_pass("native_fs_workflow"); }
+
+// Copy / buffer marshalling
+#[test]
+fn native_buffer_copy_passes() { assert_pass("native_buffer_copy"); }
+#[test]
+fn native_subslice_copy_passes() { assert_pass("native_subslice_copy"); }
+#[test]
+fn native_copy_preserve_passes() { assert_pass("native_copy_preserve"); }
+#[test]
+fn native_forwarded_slice_literal_passes() { assert_pass("native_forwarded_slice_literal"); }
+
+// Links, rename, truncation, permissions
+#[test]
+fn native_rename_passes() { assert_pass("native_rename"); }
+#[test]
+fn native_hard_link_passes() { assert_pass("native_hard_link"); }
+#[test]
+fn native_symlink_passes() { assert_pass("native_symlink"); }
+#[test]
+fn native_set_len_passes() { assert_pass("native_set_len"); }
+#[test]
+fn native_permissions_passes() { assert_pass("native_permissions"); }
+#[test]
+fn native_fchmod_passes() { assert_pass("native_fchmod"); }
+// Ownership: expects a NON-root user (a real chown to root -> EPERM). Would fail
+// only if the suite were ever run as root, which the dev/CI macOS box is not.
+#[test]
+fn native_chown_passes() { assert_pass("native_chown"); }
+
+// Existence / classification / path resolution
+#[test]
+fn native_exists_passes() { assert_pass("native_exists"); }
+#[test]
+fn native_try_exists_passes() { assert_pass("native_try_exists"); }
+#[test]
+fn native_filetype_passes() { assert_pass("native_filetype"); }
+#[test]
+fn native_canonicalize_passes() { assert_pass("native_canonicalize"); }
+#[test]
+fn native_try_clone_passes() { assert_pass("native_try_clone"); }
+#[test]
+fn native_read_dir_passes() { assert_pass("native_read_dir"); }
+
+// Durability
+#[test]
+fn native_sync_passes() { assert_pass("native_sync"); }
+#[test]
+fn native_sync_data_passes() { assert_pass("native_sync_data"); }
+#[test]
+fn native_set_times_passes() { assert_pass("native_set_times"); }
+
+// Metadata decode (struct stat byte-assembly)
+#[test]
+fn native_fstat_passes() { assert_pass("native_fstat"); }
+#[test]
+fn native_symlink_metadata_passes() { assert_pass("native_symlink_metadata"); }
+#[test]
+fn native_metadata_nlink_passes() { assert_pass("native_metadata_nlink"); }
+#[test]
+fn native_metadata_ino_passes() { assert_pass("native_metadata_ino"); }
+#[test]
+fn native_metadata_ctime_dev_passes() { assert_pass("native_metadata_ctime_dev"); }
+#[test]
+fn native_metadata_blocks_passes() { assert_pass("native_metadata_blocks"); }
+#[test]
+fn native_metadata_modified_passes() { assert_pass("native_metadata_modified"); }
+#[test]
+fn native_metadata_times_passes() { assert_pass("native_metadata_times"); }
+#[test]
+fn native_metadata_readonly_passes() { assert_pass("native_metadata_readonly"); }

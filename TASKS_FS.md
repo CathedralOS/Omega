@@ -216,6 +216,51 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **✅ NATIVE fs regression coverage 8 → 44 canaries (2026-07-06).** The whole native
+  fs surface is now under the automated `native_filesystem_canaries` harness, not just
+  8 ops. Earlier fires BUILT + hand-ran ~36 native canaries (each carried a "NOT
+  registered … yet" note) but never wired them into any test — they were verified once
+  by hand and could silently rot. This fire audited all 36 by compile+run on this
+  macOS/aarch64 box: **36/36 PASS**, so all are promoted into the harness as individual
+  `#[test] fn native_<x>_passes()`, grouped by Rust `std::fs` area:
+  - core I/O + open modes: append, open_rw, open_create, seek, positioned_io (pread/
+    pwrite), errno, fs_workflow (13-op workflow);
+  - copy/buffer marshalling: buffer_copy, subslice_copy, copy_preserve, forwarded_slice_
+    literal (the transition-forwarded `&[u8]` fix regression);
+  - links/rename/truncate/perms: rename, hard_link, symlink (+read_link), set_len
+    (ftruncate), permissions (chmod→EACCES), fchmod, chown (non-root EPERM semantics);
+  - existence/classification/resolution: exists, try_exists, filetype, canonicalize
+    (realpath), try_clone (dup), read_dir;
+  - durability: sync (fsync), sync_data (fdatasync), set_times (futimens);
+  - metadata decode (`struct stat` byte-assembly): fstat, symlink_metadata (lstat),
+    metadata_{nlink,ino,ctime_dev,blocks,modified,times,readonly}.
+  `cargo test -p omega-compiler --test native_filesystem_canaries` → **44 passed; 0
+  failed**. NO compiler code changed (test-only wiring) → zero regression risk to other
+  suites. `native_chown` assumes a NON-root runner (real chown→root must EPERM); noted
+  inline — the only environment-sensitive one. This closes the "hand-run, unverified"
+  gap: the native raw-seam fs API is now genuinely regression-locked.
+
+- **⚠️ NATIVE ergonomic `Filesystem` WRAPPER — forwarded-path value-call bug LOCATED
+  (2026-07-06).** Confirmed (this fire) that the ergonomic wrapper COMPILES + RUNS
+  natively, and `create`+`close` work, but a `create → close → reopen` through the
+  wrapper FAILS at reopen (`Filesystem::open` returns not-`Ok` for the same literal
+  path). The raw-boundary equivalent (`self.fs.open(literal)` where `fs` is the
+  `FilesystemHost` boundary directly, as in `native_at_ops`) PASSES — so the bug is
+  specifically the WRAPPER machine forwarding its `path: &[u8] in Path` param to the
+  inner `self.host.open(path)` call. NARROWED: the host-call side is FINE
+  (`path_pointer_operand` → `slice_argument_operands` resolves a plain slice-param to
+  its descriptor's `RuntimeStringPointer`); the gap is the OTHER half — the caller's
+  literal `"/tmp/…"` is not materialized into the wrapper machine's `path` param
+  descriptor slot on a **value-call to a sub-machine** (native only; the interpreter
+  does this correctly, which is why all interpreter wrapper coverage passes). This is a
+  GENERAL native-backend limitation (sub-machine value-call slice-literal argument
+  materialization), not fs-specific, and is deep multi-fire codegen work — deferred
+  under D5 (grow raw-seam breadth in parallel; wrapper native lowering is a separate
+  track). Lead for next fire: the value-call argument path is
+  `materialize_static_inline_branching_state_call_argument_result` /
+  `select_runtime_frame_slot_value_write_in_table` (frame_slots.rs) — confirm whether a
+  sub-machine value-call even routes through it for a domained slice literal.
+
 - **✅ NATIVE subslice-of-BUFFER path/name arg (2026-07-06).** A RUNTIME name (not a
   rodata literal) now flows into native `open_at`/`unlink_at`. Key insight: the native
   seam passes the path arg's POINTER and the C `char*` function reads until NUL, so a
