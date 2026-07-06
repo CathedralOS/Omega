@@ -216,6 +216,28 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **✅ NATIVE subslice-of-BUFFER path/name arg (2026-07-06).** A RUNTIME name (not a
+  rodata literal) now flows into native `open_at`/`unlink_at`. Key insight: the native
+  seam passes the path arg's POINTER and the C `char*` function reads until NUL, so a
+  name built in a `[u8; N]` buffer works with ZERO codegen change AS LONG AS the buffer
+  carries a trailing NUL (the Omega code writes it) — no scratch copy needed. FIX:
+  `path_pointer_operand` (host_operations/operands.rs) now resolves a LITERAL-start
+  subslice of a fixed-array buffer (`namebuf[start..end]`) to its base + `start *
+  element_size` address (`RuntimeStorageAddress`), reusing the primitives already in
+  scope (`resolve_runtime_storage_place_in_table` + `resolve_fixed_array_length_in_table`)
+  — no cross-module plumbing. Before, such an arg declined -> empty operands -> "no
+  result storage operand". RUNS: `canaries/pass/filesystem/native_at_runtime_name`
+  builds "child\0" byte-by-byte and removes it via `unlink_at(dfd, namebuf[0..5], 0)`
+  on real macOS; `native_filesystem_canaries` 8/8. Gates: mandated crates green,
+  interpreter coverage 67/0, canary_suite identical 85-baseline (zero regressions).
+  - **This is the mechanism native `remove_dir_all` uses** (its extracted names sit in
+    a buffer and get NUL-terminated the same way). STILL PENDING for full native
+    recursive removal: (a) a subslice of a LITERAL (`create_dir_all`'s `path[0..k]` of
+    a caller string) can't be NUL-terminated mid-literal, so it needs the memcpy-to-
+    scratch seam; (b) the ergonomic `Filesystem` WRAPPER (recursion + value-calls +
+    forwarded params) must lower natively. Both remain; the raw `*at` ops are now
+    native-capable with runtime buffer names.
+
 - **✅ NATIVE `open_at`/`unlink_at` LOWERING (2026-07-06).** The dirfd-relative `*at`
   ops now lower to real `openat`/`unlinkat` on macOS — the native building blocks of
   `remove_dir_all`. Mirrors the existing fs-op path: `HostOperation::OpenAt`/`UnlinkAt`

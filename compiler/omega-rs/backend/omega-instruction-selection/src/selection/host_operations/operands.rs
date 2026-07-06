@@ -867,7 +867,78 @@ fn path_pointer_operand(
     if data.is_valid() {
         return Some(InstructionOperandKind::DataAddress { data });
     }
+    if let Some(address) = subslice_path_pointer(input, host_call, dispatch_index, index) {
+        return Some(address);
+    }
     slice_argument_operands(input, host_call, dispatch_index, index).map(|(pointer, _)| pointer)
+}
+
+/// A LITERAL-start subslice of a fixed-array BUFFER (`namebuf[start..end]`, e.g. a
+/// runtime-built directory-entry name) used as a C-string path/name arg: the
+/// native `char*` pointer is simply the buffer's base + `start * element_size`.
+/// The C call reads until the NUL the Omega code writes into the buffer, so ONLY
+/// the start pointer matters (the length is irrelevant) -- no scratch copy, no
+/// descriptor deref. This is what lets a RUNTIME name (not a rodata literal) flow
+/// into `open_at`/`unlink_at` natively. Declines anything that is not a
+/// literal-start subslice of an actual fixed array (so a subslice of a LITERAL
+/// still needs the pending NUL-termination scratch seam).
+fn subslice_path_pointer(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    index: usize,
+) -> Option<InstructionOperandKind> {
+    let argument = input
+        .host_calls
+        .arguments
+        .span(host_call.arguments)
+        .and_then(|arguments| arguments.get(index))?;
+    let HostCallArgumentKind::Expression(expression) = &argument.kind else {
+        return None;
+    };
+    let ExpressionNode::Indexed(subslice) = input.host_calls.expressions.expression(*expression)
+    else {
+        return None;
+    };
+    let ExpressionNode::Range(range) = input.host_calls.expressions.expression(subslice.index)
+    else {
+        return None;
+    };
+    let start = if range.start.is_valid() {
+        let ExpressionNode::Integer(start) =
+            input.host_calls.expressions.expression(range.start)
+        else {
+            return None;
+        };
+        usize::try_from(*start).ok()?
+    } else {
+        0
+    };
+    let place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index.unwrap_or(0),
+        host_call.source_key,
+        &input.host_calls.expressions,
+        subslice.collection,
+    )?;
+    let length = resolve_fixed_array_length_in_table(
+        input,
+        dispatch_index.unwrap_or(0),
+        host_call.source_key,
+        &input.host_calls.expressions,
+        subslice.collection,
+    )?;
+    if length == 0 || place.byte_count % length != 0 {
+        return None;
+    }
+    let element_byte_size = place.byte_count / length;
+    let byte_offset = place
+        .byte_offset
+        .checked_add(start.checked_mul(element_byte_size)?)?;
+    Some(InstructionOperandKind::RuntimeStorageAddress {
+        region: place.region,
+        byte_offset,
+    })
 }
 
 /// File descriptor marshalled as the first `write` argument on the
