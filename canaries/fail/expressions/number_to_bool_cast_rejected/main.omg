@@ -1,0 +1,7 @@
+// `<number> as bool` reinterprets the source bits into a bool without normalizing
+// to {0,1}, producing an INVALID bool: `5 as bool` used to yield a bool holding 5
+// (verified `(5 as bool) as i32 == 5`). There is no number->bool `as` conversion;
+// write `n != 0`. Rejected now. `bool as i32` and `(a == 1) as bool` stay valid.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { let n: i32 = 5; let b: bool = n as bool; let r: i32 = b as i32; self.console.exit_process(r); }
