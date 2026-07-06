@@ -2784,6 +2784,43 @@ fn runtime_slice_length_local_param_binding_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A literal-bounded SUBSLICE `.len` read into a LOCAL binding in a value position
+// (`let sub = self.arr[1..4]; let n = sub.len`). The subslice binding folds to the
+// inline `(self.arr[1..4]).len` (no runtime descriptor slot), which the value-write
+// resolver used to drop -> the local read 0. The window length `4 - 1 = 3` is a
+// compile-time constant, now folded in the value-write path. `n == 3` matches -> 3.
+#[test]
+fn runtime_subslice_length_local_binding_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_subslice_length_local_binding_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-subslice-len-local-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("subslice length local binding canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("subslice length local binding canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "expected `let n = sub.len` (sub = a literal `arr[1..4]` subslice) to fold to \
+         the window length 3 so `n == 3` matches -> exit 3, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 owned `[u8; N] in Utf8` carrier builder/concat, native: `self.text =
 // "Room " + self.label` materializes into the target carrier's inline storage --
 // the first literal initializes it, then the source carrier's content is appended

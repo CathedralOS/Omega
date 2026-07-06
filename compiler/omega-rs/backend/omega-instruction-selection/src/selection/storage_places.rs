@@ -503,6 +503,21 @@ fn peel_mutable_in_table(
     }
 }
 
+/// A subslice bound (`a`/`b` in `arr[a..b]`) as a literal `i64`, peeling `Mutable`.
+/// `None` for a non-literal (runtime) bound.
+fn subslice_bound_literal_in_table(
+    expressions: &ExpressionTable,
+    handle: ExpressionHandle,
+) -> Option<i64> {
+    if !handle.is_valid() {
+        return None;
+    }
+    match expressions.expression(peel_mutable_in_table(expressions, handle)) {
+        ExpressionNode::Integer(value) => Some(*value),
+        _ => None,
+    }
+}
+
 /// How many unmaterialized local-alias hops (`let s = t;` / `let t = self.arr
 /// .as_slice();`) the fixed-array `.len` fold will trace before giving up.
 const FIXED_ARRAY_ALIAS_TRACE_DEPTH_LIMIT: usize = 4;
@@ -521,6 +536,39 @@ fn fixed_array_length_of_receiver_in_table(
 ) -> Option<usize> {
     if depth > FIXED_ARRAY_ALIAS_TRACE_DEPTH_LIMIT {
         return None;
+    }
+
+    // A literal-bounded subslice receiver `arr[a..b]` -- often the inlined value of
+    // a folded `let sub = arr[a..b]` local -- has `.len` equal to the window length
+    // `b - a`, a compile-time constant. No runtime descriptor slot exists for such
+    // an inlined subslice, so the place resolvers miss `sub.len` and the value-write
+    // resolver would drop it (a silent read-0 in a `let n = sub.len`). Fold it here
+    // so the value-write and guard/operand paths agree (mirrors the operand-path
+    // `fixed_array_subslice_length`). A RUNTIME-bounded subslice (`arr[i..j]`) is not
+    // a constant, so a non-literal bound falls through to the resolvers below.
+    if let ExpressionNode::Indexed(indexed) = expressions.expression(receiver) {
+        let collection = indexed.collection;
+        let index = indexed.index;
+        if let ExpressionNode::Range(range) = expressions.expression(index) {
+            let (range_start, range_end, end_inclusive) =
+                (range.start, range.end, range.end_inclusive);
+            let start = subslice_bound_literal_in_table(expressions, range_start).unwrap_or(0);
+            let end = if range_end.is_valid() {
+                subslice_bound_literal_in_table(expressions, range_end)?
+            } else {
+                i64::try_from(fixed_array_length_of_receiver_in_table(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    expressions,
+                    collection,
+                    depth + 1,
+                )?)
+                .ok()?
+            };
+            let end = if end_inclusive { end.checked_add(1)? } else { end };
+            return usize::try_from(end.checked_sub(start)?).ok();
+        }
     }
 
     if let Some(target) = resolve_machine_owned_collection_in_table(
