@@ -37,6 +37,7 @@ data ErrorKind {
     case PermissionDenied; // EACCES (13)
     case AlreadyExists;    // EEXIST (17)
     case BadDescriptor;    // EBADF  (9)
+    case IsADirectory;     // EISDIR (21)
 }
 
 // Bespoke result enums (Rust's `io::Result<T>`, whose Err is `io::Error` — here
@@ -300,12 +301,16 @@ machine Filesystem::last_error(&mut self) -> ErrorKind {
         transition code == 17 { true -> exists() _ -> check_badf(code) }
     }
     state check_badf(&mut self, code: i32) -> ErrorKind {
-        transition code == 9 { true -> bad_descriptor() _ -> other() }
+        transition code == 9 { true -> bad_descriptor() _ -> check_isdir(code) }
+    }
+    state check_isdir(&mut self, code: i32) -> ErrorKind {
+        transition code == 21 { true -> is_a_directory() _ -> other() }
     }
     state not_found(&mut self) -> ErrorKind { ErrorKind::NotFound }
     state denied(&mut self) -> ErrorKind { ErrorKind::PermissionDenied }
     state exists(&mut self) -> ErrorKind { ErrorKind::AlreadyExists }
     state bad_descriptor(&mut self) -> ErrorKind { ErrorKind::BadDescriptor }
+    state is_a_directory(&mut self) -> ErrorKind { ErrorKind::IsADirectory }
     state other(&mut self) -> ErrorKind { ErrorKind::Other }
 }
 

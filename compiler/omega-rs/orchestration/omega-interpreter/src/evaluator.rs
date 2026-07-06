@@ -2524,6 +2524,13 @@ impl<'program> Evaluator<'program> {
         let o_trunc = flags & 0x400 != 0;
         let o_append = flags & 0x8 != 0;
         let writable = flags & 0x3 != 0; // O_WRONLY | O_RDWR
+        // Opening a directory for writing is EISDIR (Rust `ErrorKind::IsADirectory`).
+        // Checked before the ENOENT test so a dir path (never in `virtual_files`)
+        // reports the more specific kind.
+        if self.virtual_dirs.contains(&path) && writable {
+            self.virtual_errno = 21; // EISDIR
+            return -1;
+        }
         if !exists && !o_creat {
             self.virtual_errno = 2; // ENOENT
             return -1;
