@@ -401,9 +401,34 @@ crate tests; interpreter fs coverage) and commits.
       deref across ≥2 hops, and mixed-arg positional binding). Would unblock
       faithful `copy`, root-cause errno in `write_all`/`read_all`, and general
       slice-passing to helper states. Bounded interpreter work, but its own fire.
-13. [ ] **`read_dir`** (opendir/readdir) — directory iteration. Large (returns a
-    growing sequence; needs an iterator/handle shape). Defer until an iteration
-    idiom is settled.
+13. [~] **`read_dir`** — directory iteration. NATIVE FOUNDATION DONE this fire;
+    interpreter model + wrapper + Omega parsing remain (multi-fire).
+    - **Platform note:** classic `getdirentries` is UNAVAILABLE on darwin arm64
+      (64-bit inodes deliberately break it — it links to a `_..._is_not_available`
+      stub). Uses `___getdirentries64(fd, buf, bufsize, &position)` instead (the
+      private syscall behind `readdir`), which IS linkable and works. Avoids the
+      `readdir`→`dirent*` pointer-struct deref entirely (kernel fills OUR buffer).
+    - **Done:** `HostOperation::ReadDir` (op `getdirentries64` → `___getdirentries64`),
+      operand arm `[result, fd, buf ptr, count, position ptr]` (a NEW 5-operand
+      shape: two addresses — the buffer and the in/out i64 `position` cursor —
+      plus two scalars; the value-returning encoder handled 4 args cleanly). Raw
+      seam method `read_dir(fd, buffer, count, position: &mut i64) -> i64`. Native
+      `native_read_dir` canary RUNS: `create_dir` + a file, `open` the dir (POSIX
+      opens dirs read-only — worked natively), `read_dir` returns EXACTLY 104
+      bytes = the 3 dirent records (`.` reclen 32 + `..` 32 + `hello_entry` 40),
+      proving directory reading end-to-end on real syscalls.
+    - **dirent layout** (this variant): `d_reclen` u16 @16, `d_namlen` u16 @18,
+      `d_type` u8 @20, `d_name` @21 (d_namlen bytes); advance by `d_reclen`;
+      `n`=0 at end.
+    - **NEXT (multi-fire):** (a) interpreter `open(dir)` → a dir fd (native already
+      works; also fixes exists/try_exists divergence on dirs) + a `read_dir`
+      handler that computes the dir's immediate children (paths under `dir/` in
+      `virtual_files`/`virtual_dirs`) and packs dirent records; (b) the ergonomic
+      wrapper + an ITERATION IDIOM — e.g. `read_dir` fills a caller buffer, then a
+      cursor `next_entry(buffer, offset) -> (name_off, name_len, next_off)` walks
+      the packed records. The Omega-side parse needs RUNTIME-INDEXED buffer reads
+      (`buffer[offset+16]`), currently unverified on the fs path — settle that
+      first (or expose entries by copying each name into a caller slot).
 14. [~] **Native wrapper lowering — PARTIALLY WORKS (investigated in depth).**
     The ergonomic `Filesystem` wrapper now COMPILES natively and the simplest
     ops RUN correctly: `create`/`open`/`close` with a literal path + a `File`/

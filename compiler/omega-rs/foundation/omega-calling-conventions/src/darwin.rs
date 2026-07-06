@@ -30,6 +30,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("Filesystem", "link", "_link", &policy),
         darwin_import("Filesystem", "symlink", "_symlink", &policy),
         darwin_import("Filesystem", "readlink", "_readlink", &policy),
+        darwin_import("Filesystem", "getdirentries64", "___getdirentries64", &policy),
         darwin_import("Filesystem", "stat", "_stat", &policy),
         darwin_import("Filesystem", "ftruncate", "_ftruncate", &policy),
         darwin_import("Filesystem", "fsync", "_fsync", &policy),
@@ -198,6 +199,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "FilesystemHost",
         "read_link",
         [host_operation("Filesystem", "readlink")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "read_dir",
+        [host_operation("Filesystem", "getdirentries64")],
         PlatformCallData::None,
     );
     insert_platform_lowering(
