@@ -965,3 +965,70 @@ machine Main::main(&mut self) {
         "ergonomic value-returning File API: create/write/close/open/read(19)/remove",
     );
 }
+
+/// The REAL shipped std module `omega/language/std/filesystem.omg`, imported via
+/// `use` and driven through its ergonomic `Filesystem` API — a full CRUD
+/// round-trip in the interpreter. Proves the canonical std::fs surface (not an
+/// inline copy) works end-to-end.
+#[test]
+fn filesystem_std_module_ergonomic_crud() {
+    let main_path = write_program(
+        "fs-std-module",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    open_result: OpenResult;
+    io_result: IoResult;
+    unit_result: UnitResult;
+    close_rc: i32;
+    cap: usize;
+    buffer: [u8; 64];
+}
+machine Main::main(&mut self) {
+    self.cap = 64;
+    self.open_result = self.fs.create("/std.txt");
+    transition self.open_result {
+        OpenResult::Ok { file } -> wrote(file)
+        _ -> fail()
+    }
+    state wrote(&mut self, file: File) {
+        self.io_result = self.fs.write(file, "std module fs\n");
+        self.close_rc = self.fs.close(file);
+        self.open_result = self.fs.open("/std.txt");
+        transition self.open_result {
+            OpenResult::Ok { file } -> rd(file)
+            _ -> fail()
+        }
+    }
+    state rd(&mut self, file: File) {
+        self.io_result = self.fs.read(file, &mut self.buffer, self.cap);
+        self.close_rc = self.fs.close(file);
+        transition self.io_result {
+            IoResult::Ok { count } -> verify(count)
+            _ -> fail()
+        }
+    }
+    state verify(&mut self, count: usize) {
+        transition count == 14 { true -> cleanup() _ -> fail() }
+    }
+    state cleanup(&mut self) {
+        self.unit_result = self.fs.remove("/std.txt");
+        self.console.exit_process(70);
+    }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("std::fs module program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "std::fs module: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "the shipped std::fs Filesystem API must round-trip create/write/read(14)/remove"
+    );
+}
