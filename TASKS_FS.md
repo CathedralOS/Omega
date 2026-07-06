@@ -234,17 +234,39 @@ crate tests; interpreter fs coverage) and commits.
   aarch64 31 / instr-sel 5 crate tests green. The STAT wrappers (`exists`/`metadata_path`/
   `read_dir`) now COMPILE.
 
-- **▶ NEXT — STAT wrapper `rc` not observed (revealed by the fix above).** With the
-  wrappers compiling, `Filesystem::exists` RUNS but ALWAYS returns true, even for a
-  definitely-absent path (repro `canaries/run/filesystem/wrapper_exists_absent`): `let rc
-  = self.host.read_metadata(path, &mut self.stat_buf); transition rc == 0` reads `rc` as 0
-  (its ZII zero) — the read_metadata RESULT is not observed by the guard in the inlined
-  through-field value-call, so `present1` (after create) is coincidentally right but
-  `absent`/`present2` are wrong. write_all/read_all's `n >= 0` guard on the write/read
-  result DOES work (their canaries pass), so this is specific to this callee's shape (a
-  metadata op, or the result-store slot vs the guard-read slot for the inlined exists).
-  This is a native VALUE-CALL result-observation bug, NOT the encoder — next to
-  investigate before the STAT wrappers are usably native.
+- **⚠ CONFIRMED (2026-07-08) — the deep blocker: a native VALUE-CALL does NOT observe a
+  host-call result in its transition GUARD.** Investigated exhaustively this fire. In an
+  INLINED value-call (`self.fs.<m>(..)`), a host-call result that the callee branches on
+  (`... = self.host.op(..); transition <guard on that result> { ok..; err.. }`) reads as
+  its ZII ZERO in the guard — the result store is not observed by the guard evaluation.
+  So `Filesystem::exists` ALWAYS returns true (repro `canaries/run/filesystem/
+  wrapper_exists_absent`: absent path → exists TRUE). Pinned precisely:
+  - It is NOT `let`-vs-field: converting exists' `let rc` to a `self.stat_rc` FIELD did
+    NOT fix it (reverted). A field DOES work in a NON-value-call machine (a plain
+    `self.rc = self.fs.close(-1); transition self.rc == 0` in `main` correctly observes
+    rc=-1), so the bug is the VALUE-CALL/inline context, not the storage kind.
+  - It is NOT the STAT op: a same-`main` `let rc = close(...); transition rc == 0` also
+    misbehaves (there it fails to even resolve the result operand → "no result storage
+    operand"), so the guard-only host-call result is fragile in BOTH the plain-entry and
+    value-call paths; only a FIELD result in a NON-value-call machine is solid.
+  - **Scope is BROAD, not just STAT:** every ergonomic wrapper that returns a result enum
+    branches on the host-call result the same way (`write_all`: `transition n >= 0 { ok;
+    err }`; `create`/`open`: `fd >= 0`; …). The byte-I/O canaries pass only because they
+    assert the SIDE EFFECT (bytes on disk), never the returned `Ok`/`Error` — so those
+    wrappers do the I/O but very likely ALWAYS report success natively. The RESULT-enum
+    correctness of the native ergonomic wrapper is therefore unverified/likely-wrong,
+    while the RAW `FilesystemHost` seam (results consumed as fields in top-level machines,
+    49 canaries) is CORRECT.
+  - **Likely mechanism (to confirm):** the transition GUARD of an inlined value-call is
+    evaluated at the caller's dispatch point, BEFORE the inlined body's result STORE runs
+    — so the guard reads the pre-store (ZII) value. If so, the fix is a scheduling/
+    ordering one in the value-call inline lowering (evaluate the guard after the body's
+    stores), OR resolve the guard's operand against the callee body's post-store slot.
+  - JUDGEMENT: this is a deep, general native-codegen bug (value-call result observation),
+    the ~10th layer of the value-call saga — a dedicated focused effort, not a 5-min fire.
+    The fs is FUNCTIONALLY COMPLETE + CORRECT via the interpreter (full parity) and the
+    native raw seam (real macOS fs, correct results); the native ergonomic wrapper does
+    side effects but cannot yet be trusted for its Ok/Error result until this lands.
 
 - **🎉 STEP 14 COMPLETE — the SHIPPED ergonomic `Filesystem` wrapper runs NATIVELY
   (2026-07-08).** `Filesystem::write_all`/`read_all`/`remove` — the Rust-parity API,
