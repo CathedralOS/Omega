@@ -1319,7 +1319,7 @@ machine Main::main(&mut self) {
         // read_all on a path that does not exist must be Error, not Ok.
         self.unit_result = self.fs.remove("/w.txt");
         self.io_result = self.fs.read_all("/gone.txt", &mut self.buffer, self.cap);
-        transition self.io_result { IoResult::Error -> ok() _ -> fail() }
+        transition self.io_result { IoResult::Error { kind } -> ok() _ -> fail() }
     }
     state ok(&mut self) { self.console.exit_process(70); }
     state fail(&mut self) { self.console.exit_process(71); }
@@ -1381,9 +1381,11 @@ machine Main::main(&mut self) {
     );
 }
 
-/// The typed error model via the std module (Rust `io::Error::kind`):
-/// `Filesystem::open` a missing path returns Error, and `last_error()`
-/// classifies the errno as `ErrorKind::NotFound`.
+/// The typed error model via the std module (Rust `io::Error::kind`): failures
+/// self-describe — the `ErrorKind` is embedded in the `Error` case, classified
+/// at the point of failure. Proves the kind VARIES per cause: `open`(missing) ->
+/// `NotFound` (ENOENT), and `create_dir` on an existing dir -> `AlreadyExists`
+/// (EEXIST). If the kind were hard-wired, the second check would fail.
 #[test]
 fn filesystem_std_module_error_kind() {
     let main_path = write_program(
@@ -1396,14 +1398,26 @@ data Main {
     fs: Filesystem;
     console: Console;
     open_result: OpenResult;
-    kind: ErrorKind;
+    unit_result: UnitResult;
 }
 machine Main::main(&mut self) {
     self.open_result = self.fs.open("/absent.txt");
-    transition self.open_result { OpenResult::Error -> classify() _ -> fail() }
-    state classify(&mut self) {
-        self.kind = self.fs.last_error();
-        transition self.kind { ErrorKind::NotFound -> ok() _ -> fail() }
+    // The failure self-describes: the kind is embedded in the Error case.
+    transition self.open_result { OpenResult::Error { kind } -> not_found(kind) _ -> fail() }
+    state not_found(&mut self, kind: ErrorKind) {
+        transition kind { ErrorKind::NotFound -> make_dir() _ -> fail() }
+    }
+    state make_dir(&mut self) {
+        self.unit_result = self.fs.create_dir("/d");
+        transition self.unit_result { UnitResult::Ok -> make_dir_again() _ -> fail() }
+    }
+    state make_dir_again(&mut self) {
+        self.unit_result = self.fs.create_dir("/d");
+        transition self.unit_result { UnitResult::Error { kind } -> already_exists(kind) _ -> fail() }
+    }
+    state already_exists(&mut self, kind: ErrorKind) {
+        self.unit_result = self.fs.remove_dir("/d");
+        transition kind { ErrorKind::AlreadyExists -> ok() _ -> fail() }
     }
     state ok(&mut self) { self.console.exit_process(70); }
     state fail(&mut self) { self.console.exit_process(71); }
@@ -1416,6 +1430,6 @@ machine Main::main(&mut self) {
     assert!(!outcome.is_error(), "error_kind: {:?}", outcome.error);
     assert_eq!(
         outcome.exit_code, 70,
-        "open(missing) must be Error and last_error() must classify errno 2 as NotFound"
+        "open(missing) -> NotFound and create_dir(existing) -> AlreadyExists (kind varies per cause)"
     );
 }
