@@ -983,28 +983,27 @@ fn scan_expression_calls(
         ExpressionNode::Member(member) => Some((
             member.receiver,
             format!("member `{}`", member.member.as_str()),
-            false,
         )),
-        ExpressionNode::Indexed(indexed) => {
-            Some((indexed.collection, "an index".to_owned(), true))
-        }
+        ExpressionNode::Indexed(indexed) => Some((indexed.collection, "an index".to_owned())),
         _ => None,
     };
-    if let Some((receiver, access, is_index)) = primitive_access
+    if let Some((receiver, access)) = primitive_access
         && let Some(receiver_type) =
             crate::places::declared_place_type(program, machine, Some(state), receiver)
         && let Some(primitive) = program.primitive_type_reference(receiver_type)
     {
         if primitive == PrimitiveType::String {
-            if is_index {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` state `{}` indexes a `String` value (`s[i]`), but the text \
-                     carrier does not support byte indexing; use a `[u8; N] in Utf8` array for \
-                     byte access",
-                    machine.name.as_str(),
-                    state.name.as_str(),
-                )));
-            }
+            // `s.len` MEMBER access stays valid; `s[i]` INDEX access does not. The
+            // shared helper reports only for an `Indexed` node, so a Member falls
+            // through untouched. Same rejection is used on the write side (lib.rs).
+            crate::expression_types::report_string_index_access(
+                program,
+                machine,
+                Some(state),
+                expression,
+                false,
+                diagnostics,
+            );
         } else {
             diagnostics.push(Diagnostic::error(format!(
                 "machine `{}` state `{}` accesses {access} of a `{}` value, but a primitive \
