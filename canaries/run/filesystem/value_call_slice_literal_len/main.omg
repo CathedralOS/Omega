@@ -12,15 +12,28 @@
 // `FilesystemHost` seam is fully native; only the wrapper's value-call param
 // forwarding is affected.
 //
-// Diagnosis (2026-07-06 fire): the `bytes` fill does NOT flow through any of
-// select_runtime_dispatch_argument_materialization (transition-dispatch args),
-// select_runtime_frame_slot_value_write_in_table (16-byte descriptor slot), or
-// the branch-prelude Mutation / StateCall paths — all instrumented and silent
-// for this repro. So the machine value-call materializes `bytes` via a further
-// path (an inline-expansion alias or a direct branch place-copy from an
-// UNINITIALIZED descriptor source). The true fix must initialize that source
-// with the literal's {ptr,len} (a WriteRuntimeFrameString) — genuinely
-// multi-layer, a dedicated session (see TASKS_FS.md step 14).
+// FULLY ROOT-CAUSED (2026-07-07). The chain is THREE layers; two are understood
+// + one is fixed:
+//   1. [FIXED, fix #1] The `bytes` literal is aliased into the callee; its data
+//      object is keyed to the CALLER's statement, so the host-op operand
+//      resolution missed it. `aliased_literal_data_object` (operands.rs) now
+//      follows the alias -> the field-assigned variant works (see the passing
+//      canary native_value_call_literal).
+//   2. [OPEN, the blocker THIS repro hits] This callee assigns the write result
+//      to a LOCAL (`let w = self.fs.write(..)`), the ergonomic-wrapper shape.
+//      A `let`-bound host call is a `StatementNode::LocalData`, which
+//      `collect_state_host_calls` (omega-platform-interface/src/host_calls/
+//      collection.rs) does NOT match (only Assignment + Call) -> the call is
+//      never COLLECTED -> `host_call_for_statement` returns None -> the write is
+//      dropped entirely (file created, never written).
+//   3. [OPEN, complement of 2] Once collection emits a LocalData host call,
+//      runtime_dispatch.rs's LocalStorage branch must ALSO emit it (its result
+//      operand writes the local's slot) instead of the value-only local-init
+//      write. Drafted this fire, reverted (dormant until 2 lands).
+// The remaining fix (2+3) touches the high-blast-radius host-call collection pass
+// (needs a LocalData arm + synthesizing the local's place as arg[0]); its only
+// gate is the full canary_suite, so it is a DEDICATED session, not a loop fire.
+// See TASKS_FS.md step 14.
 
 use omega::language::std::filesystem_host;
 
