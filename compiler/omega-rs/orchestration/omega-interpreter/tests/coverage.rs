@@ -2965,6 +2965,86 @@ machine Main::main(&mut self) {
     );
 }
 
+/// Creating opens (Rust `File::create_new` + `OpenOptions.create`) via the
+/// `open_create` seam. `create_new` atomically makes a NEW file (fails
+/// `AlreadyExists` if present); the created file is a usable read/write handle.
+/// `OpenOptions.create` creates a missing file. (Native lowering of `open_create`
+/// is pending — variadic mode, D8-open; this is the interpreter model.)
+#[test]
+fn filesystem_std_module_create_new() {
+    let main_path = write_program(
+        "fs-create-new",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    open_result: OpenResult;
+    io_result: IoResult;
+    unit_result: UnitResult;
+    opts: OpenOptions;
+    rc: i32;
+    first: u8;
+    cap: usize;
+    buffer: [u8; 16];
+}
+machine Main::main(&mut self) {
+    self.cap = 16;
+    self.open_result = self.fs.create_new("/cn.txt");
+    transition self.open_result { OpenResult::Ok { file } -> wrote(file) _ -> fail() }
+    state wrote(&mut self, file: File) {
+        self.io_result = self.fs.write(file, "hi");
+        self.rc = self.fs.close(file);
+        transition self.io_result { IoResult::Ok { count } -> reject(count) _ -> fail() }
+    }
+    state reject(&mut self, count: usize) {
+        // create_new on an existing path -> AlreadyExists (the atomic guarantee)
+        self.open_result = self.fs.create_new("/cn.txt");
+        transition self.open_result { OpenResult::Error { kind } -> checkexist(kind) _ -> fail() }
+    }
+    state checkexist(&mut self, kind: ErrorKind) {
+        transition kind { ErrorKind::AlreadyExists -> readback() _ -> fail() }
+    }
+    state readback(&mut self) {
+        // the create_new'd file is real + usable: read the "hi" back
+        self.open_result = self.fs.open("/cn.txt");
+        transition self.open_result { OpenResult::Ok { file } -> doread(file) _ -> fail() }
+    }
+    state doread(&mut self, file: File) {
+        self.io_result = self.fs.read(file, &mut self.buffer, self.cap);
+        self.first = self.buffer[0];
+        self.rc = self.fs.close(file);
+        transition self.first == 104 { true -> optcreate() _ -> fail() }
+    }
+    state optcreate(&mut self) {
+        // OpenOptions.create makes a DIFFERENT missing file
+        self.opts = OpenOptions { read: false, write: true, append: false, truncate: false, create: true, create_new: false };
+        self.open_result = self.fs.open_with("/cn2.txt", self.opts);
+        transition self.open_result { OpenResult::Ok { file } -> optok(file) _ -> fail() }
+    }
+    state optok(&mut self, file: File) {
+        self.rc = self.fs.close(file);
+        self.unit_result = self.fs.remove("/cn.txt");
+        self.unit_result = self.fs.remove("/cn2.txt");
+        transition self.unit_result { UnitResult::Ok -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("create_new program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "create_new: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "create_new: creates a usable file, rejects an existing one (AlreadyExists), OpenOptions.create works"
+    );
+}
+
 /// `canonicalize` (Rust `fs::canonicalize`, via `realpath`): resolve a path to its
 /// canonical absolute form, FOLLOWING symlinks. Here a `/link` -> `/target.txt`
 /// symlink canonicalizes to the target's path (buffer begins "/t..."), and a

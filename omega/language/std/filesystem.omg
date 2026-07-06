@@ -89,6 +89,12 @@ data OpenOptions [copy, zero_init] {
     write: bool;
     append: bool;
     truncate: bool;
+    // `create` = create the file if it does not exist (O_CREAT); `create_new` =
+    // create it and FAIL if it already exists (O_CREAT|O_EXCL, atomic). Both go
+    // through the creating `open_create` seam with a default mode (0o666, minus
+    // the process umask on native). `create_new` implies `create`.
+    create: bool;
+    create_new: bool;
 }
 
 // A file's permission bits (Rust `std::fs::Permissions`). `mode` is the POSIX
@@ -253,6 +259,13 @@ data MetadataResult {
 boundary trait FilesystemHost {
     machine create(path: &[u8] in Path, mode: i32) -> i32;
     machine open(path: &[u8] in Path, flags: i32) -> i32;
+    // The CREATING open: `open(path, flags, mode)` with O_CREAT (Rust
+    // `File::create_new` / `OpenOptions.create`). `flags` carries the access mode
+    // + O_CREAT (512) [+ O_EXCL (2048) for create-new] [+ O_TRUNC (1024)]; `mode`
+    // is the create permission bits. Returns the new fd, or -1. NOTE: native
+    // lowering is pending (the variadic `mode` needs stack marshalling, D8-open);
+    // fully modeled in the interpreter today.
+    machine open_create(path: &[u8] in Path, flags: i32, mode: i32) -> i32;
     machine read(fd: i32, buffer: &mut [u8], count: usize) -> i64;
     machine write(fd: i32, bytes: &[u8]) -> i64;
     // Positioned I/O (Rust `FileExt::read_at`/`write_at`): read/write at an
@@ -349,6 +362,17 @@ machine Filesystem::create(&mut self, path: &[u8] in Path) -> OpenResult {
     state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
 }
 
+// Atomically create a NEW file, failing if it already exists (Rust
+// `File::create_new`). O_RDWR|O_CREAT|O_EXCL (2|512|2048 = 2562), mode 0o666
+// (438). An existing path yields `Error { kind: AlreadyExists }`.
+machine Filesystem::create_new(&mut self, path: &[u8] in Path) -> OpenResult {
+    self.create_mode = 438;
+    let fd: i32 = self.host.open_create(path, 2562, self.create_mode);
+    transition fd >= 0 { true -> ok(fd) _ -> err() }
+    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
+}
+
 // Open an existing file for reading.
 machine Filesystem::open(&mut self, path: &[u8] in Path) -> OpenResult {
     self.read_flags = 0;
@@ -377,8 +401,16 @@ machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptio
     let rdwr: i32 = (wbit & rbit) << 1;
     let append_flag: i32 = (options.append as i32) << 3;
     let truncate_flag: i32 = (options.truncate as i32) << 10;
-    let flags: i32 = wronly | rdwr | append_flag | truncate_flag;
-    let fd: i32 = self.host.open(path, flags);
+    // Creating opens: O_CREAT (512 = 1<<9) when `create` OR `create_new`; O_EXCL
+    // (2048 = 1<<11) only for `create_new`. Routed through the `open_create`
+    // seam, which SUBSUMES `open` (with no O_CREAT it behaves exactly like it),
+    // so existing-file opens are unchanged. Default create mode 0o666 (438).
+    let creating: i32 = (options.create as i32) | (options.create_new as i32);
+    let creat_flag: i32 = creating << 9;
+    let excl_flag: i32 = (options.create_new as i32) << 11;
+    let flags: i32 = wronly | rdwr | append_flag | truncate_flag | creat_flag | excl_flag;
+    self.create_mode = 438;
+    let fd: i32 = self.host.open_create(path, flags, self.create_mode);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
     state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }

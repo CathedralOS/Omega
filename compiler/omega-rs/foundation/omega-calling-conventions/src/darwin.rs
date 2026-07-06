@@ -45,6 +45,11 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("Filesystem", "chown", "_chown", &policy),
         darwin_import("Filesystem", "lchown", "_lchown", &policy),
         darwin_import("Filesystem", "fchown", "_fchown", &policy),
+        // The creating `open` (variadic `mode`). NATIVE lowering PENDING (the mode
+        // must be stack-marshalled -- see D8-open); the import + lowering are
+        // wired so only the operand arm + encoder remain. The interpreter models
+        // `open_create` fully today.
+        darwin_import("Filesystem", "open_create", "_open", &policy),
         darwin_import("Filesystem", "read_errno", "___error", &policy),
     ]);
 
@@ -324,6 +329,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "FilesystemHost",
         "change_file_owner",
         [host_operation("Filesystem", "fchown")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "open_create",
+        [host_operation("Filesystem", "open_create")],
         PlatformCallData::None,
     );
     // errno accessor: `___error()` returns `&errno`; the value-returning lowering
