@@ -2,6 +2,20 @@
 
 Omega starts with explicit data shapes and explicit values.
 
+> **No default *values* on data (settled 2026-07-05).** A field may not carry a
+> `= default` initializer. ZII is the substrate: a field's default IS its zero, and
+> construction lets you omit a field only when its zero satisfies the data type's
+> **default domain** (its invariants — see
+> [Chapter 7](chapter_7_types_constraints_invariants.md)). Where zero is invalid you
+> are *forced* to supply the value (Odin/Go partial-literal style, but
+> invariant-gated): `Player{ health = 50 }` leaves an unconstrained `age` at ZII but
+> makes `health` mandatory because `0` is out of its range. This generalizes the
+> case-bearing rule below ("common fields may not declare default initializers; ZII
+> makes the zero valid") to *all* data. A convenience non-zero default, if wanted, is
+> an explicit constructor machine (`Config::with_defaults() -> Config in Ready`), not
+> a hidden field default. *Settled model; not yet implemented — today scalar defaults
+> emit and array defaults silently drop.*
+
 ## Hello World
 
 The smallest console program has one root data object and one entry machine.

@@ -165,16 +165,12 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   states with a VALID return type, so a resolved-void callee and an unresolved call both
   yield None (indistinguishable), and it's self/attached-only. Distinguishing "resolved
   void" from "unresolved" is precisely what the complete value-call resolver provides.
-- **[ ] ARRAY/aggregate field DEFAULTS — silently dropped + unvalidated (found
-  2026-07-05).** A valid array default is not emitted (`xs: [i32;3] = [1,2,3]` reads
-  `xs[2]==0`; scalar defaults ARE emitted, so emission is scalar-only), and length +
-  element class are unchecked here (`[i32;2] = [1,2,3,4]`, `[i32;3] = [true,2,3]`
-  compile). `validate_array_literal_elements` already does those checks but takes
-  `&Machine`/`&State`; `data.rs`'s field loop only got the machine-free SCALAR checks.
-  DECISION NEEDED (Zach): (a) SUPPORT array defaults (emit + wire the element checker
-  into data.rs via the `Option<&Machine>` generalization the scalar fix started), or
-  (b) REJECT non-scalar field defaults with a clear diagnostic so the silent drop
-  becomes visible. NOT a live overflow (defaults not emitted). Repro:
+- **[SUPERSEDED BY DESIGN 2026-07-05]** ARRAY/aggregate field DEFAULTS silently dropped +
+  unvalidated (`xs: [i32;3] = [1,2,3]` reads `xs[2]==0`; scalar defaults emit, arrays don't).
+  The "DECISION NEEDED (support vs reject)" is settled by the default-domain direction (see
+  the "invariants are the default domain; NO default values" TASK): default VALUES are
+  DROPPED entirely — ZII + construction-forced overrides. So this dissolves once that lands;
+  until then it remains a silent drop (not a live overflow — defaults aren't emitted). Repro:
   `canaries/pending/arithmetic/array_field_default_silent`.
 - **[RESOLVED 2026-07-05]** DEEPLY-NESTED INPUT no longer crashes the compiler: parser
   `MAX_NESTING_DEPTH`=1024 depth guard + `compile()` on a 256 MiB-stack thread (both
@@ -293,6 +289,37 @@ settled. Both are mechanical migrations across the corpus + Cathedral source:
   in `build.omg` / the directory (one dir = one package = one build.omg); source
   files are members by location and don't re-declare it. Remove the `package X`
   header from source files; the parser stops requiring/accepting it.
+
+## TASK — invariants are the default domain; NO default values (settled 2026-07-05, Zach)
+
+FULL detail in memory `default-domain-invariants`. Design-only; nothing built. Extends
+ch7's existing "no invariant syntax on types -> contracts/domains" direction. THESIS:
+`data` = layout only; ALL invariants live in a data type's always-travelling DEFAULT
+DOMAIN; there are NO default VALUES on data.
+- **Default domain = the domain always in scope for a data type.** Not a special construct
+  — just *the* domain that travels with the data everywhere, so nothing to shed/track. A
+  field constraint (`health: i32 [0..=100]`) is SUGAR for a per-field invariant of it.
+  "Top-level" domains (`Player::New`, `Quantity::Additive`) are SUBDOMAINS refining it.
+- **Single-field invariants = STANDING**, maintained by the existing store-check machinery
+  (decision-17 / narrowing / cross-class — REUSED as the default-domain enforcer, not
+  deleted). **Cross-field invariants** (`start <= end`) live in the default domain but are
+  reachable ONLY via INIT-SYNTAX (construct-a-valid-whole, move in atomically) or a `relax`
+  scope (suspend, re-prove at exit). ENFORCEMENT: a bare single-field store that would break
+  a cross-field invariant is REJECTED, forcing init-syntax or relax.
+- **No default VALUES.** KILL `field: T = default`. ZII is the substrate; construction forces
+  you through the default domain -> override exactly the fields whose ZERO is invalid
+  (Odin/Go partial-literal, invariant-gated: `Player{health = 50}` -> age ZII, health
+  mandatory). The old "ZII default must conform" rule BECOMES the construction semantics; the
+  half-broken array/aggregate defaults (silently dropped — see the "ARRAY field DEFAULTS"
+  latent bug) DISAPPEAR. Non-zero convenience defaults -> explicit constructor machines only.
+- **Constructors are not new** — a machine `-> T in <domain>` that discharges the invariants.
+- **SOUNDNESS HINGE = `relax` EXCLUSIVITY**: while relaxed, nothing may observe the value as
+  still-in-domain (no alias/call/read assuming the invariant) until scope-exit re-proves it.
+  This is the unbuilt part of relax (the "Relax semantics follow-up" TASK). Watch hardest.
+- Migration: every `field: T [range]` / `field: T = default` -> default-domain constraint +
+  construction. Shares the invariant-prover dependency with the encoding-domains work.
+- [ ] To pin at implementation: the surface for declaring the default domain's invariants;
+  init-syntax for reconstructing `self`'s own cross-field-related fields.
 
 ## TASK — explicit case discriminants (settled 2026-07-04, Zach; ch1 updated)
 

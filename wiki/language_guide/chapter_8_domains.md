@@ -6,6 +6,17 @@ They are not runtime tags, wrapper types, hidden storage, or a second object
 model. A domain names a meaningful semantic state that the compiler can prove
 for a value.
 
+> **Every data type has a DEFAULT DOMAIN (settled 2026-07-05).** The invariants a
+> `data` type "always has" are its default domain — the one domain that is always in
+> scope for the value and travels with it everywhere, so it need not be named or
+> tracked. Named domains like `Player::New` or `Quantity::Additive` are **subdomains**
+> refining that base with tighter invariants, operators, or facts, selected at a mint
+> point (`as`) when provable. This is why a per-field constraint and a domain are the
+> *same* mechanism (see [Chapter 7](chapter_7_types_constraints_invariants.md)):
+> single-field constraints are standing invariants of the default domain; cross-field
+> invariants live there too but are reached only via construction or a [`relax`
+> scope](chapter_11_relax_scopes.md). *Settled model; not yet implemented.*
+
 ```omega
 data Player {
     health: i32;
