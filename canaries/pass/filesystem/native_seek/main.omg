@@ -1,0 +1,47 @@
+// NATIVE fs `seek` (Rust's Seek trait) via `_lseek`. Creates a file, writes 17
+// bytes, then seeks to the end to read back the file size (17), proving the
+// value-returning 3-scalar-arg host call lowers + runs. Prints PASS and cleans
+// up. NOT registered in ACTIVE_PASS_CANARIES yet (canary_suite.rs is hot).
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    machine seek(fd: i32, offset: i64, whence: i32) -> i64;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+}
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    zero_off: i64;
+    seek_end: i32;
+    fd: i32;
+    n: i64;
+    size: i64;
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.zero_off = 0;
+    self.seek_end = 2;
+    self.fd = self.fs.create("/tmp/omega_seek.txt", self.mode);
+    transition self.fd >= 0 { true -> wrote() _ -> fail() }
+    state wrote(&mut self) {
+        self.n = self.fs.write(self.fd, "omega end to end\n");
+        self.size = self.fs.seek(self.fd, self.zero_off, self.seek_end);
+        self.n = self.fs.close(self.fd);
+        transition self.size == 17 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) {
+        self.n = self.fs.write(1, "PASS: seek to end reports 17-byte file size\n");
+        self.n = self.fs.remove("/tmp/omega_seek.txt");
+    }
+    state fail(&mut self) {
+        self.n = self.fs.write(1, "FAIL: seek\n");
+        self.n = self.fs.remove("/tmp/omega_seek.txt");
+    }
+}

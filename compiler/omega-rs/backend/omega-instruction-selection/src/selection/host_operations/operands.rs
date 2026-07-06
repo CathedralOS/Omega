@@ -274,6 +274,23 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Filesystem, HostOperation::Seek) => {
+            // Value-returning `pos = seek(fd, offset, whence) -> _lseek(fd,
+            // offset, whence)`. operand[0]=result, then the three scalar args.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let fd = scalar_argument_operand_at(input, host_call, dispatch_index, 1);
+            let offset = scalar_argument_operand_at(input, host_call, dispatch_index, 2);
+            let whence = scalar_argument_operand_at(input, host_call, dispatch_index, 3);
+            match (result, fd, offset, whence) {
+                (Some(result), Some(fd), Some(offset), Some(whence)) => operands.insert_many([
+                    operand(result),
+                    operand(fd),
+                    operand(offset),
+                    operand(whence),
+                ]),
+                _ => HandleSpan::empty(),
+            }
+        }
         _ => HandleSpan::empty(),
     }
 }

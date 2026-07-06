@@ -21,6 +21,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("Filesystem", "write", "_write", &policy),
         darwin_import("Filesystem", "close", "_close", &policy),
         darwin_import("Filesystem", "unlink", "_unlink", &policy),
+        darwin_import("Filesystem", "lseek", "_lseek", &policy),
     ]);
 
     insert_platform_lowering(
@@ -122,6 +123,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "FilesystemHost",
         "remove",
         [host_operation("Filesystem", "unlink")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "seek",
+        [host_operation("Filesystem", "lseek")],
         PlatformCallData::None,
     );
 }
