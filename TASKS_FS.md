@@ -402,7 +402,21 @@ crate tests; interpreter fs coverage) and commits.
       faithful `copy`, root-cause errno in `write_all`/`read_all`, and general
       slice-passing to helper states. Bounded interpreter work, but its own fire.
 13. [~] **`read_dir`** — directory iteration. NATIVE op + INTERPRETER model DONE
-    (differential-consistent); ergonomic wrapper + Omega parsing remain.
+    (differential-consistent). INTERPRETER ITERATION IDIOM now DONE too; native
+    iteration + ergonomic wrapper remain (gated on the runtime-indexed-read blocker).
+    - **This fire:** (a) promoted `read_dir` into the SHIPPED raw seam
+      `omega/language/std/filesystem.omg::FilesystemHost` (was canary-local only);
+      (b) added coverage `filesystem_read_dir_iteration` proving the ITERATION
+      idiom on the interpreter — fill the buffer, then WALK the packed dirent
+      records with a runtime-indexed cursor (`buffer[off+16]`/`[off+17]` → the LE
+      u16 `d_reclen`), advancing `off` by `reclen` until the filled byte count,
+      counting 4 entries (`.`,`..`,two files) order-independently. Notes for the
+      idiom: computed indices must be materialized into a field first
+      (`self.idx = self.off + 16; buffer[self.idx]`); cursor arithmetic uses
+      `usize/i32 in Wrapping`; a dominating guard (`off < 480`) discharges the
+      static index-bounds obligation (array `in Trapping` does NOT auto-discharge
+      it — the checker still demands a static proof). Native iteration reuses this
+      exact idiom once the runtime-indexed-read backend bug (below) is fixed.
     - **Platform note:** classic `getdirentries` is UNAVAILABLE on darwin arm64
       (64-bit inodes deliberately break it — it links to a `_..._is_not_available`
       stub). Uses `___getdirentries64(fd, buf, bufsize, &position)` instead (the
