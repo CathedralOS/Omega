@@ -115,6 +115,18 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   representation. (The direct `self.<field>` case already skips versioned attached data
   via `is_version_selector` in `machine_attached_data`, but that is name-suffix-based and
   does not catch a nested versioned container.)
+  RE-CONFIRMED + SHARPENED 2026-07-05: both faces still reproduce (`self.o.inner.nonexistent`
+  final-missing AND `self.o.bogus.v` intermediate-missing, both compile + read ZII 0).
+  PRECISE BLOCKER: version-block fields are stored in the WIRE model as
+  `wire::WireMember::Version` on a `wire::WireSchema` (typed_trees.rs) -- NOT in
+  `DataDefinition.members`, which is why `data_field_or_payload_type` (iterates
+  `data_members`) misses them. IMPLEMENTATION PATH for the focused session: (a) extend
+  `data_field_or_payload_type` (places.rs) to ALSO search a data type's wire version-block
+  members (reach them via `program.wire_schemas()` matched by name + `WireMember::Version`
+  members), OR (b) conservatively SKIP the reject when the containing type has a WireSchema
+  with Version members (detect via `wire_schemas()`), catching only plain non-versioned
+  records/enums. Once the resolver is versioned-sound, gate the check on
+  `resolve_nested_member_path(...).is_none()` for a 3+-segment self/local/param member read.
 
 - **[RESOLVED 2026-07-05, 5faa7928b]** Arithmetic/ordering on a STRUCT with no declared
   operator (`self.a + self.b` for plain `data P`) rejected via `resolve_spelling` (empty
@@ -206,6 +218,17 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   dispatcher (so it runs at every comparison site incl. guard subjects). In-range comparisons and the
   `as`-widen workaround (`(self.b as i32) == 300`) stay valid; two-place / float / bool / text pairings
   skipped. Canary out_of_range_comparison_literal_rejected.
+- **[RESOLVED 2026-07-05] Comparison between DIFFERENT-WIDTH integer places (`self.i8 == self.i32`).**
+  The place-vs-place sibling of the above: comparing two integer places of different primitive types
+  compiled at the NARROWER operand's width, silently truncating the wider one -- `i8(44) == i32(300)`
+  read TRUE because `300 & 0xFF == 44` (confirmed native, exit 1 when it should be false). New
+  `report_mismatched_width_comparison` (arithmetic_domains.rs): both operands must resolve to INTEGER
+  primitives (`primitive_range` Some) that DIFFER -> reject with "convert one with an `as` cast". Wired
+  into `validate_binary_operand_types`. ZERO blast radius (599 canaries + samples -- nothing compared
+  different-width places; it was a pure latent trap). Same-type comparisons, the `as`-widen workaround,
+  and literal / float / bool / text operands are all skipped (bool-vs-int stays the deferred DESIGN Q).
+  Canary mismatched_width_comparison_rejected. (Promotion-to-wider like C is a possible future ergonomic
+  enhancement; interim-reject closes the miscompile without precluding it.)
 - **[ ] DESIGN QUESTION (found 2026-07-05): bool operands MIX with numeric in arithmetic/comparison.**
   `let n: i32 = self.b + 5` (-> 6), `self.b < self.n` (bool vs i32 guard -> 1), `self.b == self.n`
   (-> 1) all COMPILE + RUN with a well-defined C-style bool->{0,1} coercion (NOT garbage, so not a

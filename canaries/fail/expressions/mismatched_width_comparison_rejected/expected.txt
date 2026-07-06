@@ -1,0 +1,1 @@
+different integer types and the comparison would silently truncate
