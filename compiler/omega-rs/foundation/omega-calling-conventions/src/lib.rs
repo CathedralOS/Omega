@@ -125,6 +125,8 @@ pub enum HostOperation {
     MakeDir,
     /// `rmdir(path)` -- remove an empty directory (Rust `remove_dir`).
     RemoveDir,
+    /// `rename(from, to)` -- move/rename a path (Rust `rename`). Two path args.
+    Rename,
     Sleep,
     TickCount,
     KeyState,
@@ -173,6 +175,7 @@ impl HostOperation {
             "lseek" => Self::Seek,
             "mkdir" => Self::MakeDir,
             "rmdir" => Self::RemoveDir,
+            "rename" => Self::Rename,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
@@ -207,6 +210,7 @@ impl HostOperation {
             Self::Seek => "lseek",
             Self::MakeDir => "mkdir",
             Self::RemoveDir => "rmdir",
+            Self::Rename => "rename",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",

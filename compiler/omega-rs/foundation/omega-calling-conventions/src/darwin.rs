@@ -24,6 +24,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("Filesystem", "lseek", "_lseek", &policy),
         darwin_import("Filesystem", "mkdir", "_mkdir", &policy),
         darwin_import("Filesystem", "rmdir", "_rmdir", &policy),
+        darwin_import("Filesystem", "rename", "_rename", &policy),
     ]);
 
     insert_platform_lowering(
@@ -146,6 +147,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "FilesystemHost",
         "remove_dir",
         [host_operation("Filesystem", "rmdir")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "rename",
+        [host_operation("Filesystem", "rename")],
         PlatformCallData::None,
     );
 }
