@@ -1,76 +1,20 @@
-; pair-forall.elab — the TWO-ACCUMULATOR fold ∀-input theorem (stdin_checksum's real shape). Where
-; sum-forall threads ONE accumulator, this threads a PAIR: a SUM accumulator (add the element) AND a COUNT
-; accumulator (+1 per element), stepped together. The accumulator is a user pair (k 70 s c); its projections
-; fst/snd are user functions that reduce on a literal pair — so recx still threads ONE extra (the pair) and
-; NO kernel change is needed. The universal theorem is:
 ;
-;     ∀xs ∀s ∀c.  pairfold(xs, mkpair s c)  =  mkpair( listsum(xs) + s ,  len(xs) + c )
-;
-; and it decomposes into the sum-forall bridge (assoc+comm) for the first component and uaddsuc for the
-; second, combined by congruence over the pair constructor. All user nats (k2/k3) and user lists (k60/k61),
-; matching the meaning route's USER_PRELUDE; the pair is (data 70 ..).
+; pair-forall.elab — the TWO-ACCUMULATOR fold: a single pass threads a SUM and a COUNT together as a pair,
+; proving pairfold(xs,(s,c)) = (listsum(xs)+s, len(xs)+c). The additive commutative-monoid lemmas come from the
+; shared lib/nat-monoid.elab; this file adds the pair type (data 70) + fst/snd (fun 100/101) + the fold funs.
+; (Shape of stdin_checksum's read_byte loop: byte SUM and COUNT threaded at once.)
+(include lib/nat-monoid.elab)
 
-(data 2 0 0 0) (data 3 1 1 0) (data 60 0 0 0) (data 61 2 0 1) (data 70 2 0 0)
-
-(fun 21 2 (y 0)) (fun 21 3 (k 3 (rec 0)))                ; uadd(0,n)=n ; uadd(s m,n)=s(uadd(m,n))
-(fun 94 60 (k 2)) (fun 94 61 (f 21 (v 0) (rec 1)))        ; listsum(Nil)=0 ; listsum(Cons h t)=h+listsum(t)
-(fun 97 60 (k 2)) (fun 97 61 (k 3 (rec 1)))              ; len(Nil)=0 ; len(Cons h t)=s(len t)
-(fun 100 70 (v 0)) (fun 101 70 (v 1))                    ; fst(mkpair a b)=a ; snd(mkpair a b)=b
-(fun 96 60 (y 0))                                        ; pairfold(Nil, p) = p
+(data 70 2 0 0)
+(fun 94 60 (k 2))
+(fun 94 61 (f 21 (v 0) (rec 1)))
+(fun 97 60 (k 2))
+(fun 97 61 (k 3 (rec 1)))
+(fun 100 70 (v 0))
+(fun 101 70 (v 1))
+(fun 96 60 (y 0))
 (fun 96 61 (recx 1 (k 70 (f 21 (v 0) (f 100 (y 0))) (k 3 (f 101 (y 0))))))
-; pairfold(Cons h t, p) = pairfold(t, mkpair( h + fst p ,  s(snd p) ))
 
 (all xs (all s (all c (= (f 96 xs (k 70 s c)) (k 70 (f 21 (f 94 xs) s) (f 21 (f 97 xs) c))))))
-
-; --- uadd is a commutative monoid (reused verbatim from sum-forall) -------------------------------------
-(have add0r (all a (= (f 21 a (k 2)) a))
-  (rec 2 3 a (= (f 21 a (k 2)) a)
-    (refl (k 2))
-    (gen a1 (lam ih (= (f 21 a1 (k 2)) a1)
-      (eqelim x (= (k 3 (f 21 a1 (k 2))) (k 3 x)) ih (refl (k 3 (f 21 a1 (k 2))))))))
-(have uaddsuc (all a (all b (= (f 21 a (k 3 b)) (k 3 (f 21 a b)))))
-  (rec 2 3 a (all b (= (f 21 a (k 3 b)) (k 3 (f 21 a b))))
-    (gen b (refl (k 3 b)))
-    (gen a1 (lam ih (all b (= (f 21 a1 (k 3 b)) (k 3 (f 21 a1 b))))
-      (gen b (eqelim x (= (k 3 (f 21 a1 (k 3 b))) (k 3 x)) (inst ih b) (refl (k 3 (f 21 a1 (k 3 b)))))))))
-(have addcomm (all a (all b (= (f 21 a b) (f 21 b a))))
-  (rec 2 3 a (all b (= (f 21 a b) (f 21 b a)))
-    (gen b (eqelim x (= x (f 21 b (k 2))) (inst add0r b) (refl (f 21 b (k 2)))))
-    (gen a1 (lam ih (all b (= (f 21 a1 b) (f 21 b a1)))
-      (gen b
-        (have s1 (= (k 3 (f 21 a1 b)) (k 3 (f 21 b a1)))
-          (eqelim x (= (k 3 (f 21 a1 b)) (k 3 x)) (inst ih b) (refl (k 3 (f 21 a1 b))))
-        (have s2 (= (k 3 (f 21 b a1)) (f 21 b (k 3 a1)))
-          (eqelim x (= x (f 21 b (k 3 a1))) (inst* uaddsuc b a1) (refl (f 21 b (k 3 a1))))
-          (eqelim x (= (k 3 (f 21 a1 b)) x) s2 s1)))))))
-(have addassoc (all a (all b (all c (= (f 21 (f 21 a b) c) (f 21 a (f 21 b c))))))
-  (rec 2 3 a (all b (all c (= (f 21 (f 21 a b) c) (f 21 a (f 21 b c)))))
-    (gen b (gen c (refl (f 21 b c))))
-    (gen a1 (lam ih (all b (all c (= (f 21 (f 21 a1 b) c) (f 21 a1 (f 21 b c)))))
-      (gen b (gen c
-        (eqelim x (= (k 3 (f 21 (f 21 a1 b) c)) (k 3 x)) (inst* ih b c) (refl (k 3 (f 21 (f 21 a1 b) c)))))))))
-
-; --- the two-accumulator fold theorem, by induction on xs ---
-(rec 60 61 xs (all s (all c (= (f 96 xs (k 70 s c)) (k 70 (f 21 (f 94 xs) s) (f 21 (f 97 xs) c)))))
-  (gen s (gen c (refl (k 70 s c))))                       ; base Nil: both sides reduce to (k 70 s c)
-  (gen h (gen t (lam ih (all s (all c (= (f 96 t (k 70 s c)) (k 70 (f 21 (f 94 t) s) (f 21 (f 97 t) c)))))
-    (gen s (gen c
-      ; L = listsum t = (f 94 t) ; N = len t = (f 97 t). LHS converts (recx) to  f96 t (mkpair (h+s) (s c)).
-      ; SUM component:  L + (h+s)  =  (h+L) + s   [assoc reversed, then comm under (.,s)]
-      (have s1 (= (f 21 (f 94 t) (f 21 h s)) (f 21 (f 21 (f 94 t) h) s))
-        (eqelim x (= x (f 21 (f 21 (f 94 t) h) s)) (inst* addassoc (f 94 t) h s) (refl (f 21 (f 21 (f 94 t) h) s)))
-      (have s2 (= (f 21 (f 21 (f 94 t) h) s) (f 21 (f 21 h (f 94 t)) s))
-        (eqelim x (= (f 21 (f 21 (f 94 t) h) s) (f 21 x s)) (inst* addcomm (f 94 t) h) (refl (f 21 (f 21 (f 94 t) h) s)))
-      (have bridge1 (= (f 21 (f 94 t) (f 21 h s)) (f 21 (f 21 h (f 94 t)) s))
-        (eqelim x (= (f 21 (f 94 t) (f 21 h s)) x) s2 s1)
-      ; COUNT component:  N + (s c)  =  s(N + c)   [uaddsuc]
-      (have bridge2 (= (f 21 (f 97 t) (k 3 c)) (k 3 (f 21 (f 97 t) c)))
-        (inst* uaddsuc (f 97 t) c)
-      ; IH at (h+s, s c) gives the reduced LHS's value; rewrite its two components to the goal's RHS.
-      (have ihv (= (f 96 t (k 70 (f 21 h s) (k 3 c)))
-                   (k 70 (f 21 (f 94 t) (f 21 h s)) (f 21 (f 97 t) (k 3 c))))
-        (inst* ih (f 21 h s) (k 3 c))
-      (have pa (= (f 96 t (k 70 (f 21 h s) (k 3 c)))
-                  (k 70 (f 21 (f 21 h (f 94 t)) s) (f 21 (f 97 t) (k 3 c))))
-        (eqelim x (= (f 96 t (k 70 (f 21 h s) (k 3 c))) (k 70 x (f 21 (f 97 t) (k 3 c)))) bridge1 ihv)
-      (eqelim x (= (f 96 t (k 70 (f 21 h s) (k 3 c))) (k 70 (f 21 (f 21 h (f 94 t)) s) x)) bridge2 pa)))))))))))))))))
+; --- the paired fold theorem, by induction on xs (cites the included monoid lemmas by name) ---
+(rec 60 61 xs (all s (all c (= (f 96 xs (k 70 s c)) (k 70 (f 21 (f 94 xs) s) (f 21 (f 97 xs) c))))) (gen s (gen c (refl (k 70 s c)))) (gen h (gen t (lam ih (all s (all c (= (f 96 t (k 70 s c)) (k 70 (f 21 (f 94 t) s) (f 21 (f 97 t) c))))) (gen s (gen c (have s1 (= (f 21 (f 94 t) (f 21 h s)) (f 21 (f 21 (f 94 t) h) s)) (eqelim x (= x (f 21 (f 21 (f 94 t) h) s)) (inst* addassoc (f 94 t) h s) (refl (f 21 (f 21 (f 94 t) h) s))) (have s2 (= (f 21 (f 21 (f 94 t) h) s) (f 21 (f 21 h (f 94 t)) s)) (eqelim x (= (f 21 (f 21 (f 94 t) h) s) (f 21 x s)) (inst* addcomm (f 94 t) h) (refl (f 21 (f 21 (f 94 t) h) s))) (have bridge1 (= (f 21 (f 94 t) (f 21 h s)) (f 21 (f 21 h (f 94 t)) s)) (eqelim x (= (f 21 (f 94 t) (f 21 h s)) x) s2 s1) (have bridge2 (= (f 21 (f 97 t) (k 3 c)) (k 3 (f 21 (f 97 t) c))) (inst* uaddsuc (f 97 t) c) (have ihv (= (f 96 t (k 70 (f 21 h s) (k 3 c))) (k 70 (f 21 (f 94 t) (f 21 h s)) (f 21 (f 97 t) (k 3 c)))) (inst* ih (f 21 h s) (k 3 c)) (have pa (= (f 96 t (k 70 (f 21 h s) (k 3 c))) (k 70 (f 21 (f 21 h (f 94 t)) s) (f 21 (f 97 t) (k 3 c)))) (eqelim x (= (f 96 t (k 70 (f 21 h s) (k 3 c))) (k 70 x (f 21 (f 97 t) (k 3 c)))) bridge1 ihv) (eqelim x (= (f 96 t (k 70 (f 21 h s) (k 3 c))) (k 70 (f 21 (f 21 h (f 94 t)) s) x)) bridge2 pa)))))))))))))
