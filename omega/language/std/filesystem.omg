@@ -192,6 +192,9 @@ boundary trait FilesystemHost {
     // Fill `buffer` (>= 144 bytes) with the path's `struct stat` record (Rust
     // `fs::metadata`). The Omega layer reads st_size/st_mode back out.
     machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
+    // Like `read_metadata` but for an OPEN descriptor, via `fstat` (Rust
+    // `File::metadata`). Reads the real mode/size/times without moving the cursor.
+    machine read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32;
     // Like `read_metadata` but via `lstat` — does NOT follow a final symlink, so
     // a symlink reports its own record (st_mode file-type S_IFLNK). Rust
     // `fs::symlink_metadata`.
@@ -637,24 +640,50 @@ machine Filesystem::try_clone(&mut self, file: File) -> OpenResult {
     state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
 }
 
-// Metadata of an open file (Rust `File::metadata`). Composes the raw `seek` op:
-// remember the cursor (SEEK_CUR), measure the size (SEEK_END), then restore the
-// cursor (SEEK_SET) so `metadata` is non-destructive. `len` is the byte size.
+// Metadata of an open file (Rust `File::metadata`). Uses `fstat` on the
+// descriptor, so it reports the REAL `mode`/`len`/times (not the seek-based
+// approximation it used before) and never moves the cursor. Same byte-decode as
+// `metadata_path`; an open `File` follows to a regular file, so `is_symlink` is
+// false and `is_dir` comes from `st_mode`.
 machine Filesystem::metadata(&mut self, file: File) -> MetadataResult {
-    let cursor: i64 = self.host.seek(file.fd, 0, 1);
-    transition cursor >= 0 { true -> measure(file, cursor) _ -> err() }
-    state measure(&mut self, file: File, cursor: i64) -> MetadataResult {
-        let len: i64 = self.host.seek(file.fd, 0, 2);
-        transition len >= 0 { true -> restore(file, cursor, len) _ -> err() }
+    let rc: i32 = self.host.read_file_metadata(file.fd, &mut self.stat_buf);
+    transition rc == 0 { true -> decode() _ -> err() }
+    state decode(&mut self) -> MetadataResult {
+        let len: i64 = (self.stat_buf[96] as i64)
+            | ((self.stat_buf[97] as i64) << 8)
+            | ((self.stat_buf[98] as i64) << 16)
+            | ((self.stat_buf[99] as i64) << 24)
+            | ((self.stat_buf[100] as i64) << 32)
+            | ((self.stat_buf[101] as i64) << 40)
+            | ((self.stat_buf[102] as i64) << 48)
+            | ((self.stat_buf[103] as i64) << 56);
+        let mode: i32 = (self.stat_buf[4] as i32) | ((self.stat_buf[5] as i32) << 8);
+        let is_dir: bool = (mode & 61440) == 16384;
+        let mtime: i64 = (self.stat_buf[48] as i64)
+            | ((self.stat_buf[49] as i64) << 8)
+            | ((self.stat_buf[50] as i64) << 16)
+            | ((self.stat_buf[51] as i64) << 24)
+            | ((self.stat_buf[52] as i64) << 32)
+            | ((self.stat_buf[53] as i64) << 40)
+            | ((self.stat_buf[54] as i64) << 48)
+            | ((self.stat_buf[55] as i64) << 56);
+        let atime: i64 = (self.stat_buf[32] as i64)
+            | ((self.stat_buf[33] as i64) << 8)
+            | ((self.stat_buf[34] as i64) << 16)
+            | ((self.stat_buf[35] as i64) << 24)
+            | ((self.stat_buf[36] as i64) << 32)
+            | ((self.stat_buf[37] as i64) << 40)
+            | ((self.stat_buf[38] as i64) << 48)
+            | ((self.stat_buf[39] as i64) << 56);
+        let btime: i64 = (self.stat_buf[80] as i64)
+            | ((self.stat_buf[81] as i64) << 8)
+            | ((self.stat_buf[82] as i64) << 16)
+            | ((self.stat_buf[83] as i64) << 24)
+            | ((self.stat_buf[84] as i64) << 32)
+            | ((self.stat_buf[85] as i64) << 40)
+            | ((self.stat_buf[86] as i64) << 48)
+            | ((self.stat_buf[87] as i64) << 56);
+        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: false, mode: mode as u32, modified_secs: mtime, accessed_secs: atime, created_secs: btime } }
     }
-    state restore(&mut self, file: File, cursor: i64, len: i64) -> MetadataResult {
-        let back: i64 = self.host.seek(file.fd, cursor, 0);
-        transition back >= 0 { true -> ok(len) _ -> err() }
-    }
-    // An open `File` is a regular file (you cannot hold a `File` over a dir here),
-    // so `is_dir` is false. The seek-based path cannot read the real mode, so it
-    // reports a conventional rw-r--r-- (0o644 = 420); use `metadata_path` for the
-    // accurate `mode`/`readonly`/`permissions` from `stat`.
-    state ok(&mut self, len: i64) -> MetadataResult { MetadataResult::Ok { meta: Metadata { len: len, is_dir: false, is_symlink: false, mode: 420, modified_secs: 0, accessed_secs: 0, created_secs: 0 } } }
     state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
 }

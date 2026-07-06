@@ -267,6 +267,21 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Filesystem, HostOperation::FStat) => {
+            // Value-returning `rc = read_file_metadata(fd, buf) -> _fstat(fd, buf)`.
+            // operand[0]=result, [1]=fd scalar, [2]=buffer POINTER (the kernel writes
+            // the 144-byte stat record). Same as `read` without the count -- keyed by
+            // an open descriptor instead of a path (cf. the `stat` path arm).
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let fd = scalar_argument_operand_at(input, host_call, dispatch_index, 1);
+            let buffer = address_argument_operand_at(input, host_call, dispatch_index, 2);
+            match (result, fd, buffer) {
+                (Some(result), Some(fd), Some(buffer)) => {
+                    operands.insert_many([operand(result), operand(fd), operand(buffer)])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
         (
             HostCapability::Filesystem,
             HostOperation::Open

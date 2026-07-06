@@ -139,8 +139,12 @@ crate tests; interpreter fs coverage) and commits.
   by creation/offset order = arg order). `canaries/pass/filesystem/native_rename`
   RUNS: create A + write + rename A→B + read B back (16 bytes) → PASS.
 - Native raw ops now: create/open/read/write/close/remove/seek/create_dir/
-  remove_dir/rename/chmod/fchmod/link/symlink/readlink/stat/lstat/realpath/dup/
-  ftruncate/fsync — all run-verified on macOS.
+  remove_dir/rename/chmod/fchmod/link/symlink/readlink/stat/lstat/fstat/realpath/
+  dup/ftruncate/fsync — all run-verified on macOS.
+- **`File::metadata` upgraded to `fstat`** (Rust `File::metadata`) via `_fstat`,
+  a new `[result, fd, buffer]` operand arm; `metadata(file)` now reports the REAL
+  mode/times (was a seek-based fake) and the stat/lstat/fstat trio is complete.
+  `native_fstat` canary RUNS. See step 10h.
 - **`try_clone` (dup) landed natively** (Rust `File::try_clone`) via `_dup`,
   reusing the `close` one-fd operand shape. `native_try_clone` canary RUNS: the
   clone stays valid after the original is closed. See step 10g.
@@ -390,6 +394,28 @@ crate tests; interpreter fs coverage) and commits.
     (language gotcha recorded): a case-field pattern binds by the FIELD name — there
     is NO rename form `Case { field: newname }` (parse error); bind `{ field }` and
     rename the surrounding param instead to avoid a clash.
+10h. [x] **`File::metadata` via `fstat`** (Rust `File::metadata`) — DONE, complete
+    NATIVE vertical; UPGRADES the fd-based `metadata(file)` from a seek-based
+    approximation to a real `fstat`. `HostOperation::FStat` (op `fstat` → darwin
+    `_fstat`) with a NEW operand arm `[result, fd scalar, buffer pointer]` — like
+    `read` WITHOUT the count, keyed by an open descriptor instead of a path (the
+    only new operand arm this fire; the value-returning encoder handled the 2-arg
+    fd+address shape with no changes). Raw `FilesystemHost::read_file_metadata(fd,
+    buffer) -> i32`. Rewrote `Filesystem::metadata(file)` to call it and byte-decode
+    the SAME record as `metadata_path` (len@96, mode@4, mtime@48, atime@32,
+    btime@80) — so an open `File` now reports its REAL `mode`/`readonly`/
+    `permissions`/`modified`/`accessed`/`created` (was a hard-wired 0o644 + zero
+    times) and never moves the cursor. `is_symlink` false (fstat follows to the
+    real file), `is_dir` from `st_mode`. Interpreter `read_file_metadata` handler
+    maps fd→path then fills the stat record like `read_metadata` (EBADF for an
+    unknown fd). DIFFERENTIAL: native `native_fstat` canary RUNS (create+write 10
+    bytes, fstat the OPEN fd, decode len 10 / is_dir false → PASS) AND coverage
+    `filesystem_std_module_file_metadata` (chmod 0o444 → open → metadata(file):
+    is_file, readonly, len 4, modeled mtime 1e9 — the OLD seek-based impl would
+    FAIL the readonly/mtime checks, confirming the upgrade). The 4 existing
+    `metadata(file).len` tests stay green (fstat returns the real len too). The
+    stat family is now complete: stat (path/follow) / lstat (path/no-follow) /
+    fstat (open fd).
 11. [x] **Richer `Metadata`** via `stat` — DONE, complete NATIVE vertical (used
     `stat(path)`, not `fstat(fd)`, so it works on DIRECTORIES with no open/read
     perm). `HostOperation::Stat` (op `stat` → darwin `_stat`); operand arm
@@ -403,8 +429,8 @@ crate tests; interpreter fs coverage) and commits.
     0o644 for a file with its size, S_IFDIR|0o755 for a dir). DIFFERENTIAL:
     native `native_stat` canary RUNS (decodes len 10, is_dir false → PASS) AND
     coverage `filesystem_std_module_metadata_is_dir` (file → is_dir false len 3;
-    dir → is_dir true). The fd-based `metadata(file)` stays seek-based (an open
-    `File` is always a regular file → is_dir false). st_mode perm bits DONE:
+    dir → is_dir true). The fd-based `metadata(file)` is now `fstat`-based too (see
+    step 10h — it was seek-based when this step was written). st_mode perm bits DONE:
     `Metadata` now carries `mode: u32`, with `Metadata::is_file()` (= !is_dir),
     `Metadata::readonly()` (owner-write bit 0o200 clear), and
     `Metadata::permissions() -> Permissions` (`st_mode & 0o777`) — all `&self`

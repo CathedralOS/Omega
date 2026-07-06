@@ -2606,6 +2606,43 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
+            "read_file_metadata" => {
+                // `fstat(fd, buf)`: like `stat` but keyed by an OPEN descriptor. Map
+                // the fd to its path, then fill the same stat record (a held `File`
+                // is always a regular file here). EBADF for an unknown fd. Never
+                // touches the cursor.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let path = self.virtual_fds.get(&fd).map(|descriptor| descriptor.path.clone());
+                let meta = path.and_then(|path| {
+                    let chmod_perm = self
+                        .virtual_perms
+                        .get(&path)
+                        .map(|mode| (*mode as u16) & 0o7777);
+                    if let Some(content) = self.virtual_files.get(&path) {
+                        Some((0o100_000u16 | chmod_perm.unwrap_or(0o644), content.len() as i64))
+                    } else if self.virtual_dirs.contains(&path) {
+                        Some((0o040_000u16 | chmod_perm.unwrap_or(0o755), 0i64))
+                    } else {
+                        None
+                    }
+                });
+                match meta {
+                    Some((mode, size)) => {
+                        self.write_fs_stat(
+                            arguments.get(1).copied(),
+                            frame,
+                            mode,
+                            size,
+                            VIRTUAL_MTIME_SECS,
+                        );
+                        0
+                    }
+                    None => {
+                        self.virtual_errno = 9; // EBADF (unknown descriptor)
+                        -1
+                    }
+                }
+            }
             "read_symlink_metadata" => {
                 // `lstat(path, buf)`: like `stat`, but does NOT follow a final
                 // symlink. A symlink reports S_IFLNK(0o120000)|0o777 with size =

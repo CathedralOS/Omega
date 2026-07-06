@@ -1150,6 +1150,76 @@ machine Main::main(&mut self) {
     );
 }
 
+/// `File::metadata` now reads the REAL `st_mode`/times via `fstat` (not the old
+/// seek-based approximation that always reported mode 0o644 and times 0). After
+/// chmod to 0o444, `metadata(file)` on the open descriptor reports `is_file`,
+/// `readonly`, len 4, and the modeled mtime — the seek-based impl would fail the
+/// `readonly()` and `modified()` checks.
+#[test]
+fn filesystem_std_module_file_metadata() {
+    let main_path = write_program(
+        "fs-file-metadata",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    open_result: OpenResult;
+    meta_result: MetadataResult;
+    ro: Permissions;
+    close_rc: i32;
+}
+machine Main::main(&mut self) {
+    self.ro = Permissions { mode: 292 };
+    self.unit_result = self.fs.write_all("/fm.txt", "abcd");
+    transition self.unit_result { UnitResult::Ok -> chmodit() _ -> fail() }
+    state chmodit(&mut self) {
+        self.unit_result = self.fs.set_permissions("/fm.txt", self.ro);
+        transition self.unit_result { UnitResult::Ok -> openit() _ -> fail() }
+    }
+    state openit(&mut self) {
+        self.open_result = self.fs.open("/fm.txt");
+        transition self.open_result { OpenResult::Ok { file } -> statit(file) _ -> fail() }
+    }
+    state statit(&mut self, file: File) {
+        self.meta_result = self.fs.metadata(file);
+        self.close_rc = self.fs.close(file);
+        transition self.meta_result { MetadataResult::Ok { meta } -> checkfile(meta) _ -> fail() }
+    }
+    state checkfile(&mut self, meta: Metadata) {
+        // fstat gives the REAL mode: a regular file...
+        transition meta.is_file() { true -> checkro(meta) _ -> fail() }
+    }
+    state checkro(&mut self, meta: Metadata) {
+        // ...that is read-only after chmod 0o444 (seek-based would report writable)
+        transition meta.readonly() { true -> checklen(meta) _ -> fail() }
+    }
+    state checklen(&mut self, meta: Metadata) {
+        transition meta.len == 4 { true -> checkmtime(meta) _ -> fail() }
+    }
+    state checkmtime(&mut self, meta: Metadata) {
+        self.unit_result = self.fs.remove("/fm.txt");
+        // fstat reports the modeled mtime (the seek-based impl returned 0)
+        transition meta.modified() == 1000000000 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("file_metadata program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "file_metadata: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "File::metadata (fstat): is_file, readonly after chmod 0o444, len 4, modeled mtime"
+    );
+}
+
 /// `File::sync_all` via the std module: create → write → `sync` returns
 /// `UnitResult::Ok` → the file's bytes survive the flush (metadata().len still
 /// reports the written size). Exercises the shipped `Filesystem::sync` wrapper

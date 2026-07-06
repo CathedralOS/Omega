@@ -1,0 +1,57 @@
+// NATIVE fs File::metadata via fstat (Rust File::metadata). Creates a file,
+// writes 10 bytes, then fstats the OPEN descriptor (not the path) and decodes
+// st_size (i64 @96) and st_mode (u16 @4). A regular file reports len 10 and
+// is_dir false. Proves the fstat op — the fd-keyed [result, fd, buffer] operand
+// shape (like read without the count) — lowers and runs on real macOS syscalls.
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32;
+}
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    fd: i32;
+    rc: i32;
+    len: i64;
+    st_mode: i32;
+    is_dir: bool;
+    n: i64;
+    buffer: [u8; 144];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.fd = self.fs.create("/tmp/omega_fstat.txt", self.mode);
+    self.n = self.fs.write(self.fd, "1234567890");
+    // fstat the OPEN fd (the point of File::metadata: no path, no reopen)
+    self.rc = self.fs.read_file_metadata(self.fd, &mut self.buffer);
+    self.n = self.fs.close(self.fd);
+    self.n = self.fs.remove("/tmp/omega_fstat.txt");
+    transition self.rc == 0 { true -> decode() _ -> fail() }
+    state decode(&mut self) {
+        self.len = (self.buffer[96] as i64)
+            | ((self.buffer[97] as i64) << 8)
+            | ((self.buffer[98] as i64) << 16)
+            | ((self.buffer[99] as i64) << 24)
+            | ((self.buffer[100] as i64) << 32)
+            | ((self.buffer[101] as i64) << 40)
+            | ((self.buffer[102] as i64) << 48)
+            | ((self.buffer[103] as i64) << 56);
+        self.st_mode = (self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8);
+        self.is_dir = (self.st_mode & 61440) == 16384;
+        transition self.len == 10 { true -> checkkind() _ -> fail() }
+    }
+    state checkkind(&mut self) {
+        transition self.is_dir { true -> fail() _ -> good() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: fstat decodes len 10, is_dir false on an open fd\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: fstat\n"); }
+}
