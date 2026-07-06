@@ -877,6 +877,29 @@ crate tests; interpreter fs coverage) and commits.
       unwritten-source. FIND IT by instrumenting each CopyRuntimeStorage emission with a
       `byte_count`/tag dump and compiling the entry-write repro; the site emitting the
       16-byte copy for `bytes` is the one. This is turnkey for a dedicated session.
+    - **MOST-PRECISE DIAGNOSIS (later fire, via a backtrace at the SelectedInstructionSink
+      `push`).** Instrumented the sink to dump every `CopyRuntimeStorage`/`WriteRuntime­
+      StorageInteger`/`WriteRuntimeFrameString` with offsets, and to `force_capture()` a
+      backtrace on the descriptor-copy. Findings for the entry-write value-call repro:
+      the WORKING transition case emits exactly `WriteRuntimeFrameString off=0 len=5`;
+      the BROKEN value-call emits NO `WriteRuntimeFrameString` — instead 8-byte descriptor-
+      half copies (`bc=8 src_off=8 tgt_off=0`, `bc=8 src_off=0 tgt_off=8`) from an
+      UNINITIALIZED source slot. The backtrace pinned the arg copy to
+      `writes/mutation.rs::materialize_static_inline_branching_state_call_argument_result`
+      (line ~288), which — UNLIKE the transition/leaf paths — calls ONLY
+      `select_runtime_frame_slot_value_write_in_table` and SKIPS the shared descriptor
+      writer. HOWEVER, adding an `emit_runtime_frame_slot_slice_descriptor_write_in_table`
+      call there did NOT fix it (reverted): by that point `expansion.target_value` is a
+      resolved **Name** (a temp/local holding the descriptor), NOT the `"hello"`
+      `StringLiteral`. So the LITERAL has already been folded into an implicit TEMP that
+      is never initialized with its `{ptr,len}` (no `WriteRuntimeFrameString` for it),
+      and the arg copy propagates the temp's zeros. THE TRUE FIX SITE is wherever the
+      value-call creates+initializes that arg TEMP (a local-initializer path — cf.
+      `state_bodies.rs::select_runtime_state_body_local_initializer_write`, which DOES
+      route through the shared writer for a real `let x = "hello"`; the value-call arg
+      temp must be missing that routing). NEXT: find where the value-call arg temp/local
+      for a literal is created and make its initializer emit `WriteRuntimeFrameString`
+      (route through the shared writer). Genuinely multi-layer — a dedicated session.
 15. [ ] **x86_64 / linux / windows seams** — see the reference below. Tables only;
     macOS is the only TESTED target now. Note: linux value-return needs the
     value-returning result-store wired into the `svc` syscall path (today only the
