@@ -1889,3 +1889,46 @@ machine Main::main(&mut self) {
         "metadata_path.modified() must decode the modeled st_mtime (1_000_000_000)"
     );
 }
+
+/// `Permissions::readonly` / `set_readonly` (Rust `Permissions::readonly()` /
+/// `set_readonly(bool)`): a 0o644 mode is writable; set_readonly(true) clears the
+/// write bits (readonly true); set_readonly(false) restores them (readonly
+/// false). Pure `Permissions` logic — a read-modify-write of a mode.
+#[test]
+fn filesystem_std_module_permissions_set_readonly() {
+    let main_path = write_program(
+        "fs-perm-setro",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    perms: Permissions;
+}
+machine Main::main(&mut self) {
+    self.perms = Permissions { mode: 420 };
+    // 0o644 is writable
+    transition self.perms.readonly() { true -> fail() _ -> lockit() }
+    state lockit(&mut self) {
+        self.perms.set_readonly(true);
+        transition self.perms.readonly() { true -> unlockit() _ -> fail() }
+    }
+    state unlockit(&mut self) {
+        self.perms.set_readonly(false);
+        transition self.perms.readonly() { true -> fail() _ -> ok() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("permissions-set-readonly program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "permissions_set_readonly: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "readonly()/set_readonly round-trip: writable -> readonly -> writable"
+    );
+}

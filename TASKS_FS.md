@@ -263,9 +263,11 @@ crate tests; interpreter fs coverage) and commits.
     files stay writable, so existing tests are unaffected). DIFFERENTIAL-
     consistent: native `native_permissions` canary RUNS (chmod 0o444 then
     write-open → EACCES(13) → PASS) AND coverage `filesystem_std_module_set_permissions`
-    (chmod read-only → open_with(write) → Error kind PermissionDenied). A full
-    `Permissions` builder (readonly()/set_readonly) waits on `fstat` supplying the
-    current mode (step 11).
+    (chmod read-only → open_with(write) → Error kind PermissionDenied). The
+    `Permissions` type is now complete: `Permissions::readonly()` and
+    `Permissions::set_readonly(bool)` (clear/set the write bits 0o222) round-trip
+    (coverage `filesystem_std_module_permissions_set_readonly`), pairing with
+    `metadata_path(..).permissions()` (step 11) for read-modify-write chmod.
 10c. [x] **`hard_link`** (Rust `std::fs::hard_link`) via `_link` — DONE, complete
     NATIVE vertical. `HostOperation::Link` (op `link` → darwin `_link`); reuses
     the two-path `rename` operand shape (`find_nth_data_object` ×2), so no new
@@ -366,11 +368,40 @@ crate tests; interpreter fs coverage) and commits.
 13. [ ] **`read_dir`** (opendir/readdir) — directory iteration. Large (returns a
     growing sequence; needs an iterator/handle shape). Defer until an iteration
     idiom is settled.
-14. [ ] **[deep, parallel] Native wrapper lowering** — forwarded-param →
-    storage-place resolution across the machine-call boundary; store enum result
-    through a wrapper `&mut out`; const-folded-literal-arg fix. Then the ergonomic
-    wrapper lowers natively (today it runs only in the interpreter; the raw seam
-    lowers natively). Deep backend work; see D5.
+14. [~] **Native wrapper lowering — PARTIALLY WORKS (investigated in depth).**
+    The ergonomic `Filesystem` wrapper now COMPILES natively and the simplest
+    ops RUN correctly: `create`/`open`/`close` with a literal path + a `File`/
+    scalar arg produce a real file and exit cleanly (verified: create+close →
+    exit 70). So the "wrapper is interpreter-only" note is outdated for the
+    scalar/path-literal subset. BUT there are several correctness bugs for the
+    richer ops, all in native operand/place resolution across the wrapper-machine
+    call boundary — each is deep backend work, not a quick fix:
+    - **Forwarded byte-slice LENGTH.** `write_all` forwards its `bytes: &[u8]`
+      param to `self.host.write(fd, bytes)`; the POINTER resolves (the file is
+      created at the right path) but the write emits an EMPTY file — the
+      forwarded slice's LENGTH (`RuntimeStringLength` off the descriptor place)
+      comes out 0. `slice_argument_operands` resolves a forwarded param's pointer
+      but not its length.
+    - **Wrapper self-field buffers.** `metadata_path` fills `self.stat_buf` (a
+      `[u8;144]` FIELD of the `Filesystem` receiver) via `read_metadata`, then
+      byte-decodes it; natively the decode is wrong (`is_file()` came back false
+      for a regular file) — the receiver-field buffer address does not resolve
+      like a top-level `Main` field does (the raw `native_stat` canary, which
+      uses a `Main` field buffer, decodes fine).
+    - **Forwarded struct-field reads.** `open_with(path, options)` reads bool
+      fields of the forwarded `OpenOptions` struct param to compute the open
+      flags; natively it computed the wrong flags (a write-open of a chmod'd-RO
+      file SUCCEEDED instead of EACCES) — reading a field of a forwarded struct
+      param resolves wrong.
+    - **Multi-op sequences** over the same literal path also desynced (a
+      create→exists→remove→exists chain saw the file still present after remove).
+    Net: the fix is real "storage-place resolution across the machine-call
+    boundary" work in instruction-selection (resolve forwarded slice length +
+    receiver-field buffer address + forwarded-struct field reads consistently
+    with the raw-seam path). Multi-fire. Until then, native programs should use
+    the RAW `FilesystemHost` seam (fully native) and reserve the ergonomic
+    wrapper for interpreter/const-eval. Start with the forwarded-slice-length bug
+    (`slice_argument_operands`), the most localized.
 15. [ ] **x86_64 / linux / windows seams** — see the reference below. Tables only;
     macOS is the only TESTED target now. Note: linux value-return needs the
     value-returning result-store wired into the `svc` syscall path (today only the
