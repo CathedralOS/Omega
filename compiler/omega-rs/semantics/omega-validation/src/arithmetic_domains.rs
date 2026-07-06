@@ -771,16 +771,20 @@ pub(crate) fn report_out_of_range_comparison_literal(
     false
 }
 
-/// Reject a comparison between two integer places of DIFFERENT primitive types
-/// (`self.i8_field == self.i32_field`): the backend compares at the NARROWER
-/// operand's width, silently truncating the wider one -- `i8(44) == i32(300)` reads
-/// TRUE because `300 & 0xFF == 44` (confirmed native). Two integer operands must be
-/// the SAME type; convert one with an `as` cast. Fires only when BOTH operands
-/// resolve to integer primitives (`primitive_range` is `Some`) that differ -- a
-/// literal operand (no declared place type, handled by the out-of-range check), a
-/// float/bool/text operand, and same-type comparisons are all skipped. Sibling of
+/// Reject a COMPARISON (`==`/`!=`/`<`/`<=`/`>`/`>=`) or BITWISE (`&`/`|`/`^`)
+/// operation between two integer places of DIFFERENT primitive types
+/// (`self.i8 == self.i32`, `self.u32 | self.u8`): the backend performs it at the
+/// NARROWER operand's width, silently truncating the wider one -- `i8(44) == i32(300)`
+/// reads TRUE (`300 & 0xFF == 44`) and `u32(256) | u8(1)` reads `1` not `257` (both
+/// confirmed native). Two integer operands must be the SAME type; convert one with an
+/// `as` cast. Fires only when BOTH operands resolve to integer primitives
+/// (`primitive_range` is `Some`) that differ. NOT arithmetic (`+ - * / %`, whose
+/// mismatch is caught by the decision-17 overflow obligation) nor SHIFT (whose right
+/// operand is a bit COUNT, not a width-matched value). A literal operand (no declared
+/// place type -- handled by the out-of-range check), a float/bool/text operand, and
+/// same-type operands are all skipped. Sibling of
 /// `report_out_of_range_comparison_literal`.
-pub(crate) fn report_mismatched_width_comparison(
+pub(crate) fn report_mismatched_width_operands(
     program: &TypedTrees,
     machine: &Machine,
     state: Option<&State>,
@@ -797,6 +801,9 @@ pub(crate) fn report_mismatched_width_comparison(
             | BinaryOperator::LessOrEqual
             | BinaryOperator::Greater
             | BinaryOperator::GreaterOrEqual
+            | BinaryOperator::BitwiseAnd
+            | BinaryOperator::BitwiseOr
+            | BinaryOperator::BitwiseXor
     ) {
         return false;
     }
@@ -814,9 +821,9 @@ pub(crate) fn report_mismatched_width_comparison(
         return false;
     }
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{}` state `{}` compares a `{}` value and a `{}` value -- the operands have \
-         different integer types and the comparison would silently truncate the wider one to the \
-         narrower width; convert one with an `as` cast so both are the same type",
+        "machine `{}` state `{}` applies `{operator:?}` to a `{}` value and a `{}` value -- the \
+         operands have different integer types and the operation would silently truncate the wider \
+         one to the narrower width; convert one with an `as` cast so both are the same type",
         machine.name.as_str(),
         state.map(|state| state.name.as_str()).unwrap_or(""),
         left_primitive.name(),
