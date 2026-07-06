@@ -1095,6 +1095,18 @@ fn scan_expression_calls(
                 right,
                 diagnostics,
             );
+            // Ordering / arithmetic / bitwise on an array operand (`xs < ys`) is
+            // meaningless -- arrays cannot carry domain operators, so it otherwise
+            // lowers to a garbage byte op.
+            crate::expression_types::report_array_operator_operands(
+                program,
+                machine,
+                Some(state),
+                operator,
+                left,
+                right,
+                diagnostics,
+            );
             // Bitwise / shift / modulo are not defined for FLOAT operands: the
             // interpreter rejects them ("float modulo/shift/bitwise not supported")
             // and the backend cannot encode them, but `--check` passed silently.
