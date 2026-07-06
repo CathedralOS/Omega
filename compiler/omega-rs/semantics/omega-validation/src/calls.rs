@@ -1144,56 +1144,14 @@ fn scan_expression_calls(
             );
         }
         ExpressionNode::Cast(cast) => {
-            // An `as` target must be a scalar primitive. A cast to an unknown type
-            // (`x as Bogus`) or a non-scalar type (`x as Foo`, a data type) otherwise
-            // compiles SILENTLY as identity -- the target resolves to no primitive, so
-            // the conversion is a no-op and the value passes through with the wrong type.
-            if let Some(target) = program
-                .expression_table
-                .name_path_members(cast.target_type)
-                .last()
-                && PrimitiveType::from_name(target.as_str()).is_none()
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` state `{}` casts with `as {target}`, but `{target}` is not \
-                     a scalar type; `as` converts between scalar types only",
-                    machine.name.as_str(),
-                    state.name.as_str(),
-                )));
-            }
-            // The SOURCE side of a cast. `<number> as bool` reinterprets bits into a
-            // non-{0,1} bool (no number->bool `as`; write `n != 0`). A NUMERIC/address
-            // target (`as i32`, `as f64`, `as addr`) from a text / struct / array source
-            // (`s as i32`) reinterprets bytes to garbage. Both are silent otherwise.
-            let target_primitive = program
-                .expression_table
-                .name_path_members(cast.target_type)
-                .last()
-                .and_then(|target| PrimitiveType::from_name(target.as_str()));
-            match target_primitive {
-                Some(PrimitiveType::Bool) => {
-                    crate::expression_types::report_number_to_bool_cast(
-                        program,
-                        machine,
-                        Some(state),
-                        cast.value,
-                        diagnostics,
-                    );
-                }
-                // Every scalar target except `bool` and the `String` carrier is a
-                // numeric/address type that only accepts a numeric/bool scalar source.
-                Some(primitive) if primitive != PrimitiveType::String => {
-                    crate::expression_types::report_invalid_numeric_cast_source(
-                        program,
-                        machine,
-                        Some(state),
-                        cast.value,
-                        primitive.name(),
-                        diagnostics,
-                    );
-                }
-                _ => {}
-            }
+            // All cast TARGET/SOURCE type validation lives behind one dispatcher.
+            crate::expression_types::validate_cast_types(
+                program,
+                machine,
+                Some(state),
+                cast,
+                diagnostics,
+            );
             scan_expression_calls(
                 program,
                 machine,
