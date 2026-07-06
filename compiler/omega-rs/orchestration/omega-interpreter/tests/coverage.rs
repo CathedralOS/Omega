@@ -639,6 +639,7 @@ boundary trait FilesystemHost {
     machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
     machine remove_dir(path: &[u8] in Path) -> i32;
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
+    machine set_len(fd: i32, length: i64) -> i32;
 }
 
 boundary trait Console {
@@ -1030,5 +1031,48 @@ machine Main::main(&mut self) {
     assert_eq!(
         outcome.exit_code, 70,
         "the shipped std::fs Filesystem API must round-trip create/write/read(14)/remove"
+    );
+}
+
+/// `set_len` (Rust `File::set_len`) truncates: write 20 bytes, set_len to 5,
+/// seek-to-end reports 5.
+#[test]
+fn filesystem_value_returning_set_len() {
+    interpret_fs(
+        "fs-vr-setlen",
+        r#"
+data Main {
+    fs: FilesystemHost;
+    console: Console;
+    mode: i32;
+    new_len: i64;
+    zero: i64;
+    seek_end: i32;
+    fd: i32;
+    n: i64;
+    rc: i32;
+    size: i64;
+}
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.new_len = 5;
+    self.zero = 0;
+    self.seek_end = 2;
+    self.fd = self.fs.create("/t.txt", self.mode);
+    transition self.fd >= 0 { true -> wrote() _ -> fail() }
+    state wrote(&mut self) {
+        self.n = self.fs.write(self.fd, "twenty-byte content!");
+        self.rc = self.fs.set_len(self.fd, self.new_len);
+        self.size = self.fs.seek(self.fd, self.zero, self.seek_end);
+        self.n = self.fs.close(self.fd);
+        self.n = self.fs.remove("/t.txt");
+        transition self.size == 5 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+        70,
+        "set_len must truncate a 20-byte file to 5 (seek-to-end == 5)",
     );
 }

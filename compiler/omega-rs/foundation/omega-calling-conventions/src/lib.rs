@@ -127,6 +127,8 @@ pub enum HostOperation {
     RemoveDir,
     /// `rename(from, to)` -- move/rename a path (Rust `rename`). Two path args.
     Rename,
+    /// `ftruncate(fd, length)` -- set a file's length (Rust `File::set_len`).
+    SetLen,
     Sleep,
     TickCount,
     KeyState,
@@ -176,6 +178,7 @@ impl HostOperation {
             "mkdir" => Self::MakeDir,
             "rmdir" => Self::RemoveDir,
             "rename" => Self::Rename,
+            "ftruncate" => Self::SetLen,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
@@ -211,6 +214,7 @@ impl HostOperation {
             Self::MakeDir => "mkdir",
             Self::RemoveDir => "rmdir",
             Self::Rename => "rename",
+            Self::SetLen => "ftruncate",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",

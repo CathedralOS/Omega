@@ -144,8 +144,12 @@ crate tests; interpreter fs coverage) and commits.
    place; store enum through `&mut out`; const-folded-literal-arg fix. Then the
    ergonomic wrapper lowers natively too.
 5. Error model: errno → bespoke Omega error `data` cases (negative raw returns).
-6. Remaining raw ops (native canaries): `fstat` metadata struct (st_size at
-   darwin arm64 off 96), `set_len`/`ftruncate`, `fsync`, `read_dir`.
+6. Remaining raw ops. Done: **`set_len`** (Rust `File::set_len` via `_ftruncate`)
+   — a COMPLETE vertical (native canary `native_set_len` runs: write 20 →
+   set_len 5 → seek-end == 5; interpreter `virtual_set_len` + coverage; wrapper
+   `Filesystem::set_len`). Next: `fsync`/`sync` (fd → i32, trivial like close),
+   `fstat` metadata struct (st_size at darwin arm64 off 96 — needs a stat-buffer
+   out-param + struct-field read), `read_dir` (opendir/readdir — complex).
 7. x86_64/linux/windows seams (tables only; not tested here).
 3. **[deep, parallel] Forwarded-param → storage-place resolution** so wrapper
    machines that pass a `&[u8]` param to the boundary lower natively; then store

@@ -2282,6 +2282,11 @@ impl<'program> Evaluator<'program> {
                 let whence = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
                 self.virtual_seek(fd, offset, whence).unwrap_or(-1)
             }
+            "set_len" => {
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let length = self.eval_fs_scalar(arguments.get(1).copied(), frame)?;
+                self.virtual_set_len(fd, length)
+            }
             "create_dir" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 // -1 (EEXIST) if the dir already exists.
@@ -2490,6 +2495,20 @@ impl<'program> Evaluator<'program> {
             descriptor.cursor = new_pos as usize;
         }
         Some(new_pos)
+    }
+
+    /// `ftruncate(fd, length)`: resize the file backing `fd` (truncate or
+    /// zero-extend). Returns 0 on success, -1 on an unknown fd/path.
+    fn virtual_set_len(&mut self, fd: i32, length: i64) -> i64 {
+        let Some(descriptor) = self.virtual_fds.get(&fd) else {
+            return -1;
+        };
+        let path = descriptor.path.clone();
+        let Some(content) = self.virtual_files.get_mut(&path) else {
+            return -1;
+        };
+        content.resize(length.max(0) as usize, 0);
+        0
     }
 
     /// The boundary-trait type name of a call's receiver field (e.g. `console`
