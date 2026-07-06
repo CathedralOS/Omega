@@ -199,9 +199,14 @@ crate tests; interpreter fs coverage) and commits.
    arm (fd, same shape as `close`), interpreter no-op that validates the fd,
    wrapper `Filesystem::sync(file) -> UnitResult`. Native `native_sync` canary
    RUNS (prints `PASS: sync flushes 17 bytes`); coverage `filesystem_std_module_sync`
-   (wrapper returns `UnitResult::Ok`, bytes intact). `sync_data`/`_fdatasync` not
-   added (macOS has no `fdatasync`; Rust maps `sync_data`→`fsync`/F_FULLFSYNC there
-   anyway — a later alias is trivial once an errno/fcntl story exists).
+   (wrapper returns `UnitResult::Ok`, bytes intact). **`sync_data` (Rust
+   `File::sync_data`) NOW ADDED** — it maps to `fsync` on darwin (macOS has no
+   `fdatasync`; Rust's own std falls back to fsync there), so it REUSES the `Sync`
+   op/operand arm entirely: just a new `FilesystemHost::sync_data(fd)` method + a
+   darwin lowering to `fsync` + wrapper `Filesystem::sync_data(file) -> UnitResult`
+   + interpreter `"sync" | "sync_data"` arm. Native `native_sync_data` canary RUNS
+   (17 bytes intact); coverage `filesystem_std_module_sync_data`. Zero new
+   enum/operand/encoder work. The sync family (sync_all + sync_data) is complete.
 7. [x] **`OpenOptions`** (Rust `std::fs::OpenOptions`) — DONE for EXISTING-file
    opens. `data OpenOptions [copy, zero_init] { read; write; append; truncate }`
    + `Filesystem::open_with(path, options) -> OpenResult` compose the POSIX flags
@@ -725,6 +730,27 @@ crate tests; interpreter fs coverage) and commits.
     the RAW `FilesystemHost` seam (fully native) and reserve the ergonomic
     wrapper for interpreter/const-eval. Start with the forwarded-slice-length bug
     (`slice_argument_operands`), the most localized.
+    - **DEEPENED DIAGNOSIS (investigated read-only this fire; confirmed multi-fire,
+      did NOT attempt a fix).** Reproduced cleanly: a `Main::put(fd, bytes: &[u8]) {
+      self.fs.write(fd, bytes) }` called as `self.put(fd, "hello")` seeks-to-end == 0
+      natively (the interpreter writes 5). The store site is now narrowed: the
+      argument BINDINGS in `omega-runtime-branching/.../expansions.rs`
+      (`leaf_argument_bindings` / `straight_line_argument_bindings`) are only
+      `param ← expression` MAPPINGS — they carry no ptr/len store. The actual
+      materialization of a slice-typed param binding into the callee's slot is
+      SPREAD across instruction-selection: `selection/state_bodies.rs`,
+      `selection/storage_places.rs`, and `selection/runtime_dispatch/writes/
+      subslice_copy.rs` (plus the `runtime_storage.rs` descriptor-write encoders,
+      which take a `descriptor_offset` and clearly CAN write {ptr,len} — the raw-seam
+      literal write proves the encoder is fine). So the missing len-store is in the
+      SELECTION layer that decides what to emit for a forwarded slice param, NOT the
+      encoder. JUDGMENT (recorded for the user): this is genuinely multi-crate
+      backend work whose only regression gate is the full `canary_suite` (already
+      154 pre-existing failures, so a new regression is hard to spot) — a speculative
+      one-fire fix is high-risk (it would touch the materialization for ALL state
+      calls, not just fs). Better suited to a dedicated focused session than a 5-min
+      loop fire. The raw `FilesystemHost` seam remains fully native; the ergonomic
+      wrapper stays interpreter/const-eval until this is done as a deliberate effort.
 15. [ ] **x86_64 / linux / windows seams** — see the reference below. Tables only;
     macOS is the only TESTED target now. Note: linux value-return needs the
     value-returning result-store wired into the `svc` syscall path (today only the

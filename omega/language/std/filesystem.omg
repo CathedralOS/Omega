@@ -235,6 +235,9 @@ boundary trait FilesystemHost {
     // (atime then mtime, {tv_sec i64, tv_nsec i64} each; whole-second precision).
     machine set_file_times(fd: i32, times: &mut [u8]) -> i32;
     machine sync(fd: i32) -> i32;
+    // Flush a file's DATA (Rust `File::sync_data`); on darwin this is `fsync` (no
+    // `fdatasync`), so it shares the `sync` lowering.
+    machine sync_data(fd: i32) -> i32;
     // Duplicate an open descriptor onto a fresh fd sharing the same open file
     // (Rust `File::try_clone` -> `dup`). Returns the new fd, or -1 on error.
     machine duplicate(fd: i32) -> i32;
@@ -743,6 +746,16 @@ machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i6
 // Flush all buffered data + metadata to durable storage (Rust `File::sync_all`).
 machine Filesystem::sync(&mut self, file: File) -> UnitResult {
     let rc: i32 = self.host.sync(file.fd);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Flush a file's DATA to durable storage (Rust `File::sync_data`) -- like
+// `sync`/`sync_all` but may skip metadata the reader doesn't need. On darwin
+// there is no `fdatasync`, so this maps to `fsync` (as Rust's own std does).
+machine Filesystem::sync_data(&mut self, file: File) -> UnitResult {
+    let rc: i32 = self.host.sync_data(file.fd);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }

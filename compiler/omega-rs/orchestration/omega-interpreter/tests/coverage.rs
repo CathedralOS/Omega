@@ -1500,6 +1500,58 @@ machine Main::main(&mut self) {
     );
 }
 
+/// `File::sync_data` via the std module (Rust `File::sync_data`): create → write →
+/// `sync_data` returns `UnitResult::Ok` → the bytes survive. On darwin `sync_data`
+/// maps to `fsync` (no `fdatasync`), so it shares the `sync` seam.
+#[test]
+fn filesystem_std_module_sync_data() {
+    let main_path = write_program(
+        "fs-sync-data",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    open_result: OpenResult;
+    io_result: IoResult;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+    close_rc: i32;
+}
+machine Main::main(&mut self) {
+    self.open_result = self.fs.create("/sd.txt");
+    transition self.open_result { OpenResult::Ok { file } -> wrote(file) _ -> fail() }
+    state wrote(&mut self, file: File) {
+        self.io_result = self.fs.write(file, "durable payload!!");
+        self.unit_result = self.fs.sync_data(file);
+        transition self.unit_result { UnitResult::Ok -> synced(file) _ -> fail() }
+    }
+    state synced(&mut self, file: File) {
+        self.meta_result = self.fs.metadata(file);
+        transition self.meta_result { MetadataResult::Ok { meta } -> checklen(file, meta) _ -> fail() }
+    }
+    state checklen(&mut self, file: File, meta: Metadata) {
+        self.close_rc = self.fs.close(file);
+        self.unit_result = self.fs.remove("/sd.txt");
+        transition meta.len == 17 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("sync_data program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "sync_data: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "sync_data must return UnitResult::Ok and leave the 17 written bytes intact"
+    );
+}
+
 /// `OpenOptions` via the std module (Rust `OpenOptions::open`): the wrapper
 /// composes POSIX flags from the option bools. Exercises the append flag
 /// (O_APPEND: writes land at end -> file grows 11 -> 14) and the truncate flag

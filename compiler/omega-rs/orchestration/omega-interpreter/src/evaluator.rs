@@ -2463,11 +2463,12 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
-            "sync" => {
-                // `fsync(fd)`: flush to durable storage. In the hermetic
-                // in-memory FS the bytes are already "durable", so this is a
-                // no-op that only validates the descriptor: 0 for a live fd,
-                // -1 (EBADF) otherwise — matching the native seam's contract.
+            "sync" | "sync_data" => {
+                // `fsync(fd)`: flush to durable storage (`sync_data` aliases it --
+                // macOS has no `fdatasync`). In the hermetic in-memory FS the bytes
+                // are already "durable", so this is a no-op that only validates the
+                // descriptor: 0 for a live fd, -1 (EBADF) otherwise -- matching the
+                // native seam's contract.
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 i64::from(self.virtual_fds.contains_key(&fd)) - 1
             }
