@@ -1074,6 +1074,63 @@ machine Main::main(&mut self) {
     );
 }
 
+/// The shipped `Filesystem::read_dir_count` (Rust `fs::read_dir(path)?.count()`
+/// minus `.`/`..`): fills one buffer of packed dirents via the raw `read_dir` op
+/// and walks them with a runtime-indexed `d_reclen` cursor. Builds `/rd` with two
+/// files + one subdir, then asserts the count is exactly 3 (children only).
+#[test]
+fn filesystem_std_module_read_dir_count() {
+    let main_path = write_program(
+        "fs-std-readdir",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    io_result: IoResult;
+    open_result: OpenResult;
+    close_rc: i32;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.create_dir("/rd");
+    self.open_result = self.fs.create("/rd/a");
+    transition self.open_result { OpenResult::Ok { file } -> made_a(file) _ -> fail() }
+    state made_a(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.open_result = self.fs.create("/rd/b");
+        transition self.open_result { OpenResult::Ok { file } -> made_b(file) _ -> fail() }
+    }
+    state made_b(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.unit_result = self.fs.create_dir("/rd/sub");
+        self.io_result = self.fs.read_dir_count("/rd");
+        transition self.io_result { IoResult::Ok { count } -> checkcount(count) _ -> fail() }
+    }
+    state checkcount(&mut self, count: usize) {
+        transition count == 3 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("read_dir_count program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "read_dir_count should run, got {:?}",
+        outcome.error
+    );
+    assert_eq!(
+        outcome.exit_code, 70,
+        "read_dir_count(/rd) must count exactly 3 children (a, b, sub), excluding . and .."
+    );
+}
+
 /// The REAL shipped std module `omega/language/std/filesystem.omg`, imported via
 /// `use` and driven through its ergonomic `Filesystem` API — a full CRUD
 /// round-trip in the interpreter. Proves the canonical std::fs surface (not an

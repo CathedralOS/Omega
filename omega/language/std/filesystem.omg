@@ -354,6 +354,19 @@ data Filesystem {
     // Scratch for `create_dir_all`'s per-position best-effort mkdir result
     // (`walk` ignores it -- an already-present ancestor is fine).
     walk_rc: i32;
+    // Scratch for `read_dir_count`: one buffer of packed darwin `dirent` records
+    // plus the runtime-indexed cursor that walks them by `d_reclen`.
+    dir_buf: [u8; 512];
+    rd_off: usize in Wrapping;
+    rd_total: usize in Wrapping;
+    rd_count: i32 in Wrapping;
+    rd_position: i64;
+    rd_idx: usize in Wrapping;
+    rd_lo: u8;
+    rd_hi: u8;
+    rd_lou: usize in Wrapping;
+    rd_hiu: usize in Wrapping;
+    rd_reclen: usize in Wrapping;
 }
 
 // Create (or truncate) a file for writing, returning an open `File`.
@@ -885,6 +898,65 @@ machine Filesystem::mkall_step(&mut self, path: &[u8] in Path, i: usize) -> i32 
         self.host.create_dir(path[0..i], self.dir_mode)
     }
     state mkall_noop(&mut self) -> i32 { 0 }
+}
+
+// List a directory and return its entry COUNT (Rust `fs::read_dir(path)?.count()`,
+// excluding "." and ".."). Opens the directory, fills ONE buffer of packed darwin
+// `dirent` records via the raw `read_dir` op, then walks them with a
+// runtime-indexed cursor over the little-endian `d_reclen` at record offset +16
+// (the same record layout as `___getdirentries64`, identical on both engines),
+// advancing until the filled byte count. The `d_off < 480` dominating guard keeps
+// each header read provably in bounds of the 512-byte buffer.
+//
+// JUDGEMENT CALL (recorded in TASKS_FS.md as D-readdir): counts the entries of a
+// SINGLE `read_dir` fill -- a 512-byte buffer holds a typical directory; a
+// directory with more entries than fit is undercounted (a single `getdirentries`,
+// not a drain-to-empty loop). "." and ".." are the first two records of every real
+// directory, so the child count is `records - 2`. A first, self-contained rung of
+// the `read_dir` iteration surface (name extraction / a `DirEntry` cursor and the
+// multi-fill drain build on this walk).
+machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult {
+    self.read_flags = 0;
+    self.rd_position = 0;
+    self.rd_off = 0;
+    self.rd_count = 0;
+    let dfd: i32 = self.host.open(path, self.read_flags);
+    transition dfd >= 0 { true -> rd_read(dfd) _ -> rd_err() }
+    state rd_read(&mut self, dfd: i32) -> IoResult {
+        let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
+        let closed: i32 = self.host.close(dfd);
+        self.rd_total = total as usize in Wrapping;
+        transition total > 0 { true -> rd_walk() _ -> rd_empty() }
+    }
+    state rd_walk(&mut self) -> IoResult {
+        transition self.rd_off < 480 { true -> rd_body() _ -> rd_done() }
+    }
+    state rd_body(&mut self) -> IoResult {
+        // d_reclen: little-endian u16 at record offset + 16 (RUNTIME-indexed reads).
+        self.rd_idx = self.rd_off + 16;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 17;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = self.rd_lo as usize in Wrapping;
+        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
+        self.rd_count = self.rd_count + 1;
+        self.rd_off = self.rd_off + self.rd_reclen;
+        transition self.rd_off < self.rd_total { true -> rd_walk() _ -> rd_done() }
+    }
+    state rd_empty(&mut self) -> IoResult { IoResult::Ok { count: 0 } }
+    state rd_done(&mut self) -> IoResult {
+        // Every real directory yields "." and ".." first, so children = records - 2.
+        transition self.rd_count > 2 { true -> rd_ok() _ -> rd_empty() }
+    }
+    state rd_ok(&mut self) -> IoResult {
+        self.rd_lou = (self.rd_count - 2) as usize in Wrapping;
+        IoResult::Ok { count: self.rd_lou }
+    }
+    state rd_err(&mut self) -> IoResult {
+        let kind: ErrorKind = self.last_error();
+        IoResult::Error { kind: kind }
+    }
 }
 
 // Set a path's permission bits (Rust `std::fs::set_permissions`). A subsequent
