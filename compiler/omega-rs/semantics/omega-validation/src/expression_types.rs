@@ -405,6 +405,83 @@ pub(crate) fn report_data_type_conflict(
     true
 }
 
+/// Run every binary-operand TYPE check for a binary expression -- the checks that
+/// reject an operator applied to operands it is not defined for. The single entry
+/// point for `scan_expression_calls`'s Binary arm: it calls this once, and new
+/// operand-type checks are added here (one place), not threaded through the walker.
+pub(crate) fn validate_binary_operand_types(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    operator: omega_typed_trees::expression::BinaryOperator,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    report_cross_class_binary_operands(program, machine, state, left, right, diagnostics);
+    report_invalid_text_operator(program, machine, state, operator, left, right, diagnostics);
+    report_non_bool_logical_operands(program, machine, state, operator, left, right, diagnostics);
+    report_array_operator_operands(program, machine, state, operator, left, right, diagnostics);
+    report_undeclared_struct_operator(program, machine, state, operator, left, diagnostics);
+    report_float_bitwise_operator(program, machine, state, operator, left, right, diagnostics);
+}
+
+/// Whether `operand`'s type is a float (`f32`/`f64`): a float literal, or a place
+/// whose declared type resolves to a float primitive. Looks through `Mutable`.
+fn expression_is_float_typed(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    operand: ExpressionHandle,
+) -> bool {
+    match program.expression_table.expression(operand) {
+        ExpressionNode::Float(_) => true,
+        ExpressionNode::Mutable(inner) => expression_is_float_typed(program, machine, state, *inner),
+        _ => crate::places::declared_place_type(program, machine, state, operand)
+            .and_then(|type_reference| program.primitive_type_reference(type_reference))
+            .is_some_and(|primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)),
+    }
+}
+
+/// Reject bitwise/shift/modulo on a FLOAT operand: the interpreter rejects the set
+/// ("float modulo/shift/bitwise not supported") and the backend cannot encode them,
+/// yet `--check` passed silently. If float bit-ops are ever added, update the
+/// interpreter and this together.
+fn report_float_bitwise_operator(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    operator: omega_typed_trees::expression::BinaryOperator,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    use omega_typed_trees::expression::BinaryOperator;
+    if !matches!(
+        operator,
+        BinaryOperator::BitwiseAnd
+            | BinaryOperator::BitwiseOr
+            | BinaryOperator::BitwiseXor
+            | BinaryOperator::ShiftLeft
+            | BinaryOperator::ShiftRight
+            | BinaryOperator::Modulo
+    ) {
+        return false;
+    }
+    if !expression_is_float_typed(program, machine, state, left)
+        && !expression_is_float_typed(program, machine, state, right)
+    {
+        return false;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}` applies `{operator:?}` to a float operand, but bitwise, shift, \
+         and modulo operators are defined for integers only",
+        machine.name.as_str(),
+        state.map(|state| state.name.as_str()).unwrap_or(""),
+    )));
+    true
+}
+
 /// Reject a binary operator that MIXES a text operand with a numeric/bool one:
 /// `n == s` (`n: i32`, `s: String`) and `b + s` compile and run on a meaningless
 /// comparison/combination of a number and a string pointer. Fires ONLY when one
@@ -412,7 +489,7 @@ pub(crate) fn report_data_type_conflict(
 /// both-text (string equality / concatenation) and numeric<->bool (the 0/1
 /// coercion) are fine, and an operand that does not classify (a call result, a
 /// nested comparison) is skipped, so this never false-positives on them.
-pub(crate) fn report_cross_class_binary_operands(
+fn report_cross_class_binary_operands(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: Option<&omega_typed_trees::state::State>,
@@ -475,7 +552,7 @@ fn type_reference_is_text_carrier(program: &TypedTrees, handle: TypeReferenceHan
 /// logical `!` and `<number> as bool`). Fires when EITHER operand classifies as
 /// Numeric/Text; a comparison / logical / call / bool operand (None/Boolean) is
 /// allowed, so `(a == 1) && (b < 5)` and `x && y` (bools) stay valid.
-pub(crate) fn report_non_bool_logical_operands(
+fn report_non_bool_logical_operands(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: Option<&omega_typed_trees::state::State>,
@@ -513,7 +590,7 @@ pub(crate) fn report_non_bool_logical_operands(
 /// classify as Text -- a text-vs-numeric MIX is `report_cross_class_binary_operands`'s
 /// job, and a text-vs-unresolved pair is left alone. (Ordering `< <= > >=` on text is
 /// a separate, plausible-future case, not rejected here.)
-pub(crate) fn report_invalid_text_operator(
+fn report_invalid_text_operator(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: Option<&omega_typed_trees::state::State>,
@@ -638,7 +715,7 @@ fn binary_operator_spelling(
 /// builtins) and arrays are not concrete-data receivers, so they are untouched;
 /// when candidates DO exist, admissibility (the proof context) is enforced
 /// downstream, so a valid domain op (`Quantity + Quantity`) is never rejected.
-pub(crate) fn report_undeclared_struct_operator(
+fn report_undeclared_struct_operator(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: Option<&omega_typed_trees::state::State>,
@@ -677,7 +754,7 @@ pub(crate) fn report_undeclared_struct_operator(
 /// always meaningless and otherwise lower to a garbage byte op. `==`/`!=` and the
 /// logical `&&`/`||` are left alone; text carriers (`String`, `[u8]`) are excluded
 /// (string concat / comparison). Only PLACE operands are resolved.
-pub(crate) fn report_array_operator_operands(
+fn report_array_operator_operands(
     program: &TypedTrees,
     machine: &omega_typed_trees::machine::Machine,
     state: Option<&omega_typed_trees::state::State>,

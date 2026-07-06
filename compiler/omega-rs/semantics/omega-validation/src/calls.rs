@@ -935,26 +935,6 @@ fn is_known_bare_name(
     false
 }
 
-/// Whether `operand`'s type is a float (`f32`/`f64`): a float literal, or a place
-/// whose declared type resolves to a float primitive. Looks through a `Mutable`
-/// wrapper. Used to reject bitwise/shift/modulo on floats.
-fn expression_is_float_typed(
-    program: &TypedTrees,
-    machine: &Machine,
-    state: &State,
-    operand: ExpressionHandle,
-) -> bool {
-    match program.expression_table.expression(operand) {
-        ExpressionNode::Float(_) => true,
-        ExpressionNode::Mutable(inner) => {
-            expression_is_float_typed(program, machine, state, *inner)
-        }
-        _ => crate::places::declared_place_type(program, machine, Some(state), operand)
-            .and_then(|type_reference| program.primitive_type_reference(type_reference))
-            .is_some_and(|primitive| matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)),
-    }
-}
-
 /// Recursively scan `expression` for `ExpressionNode::Call` nodes and
 /// validate machine-call type-parameter bounds for each one found.
 #[allow(clippy::too_many_arguments)]
@@ -1086,84 +1066,17 @@ fn scan_expression_calls(
             }
         }
         ExpressionNode::Binary(binary) => {
-            let (left, right, operator) = (binary.left, binary.right, binary.operator);
-            crate::expression_types::report_cross_class_binary_operands(
+            // Every binary-operand TYPE check (operator applied to operands it is
+            // not defined for) lives behind one dispatcher.
+            crate::expression_types::validate_binary_operand_types(
                 program,
                 machine,
                 Some(state),
-                left,
-                right,
+                binary.operator,
+                binary.left,
+                binary.right,
                 diagnostics,
             );
-            // Non-`+` arithmetic / shift / bitwise on TEXT operands (`s - t`, `s * s`)
-            // is meaningless -- text supports only `+` (concat), `==`, `!=`.
-            crate::expression_types::report_invalid_text_operator(
-                program,
-                machine,
-                Some(state),
-                operator,
-                left,
-                right,
-                diagnostics,
-            );
-            // Logical `&&`/`||` require bool operands (`5 && 3` is int truthiness).
-            crate::expression_types::report_non_bool_logical_operands(
-                program,
-                machine,
-                Some(state),
-                operator,
-                left,
-                right,
-                diagnostics,
-            );
-            // Ordering / arithmetic / bitwise on an array operand (`xs < ys`) is
-            // meaningless -- arrays cannot carry domain operators, so it otherwise
-            // lowers to a garbage byte op.
-            crate::expression_types::report_array_operator_operands(
-                program,
-                machine,
-                Some(state),
-                operator,
-                left,
-                right,
-                diagnostics,
-            );
-            // Arithmetic / ordering on a STRUCT with no declared operator (`P + P`
-            // for a plain `data P`) likewise lowers to a garbage byte op; a domain
-            // operator (`Quantity + Quantity`) stays valid.
-            crate::expression_types::report_undeclared_struct_operator(
-                program,
-                machine,
-                Some(state),
-                operator,
-                left,
-                diagnostics,
-            );
-            // Bitwise / shift / modulo are not defined for FLOAT operands: the
-            // interpreter rejects them ("float modulo/shift/bitwise not supported")
-            // and the backend cannot encode them, but `--check` passed silently.
-            // Reject at check with a clear message (the set matches the interpreter's
-            // exactly). If float bit-ops are ever added, update the interpreter and
-            // this together.
-            use omega_typed_trees::expression::BinaryOperator;
-            if matches!(
-                operator,
-                BinaryOperator::BitwiseAnd
-                    | BinaryOperator::BitwiseOr
-                    | BinaryOperator::BitwiseXor
-                    | BinaryOperator::ShiftLeft
-                    | BinaryOperator::ShiftRight
-                    | BinaryOperator::Modulo
-            ) && (expression_is_float_typed(program, machine, state, left)
-                || expression_is_float_typed(program, machine, state, right))
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` state `{}` applies `{operator:?}` to a float operand, but \
-                     bitwise, shift, and modulo operators are defined for integers only",
-                    machine.name.as_str(),
-                    state.name.as_str(),
-                )));
-            }
             scan_expression_calls(
                 program,
                 machine,
