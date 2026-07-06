@@ -277,6 +277,19 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Filesystem, HostOperation::SetLen) => {
+            // Value-returning `rc = set_len(fd, length) -> _ftruncate(fd, length)`.
+            // operand[0]=result, then the two scalar args.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let fd = scalar_argument_operand_at(input, host_call, dispatch_index, 1);
+            let length = scalar_argument_operand_at(input, host_call, dispatch_index, 2);
+            match (result, fd, length) {
+                (Some(result), Some(fd), Some(length)) => {
+                    operands.insert_many([operand(result), operand(fd), operand(length)])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::Filesystem, HostOperation::Seek) => {
             // Value-returning `pos = seek(fd, offset, whence) -> _lseek(fd,
             // offset, whence)`. operand[0]=result, then the three scalar args.

@@ -55,6 +55,7 @@ boundary trait FilesystemHost {
     machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
     machine remove_dir(path: &[u8] in Path) -> i32;
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
+    machine set_len(fd: i32, length: i64) -> i32;
 }
 
 // The ergonomic capability. Holds the raw host plus the portable flag/mode
@@ -133,6 +134,14 @@ machine Filesystem::remove_dir(&mut self, path: &[u8] in Path) -> UnitResult {
 // Move/rename a path.
 machine Filesystem::rename(&mut self, from: &[u8] in Path, to: &[u8] in Path) -> UnitResult {
     let rc: i32 = self.host.rename(from, to);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { UnitResult::Error }
+}
+
+// Truncate or extend an open file to `length` bytes (Rust `File::set_len`).
+machine Filesystem::set_len(&mut self, file: File, length: i64) -> UnitResult {
+    let rc: i32 = self.host.set_len(file.fd, length);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { UnitResult::Error }
