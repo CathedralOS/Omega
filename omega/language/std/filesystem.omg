@@ -79,10 +79,13 @@ data Permissions [copy, zero_init] {
     mode: u32;
 }
 
-// File metadata (Rust `std::fs::Metadata`). `len` is the size in bytes; more
-// fields (permissions, times, kind) follow once `fstat` lands.
+// File metadata (Rust `std::fs::Metadata`). `len` is the size in bytes; `is_dir`
+// distinguishes a directory from a regular file (Rust `Metadata::is_dir`/
+// `is_file`). Read from the darwin `stat` record's `st_size`/`st_mode`. More
+// fields (permissions, times) follow as their `st_*` offsets are decoded.
 data Metadata [copy, zero_init] {
     len: i64;
+    is_dir: bool;
 }
 data MetadataResult {
     case Error(kind: ErrorKind);
@@ -104,6 +107,9 @@ boundary trait FilesystemHost {
     machine set_permissions(path: &[u8] in Path, mode: u32) -> i32;
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
     machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32;
+    // Fill `buffer` (>= 144 bytes) with the path's `struct stat` record (Rust
+    // `fs::metadata`). The Omega layer reads st_size/st_mode back out.
+    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
     machine set_len(fd: i32, length: i64) -> i32;
     machine sync(fd: i32) -> i32;
     // Read the thread-local errno (darwin `___error()` -> `&errno`, dereferenced
@@ -112,12 +118,14 @@ boundary trait FilesystemHost {
 }
 
 // The ergonomic capability. Holds the raw host plus the portable flag/mode
-// constants it applies (staged in fields).
+// constants it applies (staged in fields). `stat_buf` is scratch for the 144-byte
+// darwin `struct stat` that `metadata_path` fills and decodes.
 data Filesystem {
     host: FilesystemHost;
     create_mode: i32;
     dir_mode: i32;
     read_flags: i32;
+    stat_buf: [u8; 144];
 }
 
 // Create (or truncate) a file for writing, returning an open `File`.
@@ -273,19 +281,29 @@ machine Filesystem::exists(&mut self, path: &[u8] in Path) -> bool {
 }
 
 // Metadata of a PATH (Rust `std::fs::metadata`), the path-based counterpart to
-// `metadata(file)`: open the path read-only, measure via seek-to-end, close.
-// `len` is the byte size. (Richer fields — kind/permissions/times — arrive with
-// `fstat`, step 10.)
+// `metadata(file)`. Unlike the open+seek approach this uses `stat`, so it works
+// on DIRECTORIES too (no read permission / open needed): it decodes `st_size`
+// (byte size) and `st_mode` (kind) straight out of the kernel's stat record.
+// The field reads are byte-assembly (little-endian) since Omega has no
+// C-struct-layout `repr` yet; `st_size` is an i64 at offset 96, `st_mode` a u16
+// at offset 4, and a directory is `(st_mode & S_IFMT) == S_IFDIR`
+// (0o170000 = 61440, 0o040000 = 16384).
 machine Filesystem::metadata_path(&mut self, path: &[u8] in Path) -> MetadataResult {
-    self.read_flags = 0;
-    let fd: i32 = self.host.open(path, self.read_flags);
-    transition fd >= 0 { true -> measure(fd) _ -> err() }
-    state measure(&mut self, fd: i32) -> MetadataResult {
-        let len: i64 = self.host.seek(fd, 0, 2);
-        let rc: i32 = self.host.close(fd);
-        transition len >= 0 { true -> ok(len) _ -> err() }
+    let rc: i32 = self.host.read_metadata(path, &mut self.stat_buf);
+    transition rc == 0 { true -> decode() _ -> err() }
+    state decode(&mut self) -> MetadataResult {
+        let len: i64 = (self.stat_buf[96] as i64)
+            | ((self.stat_buf[97] as i64) << 8)
+            | ((self.stat_buf[98] as i64) << 16)
+            | ((self.stat_buf[99] as i64) << 24)
+            | ((self.stat_buf[100] as i64) << 32)
+            | ((self.stat_buf[101] as i64) << 40)
+            | ((self.stat_buf[102] as i64) << 48)
+            | ((self.stat_buf[103] as i64) << 56);
+        let mode: i32 = (self.stat_buf[4] as i32) | ((self.stat_buf[5] as i32) << 8);
+        let is_dir: bool = (mode & 61440) == 16384;
+        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir } }
     }
-    state ok(&mut self, len: i64) -> MetadataResult { MetadataResult::Ok { meta: Metadata { len: len } } }
     state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
 }
 
@@ -400,6 +418,8 @@ machine Filesystem::metadata(&mut self, file: File) -> MetadataResult {
         let back: i64 = self.host.seek(file.fd, cursor, 0);
         transition back >= 0 { true -> ok(len) _ -> err() }
     }
-    state ok(&mut self, len: i64) -> MetadataResult { MetadataResult::Ok { meta: Metadata { len: len } } }
+    // An open `File` is a regular file (you cannot hold a `File` over a dir here),
+    // so `is_dir` is false; use `metadata_path` for the directory-aware form.
+    state ok(&mut self, len: i64) -> MetadataResult { MetadataResult::Ok { meta: Metadata { len: len, is_dir: false } } }
     state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
 }

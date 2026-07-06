@@ -2408,6 +2408,30 @@ impl<'program> Evaluator<'program> {
                     -1
                 }
             }
+            "read_metadata" => {
+                // `stat(path, buf)`: fill the buffer's st_mode (off 4, u16) and
+                // st_size (off 96, i64) as the darwin kernel would. A regular
+                // file is S_IFREG(0o100000)|0o644 with size = content length; a
+                // directory is S_IFDIR(0o040000)|0o755 size 0. ENOENT otherwise.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let meta = if let Some(content) = self.virtual_files.get(&path) {
+                    Some((0o100_644u16, content.len() as i64))
+                } else if self.virtual_dirs.contains(&path) {
+                    Some((0o040_755u16, 0i64))
+                } else {
+                    None
+                };
+                match meta {
+                    Some((mode, size)) => {
+                        self.write_fs_stat(arguments.get(1).copied(), frame, mode, size);
+                        0
+                    }
+                    None => {
+                        self.virtual_errno = 2; // ENOENT
+                        -1
+                    }
+                }
+            }
             _ => return Ok(None),
         };
         Ok(Some(Value::Int(result)))
@@ -2496,6 +2520,38 @@ impl<'program> Evaluator<'program> {
                 }
             }
             _ => {}
+        }
+    }
+
+    /// Fill a caller stat buffer (`&mut [u8]` of at least 144 bytes) the way the
+    /// darwin kernel writes `struct stat`: `st_mode` (u16) at byte offset 4 and
+    /// `st_size` (i64) at byte offset 96, both little-endian. The Omega layer
+    /// reads those fields back with byte-assembly. Other fields are left zero.
+    fn write_fs_stat(
+        &mut self,
+        argument: Option<ExpressionHandle>,
+        frame: &Frame,
+        mode: u16,
+        size: i64,
+    ) {
+        let Some(argument) = argument else {
+            return;
+        };
+        let Ok(cell) = self.resolve_place(argument, frame) else {
+            return;
+        };
+        let cell = self.deref_cell(cell);
+        if let Value::Array(cells) = &*cell.borrow() {
+            let mut put = |offset: usize, byte: u8| {
+                if let Some(slot) = cells.get(offset) {
+                    *slot.borrow_mut() = Value::Int(i64::from(byte));
+                }
+            };
+            put(4, (mode & 0xff) as u8);
+            put(5, (mode >> 8) as u8);
+            for i in 0..8 {
+                put(96 + i, (size >> (8 * i)) as u8);
+            }
         }
     }
 

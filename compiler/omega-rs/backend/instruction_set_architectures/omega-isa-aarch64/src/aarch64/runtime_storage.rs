@@ -6,7 +6,8 @@ use omega_target_operations::{
 use super::primitives::{
     append_add_x_constant, append_unsigned_immediate, append_unsigned_immediate_padded,
     append_unsigned_immediate_w_padded, encode_add_page_offset_placeholder, encode_add_x_register,
-    encode_adrp_placeholder, encode_and_x_register, encode_casal, encode_cbz_x, encode_float_add,
+    encode_adrp_placeholder, encode_and_x_register, encode_casal, encode_cbz_x, encode_eor_x_register,
+    encode_float_add,
     encode_ldaddal_discard,
     encode_float_compare, encode_load_byte_w_post_increment, encode_subs_x_immediate,
     encode_unconditional_branch,
@@ -2436,15 +2437,26 @@ fn append_runtime_binary_operation(
                 right_register,
             ));
         }
-        StateGuardOperator::And => {
+        // Logical `&&`/`||` over 0/1 booleans AND the bitwise `&`/`|`/`^`
+        // operators all lower to the register-form AND/ORR/EOR (a single
+        // instruction; the store truncates to the target width for narrow
+        // operands, and bitwise ops are width-independent on x-registers).
+        StateGuardOperator::And | StateGuardOperator::BitwiseAnd => {
             bytes.extend(encode_and_x_register(
                 destination_register,
                 destination_register,
                 right_register,
             ));
         }
-        StateGuardOperator::Or => {
+        StateGuardOperator::Or | StateGuardOperator::BitwiseOr => {
             bytes.extend(encode_orr_x_register(
+                destination_register,
+                destination_register,
+                right_register,
+            ));
+        }
+        StateGuardOperator::BitwiseXor => {
+            bytes.extend(encode_eor_x_register(
                 destination_register,
                 destination_register,
                 right_register,

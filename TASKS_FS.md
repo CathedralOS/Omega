@@ -282,14 +282,30 @@ crate tests; interpreter fs coverage) and commits.
     (path→Rc<RefCell<Vec>>) is a future refinement. `symlink`/`read_link` (the
     other link ops) need a buffer out-param (readlink) + open-time resolution
     modeling — deferred.
-11. [ ] **Richer `Metadata`** via `fstat` — `st_size`/mode/times. Needs a
-    stat-buffer out-param + struct-field reads (darwin arm64 `st_size` at off 96).
-    Unlocks `is_file`/`is_dir`/permissions/modified. Medium-large. NOTE: `repr
-    native` for a `data Stat` matching the C layout is provisional/undesigned in
-    the language (chapter 19), so the field reads must be manual byte-assembly
-    from a `[u8; N]` buffer (`(buf[k] as i64) << 8*i | …`, shifts/OR dodge the
-    exact-arithmetic rule), and the raw `fstat(fd, &mut buf)` op needs a
-    "slice-pointer-only" operand shape (fd + buffer ptr, no length).
+11. [x] **Richer `Metadata`** via `stat` — DONE, complete NATIVE vertical (used
+    `stat(path)`, not `fstat(fd)`, so it works on DIRECTORIES with no open/read
+    perm). `HostOperation::Stat` (op `stat` → darwin `_stat`); operand arm
+    `[result, path ptr, buffer ptr]` reusing `path_pointer_operand` +
+    `address_argument_operand_at`. `Metadata` gains `is_dir` (Rust
+    `Metadata::is_dir`/`is_file`). `Filesystem` carries a `stat_buf: [u8; 144]`
+    scratch field; `metadata_path` now fills it via `read_metadata` and DECODES
+    `st_size` (i64 @96) and `st_mode` (u16 @4) by little-endian BYTE-ASSEMBLY
+    (`(buf[k] as i64) << 8*i | …`), with `is_dir = (st_mode & 0o170000) ==
+    0o040000`. Interpreter `write_fs_stat` fills the virtual stat record (S_IFREG|
+    0o644 for a file with its size, S_IFDIR|0o755 for a dir). DIFFERENTIAL:
+    native `native_stat` canary RUNS (decodes len 10, is_dir false → PASS) AND
+    coverage `filesystem_std_module_metadata_is_dir` (file → is_dir false len 3;
+    dir → is_dir true). The fd-based `metadata(file)` stays seek-based (an open
+    `File` is always a regular file → is_dir false). NEXT on this: st_mtime
+    (i64 @48) for `modified`, and st_mode perm bits for a full `Permissions`.
+    - **D-bitwise (backend feature, general).** The byte-assembly needs runtime
+      `|` on aarch64, which the MVP encoder REJECTED (only logical `And`/`Or` and
+      the shifts were wired; `BitwiseAnd`/`BitwiseOr`/`BitwiseXor` fell to the
+      "cannot lower" arm). Added them to `append_runtime_binary_operation`
+      (ORR/AND/EOR register form, single instr) AND to
+      `runtime_binary_operation_width` (4 bytes, in lockstep) — 31 isa-aarch64
+      tests still green. Runtime bitwise ops now lower natively for ANY program,
+      not just fs.
 12. [x] **`copy(from, to)`** (Rust `fs::copy`) — DONE (interpreter). Enabled by a
     small interpreter fix: `eval_fs_bytes` now accepts a `Value::Array` (a byte
     array or a subslice view) as a host-call byte arg — the write-side mirror of

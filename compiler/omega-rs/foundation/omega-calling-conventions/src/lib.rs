@@ -148,6 +148,11 @@ pub enum HostOperation {
     /// `link(original, link)` -- create a hard link (Rust `hard_link`): a second
     /// directory entry for the same inode. Two path args, same shape as `rename`.
     Link,
+    /// `stat(path, buf)` -- fill a `struct stat` buffer for a PATH (Rust
+    /// `fs::metadata`). A path pointer + a buffer pointer (the kernel writes the
+    /// 144-byte darwin stat record through it); the Omega layer reads `st_size`
+    /// (off 96, i64) and `st_mode` (off 4, u16) back out.
+    Stat,
     /// `ftruncate(fd, length)` -- set a file's length (Rust `File::set_len`).
     SetLen,
     /// `fsync(fd)` -- flush a file's buffered data + metadata to the storage
@@ -209,6 +214,7 @@ impl HostOperation {
             "chmod" => Self::Chmod,
             "rename" => Self::Rename,
             "link" => Self::Link,
+            "stat" => Self::Stat,
             "ftruncate" => Self::SetLen,
             "fsync" => Self::Sync,
             "read_errno" => Self::ReadErrno,
@@ -249,6 +255,7 @@ impl HostOperation {
             Self::Chmod => "chmod",
             Self::Rename => "rename",
             Self::Link => "link",
+            Self::Stat => "stat",
             Self::SetLen => "ftruncate",
             Self::Sync => "fsync",
             Self::ReadErrno => "read_errno",
