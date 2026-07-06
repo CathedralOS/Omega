@@ -1495,6 +1495,54 @@ machine Main::main(&mut self) {
     );
 }
 
+/// `MetadataExt::blocks`/`blksize` via the std module (Rust `os::unix::fs::
+/// MetadataExt`): the 512-byte allocation count (`st_blocks` @104) and the preferred
+/// I/O block size (`st_blksize` @112). The interpreter reports fixed modeled
+/// constants; the native `native_metadata_blocks` canary asserts a real nonzero
+/// blksize.
+#[test]
+fn filesystem_std_module_metadata_blocks() {
+    let main_path = write_program(
+        "fs-metadata-blocks",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("/bk.txt", "hi");
+    transition self.unit_result { UnitResult::Ok -> statit() _ -> fail() }
+    state statit(&mut self) {
+        self.meta_result = self.fs.metadata_path("/bk.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> checkblocks(meta) _ -> fail() }
+    }
+    state checkblocks(&mut self, meta: Metadata) {
+        transition meta.blocks() == 8 { true -> checkblksize(meta) _ -> fail() }
+    }
+    state checkblksize(&mut self, meta: Metadata) {
+        self.unit_result = self.fs.remove("/bk.txt");
+        transition meta.blksize() == 4096 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("metadata_blocks program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "metadata_blocks: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "MetadataExt: modeled blocks() == 8, blksize() == 4096"
+    );
+}
+
 /// `File::sync_all` via the std module: create → write → `sync` returns
 /// `UnitResult::Ok` → the file's bytes survive the flush (metadata().len still
 /// reports the written size). Exercises the shipped `Filesystem::sync` wrapper

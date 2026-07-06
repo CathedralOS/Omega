@@ -512,9 +512,17 @@ crate tests; interpreter fs coverage) and commits.
     native `native_metadata_ctime_dev` canary RUNS (a real recent ctime > 1e9; two
     same-FS files share a nonzero device → PASS); coverage
     `filesystem_std_module_metadata_ctime_dev` (modeled changed()==1000000050,
-    dev()==16777220). Remaining `MetadataExt` fields (rdev, blocks, blksize) are the
-    same decode-only pattern if ever needed. `MetadataExt` is now effectively
-    complete for the common surface.
+    dev()==16777220).
+10n. [x] **`MetadataExt::blocks()`/`blksize()`** (Rust unix ext) — DONE, decode-only.
+    `Metadata` gains `blocks: u64` (`st_blocks` @104, 512-byte allocation count) and
+    `blksize: u64` (`st_blksize` @112, preferred I/O size); accessors `blocks()`/
+    `blksize()`. Interpreter writes fixed constants (`VIRTUAL_BLOCKS`=8,
+    `VIRTUAL_BLKSIZE`=4096). Native `native_metadata_blocks` canary RUNS (asserts a
+    real NONZERO blksize; blocks is fs-dependent so only decoded); coverage
+    `filesystem_std_module_metadata_blocks` (modeled blocks 8 / blksize 4096).
+    **`MetadataExt` is now COMPLETE for the common surface** (nlink/ino/dev/uid/gid +
+    a/m/c/btime + blocks/blksize); only the niche `rdev` remains (same trivial
+    pattern). fs coverage 39.
 11. [x] **Richer `Metadata`** via `stat` — DONE, complete NATIVE vertical (used
     `stat(path)`, not `fstat(fd)`, so it works on DIRECTORIES with no open/read
     perm). `HostOperation::Stat` (op `stat` → darwin `_stat`); operand arm
@@ -828,6 +836,28 @@ crate tests; interpreter fs coverage) and commits.
       referring to a folded local? a place copy of a partial descriptor?) — then fix at
       that true site (likely `branches/leaf.rs` value-call arg setup, or a local-fold in
       `state_bodies.rs`). The transition-forwarded case is fully fixed and shipped.
+    - **VALUE-CALL MECHANISM FOUND (later fire, via the assigned-target-operations
+      dump `10_assigned_target_operations.html`).** For the value call `self.n =
+      self.put(self.fd, "hello")`, the ENTIRE call lowers to just **two
+      `CopyRuntimeStorage`** (the fd scalar + the 16-byte `bytes` descriptor) into
+      put's param slots — there is **NO `WriteRuntimeFrameString` and no descriptor
+      write anywhere**. So the `bytes` param is a PLACE COPY from a source 16-byte
+      descriptor slot that is **allocated but never written** with the literal's
+      `{ptr,len}` → it copies zeros → empty slice. The fix must go at the site that
+      emits that copy: when a value-call arg resolves to a slice-descriptor place and
+      the argument is a string literal, WRITE the literal's descriptor
+      (`WriteRuntimeFrameString`) into the source place (or straight into the param
+      slot) INSTEAD OF / BEFORE the `CopyRuntimeStorage`. ALSO OBSERVED (needs
+      confirmation): in the `put`-with-internal-transition repro, the callee's `write`
+      host-op did not appear in the caller block at all — the value-call arg
+      materialization is only part of it; a value call whose body forwards through an
+      internal `transition` may drop the inner op. NET JUDGMENT: the native ergonomic
+      WRAPPER path (value-call args + `fstat` self-field buffers + multi-op sequences,
+      step 14) is a genuinely MULTI-BUG, multi-fire backend effort best done as a
+      DEDICATED session, not 5-min loop fires. `write_all` natively still exits fail
+      (hits several of these bugs at once, so it is not a clean single-bug isolation).
+      The RAW `FilesystemHost` seam stays fully native; the ergonomic wrapper remains
+      interpreter/const-eval. The transition-forwarded slice-literal fix IS shipped.
 15. [ ] **x86_64 / linux / windows seams** — see the reference below. Tables only;
     macOS is the only TESTED target now. Note: linux value-return needs the
     value-returning result-store wired into the `svc` syscall path (today only the
