@@ -642,6 +642,8 @@ boundary trait FilesystemHost {
     machine set_file_permissions(fd: i32, mode: u32) -> i32;
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
     machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32;
+    machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> i32;
+    machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: usize) -> i64;
     machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
     machine set_len(fd: i32, length: i64) -> i32;
     machine sync(fd: i32) -> i32;
@@ -1987,5 +1989,61 @@ machine Main::main(&mut self) {
     assert_eq!(
         outcome.exit_code, 70,
         "fchmod an open file read-only -> a fresh write-open is PermissionDenied"
+    );
+}
+
+/// `symlink` + `read_link` (Rust `os::unix::fs::symlink` + `fs::read_link`):
+/// create a symlink to a target, then read the link back and confirm the target
+/// bytes (12 = "the_target!!", first byte 't'). Also asserts read_link on a
+/// non-link path is an error.
+#[test]
+fn filesystem_std_module_symlink() {
+    let main_path = write_program(
+        "fs-symlink",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    io_result: IoResult;
+    cap: usize;
+    first: u8;
+    buffer: [u8; 64];
+}
+machine Main::main(&mut self) {
+    self.cap = 64;
+    self.unit_result = self.fs.symlink("the_target!!", "/link");
+    transition self.unit_result { UnitResult::Ok -> readit() _ -> fail() }
+    state readit(&mut self) {
+        self.io_result = self.fs.read_link("/link", &mut self.buffer, self.cap);
+        transition self.io_result { IoResult::Ok { count } -> checkcount(count) _ -> fail() }
+    }
+    state checkcount(&mut self, count: usize) {
+        transition count == 12 { true -> checkbyte() _ -> fail() }
+    }
+    state checkbyte(&mut self) {
+        self.first = self.buffer[0];
+        transition self.first == 116 { true -> notalink() _ -> fail() }
+    }
+    state notalink(&mut self) {
+        // read_link on a non-symlink path is an Error
+        self.io_result = self.fs.read_link("/nope", &mut self.buffer, self.cap);
+        transition self.io_result { IoResult::Error { kind } -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("symlink program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "symlink: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "symlink+read_link: target reads back 12 bytes ('t'...); read_link(non-link) is Error"
     );
 }

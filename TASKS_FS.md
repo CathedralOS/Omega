@@ -286,9 +286,24 @@ crate tests; interpreter fs coverage) and commits.
     so `hard_link` COPIES the bytes — a later write to one name is NOT reflected
     in the other (native hard links DO share). Faithful only for create/readback/
     removal, which is all the tests assert. A shared-inode virtual model
-    (path→Rc<RefCell<Vec>>) is a future refinement. `symlink`/`read_link` (the
-    other link ops) need a buffer out-param (readlink) + open-time resolution
-    modeling — deferred.
+    (path→Rc<RefCell<Vec>>) is a future refinement.
+10d. [x] **`symlink` + `read_link`** (Rust `os::unix::fs::symlink` +
+    `fs::read_link`) — DONE, complete NATIVE vertical. `HostOperation::Symlink`
+    (op `symlink` → `_symlink`) reuses the two-path `rename` operand shape;
+    `HostOperation::ReadLink` (op `readlink` → `_readlink`) uses a new
+    `[result, path ptr, buffer ptr, count]` arm (path_pointer + address + scalar,
+    like `read` but path-keyed). Raw `FilesystemHost::symlink(target, link)` +
+    `read_link(path, buffer, count) -> i64`; wrappers `Filesystem::symlink(..) ->
+    UnitResult` and `read_link(..) -> IoResult` (fills a caller buffer, returns
+    the target byte count — Rust returns a PathBuf; Omega stays allocation-free).
+    Interpreter models a `virtual_symlinks` map (link → target). DIFFERENTIAL:
+    native `native_symlink` canary RUNS (symlink → read_link → 12-byte target
+    back → PASS) AND coverage `filesystem_std_module_symlink` (target reads back;
+    read_link on a non-link is Error). ⚠ INTERPRETER LIMITATION: the hermetic FS
+    stores/returns symlink targets but does NOT RESOLVE them on open/stat/exists
+    (native symlinks resolve for real) — so an open-through-a-symlink differential
+    test would diverge; the tests only do symlink+read_link. Faithful resolution
+    (follow links on path ops) is a future refinement.
 11. [x] **Richer `Metadata`** via `stat` — DONE, complete NATIVE vertical (used
     `stat(path)`, not `fstat(fd)`, so it works on DIRECTORIES with no open/read
     perm). `HostOperation::Stat` (op `stat` → darwin `_stat`); operand arm

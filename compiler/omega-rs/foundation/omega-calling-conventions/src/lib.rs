@@ -151,6 +151,13 @@ pub enum HostOperation {
     /// `link(original, link)` -- create a hard link (Rust `hard_link`): a second
     /// directory entry for the same inode. Two path args, same shape as `rename`.
     Link,
+    /// `symlink(target, linkpath)` -- create a symbolic link (Rust
+    /// `os::unix::fs::symlink`). Two path args, same shape as `rename`/`link`.
+    Symlink,
+    /// `readlink(path, buf, bufsize)` -- read a symlink's target into a caller
+    /// buffer (Rust `fs::read_link`), returning the byte count. Same shape as
+    /// `read` but with a PATH pointer instead of an fd.
+    ReadLink,
     /// `stat(path, buf)` -- fill a `struct stat` buffer for a PATH (Rust
     /// `fs::metadata`). A path pointer + a buffer pointer (the kernel writes the
     /// 144-byte darwin stat record through it); the Omega layer reads `st_size`
@@ -218,6 +225,8 @@ impl HostOperation {
             "fchmod" => Self::Fchmod,
             "rename" => Self::Rename,
             "link" => Self::Link,
+            "symlink" => Self::Symlink,
+            "readlink" => Self::ReadLink,
             "stat" => Self::Stat,
             "ftruncate" => Self::SetLen,
             "fsync" => Self::Sync,
@@ -260,6 +269,8 @@ impl HostOperation {
             Self::Fchmod => "fchmod",
             Self::Rename => "rename",
             Self::Link => "link",
+            Self::Symlink => "symlink",
+            Self::ReadLink => "readlink",
             Self::Stat => "stat",
             Self::SetLen => "ftruncate",
             Self::Sync => "fsync",
