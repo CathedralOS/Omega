@@ -216,6 +216,25 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **✅ NATIVE `open_at`/`unlink_at` LOWERING (2026-07-06).** The dirfd-relative `*at`
+  ops now lower to real `openat`/`unlinkat` on macOS — the native building blocks of
+  `remove_dir_all`. Mirrors the existing fs-op path: `HostOperation::OpenAt`/`UnlinkAt`
+  (+ from/to-name `openat`/`unlinkat`); darwin `darwin_import(... "openat", "_openat")`
+  + `"unlinkat", "_unlinkat"` and the `FilesystemHost` method mappings; and the operand
+  shape `[result, dirfd SCALAR, name POINTER (NUL-terminated), flags SCALAR]` ->
+  C args `(dirfd, name, flags)` (a 3-arg call, same arity as `readlink`). RUNS:
+  `canaries/pass/filesystem/native_at_ops` compiles to a mach-o + executes on macOS
+  (open the dir fd, `open_at(dfd, "kid")`, `unlink_at(dfd, "kid", 0)`, re-`open_at`
+  fails -> PASS); wired into `native_filesystem_canaries` (7/7). Gates: mandated crates
+  green, interpreter coverage 67/0, canary_suite identical 85-baseline (zero regressions).
+  - **Native names are LITERALS here (NUL-terminated in rodata).** A runtime SUBSLICE
+    name (the extracted dirent name `remove_dir_all` passes) is NOT NUL-terminated, so
+    native `remove_dir_all` still awaits the ONE remaining native-seam gap: a path/name
+    arg to a C `char*` fs symbol that is not provably NUL-terminated must be copied into
+    a NUL-terminated scratch buffer before the call. (Interpreter runs `remove_dir_all`
+    fully today.) This is now the SOLE blocker for native recursive dir removal + native
+    subslice paths generally.
+
 - **✅ `remove_dir_all` SHIPPED — recursive tree removal (2026-07-06).** The last
   major missing Rust `std::fs` API. `Filesystem::remove_dir_all(path) -> UnitResult`
   recursively removes a directory and ALL its contents via the `*at` route (NO Omega

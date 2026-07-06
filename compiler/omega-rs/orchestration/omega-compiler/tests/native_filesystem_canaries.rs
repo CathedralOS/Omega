@@ -67,3 +67,5 @@ fn native_dirs_still_passes() { assert_pass("native_dirs"); }
 fn native_read_dir_iter_still_passes() { assert_pass("native_read_dir_iter"); }
 #[test]
 fn native_flock_still_passes() { assert_pass("native_flock"); }
+#[test]
+fn native_at_ops_passes() { assert_pass("native_at_ops"); }
