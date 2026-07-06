@@ -81,6 +81,30 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_target_address_o
     }
 }
 
+/// aarch64: byte offset of the SOURCE adrp (`adrp x20`) inside the store-side
+/// `machine[i] = <machine source>` — the machine page-pair for the source value.
+/// (x86_64 uses its own frame-source layout; unused there.)
+pub(crate) fn runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
+    architecture: Architecture,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            omega_instruction_selection::runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
+                architecture,
+                base_byte_offset,
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+            )
+        }
+        Architecture::X86_64 => 0,
+    }
+}
+
 /// Start of the WRITE part's `mov r15,imm64` inside the dual-indexed copy
 /// (`arr[i] = arr[j]`) -- the second machine-base relocation; the relocation
 /// planner adds the +2 immediate offset itself. x86_64 only (aarch64 has no

@@ -939,10 +939,23 @@ fn machine_instruction_width(
             *byte_count,
         ),
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
-            source_region, ..
+            source_region,
+            source_offset,
+            base_byte_offset,
+            index_region,
+            element_byte_size,
+            field_byte_offset,
+            byte_count,
+            ..
         } => runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
             input.target.architecture,
             *source_region,
+            *source_offset,
+            *base_byte_offset,
+            *index_region,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_count,
         ),
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. } => {
             runtime_storage_copy_machine_indexed_to_machine_indexed_width(

@@ -1048,6 +1048,7 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_stora
                 source_offset,
                 base_byte_offset,
                 index_offset,
+                index_region,
                 element_byte_size,
                 field_byte_offset,
                 byte_count,

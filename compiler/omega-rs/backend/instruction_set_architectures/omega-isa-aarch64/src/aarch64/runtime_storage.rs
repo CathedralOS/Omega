@@ -1708,17 +1708,52 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
 /// Write-side mirror of
 /// [`encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`].
 /// x86_64-only for now; aarch64 emits nothing real.
+/// Write `machine[index] = <machine-storage source>` — the store-side mirror of
+/// `encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`.
+/// Computes the ELEMENT address (base + index*scale + field) into x16 exactly as
+/// the read does, computes the SOURCE address (machine region + `source_offset`)
+/// into x20, then LOADs from the source (x20) and STOREs into the element (x16) --
+/// the load/store bases are swapped relative to the read. `source_region` is
+/// Machine-only (the instruction-selection dispatch rejects a frame source), so
+/// both x16's index base and x20's source share the machine region.
 pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
-    _source_offset: usize,
-    _base_byte_offset: usize,
-    _index_offset: usize,
-    _element_byte_size: usize,
-    _field_byte_offset: usize,
-    _byte_count: usize,
+    source_offset: usize,
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
-    Err(Diagnostic::error(
-        "aarch64 encoder cannot write a machine indexed value from runtime storage yet",
-    ))
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
+            source_offset,
+            base_byte_offset,
+            index_region,
+            element_byte_size,
+            field_byte_offset,
+            byte_count,
+        ),
+    );
+    append_runtime_machine_index_target_address(
+        &mut bytes,
+        base_byte_offset,
+        index_region,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    bytes.extend(encode_adrp_placeholder(20));
+    bytes.extend(encode_add_page_offset_placeholder(20));
+    append_add_constant_to_x_register(&mut bytes, 20, source_offset)?;
+
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        append_load_data_from_x_offset(&mut bytes, 17, 20, offset, chunk_size, 26)?;
+        append_store_data_to_x_offset(&mut bytes, 17, 16, offset, chunk_size, 19)?;
+        Ok(())
+    })?;
+
+    Ok(bytes)
 }
 
 pub fn encode_runtime_storage_copy_to_runtime_pointee(
