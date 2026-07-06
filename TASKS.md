@@ -125,18 +125,28 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 - **[RESOLVED 2026-07-03]** `arr[i] = <binary>` (computed value into a runtime-indexed
   target) selects. Still fenced: bare-place sources `arr[i] = <bare local>` / `arr[i] =
   arr[j]` hit NeedsMachineOwnedWrite (backend mutation-selection gap; FIELD-temp workaround).
-- Same-type contained-machine METHOD-CALL aliasing is a SILENT miscompile,
-  re-confirmed on current code 2026-07-03: `a: Counter; b: Counter` +
-  `self.b.increment()` mutates `self.a` (dispatch resolves the receiver region by
-  TYPE via `machine_storage_offset`, losing which field). Single instance, first-
-  instance calls, and DIRECT field access all work; the sound direct-field
-  workaround is now locked by `calls/runtime_same_type_contained_direct_fields_exit`.
-  Real fix = thread the receiver field offset through dispatch (deep). A precise
-  frontend fence (error a method call on a non-first same-type field) is possible
-  but CHANGES LANGUAGE SURFACE (rejects currently-compiling code) -- needs a Zach
-  decision, not landed unilaterally. See memory `contained-machine-same-type-aliasing`.
+- Contained-machine METHOD-CALL storage resolution is a SILENT miscompile with TWO faces
+  (see memory `contained-machine-same-type-aliasing`), both from the backend resolving a
+  method-call receiver's `self`-base by machine TYPE rather than the receiver field:
+  (1) SAME-TYPE ALIASING — `a: Counter; b: Counter` + `self.b.increment()` mutates `self.a`
+  (reconfirmed 2026-07-05: no-init `self.b.increment()×3` -> a==3, b==0); root =
+  `machine_storage_offset` returns the FIRST field of the type. (2) DIRECT-WRITE-THEN-METHOD
+  (found 2026-07-05, SINGLE instance, no aliasing) — a direct field write before a method
+  call makes the method's mutation VANISH: `self.a.value = 5; self.a.increment();` reads
+  back 5 (root unconfirmed; the method's self-base diverges from the direct-write location).
+  ⚠️ (2) MASKS (1): inits like `self.a.value=0` in a repro hide the aliasing. DIRECT field
+  access (no method call) works; sound workaround (distinct types / direct-field ops) locked
+  by `calls/runtime_same_type_contained_direct_fields_exit`. Real fix = thread the receiver
+  field offset through dispatch (deep). A precise frontend fence for (1) rejects
+  currently-compiling code -> needs a Zach decision, not landed unilaterally.
 - u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
+- **[ ] `!` must require a `bool` operand (agreed 2026-07-05, Zach: prefer modern langs).**
+  `!x` on an `i32` compiles today with C-style truthiness (`!5` -> `0`). Modern strict langs
+  (Rust/Swift/Go/Zig) have no int-in-bool coercion; Rust's `!int` being *bitwise*-not is a
+  Not-trait overload quirk we don't copy — Omega already spells bitwise-not `~` (separate,
+  currently unsupported). So make logical `!` bool-only: `!<non-bool>` is a type error.
+  Small frontend check (the unary operand type gate). NOT design-gated -- decided.
 - **[ ] VALUE-position call to a NONEXISTENT machine compiles silently (found
   2026-07-05).** `let y: i32 = bogus_fn(1)` compiles and yields 0 (silent miscompile);
   statement-position `bogus_fn(1);` is correctly rejected by `validate_call_node` ("has
