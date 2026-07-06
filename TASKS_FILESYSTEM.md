@@ -29,9 +29,36 @@ boundary layer is VALUE-RETURNING (`creat`/`open_read`/`read_bytes`/`write_bytes
   on arm64, so dropped); `creat`'s mode is a named/register param.
 
 Remaining ergonomics (not blocking): a thin Omega `std` layer wrapping the raw
-value-returning ops into the `File`/outcome-enum API; runtime-buffer `write`
-(currently literal payloads); registering the canary once `canary_suite.rs` is
-free. The interpreter fs (below) remains the ergonomic + oracle surface.
+value-returning ops into the `File`/outcome-enum API; registering the canary
+once `canary_suite.rs` is free. The interpreter fs (below) remains the ergonomic
++ oracle surface.
+
+### Toward the portable ergonomic wrapper (the Rust-`std::fs` north star)
+
+Architecture = Rust's `std::fs` over `std::sys`: one portable Omega wrapper
+(hides flags/mode/fd behind `File`/results) over the per-OS raw boundary
+(`FilesystemHost`), each OS supplying its seam via the lowering table. The
+wrapper machines forward `path`/`bytes` PARAMETERS to the raw boundary, which
+surfaced real native-marshalling gaps — being closed one by one:
+
+- [x] **runtime slice args** — `write_bytes(fd, bytes)` where `bytes` is a
+  `&[u8]` param/field (not a literal): load ptr+len from the descriptor
+  (`slice_argument_operands`).
+- [x] **runtime path args** — `creat`/`open_read`/`unlink` with a `&[u8] in
+  Path` param: the slice's data pointer (points at a NUL-terminated literal
+  underneath) via `path_pointer_operand`.
+- [ ] **wrapper-param → storage-place resolution** — a `&[u8]` parameter
+  forwarded from a CALLER (Main → `fs.create(path)` → `host.creat(path,…)`)
+  doesn't yet resolve to a runtime storage place (cross-machine call-argument
+  binding). This is the current blocker for the fully-wrapped API lowering
+  natively. Not needed by the interpreter (which runs the wrapper today).
+- [ ] **store enum result through `&mut out`** in a wrapper (untested past the
+  above).
+- [ ] const-folded literal host-call arg → no operand (workaround: stage in a
+  field); worth fixing for clean call sites.
+
+Each is a normal-Omega marshalling feature, not fs-specific — closing them makes
+ANY Omega that calls the boundary lower cleanly.
 
 ---
 
