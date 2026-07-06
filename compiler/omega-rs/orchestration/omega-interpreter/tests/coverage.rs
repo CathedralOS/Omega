@@ -644,6 +644,7 @@ boundary trait FilesystemHost {
     machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32;
     machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> i32;
     machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: usize) -> i64;
+    machine read_dir(fd: i32, buffer: &mut [u8], count: usize, position: &mut i64) -> i64;
     machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
     machine set_len(fd: i32, length: i64) -> i32;
     machine sync(fd: i32) -> i32;
@@ -1339,6 +1340,75 @@ machine Main::main(&mut self) {
     assert_eq!(
         outcome.exit_code, 70,
         "write_all/read_all must round-trip 15 bytes and read_all(missing) must be Error"
+    );
+}
+
+/// `read_dir` on the interpreter's virtual FS: `open` a directory, then
+/// `read_dir` packs its entries (`.`, `..`, `hello_entry`) as darwin dirent
+/// records — total 104 bytes (32 + 32 + 40), matching native. Verifies the byte
+/// count AND that the third record (offset 64) is `hello_entry` (d_namlen@82 ==
+/// 11, d_name@85 == 'h'). A second `read_dir` returns 0 (end).
+#[test]
+fn filesystem_value_returning_read_dir() {
+    interpret_fs(
+        "fs-vr-readdir",
+        r#"
+data Main {
+    fs: FilesystemHost;
+    console: Console;
+    dirmode: i32;
+    filemode: i32;
+    rdonly: i32;
+    cap: usize;
+    rc: i32;
+    fd: i32;
+    dfd: i32;
+    n: i64;
+    total: i64;
+    again: i64;
+    position: i64;
+    namlen: u8;
+    first: u8;
+    buffer: [u8; 512];
+}
+machine Main::main(&mut self) {
+    self.dirmode = 493;
+    self.filemode = 420;
+    self.rdonly = 0;
+    self.cap = 512;
+    self.position = 0;
+    self.rc = self.fs.create_dir("/d", self.dirmode);
+    self.fd = self.fs.create("/d/hello_entry", self.filemode);
+    self.n = self.fs.close(self.fd);
+    self.dfd = self.fs.open("/d", self.rdonly);
+    transition self.dfd >= 0 { true -> readit() _ -> fail() }
+    state readit(&mut self) {
+        self.total = self.fs.read_dir(self.dfd, &mut self.buffer, self.cap, &mut self.position);
+        transition self.total == 104 { true -> checkentry() _ -> fail() }
+    }
+    state checkentry(&mut self) {
+        // third record at offset 64: d_namlen @ 64+18 = 82, d_name @ 64+21 = 85
+        self.namlen = self.buffer[82];
+        self.first = self.buffer[85];
+        transition self.namlen == 11 { true -> checkname() _ -> fail() }
+    }
+    state checkname(&mut self) {
+        transition self.first == 104 { true -> checkend() _ -> fail() }
+    }
+    state checkend(&mut self) {
+        // a second read_dir (position now non-zero) reports end
+        self.again = self.fs.read_dir(self.dfd, &mut self.buffer, self.cap, &mut self.position);
+        self.n = self.fs.close(self.dfd);
+        self.n = self.fs.remove("/d/hello_entry");
+        self.rc = self.fs.remove_dir("/d");
+        transition self.again == 0 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+        70,
+        "read_dir packs ./../hello_entry (104 bytes); entry@64 is hello_entry; second call ends",
     );
 }
 
