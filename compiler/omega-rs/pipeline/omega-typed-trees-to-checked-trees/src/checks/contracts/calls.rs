@@ -87,7 +87,8 @@ pub(super) fn check_call_requires(
                     &entry_contexts,
                     fact.payload,
                     fact.place,
-                );
+                )
+                || parameter_domain_grants(program, facts, state_flow, fact.payload, fact.place);
 
             if !satisfied {
                 let detail = match fact.payload {
@@ -195,6 +196,68 @@ fn subslice_grants_domain(
                 && facts.semantic.place_segments.span_or_empty(base.segments) == base_segments
         })
     })
+}
+
+/// A SHARED (`&`, non-`mut`) parameter's DECLARED domain is invariant for the
+/// state's lifetime: any interleaved call receives that parameter as a shared
+/// borrow (or not at all) and cannot mutate its bytes -- Omega's
+/// shared-XOR-mutable borrow discipline keeps any aliased backing frozen while
+/// the shared borrow is live -- so the parameter's declared domain still holds
+/// EVEN after an interleaved `&mut self` call whose conservative fact
+/// invalidation dropped the flow-tracked `<param> in <declared>` fact (e.g. an
+/// empty-mutation-summary helper that reduces to the blunt "wipe every context"
+/// path). A `requires <param> in D` obligation is therefore satisfied whenever
+/// the parameter's declared domain implies `D`. This is the same trust basis as
+/// a declared param/return domain at a use site (`value_call_return_domain_grants`);
+/// the subject must be the PARAMETER ITSELF (a symbol-rooted place with no
+/// derived segments -- a derived place `param.field`/`param[i]` may carry a
+/// different domain). Restricted to a non-mutable, non-self parameter: a
+/// `&mut`-borrowed parameter's bytes CAN change, so its domain is not invariant.
+fn parameter_domain_grants(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    state_flow: &FlowStateFact,
+    payload: FactPayload,
+    place: FactPlace,
+) -> bool {
+    let FactPayload::ContractDomainMembership { domain_symbol, .. } = payload else {
+        return false;
+    };
+    let FactPlace::Place(place_handle) = place else {
+        return false;
+    };
+    let resolved = *facts.semantic.places.get(place_handle);
+    if !facts
+        .semantic
+        .place_segments
+        .span_or_empty(resolved.segments)
+        .is_empty()
+    {
+        return false;
+    }
+    let PlaceRoot::Symbol(root_symbol) = resolved.root else {
+        return false;
+    };
+    let Some(state) = crate::find_state(program, state_flow.state_symbol) else {
+        return false;
+    };
+    let Some(parameter) = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.symbol == root_symbol)
+    else {
+        return false;
+    };
+    if parameter.is_mutable || parameter.is_self {
+        return false;
+    }
+    let Some(param_domain) =
+        crate::field_domain::domain_constraint_name(program, parameter.type_reference)
+            .and_then(|name| crate::field_domain::resolve_domain_symbol(program, &name))
+    else {
+        return false;
+    };
+    facts.semantic.domain_implies(param_domain, domain_symbol)
 }
 
 fn string_literal_grants_domain(

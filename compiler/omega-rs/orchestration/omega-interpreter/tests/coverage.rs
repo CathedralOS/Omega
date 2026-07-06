@@ -1020,6 +1020,60 @@ machine Main::main(&mut self) {
     );
 }
 
+/// The shipped `Filesystem::create_dir_all` (Rust `std::fs::create_dir_all`):
+/// recursively create a directory and all missing parents. Creates `/a/bb/c`
+/// (three nested levels, none present) in ONE call, then proves EACH ancestor
+/// (`/a`, `/a/bb`, `/a/bb/c`) now exists -- a plain `create_dir` of the leaf would
+/// have created only `/a/bb/c`. Exercises the recursive climbing-index walk, the
+/// runtime-`i` `path[0..i]` subslice + subslice-domain grant, and the shared-param
+/// domain grant that keeps `path in Path` alive across the interleaved
+/// `mkall_step` value-call.
+#[test]
+fn filesystem_std_module_create_dir_all() {
+    let main_path = write_program(
+        "fs-std-cda",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    a: bool;
+    ab: bool;
+    abc: bool;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.create_dir_all("/a/bb/c");
+    transition self.unit_result { UnitResult::Ok -> verify() _ -> fail() }
+    state verify(&mut self) {
+        self.a = self.fs.exists("/a");
+        self.ab = self.fs.exists("/a/bb");
+        self.abc = self.fs.exists("/a/bb/c");
+        transition self.a { true -> v2() _ -> fail() }
+    }
+    state v2(&mut self) { transition self.ab { true -> v3() _ -> fail() } }
+    state v3(&mut self) { transition self.abc { true -> ok() _ -> fail() } }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("create_dir_all program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "create_dir_all should run, got {:?}",
+        outcome.error
+    );
+    assert_eq!(
+        outcome.exit_code, 70,
+        "create_dir_all(/a/bb/c) must create every ancestor (/a, /a/bb, /a/bb/c)"
+    );
+}
+
 /// The REAL shipped std module `omega/language/std/filesystem.omg`, imported via
 /// `use` and driven through its ergonomic `Filesystem` API — a full CRUD
 /// round-trip in the interpreter. Proves the canonical std::fs surface (not an

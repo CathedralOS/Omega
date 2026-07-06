@@ -351,6 +351,9 @@ data Filesystem {
     // Scratch for the two `struct timespec` (atime then mtime) that `set_times`
     // builds and hands to `futimens`.
     times_buf: [u8; 32];
+    // Scratch for `create_dir_all`'s per-position best-effort mkdir result
+    // (`walk` ignores it -- an already-present ancestor is fine).
+    walk_rc: i32;
 }
 
 // Create (or truncate) a file for writing, returning an open `File`.
@@ -810,6 +813,78 @@ machine Filesystem::remove_dir(&mut self, path: &[u8] in Path) -> UnitResult {
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Recursively create a directory and all of its missing parents (Rust
+// `std::fs::create_dir_all`). Walks the path from index 1 (a leading '/' names
+// the always-present root), creating each ancestor prefix `path[0..i]` at every
+// '/' separator, then the whole path. The subslice `path[0..i]` inherits the
+// `Path` (`no_nul`) domain (per-byte, subslice-preserving) and is discharged in
+// bounds by the dominating `i < path.len` guard.
+//
+// JUDGEMENT CALL (recorded in TASKS_FS.md): intermediate ancestor creates are
+// BEST-EFFORT -- an already-present ancestor (EEXIST) is expected and ignored,
+// and any other intermediate error resurfaces at the LEAF create rather than
+// being reported per-ancestor. The leaf decides the result: Ok on success, Ok on
+// AlreadyExists (the target dir is already present -- Rust returns Ok too), else
+// the mapped `ErrorKind`. Faithful for the common cases; a mid-path hard failure
+// (e.g. a component that is a file) surfaces as the leaf's error.
+machine Filesystem::create_dir_all(&mut self, path: &[u8] in Path) -> UnitResult {
+    self.dir_mode = 493;
+    transition { _ -> self.mkall_walk(path, 1) }
+}
+
+// Climbing-index walk: at each position create the ancestor prefix (via the
+// value-call helper `mkall_step`, which guards the bound internally), then
+// recurse in the ENTRY -- the only shape the `Nat::BoundedDistance` decreases
+// proof accepts. `path`'s domain survives the interleaved `mkall_step` call
+// because a SHARED parameter's declared domain is invariant (checker grant).
+machine Filesystem::mkall_walk(&mut self, path: &[u8] in Path, i: usize)
+terminates {
+    decreases (i, path.len) -> Nat::BoundedDistance;
+}
+-> UnitResult
+{
+    self.walk_rc = self.mkall_step(path, i);
+    transition i < path.len {
+        true -> self.mkall_walk(path, i + 1)
+        false -> self.mkall_leaf(path)
+    }
+    state mkall_leaf(&mut self, path: &[u8] in Path) -> UnitResult {
+        let rc: i32 = self.host.create_dir(path, self.dir_mode);
+        transition rc == 0 { true -> ok() _ -> exists_ok() }
+    }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state exists_ok(&mut self) -> UnitResult {
+        // AlreadyExists (the target dir is already present) is success for
+        // create_dir_all; any other error is surfaced.
+        let code: i32 = self.host.errno();
+        transition code == 17 { true -> ok() _ -> mkall_error() }
+    }
+    state mkall_error(&mut self) -> UnitResult {
+        let kind: ErrorKind = self.last_error();
+        UnitResult::Error { kind: kind }
+    }
+}
+
+// Create the ancestor prefix `path[0..i]` iff position i is a '/' separator.
+// Guards `i < path.len` INTERNALLY so the caller's recursion needs no
+// pre-established bound. Returns the `create_dir` rc (best-effort; ignored).
+machine Filesystem::mkall_step(&mut self, path: &[u8] in Path, i: usize) -> i32 {
+    transition i < path.len {
+        true -> self.mkall_at(path, i)
+        false -> mkall_noop()
+    }
+    state mkall_at(&mut self, path: &[u8] in Path, i: usize) -> i32 {
+        transition path[i] == 47 {
+            true -> self.mkall_mk(path, i)
+            false -> mkall_noop()
+        }
+    }
+    state mkall_mk(&mut self, path: &[u8] in Path, i: usize) -> i32 {
+        self.host.create_dir(path[0..i], self.dir_mode)
+    }
+    state mkall_noop(&mut self) -> i32 { 0 }
 }
 
 // Set a path's permission bits (Rust `std::fs::set_permissions`). A subsequent
