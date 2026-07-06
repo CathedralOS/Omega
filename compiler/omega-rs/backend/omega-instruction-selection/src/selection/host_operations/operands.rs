@@ -245,7 +245,10 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
-        (HostCapability::Filesystem, HostOperation::Open | HostOperation::Creat) => {
+        (
+            HostCapability::Filesystem,
+            HostOperation::Open | HostOperation::Creat | HostOperation::MakeDir,
+        ) => {
             // Value-returning `fd = open_read(path, flags) -> _open(path,
             // flags)` and `fd = creat(path, mode) -> _creat(path, mode)`. Both
             // are `[result, path POINTER (NUL-terminated), second scalar]` ->
@@ -262,8 +265,8 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
-        (HostCapability::Filesystem, HostOperation::Unlink) => {
-            // Value-returning `rc = unlink(path) -> _unlink(path)`.
+        (HostCapability::Filesystem, HostOperation::Unlink | HostOperation::RemoveDir) => {
+            // Value-returning `rc = unlink(path) / rmdir(path)`.
             // operand[0]=result, [1]=path POINTER (NUL-terminated C string).
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let path = path_pointer_operand(input, host_call, dispatch_index, 1);
