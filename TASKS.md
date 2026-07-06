@@ -96,6 +96,26 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 
 ## Open latent bugs / fenced gaps
 
+- **[ ] Unknown NESTED field READ compiles silently (found 2026-07-05).**
+  `let y = self.inner.nonexistent` (3+-segment member read, final OR intermediate field
+  missing) reads a ZII 0 -- the unknown-field READ check (`direct_self_field_member` in
+  places.rs / scan_expression_calls) only covers the DIRECT `self.<field>` (2-segment)
+  case; the WRITE side errors crudely via the backend. ATTEMPTED + REVERTED 2026-07-05:
+  a `first_unknown_nested_field` walker (reusing the `resolve_nested_member_path`
+  resolvers -- `data_field_or_payload_type` + `data_definition_for_type`) reported the
+  first member missing from its resolved data container. It false-positived on VERSIONED
+  data: `Counter` (with `version v1 {..} version v2 {..}` blocks + a common field) does
+  NOT expose its common field `count` via `data_members`/`data_field_or_payload_type`
+  (version-block fields live in a per-version structure), and a versioned type is not
+  cheaply detectable (no property flag; it reads as a pure record, so a "no variant
+  members" guard did not exclude it). The payload-binding desugar (`current.count` ->
+  a nested path through the versioned container) surfaces this. CLEAN FIX needs a
+  VERSIONED-AWARE field resolver (walk version blocks + common fields) before the "field
+  not found" conclusion is reliable -- a focused session tied to the versioned-data
+  representation. (The direct `self.<field>` case already skips versioned attached data
+  via `is_version_selector` in `machine_attached_data`, but that is name-suffix-based and
+  does not catch a nested versioned container.)
+
 - **[RESOLVED 2026-07-05]** Arithmetic/ordering on a STRUCT with no declared operator
   (`self.a + self.b` for a plain `data P`) now rejected. It used to build + RUN to garbage.
   A blanket lowering-phase reject was ATTEMPTED + REVERTED (false-positived on DOMAIN
