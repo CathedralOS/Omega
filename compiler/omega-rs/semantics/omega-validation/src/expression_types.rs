@@ -666,6 +666,50 @@ pub(crate) fn report_number_to_bool_cast(
     true
 }
 
+/// Reject a cast to a NUMERIC/address scalar (`as i32`, `as f64`, `as u8`, `as addr`)
+/// from a provably NON-scalar or TEXT source: `s as i32` (a `String` carrier),
+/// `self.p as i32` (a struct), `self.xs as i32` (an array). `as` resolves the target
+/// primitive, finds the source has no scalar conversion, and passes the bytes through
+/// unchanged -- a silent reinterpret to garbage. Only a PROVABLY non-scalar/text source
+/// is flagged; a numeric/bool source, a comparison result, or an unresolvable computed
+/// source (a call) classifies as scalar/unknown and is left alone. (`as bool` targets
+/// are handled by `report_number_to_bool_cast`; this covers the numeric/addr targets.)
+pub(crate) fn report_invalid_numeric_cast_source(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    source: ExpressionHandle,
+    target_name: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    let mut reject = |reason: String| {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` {reason} to `{target_name}`, but `as` converts between \
+             scalar types only",
+            machine.name.as_str(),
+            state.map(|state| state.name.as_str()).unwrap_or(""),
+        )));
+        true
+    };
+    // Text carrier source (`s as i32`): text is a `{len, bytes}` carrier, not a number.
+    if value_class(program, Some(machine), state, source) == Some(ValueClass::Text) {
+        return reject("casts text".to_owned());
+    }
+    // Array source (`self.xs as i32` / `[1, 2, 3] as i32`).
+    if value_shape_is_array(program, machine, state, source) == Some(true) {
+        return reject("casts an array value".to_owned());
+    }
+    // Struct source (`self.p as i32` / `P { .. } as i32`) -- a struct literal names
+    // its own type; a struct place resolves to a concrete data type name.
+    if let Some(name) = struct_literal_type_name(program, source).or_else(|| {
+        crate::places::declared_place_type(program, machine, state, source)
+            .and_then(|handle| concrete_data_type_name(program, handle))
+    }) {
+        return reject(format!("casts a `{name}` value"));
+    }
+    false
+}
+
 /// Reject indexing the `String` carrier -- `s[i]` as a READ (`is_write == false`,
 /// e.g. `let b = s[i]`) or as an assignment TARGET (`is_write == true`, `s[i] = x`).
 /// `String` is a `{len, bytes}` carrier, not a flat byte array, so a byte index
