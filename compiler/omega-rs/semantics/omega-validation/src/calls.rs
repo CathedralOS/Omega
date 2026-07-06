@@ -963,15 +963,17 @@ fn is_known_bare_name(
     false
 }
 
-/// Reject READING a nested array element with a RUNTIME COLUMN index -- `grid[..][j]`
-/// where `j` is a runtime value and the collection is itself indexed (a 2D+ array).
-/// The backend cannot lower this shape yet: it resolves the runtime index to the
-/// collection BASE and SILENTLY READS 0 instead of the element (confirmed native:
-/// `grid[2][j]` with `j == 1` reads 0, not the correct 6). The sibling WRITE is
-/// already fenced (state-graph classifier `target_is_nested_runtime_indexed`); this
-/// fences the READ to match. A const column (`grid[i][0]`, a fixed offset) and a
-/// single index (`arr[i]`, non-indexed collection) ARE lowerable and are untouched.
-/// The real fix is lowering nested runtime-indexed access (a backend feature).
+/// Reject READING an array element with a RUNTIME SCALAR index whose collection is
+/// itself reached THROUGH an array index -- `grid[c][j]` (a 2D array) and
+/// `rows[c].data[j]` (a field array of an array-of-structs element). The backend
+/// cannot compute the nested runtime offset yet: it resolves the runtime index to
+/// the collection BASE and SILENTLY READS 0 instead of the element (confirmed native:
+/// both `grid[2][j]` and `rows[2].data[j]` with the index `== 1` read 0, not 6). The
+/// sibling WRITE is already fenced (state-graph `target_is_nested_runtime_indexed`);
+/// this fences the READ to match. Lowerable shapes are untouched: a CONST index
+/// (`grid[i][0]`, a fixed offset), a single index over a non-indexed base (`arr[i]`,
+/// `self.field[j]`), and a RANGE index (`sub[1..][1..]`, a nested subslice). The real
+/// fix is lowering nested runtime-indexed access (a backend feature).
 fn report_nested_runtime_indexed_read(
     program: &TypedTrees,
     machine: &Machine,
@@ -982,9 +984,8 @@ fn report_nested_runtime_indexed_read(
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
         return;
     };
-    // The outer (column) index must be a RUNTIME SCALAR value: not a constant integer
-    // (a fixed offset, lowerable) and not a RANGE (`sub[1..][1..]` is a nested SUBSLICE,
-    // a different operation that lowers fine -- excluding it avoids a false positive).
+    // The index must be a RUNTIME SCALAR: not a constant integer (a fixed offset,
+    // lowerable) and not a RANGE (`sub[1..][1..]` is a nested SUBSLICE that lowers).
     let mut index = indexed.index;
     while let ExpressionNode::Mutable(inner) = program.expression_table.expression(index) {
         index = *inner;
@@ -995,22 +996,27 @@ fn report_nested_runtime_indexed_read(
     ) {
         return;
     }
-    // The collection must itself be an indexed place (a nested array).
+    // The collection's place chain (through Member receivers and Mutable) must reach
+    // an ARRAY INDEX -- `grid[c]` (Indexed collection) or `rows[c].data` (a field of an
+    // indexed element). A base with no index in its chain (`arr`, `self.field`) is a
+    // plain place whose element offset IS computable, so it is not fenced.
     let mut collection = indexed.collection;
-    while let ExpressionNode::Mutable(inner) = program.expression_table.expression(collection) {
-        collection = *inner;
-    }
-    if !matches!(
-        program.expression_table.expression(collection),
-        ExpressionNode::Indexed(_)
-    ) {
+    let base_is_indexed = loop {
+        match program.expression_table.expression(collection) {
+            ExpressionNode::Indexed(_) => break true,
+            ExpressionNode::Member(member) => collection = member.receiver,
+            ExpressionNode::Mutable(inner) => collection = *inner,
+            _ => break false,
+        }
+    };
+    if !base_is_indexed {
         return;
     }
     diagnostics.push(Diagnostic::error(format!(
-        "machine `{}` state `{}` reads a nested array element with a runtime COLUMN index \
-         (`grid[..][j]`, `j` a runtime value), which the backend cannot lower yet -- it silently \
-         reads 0 instead of the element. Use a constant column index (`grid[i][0]`), or a flat \
-         array with a computed index",
+        "machine `{}` state `{}` reads an array element with a runtime index whose base is itself \
+         array-indexed (`grid[c][j]` or `rows[c].data[j]`, `j` a runtime value), which the backend \
+         cannot lower yet -- it silently reads 0 instead of the element. Use a constant index for \
+         the outer access, or a flat array with a computed index",
         machine.name.as_str(),
         state.name.as_str(),
     )));
