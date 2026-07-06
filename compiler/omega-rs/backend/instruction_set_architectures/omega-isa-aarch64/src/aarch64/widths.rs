@@ -873,7 +873,10 @@ pub fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width(
 pub fn operand_width(operand: &Aarch64CallOperand) -> usize {
     match operand {
         DataAddress { .. } => 8,
-        RuntimeStringPointer { .. } | RuntimeStringLength { .. } | RuntimeScalarInteger { .. } => 12,
+        RuntimeStringPointer { .. }
+        | RuntimeStringLength { .. }
+        | RuntimeScalarInteger { .. }
+        | RuntimeStorageAddress { .. } => 12,
         RuntimePointeeStringPointer { .. } | RuntimePointeeStringLength { .. } => 16,
         ImmediateInteger(value) => immediate_width(*value),
         ByteLength(value) => unsigned_immediate_width(*value as u64),

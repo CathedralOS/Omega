@@ -150,9 +150,15 @@ fn collect_static_string_expression_data(
             let byte_span = if value.is_empty() {
                 data_plan.bytes.insert_many(std::iter::once(0))
             } else {
-                data_plan
+                let span = data_plan
                     .bytes
-                    .insert_many(value.as_bytes().iter().copied())
+                    .insert_many(value.as_bytes().iter().copied());
+                // NUL-terminate for C-string consumers (`_open`/`_unlink` path
+                // arguments). The terminator is inserted right after the content
+                // but is NOT part of the object's span, so length-based consumers
+                // (write_bytes, Console write) still see only the content length.
+                data_plan.bytes.insert_many(std::iter::once(0));
+                span
             };
             let symbol_index = data_plan.objects.len() + 1;
 
