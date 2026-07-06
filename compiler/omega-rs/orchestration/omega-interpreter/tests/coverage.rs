@@ -1076,3 +1076,67 @@ machine Main::main(&mut self) {
         "set_len must truncate a 20-byte file to 5 (seek-to-end == 5)",
     );
 }
+
+/// `File::metadata().len` via the std module — composed from the raw `seek` op
+/// (save/measure/restore). Verifies the size (17) AND that metadata is
+/// non-destructive: a following read from a freshly-opened file still gets all
+/// 17 bytes (the cursor was preserved).
+#[test]
+fn filesystem_std_module_metadata_len() {
+    let main_path = write_program(
+        "fs-metadata",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    open_result: OpenResult;
+    io_result: IoResult;
+    meta_result: MetadataResult;
+    unit_result: UnitResult;
+    close_rc: i32;
+    cap: usize;
+    buffer: [u8; 64];
+}
+machine Main::main(&mut self) {
+    self.cap = 64;
+    self.open_result = self.fs.create("/m.txt");
+    transition self.open_result { OpenResult::Ok { file } -> wrote(file) _ -> fail() }
+    state wrote(&mut self, file: File) {
+        self.io_result = self.fs.write(file, "omega end to end\n");
+        self.close_rc = self.fs.close(file);
+        self.open_result = self.fs.open("/m.txt");
+        transition self.open_result { OpenResult::Ok { file } -> meta(file) _ -> fail() }
+    }
+    state meta(&mut self, file: File) {
+        self.meta_result = self.fs.metadata(file);
+        transition self.meta_result { MetadataResult::Ok { meta } -> checklen(file, meta) _ -> fail() }
+    }
+    state checklen(&mut self, file: File, meta: Metadata) {
+        transition meta.len == 17 { true -> rd(file) _ -> fail() }
+    }
+    state rd(&mut self, file: File) {
+        self.io_result = self.fs.read(file, &mut self.buffer, self.cap);
+        self.close_rc = self.fs.close(file);
+        self.unit_result = self.fs.remove("/m.txt");
+        transition self.io_result { IoResult::Ok { count } -> verify(count) _ -> fail() }
+    }
+    state verify(&mut self, count: usize) {
+        transition count == 17 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("metadata program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "metadata: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "metadata().len must be 17 and metadata must preserve the cursor (read gets 17)"
+    );
+}
