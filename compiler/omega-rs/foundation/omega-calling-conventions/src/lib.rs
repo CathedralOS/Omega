@@ -186,6 +186,10 @@ pub enum HostOperation {
     /// `fsync(fd)` -- flush a file's buffered data + metadata to the storage
     /// device (Rust `File::sync_all`). Same shape as `close`: one fd arg, rc.
     Sync,
+    /// `dup(fd)` -- duplicate a file descriptor onto the lowest free fd, sharing
+    /// the underlying open file description (Rust `File::try_clone`). Same shape as
+    /// `close`: one fd arg, returns the NEW fd (or -1 on error).
+    Dup,
     /// `___error()` -- darwin's thread-local errno accessor; returns `int*`.
     /// Takes NO args and its result is DEREFERENCED once (see
     /// `HostOperationKey::dereferences_result`) so the stored value is `errno`
@@ -251,6 +255,7 @@ impl HostOperation {
             "realpath" => Self::Realpath,
             "ftruncate" => Self::SetLen,
             "fsync" => Self::Sync,
+            "dup" => Self::Dup,
             "read_errno" => Self::ReadErrno,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
@@ -298,6 +303,7 @@ impl HostOperation {
             Self::Realpath => "realpath",
             Self::SetLen => "ftruncate",
             Self::Sync => "fsync",
+            Self::Dup => "dup",
             Self::ReadErrno => "read_errno",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",

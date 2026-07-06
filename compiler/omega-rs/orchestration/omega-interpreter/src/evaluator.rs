@@ -2317,6 +2317,33 @@ impl<'program> Evaluator<'program> {
                     -1
                 }
             }
+            "duplicate" => {
+                // `dup(fd)`: mint a fresh descriptor over the same open file (Rust
+                // `File::try_clone`). Native dup SHARES the underlying file offset;
+                // the hermetic model gives the clone its OWN cursor snapshotted from
+                // the source (independent thereafter) -- faithful for the common
+                // clone-then-use pattern, where the clone's offset starts where the
+                // source's was. EBADF for an unknown fd.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let clone = self.virtual_fds.get(&fd).map(|descriptor| VirtualFd {
+                    path: descriptor.path.clone(),
+                    cursor: descriptor.cursor,
+                    writable: descriptor.writable,
+                    is_dir: descriptor.is_dir,
+                });
+                match clone {
+                    Some(clone) => {
+                        let new_fd = self.virtual_next_fd;
+                        self.virtual_next_fd += 1;
+                        self.virtual_fds.insert(new_fd, clone);
+                        new_fd as i64
+                    }
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                }
+            }
             "remove" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 if self.virtual_files.remove(&path).is_some() {

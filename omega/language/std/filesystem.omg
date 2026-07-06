@@ -198,6 +198,9 @@ boundary trait FilesystemHost {
     machine read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
     machine set_len(fd: i32, length: i64) -> i32;
     machine sync(fd: i32) -> i32;
+    // Duplicate an open descriptor onto a fresh fd sharing the same open file
+    // (Rust `File::try_clone` -> `dup`). Returns the new fd, or -1 on error.
+    machine duplicate(fd: i32) -> i32;
     // Read the thread-local errno (darwin `___error()` -> `&errno`, dereferenced
     // in the lowering). Call it immediately after a raw op returned negative.
     machine errno() -> i32;
@@ -622,6 +625,16 @@ machine Filesystem::sync(&mut self, file: File) -> UnitResult {
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Duplicate an open file handle (Rust `File::try_clone`): the new `File` refers to
+// the same underlying open file (natively via `dup`, sharing the file offset). On
+// `Ok` the caller gets a second independent `File` to close separately.
+machine Filesystem::try_clone(&mut self, file: File) -> OpenResult {
+    let fd: i32 = self.host.duplicate(file.fd);
+    transition fd >= 0 { true -> ok(fd) _ -> err() }
+    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
 }
 
 // Metadata of an open file (Rust `File::metadata`). Composes the raw `seek` op:

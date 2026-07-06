@@ -139,8 +139,11 @@ crate tests; interpreter fs coverage) and commits.
   by creation/offset order = arg order). `canaries/pass/filesystem/native_rename`
   RUNS: create A + write + rename A→B + read B back (16 bytes) → PASS.
 - Native raw ops now: create/open/read/write/close/remove/seek/create_dir/
-  remove_dir/rename/chmod/fchmod/link/symlink/readlink/stat/lstat/realpath/
+  remove_dir/rename/chmod/fchmod/link/symlink/readlink/stat/lstat/realpath/dup/
   ftruncate/fsync — all run-verified on macOS.
+- **`try_clone` (dup) landed natively** (Rust `File::try_clone`) via `_dup`,
+  reusing the `close` one-fd operand shape. `native_try_clone` canary RUNS: the
+  clone stays valid after the original is closed. See step 10g.
 - **`canonicalize` (realpath) landed natively** (Rust `fs::canonicalize`) via
   `_realpath`, reusing the `Stat` operand shape. `native_canonicalize` canary RUNS:
   realpath resolves `/tmp` → `/private/tmp` for real. First fs op to return a
@@ -367,6 +370,26 @@ crate tests; interpreter fs coverage) and commits.
     target path (buffer "/t..."), a missing path is `Error(NotFound)`. `metadata_path`
     (stat) and `symlink_metadata` (lstat) still form the follow/no-follow pair;
     `canonicalize` is the path-resolution primitive.
+10g. [x] **`try_clone`** (Rust `File::try_clone`) via `dup` — DONE, complete
+    NATIVE vertical. `HostOperation::Dup` (op `dup` → darwin `_dup`), added to the
+    EXISTING `Close` operand arm (identical one-fd shape; dup just returns the NEW
+    fd instead of a status rc), so ZERO new operand/encoder/width work. Raw
+    `FilesystemHost::duplicate(fd) -> i32` (human word; `_dup` only in the binding
+    table); wrapper `Filesystem::try_clone(file: File) -> OpenResult` (returns a
+    second independent `File`). Interpreter `duplicate` handler clones the
+    `VirtualFd` (same path/writable/is_dir, cursor snapshotted from the source),
+    EBADF for an unknown fd. ⚠ APPROXIMATION (documented): native `dup` SHARES the
+    underlying open file offset; the hermetic model gives the clone its OWN cursor
+    (snapshotted, independent thereafter) — faithful for the clone-then-use pattern
+    since a freshly-opened source starts at offset 0, so both engines agree. A
+    shared-offset virtual model (fds → Rc<Cell<cursor>>) is a future refinement (same
+    class as the hard_link shared-inode note). DIFFERENTIAL: native `native_try_clone`
+    canary RUNS (open a file, dup it, CLOSE the original, read 5 bytes "hello"
+    through the clone → PASS) AND coverage `filesystem_std_module_try_clone` (same:
+    clone survives closing the original, reads count 5, first byte 'h'). NOTE
+    (language gotcha recorded): a case-field pattern binds by the FIELD name — there
+    is NO rename form `Case { field: newname }` (parse error); bind `{ field }` and
+    rename the surrounding param instead to avoid a clash.
 11. [x] **Richer `Metadata`** via `stat` — DONE, complete NATIVE vertical (used
     `stat(path)`, not `fstat(fd)`, so it works on DIRECTORIES with no open/read
     perm). `HostOperation::Stat` (op `stat` → darwin `_stat`); operand arm

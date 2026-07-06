@@ -36,6 +36,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("Filesystem", "realpath", "_realpath", &policy),
         darwin_import("Filesystem", "ftruncate", "_ftruncate", &policy),
         darwin_import("Filesystem", "fsync", "_fsync", &policy),
+        darwin_import("Filesystem", "dup", "_dup", &policy),
         darwin_import("Filesystem", "read_errno", "___error", &policy),
     ]);
 
@@ -243,6 +244,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "FilesystemHost",
         "sync",
         [host_operation("Filesystem", "fsync")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "duplicate",
+        [host_operation("Filesystem", "dup")],
         PlatformCallData::None,
     );
     // errno accessor: `___error()` returns `&errno`; the value-returning lowering
