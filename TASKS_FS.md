@@ -100,14 +100,18 @@ crate tests; interpreter fs coverage) and commits.
    seek. Further raw ops (fstat-metadata, read_dir, fsync, set_len) deferred
    below the wrapper.
 3. **[NOW THE PRIORITY] Ergonomic wrapper, interpreter-first** (D6):
-   a. Unify the interpreter onto the value-returning `FilesystemHost` raw seam —
-      update `evaluator.rs::try_filesystem_call` to the value-returning ops
-      (create/open/read/write/close/remove/seek/create_dir/remove_dir/rename
-      returning ints against the in-memory FS), matching native. Update the
-      interpreter coverage programs to the `FilesystemHost` shape.
-   b. Layer the ergonomic `Filesystem` wrapper (Omega machines: File/Path/result
-      enums, hidden flags/mode) in `omega/language/std/filesystem.omg`; run it in
-      the interpreter; add coverage exercising the clean API.
+   a. [x] **Interpreter unified onto value-returning `FilesystemHost`** — DONE.
+      `try_filesystem_call` returns ints for create/open/read/write/close/remove/
+      seek/create_dir/remove_dir/rename against the in-memory FS (now with dirs,
+      flag-aware open O_CREAT/TRUNC/APPEND, count-limited read, seek, rename); it
+      takes pre-resolved args and is shared by BOTH the statement path and the
+      value-call path (assignment-position `self.fd = self.fs.create(..)` — added
+      fs routing to `eval_call_expression`'s host fallback). 4 new value-returning
+      coverage tests (crud/append/seek+missing/dirs+rename) + 13 others green.
+   b. **[NEXT] Ergonomic `Filesystem` wrapper** (Omega machines: `File`/`Path`/
+      result enums, hidden flags/mode) in `omega/language/std/filesystem.omg`,
+      running in the interpreter over the raw seam; coverage for the clean API.
+      (Native lowering of the wrapper stays the deep parallel track, step 4.)
 4. **[deep, parallel] Native wrapper lowering** — forwarded-param → storage
    place; store enum through `&mut out`; const-folded-literal-arg fix. Then the
    ergonomic wrapper lowers natively too.

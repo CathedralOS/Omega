@@ -174,18 +174,6 @@ fn trap<T>(message: impl Into<String>) -> EvalResult<T> {
     Err(Halt::Trap(message.into()))
 }
 
-/// Build a `std::fs` outcome value (`OpenOutcome::Opened { file }`,
-/// `WriteOutcome::Wrote { count }`, `RemoveOutcome::Failed`, ...): a tagged enum
-/// carrying named payload cells. The tag is what a `transition` arm matches on.
-fn fs_enum(variant: &str, payload: Vec<(&str, Value)>) -> Value {
-    Value::Enum {
-        variant_name: variant.to_owned(),
-        payload: payload
-            .into_iter()
-            .map(|(name, value)| (name.to_owned(), value.cell()))
-            .collect(),
-    }
-}
 
 /// A lexical scope: parameter / local bindings by name, plus the receiver (`self`) cell.
 /// `locals` is behind a `RefCell` so `let` bindings can be added while the frame is
@@ -241,6 +229,8 @@ struct Evaluator<'program> {
     virtual_files: BTreeMap<Vec<u8>, Vec<u8>>,
     virtual_fds: BTreeMap<i32, VirtualFd>,
     virtual_next_fd: i32,
+    /// Directories in the virtual filesystem (create_dir/remove_dir).
+    virtual_dirs: std::collections::BTreeSet<Vec<u8>>,
     /// Set whenever a host-boundary call is driven (statement position or the
     /// value-call fallback). The build-time evaluation entry rejects runs that
     /// touched the host: a dynamic backstop behind decision 12's static gate.
@@ -271,6 +261,7 @@ impl<'program> Evaluator<'program> {
             virtual_files: BTreeMap::new(),
             virtual_fds: BTreeMap::new(),
             virtual_next_fd: 3,
+            virtual_dirs: std::collections::BTreeSet::new(),
             host_boundary_touched: false,
             steps: 0,
             step_budget: STEP_BUDGET,
@@ -2131,7 +2122,15 @@ impl<'program> Evaluator<'program> {
             .as_deref()
             .is_some_and(|name| name.contains("Filesystem"))
         {
-            return self.try_filesystem_call(target, call, frame);
+            let args = self
+                .program
+                .statement_table
+                .expression_handles(call.arguments)
+                .to_vec();
+            if let Some(value) = self.try_filesystem_call(target, &args, frame)? {
+                return Ok(Some(value));
+            }
+            return unsupported(format!("filesystem host call `{target}` not yet supported"));
         }
 
         let arguments = self
@@ -2228,77 +2227,96 @@ impl<'program> Evaluator<'program> {
     /// ZII outcome enum into its `&mut out` argument; `File` handles carry their
     /// fd directly as the `Opened` payload. Deterministic and hermetic — no real
     /// disk touches, so the differential oracle stays reproducible.
+    /// Drive a value-returning `FilesystemHost` op against the in-memory FS.
+    /// `arguments` are pre-resolved by the caller (from the statement or the
+    /// expression table, whichever the call site lives in). Returns `Ok(None)`
+    /// if `method` is not a filesystem op, so a caller can fall through.
     fn try_filesystem_call(
         &mut self,
         method: &str,
-        call: &TableCall,
+        arguments: &[ExpressionHandle],
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
-        let arguments = self
-            .program
-            .statement_table
-            .expression_handles(call.arguments)
-            .to_vec();
-
-        match method {
+        // Value-returning raw `FilesystemHost` ops, matching the native seam:
+        // each returns its "syscall" result (fd / byte count / rc; negative on
+        // error) against the deterministic in-memory filesystem.
+        let result: i64 = match method {
             "create" => {
+                // O_WRONLY|O_CREAT|O_TRUNC: create/truncate, writable.
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let fd = self.virtual_open(path, true, true);
-                let outcome = fs_enum("Opened", vec![("file", Value::Int(fd as i64))]);
-                self.store_fs_out(arguments.get(1).copied(), frame, outcome);
-                Ok(Some(Value::Unit))
+                self.virtual_open(path, true, true) as i64
             }
-            "open_read" => {
+            "open" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let outcome = if self.virtual_files.contains_key(&path) {
-                    let fd = self.virtual_open(path, false, false);
-                    fs_enum("Opened", vec![("file", Value::Int(fd as i64))])
-                } else {
-                    fs_enum("Failed", vec![])
-                };
-                self.store_fs_out(arguments.get(1).copied(), frame, outcome);
-                Ok(Some(Value::Unit))
+                let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                self.virtual_open_flags(path, flags) as i64
+            }
+            "read" => {
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                match self.virtual_read_n(fd, count) {
+                    Some(bytes) => {
+                        let n = bytes.len() as i64;
+                        self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                        n
+                    }
+                    None => -1,
+                }
             }
             "write" => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let bytes = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
-                let outcome = match self.virtual_write(fd, &bytes) {
-                    Some(count) => fs_enum("Wrote", vec![("count", Value::Int(count as i64))]),
-                    None => fs_enum("Failed", vec![]),
-                };
-                self.store_fs_out(arguments.get(2).copied(), frame, outcome);
-                Ok(Some(Value::Unit))
-            }
-            "read" => {
-                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let outcome = match self.virtual_read(fd) {
-                    Some(bytes) => {
-                        let count = bytes.len();
-                        self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
-                        fs_enum("Read", vec![("count", Value::Int(count as i64))])
-                    }
-                    None => fs_enum("Failed", vec![]),
-                };
-                self.store_fs_out(arguments.get(2).copied(), frame, outcome);
-                Ok(Some(Value::Unit))
+                self.virtual_write(fd, &bytes).map_or(-1, |count| count as i64)
             }
             "close" => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                self.virtual_fds.remove(&fd);
-                Ok(Some(Value::Unit))
+                i64::from(self.virtual_fds.remove(&fd).is_some()) - 1
             }
             "remove" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let outcome = if self.virtual_files.remove(&path).is_some() {
-                    fs_enum("Removed", vec![])
-                } else {
-                    fs_enum("Failed", vec![])
-                };
-                self.store_fs_out(arguments.get(1).copied(), frame, outcome);
-                Ok(Some(Value::Unit))
+                i64::from(self.virtual_files.remove(&path).is_some()) - 1
             }
-            other => unsupported(format!("filesystem host call `{other}` not yet supported")),
-        }
+            "seek" => {
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let offset = self.eval_fs_scalar(arguments.get(1).copied(), frame)?;
+                let whence = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
+                self.virtual_seek(fd, offset, whence).unwrap_or(-1)
+            }
+            "create_dir" => {
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                // -1 (EEXIST) if the dir already exists.
+                i64::from(self.virtual_dirs.insert(path)) - 1
+            }
+            "remove_dir" => {
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                i64::from(self.virtual_dirs.remove(&path)) - 1
+            }
+            "rename" => {
+                let from = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let to = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                match self.virtual_files.remove(&from) {
+                    Some(content) => {
+                        self.virtual_files.insert(to, content);
+                        0
+                    }
+                    None => -1,
+                }
+            }
+            _ => return Ok(None),
+        };
+        Ok(Some(Value::Int(result)))
+    }
+
+    /// Evaluate an argument to an integer scalar (fd / flags / offset / count).
+    fn eval_fs_scalar(
+        &mut self,
+        argument: Option<ExpressionHandle>,
+        frame: &Frame,
+    ) -> EvalResult<i64> {
+        let Some(argument) = argument else {
+            return Ok(0);
+        };
+        Ok(self.eval_expression(argument, frame)?.as_int().unwrap_or(0))
     }
 
     /// Evaluate an argument expected to be byte data (a path or a write payload).
@@ -2336,16 +2354,6 @@ impl<'program> Evaluator<'program> {
         };
         fd.map(|fd| fd as i32)
             .ok_or_else(|| Halt::Trap("filesystem call file handle is not an fd".to_owned()))
-    }
-
-    /// Write an outcome enum into a `&mut out` argument place.
-    fn store_fs_out(&mut self, argument: Option<ExpressionHandle>, frame: &Frame, outcome: Value) {
-        if let Some(argument) = argument
-            && let Ok(cell) = self.resolve_place(argument, frame)
-        {
-            let cell = self.deref_cell(cell);
-            *cell.borrow_mut() = outcome;
-        }
     }
 
     /// Copy read bytes into a caller `&mut [u8]` buffer (a text carrier or a byte
@@ -2414,18 +2422,74 @@ impl<'program> Evaluator<'program> {
         Some(bytes.len())
     }
 
-    /// Read the remaining bytes from the descriptor's cursor to end, advancing
-    /// the cursor. `None` if the fd is unknown.
-    fn virtual_read(&mut self, fd: i32) -> Option<Vec<u8>> {
+    /// Read up to `count` bytes from the descriptor's cursor, advancing it.
+    /// `None` if the fd is unknown.
+    fn virtual_read_n(&mut self, fd: i32, count: usize) -> Option<Vec<u8>> {
         let descriptor = self.virtual_fds.get(&fd)?;
         let path = descriptor.path.clone();
         let cursor = descriptor.cursor;
         let content = self.virtual_files.get(&path)?;
-        let available = content.get(cursor..).unwrap_or(&[]).to_vec();
+        let available = content.get(cursor..).unwrap_or(&[]);
+        let take = available.len().min(count);
+        let bytes = available[..take].to_vec();
         if let Some(descriptor) = self.virtual_fds.get_mut(&fd) {
-            descriptor.cursor = cursor + available.len();
+            descriptor.cursor = cursor + take;
         }
-        Some(available)
+        Some(bytes)
+    }
+
+    /// `open(path, flags)`: model the O_CREAT/O_TRUNC/O_APPEND/access bits.
+    /// Returns a fresh fd, or -1 if the path is absent and O_CREAT is not set.
+    fn virtual_open_flags(&mut self, path: Vec<u8>, flags: i32) -> i32 {
+        let exists = self.virtual_files.contains_key(&path);
+        let o_creat = flags & 0x200 != 0;
+        let o_trunc = flags & 0x400 != 0;
+        let o_append = flags & 0x8 != 0;
+        let writable = flags & 0x3 != 0; // O_WRONLY | O_RDWR
+        if !exists && !o_creat {
+            return -1;
+        }
+        if !exists || o_trunc {
+            self.virtual_files.insert(path.clone(), Vec::new());
+        }
+        let cursor = if o_append {
+            self.virtual_files.get(&path).map_or(0, Vec::len)
+        } else {
+            0
+        };
+        let fd = self.virtual_next_fd;
+        self.virtual_next_fd += 1;
+        self.virtual_fds.insert(
+            fd,
+            VirtualFd {
+                path,
+                cursor,
+                writable,
+            },
+        );
+        fd
+    }
+
+    /// `lseek(fd, offset, whence)`: reposition the cursor, returning the new
+    /// absolute offset. `None` on unknown fd, bad whence, or a negative result.
+    fn virtual_seek(&mut self, fd: i32, offset: i64, whence: i32) -> Option<i64> {
+        let descriptor = self.virtual_fds.get(&fd)?;
+        let path = descriptor.path.clone();
+        let cursor = descriptor.cursor as i64;
+        let len = self.virtual_files.get(&path).map_or(0, Vec::len) as i64;
+        let new_pos = match whence {
+            0 => offset,          // SEEK_SET
+            1 => cursor + offset, // SEEK_CUR
+            2 => len + offset,    // SEEK_END
+            _ => return None,
+        };
+        if new_pos < 0 {
+            return None;
+        }
+        if let Some(descriptor) = self.virtual_fds.get_mut(&fd) {
+            descriptor.cursor = new_pos as usize;
+        }
+        Some(new_pos)
     }
 
     /// The boundary-trait type name of a call's receiver field (e.g. `console`
@@ -2740,12 +2804,25 @@ impl<'program> Evaluator<'program> {
         {
             Ok(resolution) => resolution,
             Err(halt) => {
-                // A host-boundary VALUE call (`self.clock.tick_count()`): driven
-                // directly, like the statement-position host calls in
-                // try_host_call. User machines take precedence -- the host
-                // fallback only fires when nothing else resolves, mirroring the
-                // native collection (which keys on boundary-trait signature
-                // symbols).
+                // A host-boundary VALUE call (`self.clock.tick_count()`,
+                // `self.fs.create(..)`): driven directly, like the
+                // statement-position host calls in try_host_call. User machines
+                // take precedence -- the host fallback only fires when nothing
+                // else resolves, mirroring the native collection (which keys on
+                // boundary-trait signature symbols).
+
+                // Value-returning FilesystemHost ops (assignment-position calls
+                // like `self.fd = self.fs.create(path, mode)`).
+                let fs_args = self
+                    .program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .to_vec();
+                if let Some(value) = self.try_filesystem_call(target, &fs_args, frame)? {
+                    self.host_boundary_touched = true;
+                    return Ok(value);
+                }
+
                 if matches!(
                     target,
                     "tick_count"
