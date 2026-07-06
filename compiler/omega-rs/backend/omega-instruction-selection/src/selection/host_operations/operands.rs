@@ -9,7 +9,9 @@ use super::runtime_text::{
     find_runtime_text_input_buffer_data_object, runtime_string_descriptor_place,
     runtime_text_literal_for_host_call,
 };
-use crate::selection::storage_places::resolve_runtime_storage_place_in_table;
+use crate::selection::storage_places::{
+    resolve_fixed_array_length_in_table, resolve_runtime_storage_place_in_table,
+};
 use omega_abstract_operations::{
     AbstractDataObject, AbstractDataObjectHandle, InstructionOperand, InstructionOperandKind,
 };
@@ -233,16 +235,42 @@ pub(super) fn select_host_operation_operands(
                     ])
                 }
                 (Some(result), Some(fd)) => {
-                    // Runtime slice payload (a `&[u8]` parameter/field): load the
-                    // data pointer + length out of its descriptor.
-                    match slice_argument_operands(input, host_call, dispatch_index, 2) {
-                        Some((pointer, length)) => operands.insert_many([
+                    // A FIXED-ARRAY `[u8; N]` payload (a plain byte buffer, e.g. the
+                    // read-then-write buffer in `copy`) is NOT a `{ptr, len}`
+                    // descriptor: marshal its raw ADDRESS + the static length N,
+                    // exactly as `read` marshals its buffer. (`resolve_fixed_array_
+                    // length_in_table` returns None for a `&[u8]` slice, which then
+                    // falls through to the descriptor path below.)
+                    let fixed_array = host_call_argument_expression(input, host_call, 2)
+                        .and_then(|expression| {
+                            resolve_fixed_array_length_in_table(
+                                input,
+                                dispatch_index.unwrap_or(0),
+                                host_call.source_key,
+                                &input.host_calls.expressions,
+                                expression,
+                            )
+                        })
+                        .zip(address_argument_operand_at(input, host_call, dispatch_index, 2));
+                    if let Some((length, address)) = fixed_array {
+                        operands.insert_many([
                             operand(result),
                             operand(fd),
-                            operand(pointer),
-                            operand(length),
-                        ]),
-                        None => HandleSpan::empty(),
+                            operand(address),
+                            operand(InstructionOperandKind::ByteLength(length)),
+                        ])
+                    } else {
+                        // Runtime slice payload (a `&[u8]` parameter/field): load the
+                        // data pointer + length out of its descriptor.
+                        match slice_argument_operands(input, host_call, dispatch_index, 2) {
+                            Some((pointer, length)) => operands.insert_many([
+                                operand(result),
+                                operand(fd),
+                                operand(pointer),
+                                operand(length),
+                            ]),
+                            None => HandleSpan::empty(),
+                        }
                     }
                 }
                 _ => HandleSpan::empty(),
@@ -604,6 +632,25 @@ fn select_gui_operation_operands(
 /// framebuffer, an OS-struct array, a byte-array C string). Unlike the scalar
 /// resolution there is no width filter: the place IS the whole array; its
 /// address is what marshals.
+/// The expression of the host-call argument at `index`, if it is an expression
+/// (not a synthesized literal). Used to inspect an argument's TYPE (e.g. whether a
+/// `write` payload is a fixed `[u8; N]` array vs a `&[u8]` slice).
+fn host_call_argument_expression(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    index: usize,
+) -> Option<omega_checked_trees::expression::ExpressionHandle> {
+    let argument = input
+        .host_calls
+        .arguments
+        .span(host_call.arguments)
+        .and_then(|arguments| arguments.get(index))?;
+    match &argument.kind {
+        HostCallArgumentKind::Expression(expression) => Some(*expression),
+        _ => None,
+    }
+}
+
 fn address_argument_operand_at(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,

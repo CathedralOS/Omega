@@ -1,0 +1,65 @@
+// NATIVE raw-seam file copy exercising a FIXED-ARRAY [u8; N] buffer write (the
+// step-12 gap, now closed). Reads the source into a [u8; 64] buffer, writes the
+// WHOLE buffer to the destination, then set_len(n) trims the trailing scratch
+// (the write-then-truncate idiom). Confirms the destination is exactly the 5
+// source bytes ("hello", first byte 'h'). Proves `write(fd, buffer)` marshals a
+// fixed array as a {address, length} slice on real macOS syscalls.
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine open(path: &[u8] in Path, flags: i32) -> i32;
+    machine read(fd: i32, buffer: &mut [u8], count: usize) -> i64;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    machine close(fd: i32) -> i32;
+    machine set_len(fd: i32, length: i64) -> i32;
+    machine seek(fd: i32, offset: i64, whence: i32) -> i64;
+    machine remove(path: &[u8] in Path) -> i32;
+}
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    rdonly: i32;
+    cap: usize;
+    fd: i32;
+    n: i64;
+    got: i64;
+    size: i64;
+    first: u8;
+    buffer: [u8; 64];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.rdonly = 0;
+    self.cap = 64;
+    self.fd = self.fs.create("/tmp/omega_bc_src.txt", self.mode);
+    self.n = self.fs.write(self.fd, "hello");
+    self.n = self.fs.close(self.fd);
+    self.fd = self.fs.open("/tmp/omega_bc_src.txt", self.rdonly);
+    self.got = self.fs.read(self.fd, &mut self.buffer, self.cap);
+    self.n = self.fs.close(self.fd);
+    // copy: write the whole fixed-array buffer to dst, then trim to the read count
+    self.fd = self.fs.create("/tmp/omega_bc_dst.txt", self.mode);
+    self.n = self.fs.write(self.fd, self.buffer);
+    self.n = self.fs.set_len(self.fd, self.got);
+    self.n = self.fs.close(self.fd);
+    self.n = self.fs.remove("/tmp/omega_bc_src.txt");
+    // verify dst
+    self.fd = self.fs.open("/tmp/omega_bc_dst.txt", self.rdonly);
+    self.size = self.fs.seek(self.fd, 0, 2);
+    self.n = self.fs.seek(self.fd, 0, 0);
+    self.got = self.fs.read(self.fd, &mut self.buffer, self.cap);
+    self.n = self.fs.close(self.fd);
+    self.n = self.fs.remove("/tmp/omega_bc_dst.txt");
+    self.first = self.buffer[0];
+    transition self.size == 5 { true -> checkbyte() _ -> fail() }
+    state checkbyte(&mut self) {
+        transition self.first == 104 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: native copy via fixed-array buffer write + set_len (5 bytes, 'h')\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: native buffer copy\n"); }
+}

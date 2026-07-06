@@ -588,12 +588,20 @@ crate tests; interpreter fs coverage) and commits.
     64-byte buffer, verifies the count is 14 (truncated to n, not cap) and the
     content matches. Two documented differences from Rust (from staying in the
     entry): it writes `cap` bytes then truncates, and a source-open failure still
-    creates an empty `to`. NATIVE copy is NOT possible yet: the raw `write` op
-    marshals a runtime `&[u8]` SLICE (descriptor) but not a fixed `[u8; N]` array
-    (read uses an address helper; write expects a descriptor) — a bounded backend
-    follow-up (add a fixed-array-address + static-length arm to the write operand
-    handler). The faithful copy (branch after read; write `buffer[0..n]`) lands
-    once the interpreter threads slices through states.
+    creates an empty `to`. **NATIVE copy via the RAW seam now WORKS (later fire).**
+    Closed the gap: the raw `write` operand handler (`host_operations/operands.rs`
+    Write arm) gained a FIXED-ARRAY case — for a `[u8; N]` payload (detected by
+    `resolve_fixed_array_length_in_table` returning `Some(N)`, which is `None` for a
+    `&[u8]` slice) it marshals the array's raw ADDRESS (`address_argument_operand_at`,
+    the same operand `read` uses) + `ByteLength(N)`, instead of misreading the array
+    bytes as a `{ptr,len}` descriptor. Additive + safe (only fires for a fixed array;
+    literal/slice writes unchanged). Native `native_buffer_copy` canary RUNS: read
+    src into a `[u8; 64]`, `write(fd, buffer)` (full array) then `set_len(n)` to trim
+    (the write-then-truncate idiom) → dst is exactly the 5 source bytes → PASS. So a
+    raw-seam native file copy (read + fixed-array write + set_len) is now possible.
+    The faithful ergonomic `copy` (branch after read; write `buffer[0..n]`) still
+    lands once the interpreter threads slices through states (D-thread) AND the
+    ergonomic wrapper lowers natively (value-call fix).
     - **D-thread (interpreter limitation — DIAGNOSTIC MAP from a full probing
       pass).** Threading refs/slices as transition-target args into sibling state
       params is INCONSISTENT in the interpreter — a fix must make these agree:
