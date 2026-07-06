@@ -411,7 +411,7 @@ pub(super) fn select_host_operation_operands(
             // params; creation uses `creat` precisely because `open`'s mode is
             // variadic (stack-passed on arm64) and would be dropped.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let path = path_pointer_operand(input, host_call, dispatch_index, 1);
+            let path = path_pointer_operand(input, host_call, dispatch_index, alias_context, 1);
             let second = scalar_argument_operand_at(input, host_call, dispatch_index, 2);
             match (result, path, second) {
                 (Some(result), Some(path), Some(second)) => {
@@ -430,7 +430,7 @@ pub(super) fn select_host_operation_operands(
             // seam, so native `remove_dir_all` awaits it -- the interpreter runs it).
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let dirfd = scalar_argument_operand_at(input, host_call, dispatch_index, 1);
-            let name = path_pointer_operand(input, host_call, dispatch_index, 2);
+            let name = path_pointer_operand(input, host_call, dispatch_index, alias_context, 2);
             let flags = scalar_argument_operand_at(input, host_call, dispatch_index, 3);
             match (result, dirfd, name, flags) {
                 (Some(result), Some(dirfd), Some(name), Some(flags)) => operands.insert_many([
@@ -469,7 +469,7 @@ pub(super) fn select_host_operation_operands(
             // buf, count)`. operand[0]=result, [1]=path POINTER (NUL-terminated),
             // [2]=buffer POINTER (kernel writes the target there), [3]=count.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let path = path_pointer_operand(input, host_call, dispatch_index, 1);
+            let path = path_pointer_operand(input, host_call, dispatch_index, alias_context, 1);
             let buffer = address_argument_operand_at(input, host_call, dispatch_index, 2);
             let count = scalar_argument_operand_at(input, host_call, dispatch_index, 3);
             match (result, path, buffer, count) {
@@ -494,7 +494,7 @@ pub(super) fn select_host_operation_operands(
             // operand[0]=result, [1]=path POINTER (NUL-terminated C string),
             // [2]=buffer POINTER (the kernel writes the 144-byte stat record).
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let path = path_pointer_operand(input, host_call, dispatch_index, 1);
+            let path = path_pointer_operand(input, host_call, dispatch_index, alias_context, 1);
             let buffer = address_argument_operand_at(input, host_call, dispatch_index, 2);
             match (result, path, buffer) {
                 (Some(result), Some(path), Some(buffer)) => {
@@ -507,7 +507,7 @@ pub(super) fn select_host_operation_operands(
             // Value-returning `rc = unlink(path) / rmdir(path)`.
             // operand[0]=result, [1]=path POINTER (NUL-terminated C string).
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let path = path_pointer_operand(input, host_call, dispatch_index, 1);
+            let path = path_pointer_operand(input, host_call, dispatch_index, alias_context, 1);
             match (result, path) {
                 (Some(result), Some(path)) => {
                     operands.insert_many([operand(result), operand(path)])
@@ -564,7 +564,7 @@ pub(super) fn select_host_operation_operands(
             // `passes_trailing_mode_on_stack()`. operand[0]=result, [1]=path,
             // [2]=uid/flags, [3]=gid/mode.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let path = path_pointer_operand(input, host_call, dispatch_index, 1);
+            let path = path_pointer_operand(input, host_call, dispatch_index, alias_context, 1);
             let uid = scalar_argument_operand_at(input, host_call, dispatch_index, 2);
             let gid = scalar_argument_operand_at(input, host_call, dispatch_index, 3);
             match (result, path, uid, gid) {
@@ -875,6 +875,7 @@ fn path_pointer_operand(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
     dispatch_index: Option<u32>,
+    alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
     index: usize,
 ) -> Option<InstructionOperandKind> {
     let data = find_data_object(input, host_call);
@@ -883,6 +884,14 @@ fn path_pointer_operand(
     }
     if let Some(address) = subslice_path_pointer(input, host_call, dispatch_index, index) {
         return Some(address);
+    }
+    // A path LITERAL forwarded through a value-call param (`fs.open(path)` -> the
+    // wrapper's `host.open(path, ..)`) arrives as the callee's `path` param ALIASED
+    // to the caller's literal, whose NUL-terminated data object is keyed to the
+    // CALLER's statement. Resolve it the same way the write byte payload does
+    // (symmetric to fix #1) -- its base pointer is a valid C string.
+    if let Some((data, _)) = aliased_literal_data_object(input, host_call, alias_context, index) {
+        return Some(InstructionOperandKind::DataAddress { data });
     }
     slice_argument_operands(input, host_call, dispatch_index, index).map(|(pointer, _)| pointer)
 }
