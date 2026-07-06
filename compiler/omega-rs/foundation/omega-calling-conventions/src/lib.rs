@@ -158,6 +158,13 @@ pub enum HostOperation {
     /// buffer (Rust `fs::read_link`), returning the byte count. Same shape as
     /// `read` but with a PATH pointer instead of an fd.
     ReadLink,
+    /// `__getdirentries64(fd, buf, bufsize, &position)` -- read directory entries
+    /// (darwin arm64's dir-read primitive; classic `getdirentries` is unavailable
+    /// with 64-bit inodes) into a caller buffer as packed `dirent` records
+    /// (d_reclen@16, d_namlen@18, d_type@20, d_name@21), returning the byte count
+    /// (0 at end). Underpins Rust `fs::read_dir`. Four args incl. an in/out
+    /// position pointer.
+    ReadDir,
     /// `stat(path, buf)` -- fill a `struct stat` buffer for a PATH (Rust
     /// `fs::metadata`). A path pointer + a buffer pointer (the kernel writes the
     /// 144-byte darwin stat record through it); the Omega layer reads `st_size`
@@ -227,6 +234,7 @@ impl HostOperation {
             "link" => Self::Link,
             "symlink" => Self::Symlink,
             "readlink" => Self::ReadLink,
+            "getdirentries64" => Self::ReadDir,
             "stat" => Self::Stat,
             "ftruncate" => Self::SetLen,
             "fsync" => Self::Sync,
@@ -271,6 +279,7 @@ impl HostOperation {
             Self::Link => "link",
             Self::Symlink => "symlink",
             Self::ReadLink => "readlink",
+            Self::ReadDir => "getdirentries64",
             Self::Stat => "stat",
             Self::SetLen => "ftruncate",
             Self::Sync => "fsync",

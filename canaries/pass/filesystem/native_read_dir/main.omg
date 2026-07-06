@@ -1,0 +1,58 @@
+// NATIVE fs read_dir (Rust fs::read_dir) via ___getdirentries64 (classic
+// getdirentries is unavailable on arm64 with 64-bit inodes). Creates a directory
+// containing exactly one file, opens the directory, and reads its entries into a
+// buffer. The three entries — "." (reclen 32), ".." (reclen 32), and
+// "hello_entry" (11 chars -> reclen 40) — total 104 bytes, so the returned byte
+// count is exactly 104. Proves directory reading on real macOS syscalls. Prints
+// PASS iff read_dir returns 104.
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
+    machine remove_dir(path: &[u8] in Path) -> i32;
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine open(path: &[u8] in Path, flags: i32) -> i32;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    machine read_dir(fd: i32, buffer: &mut [u8], count: usize, position: &mut i64) -> i64;
+}
+
+data Main {
+    fs: FilesystemHost;
+    dirmode: i32;
+    filemode: i32;
+    rdonly: i32;
+    cap: usize;
+    rc: i32;
+    fd: i32;
+    dfd: i32;
+    n: i64;
+    total: i64;
+    position: i64;
+    buffer: [u8; 4096];
+}
+
+machine Main::main(&mut self) {
+    self.dirmode = 493;    // 0o755
+    self.filemode = 420;   // 0o644
+    self.rdonly = 0;
+    self.cap = 4096;
+    self.position = 0;
+    self.rc = self.fs.create_dir("/tmp/omega_rd", self.dirmode);
+    self.fd = self.fs.create("/tmp/omega_rd/hello_entry", self.filemode);
+    self.n = self.fs.close(self.fd);
+    self.dfd = self.fs.open("/tmp/omega_rd", self.rdonly);
+    transition self.dfd >= 0 { true -> readit() _ -> fail() }
+    state readit(&mut self) {
+        self.total = self.fs.read_dir(self.dfd, &mut self.buffer, self.cap, &mut self.position);
+        self.n = self.fs.close(self.dfd);
+        self.n = self.fs.remove("/tmp/omega_rd/hello_entry");
+        self.n = self.fs.remove_dir("/tmp/omega_rd");
+        transition self.total == 104 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: read_dir returns 104 bytes (., .., hello_entry)\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: read_dir\n"); }
+}

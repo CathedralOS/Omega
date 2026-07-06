@@ -289,6 +289,28 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Filesystem, HostOperation::ReadDir) => {
+            // Value-returning `n = read_dir(fd, buf, count, position) ->
+            // ___getdirentries64(fd, buf, count, &position)`. operand[0]=result,
+            // [1]=fd, [2]=buffer POINTER (kernel writes dirent records), [3]=count
+            // (buffer capacity), [4]=position POINTER (in/out i64 cursor).
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let fd = scalar_argument_operand_at(input, host_call, dispatch_index, 1);
+            let buffer = address_argument_operand_at(input, host_call, dispatch_index, 2);
+            let count = scalar_argument_operand_at(input, host_call, dispatch_index, 3);
+            let position = address_argument_operand_at(input, host_call, dispatch_index, 4);
+            match (result, fd, buffer, count, position) {
+                (Some(result), Some(fd), Some(buffer), Some(count), Some(position)) => operands
+                    .insert_many([
+                        operand(result),
+                        operand(fd),
+                        operand(buffer),
+                        operand(count),
+                        operand(position),
+                    ]),
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::Filesystem, HostOperation::ReadLink) => {
             // Value-returning `n = read_link(path, buf, count) -> _readlink(path,
             // buf, count)`. operand[0]=result, [1]=path POINTER (NUL-terminated),
