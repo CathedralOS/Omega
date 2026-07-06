@@ -321,6 +321,21 @@ fn enforce_construction_field_obligations(
             "field",
             diagnostics,
         );
+        // Scalar-vs-data shape guard: `Outer { inner: 5 }` puts a scalar into a
+        // struct field (or a struct into a scalar field). Runs for EVERY field --
+        // the cross-class branch below only sees primitive fields and the nominal
+        // branch needs both sides to be data names, so this cross-shape case slips
+        // between them.
+        crate::expression_types::report_scalar_data_shape_mismatch(
+            program,
+            machine,
+            Some(state),
+            field.value,
+            field_type,
+            &slot_context,
+            "field",
+            diagnostics,
+        );
         if let Some(field_primitive) = program.primitive_type_reference(field_type) {
             if crate::expression_types::report_cross_class_store(
                 program,
@@ -535,6 +550,18 @@ pub(crate) fn validate_array_literal_elements(
         None => {
             for element in element_handles {
                 crate::expression_types::report_data_type_conflict(
+                    program,
+                    machine,
+                    Some(state),
+                    *element,
+                    element_type,
+                    "array literal element",
+                    "element",
+                    diagnostics,
+                );
+                // A scalar element into a DATA-typed array (`[Inner; 3] = [5, ..]`)
+                // slips the nominal guard above (a scalar has no data name).
+                crate::expression_types::report_scalar_data_shape_mismatch(
                     program,
                     machine,
                     Some(state),

@@ -272,6 +272,19 @@ fn validate_state_statement_node(
                     "place",
                     diagnostics,
                 );
+                // Scalar-vs-data shape guard: `self.struct_field = 5` / `self.scalar
+                // = self.struct` (a scalar into a struct slot or the mirror), between
+                // the scalar-class and nominal gates.
+                expression_types::report_scalar_data_shape_mismatch(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    assignment.value,
+                    target_type,
+                    &owner,
+                    "place",
+                    diagnostics,
+                );
             }
             let before = diagnostics.len();
             let (interval, source_primitive) = arithmetic_domains::validate_value_range(
@@ -388,6 +401,16 @@ fn validate_state_statement_node(
                     "return value",
                     diagnostics,
                 );
+                expression_types::report_scalar_data_shape_mismatch(
+                    program,
+                    machine,
+                    Some(state),
+                    *expression,
+                    state.return_type,
+                    &slot_context,
+                    "return value",
+                    diagnostics,
+                );
             }
             let before = diagnostics.len();
             let (return_interval, source_primitive) = arithmetic_domains::validate_value_range(
@@ -489,6 +512,16 @@ fn validate_state_statement_node(
                 // `let xs: [i32; 3] = 5` (scalar -> array) otherwise bind a
                 // wrong-shaped value silently (the array case read a ZII 0).
                 expression_types::report_array_scalar_shape_mismatch(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    local_data.initial_value,
+                    local_data.type_reference,
+                    &owner,
+                    "local",
+                    diagnostics,
+                );
+                expression_types::report_scalar_data_shape_mismatch(
                     program,
                     machine,
                     machine_symbols.state(state_name),
@@ -619,6 +652,16 @@ fn validate_state_statement_node(
                         );
                         // Shape guard: an array returned as a scalar (or vice versa).
                         expression_types::report_array_scalar_shape_mismatch(
+                            program,
+                            machine,
+                            Some(state),
+                            *return_expression,
+                            state.return_type,
+                            &format!("machine `{}` state `{state_name}`", machine.name),
+                            "return value",
+                            diagnostics,
+                        );
+                        expression_types::report_scalar_data_shape_mismatch(
                             program,
                             machine,
                             Some(state),

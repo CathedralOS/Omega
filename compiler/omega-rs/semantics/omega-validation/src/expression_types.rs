@@ -990,6 +990,51 @@ pub(crate) fn report_array_scalar_shape_mismatch(
     true
 }
 
+/// Reject binding a SCALAR value into a DATA (struct/enum) target, or a DATA value
+/// into a SCALAR target: `self.point = 5` (a scalar into a struct field) silently
+/// clobbers the struct's leading bytes, and `let n: i32 = self.point` (a struct into
+/// a scalar slot) silently reads a ZII `0`. This cross-shape case fell between the
+/// two type gates: the scalar-CLASS gate needs a primitive TARGET (a struct target
+/// has none, so it is skipped) and the nominal gate needs BOTH sides to resolve to
+/// data names (a scalar does not). Fires only when one side is a PROVABLE scalar
+/// (`value_class` / a primitive target) and the other a concrete data type; arrays
+/// (owned by the array-shape check), text carriers, and unresolvable computed values
+/// are left alone.
+pub(crate) fn report_scalar_data_shape_mismatch(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    value: ExpressionHandle,
+    target_type: TypeReferenceHandle,
+    slot_context: &str,
+    slot_noun: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    // Scalar VALUE (a bool/number/text literal or a primitive-typed place) into a
+    // DATA target.
+    if let Some(target_name) = concrete_data_type_name(program, target_type)
+        && let Some(value_scalar_class) = value_class(program, Some(machine), state, value)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "{slot_context} binds {} into the `{target_name}` data {slot_noun}; a scalar value \
+             cannot fill a struct or enum slot",
+            value_scalar_class.describe(),
+        )));
+        return true;
+    }
+    // DATA VALUE (a struct literal or a data-typed place) into a SCALAR target.
+    if program.primitive_type_reference(target_type).is_some()
+        && let Some(value_name) = value_concrete_data_name(program, machine, state, value)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "{slot_context} binds a `{value_name}` value into a scalar {slot_noun}; a struct or \
+             enum value cannot fill a scalar slot",
+        )));
+        return true;
+    }
+    false
+}
+
 pub(crate) fn expression_type_name_handle(
     program: &TypedTrees,
     argument: ExpressionHandle,
