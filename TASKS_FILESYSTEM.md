@@ -144,6 +144,36 @@ matched by the interpreter oracle.
 - [x] **1c. Path type.** `domain [u8]::Path when no_nul(self)` — `no_nul` is a
   compiler-recognized byte predicate, so it checks today, and NUL-free is the
   real POSIX path invariant. Deliberately not `Utf8`.
+### Ratified 2026-07-05: value-return + Omega wrap (surface reshape)
+
+The remaining ops turn a syscall return into an outcome. **Decision: the raw
+boundary layer is VALUE-RETURNING** (each op returns the raw `i32`/`isize`
+result — fd / byte count / `-errno`), and a thin **Omega** `std/filesystem.omg`
+layer wraps those into the ZII `File`/outcome enums. Enum construction lives in
+proven/checkable Omega, not the backend (aligns with "favor Omega, rip out
+Rust"), and — critically — it reuses an **already-shipping generic code path**:
+
+- `KeyState` (Input) and `tick_count` (Clock) are value-returning host ops
+  TODAY. `collect_assignment_result_host_lowering` (host_calls/collection.rs)
+  turns `self.rc = self.fs.close(fd)` into a host call whose **`argument[0]` is
+  the result place**, real args following; emission stores `x0` into it. So the
+  return-capture needs **zero new emission machinery** — proven by analogy to
+  KeyState.
+
+**Recipe for each value-returning fs op** (mirrors the `KeyState` arm in
+operands.rs): an operands arm producing `[result_place, ...args]` where
+`result_place = first_scalar_argument_operand` (arg[0]) and real args come from
+`scalar_argument_operand_at(1..)` / an address operand for a buffer/path.
+
+Reshape implications (the work): raw trait becomes all value-returning
+(`close(fd:i32)->i32`, `open(path)->i32`, `read(fd,buf,count)->isize`,
+`write(fd,bytes,count)->isize`, `unlink(path)->i32`); the shipped VOID `close`
++ its canary + the interpreter handlers all move to the value-returning shape
+(interpreter `close` returns an i32; the discard rule means statement-position
+calls need `_ =` or the wrapper always binds the result); add the Omega wrapper
+machines that build `File`/outcomes; path ops still need NUL-terminated pointer
+marshalling (the C-string wrinkle).
+
 - [ ] **1d. New `PlatformCallData` marshalling** — **the keystone.** Today only
   `None`, `FirstTextArgument{append_newline}`, `MutableOutputBuffer{byte_capacity}`
   exist. fs needs new descriptors: a path pointer+len argument, an fd argument,
