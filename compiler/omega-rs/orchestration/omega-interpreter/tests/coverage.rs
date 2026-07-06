@@ -640,6 +640,7 @@ boundary trait FilesystemHost {
     machine remove_dir(path: &[u8] in Path) -> i32;
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
     machine set_len(fd: i32, length: i64) -> i32;
+    machine sync(fd: i32) -> i32;
 }
 
 boundary trait Console {
@@ -1138,5 +1139,58 @@ machine Main::main(&mut self) {
     assert_eq!(
         outcome.exit_code, 70,
         "metadata().len must be 17 and metadata must preserve the cursor (read gets 17)"
+    );
+}
+
+/// `File::sync_all` via the std module: create → write → `sync` returns
+/// `UnitResult::Ok` → the file's bytes survive the flush (metadata().len still
+/// reports the written size). Exercises the shipped `Filesystem::sync` wrapper
+/// over the raw `sync` seam.
+#[test]
+fn filesystem_std_module_sync() {
+    let main_path = write_program(
+        "fs-sync",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    open_result: OpenResult;
+    io_result: IoResult;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+    close_rc: i32;
+}
+machine Main::main(&mut self) {
+    self.open_result = self.fs.create("/s.txt");
+    transition self.open_result { OpenResult::Ok { file } -> wrote(file) _ -> fail() }
+    state wrote(&mut self, file: File) {
+        self.io_result = self.fs.write(file, "durable payload!!");
+        self.unit_result = self.fs.sync(file);
+        transition self.unit_result { UnitResult::Ok -> synced(file) _ -> fail() }
+    }
+    state synced(&mut self, file: File) {
+        self.meta_result = self.fs.metadata(file);
+        transition self.meta_result { MetadataResult::Ok { meta } -> checklen(file, meta) _ -> fail() }
+    }
+    state checklen(&mut self, file: File, meta: Metadata) {
+        self.close_rc = self.fs.close(file);
+        self.unit_result = self.fs.remove("/s.txt");
+        transition meta.len == 17 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("sync program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "sync: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "sync must return UnitResult::Ok and leave the 17 written bytes intact"
     );
 }

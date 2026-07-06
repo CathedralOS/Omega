@@ -26,6 +26,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("Filesystem", "rmdir", "_rmdir", &policy),
         darwin_import("Filesystem", "rename", "_rename", &policy),
         darwin_import("Filesystem", "ftruncate", "_ftruncate", &policy),
+        darwin_import("Filesystem", "fsync", "_fsync", &policy),
     ]);
 
     insert_platform_lowering(
@@ -162,6 +163,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "FilesystemHost",
         "set_len",
         [host_operation("Filesystem", "ftruncate")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "sync",
+        [host_operation("Filesystem", "fsync")],
         PlatformCallData::None,
     );
 }

@@ -2287,6 +2287,14 @@ impl<'program> Evaluator<'program> {
                 let length = self.eval_fs_scalar(arguments.get(1).copied(), frame)?;
                 self.virtual_set_len(fd, length)
             }
+            "sync" => {
+                // `fsync(fd)`: flush to durable storage. In the hermetic
+                // in-memory FS the bytes are already "durable", so this is a
+                // no-op that only validates the descriptor: 0 for a live fd,
+                // -1 (EBADF) otherwise — matching the native seam's contract.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                i64::from(self.virtual_fds.contains_key(&fd)) - 1
+            }
             "create_dir" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 // -1 (EEXIST) if the dir already exists.

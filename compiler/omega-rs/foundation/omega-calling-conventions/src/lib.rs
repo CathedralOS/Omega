@@ -129,6 +129,9 @@ pub enum HostOperation {
     Rename,
     /// `ftruncate(fd, length)` -- set a file's length (Rust `File::set_len`).
     SetLen,
+    /// `fsync(fd)` -- flush a file's buffered data + metadata to the storage
+    /// device (Rust `File::sync_all`). Same shape as `close`: one fd arg, rc.
+    Sync,
     Sleep,
     TickCount,
     KeyState,
@@ -179,6 +182,7 @@ impl HostOperation {
             "rmdir" => Self::RemoveDir,
             "rename" => Self::Rename,
             "ftruncate" => Self::SetLen,
+            "fsync" => Self::Sync,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
@@ -215,6 +219,7 @@ impl HostOperation {
             Self::RemoveDir => "rmdir",
             Self::Rename => "rename",
             Self::SetLen => "ftruncate",
+            Self::Sync => "fsync",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",
