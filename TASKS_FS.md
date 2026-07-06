@@ -86,15 +86,53 @@ crate tests; interpreter fs coverage) and commits.
   purely bitwise (e.g. access mode = `(wbit & (rbit^1)) | ((wbit & rbit) << 1)`,
   `O_APPEND = (append as i32) << 3`). This is the pattern to reuse for any future
   flag/bitfield composition in the fs surface.
-- **D8-open. Deferred: variadic-mode `open` host call.** Full `OpenOptions`
-  (`.create`/`.create_new` = O_CREAT/O_EXCL) and a faithful `open(path, flags,
-  mode)` need the variadic `mode` argument marshalled on the STACK per AAPCS64
-  (arm64 passes variadic args on the stack; our host-call encoder passes args in
-  registers, so a register mode is dropped — the D4 finding). Building a
-  "one stack-passed trailing argument" path in the aarch64 host-call encoder is
-  the right unblock; it's bounded backend work but deeper than a single loop
-  fire, so deferred. Interim: `create` (→`_creat`, register mode) covers the
-  common create-and-truncate case.
+- **D8-open. Deferred: variadic-mode `open` host call — the #1 remaining parity
+  gap (unblocks `File::create_new`, `OpenOptions.create`/`.create_new`/`.mode`,
+  and create+read-write opens).** Darwin `open(const char*, int, ...)` reads the
+  create `mode` via `va_arg`; on Apple arm64 variadic args are passed on the STACK
+  (`[sp,#0]`), not registers — our host-call encoder marshals every arg into
+  x0.. (`append_call_operands`), so a register mode is dropped (the D4 finding).
+  `create` (→`_creat`, register mode) covers only create-write-truncate; O_EXCL /
+  O_CREAT|O_RDWR need real variadic `open`.
+  **TURNKEY PLAN (investigated this fire — the encoder path is fully mapped; it is
+  the D9 pattern PLUS a new stack operand). CONTAINMENT: add a NEW op so existing
+  ops/canaries are untouched — a wrong ABI only fails the new canary.**
+  1. `HostOperation::OpenCreate` (op `open_create` → `_open`), darwin binding +
+     `insert_platform_lowering` for a raw `open_create(path, flags, mode) -> i32`.
+  2. `HostOperationKey`: add a `restores_stack()` predicate (true for OpenCreate),
+     mirroring `dereferences_result()` — it adds the post-`BL` `add sp,sp,#16`.
+  3. New operand kind for the STACK-passed scalar: `InstructionOperandKind::
+     StackScalarInteger { region, byte_offset, byte_count }` (abstract-operations)
+     + an `InstructionOperandLike::stack_scalar_integer()` accessor + a new
+     `Aarch64CallOperand::StackScalarInteger { byte_offset, byte_count }` and its
+     arm in `aarch64_call_operand` (operands.rs). The OpenCreate operand arm emits
+     `[result, path ptr, flags scalar, StackScalarInteger(mode)]`.
+  4. `append_call_operands` (isa-aarch64 mod.rs): for `StackScalarInteger`, emit
+     `sub sp,sp,#16` then materialize the mode into a scratch reg (adrp/add/ldr, or
+     mov for an immediate) then `str w<scratch>,[sp]` — and do NOT bump
+     `next_register`. Its `operand_width` = sub(4)+materialize(≤12)+str(4), so the
+     arg-offset relocation accounting stays automatic (offsets are summed from
+     `operand_width`). REQUIRE the stack arg be LAST (open's mode is).
+  5. New encoder `encode_host_call_sequence_value_returning_stack_from_operands`
+     (or extend the dispatch in encoding/host.rs on `restores_stack()`): identical
+     to the value-returning encoder but emits `add sp,sp,#16` AFTER the `BL`,
+     before the result store.
+  6. The +4 for `add sp` in lockstep at the SAME two sites as D9's deref +4:
+     `widths.rs` (`+ if restores_stack {4} else {0}`) and `data_addresses.rs`
+     (result-store operand-0 offset `+ restores_stack_bytes`). The `BL` reloc is
+     unaffected (add sp is after it). The `sub sp` is folded into the mode
+     operand's width (step 4), so arg offsets need no manual delta.
+  7. Interpreter: `open_create` handler (O_CREAT semantics; O_EXCL when the excl
+     flag bit is set → EEXIST if present; returns a read/write fd). Omega surface:
+     `Filesystem::create_new(path) -> OpenResult` (O_CREAT|O_EXCL|O_RDWR) +
+     `OpenOptions.create`/`.create_new`/`.mode` routing in `open_with`.
+  8. VERIFY: disassemble (`otool -tv`) the emitted sequence (`sub sp,#16; …str
+     w,[sp]; bl _open; add sp,#16; str w0,…`) AND run a `native_create_new` canary
+     (create-new a file with mode 0o600, re-open read it back, create_new again →
+     EEXIST). Estimated ~8 files across 5 crates (abstract-operations,
+     instruction-selection, isa-aarch64, relocations, calling-conventions) +
+     interpreter + surface — a DEDICATED fire, not a loop increment (the
+     width/relocation accounting must be disassembly-verified).
 - **D9. Deref-result host calls (a reusable backend capability).** A host op can
   now return a POINTER whose pointee is the real result: `dereferences_result()`
   on `HostOperationKey` marks it, and the aarch64 lowering inserts one `ldr
@@ -192,6 +230,12 @@ crate tests; interpreter fs coverage) and commits.
   LOCK_EX → EWOULDBLOCK → release → reacquire); wrapper `lock`/`try_lock`(→
   `TryLockResult`)/`unlock` in coverage `filesystem_std_module_locking`. Reused the
   `SetLen` fd+scalar operand arm (zero new backend). fs coverage 40.
+- **Integration samples prove the surface composes** (10r) — `native_fs_workflow`
+  (13-op raw-seam workflow on real macOS) + `filesystem_std_module_workflow` (the
+  ergonomic wrapper counterpart). The per-op vein is now mature; **the #1 remaining
+  parity gap is variadic-mode `open`** (`File::create_new`/`OpenOptions.create`) —
+  a fully-scoped turnkey plan is in D8-open (a DEDICATED fire: new stack operand
+  kind across ~5 crates, disassembly-verified — not a safe loop increment).
 - **File-type classification complete** (10q) — Rust `FileType`/`FileTypeExt`.
   `Metadata::is_char_device`/`is_block_device`/`is_fifo`/`is_socket` decode from
   `mode & S_IFMT` (pure Omega, no backend); `is_file()` fixed to mean S_IFREG.
@@ -708,6 +752,17 @@ crate tests; interpreter fs coverage) and commits.
     (`/dev/null` → is_char_device & !is_file & !block/fifo/socket; regular file →
     is_file & !is_char_device). fs coverage 42. `Metadata` is now at full
     `FileType`/`FileTypeExt` parity.
+10r. [x] **Integration SAMPLES — the surface COMPOSES** (the mandate's "samples
+    that exercise the APIs", validating cohesion, not just per-op isolation).
+    (a) NATIVE `native_fs_workflow` canary RUNS on real macOS: a 13-op raw-seam
+    workflow — `create_dir` → `create`+`write`+`close` → `stat` (assert S_IFREG +
+    st_size 11) → `hard_link` → `rename` → `open`+`flock`(LOCK_EX)+`read`(11B,'h')+
+    unlock+`close` → `set_permissions`(0o444)+re-`stat`(write bits cleared) →
+    `remove`×2 + `remove_dir` → PASS. (b) INTERPRETER `filesystem_std_module_workflow`
+    coverage: the WRAPPER counterpart (`create_dir`/`write_all`/`metadata_path`
+    [is_file,len]/`set_permissions`[readonly]/`hard_link`/`rename`/`open`/`read`/
+    `remove`) proving the result-enum surface THREADS across a realistic sequence.
+    Both green; no compiler change (pure composition of shipped ops). fs coverage 43.
 12. [x] **`copy(from, to)`** (Rust `fs::copy`) — DONE (interpreter). Enabled by a
     small interpreter fix: `eval_fs_bytes` now accepts a `Value::Array` (a byte
     array or a subslice view) as a host-call byte arg — the write-side mirror of
