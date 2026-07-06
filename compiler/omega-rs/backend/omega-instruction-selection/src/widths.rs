@@ -26,9 +26,15 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
     operands: &[T],
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => aarch64::host_call_sequence_width_from_operands(
-            operands.iter().map(aarch64_call_operand),
-        ),
+        Architecture::Aarch64 => {
+            let base = aarch64::host_call_sequence_width_from_operands(
+                operands.iter().map(aarch64_call_operand),
+            );
+            // A deref-result op (errno) emits one extra `ldr w0,[x0]` (4 bytes)
+            // between the BL and the result store; keep the layout width in
+            // lockstep with the encoder + the data-address relocation offset.
+            base + if operation_key.dereferences_result() { 4 } else { 0 }
+        }
         Architecture::X86_64 => x86_64::host_call_sequence_width(operation_key, operands),
     }
 }

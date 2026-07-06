@@ -191,6 +191,15 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Filesystem, HostOperation::ReadErrno) => {
+            // `errno = read_errno() -> ___error()` then deref. NO call args:
+            // operand[0] is the result place, and that is the whole operand
+            // list. Unresolvable result => no operands so the encoder errors.
+            match first_scalar_argument_operand(input, host_call, dispatch_index) {
+                Some(result) => operands.insert_many([operand(result)]),
+                None => HandleSpan::empty(),
+            }
+        }
         (HostCapability::Filesystem, HostOperation::Sync) => {
             // Value-returning `rc = sync(fd) -> _fsync(fd)`. Same shape as
             // `close`: operand[0]=result place, [1]=fd; either unresolvable =>

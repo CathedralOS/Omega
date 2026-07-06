@@ -46,6 +46,20 @@ impl HostOperationKey {
     pub fn returns_value(self) -> bool {
         matches!(self.capability, HostCapability::Filesystem)
     }
+
+    /// Whether this op's callee returns a POINTER whose pointee is the real
+    /// result: after the `BL`, the lowering derefs the return register once
+    /// (`ldr w0,[x0]`) before storing. Only `Filesystem::read_errno` (darwin
+    /// `___error()` returns `int*`, i.e. `&errno`) needs this. The extra load
+    /// shifts the result-store's position by 4 bytes, so the width function
+    /// (`host_call_sequence_width`) and the result-operand data-address
+    /// relocation offset (`data_addresses.rs`) both add 4 when this is set. The
+    /// `BL` relocation is unaffected (it precedes the load; `read_errno` has no
+    /// args). MUST stay in lockstep across those three sites + the encoder.
+    pub fn dereferences_result(self) -> bool {
+        matches!(self.capability, HostCapability::Filesystem)
+            && matches!(self.operation, HostOperation::ReadErrno)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -132,6 +146,11 @@ pub enum HostOperation {
     /// `fsync(fd)` -- flush a file's buffered data + metadata to the storage
     /// device (Rust `File::sync_all`). Same shape as `close`: one fd arg, rc.
     Sync,
+    /// `___error()` -- darwin's thread-local errno accessor; returns `int*`.
+    /// Takes NO args and its result is DEREFERENCED once (see
+    /// `HostOperationKey::dereferences_result`) so the stored value is `errno`
+    /// itself (the numeric failure kind), not the pointer.
+    ReadErrno,
     Sleep,
     TickCount,
     KeyState,
@@ -183,6 +202,7 @@ impl HostOperation {
             "rename" => Self::Rename,
             "ftruncate" => Self::SetLen,
             "fsync" => Self::Sync,
+            "read_errno" => Self::ReadErrno,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
@@ -220,6 +240,7 @@ impl HostOperation {
             Self::Rename => "rename",
             Self::SetLen => "ftruncate",
             Self::Sync => "fsync",
+            Self::ReadErrno => "read_errno",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",

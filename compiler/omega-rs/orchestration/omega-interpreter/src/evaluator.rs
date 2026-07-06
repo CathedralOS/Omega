@@ -231,6 +231,11 @@ struct Evaluator<'program> {
     virtual_next_fd: i32,
     /// Directories in the virtual filesystem (create_dir/remove_dir).
     virtual_dirs: std::collections::BTreeSet<Vec<u8>>,
+    /// The thread-local `errno` model: set to a POSIX code when a virtual fs op
+    /// fails (ENOENT=2, EACCES=13, EEXIST=17, EBADF=9), read back by
+    /// `read_errno` (darwin `___error()`). Mirrors the native seam so the typed
+    /// error model (`io::ErrorKind`) resolves identically on both engines.
+    virtual_errno: i32,
     /// Set whenever a host-boundary call is driven (statement position or the
     /// value-call fallback). The build-time evaluation entry rejects runs that
     /// touched the host: a dynamic backstop behind decision 12's static gate.
@@ -262,6 +267,7 @@ impl<'program> Evaluator<'program> {
             virtual_fds: BTreeMap::new(),
             virtual_next_fd: 3,
             virtual_dirs: std::collections::BTreeSet::new(),
+            virtual_errno: 0,
             host_boundary_touched: false,
             steps: 0,
             step_budget: STEP_BUDGET,
@@ -2270,11 +2276,21 @@ impl<'program> Evaluator<'program> {
             }
             "close" => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                i64::from(self.virtual_fds.remove(&fd).is_some()) - 1
+                if self.virtual_fds.remove(&fd).is_some() {
+                    0
+                } else {
+                    self.virtual_errno = 9; // EBADF
+                    -1
+                }
             }
             "remove" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                i64::from(self.virtual_files.remove(&path).is_some()) - 1
+                if self.virtual_files.remove(&path).is_some() {
+                    0
+                } else {
+                    self.virtual_errno = 2; // ENOENT
+                    -1
+                }
             }
             "seek" => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
@@ -2295,14 +2311,30 @@ impl<'program> Evaluator<'program> {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 i64::from(self.virtual_fds.contains_key(&fd)) - 1
             }
+            "errno" => {
+                // `read_errno()` (darwin `___error()` deref): the thread-local
+                // errno set by the most recent failing op. Not cleared on
+                // success (POSIX), so it is only meaningful right after a -1.
+                i64::from(self.virtual_errno)
+            }
             "create_dir" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 // -1 (EEXIST) if the dir already exists.
-                i64::from(self.virtual_dirs.insert(path)) - 1
+                if self.virtual_dirs.insert(path) {
+                    0
+                } else {
+                    self.virtual_errno = 17; // EEXIST
+                    -1
+                }
             }
             "remove_dir" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                i64::from(self.virtual_dirs.remove(&path)) - 1
+                if self.virtual_dirs.remove(&path) {
+                    0
+                } else {
+                    self.virtual_errno = 2; // ENOENT
+                    -1
+                }
             }
             "rename" => {
                 let from = self.eval_fs_bytes(arguments.first().copied(), frame)?;
@@ -2460,6 +2492,7 @@ impl<'program> Evaluator<'program> {
         let o_append = flags & 0x8 != 0;
         let writable = flags & 0x3 != 0; // O_WRONLY | O_RDWR
         if !exists && !o_creat {
+            self.virtual_errno = 2; // ENOENT
             return -1;
         }
         if !exists || o_trunc {
