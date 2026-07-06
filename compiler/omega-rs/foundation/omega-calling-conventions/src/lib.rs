@@ -121,6 +121,10 @@ pub enum HostOperation {
     /// `lseek(fd, offset, whence)` -- reposition the descriptor, returning the
     /// resulting absolute offset (so `seek(fd, 0, SEEK_END)` yields the size).
     Seek,
+    /// `mkdir(path, mode)` -- create a directory (Rust `create_dir`).
+    MakeDir,
+    /// `rmdir(path)` -- remove an empty directory (Rust `remove_dir`).
+    RemoveDir,
     Sleep,
     TickCount,
     KeyState,
@@ -167,6 +171,8 @@ impl HostOperation {
             "close" => Self::Close,
             "unlink" => Self::Unlink,
             "lseek" => Self::Seek,
+            "mkdir" => Self::MakeDir,
+            "rmdir" => Self::RemoveDir,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
@@ -199,6 +205,8 @@ impl HostOperation {
             Self::Close => "close",
             Self::Unlink => "unlink",
             Self::Seek => "lseek",
+            Self::MakeDir => "mkdir",
+            Self::RemoveDir => "rmdir",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",
