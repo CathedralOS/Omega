@@ -244,6 +244,21 @@ crate tests; interpreter fs coverage) and commits.
   LOCK_EX → EWOULDBLOCK → release → reacquire); wrapper `lock`/`try_lock`(→
   `TryLockResult`)/`unlock` in coverage `filesystem_std_module_locking`. Reused the
   `SetLen` fd+scalar operand arm (zero new backend). fs coverage 40.
+- **✅ SUBSLICE-DOMAIN GRANT (checker) — `path[0..k]` is a Path** — a subslice of a
+  value in a SUBSLICE-PRESERVING domain (per-byte classifiers `no_nul`/`ascii_only`)
+  satisfies that domain, so `path[0..k]` now flows into a `&[u8] in Path` argument
+  (the checker gate for `create_dir_all` / path manipulation). SOUND: `valid_utf8`
+  (cuts a scalar) and `non_empty` (empty subslice) are NOT subslice-preserving and
+  are still rejected (verified). New `ByteSequencePredicate::is_subslice_preserving`
+  + `domain_is_subslice_preserving` + a `subslice_grants_domain` grant in
+  `checks/contracts/calls.rs` (matches the base's entry-context domain fact, like
+  the concat grant). Also FIXED the interpreter to subslice a `Str`-backed slice
+  (byte view). Coverage `filesystem_path_subslice_domain` RUNS (mkdir + stat the
+  5-byte prefix of a path, remove). fs coverage 45; checker crate unchanged
+  (162/2 pre-existing). **NATIVE gap for a full `create_dir_all`:** the subslice
+  bounds proof needs the DIRECT `k < path.len` guard, but a `path.len` (slice
+  length) guard operand does NOT lower on aarch64 ("did not resolve to storage") —
+  a separate backend gap; interpreter runs it fine.
 - **✅ RUNTIME-INDEXED WRITE (storage source) IMPLEMENTED** — `arr[i] = <machine
   field>` now lowers on aarch64 (was a silent NO-OP: width 0 / stub encoder). New
   `encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage` is

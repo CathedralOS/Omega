@@ -1,7 +1,7 @@
 use omega_checked_trees::{CheckFacts, FlowCallFact, FlowStateFact};
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
-use omega_facts::{FactPayload, FactPlace, PlaceRoot};
+use omega_facts::{FactPayload, FactPlace, PlaceRoot, PlaceSegment};
 use omega_typed_trees::expression::ExpressionNode;
 
 use super::places::expression_is_boolean_place_like;
@@ -80,6 +80,13 @@ pub(super) fn check_call_requires(
                     &facts.semantic,
                     fact.payload,
                     fact.place,
+                )
+                || subslice_grants_domain(
+                    program,
+                    facts,
+                    &entry_contexts,
+                    fact.payload,
+                    fact.place,
                 );
 
             if !satisfied {
@@ -123,6 +130,73 @@ pub(super) fn check_call_requires(
 /// literal's compile-time bytes. Reuses the shared comptime byte-predicate
 /// primitives (`super::grants`); the subject must be the literal itself (an
 /// expression-rooted place with no field/index segments), not a derived place.
+/// A subslice `base[a..b]` satisfies a `requires <arg> in D` domain obligation
+/// when D's classifier is SUBSLICE-PRESERVING (a per-byte predicate such as
+/// `no_nul`/`ascii_only`) and the `base` is itself provably in a domain implying
+/// D. Sound because a contiguous subslice's bytes are a subset of the whole's, so
+/// any per-byte character class the whole satisfies, the subslice does too. This
+/// is the subslice analog of the concat-domain grant (`value_proves_domain`);
+/// `base`'s membership is matched against the entry-context domain facts exactly
+/// as the concat/param discharge does. (Correctly EXCLUDES `valid_utf8` — a
+/// subslice can cut a multi-byte scalar — and `non_empty` — `base[a..a]` is empty.)
+fn subslice_grants_domain(
+    program: &omega_typed_trees::TypedTrees,
+    facts: &CheckFacts,
+    entry_contexts: &[omega_facts::FactContextHandle],
+    payload: FactPayload,
+    place: FactPlace,
+) -> bool {
+    let FactPayload::ContractDomainMembership { domain_symbol, .. } = payload else {
+        return false;
+    };
+    let FactPlace::Place(place_handle) = place else {
+        return false;
+    };
+    if !crate::field_domain::domain_is_subslice_preserving(program, domain_symbol) {
+        return false;
+    }
+    // A subslice place is `base` followed by a trailing `Index` segment whose
+    // expression is a Range (`base[a..b]`). The base = root + the preceding
+    // segments.
+    let resolved = *facts.semantic.places.get(place_handle);
+    let segments: Vec<PlaceSegment> = facts
+        .semantic
+        .place_segments
+        .span_or_empty(resolved.segments)
+        .to_vec();
+    let Some((PlaceSegment::Index { expression }, base_segments)) = segments.split_last() else {
+        return false;
+    };
+    if !matches!(
+        program.expression_table.expression(*expression),
+        ExpressionNode::Range(_)
+    ) {
+        return false;
+    }
+    // The BASE place (root + base_segments) must be provably in a domain implying
+    // `domain_symbol` -- match it against the entry-context domain facts (the same
+    // discharge `value_proves_domain` uses for a domained param/field carried in).
+    entry_contexts.iter().any(|&context_handle| {
+        let context = facts.semantic.contexts.get(context_handle);
+        facts.semantic.context_view(context).facts().any(|fact| {
+            let fact_domain = match fact.payload {
+                FactPayload::DomainMembership { domain_symbol, .. }
+                | FactPayload::ContractDomainMembership { domain_symbol, .. } => domain_symbol,
+                _ => return false,
+            };
+            if !facts.semantic.domain_implies(fact_domain, domain_symbol) {
+                return false;
+            }
+            let FactPlace::Place(fact_place) = fact.place else {
+                return false;
+            };
+            let base = facts.semantic.places.get(fact_place);
+            base.root == resolved.root
+                && facts.semantic.place_segments.span_or_empty(base.segments) == base_segments
+        })
+    })
+}
+
 fn string_literal_grants_domain(
     program: &omega_typed_trees::TypedTrees,
     semantic: &omega_facts::FactPlan,

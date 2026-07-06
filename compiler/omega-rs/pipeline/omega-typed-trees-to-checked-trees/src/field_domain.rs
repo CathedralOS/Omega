@@ -244,6 +244,19 @@ pub(crate) fn domain_is_concat_preserving(
         .is_some_and(ByteSequencePredicate::is_concat_preserving)
 }
 
+/// Whether `domain_symbol`'s classifier is a recognized comptime byte-predicate
+/// preserved under SUBSLICING, so a `base[a..b]` whose `base` is in the domain is
+/// itself in the domain. Underwrites the subslice-domain grant in
+/// `checks::contracts::calls::subslice_grants_domain`. True only for per-byte
+/// classifiers (`no_nul`, `ascii_only`); `false` for `valid_utf8`/`non_empty`.
+pub(crate) fn domain_is_subslice_preserving(
+    program: &omega_typed_trees::TypedTrees,
+    domain_symbol: SymbolHandle,
+) -> bool {
+    domain_classifier_byte_predicate(program, domain_symbol)
+        .is_some_and(ByteSequencePredicate::is_subslice_preserving)
+}
+
 /// The fixed-array capacity `N` of a `[u8; N]`-shaped owned carrier (peeling a
 /// leading domain `Constrained` wrapper), or `None` for a type with no inline
 /// capacity such as a `&[u8]` view. The fixed-array length is a `Literal` by the
@@ -315,6 +328,20 @@ impl ByteSequencePredicate {
     fn is_concat_preserving(self) -> bool {
         match self {
             Self::ValidUtf8 | Self::NoNul | Self::AsciiOnly | Self::NonEmpty => true,
+        }
+    }
+
+    /// Whether `predicate(x)` implies `predicate(x[a..b])` for EVERY contiguous
+    /// subslice: the classifier is preserved under subslicing. True only for
+    /// PER-BYTE character-class predicates -- `no_nul`/`ascii_only` classify each
+    /// byte independently, so any subset of the bytes still satisfies them.
+    /// `valid_utf8` is NOT subslice-preserving (a subslice can cut a multi-byte
+    /// scalar) and `non_empty` is NOT (a `x[a..a]` subslice is empty). A future
+    /// per-byte predicate would return `true`; any sequence-shaped one, `false`.
+    fn is_subslice_preserving(self) -> bool {
+        match self {
+            Self::NoNul | Self::AsciiOnly => true,
+            Self::ValidUtf8 | Self::NonEmpty => false,
         }
     }
 }

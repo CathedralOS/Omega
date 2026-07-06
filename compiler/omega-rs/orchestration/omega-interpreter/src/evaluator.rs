@@ -4266,6 +4266,17 @@ impl<'program> Evaluator<'program> {
                 let collection_cell = self.resolve_place(collection, frame)?;
                 match &*self.deref_cell(collection_cell).borrow() {
                     Value::Array(elements) => elements.clone(),
+                    // A Str-backed slice (a `&[u8] in Path` bound to a string
+                    // literal) subslices into a byte view: expose each byte as an
+                    // Int cell so the shared range logic + the `Array` host-arg arm
+                    // (eval_fs_bytes) handle `path[a..b]` uniformly.
+                    Value::Str(text) => text
+                        .borrow()
+                        .iter()
+                        .map(|byte| {
+                            std::rc::Rc::new(std::cell::RefCell::new(Value::Int(i64::from(*byte))))
+                        })
+                        .collect(),
                     other => return trap(format!("cannot subslice {other:?}")),
                 }
             }
