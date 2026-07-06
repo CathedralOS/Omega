@@ -72,11 +72,6 @@ The chapters are the spec (design_briefs/programmable_layouts.md, SETTLED).
 
 ## Language ergonomics surfaced (mostly engineering; one research)
 
-- **[NEEDS DESIGN — Zach]** loop syntax (`for`/`while`) that desugars to the
-  existing proven state-machine loop pattern. Today every loop is a hand-written
-  multi-state machine (head + body + advance); `game_of_life` is fully manually
-  unrolled into 16 machines and does not iterate. The proof machinery exists —
-  this is front-end sugar, but the surface is a language-design call.
 - **[ENGINEERING]** numeric intrinsics remainder: sin / cos are NOT one opcode
   (no single SSE instruction): they need range reduction (mod 2pi) + a
   minimax/Taylor polynomial whose precision matches the interpreter; a genuine
