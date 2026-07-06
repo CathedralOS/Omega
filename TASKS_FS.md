@@ -216,6 +216,33 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **✅ read_dir ITERATION validated + `read_dir_is_empty` shipped (2026-07-06).**
+  - **Iteration loop proven:** coverage `filesystem_std_module_read_dir_iteration_loop`
+    drives `read_dir_nth(path, n)` for n = 0,1,2,… until `End` (a `usize in Wrapping`
+    cursor, `self.n as usize` cast at the call), counting 4 children. Proves the
+    value-call-in-a-loop composes: each call invalidates `path`'s domain fact, which
+    the shared-param domain grant re-establishes so the re-passed `path` stays
+    `in Path`. This is exactly the iteration shape `remove_dir_all` reuses -> read
+    side of `remove_dir_all` is fully de-risked.
+  - **`Filesystem::read_dir_is_empty(path) -> EmptyResult`** (Rust
+    `read_dir(p)?.next().is_none()`): composes `read_dir_nth(path, 0)` -> `Empty` /
+    `NonEmpty` / `Error`. The common guard before `remove_dir`. Coverage
+    `filesystem_std_module_read_dir_is_empty`. fs coverage 64.
+  - **PATH-BUILDING ROUTE FOR `remove_dir_all` (de-risked mechanism, not yet built):**
+    the child path `parent + "/" + name` must be a DOMAINED (`in Path`) value to pass
+    to fs ops, and a manually byte-filled plain `[u8; N]` buffer is NOT `in Path`. The
+    right mechanism is the BOUNDED-CARRIER CONCAT (`canaries/pass/text/
+    runtime_bounded_carrier_concat_exit`): `self.child = base + "/" + name` into a
+    `[u8; N] in Path` carrier materializes the bytes into the carrier's inline
+    `{len, bytes}` and PRESERVES the domain (concat of no_nul + no_nul is no_nul),
+    RUNS natively + interpreter. Open sub-questions for next fire: (a) can concat take
+    a `&[u8] in Path` SLICE (the `parent` param) as a source, or only `[u8; N] in D`
+    carriers? (b) `name` must become an `in Path` carrier of its true length (copy the
+    DirEntry name field into a `[u8; N] in Path` carrier); (c) the length-fits guard
+    (`base.len + 1 + name.len <= N`). Then `remove_dir_all` = iterate (read_dir_nth) ->
+    build child -> recurse-if-dir / remove-if-file -> `remove_dir`, with bounded-depth
+    recursion (fuel param + `decreases`) since fs-tree depth is not statically bounded.
+
 - **✅ `read_dir_nth` — `DirEntry` iteration WITH NAME EXTRACTION (2026-07-06).** The
   name-bearing rung that unblocks `remove_dir_all`. `Filesystem::read_dir_nth(path, n)
   -> DirEntryResult` fetches the N-th CHILD entry (caller loops n = 0,1,2,… until

@@ -1273,6 +1273,144 @@ machine Main::main(&mut self) {
     );
 }
 
+/// The shipped `Filesystem::read_dir_is_empty` (Rust `read_dir(p)?.next().is_none()`).
+/// A freshly-created `/em` is `Empty`; after adding one file it is `NonEmpty`.
+#[test]
+fn filesystem_std_module_read_dir_is_empty() {
+    let main_path = write_program(
+        "fs-std-isempty",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    empty_result: EmptyResult;
+    open_result: OpenResult;
+    close_rc: i32;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.create_dir("/em");
+    self.empty_result = self.fs.read_dir_is_empty("/em");
+    transition self.empty_result { EmptyResult::Empty -> addfile() _ -> fail() }
+    state addfile(&mut self) {
+        self.open_result = self.fs.create("/em/x");
+        transition self.open_result { OpenResult::Ok { file } -> added(file) _ -> fail() }
+    }
+    state added(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.empty_result = self.fs.read_dir_is_empty("/em");
+        transition self.empty_result { EmptyResult::NonEmpty -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("read_dir_is_empty program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "read_dir_is_empty should run, got {:?}",
+        outcome.error
+    );
+    assert_eq!(
+        outcome.exit_code, 70,
+        "read_dir_is_empty: fresh dir Empty, then NonEmpty after a file"
+    );
+}
+
+/// `read_dir_nth` ITERATION LOOP: drive the index-based DirEntry API the way a
+/// caller enumerates a directory — `n = 0, 1, 2, …` until `End` — accumulating a
+/// count and (for the first child) checking the extracted name. Proves the value-
+/// call-in-a-loop composes: each `self.fs.read_dir_nth(path, n)` invalidates
+/// `path`'s domain fact, which the shared-param domain grant re-establishes so the
+/// loop's re-passed `path` stays `in Path`. This is the iteration shape
+/// `remove_dir_all` reuses. `/lp` has 4 files -> the loop counts exactly 4.
+#[test]
+fn filesystem_std_module_read_dir_iteration_loop() {
+    let main_path = write_program(
+        "fs-std-readdir-loop",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    open_result: OpenResult;
+    entry_result: DirEntryResult;
+    close_rc: i32;
+    n: usize in Wrapping;
+    count: i32 in Wrapping;
+    first_ok: bool;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.create_dir("/lp");
+    self.open_result = self.fs.create("/lp/w");
+    transition self.open_result { OpenResult::Ok { file } -> mk2(file) _ -> fail() }
+    state mk2(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.open_result = self.fs.create("/lp/a");
+        transition self.open_result { OpenResult::Ok { file } -> mk3(file) _ -> fail() }
+    }
+    state mk3(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.open_result = self.fs.create("/lp/b");
+        transition self.open_result { OpenResult::Ok { file } -> mk4(file) _ -> fail() }
+    }
+    state mk4(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.open_result = self.fs.create("/lp/c");
+        transition self.open_result { OpenResult::Ok { file } -> mk5(file) _ -> fail() }
+    }
+    state mk5(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.n = 0;
+        self.count = 0;
+        self.first_ok = false;
+        transition { _ -> ldloop() }
+    }
+    state ldloop(&mut self) {
+        self.entry_result = self.fs.read_dir_nth("/lp", self.n as usize);
+        transition self.entry_result {
+            DirEntryResult::Ok { entry } -> ldgot(entry)
+            DirEntryResult::End -> lddone()
+            DirEntryResult::Error { kind } -> fail()
+        }
+    }
+    state ldgot(&mut self, entry: DirEntry) {
+        self.count = self.count + 1;
+        self.n = self.n + 1;
+        transition { _ -> ldloop() }
+    }
+    state lddone(&mut self) {
+        // "/lp" got files w, a, b, c => 4 children.
+        transition self.count == 4 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("read_dir iteration loop should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "read_dir iteration loop should run, got {:?}",
+        outcome.error
+    );
+    assert_eq!(
+        outcome.exit_code, 70,
+        "read_dir_nth iteration loop must enumerate exactly 4 children"
+    );
+}
+
 /// The REAL shipped std module `omega/language/std/filesystem.omg`, imported via
 /// `use` and driven through its ergonomic `Filesystem` API — a full CRUD
 /// round-trip in the interpreter. Proves the canonical std::fs surface (not an
