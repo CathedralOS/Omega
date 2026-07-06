@@ -443,7 +443,24 @@ fn local_data_requires_storage(
         return true;
     }
 
-    statements
+    // A BOUNDARY-call-result local whose value is NOT seen by the final liveness
+    // scan below (which inspects Expression/Assignment/Call/Transition statements,
+    // but NOT LocalData `let` VALUES, nor a truly-unused result) still needs its
+    // slot. A boundary/host-call RESULT must be MATERIALIZED into a slot -- there
+    // is no value-call substitution for it, unlike a state value-call -- but the
+    // ergonomic std::fs wrapper consumes those results only through later `let`s or
+    // not at all:
+    //   let fd = self.host.create(path, mode);   // used ONLY in later `let`s
+    //   let n  = self.host.write(fd, bytes);      // (write, close) -> invisible
+    //   let rc = self.host.close(fd);             // UNUSED (discarded) result
+    // With the slot elided, the dependent call's `fd` argument AND each call's own
+    // result operand resolve against a missing slot -> "no result storage operand".
+    // GATED ON A BOUNDARY CALL specifically (not any call): a STATE value-call
+    // result the normal scan would elide MUST stay slot-less (its substitution
+    // covers the elided positions -- broadening this to all calls regresses the
+    // canary_suite by 6 via slot-offset shifts). canary_suite stash-diff confirms
+    // the boundary-gated form is exact zero-regression.
+    let referenced_by_final_scan = statements
         .iter()
         .skip(local_statement_index + 1)
         .any(|statement| {
@@ -455,6 +472,48 @@ fn local_data_requires_storage(
                 local_name,
                 uses_runtime_flow,
             )
+        });
+    if !referenced_by_final_scan
+        && initializer_is_boundary_call(program, expressions, initial_value)
+    {
+        return true;
+    }
+    referenced_by_final_scan
+}
+
+/// Whether `initial_value` is (directly, or under a `Cast`/`Mutable` wrapper) a
+/// call into a BOUNDARY trait method (`self.host.create(..)`). Mirrors
+/// `omega-platform-interface`'s `expression_platform_receiver_type`: the call's
+/// resolved `target_symbol` is one of a boundary trait's machine signatures. Used
+/// to keep the result slot for a boundary-call `let` the liveness scan would elide
+/// (a host-call result must be materialized; a state value-call result may not).
+fn initializer_is_boundary_call(
+    program: &CheckedTrees,
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    let target_symbol = match expressions.expression(expression) {
+        ExpressionNode::Call(call) => call.target_symbol,
+        ExpressionNode::Cast(cast) => {
+            return initializer_is_boundary_call(program, expressions, cast.value);
+        }
+        ExpressionNode::Mutable(inner) => {
+            return initializer_is_boundary_call(program, expressions, *inner);
+        }
+        _ => return false,
+    };
+    if !target_symbol.is_valid() {
+        return false;
+    }
+    program
+        .traits()
+        .iter()
+        .filter(|trait_definition| trait_definition.is_boundary)
+        .any(|trait_definition| {
+            program
+                .trait_machine_signatures(trait_definition)
+                .iter()
+                .any(|machine| machine.symbol == target_symbol)
         })
 }
 

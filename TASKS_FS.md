@@ -224,20 +224,35 @@ crate tests; interpreter fs coverage) and commits.
   value-call round-trips 5 bytes; was silently dropped before). Gates: native fs harness
   **47/47**; canary_suite **514/85 IDENTICAL** with/without the whole change (stash-diff),
   so the high-blast-radius collection change is exact-zero-regression.
-  - **THE REMAINING WRINKLE — through-a-FIELD callee (the shipped wrapper).** The real
-    `Filesystem::write_all`/`read_all` are reached via `self.fs.<m>` where `fs:
-    Filesystem` is a DIFFERENT data type. Its `let`-bound locals (`fd`/`n`/`rc`) are now
-    collected + emitted, but `resolve_runtime_storage_place_in_table` finds NO frame slot
-    for them under the caller's dispatch index (di=1) — not even via
-    `latest_dispatch_frame_slot`. So a through-field-inlined machine's locals are not
-    allocated frame slots under the caller's dispatch. Result: the shipped wrapper now
-    HARD-ERRORS on native compile ("AArch64 value-returning host call has no result
-    storage operand") instead of silently dropping — fail-loud progress, but not yet
-    working. Repro parked at `canaries/run/filesystem/wrapper_write_all_through_field`.
-    FIX (frame-planning dive, next session): allocate through-field-inlined callee locals
-    under the caller's dispatch (or have the LocalStorage emission pass the callee
-    machine's own dispatch index / re-keyed source_key). The RAW seam stays fully native
-    (47 canaries); the ergonomic wrapper stays interpreter-only until this lands.
+  - **✅ layer 4 [FIXED 2026-07-08] — boundary-call-result LOCALS get frame slots.** The
+    earlier "through-field frame slot missing" note was a MIS-diagnosis: the real cause is
+    SLOT ELISION, not through-field-ness. `local_data_requires_storage`
+    (`omega-state-storage/src/collection.rs`) elides a call-result local whose value the
+    final liveness scan can't see — and that scan does NOT inspect `let` VALUES nor keep
+    truly-dead results. The wrapper's `let fd = self.host.create(..)` (used only by later
+    `let`s `write`/`close`) + `let rc = self.host.close(fd)` (UNUSED) thus got no slot, so
+    the dependent call's `fd` arg AND each call's own result operand hit a missing slot
+    ("no result storage operand"). FIX: keep the slot for a BOUNDARY-call result local the
+    scan would elide — gated on `initializer_is_boundary_call` (mirrors platform-interface's
+    boundary detection: the call's `target_symbol` is a boundary trait method). Gating on
+    BOUNDARY specifically is essential — broadening to all calls regresses canary_suite by 6
+    (state value-call results must stay slot-less; their substitution covers the elided
+    positions). VERIFIED: new canary `native_value_call_let_chain` (a same-machine value-call
+    runs `let fd=create; let w=write(fd,bytes); let rc=close(fd)` → writes 5 bytes;
+    stash-diff-confirmed to FAIL without the fix); native fs harness **48/48**; canary_suite
+    **515/85 IDENTICAL** with/without (exact zero-regression, stash-diff).
+  - **THE REMAINING PIECE — alias-aware scalar/address PARAM resolution (through-field).**
+    With layer 4, the same-machine ergonomic shape works. The SHIPPED wrapper
+    (`self.fs.read_all(path, buffer, count)`, `fs: Filesystem` a different data type via a
+    field) still fails: its scalar param `count` (aliased to the caller's arg) does not
+    resolve — `scalar_argument_operand_at` (and `address_argument_operand_at` for `buffer`)
+    are NOT alias-aware, unlike the literal path (fix #1). So a forwarded scalar/slice PARAM
+    of a value-call callee resolves to no place. FIX (next): thread `alias_context` into
+    `scalar_argument_operand_at`/`address_argument_operand_at` and follow the alias to the
+    caller's arg place (the scalar/address analog of fix #1's `aliased_literal_data_object`).
+    Repro parked at `canaries/run/filesystem/wrapper_write_all_through_field`. The RAW seam
+    stays fully native (48 canaries); the ergonomic wrapper stays interpreter-only until
+    this lands.
   Layer detail (all three now landed for same-machine):
   1. **[FIXED] Aliased-literal operand resolution — BYTES + PATHS.** A literal
      forwarded through a value-call param (`fs.write_all(path,"hi")` → wrapper
