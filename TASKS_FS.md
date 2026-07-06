@@ -145,11 +145,14 @@ crate tests; interpreter fs coverage) and commits.
   reusing the `fstat` fd+buffer operand shape. `native_set_times` canary RUNS: set
   mtime, fstat confirms. Introduced the `x as u8 in Wrapping` byte-decompose idiom
   + a `virtual_times` interpreter model. See step 10j.
-- **`MetadataExt` core landed** (Rust unix ext) — `nlink`/`ino`/`uid`/`gid`,
-  decode-only from the stat record (st_nlink u16@6, st_ino u64@8, st_uid u32@16,
-  st_gid u32@20), no new op. `native_metadata_nlink` (1→2 via hard_link) +
-  `native_metadata_ino` (hard links share an inode; siblings share an owner)
-  canaries RUN. See steps 10k/10l.
+- **`MetadataExt` landed** (Rust unix ext) — `nlink`/`ino`/`dev`/`uid`/`gid` +
+  `ctime` (`changed()`), decode-only from the stat record (st_nlink u16@6, st_ino
+  u64@8, st_dev @0, st_uid u32@16, st_gid u32@20, st_ctime @64), no new op.
+  `native_metadata_nlink` / `native_metadata_ino` / `native_metadata_ctime_dev`
+  canaries RUN. Time family (a/m/c/btime) + file-identity (dev,ino) complete. See
+  steps 10k/10l/10m.
+- **`File::sync_data` landed** (Rust) — reuses the `fsync` op (darwin has no
+  fdatasync). `native_sync_data` canary RUNS. Sync family complete. See step 6.
 - **`File::metadata` upgraded to `fstat`** (Rust `File::metadata`) via `_fstat`,
   a new `[result, fd, buffer]` operand arm; `metadata(file)` now reports the REAL
   mode/times (was a seek-based fake) and the stat/lstat/fstat trio is complete.
@@ -498,8 +501,20 @@ crate tests; interpreter fs coverage) and commits.
     files share an owner uid/gid but have DISTINCT inodes; a `hard_link` shares the
     original's inode → PASS); coverage `filesystem_std_module_metadata_ext` asserts
     the exact modeled constants (ino 1000000, uid 501, gid 20). MetadataExt core
-    (nlink/ino/uid/gid) is now complete. The remaining `MetadataExt` fields (dev,
-    rdev, blocks, blksize, ctime) are the same decode-only pattern if ever needed.
+    (nlink/ino/uid/gid) is now complete; `dev`/`ctime` followed in step 10m.
+10m. [x] **`MetadataExt::dev()` + `ctime()` (`changed()`)** (Rust unix ext) — DONE,
+    complete NATIVE vertical, DECODE-ONLY. `Metadata` gains `dev: u64` (decoded from
+    `st_dev` @0) and `changed_secs: i64` (`st_ctime`, `st_ctimespec.tv_sec` @64);
+    accessors `dev()` and `changed()` (Rust `ctime()`). Completes the time family
+    (accessed/modified/changed/created = atime/mtime/ctime/btime) and pairs `dev`
+    with `ino` for file identity. Interpreter reports fixed constants
+    (`VIRTUAL_DEV`=16777220, `VIRTUAL_CTIME_SECS`=1000000050). DIFFERENTIAL SPLIT:
+    native `native_metadata_ctime_dev` canary RUNS (a real recent ctime > 1e9; two
+    same-FS files share a nonzero device → PASS); coverage
+    `filesystem_std_module_metadata_ctime_dev` (modeled changed()==1000000050,
+    dev()==16777220). Remaining `MetadataExt` fields (rdev, blocks, blksize) are the
+    same decode-only pattern if ever needed. `MetadataExt` is now effectively
+    complete for the common surface.
 11. [x] **Richer `Metadata`** via `stat` — DONE, complete NATIVE vertical (used
     `stat(path)`, not `fstat(fd)`, so it works on DIRECTORIES with no open/read
     perm). `HostOperation::Stat` (op `stat` → darwin `_stat`); operand arm

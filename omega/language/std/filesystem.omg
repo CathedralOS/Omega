@@ -115,11 +115,13 @@ data Metadata [copy, zero_init] {
     mode: u32;
     nlink: u64;
     ino: u64;
+    dev: u64;
     uid: u32;
     gid: u32;
     modified_secs: i64;
     accessed_secs: i64;
     created_secs: i64;
+    changed_secs: i64;
 }
 
 // Rust `Metadata::is_file` — a regular file: neither a directory nor a symlink.
@@ -151,6 +153,19 @@ machine Metadata::nlink(&self) -> u64 {
 // links to the same file share it (the identity of the underlying inode).
 machine Metadata::ino(&self) -> u64 {
     self.ino
+}
+
+// Rust `os::unix::fs::MetadataExt::dev()` — the device id (`st_dev`). The `(dev,
+// ino)` pair is a file's identity: two paths name the same file iff both match.
+machine Metadata::dev(&self) -> u64 {
+    self.dev
+}
+
+// Rust `os::unix::fs::MetadataExt::ctime()` — the last status-change time
+// (`st_ctime`): when the inode metadata last changed (chmod, rename, link, …).
+// Distinct from `modified()` (content) and `created()` (birth).
+machine Metadata::changed(&self) -> i64 {
+    self.changed_secs
 }
 
 // Rust `os::unix::fs::MetadataExt::uid()` — the owning user id (`st_uid`).
@@ -489,6 +504,18 @@ machine Filesystem::metadata_path(&mut self, path: &[u8] in Path) -> MetadataRes
             | ((self.stat_buf[21] as u32) << 8)
             | ((self.stat_buf[22] as u32) << 16)
             | ((self.stat_buf[23] as u32) << 24);
+        let dev: u64 = (self.stat_buf[0] as u64)
+            | ((self.stat_buf[1] as u64) << 8)
+            | ((self.stat_buf[2] as u64) << 16)
+            | ((self.stat_buf[3] as u64) << 24);
+        let ctime: i64 = (self.stat_buf[64] as i64)
+            | ((self.stat_buf[65] as i64) << 8)
+            | ((self.stat_buf[66] as i64) << 16)
+            | ((self.stat_buf[67] as i64) << 24)
+            | ((self.stat_buf[68] as i64) << 32)
+            | ((self.stat_buf[69] as i64) << 40)
+            | ((self.stat_buf[70] as i64) << 48)
+            | ((self.stat_buf[71] as i64) << 56);
         let is_dir: bool = (mode & 61440) == 16384;
         let mtime: i64 = (self.stat_buf[48] as i64)
             | ((self.stat_buf[49] as i64) << 8)
@@ -514,7 +541,7 @@ machine Filesystem::metadata_path(&mut self, path: &[u8] in Path) -> MetadataRes
             | ((self.stat_buf[85] as i64) << 40)
             | ((self.stat_buf[86] as i64) << 48)
             | ((self.stat_buf[87] as i64) << 56);
-        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: false, mode: mode as u32, nlink: nlink, ino: ino, uid: uid, gid: gid, modified_secs: mtime, accessed_secs: atime, created_secs: btime } }
+        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: false, mode: mode as u32, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime } }
     }
     state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
 }
@@ -553,6 +580,18 @@ machine Filesystem::symlink_metadata(&mut self, path: &[u8] in Path) -> Metadata
             | ((self.stat_buf[21] as u32) << 8)
             | ((self.stat_buf[22] as u32) << 16)
             | ((self.stat_buf[23] as u32) << 24);
+        let dev: u64 = (self.stat_buf[0] as u64)
+            | ((self.stat_buf[1] as u64) << 8)
+            | ((self.stat_buf[2] as u64) << 16)
+            | ((self.stat_buf[3] as u64) << 24);
+        let ctime: i64 = (self.stat_buf[64] as i64)
+            | ((self.stat_buf[65] as i64) << 8)
+            | ((self.stat_buf[66] as i64) << 16)
+            | ((self.stat_buf[67] as i64) << 24)
+            | ((self.stat_buf[68] as i64) << 32)
+            | ((self.stat_buf[69] as i64) << 40)
+            | ((self.stat_buf[70] as i64) << 48)
+            | ((self.stat_buf[71] as i64) << 56);
         let is_dir: bool = (mode & 61440) == 16384;
         let is_symlink: bool = (mode & 61440) == 40960;
         let mtime: i64 = (self.stat_buf[48] as i64)
@@ -579,7 +618,7 @@ machine Filesystem::symlink_metadata(&mut self, path: &[u8] in Path) -> Metadata
             | ((self.stat_buf[85] as i64) << 40)
             | ((self.stat_buf[86] as i64) << 48)
             | ((self.stat_buf[87] as i64) << 56);
-        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: is_symlink, mode: mode as u32, nlink: nlink, ino: ino, uid: uid, gid: gid, modified_secs: mtime, accessed_secs: atime, created_secs: btime } }
+        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: is_symlink, mode: mode as u32, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime } }
     }
     state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
 }
@@ -806,6 +845,18 @@ machine Filesystem::metadata(&mut self, file: File) -> MetadataResult {
             | ((self.stat_buf[21] as u32) << 8)
             | ((self.stat_buf[22] as u32) << 16)
             | ((self.stat_buf[23] as u32) << 24);
+        let dev: u64 = (self.stat_buf[0] as u64)
+            | ((self.stat_buf[1] as u64) << 8)
+            | ((self.stat_buf[2] as u64) << 16)
+            | ((self.stat_buf[3] as u64) << 24);
+        let ctime: i64 = (self.stat_buf[64] as i64)
+            | ((self.stat_buf[65] as i64) << 8)
+            | ((self.stat_buf[66] as i64) << 16)
+            | ((self.stat_buf[67] as i64) << 24)
+            | ((self.stat_buf[68] as i64) << 32)
+            | ((self.stat_buf[69] as i64) << 40)
+            | ((self.stat_buf[70] as i64) << 48)
+            | ((self.stat_buf[71] as i64) << 56);
         let is_dir: bool = (mode & 61440) == 16384;
         let mtime: i64 = (self.stat_buf[48] as i64)
             | ((self.stat_buf[49] as i64) << 8)
@@ -831,7 +882,7 @@ machine Filesystem::metadata(&mut self, file: File) -> MetadataResult {
             | ((self.stat_buf[85] as i64) << 40)
             | ((self.stat_buf[86] as i64) << 48)
             | ((self.stat_buf[87] as i64) << 56);
-        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: false, mode: mode as u32, nlink: nlink, ino: ino, uid: uid, gid: gid, modified_secs: mtime, accessed_secs: atime, created_secs: btime } }
+        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: false, mode: mode as u32, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime } }
     }
     state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
 }
