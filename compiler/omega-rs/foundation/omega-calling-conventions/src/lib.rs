@@ -208,6 +208,11 @@ pub enum HostOperation {
     /// the underlying open file description (Rust `File::try_clone`). Same shape as
     /// `close`: one fd arg, returns the NEW fd (or -1 on error).
     Dup,
+    /// `flock(fd, operation)` -- apply or remove an advisory lock on an open file
+    /// (Rust `File::lock`/`lock_shared`/`try_lock`/`unlock`). `operation` is a
+    /// bitmask: LOCK_SH=1, LOCK_EX=2, LOCK_NB=4, LOCK_UN=8. Same operand shape as
+    /// `ftruncate` (`[result, fd, operation]` -- fd + one scalar), returns 0 / -1.
+    Flock,
     /// `___error()` -- darwin's thread-local errno accessor; returns `int*`.
     /// Takes NO args and its result is DEREFERENCED once (see
     /// `HostOperationKey::dereferences_result`) so the stored value is `errno`
@@ -278,6 +283,7 @@ impl HostOperation {
             "futimens" => Self::SetFileTimes,
             "fsync" => Self::Sync,
             "dup" => Self::Dup,
+            "flock" => Self::Flock,
             "read_errno" => Self::ReadErrno,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
@@ -330,6 +336,7 @@ impl HostOperation {
             Self::SetFileTimes => "futimens",
             Self::Sync => "fsync",
             Self::Dup => "dup",
+            Self::Flock => "flock",
             Self::ReadErrno => "read_errno",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",

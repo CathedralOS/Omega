@@ -187,9 +187,14 @@ crate tests; interpreter fs coverage) and commits.
   first 'h', read-back verified). Unblocked a checker gap (runtime subslice
   end-bound via dominating-guard index facts) AND a backend gap (host-write
   subslice → base-address + runtime-scalar-length operands); both are general.
+- **Advisory file locking RUNS natively** (10o) — Rust `File::lock`/`try_lock`/
+  `unlock` via `flock`. `native_flock` canary PASS (two independent opens contend:
+  LOCK_EX → EWOULDBLOCK → release → reacquire); wrapper `lock`/`try_lock`(→
+  `TryLockResult`)/`unlock` in coverage `filesystem_std_module_locking`. Reused the
+  `SetLen` fd+scalar operand arm (zero new backend). fs coverage 40.
 - Native raw ops now: create/open/read/write/pread/pwrite/close/remove/seek/
   create_dir/remove_dir/rename/chmod/fchmod/link/symlink/readlink/stat/lstat/fstat/
-  realpath/dup/ftruncate/futimens/fsync — all run-verified on macOS.
+  realpath/dup/ftruncate/futimens/fsync/flock — all run-verified on macOS.
 - **`File::set_times` landed natively** (Rust `File::set_times`) via `_futimens`,
   reusing the `fstat` fd+buffer operand shape. `native_set_times` canary RUNS: set
   mtime, fstat confirms. Introduced the `x as u8 in Wrapping` byte-decompose idiom
@@ -625,6 +630,30 @@ crate tests; interpreter fs coverage) and commits.
       `runtime_binary_operation_width` (4 bytes, in lockstep) — 31 isa-aarch64
       tests still green. Runtime bitwise ops now lower natively for ANY program,
       not just fs.
+10o. [x] **Advisory file locking — `File::lock`/`lock_shared`/`try_lock`/
+    `try_lock_shared`/`unlock`** (Rust 1.89 `File` locking) via `flock` — DONE,
+    complete NATIVE vertical. `HostOperation::Flock` (op `flock` → darwin `_flock`),
+    added to the EXISTING `SetLen | Fchmod` operand arm (identical `[result, fd,
+    scalar]` shape — fd + the `operation` bitmask), so ZERO new operand/encoder/
+    width work. Raw `FilesystemHost::lock_file(fd, operation: i32) -> i32`
+    (operation bits: LOCK_SH=1, LOCK_EX=2, LOCK_NB=4, LOCK_UN=8). Wrappers
+    `Filesystem::lock`/`lock_shared` (blocking, → `UnitResult`), `try_lock`/
+    `try_lock_shared` (non-blocking, → new `data TryLockResult { Error; WouldBlock;
+    Acquired }` — `WouldBlock` mirrors Rust's `Ok(false)`, distinct from a real
+    `Error`), `unlock` (→ `UnitResult`). Added `ErrorKind::WouldBlock` (EWOULDBLOCK
+    35) to the `last_error` errno cascade. **KEY semantics:** flock locks are held
+    on the OPEN FILE DESCRIPTION, so two independent `open`s of one path are
+    DISTINCT holders that contend even within one process — the basis of the test.
+    Interpreter: `virtual_flocks: BTreeMap<path, fd>` tracks EXCLUSIVE ownership; a
+    non-blocking acquire on a path another fd holds → EWOULDBLOCK(35); LOCK_UN or
+    closing the owning fd releases (shared-lock coexistence + real blocking are
+    documented approximations a single-threaded run can't exercise). DIFFERENTIAL:
+    native `native_flock` canary RUNS on real macOS (fd1 LOCK_EX → fd2
+    LOCK_EX|LOCK_NB gets EWOULDBLOCK → fd1 unlock → fd2 reacquires → PASS) AND
+    coverage `filesystem_std_module_locking` (the wrapper: two opens, `lock`/
+    `try_lock`==WouldBlock/`unlock`/`try_lock`==Acquired). fs coverage 40. NOTE: an
+    `as i64` cast on a host-call result still doesn't lower natively — assign the
+    raw i32 into an i32 field (the recurring canary gotcha).
 12. [x] **`copy(from, to)`** (Rust `fs::copy`) — DONE (interpreter). Enabled by a
     small interpreter fix: `eval_fs_bytes` now accepts a `Value::Array` (a byte
     array or a subslice view) as a host-call byte arg — the write-side mirror of

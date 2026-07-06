@@ -280,6 +280,13 @@ struct Evaluator<'program> {
     /// modeled epoch. The hermetic model round-trips MODIFIED time (whole seconds);
     /// access time is set natively but the model reports the fixed modeled atime.
     virtual_times: BTreeMap<Vec<u8>, i64>,
+    /// Advisory whole-file locks (`flock` / Rust `File::lock`/`unlock`): path ->
+    /// the fd that holds an EXCLUSIVE lock. A non-blocking acquire on a path
+    /// another fd already holds returns EWOULDBLOCK; a lock is released by
+    /// LOCK_UN or by closing the owning fd. Shared-lock coexistence and real
+    /// blocking are documented approximations (a single-threaded run can't
+    /// exercise them); exclusive contention is what the model tracks.
+    virtual_flocks: BTreeMap<Vec<u8>, i32>,
     /// The thread-local `errno` model: set to a POSIX code when a virtual fs op
     /// fails (ENOENT=2, EACCES=13, EEXIST=17, EBADF=9), read back by
     /// `read_errno` (darwin `___error()`). Mirrors the native seam so the typed
@@ -319,6 +326,7 @@ impl<'program> Evaluator<'program> {
             virtual_perms: BTreeMap::new(),
             virtual_symlinks: BTreeMap::new(),
             virtual_times: BTreeMap::new(),
+            virtual_flocks: BTreeMap::new(),
             virtual_errno: 0,
             host_boundary_touched: false,
             steps: 0,
@@ -2370,6 +2378,8 @@ impl<'program> Evaluator<'program> {
             "close" => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 if self.virtual_fds.remove(&fd).is_some() {
+                    // Closing the owning fd releases any advisory lock it held.
+                    self.virtual_flocks.retain(|_, owner| *owner != fd);
                     0
                 } else {
                     self.virtual_errno = 9; // EBADF
@@ -2400,6 +2410,45 @@ impl<'program> Evaluator<'program> {
                     None => {
                         self.virtual_errno = 9; // EBADF
                         -1
+                    }
+                }
+            }
+            "lock_file" => {
+                // `flock(fd, operation)`: advisory whole-file lock (Rust
+                // `File::lock`/`lock_shared`/`try_lock`/`unlock`). operation
+                // bitmask: LOCK_SH=1, LOCK_EX=2, LOCK_NB=4, LOCK_UN=8. The
+                // hermetic model tracks EXCLUSIVE ownership per path; a
+                // non-blocking acquire on a path another fd holds is EWOULDBLOCK.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let operation = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let path = self
+                    .virtual_fds
+                    .get(&fd)
+                    .map(|descriptor| descriptor.path.clone());
+                match path {
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                    Some(path) if operation & 8 != 0 => {
+                        // LOCK_UN: release this fd's lock (a no-op if it held none).
+                        if self.virtual_flocks.get(&path) == Some(&fd) {
+                            self.virtual_flocks.remove(&path);
+                        }
+                        0
+                    }
+                    Some(path) => {
+                        let held_by_other = matches!(
+                            self.virtual_flocks.get(&path),
+                            Some(owner) if *owner != fd
+                        );
+                        if held_by_other && operation & 4 != 0 {
+                            self.virtual_errno = 35; // EWOULDBLOCK (== EAGAIN)
+                            -1
+                        } else {
+                            self.virtual_flocks.insert(path, fd);
+                            0
+                        }
                     }
                 }
             }

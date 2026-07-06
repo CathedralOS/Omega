@@ -2930,6 +2930,74 @@ machine Main::main(&mut self) {
     );
 }
 
+/// Advisory file locking (Rust `File::lock`/`try_lock`/`unlock` -> `flock`). Two
+/// INDEPENDENT opens of the same path are distinct lock holders: an exclusive
+/// lock on the first makes a non-blocking `try_lock` on the second report
+/// `WouldBlock` (not an error), and once the first `unlock`s the second acquires.
+#[test]
+fn filesystem_std_module_locking() {
+    let main_path = write_program(
+        "fs-locking",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    open_result: OpenResult;
+    second_result: OpenResult;
+    try_result: TryLockResult;
+    rc: i32;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("/lock.txt", "hi");
+    transition self.unit_result { UnitResult::Ok -> open1() _ -> fail() }
+    state open1(&mut self) {
+        self.open_result = self.fs.open("/lock.txt");
+        transition self.open_result { OpenResult::Ok { file } -> lock1(file) _ -> fail() }
+    }
+    state lock1(&mut self, file1: File) {
+        self.unit_result = self.fs.lock(file1);
+        transition self.unit_result { UnitResult::Ok -> open2(file1) _ -> fail() }
+    }
+    state open2(&mut self, file1: File) {
+        self.second_result = self.fs.open("/lock.txt");
+        transition self.second_result { OpenResult::Ok { file } -> contend(file1, file) _ -> fail() }
+    }
+    state contend(&mut self, file1: File, file2: File) {
+        // second holder, non-blocking -> contended (WouldBlock, not Error)
+        self.try_result = self.fs.try_lock(file2);
+        transition self.try_result { TryLockResult::WouldBlock -> release(file1, file2) _ -> fail() }
+    }
+    state release(&mut self, file1: File, file2: File) {
+        self.unit_result = self.fs.unlock(file1);
+        transition self.unit_result { UnitResult::Ok -> reacquire(file1, file2) _ -> fail() }
+    }
+    state reacquire(&mut self, file1: File, file2: File) {
+        // now uncontended -> acquires
+        self.try_result = self.fs.try_lock(file2);
+        self.rc = self.fs.close(file1);
+        self.rc = self.fs.close(file2);
+        self.unit_result = self.fs.remove("/lock.txt");
+        transition self.try_result { TryLockResult::Acquired -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("locking program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "locking: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "locking: exclusive lock contends (WouldBlock), releases, then reacquires"
+    );
+}
+
 /// `try_exists` (Rust `Path::try_exists`) — the error-distinguishing existence
 /// check, now STAT-based (agrees with `exists`): `Yes` for a present file, `No`
 /// only for a missing path (ENOENT). A present-but-unreadable path (chmod 0) is
