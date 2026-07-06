@@ -337,6 +337,12 @@ data Filesystem {
     rd_ridx: usize in Wrapping;
     rd_nb: u8;
     entry_name: [u8; 256];
+    // `read_dir_nth` holds the fd-walk result across the descriptor close;
+    // `remove_dir_all` (`rda`) threads the child fd + per-op rc.
+    rdn_result: DirEntryResult;
+    rda_sub: i32;
+    rda_rc: i32;
+    rda_n: i64;
 }
 
 // Create (or truncate) a file for writing, returning an open `File`.
@@ -1129,6 +1135,204 @@ machine Filesystem::read_dir_is_empty(&mut self, path: &[u8] in Path) -> EmptyRe
     state rdie_empty(&mut self) -> EmptyResult { EmptyResult::Empty }
     state rdie_non(&mut self) -> EmptyResult { EmptyResult::NonEmpty }
     state rdie_err(&mut self, kind: ErrorKind) -> EmptyResult { EmptyResult::Error { kind: kind } }
+}
+
+// Fetch the N-th CHILD entry as a `DirEntry`, reading an ALREADY-OPEN directory fd
+// (the caller OWNS `dfd`; it is not closed here). Skips "." and ".." (records 0,1)
+// to record n+2 and copies the name into the entry's field. This is the fd-based
+// core `remove_dir_all` drains through (it re-reads the same fd after each removal).
+// NOTE: the dirent walk here duplicates `read_dir_nth`'s (which opens+closes a
+// path); a future refactor should route `read_dir_nth` through this fd core.
+machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: usize) -> DirEntryResult {
+    self.rd_position = 0;
+    self.rd_off = 0;
+    self.rd_recno = 0;
+    self.rd_target = (n as usize in Wrapping) + 2;
+    let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
+    self.rd_total = total as usize in Wrapping;
+    transition total > 0 { true -> rdef_walk() _ -> rdef_end() }
+    state rdef_walk(&mut self) -> DirEntryResult {
+        transition self.rd_off < 480 { true -> rdef_at() _ -> rdef_end() }
+    }
+    state rdef_at(&mut self) -> DirEntryResult {
+        transition self.rd_recno == self.rd_target { true -> rdef_extract() _ -> rdef_advance() }
+    }
+    state rdef_advance(&mut self) -> DirEntryResult {
+        self.rd_idx = self.rd_off + 16;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 17;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = self.rd_lo as usize in Wrapping;
+        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
+        self.rd_recno = self.rd_recno + 1;
+        self.rd_off = self.rd_off + self.rd_reclen;
+        transition self.rd_off < self.rd_total { true -> rdef_walk() _ -> rdef_end() }
+    }
+    state rdef_extract(&mut self) -> DirEntryResult {
+        self.rd_idx = self.rd_off + 18;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 19;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = self.rd_lo as usize in Wrapping;
+        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_namlen = (self.rd_hiu << 8) | self.rd_lou;
+        self.rd_idx = self.rd_off + 20;
+        self.rd_dtype = self.dir_buf[self.rd_idx];
+        self.rd_j = 0;
+        transition { _ -> rdef_copy() }
+    }
+    state rdef_copy(&mut self) -> DirEntryResult {
+        transition self.rd_j < self.rd_namlen { true -> rdef_cap() _ -> rdef_build() }
+    }
+    state rdef_cap(&mut self) -> DirEntryResult {
+        transition self.rd_j < 255 { true -> rdef_cbyte() _ -> rdef_build() }
+    }
+    state rdef_cbyte(&mut self) -> DirEntryResult {
+        self.rd_ridx = self.rd_off + 21 + self.rd_j;
+        transition self.rd_ridx < 512 { true -> rdef_cdo() _ -> rdef_build() }
+    }
+    state rdef_cdo(&mut self) -> DirEntryResult {
+        self.rd_nb = self.dir_buf[self.rd_ridx];
+        self.entry_name[self.rd_j] = self.rd_nb;
+        self.rd_j = self.rd_j + 1;
+        transition { _ -> rdef_copy() }
+    }
+    state rdef_build(&mut self) -> DirEntryResult {
+        transition self.rd_dtype == 4 { true -> rdef_ok_dir() _ -> rdef_maybe_file() }
+    }
+    state rdef_ok_dir(&mut self) -> DirEntryResult {
+        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: self.rd_j, is_dir: true, is_file: false } }
+    }
+    state rdef_maybe_file(&mut self) -> DirEntryResult {
+        transition self.rd_dtype == 8 { true -> rdef_ok_file() _ -> rdef_ok_other() }
+    }
+    state rdef_ok_file(&mut self) -> DirEntryResult {
+        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: self.rd_j, is_dir: false, is_file: true } }
+    }
+    state rdef_ok_other(&mut self) -> DirEntryResult {
+        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: self.rd_j, is_dir: false, is_file: false } }
+    }
+    state rdef_end(&mut self) -> DirEntryResult { DirEntryResult::End }
+}
+
+// Recursively remove a directory and ALL of its contents (Rust
+// `std::fs::remove_dir_all`). The `*at` route: never build a child path in Omega.
+// Open the dir, DRAIN it (repeatedly remove the first child until empty), then
+// `remove_dir` the now-empty dir. Draining recurses into subdirectories via
+// `open_at` (fd-relative), so no path construction and no name-domain proof.
+//
+// JUDGEMENT CALL (D-rda): a single `fuel` budget (4096) bounds TOTAL operations
+// (every removal + every descent costs 1) since a filesystem tree has no static
+// depth/breadth bound — a tree needing > 4096 ops returns an Error rather than
+// looping forever (Rust trusts finiteness; Omega must prove termination). The
+// re-read-first-child drain dodges the shared `dir_buf`-vs-recursion clobber: each
+// step re-reads the fd fresh, and the entry NAME rides a by-value `DirEntry` param
+// so a nested drain cannot overwrite it.
+machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> UnitResult {
+    self.read_flags = 0;
+    let dfd: i32 = self.host.open(path, self.read_flags);
+    transition dfd >= 0 { true -> rda_run(dfd, path) _ -> rda_err(path) }
+    state rda_run(&mut self, dfd: i32, path: &[u8] in Path) -> UnitResult {
+        self.rda_rc = self.rda(dfd, 4096);
+        self.rda_n = self.host.close(dfd) as i64;
+        transition self.rda_rc == 0 { true -> rda_rmdir(path) _ -> rda_err(path) }
+    }
+    state rda_rmdir(&mut self, path: &[u8] in Path) -> UnitResult {
+        let rc: i32 = self.host.remove_dir(path);
+        transition rc == 0 { true -> rda_ok() _ -> rda_err(path) }
+    }
+    state rda_ok(&mut self) -> UnitResult { UnitResult::Ok }
+    // `path` is threaded in (unused) so the shared-param domain grant re-establishes
+    // `path in Path` here after the drain value-call's conservative invalidation.
+    state rda_err(&mut self, path: &[u8] in Path) -> UnitResult {
+        let kind: ErrorKind = self.last_error();
+        UnitResult::Error { kind: kind }
+    }
+}
+
+// Drain every child of the open directory `dfd` (files unlinked, subdirs emptied +
+// removed), fuel-bounded. Returns 0 on success, -1 on error/fuel-exhaustion. Each
+// recursion (a fresh first-child removal, OR a descent into a subdir) costs 1 fuel.
+machine Filesystem::rda(&mut self, dfd: i32, fuel: usize)
+terminates {
+    decreases fuel;
+}
+-> i32
+{
+    transition fuel > 0 { true -> rda_first(dfd, fuel) _ -> rda_out() }
+    state rda_first(&mut self, dfd: i32, fuel: usize) -> i32 {
+        self.rdn_result = self.read_dir_entry_fd(dfd, 0);
+        transition self.rdn_result {
+            DirEntryResult::End -> rda_empty()
+            DirEntryResult::Ok { entry } -> rda_dispatch(dfd, fuel, entry)
+            DirEntryResult::Error { kind } -> rda_readerr()
+        }
+    }
+    state rda_dispatch(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
+        transition entry.name_len < 256 {
+            true -> rda_kind(dfd, fuel, entry)
+            false -> rda_readerr()
+        }
+    }
+    state rda_kind(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
+        transition entry.is_dir {
+            true -> rda_open_sub(dfd, fuel, entry)
+            false -> rda_unlink_file(dfd, fuel, entry)
+        }
+    }
+    state rda_unlink_file(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
+        self.rda_rc = self.host.unlink_at(dfd, entry.name[0..entry.name_len], 0);
+        transition self.rda_rc == 0 { true -> rda_continue(dfd, fuel) _ -> rda_readerr() }
+    }
+    state rda_open_sub(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
+        self.rda_sub = self.host.open_at(dfd, entry.name[0..entry.name_len], self.read_flags);
+        // Thread the sub fd as a BY-VALUE param so a nested drain cannot clobber it.
+        transition self.rda_sub >= 0 { true -> rda_recurse(dfd, fuel, self.rda_sub) _ -> rda_readerr() }
+    }
+    state rda_recurse(&mut self, dfd: i32, fuel: usize, sub: i32) -> i32 {
+        // DEPTH recursion (decreases fuel; fuel > 0 held from the entry guard).
+        self.rda_rc = self.rda(sub, fuel - 1);
+        self.rda_n = self.host.close(sub) as i64;
+        transition self.rda_rc == 0 { true -> rda_rmfirst(dfd, fuel) _ -> rda_readerr() }
+    }
+    // The subdir is now empty and is STILL the parent's FIRST child (every sibling
+    // ordered before it was removed before we descended). RE-READ to extract its
+    // name FRESH and remove it (AT_REMOVEDIR = 128) -- never relying on the
+    // pre-recursion `entry`, whose shared name array the nested drain overwrote.
+    state rda_rmfirst(&mut self, dfd: i32, fuel: usize) -> i32 {
+        self.rdn_result = self.read_dir_entry_fd(dfd, 0);
+        transition self.rdn_result {
+            DirEntryResult::Ok { entry } -> rda_rmfirst_do(dfd, fuel, entry)
+            DirEntryResult::End -> rda_continue(dfd, fuel)
+            DirEntryResult::Error { kind } -> rda_readerr()
+        }
+    }
+    state rda_rmfirst_do(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
+        transition entry.name_len < 256 {
+            true -> rda_rmfirst_go(dfd, fuel, entry)
+            false -> rda_readerr()
+        }
+    }
+    state rda_rmfirst_go(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
+        self.rda_rc = self.host.unlink_at(dfd, entry.name[0..entry.name_len], 128);
+        transition self.rda_rc == 0 { true -> rda_continue(dfd, fuel) _ -> rda_readerr() }
+    }
+    state rda_continue(&mut self, dfd: i32, fuel: usize) -> i32 {
+        // DRAIN recursion (decreases fuel): remove the NEXT first child.
+        transition fuel > 1 {
+            true -> rda_more(dfd, fuel)
+            false -> rda_out()
+        }
+    }
+    state rda_more(&mut self, dfd: i32, fuel: usize) -> i32 {
+        self.rda_rc = self.rda(dfd, fuel - 1);
+        transition { _ -> rda_return() }
+    }
+    state rda_return(&mut self) -> i32 { self.rda_rc }
+    state rda_empty(&mut self) -> i32 { 0 }
+    state rda_out(&mut self) -> i32 { -1 }
+    state rda_readerr(&mut self) -> i32 { -1 }
 }
 
 // Set a path's permission bits (Rust `std::fs::set_permissions`). A subsequent

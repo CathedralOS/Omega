@@ -216,6 +216,36 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **✅ `remove_dir_all` SHIPPED — recursive tree removal (2026-07-06).** The last
+  major missing Rust `std::fs` API. `Filesystem::remove_dir_all(path) -> UnitResult`
+  recursively removes a directory and ALL its contents via the `*at` route (NO Omega
+  path building, NO name-domain proof): `open(path) -> dfd`; the `rda(dfd, fuel)` drain
+  repeatedly removes the FIRST child (re-reading `dfd` fresh each step) — `unlink_at`
+  a file, or `open_at` + recurse `rda(sub, fuel-1)` (`decreases fuel`) + remove the
+  now-empty subdir — until empty; then `close(dfd)` + `remove_dir(path)`. Uses a new
+  `read_dir_entry_fd(dfd, n)` (the dirent walk on an ALREADY-OPEN fd; currently
+  duplicates `read_dir_nth`'s walk — TODO: route both through this fd core). RUNS:
+  coverage `filesystem_std_module_remove_dir_all` builds a 3-level tree
+  (`/rt/{f1,f2,sub/{g1,deep/{h1}}}`), removes `/rt` in one call, asserts `/rt` AND the
+  deep nested file are gone. fs coverage 67; native fs canaries 6/6; backend green.
+  - **BUG FOUND + FIXED (name preservation across recursion):** the interpreter
+    SHARES a `[copy]` data value's array (Rc), so a `DirEntry` passed by value does
+    NOT protect its `name` from a nested drain that overwrites the shared
+    `entry_name` field. FIX: after emptying a subdir, RE-READ the parent to
+    re-extract the (now-empty) subdir's name FRESH and remove it — the emptied dir is
+    still the parent's first child (every sibling ordered before it was already
+    removed), so `read_dir_entry_fd(dfd, 0)` returns it. Never relies on a name
+    surviving a recursion. (Also threaded the sub fd as a by-value param so the shared
+    `rda_sub` field isn't clobbered before close.)
+  - **JUDGEMENT CALLS:** (D-rda) ONE `fuel=4096` budget bounds TOTAL ops (every
+    removal + descent costs 1) since an fs tree has no static depth/breadth bound —
+    a tree needing > 4096 ops returns Error rather than looping (Rust trusts
+    finiteness; Omega must prove termination via `decreases`). (D-rda-err) error
+    states thread `path` in (unused) so the shared-param domain grant re-establishes
+    `path in Path` after the drain value-call's conservative wipe-all invalidation.
+  - Native lowering of `remove_dir_all` follows once `open_at`/`unlink_at` lower
+    natively (interpreter-modeled today; the whole wrapper is portable Omega).
+
 - **✅ `*at` OPS (`open_at`/`unlink_at`) — the `remove_dir_all` FOUNDATION (2026-07-06).**
   Added two dirfd-relative raw ops to the canonical `filesystem_host.omg` boundary:
   `open_at(dirfd, name, flags) -> i32` (Rust `openat`) and `unlink_at(dirfd, name,

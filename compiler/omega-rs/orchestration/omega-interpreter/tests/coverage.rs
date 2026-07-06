@@ -792,6 +792,83 @@ machine Main::main(&mut self) {
     );
 }
 
+/// The shipped `Filesystem::remove_dir_all` — recursively remove a directory and
+/// ALL its contents (Rust `std::fs::remove_dir_all`) via the `*at` route (no path
+/// building). Builds a 3-level tree under `/rt` (files + nested subdirs + a deep
+/// file), removes `/rt` in one call, then asserts BOTH `/rt` and the deep nested
+/// file are gone. Exit 70.
+#[test]
+fn filesystem_std_module_remove_dir_all() {
+    let main_path = write_program(
+        "fs-std-rda",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    open_result: OpenResult;
+    close_rc: i32;
+    present: bool;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.create_dir("/rt");
+    self.open_result = self.fs.create("/rt/f1");
+    transition self.open_result { OpenResult::Ok { file } -> s1(file) _ -> fail() }
+    state s1(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.open_result = self.fs.create("/rt/f2");
+        transition self.open_result { OpenResult::Ok { file } -> s2(file) _ -> fail() }
+    }
+    state s2(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.unit_result = self.fs.create_dir("/rt/sub");
+        self.open_result = self.fs.create("/rt/sub/g1");
+        transition self.open_result { OpenResult::Ok { file } -> s3(file) _ -> fail() }
+    }
+    state s3(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.unit_result = self.fs.create_dir("/rt/sub/deep");
+        self.open_result = self.fs.create("/rt/sub/deep/h1");
+        transition self.open_result { OpenResult::Ok { file } -> s4(file) _ -> fail() }
+    }
+    state s4(&mut self, file: File) {
+        self.close_rc = self.fs.close(file);
+        self.unit_result = self.fs.remove_dir_all("/rt");
+        transition self.unit_result { UnitResult::Ok -> verify() _ -> fail_rda() }
+    }
+    state verify(&mut self) {
+        self.present = self.fs.exists("/rt");
+        transition self.present { true -> fail_present() _ -> checkdeep() }
+    }
+    state checkdeep(&mut self) {
+        self.present = self.fs.exists("/rt/sub/deep/h1");
+        transition self.present { true -> fail_deep() _ -> ok() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail_rda(&mut self) { self.console.exit_process(71); }
+    state fail_present(&mut self) { self.console.exit_process(72); }
+    state fail_deep(&mut self) { self.console.exit_process(73); }
+    state fail(&mut self) { self.console.exit_process(74); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("remove_dir_all program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "remove_dir_all should run, got {:?}",
+        outcome.error
+    );
+    assert_eq!(
+        outcome.exit_code, 70,
+        "remove_dir_all(/rt) must recursively remove the whole tree"
+    );
+}
+
 /// Full CRUD round-trip over the value-returning seam: create -> write 17B ->
 /// close -> open -> read (17) -> close -> remove. Exit 70 only if read returns
 /// exactly the 17 bytes written.
