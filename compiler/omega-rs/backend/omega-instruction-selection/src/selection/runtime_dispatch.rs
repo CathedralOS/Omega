@@ -479,20 +479,51 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         );
                     }
 
-                    select_runtime_dispatch_local_initializer_write(
+                    // A local initialized by a HOST CALL (`let n = self.host.write(
+                    // fd, bytes)`, the ergonomic-wrapper shape) must emit the CALL
+                    // itself — its result operand (argument[0], the synthesized local
+                    // Name from collection) writes into the local's slot. Routing it
+                    // through the value-only local-initializer write and `continue`-ing
+                    // would SILENTLY DROP it (file created, never written). This is the
+                    // local-target sibling of the field-target host-call emission below
+                    // (~line 631). host_call_for_statement is None for a non-host-call
+                    // `let`, so those keep the value-write path.
+                    if let Some(host_call) = host_call_for_statement(
                         input,
-                        dispatch_case.dispatch_index,
                         operation.source_key,
                         operation.statement_index,
-                        runtime_aliases.bindings(),
-                        &runtime_alias_expressions,
-                        &mut local_initializer_expressions,
-                        &mut local_initializer_mutable_expressions,
-                        &mut local_initializer_segment_expressions,
-                        &mut runtime_static_values,
-                        runtime_value_operands,
-                        selected_instructions,
-                    );
+                    ) {
+                        let alias_bindings = runtime_aliases.bindings();
+                        let alias_context = (!alias_bindings.is_empty()).then_some(
+                            RuntimeAliasResolutionContext {
+                                aliases: alias_bindings,
+                                alias_expressions: &runtime_alias_expressions,
+                            },
+                        );
+                        select_host_call(
+                            input,
+                            host_call,
+                            Some(dispatch_case.dispatch_index),
+                            alias_context,
+                            operands,
+                            selected_instructions,
+                        );
+                    } else {
+                        select_runtime_dispatch_local_initializer_write(
+                            input,
+                            dispatch_case.dispatch_index,
+                            operation.source_key,
+                            operation.statement_index,
+                            runtime_aliases.bindings(),
+                            &runtime_alias_expressions,
+                            &mut local_initializer_expressions,
+                            &mut local_initializer_mutable_expressions,
+                            &mut local_initializer_segment_expressions,
+                            &mut runtime_static_values,
+                            runtime_value_operands,
+                            selected_instructions,
+                        );
+                    }
 
                     // Case B: fire AFTER the local initializer write so the
                     // callee's frame slot is populated before the expansion reads it.

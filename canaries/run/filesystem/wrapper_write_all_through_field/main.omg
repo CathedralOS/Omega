@@ -1,0 +1,44 @@
+// PARKED (step 14 — the FINAL through-field wrinkle). Exercises the SHIPPED
+// ergonomic `Filesystem::write_all`/`read_all`/`remove` natively. Layers 1+2+3 are
+// done (aliased-literal operand resolution + LocalData host-call collection +
+// LocalStorage emission), so a `let`-bound value-call host call works for a
+// SAME-data-type callee (see canaries/pass/filesystem/native_value_call_local).
+//
+// This canary still FAILS TO COMPILE ("AArch64 value-returning host call has no
+// result storage operand") because the wrapper is reached THROUGH A FIELD
+// (`self.fs.write_all`, where `fs: Filesystem` is a different data type). The
+// collection synthesizes the result-place Name for `write_all`'s locals (`fd`,
+// `n`, `rc`), but `resolve_runtime_storage_place_in_table` finds NO frame slot for
+// them under the caller's dispatch (di=1) — not even via `latest_dispatch_frame_
+// slot`. So a through-field-inlined machine's locals are not allocated frame slots
+// under the caller's dispatch index. THE REMAINING FIX is in frame planning (or
+// the LocalStorage emission passing the callee machine's own dispatch index /
+// re-keyed source_key). Until then, native programs use the RAW FilesystemHost
+// seam (fully native, 46 canaries); the ergonomic wrapper stays interpreter-only.
+// TASKS_FS.md step 14.
+
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: Filesystem;
+    out: FilesystemHost;
+    wrote: UnitResult;
+    got: IoResult;
+    gone: UnitResult;
+    cap: usize;
+    n: i64;
+    first: u8;
+    buffer: [u8; 16];
+}
+
+machine Main::main(&mut self) {
+    self.cap = 16;
+    self.wrote = self.fs.write_all("/tmp/omega_wrapper.txt", "hello");
+    self.got = self.fs.read_all("/tmp/omega_wrapper.txt", &mut self.buffer, self.cap);
+    self.gone = self.fs.remove("/tmp/omega_wrapper.txt");
+    self.first = self.buffer[0];
+    transition self.first == 104 { true -> good() _ -> fail() }
+    state good(&mut self) { self.n = self.out.write(1, "PASS: ergonomic Filesystem::write_all + read_all round-trip\n"); }
+    state fail(&mut self) { self.n = self.out.write(1, "FAIL: ergonomic wrapper round-trip\n"); }
+}

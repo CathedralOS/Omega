@@ -216,10 +216,29 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
-- **✅ STEP 14 fix #1 LANDED + native ergonomic-wrapper blocker fully root-caused
-  (2026-07-07).** The value-call literal-forwarding bug (which blocks native lowering
-  of the ergonomic `Filesystem` wrapper) is now a THREE-layer chain, precisely pinned;
-  one layer is fixed, two remain:
+- **✅ STEP 14 layers 1+2+3 LANDED — `let`-bound value-call host calls work natively
+  (2026-07-07). ONE wrinkle left before the shipped wrapper is native.** The value-call
+  literal-forwarding bug was a THREE-layer chain; ALL THREE are now fixed for a
+  SAME-data-type callee, so `let x = self.host.op(literal)` forwarded through a value-call
+  now lowers + runs natively (canary `native_value_call_local` — a `let`-bound host-call
+  value-call round-trips 5 bytes; was silently dropped before). Gates: native fs harness
+  **47/47**; canary_suite **514/85 IDENTICAL** with/without the whole change (stash-diff),
+  so the high-blast-radius collection change is exact-zero-regression.
+  - **THE REMAINING WRINKLE — through-a-FIELD callee (the shipped wrapper).** The real
+    `Filesystem::write_all`/`read_all` are reached via `self.fs.<m>` where `fs:
+    Filesystem` is a DIFFERENT data type. Its `let`-bound locals (`fd`/`n`/`rc`) are now
+    collected + emitted, but `resolve_runtime_storage_place_in_table` finds NO frame slot
+    for them under the caller's dispatch index (di=1) — not even via
+    `latest_dispatch_frame_slot`. So a through-field-inlined machine's locals are not
+    allocated frame slots under the caller's dispatch. Result: the shipped wrapper now
+    HARD-ERRORS on native compile ("AArch64 value-returning host call has no result
+    storage operand") instead of silently dropping — fail-loud progress, but not yet
+    working. Repro parked at `canaries/run/filesystem/wrapper_write_all_through_field`.
+    FIX (frame-planning dive, next session): allocate through-field-inlined callee locals
+    under the caller's dispatch (or have the LocalStorage emission pass the callee
+    machine's own dispatch index / re-keyed source_key). The RAW seam stays fully native
+    (47 canaries); the ergonomic wrapper stays interpreter-only until this lands.
+  Layer detail (all three now landed for same-machine):
   1. **[FIXED] Aliased-literal operand resolution — BYTES + PATHS.** A literal
      forwarded through a value-call param (`fs.write_all(path,"hi")` → wrapper
      `write(fd,bytes)`; `fs.open(path)` → wrapper `open(path,..)`) arrives as the
@@ -235,24 +254,22 @@ crate tests; interpreter fs coverage) and commits.
      (value-call forwards a path literal to a FIELD-assigned open → reopen reads the
      file); BOTH stash-diff-confirmed to FAIL without the fix. native fs harness
      **46/46**; canary_suite **514/85 IDENTICAL** with/without (exact zero-regression).
-  2. **[OPEN — the remaining blocker] `let`-bound host calls are never COLLECTED.** The
-     real wrapper assigns host-call results to LOCALS (`let n = self.host.write(..)`). A
-     `let x = call()` is a `StatementNode::LocalData`, and `collect_state_host_calls`
-     (`omega-platform-interface/src/host_calls/collection.rs`) matches only `Assignment`
-     + `Call` — so the call is never inserted into `host_calls`, `host_call_for_statement`
-     returns None, and the write is dropped (file created, never written). FIX: add a
-     `LocalData` arm mirroring `collect_assignment_result_host_lowering`, synthesizing
-     the local's place as argument[0] (the hard part — building a `Name`/`TableNamePath`
-     for the local symbol, or reusing an existing use-site Name).
-  3. **[OPEN — complement of 2] Emit the collected LocalData host call.** Once (2) lands,
-     `runtime_dispatch.rs`'s `LocalStorage` branch must emit the host call (its result
-     operand writes the local's slot) instead of the value-only local-initializer write.
-     Drafted this fire, reverted (dormant until 2 lands).
-  Layers 2+3 touch the HIGH-BLAST-RADIUS host-call collection pass (every host call,
-  every program; only gate is the full canary_suite) — a DEDICATED session, not a loop
-  fire. Minimal repro parked at `canaries/run/filesystem/value_call_slice_literal_len`
-  (its header carries this chain). The RAW seam stays fully native; the wrapper stays
-  interpreter/const-eval until 2+3 land.
+  2. **[FIXED] `let`-bound host calls are now COLLECTED.** A `let x =
+     self.host.op(..)` is a `StatementNode::LocalData`, which `collect_state_host_calls`
+     (`omega-platform-interface/src/host_calls/collection.rs`) previously skipped (only
+     Assignment + Call), so the call was never inserted into `host_calls` and got dropped.
+     New `collect_local_result_host_lowering` mirrors the assignment path but SYNTHESIZES
+     the local's place as argument[0] — a single-symbol `Name(local)` inserted directly
+     into `plan.expressions` (the same table the collected args live in, so
+     instruction-selection resolves it to the local's frame slot by symbol). The KEY
+     unblock vs. the prior "immutable program table" worry: the result place doesn't need
+     a program-table handle; plan.expressions is mutable.
+  3. **[FIXED] Emit the collected LocalData host call.** `runtime_dispatch.rs`'s
+     `LocalStorage` branch now emits the host call (`host_call_for_statement` is Some →
+     `select_host_call`, result operand → local slot) instead of the value-only
+     local-initializer write. A non-host-call `let` (None) keeps the value-write path.
+  The collection change is HIGH-BLAST-RADIUS (every host call, every program) — verified
+  exact-zero-regression by the canary_suite stash-diff (514/85 identical). Layer detail: 
 
 - **🅿️ LOOP STATUS — PRODUCTIVE PLATEAU (2026-07-06, for the user to review).** The
   `std::fs` surface is functionally COMPLETE: (1) the raw `FilesystemHost` seam is fully
