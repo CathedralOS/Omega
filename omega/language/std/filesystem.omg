@@ -86,6 +86,14 @@ data DirEntryResult {
     case End;
     case Ok(entry: DirEntry);
 }
+// The three-way answer of `read_dir_is_empty` (Rust `read_dir(path)?.next().is_none()`
+// -> `io::Result<bool>`): `Empty` (no children), `NonEmpty` (has at least one), or a
+// read `Error`.
+data EmptyResult {
+    case Error(kind: ErrorKind);
+    case Empty;
+    case NonEmpty;
+}
 data UnitResult {
     case Error(kind: ErrorKind);
     case Ok;
@@ -1188,6 +1196,22 @@ machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: usize) -> Di
         let kind: ErrorKind = self.last_error();
         DirEntryResult::Error { kind: kind }
     }
+}
+
+// Is a directory empty (Rust `read_dir(path)?.next().is_none()`)? Composes
+// `read_dir_nth(path, 0)`: `End` (no first child) => `Empty`, a first entry =>
+// `NonEmpty`, a read failure => `Error`. Commonly the guard before `remove_dir`
+// (which requires an empty directory).
+machine Filesystem::read_dir_is_empty(&mut self, path: &[u8] in Path) -> EmptyResult {
+    let first: DirEntryResult = self.read_dir_nth(path, 0);
+    transition first {
+        DirEntryResult::End -> rdie_empty()
+        DirEntryResult::Ok { entry } -> rdie_non()
+        DirEntryResult::Error { kind } -> rdie_err(kind)
+    }
+    state rdie_empty(&mut self) -> EmptyResult { EmptyResult::Empty }
+    state rdie_non(&mut self) -> EmptyResult { EmptyResult::NonEmpty }
+    state rdie_err(&mut self, kind: ErrorKind) -> EmptyResult { EmptyResult::Error { kind: kind } }
 }
 
 // Set a path's permission bits (Rust `std::fs::set_permissions`). A subsequent
