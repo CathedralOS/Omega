@@ -38,9 +38,11 @@ disjoint from the bootstrap-lattice files (`compiler/{alpha,beta,delta,gamma}`).
   - A deterministic in-memory filesystem (`virtual_files`/`virtual_fds`, mirrors
     `virtual_ticks`) backs create/open_read/read/write/close/remove, building
     the ZII outcome enums into the `&mut out` params.
-  - `coverage.rs::filesystem_crud_round_trip_reads_back_written_bytes`:
-    create→write 21B→close→reopen→read→`count == 21`→remove→exit 70. **Green**
-    (14/14 coverage tests; Console tests still pass ⇒ Step 0 behavior-preserving).
+  - **5 green fs coverage probes** in `coverage.rs` (Console tests still pass ⇒
+    Step 0 behavior-preserving): full CRUD round-trip (`count == 21`), read
+    fills the caller buffer (`buffer[0] == 'o'`), open-missing → `Failed`, EOF
+    (second read → `Read(0)`, cursor advances), and create-truncates-existing.
+    These double as the behavioral spec native fs must match in the oracle.
   - Not wired to the differential oracle yet (needs native fs first, or an
     interpreter-only differential lane); the two failing differential tests in
     the suite are PRE-EXISTING native-side mismatches on this branch, unrelated.

@@ -967,3 +967,86 @@ machine Main::main(&mut self) {
         "a second read after consuming the file must report Read(0)",
     );
 }
+
+/// `create` truncates an existing file: after writing 5 bytes, re-`create`ing
+/// the same path and writing 1 byte leaves a 1-byte file (not 5 or 6). Pins the
+/// truncate-on-create semantics native fs will have to match.
+#[test]
+fn filesystem_create_truncates_existing_file() {
+    interpret_fs(
+        "fs-truncate",
+        r#"
+data Main {
+    console: Console;
+    fs: Filesystem;
+    open_out: OpenOutcome;
+    write_out: WriteOutcome;
+    read_out: ReadOutcome;
+    buffer: [u8; 64];
+}
+
+machine Main::main(&mut self) {
+    self.fs.create("/trunc.txt", &mut self.open_out);
+    transition self.open_out {
+        OpenOutcome::Opened { file } -> first_write(file)
+        _ -> fail()
+    }
+
+    state first_write(&mut self, file: File) {
+        self.fs.write(file, "omega", &mut self.write_out);
+        self.fs.close(file);
+        transition self.write_out {
+            WriteOutcome::Wrote { count } -> recreate()
+            _ -> fail()
+        }
+    }
+
+    state recreate(&mut self) {
+        self.fs.create("/trunc.txt", &mut self.open_out);
+        transition self.open_out {
+            OpenOutcome::Opened { file } -> second_write(file)
+            _ -> fail()
+        }
+    }
+
+    state second_write(&mut self, file: File) {
+        self.fs.write(file, "x", &mut self.write_out);
+        self.fs.close(file);
+        transition self.write_out {
+            WriteOutcome::Wrote { count } -> reopen()
+            _ -> fail()
+        }
+    }
+
+    state reopen(&mut self) {
+        self.fs.open_read("/trunc.txt", &mut self.open_out);
+        transition self.open_out {
+            OpenOutcome::Opened { file } -> read_back(file)
+            _ -> fail()
+        }
+    }
+
+    state read_back(&mut self, file: File) {
+        self.fs.read(file, &mut self.buffer, &mut self.read_out);
+        self.fs.close(file);
+        transition self.read_out {
+            ReadOutcome::Read { count } -> verify(count)
+            _ -> fail()
+        }
+    }
+
+    state verify(&mut self, count: usize) {
+        transition count == 1 {
+            true -> ok()
+            _ -> fail()
+        }
+    }
+
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+        70,
+        "re-create must truncate: the reopened file holds 1 byte, not 5 or 6",
+    );
+}
