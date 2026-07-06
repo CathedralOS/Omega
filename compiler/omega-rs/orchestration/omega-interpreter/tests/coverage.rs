@@ -2865,6 +2865,106 @@ machine Main::main(&mut self) {
     );
 }
 
+/// End-to-end ERGONOMIC WORKFLOW — the `Filesystem` wrapper composed across many
+/// ops (the wrapper counterpart to the native `native_fs_workflow` sample):
+/// create_dir -> write_all a file -> metadata (is_file, len) -> set_permissions
+/// read-only -> metadata (readonly) -> hard_link -> rename -> read the renamed
+/// file back -> remove everything. Validates the result-enum surface THREADS
+/// correctly across a realistic sequence (integration, not just per-op).
+#[test]
+fn filesystem_std_module_workflow() {
+    let main_path = write_program(
+        "fs-workflow",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+    open_result: OpenResult;
+    io_result: IoResult;
+    perms: Permissions;
+    cap: usize;
+    first: u8;
+    buffer: [u8; 32];
+}
+machine Main::main(&mut self) {
+    self.cap = 32;
+    self.unit_result = self.fs.create_dir("/wf");
+    transition self.unit_result { UnitResult::Ok -> writefile() _ -> fail() }
+    state writefile(&mut self) {
+        self.unit_result = self.fs.write_all("/wf/a.txt", "hello world");
+        transition self.unit_result { UnitResult::Ok -> stat() _ -> fail() }
+    }
+    state stat(&mut self) {
+        self.meta_result = self.fs.metadata_path("/wf/a.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> checkmeta(meta) _ -> fail() }
+    }
+    state checkmeta(&mut self, meta: Metadata) {
+        transition meta.is_file() { true -> checklen(meta) _ -> fail() }
+    }
+    state checklen(&mut self, meta: Metadata) {
+        transition meta.len == 11 { true -> chmod() _ -> fail() }
+    }
+    state chmod(&mut self) {
+        self.perms = Permissions { mode: 292 }; // 0o444 read-only
+        self.unit_result = self.fs.set_permissions("/wf/a.txt", self.perms);
+        transition self.unit_result { UnitResult::Ok -> statro() _ -> fail() }
+    }
+    state statro(&mut self) {
+        self.meta_result = self.fs.metadata_path("/wf/a.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> checkro(meta) _ -> fail() }
+    }
+    state checkro(&mut self, meta: Metadata) {
+        transition meta.readonly() { true -> link() _ -> fail() }
+    }
+    state link(&mut self) {
+        self.unit_result = self.fs.hard_link("/wf/a.txt", "/wf/b.txt");
+        transition self.unit_result { UnitResult::Ok -> renameit() _ -> fail() }
+    }
+    state renameit(&mut self) {
+        self.unit_result = self.fs.rename("/wf/b.txt", "/wf/c.txt");
+        transition self.unit_result { UnitResult::Ok -> reopen() _ -> fail() }
+    }
+    state reopen(&mut self) {
+        self.open_result = self.fs.open("/wf/c.txt");
+        transition self.open_result { OpenResult::Ok { file } -> readback(file) _ -> fail() }
+    }
+    state readback(&mut self, file: File) {
+        self.io_result = self.fs.read(file, &mut self.buffer, self.cap);
+        self.first = self.buffer[0];
+        transition self.io_result { IoResult::Ok { count } -> checkread(count) _ -> fail() }
+    }
+    state checkread(&mut self, count: usize) {
+        transition count == 11 { true -> checkbyte() _ -> fail() }
+    }
+    state checkbyte(&mut self) {
+        transition self.first == 104 { true -> cleanup() _ -> fail() }
+    }
+    state cleanup(&mut self) {
+        self.unit_result = self.fs.remove("/wf/a.txt");
+        self.unit_result = self.fs.remove("/wf/c.txt");
+        self.unit_result = self.fs.remove_dir("/wf");
+        transition self.unit_result { UnitResult::Ok -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("workflow program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "workflow: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "workflow: create_dir/write/metadata/chmod/link/rename/read/cleanup all compose"
+    );
+}
+
 /// `canonicalize` (Rust `fs::canonicalize`, via `realpath`): resolve a path to its
 /// canonical absolute form, FOLLOWING symlinks. Here a `/link` -> `/target.txt`
 /// symlink canonicalizes to the target's path (buffer begins "/t..."), and a
