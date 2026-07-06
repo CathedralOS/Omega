@@ -174,6 +174,40 @@ best done as its own focused, verifiable piece (and native exec is flaky on this
 box, so it verifies via emitted bytes, not by running). Until then, native fs
 CRUD on this Mac stays at `close`; the **interpreter fs is the working CRUD**.
 
+### Executable recipe: aarch64 value-returning host calls (the unblock)
+
+Fully traced 2026-07-05. Mirrors the working x86_64 path
+(`encode_win64_import_call(operands, /*returns*/ true)`). ~5 coupled layers that
+must agree byte-for-byte; verify each by `otool -tv` on the emitted mach-o
+(existing `close` disassembly confirmed correct: `adrp/add/ldr x0; bl _close`).
+
+1. **ISA encoder** (`omega-isa-aarch64/src/aarch64/mod.rs`): add
+   `encode_host_call_sequence_value_returning_from_operands` — `append_call_operands`
+   over `operands[1..]` (args), `encode_branch_link_placeholder()` (BL), then the
+   result store: `encode_adrp_placeholder(16)` + `encode_add_page_offset_placeholder(16)`
+   (result region base → x16) + `encode_store_w_to_x(0, 16, byte_offset, byte_count)`
+   (or `encode_store_x_to_x` for 8-byte) storing x0/w0 → result place.
+2. **Operand `byte_count`**: the aarch64 `RuntimeScalarInteger` call-operand drops
+   `byte_count` (assumes 8-byte `ldr x`). Thread it through `aarch64_call_operand`
+   so the result store picks `str w` (i32 fd/rc) vs `str x`.
+3. **Width** (`aarch64/widths.rs`): value-returning width = args width + 4 (BL) +
+   4 (adrp) + 4 (add) + 4 (str).
+4. **Dispatcher** (`omega-instruction-selection/src/encoding/host.rs`): aarch64
+   branch — match `operation_key` for value-returning ops (mirror x86_64's per-op
+   list) → the new encoder. fs raw ops are ALWAYS value-returning.
+5. **Relocations** — teach the aarch64 layout that the result is emitted LAST:
+   - `offsets/data_addresses.rs::data_address_relocation_offset`: add an aarch64
+     value-returning branch (like the x86_64 `host_call_data_relocation_site`) —
+     args' adrp/add offsets shift by 0 (they come first); the result operand[0]'s
+     adrp/add sits AFTER args-width + BL(4).
+   - `offsets/external_calls.rs::external_call_relocation_offset`: BL offset =
+     `text_offset + args-width` (args before the call), not counting the result.
+
+Then: **operands.rs** value-returning arms `[result, ...args]` (KeyState shape);
+**darwin.rs/linux.rs** bindings+lowerings; **surface+interpreter** reshape to
+value-returning. Verify: `otool -tv` a `self.rc = self.fs.close(fd)` build shows
+`ldr/... x0; bl _close; adrp/add x16; str w0,[x16,#off]` with the right addresses.
+
 ### Ratified 2026-07-05: value-return + Omega wrap (surface reshape)
 
 The remaining ops turn a syscall return into an outcome. **Decision: the raw
