@@ -147,17 +147,24 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   (expression_types.rs) in the Unary arm of `scan_expression_calls` -- rejects when the
   operand's `value_class` is Numeric/Text; a comparison/logical/call operand (None) is
   allowed, so `!bool`, `!(a==1)`, `!(x && y)` stay valid. Canary logical_not_non_bool_rejected.
-- **[RESOLVED (ordering) 2026-07-05] Text ORDERING interim-rejected; INDEXING still open.**
+- **[RESOLVED 2026-07-05] Text ORDERING and INDEXING both interim-rejected.**
   `s < t` (string ordering) had two bad faces: fully-inline literals (`"x" < "y"`) folded to
   a meaningless `0`; runtime text operands reached the backend as a 16-byte runtime compare it
   cannot encode ("cannot load 16-byte runtime operands"). Both are wrong. Took the sanctioned
   "reject until implemented" option (Zach): `report_invalid_text_operator` now also rejects
   `Less`/`LessOrEqual`/`Greater`/`GreaterOrEqual` on two text operands with the precise "text
   supports only concatenation (`+`), `==`, and `!=`" message (canary
-  text_ordering_operator_rejected). Lexicographic text ordering stays a PLAUSIBLE FUTURE feature
-  — this closes the silent/cryptic hole without precluding it. STILL OPEN: `s[0]` (string byte
-  index) still compiles; detect an `Indexed` whose collection is a text carrier. Byte access is
-  likewise a plausible future feature; interim-reject or implement when surfaced.
+  text_ordering_operator_rejected). `s[0]` (indexing the `String` carrier) silently read a ZII
+  `0` -- the carrier is `{len, bytes}`, not a flat array, and byte indexing on it is unimplemented.
+  The primitive-access check in calls.rs exempted `String` wholesale (so `s.len` MEMBER access
+  stays legal); that exemption is now split so INDEXING a `String` is rejected while `.len` stays
+  valid (canary text_string_index_rejected). KEY discriminator: `[u8; N] in Utf8` byte arrays
+  resolve to a NON-primitive type, so `primitive_type_reference` returns `None` and the supported
+  byte-array indexing (`substring_search`, `longest_run`) is untouched -- only the `String`
+  primitive is caught. Lexicographic ordering and String byte-access stay PLAUSIBLE FUTURE
+  features; this closes the silent/cryptic holes without precluding them. NOTE: only READ indexing
+  (`let b = s[i]`) is covered here; a WRITE target `s[i] = x` goes through a different path -- not
+  yet probed.
   2026-07-05).** `let y: i32 = bogus_fn(1)` compiles and yields 0 (silent miscompile);
   statement-position `bogus_fn(1);` is correctly rejected by `validate_call_node` ("has
   no local state"). The value path (`validate_expression_call_bounds`) is a PARTIAL

@@ -970,34 +970,50 @@ fn scan_expression_calls(
             data.name.as_str()
         )));
     }
-    // Member / index access on a PRIMITIVE-scalar receiver: a number or bool has no
-    // fields, no `.len`, and is not indexable, so `x.field` / `x.len` / `x[0]` on an
-    // `i32` local silently read a ZII 0. Reject when the receiver's declared type
-    // resolves to a numeric/bool primitive; an UNRESOLVED receiver (or a struct /
-    // array / slice / String receiver) is left alone -- struct-field lookup and
-    // String indexing are separate. String is excluded because text carries a
-    // `.len`/byte view.
+    // Member / index access on a PRIMITIVE receiver. A number or bool has no fields,
+    // no `.len`, and is not indexable, so `x.field` / `x.len` / `x[0]` on an `i32`
+    // local silently reads a ZII 0 -- reject any such access. `String` is the one
+    // exception, and only for MEMBER access: text carries a `.len` view, so `s.len`
+    // is legal, but the `{len, bytes}` carrier does NOT support byte INDEXING -- `s[0]`
+    // silently reads 0 today (byte access is a possible future feature; a `[u8; N] in
+    // Utf8` array is the supported way to index bytes, and that path resolves to a
+    // non-primitive type so it is untouched here). An UNRESOLVED receiver or a struct /
+    // array / slice receiver is left alone (those accesses are separate).
     let primitive_access = match program.expression_table.expression(expression) {
         ExpressionNode::Member(member) => Some((
             member.receiver,
             format!("member `{}`", member.member.as_str()),
+            false,
         )),
-        ExpressionNode::Indexed(indexed) => Some((indexed.collection, "an index".to_owned())),
+        ExpressionNode::Indexed(indexed) => {
+            Some((indexed.collection, "an index".to_owned(), true))
+        }
         _ => None,
     };
-    if let Some((receiver, access)) = primitive_access
+    if let Some((receiver, access, is_index)) = primitive_access
         && let Some(receiver_type) =
             crate::places::declared_place_type(program, machine, Some(state), receiver)
         && let Some(primitive) = program.primitive_type_reference(receiver_type)
-        && primitive != PrimitiveType::String
     {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` accesses {access} of a `{}` value, but a primitive scalar \
-             has no members or elements",
-            machine.name.as_str(),
-            state.name.as_str(),
-            primitive.name(),
-        )));
+        if primitive == PrimitiveType::String {
+            if is_index {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` state `{}` indexes a `String` value (`s[i]`), but the text \
+                     carrier does not support byte indexing; use a `[u8; N] in Utf8` array for \
+                     byte access",
+                    machine.name.as_str(),
+                    state.name.as_str(),
+                )));
+            }
+        } else {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}` accesses {access} of a `{}` value, but a primitive \
+                 scalar has no members or elements",
+                machine.name.as_str(),
+                state.name.as_str(),
+                primitive.name(),
+            )));
+        }
     }
     // Unknown BARE NAME: a SINGLE-segment name (`undeclared_var`, not `self.x` or
     // `Type::Case`) that resolves to nothing is otherwise silently accepted and reads
