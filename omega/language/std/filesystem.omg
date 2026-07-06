@@ -451,34 +451,28 @@ machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buff
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
-// Does a path exist and is it openable for reading? (Rust `Path::exists`.)
-// Opens read-only and closes immediately; true iff the open succeeded. NOTE:
-// like any open-based probe this reports false for a path that exists but is
-// unreadable (EACCES) — a faithful `exists` that stats the path (true even when
-// unreadable) waits on `fstat` (step 10); until then this is "readably exists".
+// Does a path exist? (Rust `Path::exists` = `metadata().is_ok()`.) Faithfully
+// STAT-based: `stat` needs no read permission on the file itself (only search
+// permission on the parent dirs), so this is true even for a present-but-unreadable
+// (chmod-0) file — matching Rust. (An earlier version open-probed and wrongly
+// reported false for such a file.)
 machine Filesystem::exists(&mut self, path: &[u8] in Path) -> bool {
-    self.read_flags = 0;
-    let fd: i32 = self.host.open(path, self.read_flags);
-    transition fd >= 0 { true -> present(fd) _ -> absent() }
-    state present(&mut self, fd: i32) -> bool {
-        let rc: i32 = self.host.close(fd);
-        true
-    }
+    let rc: i32 = self.host.read_metadata(path, &mut self.stat_buf);
+    transition rc == 0 { true -> present() _ -> absent() }
+    state present(&mut self) -> bool { true }
     state absent(&mut self) -> bool { false }
 }
 
-// Does a path exist, distinguishing a definite No from an I/O error (Rust
-// `Path::try_exists`)? `Yes` if it opens; `No` only when the failure is ENOENT;
-// otherwise `Error(kind)`. This is the error-aware form of `exists` — a
-// permission failure is surfaced, not silently reported as absent.
+// Does a path exist, distinguishing a definite No from a genuine I/O error (Rust
+// `Path::try_exists`)? Also STAT-based (agrees with `exists`): `Yes` if `stat`
+// succeeds, `No` only when it fails with ENOENT, otherwise `Error(kind)`. A
+// present-but-unreadable file is `Yes` (stat needs no read perm); `Error` is
+// reserved for a real failure such as an unsearchable ancestor directory (EACCES on
+// a parent) — surfaced, not silently reported as absent.
 machine Filesystem::try_exists(&mut self, path: &[u8] in Path) -> ExistsResult {
-    self.read_flags = 0;
-    let fd: i32 = self.host.open(path, self.read_flags);
-    transition fd >= 0 { true -> present(fd) _ -> absent() }
-    state present(&mut self, fd: i32) -> ExistsResult {
-        let rc: i32 = self.host.close(fd);
-        ExistsResult::Yes
-    }
+    let rc: i32 = self.host.read_metadata(path, &mut self.stat_buf);
+    transition rc == 0 { true -> present() _ -> absent() }
+    state present(&mut self) -> ExistsResult { ExistsResult::Yes }
     state absent(&mut self) -> ExistsResult {
         let code: i32 = self.host.errno();
         transition code == 2 { true -> no() _ -> other() }
