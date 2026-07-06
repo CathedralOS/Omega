@@ -38,6 +38,7 @@ data ErrorKind {
     case AlreadyExists;    // EEXIST (17)
     case BadDescriptor;    // EBADF  (9)
     case IsADirectory;     // EISDIR (21)
+    case WouldBlock;       // EWOULDBLOCK/EAGAIN (35) — a non-blocking op is contended
 }
 
 // Bespoke result enums (Rust's `io::Result<T>`, whose Err is `io::Error` — here
@@ -66,6 +67,15 @@ data ExistsResult {
     case Error(kind: ErrorKind);
     case No;
     case Yes;
+}
+
+// The answer of a non-blocking lock attempt (Rust `File::try_lock` ->
+// `io::Result<bool>`): `Acquired` (got the lock), `WouldBlock` (another holder
+// has it — Rust's `Ok(false)`), or a genuine `Error`. ZII zero = `Error`.
+data TryLockResult {
+    case Error(kind: ErrorKind);
+    case WouldBlock;
+    case Acquired;
 }
 
 // How to open an existing file (Rust `std::fs::OpenOptions`). A ZII-default
@@ -277,6 +287,12 @@ boundary trait FilesystemHost {
     // Duplicate an open descriptor onto a fresh fd sharing the same open file
     // (Rust `File::try_clone` -> `dup`). Returns the new fd, or -1 on error.
     machine duplicate(fd: i32) -> i32;
+    // Apply or remove an advisory whole-file lock (Rust `File::lock`/
+    // `lock_shared`/`try_lock`/`unlock` -> `flock`). `operation` is a bitmask:
+    // LOCK_SH=1 (shared), LOCK_EX=2 (exclusive), LOCK_NB=4 (non-blocking),
+    // LOCK_UN=8 (release). Returns 0, or -1 (errno EWOULDBLOCK when a
+    // non-blocking acquire is contended).
+    machine lock_file(fd: i32, operation: i32) -> i32;
     // Read the thread-local errno (darwin `___error()` -> `&errno`, dereferenced
     // in the lowering). Call it immediately after a raw op returned negative.
     machine errno() -> i32;
@@ -695,13 +711,17 @@ machine Filesystem::last_error(&mut self) -> ErrorKind {
         transition code == 9 { true -> bad_descriptor() _ -> check_isdir(code) }
     }
     state check_isdir(&mut self, code: i32) -> ErrorKind {
-        transition code == 21 { true -> is_a_directory() _ -> other() }
+        transition code == 21 { true -> is_a_directory() _ -> check_wouldblock(code) }
+    }
+    state check_wouldblock(&mut self, code: i32) -> ErrorKind {
+        transition code == 35 { true -> would_block() _ -> other() }
     }
     state not_found(&mut self) -> ErrorKind { ErrorKind::NotFound }
     state denied(&mut self) -> ErrorKind { ErrorKind::PermissionDenied }
     state exists(&mut self) -> ErrorKind { ErrorKind::AlreadyExists }
     state bad_descriptor(&mut self) -> ErrorKind { ErrorKind::BadDescriptor }
     state is_a_directory(&mut self) -> ErrorKind { ErrorKind::IsADirectory }
+    state would_block(&mut self) -> ErrorKind { ErrorKind::WouldBlock }
     state other(&mut self) -> ErrorKind { ErrorKind::Other }
 }
 
@@ -855,6 +875,65 @@ machine Filesystem::try_clone(&mut self, file: File) -> OpenResult {
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
     state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
+}
+
+// Advisory whole-file locking (Rust `File::lock`/`lock_shared`/`try_lock`/
+// `try_lock_shared`/`unlock` -> POSIX `flock`). Advisory = only other `flock`
+// users cooperate; the OS does not enforce it against unaware writers. The lock
+// is on the open file description, so an independent `open` of the same path is
+// a distinct holder that can contend. `operation` bit values: LOCK_SH=1,
+// LOCK_EX=2, LOCK_NB=4, LOCK_UN=8.
+
+// Take an EXCLUSIVE lock, blocking until it is available (Rust `File::lock`).
+machine Filesystem::lock(&mut self, file: File) -> UnitResult {
+    let rc: i32 = self.host.lock_file(file.fd, 2); // LOCK_EX
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Take a SHARED lock, blocking until available (Rust `File::lock_shared`).
+machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
+    let rc: i32 = self.host.lock_file(file.fd, 1); // LOCK_SH
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Try to take an EXCLUSIVE lock WITHOUT blocking (Rust `File::try_lock`).
+// `WouldBlock` (errno EWOULDBLOCK) means another holder has it — distinct from a
+// real `Error`, mirroring Rust's `Ok(false)` vs `Err`.
+machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
+    let rc: i32 = self.host.lock_file(file.fd, 6); // LOCK_EX | LOCK_NB
+    transition rc == 0 { true -> acquired() _ -> contended() }
+    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
+    state contended(&mut self) -> TryLockResult {
+        let code: i32 = self.host.errno();
+        transition code == 35 { true -> would_block() _ -> failed() }
+    }
+    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
+    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = self.last_error(); TryLockResult::Error { kind: kind } }
+}
+
+// Try to take a SHARED lock WITHOUT blocking (Rust `File::try_lock_shared`).
+machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
+    let rc: i32 = self.host.lock_file(file.fd, 5); // LOCK_SH | LOCK_NB
+    transition rc == 0 { true -> acquired() _ -> contended() }
+    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
+    state contended(&mut self) -> TryLockResult {
+        let code: i32 = self.host.errno();
+        transition code == 35 { true -> would_block() _ -> failed() }
+    }
+    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
+    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = self.last_error(); TryLockResult::Error { kind: kind } }
+}
+
+// Release any lock held on this file (Rust `File::unlock`).
+machine Filesystem::unlock(&mut self, file: File) -> UnitResult {
+    let rc: i32 = self.host.lock_file(file.fd, 8); // LOCK_UN
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
 }
 
 // Metadata of an open file (Rust `File::metadata`). Uses `fstat` on the
