@@ -6586,6 +6586,36 @@ fn runtime_whole_array_value_copy_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_whole_struct_value_copy_exit_canary_runs() {
+    // Whole-STRUCT value copy: `self.p1 = self.p2` copies every field, so mutating
+    // self.p2.x after the copy leaves self.p1 untouched (value, not alias). The
+    // record complement of runtime_whole_array_value_copy_exit: p1 stays {30, 40}
+    // even after p2.x = 99 -> exit 70.
+    let canary = pass_canary("collections/runtime_whole_struct_value_copy_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-whole-struct-copy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("whole-struct value copy canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("whole-struct value copy canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected whole-struct copy to be independent (p1 unchanged, exit 70); got {:?} (aliased source on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_rule90_automaton_exit_canary_runs() {
     // A self-checking Rule 90 cellular automaton (the engine behind
     // samples/cellular_automaton): a sliding 3-cell window, the value-position rule
