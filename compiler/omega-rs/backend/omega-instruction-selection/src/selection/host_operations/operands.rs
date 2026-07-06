@@ -12,6 +12,7 @@ use super::runtime_text::{
 use crate::selection::storage_places::{
     resolve_fixed_array_length_in_table, resolve_runtime_storage_place_in_table,
 };
+use omega_checked_trees::expression::ExpressionNode;
 use omega_abstract_operations::{
     AbstractDataObject, AbstractDataObjectHandle, InstructionOperand, InstructionOperandKind,
 };
@@ -258,6 +259,19 @@ pub(super) fn select_host_operation_operands(
                             operand(fd),
                             operand(address),
                             operand(InstructionOperandKind::ByteLength(length)),
+                        ])
+                    } else if let Some((pointer, length)) =
+                        subslice_argument_operands(input, host_call, dispatch_index, 2)
+                    {
+                        // A RUNTIME-length subslice `buffer[0..n]` (the faithful
+                        // copy: write exactly the `n` bytes just read). Not a
+                        // `{ptr, len}` descriptor -- marshal the fixed array's base
+                        // ADDRESS + the range end loaded as a runtime scalar length.
+                        operands.insert_many([
+                            operand(result),
+                            operand(fd),
+                            operand(pointer),
+                            operand(length),
                         ])
                     } else {
                         // Runtime slice payload (a `&[u8]` parameter/field): load the
@@ -715,6 +729,73 @@ fn slice_argument_operands(
             region: place.region,
             byte_offset: place.byte_offset,
             is_bounded_buffer: false,
+        },
+    ))
+}
+
+/// Marshal a RUNTIME-length subslice `collection[0..end]` write payload to its
+/// {POINTER, LENGTH} operands: the pointer is the collection's raw base ADDRESS
+/// (a fixed array, exactly as `read` marshals its buffer), the length is the
+/// range END loaded as a runtime scalar -- i.e. `_write(fd, &buf[0], end)`.
+/// Restricted to a literal-`0` start (the base needs no offset) and an EXCLUSIVE
+/// end, matching the shape the checker's runtime-subslice bounds proof admits
+/// (`known_length_range_via_index_bounds_is_proven`). Constant-bound subslices
+/// keep flowing through the existing literal descriptor paths; this adds the
+/// RUNTIME end (`buffer[0..n]`, `n` a proven runtime value -- the faithful copy).
+fn subslice_argument_operands(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    index: usize,
+) -> Option<(InstructionOperandKind, InstructionOperandKind)> {
+    let expression = host_call_argument_expression(input, host_call, index)?;
+    let ExpressionNode::Indexed(indexed) = input.host_calls.expressions.expression(expression)
+    else {
+        return None;
+    };
+    let ExpressionNode::Range(range) = input.host_calls.expressions.expression(indexed.index)
+    else {
+        return None;
+    };
+    // Start must be the literal 0 (base address is the collection base, no offset)
+    // and the end an exclusive runtime bound -- the shape the checker proves.
+    let start_is_zero = if range.start.is_valid() {
+        matches!(
+            input.host_calls.expressions.expression(range.start),
+            ExpressionNode::Integer(value) if *value == 0
+        )
+    } else {
+        true
+    };
+    if !start_is_zero || !range.end.is_valid() || range.end_inclusive {
+        return None;
+    }
+    // Pointer: the collection's raw base address (a fixed array `[u8; N]`).
+    let base = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index.unwrap_or(0),
+        host_call.source_key,
+        &input.host_calls.expressions,
+        indexed.collection,
+    )?;
+    // Length: the range end loaded as a runtime scalar value.
+    let length = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index.unwrap_or(0),
+        host_call.source_key,
+        &input.host_calls.expressions,
+        range.end,
+    )
+    .filter(|place| matches!(place.byte_count, 1 | 2 | 4 | 8))?;
+    Some((
+        InstructionOperandKind::RuntimeStorageAddress {
+            region: base.region,
+            byte_offset: base.byte_offset,
+        },
+        InstructionOperandKind::RuntimeScalarInteger {
+            region: length.region,
+            byte_offset: length.byte_offset,
+            byte_count: length.byte_count,
         },
     ))
 }

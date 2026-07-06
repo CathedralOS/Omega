@@ -118,6 +118,49 @@ crate tests; interpreter fs coverage) and commits.
   NOTE the interpreter runs the wrapper; native wrapper lowering (step 12) is
   still the separate deep track — so `self.last_error()` composition is proven on
   the interpreter, and will need forwarded-arg lowering to run natively.
+- **D11. FIXED (2026-07-06): RUNTIME-length subslice write `write(fd, buf[0..n])`
+  — the faithful-copy idiom, end-to-end native.** Two independent obstacles, both
+  now closed (each a GENERAL compiler capability, not fs-specific):
+  * **Checker (bounds proof).** `check_known_length_range_index` proved a subslice
+    end on a KNOWN-length array only by constant-folding or the range-bound fact
+    vocabulary — it never consulted the INDEX upper-bound facts a dominating
+    `transition n <= N` guard records (the facts a plain `buf[i]` access uses). So
+    `buf[0..n]` with a runtime `n` was rejected even under a proving guard. Added
+    `known_length_range_via_index_bounds_is_proven` (validation.rs): for a runtime
+    end it discharges `n <= N` from the proven EXCLUSIVE upper bounds — `n <= N`
+    ⇔ `n`'s bound `<= N+1` (exclusive), `n < N` ⇔ bound `<= N` (inclusive) —
+    requiring the end NON-NEGATIVE (unsigned by type or a proven `>= 0`) and the
+    start literal `0`. SOUND: never accepts an out-of-bounds subslice (verified —
+    the no-guard case is still rejected; a `n <= N+1` guard, which would be
+    unsound, is correctly refused). Threaded `machine`/`state` into the range
+    check for the `expression_is_unsigned_integer` call.
+  * **Backend (operand marshalling).** The host-call Write arm had no case for a
+    subslice payload (all existing subslice infra is LITERAL-bounds only —
+    `literal_range_bounds` declines a runtime end). Added `subslice_argument_
+    operands` (operands.rs): for `collection[0..end]` with a literal-`0` start and
+    exclusive end, it marshals the collection's raw base ADDRESS (`RuntimeStorage
+    Address`, like `read`'s buffer) + the range end loaded as a runtime scalar
+    (`RuntimeScalarInteger`) → `_write(fd, &buf[0], end)`. Reuses the existing
+    `resolve_runtime_storage_place_in_table` primitive; ~55 lines, no new operand
+    kinds/encoders.
+  Together these give a FAITHFUL copy — `write(fd, buf[0..n])` writes exactly the
+  `n` bytes read, no write-whole-then-`set_len` truncate dance (the D-era
+  `native_buffer_copy` idiom). `canaries/pass/filesystem/native_subslice_copy`
+  RUNS to PASS (dst is exactly the 5 source bytes, first byte 'h', verified by
+  read-back). Zero new failures: checker crate 162/164 (same 2 pre-existing —
+  see ⚠ below), fs coverage 39/39, canary_suite 452/146 identical to clean HEAD,
+  and `native_buffer_copy`/`native_exists`/`native_try_exists` still PASS.
+- **⚠ Pre-existing (2026-07-06): 2 checker-crate test failures on this branch, NOT
+  ours.** `checks::operators::tests::rejects_ambiguous_operator_resolution_with_
+  candidate_details` (a sibling agent's commit bd8a138d1 changed the ambiguous-
+  operator diagnostic from raw indices to names but left the test asserting the
+  old "root operator 10 params 2 contracts 1" string) and `tests::contracts::
+  proof_obligations::rejects_requires_dynamic_indexed_boolean_expression_from_
+  domain_fact_after_mutating_call` (a contract proof-obligation that no longer
+  fires). Both fail on clean HEAD without our changes; both are in the
+  operator/contract-diagnostic area (disjoint from fs/ranges). Flagged for the
+  user — a 1-line test-expectation update would restore green but is the other
+  workstream's to make.
 
 ## Current state (update every fire)
 
@@ -138,6 +181,12 @@ crate tests; interpreter fs coverage) and commits.
   needed a `find_nth_data_object` helper (two path literals in one call, resolved
   by creation/offset order = arg order). `canaries/pass/filesystem/native_rename`
   RUNS: create A + write + rename A→B + read B back (16 bytes) → PASS.
+- **RUNTIME-length subslice write `write(fd, buf[0..n])` RUNS natively** (D11) —
+  the faithful copy: write exactly the `n` bytes read, no write-64-then-`set_len`
+  truncate. `canaries/pass/filesystem/native_subslice_copy` PASS (dst = 5 bytes,
+  first 'h', read-back verified). Unblocked a checker gap (runtime subslice
+  end-bound via dominating-guard index facts) AND a backend gap (host-write
+  subslice → base-address + runtime-scalar-length operands); both are general.
 - Native raw ops now: create/open/read/write/pread/pwrite/close/remove/seek/
   create_dir/remove_dir/rename/chmod/fchmod/link/symlink/readlink/stat/lstat/fstat/
   realpath/dup/ftruncate/futimens/fsync — all run-verified on macOS.
