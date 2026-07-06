@@ -469,6 +469,43 @@ fn type_reference_is_text_carrier(program: &TypedTrees, handle: TypeReferenceHan
     }
 }
 
+/// Reject logical `&&`/`||` on a NON-bool operand (`5 && 3`, `a && n` for int `n`).
+/// The connectives require `bool` operands; `5 && 3` otherwise uses int truthiness
+/// (`== 1`), the C behavior Omega rejects (no int-in-bool -- same principle as
+/// logical `!` and `<number> as bool`). Fires when EITHER operand classifies as
+/// Numeric/Text; a comparison / logical / call / bool operand (None/Boolean) is
+/// allowed, so `(a == 1) && (b < 5)` and `x && y` (bools) stay valid.
+pub(crate) fn report_non_bool_logical_operands(
+    program: &TypedTrees,
+    machine: &omega_typed_trees::machine::Machine,
+    state: Option<&omega_typed_trees::state::State>,
+    operator: omega_typed_trees::expression::BinaryOperator,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    use omega_typed_trees::expression::BinaryOperator;
+    if !matches!(operator, BinaryOperator::And | BinaryOperator::Or) {
+        return false;
+    }
+    let non_bool = |value| {
+        matches!(
+            value_class(program, Some(machine), state, value),
+            Some(ValueClass::Numeric) | Some(ValueClass::Text)
+        )
+    };
+    if !non_bool(left) && !non_bool(right) {
+        return false;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}` applies logical `{operator:?}` to a non-bool operand, but \
+         `&&`/`||` require `bool` operands",
+        machine.name.as_str(),
+        state.map(|state| state.name.as_str()).unwrap_or(""),
+    )));
+    true
+}
+
 /// Reject a non-`+` arithmetic / shift / bitwise operator on TEXT operands
 /// (`s - t`, `s * t` for strings). Text supports only `+` (concatenation) and
 /// `==`/`!=`; there is no subtraction/multiplication/shift/etc. of strings, and
