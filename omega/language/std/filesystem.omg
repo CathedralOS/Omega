@@ -217,6 +217,39 @@ machine Filesystem::read_all(&mut self, path: &[u8] in Path, buffer: &mut [u8], 
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
+// Does a path exist and is it openable for reading? (Rust `Path::exists`.)
+// Opens read-only and closes immediately; true iff the open succeeded. NOTE:
+// like any open-based probe this reports false for a path that exists but is
+// unreadable (EACCES) — a faithful `exists` that stats the path (true even when
+// unreadable) waits on `fstat` (step 10); until then this is "readably exists".
+machine Filesystem::exists(&mut self, path: &[u8] in Path) -> bool {
+    self.read_flags = 0;
+    let fd: i32 = self.host.open(path, self.read_flags);
+    transition fd >= 0 { true -> present(fd) _ -> absent() }
+    state present(&mut self, fd: i32) -> bool {
+        let rc: i32 = self.host.close(fd);
+        true
+    }
+    state absent(&mut self) -> bool { false }
+}
+
+// Metadata of a PATH (Rust `std::fs::metadata`), the path-based counterpart to
+// `metadata(file)`: open the path read-only, measure via seek-to-end, close.
+// `len` is the byte size. (Richer fields — kind/permissions/times — arrive with
+// `fstat`, step 10.)
+machine Filesystem::metadata_path(&mut self, path: &[u8] in Path) -> MetadataResult {
+    self.read_flags = 0;
+    let fd: i32 = self.host.open(path, self.read_flags);
+    transition fd >= 0 { true -> measure(fd) _ -> err() }
+    state measure(&mut self, fd: i32) -> MetadataResult {
+        let len: i64 = self.host.seek(fd, 0, 2);
+        let rc: i32 = self.host.close(fd);
+        transition len >= 0 { true -> ok(len) _ -> err() }
+    }
+    state ok(&mut self, len: i64) -> MetadataResult { MetadataResult::Ok { meta: Metadata { len: len } } }
+    state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
+}
+
 // Remove a file.
 machine Filesystem::remove(&mut self, path: &[u8] in Path) -> UnitResult {
     let rc: i32 = self.host.remove(path);

@@ -1433,3 +1433,60 @@ machine Main::main(&mut self) {
         "open(missing) -> NotFound and create_dir(existing) -> AlreadyExists (kind varies per cause)"
     );
 }
+
+/// Path-query helpers via the std module: `exists` (Rust `Path::exists`) is
+/// false before a write and true after; `metadata_path` (Rust `fs::metadata`)
+/// reports the byte length of a path without a `File` handle. Then `remove`
+/// makes `exists` false again.
+#[test]
+fn filesystem_std_module_path_queries() {
+    let main_path = write_program(
+        "fs-pathquery",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+    present: bool;
+}
+machine Main::main(&mut self) {
+    self.present = self.fs.exists("/q.txt");
+    transition self.present { true -> fail() _ -> makeit() }
+    state makeit(&mut self) {
+        self.unit_result = self.fs.write_all("/q.txt", "twelve bytes");
+        transition self.unit_result { UnitResult::Ok -> checkpresent() _ -> fail() }
+    }
+    state checkpresent(&mut self) {
+        self.present = self.fs.exists("/q.txt");
+        transition self.present { true -> checklen() _ -> fail() }
+    }
+    state checklen(&mut self) {
+        self.meta_result = self.fs.metadata_path("/q.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> verifylen(meta) _ -> fail() }
+    }
+    state verifylen(&mut self, meta: Metadata) {
+        transition meta.len == 12 { true -> removeit() _ -> fail() }
+    }
+    state removeit(&mut self) {
+        self.unit_result = self.fs.remove("/q.txt");
+        self.present = self.fs.exists("/q.txt");
+        transition self.present { true -> fail() _ -> ok() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("path-query program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "path_queries: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "exists: false->true->false around write/remove; metadata_path.len == 12"
+    );
+}
