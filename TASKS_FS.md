@@ -254,16 +254,32 @@ crate tests; interpreter fs coverage) and commits.
     from a `[u8; N]` buffer (`(buf[k] as i64) << 8*i | …`, shifts/OR dodge the
     exact-arithmetic rule), and the raw `fstat(fd, &mut buf)` op needs a
     "slice-pointer-only" operand shape (fd + buffer ptr, no length).
-12. [ ] **`copy(from, to)`** (Rust `fs::copy`) — BLOCKED on an interpreter gap
-    found this fire. Threading a `&mut [u8]` + path through a state WORKS, and a
-    dominating bounds guard (`count <= buf.len`) DISCHARGES the subslice range
-    proof, but `eval_fs_bytes` (the host-call byte-arg extractor) does NOT accept
-    a subslice `Array` value — `self.host.write(fd, buf[0..count])` fails at
-    interpret with "expected byte data, got Array". Fixing that (teach
-    `eval_fs_bytes`/`write_fs_buffer` to accept a subslice view) unblocks `copy`,
-    `read_to_end`-style loops, and partial writes generally. Alternative that
-    avoids subslice entirely: write the whole buffer then `set_len(n)` to truncate
-    (proven ops), at the cost of writing trailing garbage that is then discarded.
+12. [x] **`copy(from, to)`** (Rust `fs::copy`) — DONE (interpreter). Enabled by a
+    small interpreter fix: `eval_fs_bytes` now accepts a `Value::Array` (a byte
+    array or a subslice view) as a host-call byte arg — the write-side mirror of
+    `write_fs_buffer`'s `Array` arm — so a buffer can be written, not just a
+    string literal. `Filesystem::copy(from, to, buffer, cap) -> IoResult` uses the
+    WRITE-THEN-TRUNCATE idiom (write the whole buffer, then `set_len(n)`) entirely
+    in the ENTRY, because the interpreter does NOT thread a `&[u8]` across a state
+    transition (a threaded slice param comes through empty/wrong — see D-thread
+    below). Coverage `filesystem_std_module_copy`: copies 14 bytes through a
+    64-byte buffer, verifies the count is 14 (truncated to n, not cap) and the
+    content matches. Two documented differences from Rust (from staying in the
+    entry): it writes `cap` bytes then truncates, and a source-open failure still
+    creates an empty `to`. NATIVE copy is NOT possible yet: the raw `write` op
+    marshals a runtime `&[u8]` SLICE (descriptor) but not a fixed `[u8; N]` array
+    (read uses an address helper; write expects a descriptor) — a bounded backend
+    follow-up (add a fixed-array-address + static-length arm to the write operand
+    handler). The faithful copy (branch after read; write `buffer[0..n]`) lands
+    once the interpreter threads slices through states.
+    - **D-thread (interpreter limitation, recorded).** A `&mut [u8]`/`&[u8]`
+      passed as a transition-target argument into a sibling state's param comes
+      through EMPTY/WRONG in the interpreter (scalars and `[copy]` structs thread
+      fine; slices do not). This forces the whole-file/copy helpers to run all
+      raw ops in one entry. Fixing it (make `eval_argument` alias the slice
+      descriptor into the state param, like it does for `&mut` struct refs) would
+      unblock faithful `copy`, root-cause errno in `write_all`/`read_all`, and
+      slice-passing to helper states generally.
 13. [ ] **`read_dir`** (opendir/readdir) — directory iteration. Large (returns a
     growing sequence; needs an iterator/handle shape). Defer until an iteration
     idiom is settled.

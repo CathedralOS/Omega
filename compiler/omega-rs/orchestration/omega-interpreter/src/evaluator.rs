@@ -2397,6 +2397,17 @@ impl<'program> Evaluator<'program> {
         };
         match self.eval_expression(argument, frame)? {
             Value::Str(text) => Ok(text.borrow().clone()),
+            // A byte array or a subslice view of one (`buffer` / `buffer[0..n]`):
+            // each element cell holds a byte as an `Int`. This is the write-side
+            // mirror of `write_fs_buffer`'s `Array` arm, and lets a caller write
+            // a bounded prefix of a buffer (Rust `fs::copy`, `write` of a slice).
+            Value::Array(cells) => {
+                let mut bytes = Vec::with_capacity(cells.len());
+                for cell in &cells {
+                    bytes.push(cell.borrow().as_int().unwrap_or(0) as u8);
+                }
+                Ok(bytes)
+            }
             other => unsupported(format!("filesystem call expected byte data, got {other:?}")),
         }
     }

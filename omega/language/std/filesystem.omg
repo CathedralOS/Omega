@@ -217,6 +217,34 @@ machine Filesystem::read_all(&mut self, path: &[u8] in Path, buffer: &mut [u8], 
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
+// Copy the contents of `from` to `to` (Rust `std::fs::copy`), returning the
+// number of bytes copied. Uses a caller-provided scratch `buffer` (Rust
+// allocates; Omega stays allocation-free — size it to the file via
+// `metadata_path`; a source larger than `cap` is copied only up to `cap`).
+//
+// The bytes are written with the WRITE-THEN-TRUNCATE idiom: write the whole
+// buffer then `set_len(n)` to drop the trailing scratch bytes. This keeps the
+// whole op in the ENTRY (no state threads the buffer — the interpreter does not
+// yet carry a `&[u8]` across a state transition; see TASKS_FS.md "copy"), at the
+// cost of two documented differences from Rust: (1) it writes `cap` bytes then
+// truncates, and (2) on a source-open failure it still creates an empty `to`.
+// A faithful version (branch after the read; write only `buffer[0..n]`) lands
+// once the interpreter threads slices through states.
+machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: usize) -> IoResult {
+    self.read_flags = 0;
+    self.create_mode = 420;
+    let src: i32 = self.host.open(from, self.read_flags);
+    let n: i64 = self.host.read(src, buffer, cap);
+    let closed_src: i32 = self.host.close(src);
+    let dst: i32 = self.host.create(to, self.create_mode);
+    let written: i64 = self.host.write(dst, buffer);
+    let truncated: i32 = self.host.set_len(dst, n);
+    let closed_dst: i32 = self.host.close(dst);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
 // Does a path exist and is it openable for reading? (Rust `Path::exists`.)
 // Opens read-only and closes immediately; true iff the open succeeded. NOTE:
 // like any open-based probe this reports false for a path that exists but is
