@@ -175,3 +175,6 @@ fn native_metadata_modified_passes() { assert_pass("native_metadata_modified"); 
 fn native_metadata_times_passes() { assert_pass("native_metadata_times"); }
 #[test]
 fn native_metadata_readonly_passes() { assert_pass("native_metadata_readonly"); }
+
+#[test]
+fn native_value_call_let_chain_passes() { assert_pass("native_value_call_let_chain"); }
