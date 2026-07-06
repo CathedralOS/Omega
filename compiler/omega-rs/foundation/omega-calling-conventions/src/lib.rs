@@ -170,6 +170,11 @@ pub enum HostOperation {
     /// 144-byte darwin stat record through it); the Omega layer reads `st_size`
     /// (off 96, i64) and `st_mode` (off 4, u16) back out.
     Stat,
+    /// `fstat(fd, buf)` -- fill a `struct stat` buffer for an OPEN fd (Rust
+    /// `File::metadata`). Same buffer as `stat`, but keyed by descriptor instead of
+    /// path: operand shape `[result, fd scalar, buffer pointer]` (like `read`
+    /// without the count). Never touches the file offset.
+    FStat,
     /// `lstat(path, buf)` -- like `stat`, but does NOT follow a final symlink (Rust
     /// `fs::symlink_metadata`). On a symlink the `st_mode` file-type field is
     /// `S_IFLNK` (0o120000), so `Metadata::is_symlink()` is true. Identical operand
@@ -251,6 +256,7 @@ impl HostOperation {
             "readlink" => Self::ReadLink,
             "getdirentries64" => Self::ReadDir,
             "stat" => Self::Stat,
+            "fstat" => Self::FStat,
             "lstat" => Self::LStat,
             "realpath" => Self::Realpath,
             "ftruncate" => Self::SetLen,
@@ -299,6 +305,7 @@ impl HostOperation {
             Self::ReadLink => "readlink",
             Self::ReadDir => "getdirentries64",
             Self::Stat => "stat",
+            Self::FStat => "fstat",
             Self::LStat => "lstat",
             Self::Realpath => "realpath",
             Self::SetLen => "ftruncate",
