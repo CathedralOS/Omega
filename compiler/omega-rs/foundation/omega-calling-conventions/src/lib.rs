@@ -118,6 +118,9 @@ pub enum HostOperation {
     Close,
     /// `unlink`/`remove` -- delete a path.
     Unlink,
+    /// `lseek(fd, offset, whence)` -- reposition the descriptor, returning the
+    /// resulting absolute offset (so `seek(fd, 0, SEEK_END)` yields the size).
+    Seek,
     Sleep,
     TickCount,
     KeyState,
@@ -163,6 +166,7 @@ impl HostOperation {
             "creat" => Self::Creat,
             "close" => Self::Close,
             "unlink" => Self::Unlink,
+            "lseek" => Self::Seek,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
@@ -194,6 +198,7 @@ impl HostOperation {
             Self::Creat => "creat",
             Self::Close => "close",
             Self::Unlink => "unlink",
+            Self::Seek => "lseek",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",

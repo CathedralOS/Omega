@@ -36,6 +36,13 @@ crate tests; interpreter fs coverage) and commits.
   ints; wrapper builds `File`/result enums in Omega.
 - **D4. `create` maps to libc `_creat`** (not `open`) because `open`'s mode is
   variadic (stack-passed/dropped on arm64); `_creat`'s mode is a register param.
+- **D5. Grow the raw seam's Rust-parity BREADTH in parallel with (not blocked
+  on) native-wrapper lowering.** The wrapper's forwarded-param native resolution
+  is a deep backend area (parameter storage-place resolution across machine-call
+  boundaries); rather than stall the whole effort on it, keep adding
+  value-returning raw ops that DO lower natively (seek/stat/mkdir/…) and exercise
+  them with run-verified canaries. The ergonomic wrapper already runs in the
+  interpreter; native wrapper lowering is a separate track.
 
 ## Current state (update every fire)
 
@@ -46,23 +53,32 @@ crate tests; interpreter fs coverage) and commits.
   over Console's wildcard. `canaries/pass/filesystem/native_crud` RUNS to PASS
   with the human names; `native_close` checks clean; no regressions.
 - Native raw CRUD RUNS end-to-end on macOS via value-returning host calls.
+- **`seek` (Rust `Seek`) landed natively** via `_lseek` (HostOperation::Seek,
+  3 scalar args) — `canaries/pass/filesystem/native_seek` RUNS: seek-to-end
+  reports the 17-byte size. Enables file-size/`metadata` + append next.
 - aarch64 value-returning host calls implemented (the foundational primitive).
 - Runtime slice/path host-call args implemented.
-- Ergonomic wrapper runs in the INTERPRETER; lowering it natively is in progress.
+- Ergonomic wrapper runs in the INTERPRETER; lowering it natively is a separate
+  (deep) track (forwarded-param resolution) — see D5, pursued in parallel.
 
 ## Next steps (ordered; keep this list live)
 
 1. [x] **Rename raw ops to human words** — DONE (create/open/read/write/close/
    remove; `find_lowering_prefer_exact` compiler feature; canaries updated + run).
-2. **Forwarded-param → storage-place resolution** so wrapper machines that pass
-   a `&[u8]` param to the boundary lower natively (current wrapper blocker).
-3. Store enum result through a wrapper `&mut out`; const-folded-literal-arg fix.
+2. **Raw-seam Rust-parity breadth (native, run-verified)** — the steady track
+   (D5). Done: `seek`. Next candidates (all value-returning, lower like existing
+   ops): `stat`/`fstat` for `metadata` (needs a stat-buffer out-param — check the
+   darwin `struct stat` layout + `st_size` offset), `mkdir`/`create_dir`,
+   `rmdir`, `rename`, append via `open` with `O_APPEND`. Check Rust
+   `library/std/src/fs.rs` + `sys/pal/unix/fs.rs`.
+3. **[deep, parallel] Forwarded-param → storage-place resolution** so wrapper
+   machines that pass a `&[u8]` param to the boundary lower natively; then store
+   enum result through a wrapper `&mut out`; const-folded-literal-arg fix. Unlocks
+   the ergonomic `Filesystem` wrapper lowering NATIVELY.
 4. Ergonomic `Filesystem` wrapper as the real `omega/language/std/filesystem.omg`
-   (create/open/read/write/close/remove + `File` + result enums), lowering
-   natively AND interpreting; migrate interpreter coverage onto it.
-5. Rust-parity surface: `metadata`/`len`, `read_to_end`/buffered read, append
-   mode, `create_dir`/`read_dir`, `rename`, error enum (errno→cases). Check Rust
-   `library/std/src/fs.rs`.
+   (create/open/read/write/close/remove/seek + `File` + result enums). It ALREADY
+   runs in the interpreter; wire native once (3) lands; migrate coverage onto it.
+5. Error model: errno → bespoke Omega error `data` cases (negative raw returns).
 6. x86_64/linux/windows seams (tables only; not tested here).
 
 ---
