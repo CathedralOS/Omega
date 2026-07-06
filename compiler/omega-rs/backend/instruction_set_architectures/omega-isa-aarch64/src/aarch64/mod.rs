@@ -309,14 +309,33 @@ fn append_call_operands(
                 bytes.extend(encode_load_x_from_x(next_register, next_register, 8)?);
                 next_register += 1;
             }
-            RuntimeScalarInteger { byte_offset, .. } => {
+            RuntimeScalarInteger {
+                byte_offset,
+                byte_count,
+            } => {
                 bytes.extend(encode_adrp_placeholder(next_register));
                 bytes.extend(encode_add_page_offset_placeholder(next_register));
-                bytes.extend(encode_load_x_from_x(
-                    next_register,
-                    next_register,
-                    *byte_offset,
-                )?);
+                // Load the scalar at its OWN width (LDR x for an 8-byte i64/usize,
+                // LDR w for a 4-byte i32) -- matching the result-store side, which
+                // already stores at byte_count. A u64 load needs an 8-aligned offset;
+                // a 4-byte scalar's slot is only 4-aligned, so at a large data-region
+                // offset (e.g. a field after a big wrapper struct, offset 1396 = 4- but
+                // not 8-aligned) the u64 load had no single-instruction encoding and
+                // errored. The sized load keeps the alignment at byte_count, so it is
+                // always one direct instruction and the operand width stays 12
+                // (adrp + add + load) -- no lockstep width change. The register's low
+                // byte_count bytes carry the value the callee reads (a 32-bit arg reads
+                // Wn); the sized load also drops the stray high bytes the u64 load read.
+                if *byte_count >= 8 {
+                    bytes.extend(encode_load_x_from_x(next_register, next_register, *byte_offset)?);
+                } else {
+                    bytes.extend(encode_load_w_from_x(
+                        next_register,
+                        next_register,
+                        *byte_offset,
+                        *byte_count,
+                    )?);
+                }
                 next_register += 1;
             }
             RuntimeStorageAddress { byte_offset } => {

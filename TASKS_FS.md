@@ -216,20 +216,35 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
-- **▶ NEXT FRONTIER — general encoder large-offset load (blocks STAT-based wrappers).**
-  With step 14 complete, the ergonomic wrapper's byte-I/O methods (write_all/read_all/
-  remove) are native. The STAT-based methods (`exists`/`try_exists`/`metadata_path`/
-  `read_dir`) fail to compile on a SEPARATE, GENERAL encoder gap (not step 14, not
-  fs-specific): `&mut self.stat_buf` lands at byte offset 1396 in the large `Filesystem`
-  wrapper, and `encode_load_x_from_x` (`omega-isa-aarch64/.../primitives/memory.rs:142`)
-  only encodes an 8-ALIGNED scaled-LDR offset (≤ 32760) or a non-aligned LDUR (≤ 255) —
-  1396 is non-aligned AND > 255 → "AArch64 MVP encoder cannot load u64 from x0 at offset
-  `1396` yet". FIX (general): emit add-then-load (`add xN, base, #off; ldr xd, [xN]`) for
-  out-of-range offsets — but the return type is `[u8; 4]` (one insn), so this needs a
-  variable-length return + a width-lockstep check at the ~10 callers (relocation/layout
-  widths must agree). Repro: `canaries/run/filesystem/wrapper_exists_large_field_offset`.
-  Judgement: general compiler work with lockstep complexity — a focused next fire. (The
-  fs SURFACE is complete; this is a codegen limitation shared by any large struct.)
+- **✅ FIXED — encoder large-offset scalar arg (STAT wrappers now COMPILE) (2026-07-08).**
+  The blocker was NOT a general "add-then-load for any u64" (my first framing) — it was
+  narrower + cleaner: `append_call_operands` (aarch64 `mod.rs`) loaded EVERY
+  `RuntimeScalarInteger` host-call ARG as a full u64 (`encode_load_x_from_x`), which needs
+  an 8-ALIGNED offset. A 4-byte scalar's slot is only 4-aligned, so a field after the big
+  `Filesystem` wrapper (e.g. `self.mode` at 1396 = 4- but not 8-aligned) had no single-
+  instruction u64 encoding → "cannot load u64 from x0 at offset 1396". FIX: load the
+  scalar at its OWN width — `LDR w` for a 4-byte i32, `LDR x` for an 8-byte i64/usize
+  (mirrors the result-STORE side, which already stores at `byte_count`). This keeps the
+  alignment at `byte_count`, so it is ALWAYS one direct instruction and the operand width
+  stays 12 — **no lockstep width change, no relocation shift**. (The earlier
+  `region_scalar_load` add-then-load attempt DID work for the arg but broke the width
+  invariant `scalar-load == scalar-store == 12` for the result operand — reverted for the
+  cleaner sized load.) VERIFIED: native fs harness **49/49**; canary_suite **515/85
+  IDENTICAL** with/without (exact zero-regression, all host-call arg marshalling); isa-
+  aarch64 31 / instr-sel 5 crate tests green. The STAT wrappers (`exists`/`metadata_path`/
+  `read_dir`) now COMPILE.
+
+- **▶ NEXT — STAT wrapper `rc` not observed (revealed by the fix above).** With the
+  wrappers compiling, `Filesystem::exists` RUNS but ALWAYS returns true, even for a
+  definitely-absent path (repro `canaries/run/filesystem/wrapper_exists_absent`): `let rc
+  = self.host.read_metadata(path, &mut self.stat_buf); transition rc == 0` reads `rc` as 0
+  (its ZII zero) — the read_metadata RESULT is not observed by the guard in the inlined
+  through-field value-call, so `present1` (after create) is coincidentally right but
+  `absent`/`present2` are wrong. write_all/read_all's `n >= 0` guard on the write/read
+  result DOES work (their canaries pass), so this is specific to this callee's shape (a
+  metadata op, or the result-store slot vs the guard-read slot for the inlined exists).
+  This is a native VALUE-CALL result-observation bug, NOT the encoder — next to
+  investigate before the STAT wrappers are usably native.
 
 - **🎉 STEP 14 COMPLETE — the SHIPPED ergonomic `Filesystem` wrapper runs NATIVELY
   (2026-07-08).** `Filesystem::write_all`/`read_all`/`remove` — the Rust-parity API,
