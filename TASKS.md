@@ -128,110 +128,19 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   records/enums. Once the resolver is versioned-sound, gate the check on
   `resolve_nested_member_path(...).is_none()` for a 3+-segment self/local/param member read.
 
-- **[RESOLVED 2026-07-05, 5faa7928b]** Arithmetic/ordering on a STRUCT with no declared
-  operator (`self.a + self.b` for plain `data P`) rejected via `resolve_spelling` (empty
-  candidate set for a concrete-data left operand = undeclared; domain ops stay valid).
-  Lesson in memory [[literal-class-assignment-miscompile]]. Canary struct_operator_undeclared_rejected.
-- **[RESOLVED 2026-07-05] Cast to a numeric/address scalar from a TEXT/STRUCT/ARRAY source.**
-  `self.s as i32` (a `String` carrier), `self.p as i32` (a struct), `self.xs as i32` (an array)
-  all compiled + RAN to garbage (exit 0): the Cast arm validated the TARGET (must be a scalar
-  primitive) and `as bool`, but never the SOURCE for numeric targets, so `as` resolved the
-  target primitive, found no scalar conversion, and passed the bytes through unchanged. Fix:
-  `report_invalid_numeric_cast_source` (expression_types.rs), wired in the Cast arm for every
-  scalar target except `bool` (handled by `report_number_to_bool_cast`) and `String`. Rejects a
-  PROVABLY non-scalar/text source: `value_class == Text` (text), `value_shape_is_array == Some(true)`
-  (array), or a struct-literal / concrete-data-place name (struct); a numeric/bool source, a
-  comparison, or an unresolvable computed source (a call) is left alone -- so `(a==1) as i32` and
-  `bool as f64` stay valid. Canaries cast_{text,struct,array}_to_number_rejected. NOTE: the other
-  direction (`n as String`, `p as String`) is NOT silent -- it hits the "needs mutation lowering"
-  guard (crude but safe), so no soundness hole there; a diagnostic-quality follow-up at most.
-- **[RESOLVED 2026-07-05] `==`/`!=` between two DIFFERENT data types (`self.p == self.q`).**
-  Synthesized structural equality resolves ONE type name (from whichever operand types first) and
-  pairs BOTH operands' fields by POSITION, so `P == Q` silently expanded to `p.x == q.x && ..` --
-  reading Q's bytes as a P -- and ran to a garbage bool (confirmed: `let b = self.p == self.q`
-  built + ran, exit 0). Fix in the EXPANSION site (`structural_equality.rs try_lower_structural_
-  equality`, symbol-resolved->typed pipeline), NOT validation: by the time validation runs the
-  compare is already expanded to `i32 == i32` field compares, so the type info is gone. Resolve
-  BOTH operand type names; if both resolve and DIFFER, reject before expanding. Placed after the
-  classifier-reference gate (so match-arm `subject == Case` desugars are untouched) and before the
-  structural-shape branch, so it also covers payload-less sums / enums (`Color == Direction`). Case
-  literals resolve to their BASE type name, so same-sum value-vs-`Case { .. }` compares stay valid.
-  ⚠️ SCOPING (found via a canary regression): `operand_data_type_name` resolves PRIMITIVE names too
-  (`i32`, `String`), so the gate additionally requires BOTH names to be `data_definition_by_name` --
-  a primitive/text mismatch (`n == s`) stays owned by the validation-phase cross-class / text-operator
-  checks (which give the "text and non-text" message the cross_class canary asserts); this fires ONLY
-  on the data-type positional-expansion hole. Canary cross_type_equality_rejected. Refactor: extracted the shared "value's concrete data name"
-  resolver (`value_concrete_data_name`, expression_types.rs) now used by `report_data_type_conflict`
-  + the cast-source check.
-- **[RESOLVED 2026-07-05] `==`/`!=` between an enum value and a case of a DIFFERENT enum.**
-  `self.c == Direction::North` for `c: Color` lowered to a raw TAG compare across unrelated enums
-  (Color::Red and Direction::North both tag 0 -> spuriously EQUAL, took the true arm; confirmed exit 1).
-  The cross-type-equality fix above SKIPS classifier references (`Enum::Case`) because the
-  `classifier_reference_operand` gate in `try_lower_structural_equality` bails to the tag-compare
-  machinery -- which never checked the case's enum matches the value's. Fix: at that gate, resolve each
-  side's data type (a classifier's FIRST path segment via new `classifier_reference_type`, or a value's
-  `operand_data_type_name`) and reject before bailing when both are `data_definition_by_name` and DIFFER.
-  Same-enum case comparisons (`self.c == Color::Red`, and match-arm `subject == Player::Alive` desugars)
-  have equal names -> untouched; domain classifiers (not data defs) skipped. Canary
-  cross_enum_case_comparison_rejected.
-- **[RESOLVED 2026-07-05] MEMBERSHIP `value in DifferentEnum::Case` (the `in` sibling of the above).**
-  `self.c in Direction::North` for `c: Color` lowered (`domain_membership.rs lower_case_membership_
-  expression`) to the SAME tag-equality compare as `==`, again across unrelated enums (both tag 0 ->
-  spuriously TRUE, exit 1). New `reject_cross_type_case_membership` method on the lowerer (in
-  structural_equality.rs, pub(super); reuses `operand_data_type_name` + `data_definition_by_name`),
-  called from lowerer.rs right before the implicit `Type::Case` lowering: resolve the value's data type,
-  reject when it and `Type` are different data definitions. Same-enum membership + transition match-arm
-  desugars (which lower to case membership) have equal names -> untouched; declared-domain membership
-  (`domain_symbol` valid) never reaches this path. Canary cross_enum_case_membership_rejected. The
-  cross-type `==`/`!=`/`in` enum surface is now closed on all three forms.
-- **[RESOLVED 2026-07-05] `==`/`!=` on ARRAY operands (`self.xs == self.ys`).** Structs expand to
-  synthesized structural equality and text carriers compare by content, but an array operand never
-  expands -- there is no element-wise array equality -- so `xs == ys` reached the backend as a
-  multi-byte runtime compare it cannot encode ("cannot load N-byte runtime operands"); DIFFERENT-length
-  arrays (`[i32;3] == [i32;2]`) were not caught at the frontend either. `report_array_operator_operands`
-  had EXCLUDED `==`/`!=` (assuming structural expansion); now it rejects them on non-text array operands
-  with a precise message (ordering/arithmetic keep their existing wording; `&&`/`||` stay with the
-  non-bool-logical check; String/`[u8;N]` text carriers excluded, so string equality stays valid).
-  Element-wise array equality is a plausible future feature. Canary array_equality_rejected.
-- **[RESOLVED 2026-07-05] SCALAR <-> DATA (struct/enum) shape mismatch at value-binding slots.**
-  `self.inner = 5` (a scalar into a struct field) silently clobbered the struct's leading bytes and
-  `let n: i32 = self.inner` (a struct into a scalar slot) silently read a ZII `0` -- both built + ran
-  (exit 0) with no diagnostic. This cross-shape case fell BETWEEN the two type gates: the scalar-CLASS
-  gate (`report_cross_class_store`) needs a primitive TARGET (a struct target has none, so it is
-  skipped), and the nominal gate (`report_data_type_conflict`) needs BOTH sides to resolve to data
-  names (a scalar does not). New `report_scalar_data_shape_mismatch` (expression_types.rs): rejects a
-  scalar value into a concrete-data target (`value_class` Some + target is `concrete_data_type_name`)
-  and a data value into a scalar target (`value_concrete_data_name` Some + target is a primitive).
-  Wired at ALL binding positions: assignment / terminal + transition return / let-init (lib.rs, beside
-  the array-shape check), call ARGUMENT (calls.rs x2 -- SAFE there unlike the array-shape check because
-  `&buffer`/`addr`/text args involve no data type on either side), construction FIELD and DATA-typed
-  array ELEMENT (struct_literals.rs). Canary scalar_into_data_field_rejected. Completes the value-vs-
-  target shape matrix (scalar/array/data all cross-checked); no known remaining shape hole.
-- **[RESOLVED 2026-07-05] Comparison against an OUT-OF-RANGE integer literal (`self.b == 300` for u8).**
-  Comparing an integer value to a literal outside its type's range silently TRUNCATED the literal to the
-  operand width -- `self.b == 300` for a `u8` compiled to `b == (300 & 0xFF) == 44`, and with `b = 44`
-  the native binary took the TRUE arm (confirmed miscompile; `i8 == 200` -> `== -56` too). The decision-17
-  narrowing obligation covers value-binding STORES but not comparison OPERANDS, so this slipped. New
-  `report_out_of_range_comparison_literal` (arithmetic_domains.rs, reuses `primitive_range` + `Interval`):
-  for a comparison (`==`/`!=`/`<`/`<=`/`>`/`>=`) where one operand resolves to an integer primitive and
-  the other is an integer literal outside its range, reject. Wired into the `validate_binary_operand_types`
-  dispatcher (so it runs at every comparison site incl. guard subjects). In-range comparisons and the
-  `as`-widen workaround (`(self.b as i32) == 300`) stay valid; two-place / float / bool / text pairings
-  skipped. Canary out_of_range_comparison_literal_rejected.
-- **[RESOLVED 2026-07-05] DIFFERENT-WIDTH integer operands in COMPARISON and BITWISE ops.**
-  The place-vs-place sibling of the OOR-literal check: an op between two integer places of different
-  primitive types compiled at the NARROWER operand's width, silently truncating the wider one.
-  COMPARISON `i8(44) == i32(300)` read TRUE (`300 & 0xFF == 44`); BITWISE `u32(256) | u8(1)` read `1`
-  not `257` (`256 & 0xFF == 0`, then `0 | 1`). Both confirmed native. `report_mismatched_width_operands`
-  (arithmetic_domains.rs, wired in `validate_binary_operand_types`): both operands resolve to INTEGER
-  primitives (`primitive_range` Some) that DIFFER -> reject, "convert one with an `as` cast". Covers
-  `==`/`!=`/`<`/`<=`/`>`/`>=` + `&`/`|`/`^`. NOT arithmetic (`+ - * / %` -- the decision-17 overflow
-  obligation already catches mismatch, treating the result as the narrower type; not silent) nor SHIFT
-  (`<<`/`>>` right operand is a bit COUNT, not width-matched -- `u32 << u8` verified correct). ZERO blast
-  radius (599 canaries + samples -- nothing combined different-width places; pure latent trap). Same-type,
-  `as`-widen workaround, and literal / float / bool / text operands skipped (bool-vs-int stays deferred
-  DESIGN Q). Canaries mismatched_width_{comparison,bitwise}_rejected. (Promotion-to-wider like C is a
-  possible future ergonomic enhancement; interim-reject closes the miscompile without precluding it.)
+> **Recently resolved — 2026-07-05 type-soundness sweep** (full detail in git commits +
+> memory [[literal-class-assignment-miscompile]] / [[narrowing-store-proof-obligation]];
+> condensed here to keep this section on *remaining* work). Each shipped a fail-canary.
+- **[RESOLVED 5faa7928b]** Arithmetic/ordering on a plain-`data` STRUCT (`self.a + self.b`) rejected via `resolve_spelling` (domain ops stay valid). Canary struct_operator_undeclared_rejected.
+- **[RESOLVED]** Cast to a numeric/addr scalar from a TEXT/STRUCT/ARRAY source (`self.s as i32`) ran to garbage; `report_invalid_numeric_cast_source` in the Cast arm. Canaries cast_{text,struct,array}_to_number_rejected.
+- **[RESOLVED]** `==`/`!=` between two DIFFERENT data types (`self.p == self.q`) positionally expanded to a garbage compare; rejected at the `structural_equality.rs` expansion site (both operand type names must match). Canary cross_type_equality_rejected.
+- **[RESOLVED]** `==`/`!=` between an enum value and a case of a DIFFERENT enum (`self.c == Direction::North`) tag-compared across unrelated enums; rejected at the classifier gate (case's enum must match value's). Canary cross_enum_case_comparison_rejected.
+- **[RESOLVED]** MEMBERSHIP `value in DifferentEnum::Case` — the `in` sibling; `reject_cross_type_case_membership` before the `Type::Case` lowering. Canary cross_enum_case_membership_rejected. (Cross-type enum surface now closed on `==`/`!=`/`in`.)
+- **[RESOLVED]** `==`/`!=` on ARRAY operands (`self.xs == self.ys`) hit a cryptic backend error / uncaught length mismatch; `report_array_operator_operands` now rejects them on non-text arrays (element-wise array eq = future feature). Canary array_equality_rejected.
+- **[RESOLVED]** SCALAR <-> DATA (struct/enum) shape mismatch at value-binding slots (`self.inner = 5`, `let n: i32 = self.inner`) silently clobbered/read-0; `report_scalar_data_shape_mismatch` wired at all 6 binding positions. Canary scalar_into_data_field_rejected. (Completes the scalar/array/data value-vs-target shape matrix.)
+- **[RESOLVED]** Comparison against an OUT-OF-RANGE integer literal (`self.b == 300` for u8) truncated the literal to operand width; `report_out_of_range_comparison_literal` (decision-17 sibling for comparison operands). Canary out_of_range_comparison_literal_rejected.
+- **[RESOLVED]** DIFFERENT-WIDTH integer operands in COMPARISON + BITWISE (`i8 == i32`, `u32 | u8`) compiled at the narrower width, truncating the wider; `report_mismatched_width_operands`. Arithmetic (overflow-caught) + shift (count operand) correctly excluded. Canaries mismatched_width_{comparison,bitwise}_rejected.
+
 - **[ ] DESIGN QUESTION (found 2026-07-05): bool operands MIX with numeric in arithmetic/comparison.**
   `let n: i32 = self.b + 5` (-> 6), `self.b < self.n` (bool vs i32 guard -> 1), `self.b == self.n`
   (-> 1) all COMPILE + RUN with a well-defined C-style bool->{0,1} coercion (NOT garbage, so not a
@@ -263,34 +172,10 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   currently-compiling code -> needs a Zach decision, not landed unilaterally.
 - u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
-- **[RESOLVED 2026-07-05]** Logical `!` now requires a `bool` operand. `!x` on an `i32`
-  used to compile with C truthiness (`!5` -> `0`); modern strict langs reject int-in-bool
-  and Omega spells bitwise-not `~` separately. Fix: `report_non_bool_logical_not`
-  (expression_types.rs) in the Unary arm of `scan_expression_calls` -- rejects when the
-  operand's `value_class` is Numeric/Text; a comparison/logical/call operand (None) is
-  allowed, so `!bool`, `!(a==1)`, `!(x && y)` stay valid. Canary logical_not_non_bool_rejected.
-- **[RESOLVED 2026-07-05] Text ORDERING and INDEXING both interim-rejected.**
-  `s < t` (string ordering) had two bad faces: fully-inline literals (`"x" < "y"`) folded to
-  a meaningless `0`; runtime text operands reached the backend as a 16-byte runtime compare it
-  cannot encode ("cannot load 16-byte runtime operands"). Both are wrong. Took the sanctioned
-  "reject until implemented" option (Zach): `report_invalid_text_operator` now also rejects
-  `Less`/`LessOrEqual`/`Greater`/`GreaterOrEqual` on two text operands with the precise "text
-  supports only concatenation (`+`), `==`, and `!=`" message (canary
-  text_ordering_operator_rejected). `s[0]` (indexing the `String` carrier) silently read a ZII
-  `0` -- the carrier is `{len, bytes}`, not a flat array, and byte indexing on it is unimplemented.
-  The primitive-access check in calls.rs exempted `String` wholesale (so `s.len` MEMBER access
-  stays legal); that exemption is now split so INDEXING a `String` is rejected while `.len` stays
-  valid (canary text_string_index_rejected). KEY discriminator: `[u8; N] in Utf8` byte arrays
-  resolve to a NON-primitive type, so `primitive_type_reference` returns `None` and the supported
-  byte-array indexing (`substring_search`, `longest_run`) is untouched -- only the `String`
-  primitive is caught. Lexicographic ordering and String byte-access stay PLAUSIBLE FUTURE
-  features; this closes the silent/cryptic holes without precluding them. Both READ (`let b = s[i]`)
-  and WRITE (`s[i] = x`) indexing are covered: the read is caught in `scan_expression_calls`, the
-  write in lib.rs's Assignment arm (an indexed `String` target resolves to no element type, so the
-  store checks skipped it -- a silent no-op/corruption); both call one shared
-  `expression_types::report_string_index_access` helper (canaries text_string_index_rejected +
-  text_string_index_write_rejected).
-  2026-07-05).** `let y: i32 = bogus_fn(1)` compiles and yields 0 (silent miscompile);
+- **[RESOLVED]** Logical `!` now requires a `bool` operand (`!5` was C-truthiness `0`); `report_non_bool_logical_not` in the Unary arm. Canary logical_not_non_bool_rejected.
+- **[RESOLVED]** Text ORDERING (`s < t`) + INDEXING (`s[0]` read/write) interim-rejected — ordering folded/errored, `String`-carrier indexing read/wrote ZII 0; `[u8;N]` byte arrays untouched (lexicographic ordering + byte-access = future features). Canaries text_ordering_operator_rejected, text_string_index_{,write_}rejected.
+- **[ ] Unresolved value-call returns 0 silently (found 2026-07-05).**
+  `let y: i32 = bogus_fn(1)` compiles and yields 0 (silent miscompile);
   statement-position `bogus_fn(1);` is correctly rejected by `validate_call_node` ("has
   no local state"). The value path (`validate_expression_call_bounds`) is a PARTIAL
   best-effort resolver -- unresolved = skip the bounds check, NOT an error. ATTEMPTED +
@@ -324,10 +209,7 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   DROPPED entirely — ZII + construction-forced overrides. So this dissolves once that lands;
   until then it remains a silent drop (not a live overflow — defaults aren't emitted). Repro:
   `canaries/pending/arithmetic/array_field_default_silent`.
-- **[RESOLVED 2026-07-05]** DEEPLY-NESTED INPUT no longer crashes the compiler: parser
-  `MAX_NESTING_DEPTH`=1024 depth guard + `compile()` on a 256 MiB-stack thread (both
-  load-bearing). Detail in memory [[parser-depth-and-compile-stack]]. Canaries
-  parser/{nesting_exceeds_max_depth, deep_nesting_within_limit}.
+- **[RESOLVED]** DEEPLY-NESTED INPUT no longer crashes: `MAX_NESTING_DEPTH`=1024 guard + `compile()` on a 256 MiB-stack thread. Memory [[parser-depth-and-compile-stack]]. Canaries parser/{nesting_exceeds_max_depth, deep_nesting_within_limit}.
 
 ## Cathedral first-boot ladder — remaining language readiness
 
