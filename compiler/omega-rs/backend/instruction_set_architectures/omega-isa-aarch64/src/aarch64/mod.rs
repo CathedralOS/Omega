@@ -216,6 +216,18 @@ fn append_call_operands(
                 )?);
                 next_register += 1;
             }
+            RuntimeStorageAddress { byte_offset } => {
+                // The place's ADDRESS: adrp/add to the region base (relocated),
+                // then add the field offset. No load — the pointer is the arg.
+                bytes.extend(encode_adrp_placeholder(next_register));
+                bytes.extend(encode_add_page_offset_placeholder(next_register));
+                bytes.extend(encode_add_x_immediate(
+                    next_register,
+                    next_register,
+                    *byte_offset,
+                )?);
+                next_register += 1;
+            }
             ByteLength(value) => {
                 append_unsigned_immediate(bytes, next_register, *value as u64);
                 next_register += 1;

@@ -212,6 +212,57 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Filesystem, HostOperation::Read) => {
+            // Value-returning `n = read_bytes(fd, buffer, count) -> _read(fd,
+            // buf, count)`. operand[0]=result, [1]=fd, [2]=buffer POINTER (the
+            // kernel writes through it), [3]=count. The caller passes the
+            // buffer capacity as `count` (keeps the backend from deriving it).
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let fd = scalar_argument_operand_at(input, host_call, dispatch_index, 1);
+            let buffer = address_argument_operand_at(input, host_call, dispatch_index, 2);
+            let count = scalar_argument_operand_at(input, host_call, dispatch_index, 3);
+            match (result, fd, buffer, count) {
+                (Some(result), Some(fd), Some(buffer), Some(count)) => operands.insert_many([
+                    operand(result),
+                    operand(fd),
+                    operand(buffer),
+                    operand(count),
+                ]),
+                _ => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::Filesystem, HostOperation::Open) => {
+            // Value-returning `fd = open(path, flags, mode) -> _open(path,
+            // flags, mode)`. operand[0]=result, [1]=path POINTER (NUL-terminated
+            // C string — the path literal's data object), [2]=flags, [3]=mode.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let path = find_data_object(input, host_call);
+            let flags = scalar_argument_operand_at(input, host_call, dispatch_index, 2);
+            let mode = scalar_argument_operand_at(input, host_call, dispatch_index, 3);
+            match (result, flags, mode) {
+                (Some(result), Some(flags), Some(mode)) if path.is_valid() => operands
+                    .insert_many([
+                        operand(result),
+                        operand(InstructionOperandKind::DataAddress { data: path }),
+                        operand(flags),
+                        operand(mode),
+                    ]),
+                _ => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::Filesystem, HostOperation::Unlink) => {
+            // Value-returning `rc = unlink(path) -> _unlink(path)`.
+            // operand[0]=result, [1]=path POINTER (NUL-terminated C string).
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let path = find_data_object(input, host_call);
+            match result {
+                Some(result) if path.is_valid() => operands.insert_many([
+                    operand(result),
+                    operand(InstructionOperandKind::DataAddress { data: path }),
+                ]),
+                _ => HandleSpan::empty(),
+            }
+        }
         _ => HandleSpan::empty(),
     }
 }
