@@ -436,10 +436,49 @@ crate tests; interpreter fs coverage) and commits.
     - **NEXT:** the ergonomic wrapper + an ITERATION IDIOM. `read_dir` fills a
       caller buffer; then a cursor `next_entry(buffer, offset) -> (name_off,
       name_len, next_off)` walks the packed records. The Omega-side parse needs
-      RUNTIME-INDEXED buffer reads (`buffer[offset+16]`), currently unverified on
-      the fs path — settle that first (or expose entries by copying each name into
-      a caller slot). Also `read`/`write` on a dir fd should be EISDIR (not yet
-      modeled; no test needs it).
+      RUNTIME-INDEXED buffer reads (`buffer[self.i]` where `i` is a runtime
+      `usize`). **BLOCKER (diagnosed in depth this fire):** runtime-indexed reads
+      work in the INTERPRETER (probe: `buffer[3]==42` → v=42) but are BROKEN
+      NATIVELY on aarch64 — the `CopyRuntimeMachineIndexedToRuntimeStorage`
+      instruction (from the other omega-rs workstream, committed on origin/main,
+      NOT concurrent) has ≥3 bugs. A minimal probe (`self.buffer[3]=42;
+      self.i=3; self.v=self.buffer[self.i]; exit(self.v)`) exits 71 with v=1
+      natively (want 42). Found and understood:
+        1. **Width off-by-4 (fix known).** The aarch64 width fn
+           `runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width`
+           hardcodes a `32`-byte fixed part but the RuntimeFrame-region encoder
+           emits 36 (9 four-byte insns: the adrp+add+load_w index setup adds 8).
+           Symptom: "layout planned 56, encoder emitted 60" — the width mismatch
+           SAFETY NET fires and refuses to emit. Fix: make `fixed` region-aware
+           (`RuntimeFrame => 36, Machine => 28`) and thread `index_region` through.
+        2. **Hardcoded `index_region` (fix known).** The aarch64 encoder
+           `encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`
+           hardcodes `RuntimeStorageRegion::RuntimeFrame` when calling
+           `append_runtime_machine_index_target_address`, ignoring the
+           instruction's actual region. For a Machine-region base (a `self`
+           field buffer) it must pass the real `index_region`. Fix: thread
+           `index_region` from the SelectedInstruction through
+           instruction-selection widths.rs + encoding/runtime_storage.rs, aarch64
+           widths.rs + runtime_storage.rs, and machine-emission layout.rs (5 files).
+        3. **Value bug — UNIDENTIFIED (blocks completion).** With BOTH fixes above
+           applied (verified: compiles, isa-aarch64 31 tests pass), the probe still
+           reads v=1 instead of 42, and this is INDEPENDENT of region (present with
+           both hardcoded-RuntimeFrame and threaded-Machine). `v=1` == the guard
+           `i < 16` true-result, so suspect register/storage aliasing between the
+           guard's bool temp and the indexed-read's base/scale/store — the emitted
+           `scale_x_register_by_constant(26,17,1)` / target-address / load sequence
+           is functionally wrong somewhere. Needs disassembly of the emitted bytes.
+      **Fixes 1+2 were IMPLEMENTED then REVERTED this fire** — they are correct and
+      safe but INSUFFICIENT (fix 3 remains), and committing them would convert the
+      loud width-mismatch compile error into SILENT wrong values for every program
+      using this instruction (the ~154 canary_suite failures). Kept the loud-error
+      safety net instead. When resuming: re-apply fixes 1+2 (recorded above),
+      then disassemble the probe's emitted sequence to find fix 3, THEN commit all
+      three together. Interim workaround for read_dir: expose entries by copying
+      each name into a caller slot via existing (constant-index) machinery, OR
+      have the interpreter/const-eval own iteration until native indexing lands.
+      Also `read`/`write` on a dir fd should be EISDIR (not yet modeled; no test
+      needs it).
 14. [~] **Native wrapper lowering — PARTIALLY WORKS (investigated in depth).**
     The ergonomic `Filesystem` wrapper now COMPILES natively and the simplest
     ops RUN correctly: `create`/`open`/`close` with a literal path + a `File`/
