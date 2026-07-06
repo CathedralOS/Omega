@@ -58,6 +58,16 @@ data UnitResult {
     case Ok;
 }
 
+// The three-way answer of `try_exists` (Rust `Path::try_exists` ->
+// `io::Result<bool>`): unlike `exists() -> bool`, a genuine I/O error (e.g. a
+// permission-denied ancestor) is `Error`, distinct from a definite `No`
+// (NotFound). ZII zero = `Error { kind: Other }`.
+data ExistsResult {
+    case Error(kind: ErrorKind);
+    case No;
+    case Yes;
+}
+
 // How to open an existing file (Rust `std::fs::OpenOptions`). A ZII-default
 // `OpenOptions` (all false) opens read-only. These flags cover EXISTING-file
 // opens (read / write / read+write / append / truncate); the creating flags
@@ -322,6 +332,26 @@ machine Filesystem::exists(&mut self, path: &[u8] in Path) -> bool {
         true
     }
     state absent(&mut self) -> bool { false }
+}
+
+// Does a path exist, distinguishing a definite No from an I/O error (Rust
+// `Path::try_exists`)? `Yes` if it opens; `No` only when the failure is ENOENT;
+// otherwise `Error(kind)`. This is the error-aware form of `exists` — a
+// permission failure is surfaced, not silently reported as absent.
+machine Filesystem::try_exists(&mut self, path: &[u8] in Path) -> ExistsResult {
+    self.read_flags = 0;
+    let fd: i32 = self.host.open(path, self.read_flags);
+    transition fd >= 0 { true -> present(fd) _ -> absent() }
+    state present(&mut self, fd: i32) -> ExistsResult {
+        let rc: i32 = self.host.close(fd);
+        ExistsResult::Yes
+    }
+    state absent(&mut self) -> ExistsResult {
+        let code: i32 = self.host.errno();
+        transition code == 2 { true -> no() _ -> other() }
+    }
+    state no(&mut self) -> ExistsResult { ExistsResult::No }
+    state other(&mut self) -> ExistsResult { let kind: ErrorKind = self.last_error(); ExistsResult::Error { kind: kind } }
 }
 
 // Metadata of a PATH (Rust `std::fs::metadata`), the path-based counterpart to

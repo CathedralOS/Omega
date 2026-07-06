@@ -2047,3 +2047,58 @@ machine Main::main(&mut self) {
         "symlink+read_link: target reads back 12 bytes ('t'...); read_link(non-link) is Error"
     );
 }
+
+/// `try_exists` (Rust `Path::try_exists`) — the error-aware existence check:
+/// `Yes` for a present readable file, `No` for a missing path, and `Error`
+/// (PermissionDenied) for a present-but-unreadable path (chmod 0). Unlike
+/// `exists() -> bool`, the permission failure is distinguished from absence.
+#[test]
+fn filesystem_std_module_try_exists() {
+    let main_path = write_program(
+        "fs-tryexists",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    exists_result: ExistsResult;
+    no_access: Permissions;
+}
+machine Main::main(&mut self) {
+    self.no_access = Permissions { mode: 0 };
+    self.unit_result = self.fs.write_all("/te.txt", "here");
+    transition self.unit_result { UnitResult::Ok -> present() _ -> fail() }
+    state present(&mut self) {
+        self.exists_result = self.fs.try_exists("/te.txt");
+        transition self.exists_result { ExistsResult::Yes -> missing() _ -> fail() }
+    }
+    state missing(&mut self) {
+        self.exists_result = self.fs.try_exists("/gone.txt");
+        transition self.exists_result { ExistsResult::No -> lockit() _ -> fail() }
+    }
+    state lockit(&mut self) {
+        self.unit_result = self.fs.set_permissions("/te.txt", self.no_access);
+        self.exists_result = self.fs.try_exists("/te.txt");
+        transition self.exists_result { ExistsResult::Error { kind } -> classify(kind) _ -> fail() }
+    }
+    state classify(&mut self, kind: ErrorKind) {
+        self.unit_result = self.fs.remove("/te.txt");
+        transition kind { ErrorKind::PermissionDenied -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("try-exists program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "try_exists: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "try_exists: Yes for present, No for missing, Error(PermissionDenied) for chmod-0"
+    );
+}
