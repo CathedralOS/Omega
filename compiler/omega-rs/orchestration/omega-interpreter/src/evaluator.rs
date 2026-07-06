@@ -2707,13 +2707,15 @@ impl<'program> Evaluator<'program> {
             self.virtual_errno = 21; // EISDIR
             return -1;
         }
-        // Permission enforcement: a write-open of a path chmod'd to drop the
-        // owner-write bit is EACCES (Rust `ErrorKind::PermissionDenied`).
-        if writable
-            && self
-                .virtual_perms
-                .get(&path)
-                .is_some_and(|mode| mode & 0o200 == 0)
+        // Permission enforcement: opening a chmod'd path fails with EACCES when
+        // the needed bit is clear — the owner-write bit (0o200) for a write-open,
+        // or the owner-read bit (0o400) for a read-open (Rust
+        // `ErrorKind::PermissionDenied`).
+        let needed_bit = if writable { 0o200 } else { 0o400 };
+        if self
+            .virtual_perms
+            .get(&path)
+            .is_some_and(|mode| mode & needed_bit == 0)
         {
             self.virtual_errno = 13; // EACCES
             return -1;
