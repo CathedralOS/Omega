@@ -174,6 +174,17 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   `&buffer`/`addr`/text args involve no data type on either side), construction FIELD and DATA-typed
   array ELEMENT (struct_literals.rs). Canary scalar_into_data_field_rejected. Completes the value-vs-
   target shape matrix (scalar/array/data all cross-checked); no known remaining shape hole.
+- **[RESOLVED 2026-07-05] Comparison against an OUT-OF-RANGE integer literal (`self.b == 300` for u8).**
+  Comparing an integer value to a literal outside its type's range silently TRUNCATED the literal to the
+  operand width -- `self.b == 300` for a `u8` compiled to `b == (300 & 0xFF) == 44`, and with `b = 44`
+  the native binary took the TRUE arm (confirmed miscompile; `i8 == 200` -> `== -56` too). The decision-17
+  narrowing obligation covers value-binding STORES but not comparison OPERANDS, so this slipped. New
+  `report_out_of_range_comparison_literal` (arithmetic_domains.rs, reuses `primitive_range` + `Interval`):
+  for a comparison (`==`/`!=`/`<`/`<=`/`>`/`>=`) where one operand resolves to an integer primitive and
+  the other is an integer literal outside its range, reject. Wired into the `validate_binary_operand_types`
+  dispatcher (so it runs at every comparison site incl. guard subjects). In-range comparisons and the
+  `as`-widen workaround (`(self.b as i32) == 300`) stay valid; two-place / float / bool / text pairings
+  skipped. Canary out_of_range_comparison_literal_rejected.
 - **[ ] DESIGN QUESTION (found 2026-07-05): bool operands MIX with numeric in arithmetic/comparison.**
   `let n: i32 = self.b + 5` (-> 6), `self.b < self.n` (bool vs i32 guard -> 1), `self.b == self.n`
   (-> 1) all COMPILE + RUN with a well-defined C-style bool->{0,1} coercion (NOT garbage, so not a
