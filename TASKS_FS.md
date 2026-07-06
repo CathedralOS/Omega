@@ -237,18 +237,42 @@ crate tests; interpreter fs coverage) and commits.
    - FOLLOW-UPS (minor): map more errno codes (EACCES/ENOSPC/EISDIR/…) as the
      surface grows; make the multi-syscall helpers capture the root-cause errno
      (needs a post-first-op branch, i.e. threading the slice through a state).
-10. [ ] **Richer `Metadata`** via `fstat` — `st_size`/mode/times. Needs a
+10. [x] **Path-query helpers** — `exists(path) -> bool` (Rust `Path::exists`,
+    open-probe) and `metadata_path(path) -> MetadataResult` (Rust `fs::metadata`,
+    open+seek-end+close), the path-based counterparts to the fd-based ops. Pure
+    Omega, open/seek/close only (no buffer/subslice/threading). Coverage
+    `filesystem_std_module_path_queries` (exists false→true→false around
+    write/remove; metadata_path.len == 12); native `native_exists` canary RUNS
+    (present after create, absent after remove → PASS). CAVEAT: open-based
+    `exists` reports false for an unreadable-but-present path (EACCES); a faithful
+    stat-based `exists` waits on `fstat`.
+11. [ ] **Richer `Metadata`** via `fstat` — `st_size`/mode/times. Needs a
     stat-buffer out-param + struct-field reads (darwin arm64 `st_size` at off 96).
-    Unlocks `is_file`/`is_dir`/permissions/modified. Medium-large.
-11. [ ] **`read_dir`** (opendir/readdir) — directory iteration. Large (returns a
+    Unlocks `is_file`/`is_dir`/permissions/modified. Medium-large. NOTE: `repr
+    native` for a `data Stat` matching the C layout is provisional/undesigned in
+    the language (chapter 19), so the field reads must be manual byte-assembly
+    from a `[u8; N]` buffer (`(buf[k] as i64) << 8*i | …`, shifts/OR dodge the
+    exact-arithmetic rule), and the raw `fstat(fd, &mut buf)` op needs a
+    "slice-pointer-only" operand shape (fd + buffer ptr, no length).
+12. [ ] **`copy(from, to)`** (Rust `fs::copy`) — BLOCKED on an interpreter gap
+    found this fire. Threading a `&mut [u8]` + path through a state WORKS, and a
+    dominating bounds guard (`count <= buf.len`) DISCHARGES the subslice range
+    proof, but `eval_fs_bytes` (the host-call byte-arg extractor) does NOT accept
+    a subslice `Array` value — `self.host.write(fd, buf[0..count])` fails at
+    interpret with "expected byte data, got Array". Fixing that (teach
+    `eval_fs_bytes`/`write_fs_buffer` to accept a subslice view) unblocks `copy`,
+    `read_to_end`-style loops, and partial writes generally. Alternative that
+    avoids subslice entirely: write the whole buffer then `set_len(n)` to truncate
+    (proven ops), at the cost of writing trailing garbage that is then discarded.
+13. [ ] **`read_dir`** (opendir/readdir) — directory iteration. Large (returns a
     growing sequence; needs an iterator/handle shape). Defer until an iteration
     idiom is settled.
-12. [ ] **[deep, parallel] Native wrapper lowering** — forwarded-param →
+14. [ ] **[deep, parallel] Native wrapper lowering** — forwarded-param →
     storage-place resolution across the machine-call boundary; store enum result
     through a wrapper `&mut out`; const-folded-literal-arg fix. Then the ergonomic
     wrapper lowers natively (today it runs only in the interpreter; the raw seam
     lowers natively). Deep backend work; see D5.
-13. [ ] **x86_64 / linux / windows seams** — see the reference below. Tables only;
+15. [ ] **x86_64 / linux / windows seams** — see the reference below. Tables only;
     macOS is the only TESTED target now. Note: linux value-return needs the
     value-returning result-store wired into the `svc` syscall path (today only the
     darwin `BL`/Import path stores the return register — see D8 when started).
