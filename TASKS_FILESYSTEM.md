@@ -158,11 +158,26 @@ matched by the interpreter oracle.
   `backend/omega-runtime-text/src/host_uses.rs`. The aarch64 selection for a
   syscall/import with pointer+len args + a return is the real work (carries the
   proof obligations the `--check` error already counts).
-- [ ] **1e. macOS bindings (imports, not svc).** In `darwin.rs`, add
-  `darwin_import("File","open","_open",…)`, `_read`/`_write`/`_close`/`_lseek`/
-  `_unlink`, and `insert_platform_lowering` entries mapping the `Filesystem::*`
-  methods to them. Extend the `HostCapability`/`HostOperation` enums (`lib.rs`
-  `from_name`/`name`). Depends on 1d.
+- [~] **1e. macOS bindings (imports, not svc).** STARTED — `close` LANDED as the
+  first native op. Added `HostCapability::Filesystem` + `HostOperation::Open/
+  Close/Unlink` (`lib.rs`), `darwin_import("Filesystem","close","_close")` +
+  `close` platform lowering (`PlatformCallData::None`), and a
+  `(Filesystem, Close)` scalar-fd arm in `operands.rs`. **Key discovery: the
+  machine-emission host path is fully generic over Import bindings**
+  (`encode_host_call_sequence` = load operands → BL to the imported symbol), so
+  a scalar/None op needs ZERO per-op codegen and ZERO of the 8 PlatformCallData
+  sites. Verified: `omega --check` clean on a close-only program; full mach-o
+  build (emission "host bindings: 5" incl. Filesystem/close, "host calls: 1");
+  Console non-regressed; instruction-selection tests pass.
+  ([canaries/pass/filesystem/native_close/main.omg](canaries/pass/filesystem/native_close/main.omg))
+  - Run-verification note: native exit codes are unreliable on this macOS box
+    (an empty no-fs program also exits 1) — a pre-existing issue, so `close` is
+    verified through emission, not by running.
+  - Remaining ops: `open`/`unlink` need a path POINTER arg (NUL-terminated —
+    the C-string wrinkle); `read`/`write` need fd + buffer ptr+len; and all the
+    non-`close` ops need the **enum out-param write** (store `Opened{fd}` vs
+    `Failed` from the syscall return) — that's the real 1d marshalling +
+    codegen, the genuinely hard part still ahead.
 - [x] **1f. Interpreter fs execution.** DONE via a deterministic in-memory
   filesystem in `evaluator.rs` (`virtual_files`/`virtual_fds`/`virtual_next_fd`,
   `try_filesystem_call` + `virtual_open`/`virtual_write`/`virtual_read`). Chose

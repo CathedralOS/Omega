@@ -50,6 +50,9 @@ pub enum HostCapability {
     /// The windowed-renderer surface: device contexts, windows, framebuffer
     /// blits (user32/gdi32 imports on Windows).
     Gui,
+    /// Filesystem access: open/read/write/close/unlink over file descriptors
+    /// (libSystem imports on darwin, syscalls on linux).
+    Filesystem,
 }
 
 impl HostCapability {
@@ -62,6 +65,7 @@ impl HostCapability {
             "Clock" => Self::Clock,
             "Input" => Self::Input,
             "Gui" => Self::Gui,
+            "Filesystem" => Self::Filesystem,
             _ => Self::Unknown,
         }
     }
@@ -76,6 +80,7 @@ impl HostCapability {
             Self::Clock => "Clock",
             Self::Input => "Input",
             Self::Gui => "Gui",
+            Self::Filesystem => "Filesystem",
         }
     }
 }
@@ -92,6 +97,12 @@ pub enum HostOperation {
     ReadFile,
     Write,
     WriteFile,
+    /// `open`/`openat` -- open a path, returning a file descriptor (or -errno).
+    Open,
+    /// `close(fd)` -- release a file descriptor.
+    Close,
+    /// `unlink`/`remove` -- delete a path.
+    Unlink,
     Sleep,
     TickCount,
     KeyState,
@@ -133,6 +144,9 @@ impl HostOperation {
             "read_file" => Self::ReadFile,
             "write" => Self::Write,
             "write_file" => Self::WriteFile,
+            "open" => Self::Open,
+            "close" => Self::Close,
+            "unlink" => Self::Unlink,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
@@ -160,6 +174,9 @@ impl HostOperation {
             Self::ReadFile => "read_file",
             Self::Write => "write",
             Self::WriteFile => "write_file",
+            Self::Open => "open",
+            Self::Close => "close",
+            Self::Unlink => "unlink",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",
