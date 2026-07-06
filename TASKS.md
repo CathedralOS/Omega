@@ -151,6 +151,17 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   on the data-type positional-expansion hole. Canary cross_type_equality_rejected. Refactor: extracted the shared "value's concrete data name"
   resolver (`value_concrete_data_name`, expression_types.rs) now used by `report_data_type_conflict`
   + the cast-source check.
+- **[RESOLVED 2026-07-05] `==`/`!=` between an enum value and a case of a DIFFERENT enum.**
+  `self.c == Direction::North` for `c: Color` lowered to a raw TAG compare across unrelated enums
+  (Color::Red and Direction::North both tag 0 -> spuriously EQUAL, took the true arm; confirmed exit 1).
+  The cross-type-equality fix above SKIPS classifier references (`Enum::Case`) because the
+  `classifier_reference_operand` gate in `try_lower_structural_equality` bails to the tag-compare
+  machinery -- which never checked the case's enum matches the value's. Fix: at that gate, resolve each
+  side's data type (a classifier's FIRST path segment via new `classifier_reference_type`, or a value's
+  `operand_data_type_name`) and reject before bailing when both are `data_definition_by_name` and DIFFER.
+  Same-enum case comparisons (`self.c == Color::Red`, and match-arm `subject == Player::Alive` desugars)
+  have equal names -> untouched; domain classifiers (not data defs) skipped. Canary
+  cross_enum_case_comparison_rejected.
 - **[RESOLVED 2026-07-05] `==`/`!=` on ARRAY operands (`self.xs == self.ys`).** Structs expand to
   synthesized structural equality and text carriers compare by content, but an array operand never
   expands -- there is no element-wise array equality -- so `xs == ys` reached the backend as a

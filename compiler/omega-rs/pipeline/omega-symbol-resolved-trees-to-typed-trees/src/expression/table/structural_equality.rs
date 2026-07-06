@@ -60,6 +60,31 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         if self.classifier_reference_operand(binary.left)
             || self.classifier_reference_operand(binary.right)
         {
+            // A classifier reference `Enum::Case` compared against a value lowers to
+            // an ordinary TAG compare. If the value is a DIFFERENT enum type, that
+            // compares tags across unrelated types (`color == Direction::North` --
+            // both tag 0 -> spuriously equal), a silent miscompile. Resolve each
+            // side's data type (a classifier's first path segment, or a value's
+            // declared type) and reject when both are data definitions that differ.
+            // A same-type match-arm desugar (`subject == Player::Alive` for a
+            // `Player`) has equal names and is untouched; domain classifiers (not
+            // data definitions) are skipped.
+            let left_type = self
+                .classifier_reference_type(binary.left)
+                .or_else(|| self.operand_data_type_name(binary.left));
+            let right_type = self
+                .classifier_reference_type(binary.right)
+                .or_else(|| self.operand_data_type_name(binary.right));
+            if let (Some(left_name), Some(right_name)) = (&left_type, &right_type)
+                && left_name != right_name
+                && data_definition_by_name(program, left_name).is_some()
+                && data_definition_by_name(program, right_name).is_some()
+            {
+                return Err(Diagnostic::error(format!(
+                    "cannot compare `{left_name}` and `{right_name}` with `==`/`!=`: the operands \
+                     are different data types (a case belongs to its own type only)"
+                )));
+            }
             return Ok(None);
         }
 
@@ -169,6 +194,28 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 self.classifier_reference_operand(*inner)
             }
             _ => false,
+        }
+    }
+
+    /// The declared TYPE name of a classifier reference (`Direction::North` ->
+    /// `Direction`): the FIRST segment of a multi-member, non-self name path. `None`
+    /// for a value place, a bare local, or any non-classifier operand.
+    fn classifier_reference_type(
+        &self,
+        operand: resolved::expression::ExpressionHandle,
+    ) -> Option<String> {
+        if !operand.is_valid() {
+            return None;
+        }
+        match self.source.expression(operand) {
+            resolved::expression::ExpressionNode::Name(path) if !path.is_self_value => {
+                let members = self.source.name_path_members(path.members);
+                (members.len() >= 2).then(|| members[0].as_str().to_owned())
+            }
+            resolved::expression::ExpressionNode::Mutable(inner) => {
+                self.classifier_reference_type(*inner)
+            }
+            _ => None,
         }
     }
 
