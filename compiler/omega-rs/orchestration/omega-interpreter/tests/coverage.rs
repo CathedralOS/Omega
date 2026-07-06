@@ -619,167 +619,26 @@ machine Main::main(&mut self) {
     );
 }
 
-// ---- std::fs -----------------------------------------------------------------
+// ---- std::fs (value-returning FilesystemHost raw seam; matches native) -------
 
-/// A full `std::fs` CRUD round-trip over the interpreter's virtual filesystem:
-/// create -> write 21 bytes -> close -> reopen -> read -> remove. The read must
-/// report the 21 bytes that were written (`count == 21`), proving the bytes
-/// actually round-tripped, then exit 70. This is interpreter-only coverage
-/// ahead of native fs lowering (the backend gates host lowering after checked
-/// trees, exactly like the case-payload coverage above). Also pins that a
-/// `Filesystem::write` is dispatched as an fs write, NOT a `Console::write`.
-#[test]
-fn filesystem_crud_round_trip_reads_back_written_bytes() {
-    let main_path = write_program(
-        "filesystem-crud",
-        r#"
-domain [u8]::Path when no_nul(self) {
-}
-
-data File [copy, zero_init] {
-    fd: i32;
-}
-
-data OpenOutcome {
-    case Failed;
-    case Opened(file: File);
-}
-data ReadOutcome {
-    case Failed;
-    case Read(count: usize);
-}
-data WriteOutcome {
-    case Failed;
-    case Wrote(count: usize);
-}
-data RemoveOutcome {
-    case Failed;
-    case Removed;
-}
-
-boundary trait Filesystem {
-    machine create(path: &[u8] in Path, out: &mut OpenOutcome);
-    machine open_read(path: &[u8] in Path, out: &mut OpenOutcome);
-    machine read(file: File, buffer: &mut [u8], out: &mut ReadOutcome);
-    machine write(file: File, bytes: &[u8], out: &mut WriteOutcome);
-    machine close(file: File);
-    machine remove(path: &[u8] in Path, out: &mut RemoveOutcome);
-}
-
-boundary trait Console {
-    machine exit_process(return_code: i32);
-}
-
-data Main {
-    console: Console;
-    fs: Filesystem;
-    open_out: OpenOutcome;
-    write_out: WriteOutcome;
-    read_out: ReadOutcome;
-    remove_out: RemoveOutcome;
-    buffer: [u8; 64];
-}
-
-machine Main::main(&mut self) {
-    self.fs.create("/omega_it.txt", &mut self.open_out);
-    transition self.open_out {
-        OpenOutcome::Opened { file } -> wrote(file)
-        _ -> fail()
-    }
-
-    state wrote(&mut self, file: File) {
-        self.fs.write(file, "omega filesystem crud", &mut self.write_out);
-        self.fs.close(file);
-        transition self.write_out {
-            WriteOutcome::Wrote { count } -> reopen()
-            _ -> fail()
-        }
-    }
-
-    state reopen(&mut self) {
-        self.fs.open_read("/omega_it.txt", &mut self.open_out);
-        transition self.open_out {
-            OpenOutcome::Opened { file } -> got(file)
-            _ -> fail()
-        }
-    }
-
-    state got(&mut self, file: File) {
-        self.fs.read(file, &mut self.buffer, &mut self.read_out);
-        self.fs.close(file);
-        transition self.read_out {
-            ReadOutcome::Read { count } -> verify(count)
-            _ -> fail()
-        }
-    }
-
-    state verify(&mut self, count: usize) {
-        transition count == 21 {
-            true -> cleanup()
-            _ -> fail()
-        }
-    }
-
-    state cleanup(&mut self) {
-        self.fs.remove("/omega_it.txt", &mut self.remove_out);
-        self.console.exit_process(70);
-    }
-
-    state fail(&mut self) {
-        self.console.exit_process(71);
-    }
-}
-"#,
-    );
-    let checked = compile_to_checked(&main_path, None)
-        .unwrap_or_else(|d| panic!("fs CRUD program should reach checked trees: {d:?}"));
-    let outcome = interpret(&checked, b"");
-    assert!(
-        !outcome.is_error(),
-        "interpreter should support the std::fs CRUD surface, got {:?}",
-        outcome.error
-    );
-    assert_eq!(
-        outcome.exit_code, 70,
-        "create->write(21)->close->open->read must read back exactly 21 bytes"
-    );
-}
-
-/// Shared `std::fs` surface for the semantics probes below: the `Path` domain,
-/// the ZII `File` handle, the four ZII outcome enums, and the `Filesystem` /
-/// `Console` boundary traits. Each test appends its own `data Main` + machine.
+/// The raw `FilesystemHost` boundary (value-returning ints) + a Console for
+/// exit codes. Same surface the native backend lowers, so the interpreter is a
+/// faithful differential model of the on-disk syscalls.
 const FS_PRELUDE: &str = r#"
 domain [u8]::Path when no_nul(self) {
 }
 
-data File [copy, zero_init] {
-    fd: i32;
-}
-
-data OpenOutcome {
-    case Failed;
-    case Opened(file: File);
-}
-data ReadOutcome {
-    case Failed;
-    case Read(count: usize);
-}
-data WriteOutcome {
-    case Failed;
-    case Wrote(count: usize);
-}
-data RemoveOutcome {
-    case Failed;
-    case Removed;
-}
-
-boundary trait Filesystem {
-    machine create(path: &[u8] in Path, out: &mut OpenOutcome);
-    machine open_read(path: &[u8] in Path, out: &mut OpenOutcome);
-    machine read(file: File, buffer: &mut [u8], out: &mut ReadOutcome);
-    machine write(file: File, bytes: &[u8], out: &mut WriteOutcome);
-    machine close(file: File);
-    machine remove(path: &[u8] in Path, out: &mut RemoveOutcome);
+boundary trait FilesystemHost {
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine open(path: &[u8] in Path, flags: i32) -> i32;
+    machine read(fd: i32, buffer: &mut [u8], count: usize) -> i64;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine seek(fd: i32, offset: i64, whence: i32) -> i64;
+    machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
+    machine remove_dir(path: &[u8] in Path) -> i32;
+    machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
 }
 
 boundary trait Console {
@@ -802,251 +661,200 @@ fn interpret_fs(name: &str, body: &str, expected_exit: i32, why: &str) {
     assert_eq!(outcome.exit_code, expected_exit, "{name}: {why}");
 }
 
-/// The bytes actually land in the caller's `&mut [u8]` buffer, not just the
-/// `count`: after reading back "omega..." the first byte is `o` (111).
+/// Full CRUD round-trip over the value-returning seam: create -> write 17B ->
+/// close -> open -> read (17) -> close -> remove. Exit 70 only if read returns
+/// exactly the 17 bytes written.
 #[test]
-fn filesystem_read_fills_the_caller_buffer() {
+fn filesystem_value_returning_crud_round_trip() {
     interpret_fs(
-        "fs-buffer-content",
+        "fs-vr-crud",
         r#"
 data Main {
+    fs: FilesystemHost;
     console: Console;
-    fs: Filesystem;
-    open_out: OpenOutcome;
-    write_out: WriteOutcome;
-    read_out: ReadOutcome;
+    mode: i32;
+    read_flags: i32;
+    cap: usize;
+    fd: i32;
+    n: i64;
+    rn: i64;
     buffer: [u8; 64];
 }
 
 machine Main::main(&mut self) {
-    self.fs.create("/content.txt", &mut self.open_out);
-    transition self.open_out {
-        OpenOutcome::Opened { file } -> wrote(file)
-        _ -> fail()
+    self.mode = 420;
+    self.read_flags = 0;
+    self.cap = 64;
+    self.fd = self.fs.create("/crud.txt", self.mode);
+    transition self.fd >= 0 { true -> wrote() _ -> fail() }
+    state wrote(&mut self) {
+        self.n = self.fs.write(self.fd, "omega end to end\n");
+        self.n = self.fs.close(self.fd);
+        self.fd = self.fs.open("/crud.txt", self.read_flags);
+        transition self.fd >= 0 { true -> rd() _ -> fail() }
     }
-
-    state wrote(&mut self, file: File) {
-        self.fs.write(file, "omega", &mut self.write_out);
-        self.fs.close(file);
-        transition self.write_out {
-            WriteOutcome::Wrote { count } -> reopen()
-            _ -> fail()
-        }
+    state rd(&mut self) {
+        self.rn = self.fs.read(self.fd, &mut self.buffer, self.cap);
+        self.n = self.fs.close(self.fd);
+        self.n = self.fs.remove("/crud.txt");
+        transition self.rn == 17 { true -> ok() _ -> fail() }
     }
-
-    state reopen(&mut self) {
-        self.fs.open_read("/content.txt", &mut self.open_out);
-        transition self.open_out {
-            OpenOutcome::Opened { file } -> got(file)
-            _ -> fail()
-        }
-    }
-
-    state got(&mut self, file: File) {
-        self.fs.read(file, &mut self.buffer, &mut self.read_out);
-        self.fs.close(file);
-        transition self.read_out {
-            ReadOutcome::Read { count } -> check()
-            _ -> fail()
-        }
-    }
-
-    state check(&mut self) {
-        transition self.buffer[0] == 111 {
-            true -> ok()
-            _ -> fail()
-        }
-    }
-
     state ok(&mut self) { self.console.exit_process(70); }
     state fail(&mut self) { self.console.exit_process(71); }
 }
 "#,
         70,
-        "read must copy the written bytes into the buffer (buffer[0] == 'o')",
+        "create->write(17)->close->open->read must read back 17 bytes",
     );
 }
 
-/// Opening a path that was never created reports `Failed`, not a bogus handle.
+/// Append (O_WRONLY|O_APPEND=9) grows the file: write "AAA", reopen append,
+/// write "BBB", read back 6 bytes.
 #[test]
-fn filesystem_open_missing_file_reports_failed() {
+fn filesystem_value_returning_append() {
     interpret_fs(
-        "fs-open-missing",
+        "fs-vr-append",
         r#"
 data Main {
+    fs: FilesystemHost;
     console: Console;
-    fs: Filesystem;
-    open_out: OpenOutcome;
-}
-
-machine Main::main(&mut self) {
-    self.fs.open_read("/nope.txt", &mut self.open_out);
-    transition self.open_out {
-        OpenOutcome::Opened { file } -> unexpected(file)
-        _ -> ok()
-    }
-
-    state unexpected(&mut self, file: File) { self.console.exit_process(71); }
-    state ok(&mut self) { self.console.exit_process(70); }
-}
-"#,
-        70,
-        "open_read of a nonexistent path must take the Failed arm",
-    );
-}
-
-/// The read cursor advances: a second read after consuming the file returns
-/// `Read(0)` (end of file), distinct from `Failed`.
-#[test]
-fn filesystem_second_read_is_eof_zero() {
-    interpret_fs(
-        "fs-eof",
-        r#"
-data Main {
-    console: Console;
-    fs: Filesystem;
-    open_out: OpenOutcome;
-    write_out: WriteOutcome;
-    read_out: ReadOutcome;
+    mode: i32;
+    append_flags: i32;
+    read_flags: i32;
+    cap: usize;
+    fd: i32;
+    n: i64;
+    rn: i64;
     buffer: [u8; 64];
 }
 
 machine Main::main(&mut self) {
-    self.fs.create("/eof.txt", &mut self.open_out);
-    transition self.open_out {
-        OpenOutcome::Opened { file } -> wrote(file)
-        _ -> fail()
+    self.mode = 420;
+    self.append_flags = 9;
+    self.read_flags = 0;
+    self.cap = 64;
+    self.fd = self.fs.create("/app.txt", self.mode);
+    transition self.fd >= 0 { true -> first() _ -> fail() }
+    state first(&mut self) {
+        self.n = self.fs.write(self.fd, "AAA");
+        self.n = self.fs.close(self.fd);
+        self.fd = self.fs.open("/app.txt", self.append_flags);
+        transition self.fd >= 0 { true -> second() _ -> fail() }
     }
-
-    state wrote(&mut self, file: File) {
-        self.fs.write(file, "hi", &mut self.write_out);
-        self.fs.close(file);
-        transition self.write_out {
-            WriteOutcome::Wrote { count } -> reopen()
-            _ -> fail()
-        }
+    state second(&mut self) {
+        self.n = self.fs.write(self.fd, "BBB");
+        self.n = self.fs.close(self.fd);
+        self.fd = self.fs.open("/app.txt", self.read_flags);
+        transition self.fd >= 0 { true -> rd() _ -> fail() }
     }
-
-    state reopen(&mut self) {
-        self.fs.open_read("/eof.txt", &mut self.open_out);
-        transition self.open_out {
-            OpenOutcome::Opened { file } -> first(file)
-            _ -> fail()
-        }
+    state rd(&mut self) {
+        self.rn = self.fs.read(self.fd, &mut self.buffer, self.cap);
+        transition self.rn == 6 { true -> ok() _ -> fail() }
     }
-
-    state first(&mut self, file: File) {
-        self.fs.read(file, &mut self.buffer, &mut self.read_out);
-        transition self.read_out {
-            ReadOutcome::Read { count } -> second(file)
-            _ -> fail()
-        }
-    }
-
-    state second(&mut self, file: File) {
-        self.fs.read(file, &mut self.buffer, &mut self.read_out);
-        self.fs.close(file);
-        transition self.read_out {
-            ReadOutcome::Read { count } -> eof(count)
-            _ -> fail()
-        }
-    }
-
-    state eof(&mut self, count: usize) {
-        transition count == 0 {
-            true -> ok()
-            _ -> fail()
-        }
-    }
-
     state ok(&mut self) { self.console.exit_process(70); }
     state fail(&mut self) { self.console.exit_process(71); }
 }
 "#,
         70,
-        "a second read after consuming the file must report Read(0)",
+        "append must grow the file to 6 bytes",
     );
 }
 
-/// `create` truncates an existing file: after writing 5 bytes, re-`create`ing
-/// the same path and writing 1 byte leaves a 1-byte file (not 5 or 6). Pins the
-/// truncate-on-create semantics native fs will have to match.
+/// `seek(fd, 0, SEEK_END)` reports the file size; `open` of a missing path
+/// returns a negative fd.
 #[test]
-fn filesystem_create_truncates_existing_file() {
+fn filesystem_value_returning_seek_and_missing() {
     interpret_fs(
-        "fs-truncate",
+        "fs-vr-seek",
         r#"
 data Main {
+    fs: FilesystemHost;
     console: Console;
-    fs: Filesystem;
-    open_out: OpenOutcome;
-    write_out: WriteOutcome;
-    read_out: ReadOutcome;
-    buffer: [u8; 64];
+    mode: i32;
+    zero: i64;
+    seek_end: i32;
+    fd: i32;
+    n: i64;
+    size: i64;
 }
 
 machine Main::main(&mut self) {
-    self.fs.create("/trunc.txt", &mut self.open_out);
-    transition self.open_out {
-        OpenOutcome::Opened { file } -> first_write(file)
-        _ -> fail()
+    self.mode = 420;
+    self.zero = 0;
+    self.seek_end = 2;
+    self.fd = self.fs.open("/missing.txt", self.seek_end);
+    transition self.fd >= 0 { true -> fail() _ -> make() }
+    state make(&mut self) {
+        self.fd = self.fs.create("/sz.txt", self.mode);
+        transition self.fd >= 0 { true -> wrote() _ -> fail() }
     }
-
-    state first_write(&mut self, file: File) {
-        self.fs.write(file, "omega", &mut self.write_out);
-        self.fs.close(file);
-        transition self.write_out {
-            WriteOutcome::Wrote { count } -> recreate()
-            _ -> fail()
-        }
+    state wrote(&mut self) {
+        self.n = self.fs.write(self.fd, "omega end to end\n");
+        self.size = self.fs.seek(self.fd, self.zero, self.seek_end);
+        self.n = self.fs.close(self.fd);
+        self.n = self.fs.remove("/sz.txt");
+        transition self.size == 17 { true -> ok() _ -> fail() }
     }
-
-    state recreate(&mut self) {
-        self.fs.create("/trunc.txt", &mut self.open_out);
-        transition self.open_out {
-            OpenOutcome::Opened { file } -> second_write(file)
-            _ -> fail()
-        }
-    }
-
-    state second_write(&mut self, file: File) {
-        self.fs.write(file, "x", &mut self.write_out);
-        self.fs.close(file);
-        transition self.write_out {
-            WriteOutcome::Wrote { count } -> reopen()
-            _ -> fail()
-        }
-    }
-
-    state reopen(&mut self) {
-        self.fs.open_read("/trunc.txt", &mut self.open_out);
-        transition self.open_out {
-            OpenOutcome::Opened { file } -> read_back(file)
-            _ -> fail()
-        }
-    }
-
-    state read_back(&mut self, file: File) {
-        self.fs.read(file, &mut self.buffer, &mut self.read_out);
-        self.fs.close(file);
-        transition self.read_out {
-            ReadOutcome::Read { count } -> verify(count)
-            _ -> fail()
-        }
-    }
-
-    state verify(&mut self, count: usize) {
-        transition count == 1 {
-            true -> ok()
-            _ -> fail()
-        }
-    }
-
     state ok(&mut self) { self.console.exit_process(70); }
     state fail(&mut self) { self.console.exit_process(71); }
 }
 "#,
         70,
-        "re-create must truncate: the reopened file holds 1 byte, not 5 or 6",
+        "open-missing must return <0 and seek-to-end must report 17",
+    );
+}
+
+/// Directory ops and rename over the value-returning seam.
+#[test]
+fn filesystem_value_returning_dirs_and_rename() {
+    interpret_fs(
+        "fs-vr-dirs",
+        r#"
+data Main {
+    fs: FilesystemHost;
+    console: Console;
+    mode: i32;
+    read_flags: i32;
+    cap: usize;
+    fd: i32;
+    n: i64;
+    rn: i64;
+    rc: i32;
+    buffer: [u8; 64];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.read_flags = 0;
+    self.cap = 64;
+    self.rc = self.fs.create_dir("/d", self.mode);
+    transition self.rc == 0 { true -> made() _ -> fail() }
+    state made(&mut self) {
+        self.fd = self.fs.create("/a.txt", self.mode);
+        self.n = self.fs.write(self.fd, "hello");
+        self.n = self.fs.close(self.fd);
+        self.rc = self.fs.rename("/a.txt", "/b.txt");
+        transition self.rc == 0 { true -> moved() _ -> fail() }
+    }
+    state moved(&mut self) {
+        self.fd = self.fs.open("/b.txt", self.read_flags);
+        transition self.fd >= 0 { true -> rd() _ -> fail() }
+    }
+    state rd(&mut self) {
+        self.rn = self.fs.read(self.fd, &mut self.buffer, self.cap);
+        self.n = self.fs.close(self.fd);
+        self.n = self.fs.remove("/b.txt");
+        self.rc = self.fs.remove_dir("/d");
+        transition self.rn == 5 { true -> checkdir() _ -> fail() }
+    }
+    state checkdir(&mut self) {
+        transition self.rc == 0 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+        70,
+        "create_dir + rename A->B (read 5) + remove_dir must all succeed",
     );
 }
