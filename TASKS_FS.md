@@ -216,6 +216,44 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **✅ NATIVE `create_dir_all` PATH-SCAN UNBLOCKED — two backend fixes (2026-07-06).**
+  The domained-slice `.len` guard + runtime-END subslice needed for walking a path
+  and mkdir-ing each ancestor `path[0..sep_i]` now lower on aarch64. Two ADDITIVE
+  (previously-declined-only) fixes, both proven purely additive against `canary_suite`
+  (identical 85-failure set with/without — a stashed A/B diff):
+  1. **Guard fix** — `omega-state-guards/src/operands/layout.rs::is_slice_descriptor`
+     now peels `Constrained` off a `Reference` referee. A `&[u8] in Path` param is
+     `Reference { Constrained { Slice } }`; the check only recognized a referee that
+     was DIRECTLY a `Slice`, so a domained-slice param's `.len` guard operand never
+     resolved to storage and the guard was REFUSED by the silently-dropped-guard
+     backstop — even though a plain `&[T]` param's `.len` guard resolved fine. (The
+     layout builder already peels `Constrained` for sized-ness; this mirrors it.)
+  2. **Subslice fix** — `omega-instruction-selection/.../writes/slice_descriptors.rs::`
+     `resolve_subslice_bound` now accepts a **Machine-region** (machine FIELD like
+     `self.k`) bound as the range **END** (`path[0..self.k]`); it read through a
+     region-tagged `Storage` operand of the length `Subtract`, and `bound_operand`
+     now honors `place.region`. The START stays frame-only (its indexed-address
+     instruction `WriteRuntimeFrameIndexedAddressToRuntimeFrame` has a frame-only
+     index field — a machine-field START still declines, correctly).
+  Verified by 3 native run-tests in the NEW dedicated file
+  `orchestration/omega-compiler/tests/subslice_runtime_end_bounds.rs` (kept OUT of the
+  hot shared `canary_suite.rs`): `slices/domained_slice_len_guard_exit` (fix 1),
+  `slices/runtime_end_subslice_machine_field_exit` (fix 2), and
+  `slices/domained_runtime_end_subslice_exit` (both — the create_dir_all shape minus
+  fs), all exit 70. Gates green: changed crates (state-guards/instruction-selection)
+  + mandated (relocations/calling-conventions) + interpreter coverage 58/58 +
+  canary_suite 514/85 (baseline set unchanged).
+  **ONE more native-seam gap remains for a real native `mkdir path[0..k]`:** darwin
+  `create_dir` binds to the C symbol `_mkdir(const char*, mode)`, which reads a
+  **NUL-terminated** string; the seam passes the slice ptr directly, so a
+  non-NUL-terminated SUBSLICE path (`path[0..23]` of a longer literal) makes `_mkdir`
+  read past the subslice len to the source literal's trailing `\0` → wrong path →
+  ENOENT. FIX NEEDED: a path arg to a C `char*` fs symbol that is not provably
+  NUL-terminated (any subslice / runtime slice) must be copied into a NUL-terminated
+  scratch buffer before the call (full string literals in rodata are already
+  terminated, which is why every existing native fs canary works). This is the last
+  mile — the subslice descriptor itself is correct (proven by the exit-70 tests).
+
 - **Raw seam now has HUMAN method names** (create/open/read/write/close/remove)
   on the `FilesystemHost` boundary trait; ugly libc spellings only in binding
   symbols. Compiler feature landed: lowering lookup **prefers an exact-platform
@@ -255,10 +293,9 @@ crate tests; interpreter fs coverage) and commits.
   the concat grant). Also FIXED the interpreter to subslice a `Str`-backed slice
   (byte view). Coverage `filesystem_path_subslice_domain` RUNS (mkdir + stat the
   5-byte prefix of a path, remove). fs coverage 45; checker crate unchanged
-  (162/2 pre-existing). **NATIVE gap for a full `create_dir_all`:** the subslice
-  bounds proof needs the DIRECT `k < path.len` guard, but a `path.len` (slice
-  length) guard operand does NOT lower on aarch64 ("did not resolve to storage") —
-  a separate backend gap; interpreter runs it fine.
+  (162/2 pre-existing). **NATIVE `k < path.len` guard gap: FIXED 2026-07-06** (see
+  next bullet) — the domained-slice `.len` guard now lowers; and the runtime-END
+  subslice `path[0..self.k]` (machine-field end) now materializes.
 - **✅ RUNTIME-INDEXED WRITE (storage source) IMPLEMENTED** — `arr[i] = <machine
   field>` now lowers on aarch64 (was a silent NO-OP: width 0 / stub encoder). New
   `encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage` is
@@ -284,28 +321,26 @@ crate tests; interpreter fs coverage) and commits.
 - **`fs::copy` now PERMISSION-PRESERVING** (step 12) — stats the source, carries
   its mode to the dest via chmod (Rust parity). `native_copy_preserve` canary PASS
   (byte-exact + mode-exact); coverage upgraded. fs coverage 44.
-- **⚠ ASSESSMENT (2026-07-06): the clean-increment vein is EXHAUSTED.** The fs
-  surface is very complete (raw seam ~31 ops incl. creating-opens; full FileType/
-  MetadataExt parity; error model; ergonomic wrapper; integration samples). EVERY
-  remaining item is blocked on DEEP COMPILER work, not fs plumbing — none is a safe
-  unattended-loop increment; each needs a dedicated session:
-    1. **Native `read_dir` iteration / `create_dir_all` / `remove_dir_all`** —
-       blocked on the runtime-indexed-read register bug (step 13, fix 3b: the
-       encoder uses callee-saved x19/x20/x26 as scratch → clobbers loop-carried
-       values; a register-allocation-coordination fix). This ALSO gates all 146
-       canary_suite failures. Fix 3a (relocation offset) is SOLVED + recorded.
-    2. **`create_dir_all` path-prefix subslicing** ALSO needs TWO checker-proof
-       features (verified this fire by probe): (a) DOMAIN PROPAGATION — a subslice
-       of a `no_nul` (subslice-closed) domain is still `no_nul`, currently
-       "cannot prove `path[0..k] in Path`"; (b) SUBSLICE BOUNDS vs an UNKNOWN-length
-       slice param, currently "cannot prove `0..k` within unknown slice length".
+- **⚠ ASSESSMENT (updated 2026-07-06): the deep-backend blockers are being
+  cleared one by one — the vein is NOT exhausted after all.** Progress since the
+  original "exhausted" assessment:
+    1. **Native `read_dir` iteration — ✅ WORKS.** The "fix 3b register aliasing"
+       hypothesis was WRONG (there is NO register allocator; all values live in
+       memory). The real fix was fix 3a (region-aware relocation offset). Native
+       `read_dir` iteration RUNS. canary_suite is now 514/85 (the 85 are the other
+       workstream's width mismatches + known latent bugs, NOT fs).
+    2. **`create_dir_all` path-prefix subslicing — ✅ CHECKER + NATIVE GUARD/SUBSLICE
+       DONE.** (a) domain propagation: `subslice_grants_domain` (`path[0..k] in Path`)
+       landed; (b) subslice bounds vs an unknown-length slice param: landed; and now
+       (c) the native domained-slice `.len` guard + (d) native runtime-END subslice
+       `path[0..self.k]` both lower (this fire). ONLY the native path-arg
+       NUL-termination for a subslice remains (top of Current state) before a real
+       native `mkdir path[0..k]`.
     3. **Native ergonomic wrapper lowering** — forwarded-param resolution (D5/step
-       14), deep backend.
+       14), deep backend; still open.
     4. **x86_64 / linux / windows seams** — structurally staged, UNTESTABLE here.
-  The loop stays scheduled (none of these is a "user-only design decision" per the
-  unschedule criteria), but the highest-leverage next move is a DEDICATED fire on
-  fix 3b (unblocks read_dir + fixes 146 canaries) rather than more incremental
-  surface work.
+  The loop stays scheduled. Next highest-leverage move: the path-arg NUL-termination
+  seam (last mile to native `create_dir_all`), then the native wrapper lowering.
 - **NATIVE variadic-mode `open` DONE** (10t) — `open_create` lowers + RUNS on
   aarch64 (D8-open, the #1 parity gap, CLOSED). First host call to marshal a
   variadic arg on the STACK (`sub sp; str [sp]; bl; add sp`); a new

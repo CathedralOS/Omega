@@ -1,0 +1,39 @@
+// A storage-vs-storage guard whose right operand is a DOMAINED slice param's
+// `.len` (`self.k < path.len` where `path: &[u8] in Path`) must lower to a
+// `CompareRuntimeStorage`. A `&[u8] in Path` is `Reference { Constrained { Slice } }`;
+// before the fix, omega-state-guards' `is_slice_descriptor` only recognized a
+// referee that was DIRECTLY a `Slice`, so the domained `.len` operand never
+// resolved to storage and the guard was refused (silently-dropped-guard backstop) --
+// even though a plain `&[T]` param's `.len` guard resolved fine. Exits 70 (5 < 7).
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    k: usize;
+}
+
+machine Main::main(&mut self) {
+    self.k = 5;
+    transition {
+        _ -> self.check("/adir/x")
+    }
+}
+
+machine Main::check(&mut self, path: &[u8] in Path) {
+    transition self.k < path.len {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -1,0 +1,51 @@
+// The exact create_dir_all path-scan shape, minus the fs call -- both slice fixes
+// combined. A `&[u8] in Path` DOMAIN-constrained slice param; a storage-vs-storage
+// guard `self.k < path.len` (field vs domained-slice `.len`, needs the
+// `is_slice_descriptor` Constrained peel); a RUNTIME-END subslice `path[0..self.k]`
+// whose end is a machine field (needs the `resolve_subslice_bound` Machine-region-END
+// relaxation); the subslice-domain grant (`path[0..k] in Path`, no_nul is
+// subslice-preserving); and the subslice descriptor passed onward as a `&[u8] in Path`
+// arg. Exits on the subslice length (5) so no fs machinery is involved.
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    k: usize;
+}
+
+machine Main::main(&mut self) {
+    self.k = 5;
+    transition {
+        _ -> self.check("/adir/x")
+    }
+}
+
+machine Main::check(&mut self, path: &[u8] in Path) {
+    // storage(self.k)=5 < storage(path.len)=7 -> subslice path[0..5] = "/adir".
+    transition self.k < path.len {
+        true -> self.verify(path[0..self.k])
+        false -> bad()
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+machine Main::verify(&mut self, prefix: &[u8] in Path) {
+    transition prefix.len == 5 {
+        true -> good()
+        false -> wrong()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(71);
+    }
+}
