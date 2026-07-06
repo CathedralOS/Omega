@@ -963,6 +963,59 @@ fn is_known_bare_name(
     false
 }
 
+/// Reject READING a nested array element with a RUNTIME COLUMN index -- `grid[..][j]`
+/// where `j` is a runtime value and the collection is itself indexed (a 2D+ array).
+/// The backend cannot lower this shape yet: it resolves the runtime index to the
+/// collection BASE and SILENTLY READS 0 instead of the element (confirmed native:
+/// `grid[2][j]` with `j == 1` reads 0, not the correct 6). The sibling WRITE is
+/// already fenced (state-graph classifier `target_is_nested_runtime_indexed`); this
+/// fences the READ to match. A const column (`grid[i][0]`, a fixed offset) and a
+/// single index (`arr[i]`, non-indexed collection) ARE lowerable and are untouched.
+/// The real fix is lowering nested runtime-indexed access (a backend feature).
+fn report_nested_runtime_indexed_read(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(expression) else {
+        return;
+    };
+    // The outer (column) index must be a RUNTIME SCALAR value: not a constant integer
+    // (a fixed offset, lowerable) and not a RANGE (`sub[1..][1..]` is a nested SUBSLICE,
+    // a different operation that lowers fine -- excluding it avoids a false positive).
+    let mut index = indexed.index;
+    while let ExpressionNode::Mutable(inner) = program.expression_table.expression(index) {
+        index = *inner;
+    }
+    if matches!(
+        program.expression_table.expression(index),
+        ExpressionNode::Integer(_) | ExpressionNode::Range(_)
+    ) {
+        return;
+    }
+    // The collection must itself be an indexed place (a nested array).
+    let mut collection = indexed.collection;
+    while let ExpressionNode::Mutable(inner) = program.expression_table.expression(collection) {
+        collection = *inner;
+    }
+    if !matches!(
+        program.expression_table.expression(collection),
+        ExpressionNode::Indexed(_)
+    ) {
+        return;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}` reads a nested array element with a runtime COLUMN index \
+         (`grid[..][j]`, `j` a runtime value), which the backend cannot lower yet -- it silently \
+         reads 0 instead of the element. Use a constant column index (`grid[i][0]`), or a flat \
+         array with a computed index",
+        machine.name.as_str(),
+        state.name.as_str(),
+    )));
+}
+
 /// Recursively scan `expression` for `ExpressionNode::Call` nodes and
 /// validate machine-call type-parameter bounds for each one found.
 #[allow(clippy::too_many_arguments)]
@@ -1165,6 +1218,10 @@ fn scan_expression_calls(
             );
         }
         ExpressionNode::Indexed(indexed) => {
+            // Reading a nested array element with a RUNTIME COLUMN index (`grid[..][j]`)
+            // silently reads 0 (the backend cannot lower it yet); the sibling WRITE is
+            // already fenced, this fences the READ to match.
+            report_nested_runtime_indexed_read(program, machine, state, expression, diagnostics);
             scan_expression_calls(
                 program,
                 machine,
