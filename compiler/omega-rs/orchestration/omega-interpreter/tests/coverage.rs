@@ -641,6 +641,7 @@ boundary trait FilesystemHost {
     machine set_permissions(path: &[u8] in Path, mode: u32) -> i32;
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
     machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32;
+    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
     machine set_len(fd: i32, length: i64) -> i32;
     machine sync(fd: i32) -> i32;
     machine errno() -> i32;
@@ -1716,5 +1717,65 @@ machine Main::main(&mut self) {
     assert_eq!(
         outcome.exit_code, 70,
         "hard_link: alias reads 12 bytes after original removed; relink is AlreadyExists"
+    );
+}
+
+/// `metadata_path` now decodes `st_mode` (Rust `Metadata::is_dir`/`is_file`) via
+/// `stat`: a regular file reports `is_dir == false` with the right `len`, and a
+/// directory reports `is_dir == true`. Proves the byte-assembly extraction of
+/// both `st_size` (off 96) and `st_mode` (off 4) from the stat record.
+#[test]
+fn filesystem_std_module_metadata_is_dir() {
+    let main_path = write_program(
+        "fs-isdir-meta",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("/f.txt", "abc");
+    transition self.unit_result { UnitResult::Ok -> statfile() _ -> fail() }
+    state statfile(&mut self) {
+        self.meta_result = self.fs.metadata_path("/f.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> checkfile(meta) _ -> fail() }
+    }
+    state checkfile(&mut self, meta: Metadata) {
+        // a regular file: len 3, not a directory
+        transition meta.len == 3 { true -> checkfilekind(meta) _ -> fail() }
+    }
+    state checkfilekind(&mut self, meta: Metadata) {
+        transition meta.is_dir { true -> fail() _ -> makedir() }
+    }
+    state makedir(&mut self) {
+        self.unit_result = self.fs.create_dir("/dd");
+        transition self.unit_result { UnitResult::Ok -> statdir() _ -> fail() }
+    }
+    state statdir(&mut self) {
+        self.meta_result = self.fs.metadata_path("/dd");
+        transition self.meta_result { MetadataResult::Ok { meta } -> checkdir(meta) _ -> fail() }
+    }
+    state checkdir(&mut self, meta: Metadata) {
+        self.unit_result = self.fs.remove_dir("/dd");
+        self.unit_result = self.fs.remove("/f.txt");
+        transition meta.is_dir { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("metadata-is-dir program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "metadata_is_dir: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "metadata_path: file -> is_dir false (len 3); directory -> is_dir true"
     );
 }

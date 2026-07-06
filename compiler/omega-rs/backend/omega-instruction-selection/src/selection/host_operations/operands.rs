@@ -289,6 +289,20 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Filesystem, HostOperation::Stat) => {
+            // Value-returning `rc = read_metadata(path, buf) -> _stat(path, buf)`.
+            // operand[0]=result, [1]=path POINTER (NUL-terminated C string),
+            // [2]=buffer POINTER (the kernel writes the 144-byte stat record).
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let path = path_pointer_operand(input, host_call, dispatch_index, 1);
+            let buffer = address_argument_operand_at(input, host_call, dispatch_index, 2);
+            match (result, path, buffer) {
+                (Some(result), Some(path), Some(buffer)) => {
+                    operands.insert_many([operand(result), operand(path), operand(buffer)])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::Filesystem, HostOperation::Unlink | HostOperation::RemoveDir) => {
             // Value-returning `rc = unlink(path) / rmdir(path)`.
             // operand[0]=result, [1]=path POINTER (NUL-terminated C string).

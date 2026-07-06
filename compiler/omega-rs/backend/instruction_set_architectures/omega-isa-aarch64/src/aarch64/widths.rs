@@ -1138,6 +1138,9 @@ fn runtime_binary_operation_width(operator: StateGuardOperator) -> usize {
         StateGuardOperator::Add
         | StateGuardOperator::And
         | StateGuardOperator::Or
+        | StateGuardOperator::BitwiseAnd
+        | StateGuardOperator::BitwiseOr
+        | StateGuardOperator::BitwiseXor
         | StateGuardOperator::Subtract
         | StateGuardOperator::Multiply
         | StateGuardOperator::Divide
