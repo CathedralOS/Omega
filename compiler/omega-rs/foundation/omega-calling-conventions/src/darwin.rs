@@ -24,6 +24,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("Filesystem", "lseek", "_lseek", &policy),
         darwin_import("Filesystem", "mkdir", "_mkdir", &policy),
         darwin_import("Filesystem", "rmdir", "_rmdir", &policy),
+        darwin_import("Filesystem", "chmod", "_chmod", &policy),
         darwin_import("Filesystem", "rename", "_rename", &policy),
         darwin_import("Filesystem", "ftruncate", "_ftruncate", &policy),
         darwin_import("Filesystem", "fsync", "_fsync", &policy),
@@ -150,6 +151,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "FilesystemHost",
         "remove_dir",
         [host_operation("Filesystem", "rmdir")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "set_permissions",
+        [host_operation("Filesystem", "chmod")],
         PlatformCallData::None,
     );
     insert_platform_lowering(

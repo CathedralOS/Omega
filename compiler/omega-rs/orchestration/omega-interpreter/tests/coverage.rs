@@ -638,6 +638,7 @@ boundary trait FilesystemHost {
     machine seek(fd: i32, offset: i64, whence: i32) -> i64;
     machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
     machine remove_dir(path: &[u8] in Path) -> i32;
+    machine set_permissions(path: &[u8] in Path, mode: u32) -> i32;
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
     machine set_len(fd: i32, length: i64) -> i32;
     machine sync(fd: i32) -> i32;
@@ -1596,5 +1597,57 @@ machine Main::main(&mut self) {
     assert_eq!(
         outcome.exit_code, 70,
         "open_with(write) on a directory must be Error with kind IsADirectory"
+    );
+}
+
+/// `set_permissions` (Rust `std::fs::set_permissions`): after chmod'ing a file to
+/// read-only (0o444 = 292), a write-open fails and its embedded kind is
+/// `PermissionDenied` (EACCES). Proves both the chmod op and the permission
+/// enforcement it drives.
+#[test]
+fn filesystem_std_module_set_permissions() {
+    let main_path = write_program(
+        "fs-perms",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    open_result: OpenResult;
+    read_only: Permissions;
+    write_opts: OpenOptions;
+}
+machine Main::main(&mut self) {
+    self.read_only = Permissions { mode: 292 };
+    self.write_opts = OpenOptions { read: false, write: true, append: false, truncate: false };
+    self.unit_result = self.fs.write_all("/p.txt", "content");
+    transition self.unit_result { UnitResult::Ok -> lockit() _ -> fail() }
+    state lockit(&mut self) {
+        self.unit_result = self.fs.set_permissions("/p.txt", self.read_only);
+        transition self.unit_result { UnitResult::Ok -> trywrite() _ -> fail() }
+    }
+    state trywrite(&mut self) {
+        self.open_result = self.fs.open_with("/p.txt", self.write_opts);
+        transition self.open_result { OpenResult::Error { kind } -> classify(kind) _ -> fail() }
+    }
+    state classify(&mut self, kind: ErrorKind) {
+        self.unit_result = self.fs.remove("/p.txt");
+        transition kind { ErrorKind::PermissionDenied -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("set-permissions program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "set_permissions: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "chmod read-only then write-open must be Error with kind PermissionDenied"
     );
 }

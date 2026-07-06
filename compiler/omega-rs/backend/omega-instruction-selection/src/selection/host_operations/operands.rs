@@ -267,12 +267,16 @@ pub(super) fn select_host_operation_operands(
         }
         (
             HostCapability::Filesystem,
-            HostOperation::Open | HostOperation::Creat | HostOperation::MakeDir,
+            HostOperation::Open
+            | HostOperation::Creat
+            | HostOperation::MakeDir
+            | HostOperation::Chmod,
         ) => {
             // Value-returning `fd = open_read(path, flags) -> _open(path,
-            // flags)` and `fd = creat(path, mode) -> _creat(path, mode)`. Both
-            // are `[result, path POINTER (NUL-terminated), second scalar]` ->
-            // args `[path, flags-or-mode]`. Both second args are NAMED (register)
+            // flags)`, `fd = creat(path, mode) -> _creat(path, mode)`, and
+            // `rc = set_permissions(path, mode) -> _chmod(path, mode)`. All are
+            // `[result, path POINTER (NUL-terminated), second scalar]` -> args
+            // `[path, flags-or-mode]`. The second args are NAMED (register)
             // params; creation uses `creat` precisely because `open`'s mode is
             // variadic (stack-passed on arm64) and would be dropped.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);

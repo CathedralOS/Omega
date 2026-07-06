@@ -139,6 +139,10 @@ pub enum HostOperation {
     MakeDir,
     /// `rmdir(path)` -- remove an empty directory (Rust `remove_dir`).
     RemoveDir,
+    /// `chmod(path, mode)` -- set a path's permission bits (Rust
+    /// `set_permissions`). Same shape as `mkdir`: a path pointer + a NAMED
+    /// (register) mode scalar.
+    Chmod,
     /// `rename(from, to)` -- move/rename a path (Rust `rename`). Two path args.
     Rename,
     /// `ftruncate(fd, length)` -- set a file's length (Rust `File::set_len`).
@@ -199,6 +203,7 @@ impl HostOperation {
             "lseek" => Self::Seek,
             "mkdir" => Self::MakeDir,
             "rmdir" => Self::RemoveDir,
+            "chmod" => Self::Chmod,
             "rename" => Self::Rename,
             "ftruncate" => Self::SetLen,
             "fsync" => Self::Sync,
@@ -237,6 +242,7 @@ impl HostOperation {
             Self::Seek => "lseek",
             Self::MakeDir => "mkdir",
             Self::RemoveDir => "rmdir",
+            Self::Chmod => "chmod",
             Self::Rename => "rename",
             Self::SetLen => "ftruncate",
             Self::Sync => "fsync",
