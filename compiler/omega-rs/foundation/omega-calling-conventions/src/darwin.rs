@@ -15,7 +15,11 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("Stdout", "write", "_write", &policy),
         darwin_import("Stderr", "write", "_write", &policy),
         darwin_import("Process", "exit", "_exit", &policy),
+        darwin_import("Filesystem", "open", "_open", &policy),
+        darwin_import("Filesystem", "read", "_read", &policy),
+        darwin_import("Filesystem", "write", "_write", &policy),
         darwin_import("Filesystem", "close", "_close", &policy),
+        darwin_import("Filesystem", "unlink", "_unlink", &policy),
     ]);
 
     insert_platform_lowering(
@@ -68,15 +72,46 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         [host_operation("Process", "exit")],
         PlatformCallData::None,
     );
-    // std::fs — first native op: `close(file)` -> `_close(fd)`. The `File`
-    // handle's single `i32` field marshals as the scalar first argument
-    // (PlatformCallData::None passes declared args straight through). No
-    // out-param, void return — the thin end of the fs wedge.
+    // std::fs — the RAW, VALUE-RETURNING boundary layer (each op returns its
+    // syscall result: fd / byte count / rc; a thin Omega layer wraps these into
+    // File/outcome enums). Method names are distinct from Console's (`write` is
+    // already a Console lowering under the `*` wildcard), so `read`/`write` are
+    // spelled `read_bytes`/`write_bytes` here. All marshal declared args
+    // straight through (PlatformCallData::None); the value-returning result
+    // store is driven by `HostOperationKey::returns_value()`.
+    insert_platform_lowering(
+        plan,
+        "*",
+        "open",
+        [host_operation("Filesystem", "open")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "read_bytes",
+        [host_operation("Filesystem", "read")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "write_bytes",
+        [host_operation("Filesystem", "write")],
+        PlatformCallData::None,
+    );
     insert_platform_lowering(
         plan,
         "*",
         "close",
         [host_operation("Filesystem", "close")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "unlink",
+        [host_operation("Filesystem", "unlink")],
         PlatformCallData::None,
     );
 }
