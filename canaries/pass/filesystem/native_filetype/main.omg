@@ -1,0 +1,54 @@
+// NATIVE file-type classification (Rust FileType / os::unix::fs::FileTypeExt) via
+// stat's st_mode format bits, on real macOS. Decodes st_mode (offset 4, u16) and
+// masks the format field (mode & S_IFMT, S_IFMT = 0o170000 = 61440). `/dev/null`
+// is a CHARACTER-special device (S_IFCHR = 0o020000 = 8192) present on every
+// system; a freshly-created regular file is S_IFREG (0o100000 = 32768). Proves
+// is_char_device()/is_file() decode real device nodes, not just regular files.
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
+}
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    fd: i32;
+    rc: i32;
+    fmt: i32;
+    discard: i32;
+    n: i64;
+    buffer: [u8; 144];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    // 1: /dev/null must stat as a character device
+    self.rc = self.fs.read_metadata("/dev/null", &mut self.buffer);
+    transition self.rc == 0 { true -> checkchar() _ -> fail() }
+    state checkchar(&mut self) {
+        self.fmt = ((self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8)) & 61440;
+        transition self.fmt == 8192 { true -> regular() _ -> fail() }
+    }
+    state regular(&mut self) {
+        // 2: a fresh regular file must stat as S_IFREG (not a device)
+        self.fd = self.fs.create("/tmp/omega_ftype.txt", self.mode);
+        self.n = self.fs.write(self.fd, "hi");
+        self.discard = self.fs.close(self.fd);
+        self.rc = self.fs.read_metadata("/tmp/omega_ftype.txt", &mut self.buffer);
+        self.discard = self.fs.remove("/tmp/omega_ftype.txt");
+        transition self.rc == 0 { true -> checkreg() _ -> fail() }
+    }
+    state checkreg(&mut self) {
+        self.fmt = ((self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8)) & 61440;
+        transition self.fmt == 32768 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: /dev/null is S_IFCHR (char device); regular file is S_IFREG\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: native filetype\n"); }
+}

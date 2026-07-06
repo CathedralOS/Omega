@@ -287,6 +287,12 @@ struct Evaluator<'program> {
     /// blocking are documented approximations (a single-threaded run can't
     /// exercise them); exclusive contention is what the model tracks.
     virtual_flocks: BTreeMap<Vec<u8>, i32>,
+    /// Character-special device files (`/dev/null` etc.): paths that `stat` reports
+    /// with an `S_IFCHR` mode instead of a regular file, so `FileType`/
+    /// `FileTypeExt::is_char_device()` resolves the same on both engines. The
+    /// hermetic FS has no real device nodes; this seeds the common ones so a
+    /// differential test can `metadata("/dev/null")` without special-casing.
+    virtual_char_devices: std::collections::BTreeSet<Vec<u8>>,
     /// The thread-local `errno` model: set to a POSIX code when a virtual fs op
     /// fails (ENOENT=2, EACCES=13, EEXIST=17, EBADF=9), read back by
     /// `read_errno` (darwin `___error()`). Mirrors the native seam so the typed
@@ -327,6 +333,9 @@ impl<'program> Evaluator<'program> {
             virtual_symlinks: BTreeMap::new(),
             virtual_times: BTreeMap::new(),
             virtual_flocks: BTreeMap::new(),
+            virtual_char_devices: [b"/dev/null".to_vec(), b"/dev/zero".to_vec()]
+                .into_iter()
+                .collect(),
             virtual_errno: 0,
             host_boundary_touched: false,
             steps: 0,
@@ -2747,7 +2756,10 @@ impl<'program> Evaluator<'program> {
                     .virtual_perms
                     .get(&path)
                     .map(|mode| (*mode as u16) & 0o7777);
-                let meta = if let Some(content) = self.virtual_files.get(&path) {
+                let meta = if self.virtual_char_devices.contains(&path) {
+                    // A character-special device (`/dev/null`): S_IFCHR|0o666, size 0.
+                    Some((0o020_000u16 | chmod_perm.unwrap_or(0o666), 0i64))
+                } else if let Some(content) = self.virtual_files.get(&path) {
                     let size = content.len() as i64;
                     Some((0o100_000u16 | chmod_perm.unwrap_or(0o644), size))
                 } else if self.virtual_dirs.contains(&path) {
