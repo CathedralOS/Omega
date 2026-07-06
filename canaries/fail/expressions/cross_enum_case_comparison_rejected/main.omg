@@ -1,0 +1,16 @@
+// Comparing an enum value against a case of a DIFFERENT enum (`self.c ==
+// Direction::North` for `c: Color`) lowered to a raw TAG compare across unrelated
+// types: Color::Red and Direction::North both have tag 0, so it spuriously
+// compared equal and took the TRUE arm (confirmed miscompile, exit 1). Rejected at
+// the classifier gate now (before the tag-compare lowering). Same-enum case
+// comparisons (`self.c == Color::Red`) stay valid.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Color { case Red; case Green; }
+data Direction { case North; case South; }
+data Main { console: Console; c: Color; }
+machine Main::main(&mut self) {
+    self.c = Color::Red;
+    transition self.c == Direction::North { true -> hit() _ -> miss() }
+    state hit(&mut self) { self.console.exit_process(1); }
+    state miss(&mut self) { self.console.exit_process(2); }
+}
