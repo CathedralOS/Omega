@@ -162,6 +162,16 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   Same-enum case comparisons (`self.c == Color::Red`, and match-arm `subject == Player::Alive` desugars)
   have equal names -> untouched; domain classifiers (not data defs) skipped. Canary
   cross_enum_case_comparison_rejected.
+- **[RESOLVED 2026-07-05] MEMBERSHIP `value in DifferentEnum::Case` (the `in` sibling of the above).**
+  `self.c in Direction::North` for `c: Color` lowered (`domain_membership.rs lower_case_membership_
+  expression`) to the SAME tag-equality compare as `==`, again across unrelated enums (both tag 0 ->
+  spuriously TRUE, exit 1). New `reject_cross_type_case_membership` method on the lowerer (in
+  structural_equality.rs, pub(super); reuses `operand_data_type_name` + `data_definition_by_name`),
+  called from lowerer.rs right before the implicit `Type::Case` lowering: resolve the value's data type,
+  reject when it and `Type` are different data definitions. Same-enum membership + transition match-arm
+  desugars (which lower to case membership) have equal names -> untouched; declared-domain membership
+  (`domain_symbol` valid) never reaches this path. Canary cross_enum_case_membership_rejected. The
+  cross-type `==`/`!=`/`in` enum surface is now closed on all three forms.
 - **[RESOLVED 2026-07-05] `==`/`!=` on ARRAY operands (`self.xs == self.ys`).** Structs expand to
   synthesized structural equality and text carriers compare by content, but an array operand never
   expands -- there is no element-wise array equality -- so `xs == ys` reached the backend as a
