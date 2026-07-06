@@ -639,6 +639,7 @@ boundary trait FilesystemHost {
     machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
     machine remove_dir(path: &[u8] in Path) -> i32;
     machine set_permissions(path: &[u8] in Path, mode: u32) -> i32;
+    machine set_file_permissions(fd: i32, mode: u32) -> i32;
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
     machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32;
     machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
@@ -1930,5 +1931,61 @@ machine Main::main(&mut self) {
     assert_eq!(
         outcome.exit_code, 70,
         "readonly()/set_readonly round-trip: writable -> readonly -> writable"
+    );
+}
+
+/// `Filesystem::set_file_permissions` (Rust `File::set_permissions`) via
+/// `fchmod`: chmod an OPEN file to read-only, then a fresh write-open of that
+/// path fails with `PermissionDenied`. The fd-based counterpart to
+/// `set_permissions`.
+#[test]
+fn filesystem_std_module_set_file_permissions() {
+    let main_path = write_program(
+        "fs-fchmod",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    open_result: OpenResult;
+    unit_result: UnitResult;
+    read_only: Permissions;
+    write_opts: OpenOptions;
+}
+machine Main::main(&mut self) {
+    self.read_only = Permissions { mode: 292 };
+    self.write_opts = OpenOptions { read: false, write: true, append: false, truncate: false };
+    self.open_result = self.fs.create("/ff.txt");
+    transition self.open_result { OpenResult::Ok { file } -> lockit(file) _ -> fail() }
+    state lockit(&mut self, file: File) {
+        self.unit_result = self.fs.set_file_permissions(file, self.read_only);
+        transition self.unit_result { UnitResult::Ok -> closeit(file) _ -> fail() }
+    }
+    state closeit(&mut self, file: File) {
+        let rc: i32 = self.fs.close(file);
+        transition rc == 0 { true -> trywrite() _ -> trywrite() }
+    }
+    state trywrite(&mut self) {
+        self.open_result = self.fs.open_with("/ff.txt", self.write_opts);
+        transition self.open_result { OpenResult::Error { kind } -> classify(kind) _ -> fail() }
+    }
+    state classify(&mut self, kind: ErrorKind) {
+        self.unit_result = self.fs.remove("/ff.txt");
+        transition kind { ErrorKind::PermissionDenied -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("set-file-permissions program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "set_file_permissions: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "fchmod an open file read-only -> a fresh write-open is PermissionDenied"
     );
 }

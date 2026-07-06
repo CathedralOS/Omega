@@ -146,6 +146,7 @@ boundary trait FilesystemHost {
     machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
     machine remove_dir(path: &[u8] in Path) -> i32;
     machine set_permissions(path: &[u8] in Path, mode: u32) -> i32;
+    machine set_file_permissions(fd: i32, mode: u32) -> i32;
     machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
     machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32;
     // Fill `buffer` (>= 144 bytes) with the path's `struct stat` record (Rust
@@ -413,6 +414,15 @@ machine Filesystem::remove_dir(&mut self, path: &[u8] in Path) -> UnitResult {
 // `PermissionDenied` (EACCES).
 machine Filesystem::set_permissions(&mut self, path: &[u8] in Path, perms: Permissions) -> UnitResult {
     let rc: i32 = self.host.set_permissions(path, perms.mode);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Set an OPEN file's permission bits (Rust `File::set_permissions`), the fd-based
+// counterpart to `set_permissions`. Uses `fchmod`, so it needs no path.
+machine Filesystem::set_file_permissions(&mut self, file: File, perms: Permissions) -> UnitResult {
+    let rc: i32 = self.host.set_file_permissions(file.fd, perms.mode);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }

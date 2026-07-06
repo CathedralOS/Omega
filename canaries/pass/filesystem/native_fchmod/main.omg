@@ -1,0 +1,50 @@
+// NATIVE fs File::set_permissions via fchmod. Creates and opens a file, chmods
+// the OPEN descriptor to read-only (0o444) with fchmod, then a fresh write-open
+// of the path fails with EACCES (13). Proves fchmod takes effect on the real
+// inode via the open fd. Prints PASS iff the write-open fails with EACCES.
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine open(path: &[u8] in Path, flags: i32) -> i32;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine set_file_permissions(fd: i32, mode: u32) -> i32;
+    machine errno() -> i32;
+}
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    readonly: u32;
+    wronly: i32;
+    fd: i32;
+    rc: i32;
+    probe: i32;
+    code: i32;
+    n: i64;
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.readonly = 292;   // 0o444
+    self.wronly = 1;       // O_WRONLY
+    self.fd = self.fs.create("/tmp/omega_fc.txt", self.mode);
+    self.rc = self.fs.set_file_permissions(self.fd, self.readonly);
+    self.n = self.fs.close(self.fd);
+    transition self.rc == 0 { true -> trywrite() _ -> fail() }
+    state trywrite(&mut self) {
+        self.probe = self.fs.open("/tmp/omega_fc.txt", self.wronly);
+        transition self.probe < 0 { true -> checkerrno() _ -> fail() }
+    }
+    state checkerrno(&mut self) {
+        self.code = self.fs.errno();
+        self.n = self.fs.remove("/tmp/omega_fc.txt");
+        transition self.code == 13 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: fchmod read-only -> write-open EACCES (13)\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: fchmod\n"); }
+}
