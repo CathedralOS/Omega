@@ -522,6 +522,12 @@ machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buff
     let written: i64 = self.host.write(dst, buffer);
     let truncated: i32 = self.host.set_len(dst, n);
     let closed_dst: i32 = self.host.close(dst);
+    // Preserve the source's permission bits (Rust `fs::copy` copies the mode).
+    // `stat` the source (it exists -- we just read it) and decode st_mode's
+    // permission bits (low 9, & 0o777 = 511), then `chmod` the destination.
+    let statrc: i32 = self.host.read_metadata(from, &mut self.stat_buf);
+    let mode: u32 = ((self.stat_buf[4] as u32) | ((self.stat_buf[5] as u32) << 8)) & 511;
+    let chmodded: i32 = self.host.set_permissions(to, mode);
     transition n >= 0 { true -> ok(n) _ -> err() }
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }

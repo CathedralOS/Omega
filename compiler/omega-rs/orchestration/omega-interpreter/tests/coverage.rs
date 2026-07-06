@@ -2137,6 +2137,8 @@ data Main {
     console: Console;
     unit_result: UnitResult;
     io_result: IoResult;
+    meta_result: MetadataResult;
+    perms: Permissions;
     cap: usize;
     first: u8;
     buffer: [u8; 64];
@@ -2145,7 +2147,14 @@ data Main {
 machine Main::main(&mut self) {
     self.cap = 64;
     self.unit_result = self.fs.write_all("/src.txt", "copy me please");
-    transition self.unit_result { UnitResult::Ok -> docopy() _ -> fail() }
+    transition self.unit_result { UnitResult::Ok -> setperm() _ -> fail() }
+    state setperm(&mut self) {
+        // give the source a distinctive mode (0o640 = 416) so the copy's
+        // permission preservation (Rust `fs::copy`) is observable on the dest.
+        self.perms = Permissions { mode: 416 };
+        self.unit_result = self.fs.set_permissions("/src.txt", self.perms);
+        transition self.unit_result { UnitResult::Ok -> docopy() _ -> fail() }
+    }
     state docopy(&mut self) {
         self.io_result = self.fs.copy("/src.txt", "/dst.txt", &mut self.buffer, self.cap);
         transition self.io_result { IoResult::Ok { count } -> checkcount(count) _ -> fail() }
@@ -2163,9 +2172,17 @@ machine Main::main(&mut self) {
     }
     state checkbyte(&mut self) {
         self.first = self.verify[0];
+        transition self.first == 99 { true -> checkperm() _ -> fail() }
+    }
+    state checkperm(&mut self) {
+        // the destination inherited the source's 0o640 permission bits
+        self.meta_result = self.fs.metadata_path("/dst.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> verifyperm(meta) _ -> fail() }
+    }
+    state verifyperm(&mut self, meta: Metadata) {
         self.unit_result = self.fs.remove("/src.txt");
         self.unit_result = self.fs.remove("/dst.txt");
-        transition self.first == 99 { true -> ok() _ -> fail() }
+        transition (meta.mode & 511) == 416 { true -> ok() _ -> fail() }
     }
     state ok(&mut self) { self.console.exit_process(70); }
     state fail(&mut self) { self.console.exit_process(71); }
@@ -2178,7 +2195,7 @@ machine Main::main(&mut self) {
     assert!(!outcome.is_error(), "copy: {:?}", outcome.error);
     assert_eq!(
         outcome.exit_code, 70,
-        "copy must transfer exactly 14 bytes (truncated to n, not buffer cap) and match content"
+        "copy transfers exactly 14 bytes (not buffer cap), matches content, AND preserves the source mode (0o640)"
     );
 }
 

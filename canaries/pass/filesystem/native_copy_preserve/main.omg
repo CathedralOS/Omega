@@ -1,0 +1,80 @@
+// NATIVE faithful `fs::copy` with PERMISSION PRESERVATION (Rust `fs::copy` copies
+// the source's mode) on real macOS. Combines the runtime-subslice write (fire 20)
+// with a stat-decode + chmod to carry the mode across. The scenario:
+//   1. create src, write "hello world" (11 bytes), chmod src to 0o640 (distinctive)
+//   2. stat src -> decode the permission bits (== 0o640)
+//   3. read src into a buffer (n bytes), create dst, write buffer[0..n] (faithful)
+//   4. chmod dst to the source's mode (preserve)
+//   5. stat dst -> assert perm bits == 0o640 AND st_size == 11
+// Prints PASS iff the destination is byte-exact AND mode-exact.
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine open(path: &[u8] in Path, flags: i32) -> i32;
+    machine read(fd: i32, buffer: &mut [u8], count: usize) -> i64;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine set_permissions(path: &[u8] in Path, mode: u32) -> i32;
+    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
+}
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    rdonly: i32;
+    cap: usize;
+    srcperm: u32;
+    fd: i32;
+    rc: i32;
+    got: usize;
+    srcmode: u32;
+    dstmode: i32;
+    size: i32;
+    discard: i32;
+    n: i64;
+    buffer: [u8; 144];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;      // 0o644
+    self.rdonly = 0;
+    self.cap = 64;
+    self.srcperm = 416;   // 0o640 -- distinctive source mode
+    self.fd = self.fs.create("/tmp/omega_cp_src.txt", self.mode);
+    self.n = self.fs.write(self.fd, "hello world");
+    self.discard = self.fs.close(self.fd);
+    self.discard = self.fs.set_permissions("/tmp/omega_cp_src.txt", self.srcperm);
+    // stat the source, capture its permission bits
+    self.rc = self.fs.read_metadata("/tmp/omega_cp_src.txt", &mut self.buffer);
+    self.srcmode = ((self.buffer[4] as u32) | ((self.buffer[5] as u32) << 8)) & 511;
+    // read the source bytes
+    self.fd = self.fs.open("/tmp/omega_cp_src.txt", self.rdonly);
+    self.n = self.fs.read(self.fd, &mut self.buffer, self.cap);
+    self.got = self.n as usize;
+    self.discard = self.fs.close(self.fd);
+    transition self.got <= 144 { true -> writeit() _ -> fail() }
+    state writeit(&mut self) {
+        // faithful byte copy: write exactly buffer[0..got]
+        self.fd = self.fs.create("/tmp/omega_cp_dst.txt", self.mode);
+        self.n = self.fs.write(self.fd, self.buffer[0..self.got]);
+        self.discard = self.fs.close(self.fd);
+        // preserve the source's mode on the destination
+        self.discard = self.fs.set_permissions("/tmp/omega_cp_dst.txt", self.srcmode);
+        self.discard = self.fs.remove("/tmp/omega_cp_src.txt");
+        // verify the destination: size 11 and mode 0o640
+        self.rc = self.fs.read_metadata("/tmp/omega_cp_dst.txt", &mut self.buffer);
+        self.discard = self.fs.remove("/tmp/omega_cp_dst.txt");
+        self.dstmode = ((self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8)) & 511;
+        self.size = self.buffer[96] as i32;
+        transition self.dstmode == 416 { true -> checksize() _ -> fail() }
+    }
+    state checksize(&mut self) {
+        transition self.size == 11 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: faithful copy preserves bytes (11) + mode (0o640)\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: native copy_preserve\n"); }
+}
