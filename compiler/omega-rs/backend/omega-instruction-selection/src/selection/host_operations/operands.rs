@@ -191,6 +191,27 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Filesystem, HostOperation::Write) => {
+            // Value-returning `n = write_bytes(fd, bytes) -> _write(fd, buf, len)`.
+            // operand[0]=result, [1]=fd, then the buffer POINTER + LENGTH. The
+            // first cut marshals a literal byte payload (its data object +
+            // static length); a runtime buffer is a follow-up.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let fd = scalar_argument_operand_at(input, host_call, dispatch_index, 1);
+            let data = find_data_object(input, host_call);
+            match (result, fd) {
+                (Some(result), Some(fd)) if data.is_valid() => {
+                    let length = data_object_byte_count(input, data);
+                    operands.insert_many([
+                        operand(result),
+                        operand(fd),
+                        operand(InstructionOperandKind::DataAddress { data }),
+                        operand(InstructionOperandKind::ByteLength(length)),
+                    ])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
         _ => HandleSpan::empty(),
     }
 }
