@@ -268,6 +268,34 @@ crate tests; interpreter fs coverage) and commits.
     native raw seam (real macOS fs, correct results); the native ergonomic wrapper does
     side effects but cannot yet be trusted for its Ok/Error result until this lands.
 
+- **✅ WORKAROUND FOUND + SHIPPED — TERMINAL-VALUE COMPLETION sidesteps the guard-ordering
+  bug (2026-07-09).** Root cause pinned at the instruction level via `otool -tv`: in the
+  inlined value-call, the callee's transition GUARD (`ldr w17,[region+…]; cmp; b.ne`) is
+  scheduled at ~0x3bc, BEFORE the `read_metadata` `bl` (~0x43c) and its result store
+  (~0x448) — so the guard reads the slot's ZII zero. The FIX that avoids the mis-ordered
+  guard entirely: **make the branched-on value the machine's TERMINAL value** (the bare
+  final expression that completes the machine) instead of a `transition`. A terminal
+  expression is evaluated AFTER the entry body's stores, so it observes the real host-call
+  result. `Filesystem::exists` rewritten to:
+  ```
+  machine Filesystem::exists(&mut self, path: &[u8] in Path) -> bool {
+      self.stat_rc = self.host.read_metadata(path, &mut self.stat_buf);
+      self.stat_rc == 0            // terminal value — NO transition guard
+  }
+  ```
+  (added a `stat_rc: i32` field to `data Filesystem`). VERIFIED natively: new passing
+  canary `native_wrapper_exists` (create→exists true; remove→exists false) — native fs
+  harness **50/50**; canary_suite **515/85 IDENTICAL** (interpreter unaffected — terminal
+  completion is the interpreter's normal path). This is the first native+correct STAT
+  wrapper result. **Applicability:** works for any wrapper whose result is a single terminal
+  EXPRESSION (bool, or — via Omega's value-yielding `match` — a data-enum picked by a
+  `match cond { … }` terminal). Methods that build a payload from `stat_buf` on the success
+  arm (`metadata_path` → `MetadataResult::Ok{metadata}`) may still need the real
+  scheduling fix or a match-with-payload-arm (under test). The deep codegen fix (evaluate
+  the value-call guard after the body stores) remains the proper general cure; terminal-
+  value completion is the wrapper-level workaround that unblocks result-returning STAT
+  wrappers now.
+
 - **🎉 STEP 14 COMPLETE — the SHIPPED ergonomic `Filesystem` wrapper runs NATIVELY
   (2026-07-08).** `Filesystem::write_all`/`read_all`/`remove` — the Rust-parity API,
   reached via a value-call to the `Filesystem` sub-machine (`fs: Filesystem`, a DIFFERENT

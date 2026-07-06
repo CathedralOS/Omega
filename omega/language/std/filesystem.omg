@@ -311,6 +311,14 @@ data Filesystem {
     // Scratch for `create_dir_all`'s per-position best-effort mkdir result
     // (`walk` ignores it -- an already-present ancestor is fine).
     walk_rc: i32;
+    // Scratch for the STAT-based query host-call result. Held in a FIELD + consumed
+    // by TERMINAL VALUE COMPLETION (`self.stat_rc == 0` as the machine's final value),
+    // NOT a `transition` guard: an inlined value-call's transition GUARD is scheduled
+    // before the callee's entry body (the read_metadata store), so the guard reads
+    // the pre-store ZII value (confirmed at the instruction level, TASKS_FS.md). A
+    // terminal expression has no such guard and is evaluated after the entry, so the
+    // STAT queries observe the result.
+    stat_rc: i32;
     // Scratch for `read_dir_count`: one buffer of packed darwin `dirent` records
     // plus the runtime-indexed cursor that walks them by `d_reclen`.
     dir_buf: [u8; 512];
@@ -531,10 +539,8 @@ machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buff
 // (chmod-0) file — matching Rust. (An earlier version open-probed and wrongly
 // reported false for such a file.)
 machine Filesystem::exists(&mut self, path: &[u8] in Path) -> bool {
-    let rc: i32 = self.host.read_metadata(path, &mut self.stat_buf);
-    transition rc == 0 { true -> present() _ -> absent() }
-    state present(&mut self) -> bool { true }
-    state absent(&mut self) -> bool { false }
+    self.stat_rc = self.host.read_metadata(path, &mut self.stat_buf);
+    self.stat_rc == 0
 }
 
 // Does a path exist, distinguishing a definite No from a genuine I/O error (Rust

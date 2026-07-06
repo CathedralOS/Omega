@@ -1,0 +1,46 @@
+// NATIVE ergonomic wrapper `Filesystem::exists` (Rust `Path::exists`) via STAT.
+// Unlike native_exists (which drives the raw FilesystemHost boundary directly),
+// this exercises the two-layer wrapper: `self.fs.exists(path)` is a value-call
+// into `Filesystem::exists`, which stats the path through its held `host` and
+// returns a bool. That method uses TERMINAL-VALUE COMPLETION — its body ends in
+// the bare expression `self.stat_rc == 0` with NO transition — precisely to
+// sidestep the value-call guard-ordering bug (a callee transition guard was
+// scheduled before the callee's entry body, so it read the read_metadata result's
+// ZII zero and `exists` always returned true). A terminal expression is evaluated
+// after the entry body, so it observes the real stat result.
+//
+// A freshly created file exists (stat rc == 0); after remove, stat fails, so
+// exists is false. Prints PASS iff exists is true after create and false after
+// remove. See TASKS_FS.md "terminal-value completion".
+
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: Filesystem;
+    raw: FilesystemHost;
+    mode: i32;
+    fd: i32;
+    n: i64;
+    present: bool;
+    absent: bool;
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.fd = self.raw.create("/tmp/omega_wrapper_exists.txt", self.mode);
+    self.n = self.raw.close(self.fd);
+    // Wrapper value-call: exists must be true now (file present).
+    self.present = self.fs.exists("/tmp/omega_wrapper_exists.txt");
+    transition self.present { true -> after_present() _ -> bad_missing() }
+
+    state after_present(&mut self) {
+        self.n = self.raw.remove("/tmp/omega_wrapper_exists.txt");
+        // Wrapper value-call: exists must be false now (file removed).
+        self.absent = self.fs.exists("/tmp/omega_wrapper_exists.txt");
+        transition self.absent { true -> bad_present() _ -> good() }
+    }
+    state good(&mut self)        { self.n = self.raw.write(1, "PASS: wrapper exists true after create, false after remove\n"); }
+    state bad_missing(&mut self) { self.n = self.raw.write(1, "FAIL: created file -> wrapper exists false\n"); }
+    state bad_present(&mut self) { self.n = self.raw.write(1, "FAIL: removed file -> wrapper exists true\n"); }
+}
