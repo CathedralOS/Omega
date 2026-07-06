@@ -116,6 +116,65 @@ pub fn encode_host_call_sequence_value_returning_deref_from_operands(
     Ok(bytes)
 }
 
+/// A value-returning host call whose TRAILING argument (a `mode`) is passed on the
+/// STACK, not a register — darwin `open(path, flags, ...)` reads the create `mode`
+/// via `va_arg`, and Apple arm64 places variadic args at `[sp,#0]`. The register
+/// args (`path` -> x0, `flags` -> x1) marshal normally; then the call is bracketed
+/// by `sub sp,sp,#16` … `str w9,[sp]` … `bl` … `add sp,sp,#16`. The `mode` must be
+/// a compile-time immediate (materialized into the caller-saved w9, no relocation
+/// of its own). The +12 (sub+str+add) is why `passes_trailing_mode_on_stack` adds
+/// 12 to the width + result-store relocation and 8 to the `BL` relocation (the add
+/// sits AFTER the BL) — MUST stay in lockstep with those sites.
+pub fn encode_host_call_sequence_value_returning_open_create_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all: Vec<Aarch64CallOperand> = operands.collect();
+    let Some((result, args)) = all.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 open_create host call has no result storage operand",
+        ));
+    };
+    let RuntimeScalarInteger {
+        byte_offset,
+        byte_count,
+    } = *result
+    else {
+        return Err(Diagnostic::error(
+            "AArch64 open_create result place did not lower to a runtime scalar",
+        ));
+    };
+    // args = [path, flags, mode]; the trailing `mode` is the stack-passed variadic.
+    let Some((mode_operand, register_args)) = args.split_last() else {
+        return Err(Diagnostic::error(
+            "AArch64 open_create host call is missing its mode argument",
+        ));
+    };
+    let ImmediateInteger(mode) = *mode_operand else {
+        return Err(Diagnostic::error(
+            "AArch64 open_create mode must be a compile-time immediate (variadic stack marshalling)",
+        ));
+    };
+    let mut bytes =
+        Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()) + 12);
+    // `path` -> x0, `flags` -> x1 (the named register args).
+    append_call_operands(&mut bytes, register_args.iter().copied())?;
+    // `mode` -> [sp,#0]: reserve a 16-byte-aligned slot, materialize into w9, store.
+    bytes.extend(encode_instruction(0xD100_43FF)); // sub sp, sp, #16
+    append_immediate(&mut bytes, 9, mode)?; // movz w9, #mode (+ movk if wide)
+    bytes.extend(encode_instruction(0xB900_03E9)); // str w9, [sp]
+    bytes.extend(encode_branch_link_placeholder());
+    bytes.extend(encode_instruction(0x9100_43FF)); // add sp, sp, #16
+    // Result store: x16 <- result region base (adrp/add relocated), then store.
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    if byte_count >= 8 {
+        bytes.extend(encode_store_x_to_x(0, 16, byte_offset)?);
+    } else {
+        bytes.extend(encode_store_w_to_x(0, 16, byte_offset, byte_count)?);
+    }
+    Ok(bytes)
+}
+
 pub fn encode_syscall_sequence(
     operands: &[Aarch64CallOperand],
     syscall_number: u32,

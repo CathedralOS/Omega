@@ -86,13 +86,23 @@ crate tests; interpreter fs coverage) and commits.
   purely bitwise (e.g. access mode = `(wbit & (rbit^1)) | ((wbit & rbit) << 1)`,
   `O_APPEND = (append as i32) << 3`). This is the pattern to reuse for any future
   flag/bitfield composition in the fs surface.
-- **D8-open. Variadic-mode `open` host call — the op is now PLUMBED (step 10s);
-  only the aarch64 NATIVE encoder remains.** `HostOperation::OpenCreate` (op
-  `open_create` → `_open`), darwin binding + lowering, interpreter handler, and the
-  full `create_new`/`OpenOptions.create` surface all landed + interpreter-tested
-  (step 10s). The ONE remaining piece is the native lowering below (the operand arm
-  + the stack-`mode` encoder). Context (the #1 native parity gap — unblocks native
-  `File::create_new`, `OpenOptions.create`/`.create_new`/`.mode`, create+read-write): Darwin `open(const char*, int, ...)` reads the
+- **D8-open. Variadic-mode `open` host call — ✅ DONE NATIVELY (step 10t). The #1
+  parity gap is CLOSED.** `open_create(path, flags, mode)` now lowers + RUNS on
+  real macOS: the first host call to marshal a VARIADIC argument on the STACK per
+  the Apple arm64 ABI. `passes_trailing_mode_on_stack()` predicate keys a dedicated
+  aarch64 encoder — register args (`path`→x0, `flags`→x1) marshal normally, then
+  `sub sp,#16; mov w9,#mode; str w9,[sp]; bl _open; add sp,#16` — with the +12
+  (sub+str+add) in lockstep at the width fn + result-store relocation and +8 at the
+  `BL` relocation (add is after the BL), the `mode` required immediate (no
+  relocation). Operand shape reuses the chown arm (`[result, path, scalar,
+  scalar]`); the mode is materialized into caller-saved w9. DISASSEMBLY-VERIFIED
+  (`otool -tv`: `sub sp,#0x10; mov x9,#0x180; str w9,[sp]; bl <_open>; add sp,#0x10`)
+  AND native `native_open_create` canary RUNS (O_CREAT|O_EXCL creates a new fd,
+  second create → EEXIST(17), file readable, mode 0o600 applied). The op-gated
+  relocation deltas leave every other op untouched (canary_suite 452/146 unchanged;
+  chown/errno/crud/workflow canaries still PASS). Now the RAW seam does native
+  creating-opens; the ergonomic `Filesystem::create_new` wrapper still needs native
+  WRAPPER lowering (D5, separate). Original context: Darwin `open(const char*, int, ...)` reads the
   create `mode` via `va_arg`; on Apple arm64 variadic args are passed on the STACK
   (`[sp,#0]`), not registers — our host-call encoder marshals every arg into
   x0.. (`append_call_operands`), so a register mode is dropped (the D4 finding).
@@ -234,6 +244,13 @@ crate tests; interpreter fs coverage) and commits.
   LOCK_EX → EWOULDBLOCK → release → reacquire); wrapper `lock`/`try_lock`(→
   `TryLockResult`)/`unlock` in coverage `filesystem_std_module_locking`. Reused the
   `SetLen` fd+scalar operand arm (zero new backend). fs coverage 40.
+- **NATIVE variadic-mode `open` DONE** (10t) — `open_create` lowers + RUNS on
+  aarch64 (D8-open, the #1 parity gap, CLOSED). First host call to marshal a
+  variadic arg on the STACK (`sub sp; str [sp]; bl; add sp`); a new
+  `passes_trailing_mode_on_stack()` predicate + dedicated encoder + 3 op-gated
+  relocation/width deltas (all verified by disassembly + a running canary). GENERAL
+  backend capability (any variadic-last-arg libc call). `native_open_create` PASS;
+  canary_suite 452/146 unchanged. Raw seam now does native creating-opens.
 - **Creating opens landed in the interpreter** (10s) — `File::create_new` +
   `OpenOptions.create`/`.create_new` via a new `open_create` seam (atomic O_EXCL
   create-new guard, delegates to `virtual_open_flags`, subsumes `open`). The op is
@@ -795,6 +812,27 @@ crate tests; interpreter fs coverage) and commits.
     unblocks native creating-opens once BOTH the D8-open encoder AND native wrapper
     lowering land). No native canary yet (open_create has no native operand
     arm/encoder); `canary_suite` 452/146 unchanged (nothing lowers it).
+10t. [x] **NATIVE variadic-mode `open` — `open_create` lowers + RUNS on aarch64
+    (D8-open CLOSED).** The first host call with a STACK-passed variadic argument.
+    New aarch64 encoder `encode_host_call_sequence_value_returning_open_create_from_
+    operands`: register args (`path`→x0, `flags`→x1) then `sub sp,#16; mov w9,#mode;
+    str w9,[sp]; bl _open; add sp,#16` then the result store. Keyed by a new
+    `HostOperationKey::passes_trailing_mode_on_stack()` predicate (the D9 lockstep
+    pattern with THREE computed deltas: width fn +12, result-store data-address
+    relocation +12, external-call `BL` relocation +8 — sub+str precede the BL, add
+    follows it). Operand shape reuses the chown arm (`[result, path, scalar,
+    scalar]`); the `mode` MUST be a compile-time immediate (materialized into
+    caller-saved w9, no relocation of its own). DISASSEMBLY-VERIFIED via `otool
+    -tv` then RUN: `native_open_create` canary — O_CREAT|O_EXCL creates a new fd,
+    a second create-new → EEXIST(17), the file reads back "hi", and the create mode
+    0o600 is applied (stat perm bits). Op-gated, so ZERO impact elsewhere:
+    canary_suite 452/146 unchanged; isa-aarch64 31 / instr-sel 10 / reloc 5 lib
+    tests green; chown (shares the arm) + errno (deref-result, adjacent dispatch) +
+    crud + workflow canaries still PASS; fs coverage 44. **This is a GENERAL backend
+    capability** — any variadic-last-arg libc call can now reuse the predicate +
+    encoder. The raw seam now does native creating-opens; the ergonomic
+    `Filesystem::create_new`/`open_with(create)` wrappers still run interpreter-only
+    until native WRAPPER lowering lands (D5, separate track).
 12. [x] **`copy(from, to)`** (Rust `fs::copy`) — DONE (interpreter). Enabled by a
     small interpreter fix: `eval_fs_bytes` now accepts a `Value::Array` (a byte
     array or a subslice view) as a host-call byte arg — the write-side mirror of

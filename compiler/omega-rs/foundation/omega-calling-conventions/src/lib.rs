@@ -60,6 +60,23 @@ impl HostOperationKey {
         matches!(self.capability, HostCapability::Filesystem)
             && matches!(self.operation, HostOperation::ReadErrno)
     }
+
+    /// Whether this op passes its LAST argument (a `mode`) on the STACK rather than
+    /// a register: darwin `open(path, flags, ...)` reads the create `mode` via
+    /// `va_arg`, and Apple arm64 places variadic args on the stack (`[sp,#0]`).
+    /// Only `Filesystem::open_create` needs this. Its aarch64 lowering brackets the
+    /// call with `sub sp,sp,#16` … `str w<mode>,[sp]` … `bl` … `add sp,sp,#16`, so
+    /// (relative to counting the mode as a register immediate) the sequence grows
+    /// by 12 bytes total (sub+str+add) — added in lockstep at the width function
+    /// (`host_call_sequence_width`) and the result-store data-address relocation
+    /// (`data_addresses.rs`, +12) — and the `BL` sits 8 bytes later (sub+str, the
+    /// add is AFTER it) so the external-call relocation adds 8. The `mode` must be
+    /// an immediate (no relocation of its own). MUST stay in lockstep across those
+    /// three sites + the encoder.
+    pub fn passes_trailing_mode_on_stack(self) -> bool {
+        matches!(self.capability, HostCapability::Filesystem)
+            && matches!(self.operation, HostOperation::OpenCreate)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

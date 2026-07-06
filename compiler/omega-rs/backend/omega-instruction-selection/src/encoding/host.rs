@@ -35,6 +35,14 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
                 operands.iter().map(aarch64_call_operand),
             )
         }
+        // Stack-mode ops (`open_create`) also share `returns_value()` but bracket
+        // the call with `sub sp`/`str [sp]`/`add sp` to pass the variadic `mode`
+        // on the stack; checked before the plain value-returning arm.
+        Architecture::Aarch64 if operation_key.passes_trailing_mode_on_stack() => {
+            aarch64::encode_host_call_sequence_value_returning_open_create_from_operands(
+                operands.iter().map(aarch64_call_operand),
+            )
+        }
         Architecture::Aarch64 if operation_key.returns_value() => {
             aarch64::encode_host_call_sequence_value_returning_from_operands(
                 operands.iter().map(aarch64_call_operand),
