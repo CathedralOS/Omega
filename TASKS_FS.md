@@ -220,16 +220,21 @@ crate tests; interpreter fs coverage) and commits.
   (2026-07-07).** The value-call literal-forwarding bug (which blocks native lowering
   of the ergonomic `Filesystem` wrapper) is now a THREE-layer chain, precisely pinned;
   one layer is fixed, two remain:
-  1. **[FIXED] Aliased-literal operand resolution.** A literal forwarded through a
-     value-call param (`fs.write_all(path,"hi")` → wrapper `write(fd,bytes)`) arrives as
-     the callee's `bytes` param ALIASED to the caller's literal, whose data object is
-     keyed to the CALLER's statement — so `find_data_object` (keyed to the callee's
-     statement) missed it and the write got a 0-length payload. New helper
-     `aliased_literal_data_object` (instruction-selection `host_operations/operands.rs`
-     Write arm) follows the alias to that literal's data object. VERIFIED: new passing
-     canary `native_value_call_literal` (a value-call forwarding "hello", FIELD-assigned
-     result) writes the 5 bytes; native fs harness **45/45**; canary_suite **514/85
-     IDENTICAL** with/without the fix (exact zero-regression, stash-diff confirmed).
+  1. **[FIXED] Aliased-literal operand resolution — BYTES + PATHS.** A literal
+     forwarded through a value-call param (`fs.write_all(path,"hi")` → wrapper
+     `write(fd,bytes)`; `fs.open(path)` → wrapper `open(path,..)`) arrives as the
+     callee's param ALIASED to the caller's literal, whose data object is keyed to the
+     CALLER's statement — so `find_data_object` (keyed to the callee's statement) missed
+     it and the arg got a 0-length / garbage pointer. New helper
+     `aliased_literal_data_object` (instruction-selection `host_operations/operands.rs`)
+     follows the alias to that literal's data object; wired into BOTH the `write` byte
+     payload (fix #1, 2026-07-07) AND `path_pointer_operand` (fix #1b, threaded
+     `alias_context` through its 6 call sites — open/creat/unlink/stat/rename/*at name).
+     VERIFIED by two passing canaries — `native_value_call_literal` (value-call forwards
+     "hello" to a FIELD-assigned write → 5 bytes) and `native_value_call_path`
+     (value-call forwards a path literal to a FIELD-assigned open → reopen reads the
+     file); BOTH stash-diff-confirmed to FAIL without the fix. native fs harness
+     **46/46**; canary_suite **514/85 IDENTICAL** with/without (exact zero-regression).
   2. **[OPEN — the remaining blocker] `let`-bound host calls are never COLLECTED.** The
      real wrapper assigns host-call results to LOCALS (`let n = self.host.write(..)`). A
      `let x = call()` is a `StatementNode::LocalData`, and `collect_state_host_calls`

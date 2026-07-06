@@ -1,0 +1,53 @@
+// NATIVE value-call PATH forwarding (step 14, fix #1 extended to path args). A
+// VALUE-CALL to a sub-machine forwards a `&[u8] in Path` literal ("/tmp/...") to
+// the callee, which opens it via a FIELD-assigned host call (`self.fd =
+// self.fs.open(path, ..)`). The path literal is aliased into the callee as its
+// `path` param; its NUL-terminated data object is keyed to the CALLER's
+// statement, so the open's path-pointer operand must follow the alias to it
+// (`aliased_literal_data_object`, now wired into `path_pointer_operand` too).
+// Before the fix the forwarded path resolved to a garbage/empty pointer -> open
+// failed. Creates a file (raw), reopens it through the value-call, reads it back.
+// PASS iff the reopen finds the 3 bytes ("xyz", first byte 'x' = 120).
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    rdonly: i32;
+    cap: usize;
+    fd: i32;
+    n: i64;
+    got: i64;
+    first: u8;
+    buffer: [u8; 16];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.rdonly = 0;
+    self.cap = 16;
+    self.fd = self.fs.create("/tmp/omega_vcp.txt", self.mode);
+    self.n = self.fs.write(self.fd, "xyz");
+    self.n = self.fs.close(self.fd);
+    self.fd = self.reopen("/tmp/omega_vcp.txt");
+    transition self.fd >= 0 { true -> rd() _ -> fail() }
+    state rd(&mut self) {
+        self.got = self.fs.read(self.fd, &mut self.buffer, self.cap);
+        self.n = self.fs.close(self.fd);
+        self.n = self.fs.remove("/tmp/omega_vcp.txt");
+        self.first = self.buffer[0];
+        transition self.got == 3 { true -> checkbyte() _ -> fail() }
+    }
+    state checkbyte(&mut self) {
+        transition self.first == 120 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: value-call forwards a path literal, reopen reads 3 bytes\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: value-call path forwarding\n"); }
+}
+
+machine Main::reopen(&mut self, path: &[u8] in Path) -> i32 {
+    self.fd = self.fs.open(path, self.rdonly);
+    transition self.fd >= 0 { true -> done() _ -> done() }
+    state done(&mut self) -> i32 { self.fd }
+}
