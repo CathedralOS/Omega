@@ -699,6 +699,78 @@ fn primitive_range(primitive: PrimitiveType) -> Option<Interval> {
     Some(Interval { low, high })
 }
 
+/// The integer value of a literal operand (through a `Mutable` wrapper), or `None`
+/// when the operand is not a plain integer literal.
+fn integer_literal_value(program: &TypedTrees, value: ExpressionHandle) -> Option<i64> {
+    let mut node = program.expression_table.expression(value);
+    while let ExpressionNode::Mutable(inner) = node {
+        node = program.expression_table.expression(*inner);
+    }
+    match node {
+        ExpressionNode::Integer(literal) => Some(*literal),
+        _ => None,
+    }
+}
+
+/// Reject a comparison (`==`/`!=`/`<`/`<=`/`>`/`>=`) between an integer-typed value
+/// and an integer LITERAL outside that type's range: `self.b == 300` for a `u8` `b`
+/// silently TRUNCATED the literal to the operand width (`300 & 0xFF == 44`) and
+/// compared `b == 44` -- a confirmed miscompile (native took the `== 44` branch).
+/// A literal compared against a value must be a representable value of that value's
+/// type. Fires only when one operand resolves to an integer primitive and the other
+/// is an integer literal outside its range; two-place, float/bool/text, and in-range
+/// pairings are skipped. Sibling of the decision-17 narrowing obligation for stores.
+pub(crate) fn report_out_of_range_comparison_literal(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    operator: BinaryOperator,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    if !matches!(
+        operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+    ) {
+        return false;
+    }
+    for (typed_operand, literal_operand) in [(left, right), (right, left)] {
+        let Some(primitive) =
+            crate::places::declared_place_type(program, machine, state, typed_operand)
+                .and_then(|type_reference| program.primitive_type_reference(type_reference))
+        else {
+            continue;
+        };
+        let Some(range) = primitive_range(primitive) else {
+            continue;
+        };
+        let Some(literal) = integer_literal_value(program, literal_operand) else {
+            continue;
+        };
+        let in_range = range.low().is_none_or(|low| literal >= low)
+            && range.high().is_none_or(|high| literal <= high);
+        if !in_range {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}` compares a `{}` value against `{literal}`, which is out of \
+                 range for `{}` -- the comparison would silently truncate the literal to the \
+                 operand width; compare an in-range value or widen the value with an `as` cast",
+                machine.name.as_str(),
+                state.map(|state| state.name.as_str()).unwrap_or(""),
+                primitive.name(),
+                primitive.name(),
+            )));
+            return true;
+        }
+    }
+    false
+}
+
 /// The operators whose result is genuine integer arithmetic and can therefore
 /// exceed the `{0, 1}` range even when the operands are bools (bool feeds in as
 /// its 0/1 value). Excludes bitwise `& | ^` (which preserve `{0, 1}` for `{0, 1}`

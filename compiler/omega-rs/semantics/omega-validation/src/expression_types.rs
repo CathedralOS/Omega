@@ -439,6 +439,9 @@ pub(crate) fn validate_binary_operand_types(
     report_array_operator_operands(program, machine, state, operator, left, right, diagnostics);
     report_undeclared_struct_operator(program, machine, state, operator, left, diagnostics);
     report_float_bitwise_operator(program, machine, state, operator, left, right, diagnostics);
+    crate::arithmetic_domains::report_out_of_range_comparison_literal(
+        program, machine, state, operator, left, right, diagnostics,
+    );
 }
 
 /// Whether `operand`'s type is a float (`f32`/`f64`): a float literal, or a place
