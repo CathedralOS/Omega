@@ -178,6 +178,16 @@ pub(super) fn select_host_operation_operands(
                 None => HandleSpan::empty(),
             }
         }
+        (HostCapability::Filesystem, HostOperation::Close) => {
+            // close(file) -> _close(fd): the `File` handle is a single-`i32`
+            // struct, so its storage place marshals as the scalar first
+            // argument (the fd). An unresolvable handle lowers to NO operand, so
+            // the encoder hard-errors rather than closing a garbage descriptor.
+            match first_scalar_argument_operand(input, host_call, dispatch_index) {
+                Some(kind) => operands.insert_many([operand(kind)]),
+                None => HandleSpan::empty(),
+            }
+        }
         _ => HandleSpan::empty(),
     }
 }

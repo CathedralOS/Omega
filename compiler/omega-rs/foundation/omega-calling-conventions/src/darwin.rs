@@ -15,6 +15,7 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("Stdout", "write", "_write", &policy),
         darwin_import("Stderr", "write", "_write", &policy),
         darwin_import("Process", "exit", "_exit", &policy),
+        darwin_import("Filesystem", "close", "_close", &policy),
     ]);
 
     insert_platform_lowering(
@@ -65,6 +66,17 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "*",
         "exit_process",
         [host_operation("Process", "exit")],
+        PlatformCallData::None,
+    );
+    // std::fs — first native op: `close(file)` -> `_close(fd)`. The `File`
+    // handle's single `i32` field marshals as the scalar first argument
+    // (PlatformCallData::None passes declared args straight through). No
+    // out-param, void return — the thin end of the fs wedge.
+    insert_platform_lowering(
+        plan,
+        "*",
+        "close",
+        [host_operation("Filesystem", "close")],
         PlatformCallData::None,
     );
 }

@@ -1,0 +1,28 @@
+// FIRST NATIVE std::fs op: `close(file)` lowers all the way to a `_close(fd)`
+// libSystem call and emits a mach-o (verified via `omega --check` clean + a full
+// build: emission reports "host bindings: 5" incl. Filesystem/close, "host
+// calls: 1"). The `File` handle's single `i32` field marshals as the scalar
+// first argument (PlatformCallData::None); the emission path is generic over
+// Import bindings, so no per-op codegen was needed.
+//
+// The handle is constructed directly here (`File { fd: 5 }`) so this op stands
+// alone without `open` — the thin end of the native fs wedge. NOT registered in
+// ACTIVE_PASS_CANARIES yet (that file is hot with other work; register once the
+// full CRUD set lowers).
+
+data File [copy, zero_init] {
+    fd: i32;
+}
+
+boundary trait Filesystem {
+    machine close(file: File);
+}
+
+data Main {
+    fs: Filesystem;
+}
+
+machine Main::main(&mut self) {
+    let handle: File = File { fd: 5 };
+    self.fs.close(handle);
+}
