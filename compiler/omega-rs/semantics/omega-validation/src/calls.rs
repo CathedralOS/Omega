@@ -556,6 +556,12 @@ pub(crate) fn validate_call_arguments_handles(
             "argument",
             diagnostics,
         );
+        // NOTE: an array/scalar SHAPE check does NOT belong at the argument position
+        // -- `&self.msg` (address-of a `[u8; N]` buffer) passed to an `addr`/pointer
+        // param is a valid array-value-into-scalar-target flow, and boundary/host
+        // text params (`addr`, byte slices) accept text/byte values freely. The
+        // reference/`addr` and text representations make args a false-positive
+        // minefield; a wrong-count/type arg is already caught here + at the backend.
     }
 
     let _ = (writable_roots, diagnostics);
@@ -717,6 +723,9 @@ fn validate_value_call_argument_classes(
             "argument",
             diagnostics,
         );
+        // (No array/scalar shape check here -- see the note in
+        // `validate_call_arguments_handles`: `&buffer`-into-`addr` and text/byte args
+        // make the argument position a false-positive minefield.)
     }
 }
 
