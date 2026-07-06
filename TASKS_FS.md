@@ -216,6 +216,42 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **✅ `create_dir_all` SHIPPED (Rust `std::fs::create_dir_all` parity) — 2026-07-06.**
+  The recursive dir op the whole path-subslice arc was building toward. Added to the
+  shipped wrapper `omega/language/std/filesystem.omg` as `Filesystem::create_dir_all`
+  (+ helpers `mkall_walk`/`mkall_step`). It walks the path with a climbing index
+  (`decreases (i, path.len) -> Nat::BoundedDistance`), creating each ancestor prefix
+  `path[0..i]` at every '/' separator, then the whole path. RUNS in the interpreter —
+  coverage `filesystem_std_module_create_dir_all` creates `/a/bb/c` (3 nested levels,
+  none present) in one call and proves EACH ancestor now exists. fs coverage 59.
+  - **ENABLER — new checker grant `parameter_domain_grants`** (in
+    `checks/contracts/calls.rs`, alongside `subslice_grants_domain`). The recursion
+    `self.mkall_walk(path, i+1)` requires `path in Path`, but the interleaved
+    `self.mkall_step(path, i)` value-call INVALIDATES the flow-tracked `path in Path`
+    fact: `mkall_step`'s mutation summary is empty (`collect_state_mutation_summary_places`
+    only scans a state's OWN entry assignments, not sub-states / nested `create_dir`),
+    so `apply_call_invalidations` takes the blunt "may-mutate + no known mutated
+    places -> WIPE EVERY context" branch, destroying `path in Path` too. FIX: a SHARED
+    (`&`, non-`mut`, non-self) parameter's DECLARED domain is invariant for the state's
+    lifetime (Omega's shared-XOR-mutable borrow discipline freezes any aliased backing
+    while the shared borrow is live; the callee gets it shared and cannot mutate its
+    bytes), so grant `requires <param> in D` whenever the param's declared domain
+    implies D and the place is the param itself (no derived segments). PROOF-LEVEL,
+    not invalidation-level — same trust basis as `value_call_return_domain_grants`.
+    Verified NON-REGRESSIVE: checker 162/2 (baseline) + canary_suite identical 85-set.
+    (An earlier attempt to fix the INVALIDATION instead — add the receiver place when
+    the summary is empty — broke 8 canaries: the blunt wipe-all is relied on to
+    invalidate reference-field / string-call-result facts that a `[self]` receiver
+    place misses. Reverted in favour of the surgical proof-level grant.)
+  - **JUDGEMENT CALL (D-cda):** intermediate ancestor creates are BEST-EFFORT (an
+    already-present ancestor / EEXIST is ignored; a mid-path hard error resurfaces at
+    the LEAF create rather than being reported per-ancestor). The leaf decides the
+    result: Ok on success, Ok on AlreadyExists (Rust does too), else the mapped
+    `ErrorKind`. Faithful for the common cases.
+  - **NATIVE deferred on the same NUL-termination seam** as the rest of the subslice
+    work: `path[0..i]` -> `_mkdir(const char*)` needs a NUL-terminated copy (below).
+    Interpreter is the tested engine here.
+
 - **✅ NATIVE `create_dir_all` PATH-SCAN UNBLOCKED — two backend fixes (2026-07-06).**
   The domained-slice `.len` guard + runtime-END subslice needed for walking a path
   and mkdir-ing each ancestor `path[0..sep_i]` now lower on aarch64. Two ADDITIVE
