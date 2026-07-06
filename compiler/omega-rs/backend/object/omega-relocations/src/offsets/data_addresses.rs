@@ -34,6 +34,26 @@ pub(crate) fn data_address_relocation_offset(
         return selected_text_offset + site.byte_offset;
     }
 
+    // AArch64 value-returning layout `[args (operands[1..])] [BL] [result
+    // store]`: the result operand[0]'s adrp/add lands AFTER the args + the BL
+    // (4 bytes); an arg's adrp/add lands after only the args before it (the
+    // result is not marshalled up front).
+    if architecture == Architecture::Aarch64
+        && let Some(operation_key) = operation_key
+        && operation_key.returns_value()
+    {
+        let arg_bytes = |range: std::ops::Range<usize>| {
+            operands[range]
+                .iter()
+                .map(|operand| omega_instruction_selection::operand_width(architecture, operand))
+                .sum::<usize>()
+        };
+        if operand_index == 0 {
+            return selected_text_offset + arg_bytes(1..operands.len()) + 4;
+        }
+        return selected_text_offset + arg_bytes(1..operand_index);
+    }
+
     selected_text_offset
         + operands
             .iter()

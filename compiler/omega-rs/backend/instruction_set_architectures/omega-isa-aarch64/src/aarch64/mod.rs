@@ -31,6 +31,47 @@ pub fn encode_host_call_sequence_from_operands(
     Ok(bytes)
 }
 
+/// A VALUE-RETURNING host call: `operands[0]` is the result storage place, the
+/// rest are the call arguments. Marshal the args into x0.., branch-link to the
+/// callee (relocated to the import symbol), then store the return register into
+/// the result place — `str w0` for a 4-byte result (an `i32` fd/rc; the sign is
+/// preserved so a negative `-errno` reads back correctly), `str x0` for 8 bytes
+/// (an `i64` byte count). Mirrors x86_64's `encode_win64_import_call(.., true)`.
+/// The total width equals the non-returning form: the result operand's scalar
+/// width (adrp+add+ldr = 12) is the same as its store (adrp+add+str = 12).
+pub fn encode_host_call_sequence_value_returning_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all: Vec<Aarch64CallOperand> = operands.collect();
+    let Some((result, args)) = all.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 value-returning host call has no result storage operand",
+        ));
+    };
+    let RuntimeScalarInteger {
+        byte_offset,
+        byte_count,
+    } = *result
+    else {
+        return Err(Diagnostic::error(
+            "AArch64 value-returning host call result place did not lower to a runtime scalar",
+        ));
+    };
+    let mut bytes = Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()));
+    append_call_operands(&mut bytes, args.iter().copied())?;
+    bytes.extend(encode_branch_link_placeholder());
+    // Result store: x16 <- result region base (adrp/add relocated), then store
+    // the return register at the field's offset.
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    if byte_count >= 8 {
+        bytes.extend(encode_store_x_to_x(0, 16, byte_offset)?);
+    } else {
+        bytes.extend(encode_store_w_to_x(0, 16, byte_offset, byte_count)?);
+    }
+    Ok(bytes)
+}
+
 pub fn encode_syscall_sequence(
     operands: &[Aarch64CallOperand],
     syscall_number: u32,
@@ -165,7 +206,7 @@ fn append_call_operands(
                 bytes.extend(encode_load_x_from_x(next_register, next_register, 8)?);
                 next_register += 1;
             }
-            RuntimeScalarInteger { byte_offset } => {
+            RuntimeScalarInteger { byte_offset, .. } => {
                 bytes.extend(encode_adrp_placeholder(next_register));
                 bytes.extend(encode_add_page_offset_placeholder(next_register));
                 bytes.extend(encode_load_x_from_x(

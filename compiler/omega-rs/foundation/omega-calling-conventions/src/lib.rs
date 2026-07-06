@@ -35,6 +35,17 @@ impl HostOperationKey {
             HostOperation::from_name(operation),
         )
     }
+
+    /// Whether this host op returns a value into a caller storage place (the
+    /// assignment form `self.x = self.h.op(..)`), so the lowering marshals a
+    /// leading result operand and the callee's return register is stored back.
+    /// The raw `Filesystem` ops each return their syscall result (fd / byte
+    /// count / rc). Other value-returning ops (Gui/Input/Clock) are x86_64-only
+    /// and handled by the x86_64-specific relocation sites, so only the
+    /// aarch64-reachable fs ops need to be recognized here.
+    pub fn returns_value(self) -> bool {
+        matches!(self.capability, HostCapability::Filesystem)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
