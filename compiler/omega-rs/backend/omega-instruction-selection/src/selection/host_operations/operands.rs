@@ -329,8 +329,10 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
-        (HostCapability::Filesystem, HostOperation::Stat) => {
-            // Value-returning `rc = read_metadata(path, buf) -> _stat(path, buf)`.
+        (HostCapability::Filesystem, HostOperation::Stat | HostOperation::LStat) => {
+            // Value-returning `rc = read_metadata(path, buf) -> _stat(path, buf)`
+            // and `rc = read_symlink_metadata(path, buf) -> _lstat(path, buf)`
+            // (identical operand shape; lstat just doesn't follow a final symlink).
             // operand[0]=result, [1]=path POINTER (NUL-terminated C string),
             // [2]=buffer POINTER (the kernel writes the 144-byte stat record).
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);

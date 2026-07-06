@@ -2263,6 +2263,80 @@ machine Main::main(&mut self) {
     );
 }
 
+/// `symlink_metadata` (Rust `fs::symlink_metadata`, via `lstat`): metadata of the
+/// path itself WITHOUT following a final symlink. `symlink_metadata` on a symlink
+/// reports `is_symlink` true, `is_file()` false, and a size equal to the target
+/// path's byte length (POSIX); on a regular file it is identical to `metadata_path`
+/// (is_symlink false, is_file true). Contrast with `metadata_path` (stat), which
+/// FOLLOWS the link.
+#[test]
+fn filesystem_std_module_symlink_metadata() {
+    let main_path = write_program(
+        "fs-symlink-meta",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("/target.txt", "hello");
+    transition self.unit_result { UnitResult::Ok -> mklink() _ -> fail() }
+    state mklink(&mut self) {
+        self.unit_result = self.fs.symlink("/target.txt", "/link");
+        transition self.unit_result { UnitResult::Ok -> statlink() _ -> fail() }
+    }
+    state statlink(&mut self) {
+        self.meta_result = self.fs.symlink_metadata("/link");
+        transition self.meta_result { MetadataResult::Ok { meta } -> checklink(meta) _ -> fail() }
+    }
+    state checklink(&mut self, meta: Metadata) {
+        // lstat of a symlink: is_symlink true
+        transition meta.is_symlink { true -> checklinklen(meta) _ -> fail() }
+    }
+    state checklinklen(&mut self, meta: Metadata) {
+        // a symlink's size is the target path's byte length ("/target.txt" == 11)
+        transition meta.len == 11 { true -> checklinknotfile(meta) _ -> fail() }
+    }
+    state checklinknotfile(&mut self, meta: Metadata) {
+        // a symlink is NOT a regular file
+        transition meta.is_file() { true -> fail() _ -> statfile() }
+    }
+    state statfile(&mut self) {
+        // lstat of a regular file == stat: is_symlink false, is_file true, len 5
+        self.meta_result = self.fs.symlink_metadata("/target.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> checkfile(meta) _ -> fail() }
+    }
+    state checkfile(&mut self, meta: Metadata) {
+        transition meta.is_symlink { true -> fail() _ -> checkfilekind(meta) }
+    }
+    state checkfilekind(&mut self, meta: Metadata) {
+        transition meta.is_file() { true -> checkfilelen(meta) _ -> fail() }
+    }
+    state checkfilelen(&mut self, meta: Metadata) {
+        self.unit_result = self.fs.remove("/link");
+        self.unit_result = self.fs.remove("/target.txt");
+        transition meta.len == 5 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("symlink_metadata program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "symlink_metadata: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "symlink_metadata: link -> is_symlink true, !is_file, len 11; file -> is_file, len 5"
+    );
+}
+
 /// `try_exists` (Rust `Path::try_exists`) — the error-aware existence check:
 /// `Yes` for a present readable file, `No` for a missing path, and `Error`
 /// (PermissionDenied) for a present-but-unreadable path (chmod 0). Unlike

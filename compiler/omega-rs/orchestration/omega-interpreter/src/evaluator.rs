@@ -2558,6 +2558,44 @@ impl<'program> Evaluator<'program> {
                     }
                 }
             }
+            "read_symlink_metadata" => {
+                // `lstat(path, buf)`: like `stat`, but does NOT follow a final
+                // symlink. A symlink reports S_IFLNK(0o120000)|0o777 with size =
+                // the target path length (POSIX: a symlink's size is its target's
+                // byte length); everything else is identical to `stat`.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let meta = if let Some(target) = self.virtual_symlinks.get(&path) {
+                    Some((0o120_000u16 | 0o777, target.len() as i64))
+                } else {
+                    let chmod_perm = self
+                        .virtual_perms
+                        .get(&path)
+                        .map(|mode| (*mode as u16) & 0o7777);
+                    if let Some(content) = self.virtual_files.get(&path) {
+                        Some((0o100_000u16 | chmod_perm.unwrap_or(0o644), content.len() as i64))
+                    } else if self.virtual_dirs.contains(&path) {
+                        Some((0o040_000u16 | chmod_perm.unwrap_or(0o755), 0i64))
+                    } else {
+                        None
+                    }
+                };
+                match meta {
+                    Some((mode, size)) => {
+                        self.write_fs_stat(
+                            arguments.get(1).copied(),
+                            frame,
+                            mode,
+                            size,
+                            VIRTUAL_MTIME_SECS,
+                        );
+                        0
+                    }
+                    None => {
+                        self.virtual_errno = 2; // ENOENT
+                        -1
+                    }
+                }
+            }
             _ => return Ok(None),
         };
         Ok(Some(Value::Int(result)))
