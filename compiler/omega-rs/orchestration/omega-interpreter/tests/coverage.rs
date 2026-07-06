@@ -744,3 +744,226 @@ machine Main::main(&mut self) {
         "create->write(21)->close->open->read must read back exactly 21 bytes"
     );
 }
+
+/// Shared `std::fs` surface for the semantics probes below: the `Path` domain,
+/// the ZII `File` handle, the four ZII outcome enums, and the `Filesystem` /
+/// `Console` boundary traits. Each test appends its own `data Main` + machine.
+const FS_PRELUDE: &str = r#"
+domain [u8]::Path when no_nul(self) {
+}
+
+data File [copy, zero_init] {
+    fd: i32;
+}
+
+data OpenOutcome {
+    case Failed;
+    case Opened(file: File);
+}
+data ReadOutcome {
+    case Failed;
+    case Read(count: usize);
+}
+data WriteOutcome {
+    case Failed;
+    case Wrote(count: usize);
+}
+data RemoveOutcome {
+    case Failed;
+    case Removed;
+}
+
+boundary trait Filesystem {
+    machine create(path: &[u8] in Path, out: &mut OpenOutcome);
+    machine open_read(path: &[u8] in Path, out: &mut OpenOutcome);
+    machine read(file: File, buffer: &mut [u8], out: &mut ReadOutcome);
+    machine write(file: File, bytes: &[u8], out: &mut WriteOutcome);
+    machine close(file: File);
+    machine remove(path: &[u8] in Path, out: &mut RemoveOutcome);
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+"#;
+
+/// Run `FS_PRELUDE ++ body` through the frontend + interpreter, asserting a
+/// clean run and a specific exit code.
+fn interpret_fs(name: &str, body: &str, expected_exit: i32, why: &str) {
+    let main_path = write_program(name, &(FS_PRELUDE.to_owned() + body));
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("{name}: fs program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(
+        !outcome.is_error(),
+        "{name}: interpreter should run the fs program, got {:?}",
+        outcome.error
+    );
+    assert_eq!(outcome.exit_code, expected_exit, "{name}: {why}");
+}
+
+/// The bytes actually land in the caller's `&mut [u8]` buffer, not just the
+/// `count`: after reading back "omega..." the first byte is `o` (111).
+#[test]
+fn filesystem_read_fills_the_caller_buffer() {
+    interpret_fs(
+        "fs-buffer-content",
+        r#"
+data Main {
+    console: Console;
+    fs: Filesystem;
+    open_out: OpenOutcome;
+    write_out: WriteOutcome;
+    read_out: ReadOutcome;
+    buffer: [u8; 64];
+}
+
+machine Main::main(&mut self) {
+    self.fs.create("/content.txt", &mut self.open_out);
+    transition self.open_out {
+        OpenOutcome::Opened { file } -> wrote(file)
+        _ -> fail()
+    }
+
+    state wrote(&mut self, file: File) {
+        self.fs.write(file, "omega", &mut self.write_out);
+        self.fs.close(file);
+        transition self.write_out {
+            WriteOutcome::Wrote { count } -> reopen()
+            _ -> fail()
+        }
+    }
+
+    state reopen(&mut self) {
+        self.fs.open_read("/content.txt", &mut self.open_out);
+        transition self.open_out {
+            OpenOutcome::Opened { file } -> got(file)
+            _ -> fail()
+        }
+    }
+
+    state got(&mut self, file: File) {
+        self.fs.read(file, &mut self.buffer, &mut self.read_out);
+        self.fs.close(file);
+        transition self.read_out {
+            ReadOutcome::Read { count } -> check()
+            _ -> fail()
+        }
+    }
+
+    state check(&mut self) {
+        transition self.buffer[0] == 111 {
+            true -> ok()
+            _ -> fail()
+        }
+    }
+
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+        70,
+        "read must copy the written bytes into the buffer (buffer[0] == 'o')",
+    );
+}
+
+/// Opening a path that was never created reports `Failed`, not a bogus handle.
+#[test]
+fn filesystem_open_missing_file_reports_failed() {
+    interpret_fs(
+        "fs-open-missing",
+        r#"
+data Main {
+    console: Console;
+    fs: Filesystem;
+    open_out: OpenOutcome;
+}
+
+machine Main::main(&mut self) {
+    self.fs.open_read("/nope.txt", &mut self.open_out);
+    transition self.open_out {
+        OpenOutcome::Opened { file } -> unexpected(file)
+        _ -> ok()
+    }
+
+    state unexpected(&mut self, file: File) { self.console.exit_process(71); }
+    state ok(&mut self) { self.console.exit_process(70); }
+}
+"#,
+        70,
+        "open_read of a nonexistent path must take the Failed arm",
+    );
+}
+
+/// The read cursor advances: a second read after consuming the file returns
+/// `Read(0)` (end of file), distinct from `Failed`.
+#[test]
+fn filesystem_second_read_is_eof_zero() {
+    interpret_fs(
+        "fs-eof",
+        r#"
+data Main {
+    console: Console;
+    fs: Filesystem;
+    open_out: OpenOutcome;
+    write_out: WriteOutcome;
+    read_out: ReadOutcome;
+    buffer: [u8; 64];
+}
+
+machine Main::main(&mut self) {
+    self.fs.create("/eof.txt", &mut self.open_out);
+    transition self.open_out {
+        OpenOutcome::Opened { file } -> wrote(file)
+        _ -> fail()
+    }
+
+    state wrote(&mut self, file: File) {
+        self.fs.write(file, "hi", &mut self.write_out);
+        self.fs.close(file);
+        transition self.write_out {
+            WriteOutcome::Wrote { count } -> reopen()
+            _ -> fail()
+        }
+    }
+
+    state reopen(&mut self) {
+        self.fs.open_read("/eof.txt", &mut self.open_out);
+        transition self.open_out {
+            OpenOutcome::Opened { file } -> first(file)
+            _ -> fail()
+        }
+    }
+
+    state first(&mut self, file: File) {
+        self.fs.read(file, &mut self.buffer, &mut self.read_out);
+        transition self.read_out {
+            ReadOutcome::Read { count } -> second(file)
+            _ -> fail()
+        }
+    }
+
+    state second(&mut self, file: File) {
+        self.fs.read(file, &mut self.buffer, &mut self.read_out);
+        self.fs.close(file);
+        transition self.read_out {
+            ReadOutcome::Read { count } -> eof(count)
+            _ -> fail()
+        }
+    }
+
+    state eof(&mut self, count: usize) {
+        transition count == 0 {
+            true -> ok()
+            _ -> fail()
+        }
+    }
+
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+        70,
+        "a second read after consuming the file must report Read(0)",
+    );
+}
