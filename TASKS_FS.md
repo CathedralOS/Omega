@@ -86,9 +86,13 @@ crate tests; interpreter fs coverage) and commits.
   purely bitwise (e.g. access mode = `(wbit & (rbit^1)) | ((wbit & rbit) << 1)`,
   `O_APPEND = (append as i32) << 3`). This is the pattern to reuse for any future
   flag/bitfield composition in the fs surface.
-- **D8-open. Deferred: variadic-mode `open` host call — the #1 remaining parity
-  gap (unblocks `File::create_new`, `OpenOptions.create`/`.create_new`/`.mode`,
-  and create+read-write opens).** Darwin `open(const char*, int, ...)` reads the
+- **D8-open. Variadic-mode `open` host call — the op is now PLUMBED (step 10s);
+  only the aarch64 NATIVE encoder remains.** `HostOperation::OpenCreate` (op
+  `open_create` → `_open`), darwin binding + lowering, interpreter handler, and the
+  full `create_new`/`OpenOptions.create` surface all landed + interpreter-tested
+  (step 10s). The ONE remaining piece is the native lowering below (the operand arm
+  + the stack-`mode` encoder). Context (the #1 native parity gap — unblocks native
+  `File::create_new`, `OpenOptions.create`/`.create_new`/`.mode`, create+read-write): Darwin `open(const char*, int, ...)` reads the
   create `mode` via `va_arg`; on Apple arm64 variadic args are passed on the STACK
   (`[sp,#0]`), not registers — our host-call encoder marshals every arg into
   x0.. (`append_call_operands`), so a register mode is dropped (the D4 finding).
@@ -230,6 +234,12 @@ crate tests; interpreter fs coverage) and commits.
   LOCK_EX → EWOULDBLOCK → release → reacquire); wrapper `lock`/`try_lock`(→
   `TryLockResult`)/`unlock` in coverage `filesystem_std_module_locking`. Reused the
   `SetLen` fd+scalar operand arm (zero new backend). fs coverage 40.
+- **Creating opens landed in the interpreter** (10s) — `File::create_new` +
+  `OpenOptions.create`/`.create_new` via a new `open_create` seam (atomic O_EXCL
+  create-new guard, delegates to `virtual_open_flags`, subsumes `open`). The op is
+  PLUMBED end-to-end (enum/binding/lowering/interpreter/surface); only the native
+  aarch64 encoder remains (D8-open — the variadic `mode` stack marshalling). fs
+  coverage 44. Coverage `filesystem_std_module_create_new`.
 - **Integration samples prove the surface composes** (10r) — `native_fs_workflow`
   (13-op raw-seam workflow on real macOS) + `filesystem_std_module_workflow` (the
   ergonomic wrapper counterpart). The per-op vein is now mature; **the #1 remaining
@@ -763,6 +773,28 @@ crate tests; interpreter fs coverage) and commits.
     [is_file,len]/`set_permissions`[readonly]/`hard_link`/`rename`/`open`/`read`/
     `remove`) proving the result-enum surface THREADS across a realistic sequence.
     Both green; no compiler change (pure composition of shipped ops). fs coverage 43.
+10s. [~] **Creating opens — `File::create_new` + `OpenOptions.create`/`.create_new`**
+    (Rust) via a new `open_create` seam — DONE in the INTERPRETER; native lowering
+    is the ONE remaining piece (D8-open turnkey plan). The `open_create(path,
+    flags, mode)` op is now PLUMBED end-to-end EXCEPT the aarch64 encoder:
+    `HostOperation::OpenCreate` (op `open_create` → darwin `_open`) + binding +
+    `insert_platform_lowering` are wired, so only the operand arm + the
+    stack-`mode` encoder remain (D8-open). Interpreter handler models it fully: the
+    O_CREAT|O_EXCL atomic create-new guard (EEXIST if present) + create-mode
+    recording, then DELEGATES to the shared `virtual_open_flags` so it cleanly
+    SUBSUMES `open` (O_TRUNC/O_APPEND/access/EACCES/ENOENT all consistent). Omega
+    surface: `OpenOptions` gained `create`/`create_new` fields; `open_with` now
+    computes O_CREAT(512=1<<9)/O_EXCL(2048=1<<11) and routes through `open_create`
+    (existing-file opens unchanged — `open_options` coverage still green);
+    `Filesystem::create_new(path) -> OpenResult` (O_RDWR|O_CREAT|O_EXCL=2562, mode
+    0o666). Coverage `filesystem_std_module_create_new`: create_new makes a usable
+    file, a second create_new on it is `AlreadyExists`, `OpenOptions.create` makes
+    a missing file. fs coverage 44. **The ergonomic creating-open surface is
+    complete + interpreter-tested; only the native `open_create` encoder is left**
+    (a dedicated fire — the wrapper runs interpreter-only anyway, D5, so this
+    unblocks native creating-opens once BOTH the D8-open encoder AND native wrapper
+    lowering land). No native canary yet (open_create has no native operand
+    arm/encoder); `canary_suite` 452/146 unchanged (nothing lowers it).
 12. [x] **`copy(from, to)`** (Rust `fs::copy`) — DONE (interpreter). Enabled by a
     small interpreter fix: `eval_fs_bytes` now accepts a `Value::Array` (a byte
     array or a subslice view) as a host-call byte arg — the write-side mirror of

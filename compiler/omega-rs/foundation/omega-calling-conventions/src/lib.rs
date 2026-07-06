@@ -225,6 +225,13 @@ pub enum HostOperation {
     /// `os::unix::fs::fchown`). Same operand shape as `lseek` (`[result, fd, uid,
     /// gid]` -- fd + two scalars).
     Fchown,
+    /// `open(path, flags, mode)` with O_CREAT -- the CREATING open (Rust
+    /// `File::create_new`, `OpenOptions.create`/`.create_new`). Unlike `creat`
+    /// (fixed O_WRONLY|O_CREAT|O_TRUNC, register mode) this passes ARBITRARY flags
+    /// (O_CREAT|O_EXCL|O_RDWR|...) plus a `mode`. `mode` is VARIADIC on darwin, so
+    /// the native lowering must marshal it on the STACK (see D8-open turnkey plan)
+    /// -- native lowering is PENDING; the interpreter models it fully today.
+    OpenCreate,
     /// `___error()` -- darwin's thread-local errno accessor; returns `int*`.
     /// Takes NO args and its result is DEREFERENCED once (see
     /// `HostOperationKey::dereferences_result`) so the stored value is `errno`
@@ -299,6 +306,7 @@ impl HostOperation {
             "chown" => Self::Chown,
             "lchown" => Self::LChown,
             "fchown" => Self::Fchown,
+            "open_create" => Self::OpenCreate,
             "read_errno" => Self::ReadErrno,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
@@ -355,6 +363,7 @@ impl HostOperation {
             Self::Chown => "chown",
             Self::LChown => "lchown",
             Self::Fchown => "fchown",
+            Self::OpenCreate => "open_create",
             Self::ReadErrno => "read_errno",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",

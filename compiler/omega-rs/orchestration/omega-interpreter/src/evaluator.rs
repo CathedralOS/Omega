@@ -2326,6 +2326,33 @@ impl<'program> Evaluator<'program> {
                 let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
                 self.virtual_open_flags(path, flags) as i64
             }
+            "open_create" => {
+                // `open(path, flags, mode)` with O_CREAT (Rust `File::create_new`,
+                // `OpenOptions.create`/`.create_new`). darwin flags: O_CREAT=0x200
+                // (512), O_EXCL=0x800(2048). This adds the O_EXCL/EEXIST atomic
+                // create-new guard + create-mode recording; every other flag bit
+                // (O_TRUNC/O_APPEND/access/EACCES/ENOENT) is handled by the shared
+                // `virtual_open_flags`, so `open_create` cleanly SUBSUMES `open`.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let mode = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as u32;
+                let exists = self.virtual_files.contains_key(&path)
+                    || self.virtual_dirs.contains(&path)
+                    || self.virtual_char_devices.contains(&path);
+                if (flags & 512) != 0 && (flags & 2048) != 0 && exists {
+                    self.virtual_errno = 17; // EEXIST (O_CREAT|O_EXCL, path present)
+                    -1
+                } else {
+                    // Whether this call actually creates the file (records the mode
+                    // AFTER the open so the create's own access is not gated by it).
+                    let created = (flags & 512) != 0 && !exists;
+                    let fd = self.virtual_open_flags(path.clone(), flags);
+                    if fd >= 0 && created {
+                        self.virtual_perms.insert(path, mode & 0o777);
+                    }
+                    fd as i64
+                }
+            }
             "read" => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
