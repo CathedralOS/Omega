@@ -1,5 +1,72 @@
 # Tasks — Filesystem (`std::fs`)
 
+> **AUTONOMOUS LOOP (this file is the source of truth).** A `/loop` runs every
+> 5 min re-reading this file to continue the fs work unattended. Cron job id
+> **`371842c4`** — `CronDelete 371842c4` to stop (do this when fs is complete or
+> blocked only on a user-only design decision). Keep this file current every
+> fire: update **Current state**, **Next steps**, and **Design decisions** so the
+> next fire (fresh context) can continue.
+
+## North star
+
+A **serious, ergonomic `std::fs`** for Omega with **parity to Rust's `std::fs`**,
+differing only where Omega is better: `Result<T,E>` → bespoke Omega `data` case
+enums; **full human-word names** (`create`/`open`/`read`/`write`/`close`/
+`remove`/`metadata`) — NO legacy-abbreviated C names (`creat`/`unlink`/`stat`)
+anywhere in the Omega surface (C symbol strings like `_creat` live ONLY in the
+per-target binding table). Portable wrapper over a per-OS raw seam (Rust's
+`std::fs` over `std::sys`). macOS/aarch64 is the only TESTED target now; keep
+x86_64/linux/windows structurally ready.
+
+Working rules: consult `wiki/language_guide/*` before adding language features;
+prefer ZII / arena / `Handle` / `HandleSpan` for compiler features; check Rust
+source when unsure; every fire leaves regressions green (Console lowering;
+`omega-instruction-selection`/`omega-relocations`/`omega-calling-conventions`
+crate tests; interpreter fs coverage) and commits.
+
+## Design decisions (judgement calls — user reviews later)
+
+- **D1. Full human-word API, no legacy abbreviations.** `create`/`open`/`read`/
+  `write`/`close`/`remove` in Omega; C symbols (`_creat`,`_unlink`) only in the
+  darwin binding table. (User was explicit + annoyed about `creat`.)
+- **D2. Two layers** — portable ergonomic `Filesystem` wrapper (hides flags/
+  mode/fd behind `File`/result enums) over a raw `FilesystemHost` boundary
+  (value-returning ints, per-OS lowering). = Rust `std::fs`/`std::sys`.
+- **D3. Value-return + Omega-wrap** (ratified earlier): raw ops return syscall
+  ints; wrapper builds `File`/result enums in Omega.
+- **D4. `create` maps to libc `_creat`** (not `open`) because `open`'s mode is
+  variadic (stack-passed/dropped on arm64); `_creat`'s mode is a register param.
+
+## Current state (update every fire)
+
+- **Raw seam now has HUMAN method names** (create/open/read/write/close/remove)
+  on the `FilesystemHost` boundary trait; ugly libc spellings only in binding
+  symbols. Compiler feature landed: lowering lookup **prefers an exact-platform
+  match over `"*"`** (`find_lowering_prefer_exact`), so fs `write`/`read` win
+  over Console's wildcard. `canaries/pass/filesystem/native_crud` RUNS to PASS
+  with the human names; `native_close` checks clean; no regressions.
+- Native raw CRUD RUNS end-to-end on macOS via value-returning host calls.
+- aarch64 value-returning host calls implemented (the foundational primitive).
+- Runtime slice/path host-call args implemented.
+- Ergonomic wrapper runs in the INTERPRETER; lowering it natively is in progress.
+
+## Next steps (ordered; keep this list live)
+
+1. [x] **Rename raw ops to human words** — DONE (create/open/read/write/close/
+   remove; `find_lowering_prefer_exact` compiler feature; canaries updated + run).
+2. **Forwarded-param → storage-place resolution** so wrapper machines that pass
+   a `&[u8]` param to the boundary lower natively (current wrapper blocker).
+3. Store enum result through a wrapper `&mut out`; const-folded-literal-arg fix.
+4. Ergonomic `Filesystem` wrapper as the real `omega/language/std/filesystem.omg`
+   (create/open/read/write/close/remove + `File` + result enums), lowering
+   natively AND interpreting; migrate interpreter coverage onto it.
+5. Rust-parity surface: `metadata`/`len`, `read_to_end`/buffered read, append
+   mode, `create_dir`/`read_dir`, `rename`, error enum (errno→cases). Check Rust
+   `library/std/src/fs.rs`.
+6. x86_64/linux/windows seams (tables only; not tested here).
+
+---
+
 Self-contained backlog for bringing a real filesystem surface (`open`/`read`/
 `write`/`close`/`seek`/`stat`) to Omega, following the path Console already
 proves. Kept separate from `TASKS.md` (omega-rs backlog) and

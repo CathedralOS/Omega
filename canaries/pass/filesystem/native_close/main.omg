@@ -1,24 +1,21 @@
-// NATIVE value-returning std::fs op: `rc = close(fd) -> _close(fd)`. Proves the
-// aarch64 value-returning host-call primitive built for fs (the general unblock:
-// value-returning host calls did not exist on aarch64 before this).
+// NATIVE value-returning std::fs op: `rc = close(fd)`. Proves the aarch64
+// value-returning host-call primitive (value-returning host calls did not exist
+// on aarch64 before this).
 //
-// Verified by disassembly (`otool -tv`) of the emitted mach-o:
+// Verified by disassembly of the emitted mach-o:
 //   ldr x0,[fd_in] ; bl _close ; adrp/add x16 ; str w0,[x16,#rc]
-// i.e. the fd is marshalled into x0, `_close` is called, and its 32-bit return
-// (w0 — sign-preserving, so a negative -errno reads back correctly) is stored
-// into `self.rc`.
+// (fd marshalled into x0, `_close` called, its 32-bit return stored into rc).
 //
-// The fd comes from a FIELD (not a `let` local) because a const-folded local
-// host-call argument currently lowers to no operand (a separate pre-existing
-// quirk; see TASKS_FILESYSTEM.md). NOT registered in ACTIVE_PASS_CANARIES yet
-// (canary_suite.rs is hot with other work).
+// The raw boundary is `FilesystemHost` with HUMAN method names (the ugly libc
+// spelling `_close` lives only in the darwin binding table). NOT registered in
+// ACTIVE_PASS_CANARIES yet (canary_suite.rs is hot with other work).
 
-boundary trait Filesystem {
+boundary trait FilesystemHost {
     machine close(fd: i32) -> i32;
 }
 
 data Main {
-    fs: Filesystem;
+    fs: FilesystemHost;
     fd_in: i32;
     rc: i32;
 }
