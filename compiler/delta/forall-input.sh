@@ -63,6 +63,8 @@ verify "len-hom (count MapReduce law: len(xs++ys) = len(xs)+len(ys))" \
   "cat len-hom.elab" '/^(all xs/ s|(f 21 (f 97 xs) (f 97 ys))|(k 3 (f 21 (f 97 xs) (f 97 ys)))|'
 verify "max-forall (ORDER-monoid fold: maxfold(xs,acc)=max(acc,listmax xs); max = the ≤-lattice JOIN, dual-dispatch mutual recursion, associative monoid with identity 0)" \
   "cat max-forall.elab" '/^(all xs/ s|(f 23 acc (f 94 xs))|(k 3 (f 23 acc (f 94 xs)))|'
+verify "sqsum-forall (SQUARE fold: sqfold(xs,n)=sumSq(xs)+n where sumSq adds each element's SQUARE h*h; umul for the square, same uadd commutative monoid as sum-forall)" \
+  "cat sqsum-forall.elab"
 
 echo "forall-input theorem (per-vector input proofs made universal AND mechanical; all three checkers agree, perturbations rejected): $( [ $fail = 0 ] && echo PASS || echo FAIL )"
 [ $fail = 0 ]
