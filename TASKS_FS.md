@@ -954,23 +954,47 @@ crate tests; interpreter fs coverage) and commits.
            `index_region` from the SelectedInstruction through
            instruction-selection widths.rs + encoding/runtime_storage.rs, aarch64
            widths.rs + runtime_storage.rs, and machine-emission layout.rs (5 files).
-        3. **Value bug — UNIDENTIFIED (blocks completion).** With BOTH fixes above
-           applied (verified: compiles, isa-aarch64 31 tests pass), the probe still
-           reads v=1 instead of 42, and this is INDEPENDENT of region (present with
-           both hardcoded-RuntimeFrame and threaded-Machine). `v=1` == the guard
-           `i < 16` true-result, so suspect register/storage aliasing between the
-           guard's bool temp and the indexed-read's base/scale/store — the emitted
-           `scale_x_register_by_constant(26,17,1)` / target-address / load sequence
-           is functionally wrong somewhere. Needs disassembly of the emitted bytes.
-      **Fixes 1+2 were IMPLEMENTED then REVERTED this fire** — they are correct and
-      safe but INSUFFICIENT (fix 3 remains), and committing them would convert the
-      loud width-mismatch compile error into SILENT wrong values for every program
-      using this instruction (the ~154 canary_suite failures). Kept the loud-error
-      safety net instead. When resuming: re-apply fixes 1+2 (recorded above),
-      then disassemble the probe's emitted sequence to find fix 3, THEN commit all
-      three together. Interim workaround for read_dir: expose entries by copying
-      each name into a caller slot via existing (constant-index) machinery, OR
-      have the interpreter/const-eval own iteration until native indexing lands.
+        3a. **Target-address RELOCATION offset — IDENTIFIED + SOLVED (disassembly-
+           confirmed this fire).** The note's "unidentified value bug" was NOT
+           register aliasing (that is 3b); it is that
+           `runtime_storage_copy_from_runtime_machine_indexed_target_address_offset`
+           hardcodes `28` = 16 + RuntimeFrame's 12-byte index load. Once fix 2 makes
+           the encoder emit a Machine index load (4 bytes, not 12), the target adrp
+           sits 8 bytes EARLIER but the relocation still points 8 bytes late → the
+           target `adrp x20` stays UNRELOCATED (0x100000000) and its page-offset
+           reloc MISLANDS on the following `ldrb` (giving it a bogus 0x1a8 offset).
+           FIX (verified): make the offset region-aware `16 + index_load`
+           (Machine 4 / RuntimeFrame 12), threaded through 4 sites — aarch64
+           `widths.rs`, instr-sel `widths.rs` dispatch, relocations
+           `offsets/runtime_storage/copies.rs`, relocations record caller
+           `instruction_records/runtime_storage_copies.rs` (pass `*index_region`).
+           With 1+2+3a the SIMPLE probe (`buffer[3]=42; i=3; v=buffer[i]`) reads
+           v==42 (disassembly-clean: `ldr w17,[x20,#0x10]` index, `add x16,x16,x26`,
+           `str w17,[x20]`).
+        3b. **CALLEE-SAVED register aliasing — THE REAL REMAINING BLOCKER (found
+           this fire, NOT yet fixed).** The indexed-read encoder uses x19, x20, x26
+           as scratch (the scale helper `append_scale_x_register_by_constant`
+           HARDCODES `working_register = 19`; the address setup uses x20/x26) — all
+           CALLEE-SAVED (the prologue `stp`s x19-x28). A SINGLE read is fine, but in
+           a LOOP where the register allocator keeps a loop-carried value in
+           x19/x20/x26, the indexed-read CLOBBERS it. Confirmed: with 1+2+3a the
+           simple probe PASSES but `runtime_nqueens_backtracking_exit` (heavy indexed
+           reads in a backtracking loop) INFINITE-LOOPS (>45s, want exit 70). This is
+           a register-allocation-coordination bug: the encoder must use scratch regs
+           the allocator has NOT assigned to live values here (or the allocator must
+           reserve/exclude the encoder's scratch set for this instruction). HARD.
+      **All of 1+2+3a were IMPLEMENTED then REVERTED this fire** (safety gate: the
+      canary_suite must go 452/146 → ~598/0; instead nqueens HANGS, which is WORSE
+      than a loud compile error). Kept the loud-error safety net. The 146
+      canary_suite failures are ALL this ONE instruction (loud width mismatches).
+      When resuming: re-apply 1+2+3a (all precisely recorded above — the diffs were
+      clean and correct for the simple case), then fix 3b (the callee-saved scratch
+      conflict — likely give this instruction caller-saved scratch regs like
+      x9-x15, or teach the allocator to avoid x19/x20/x26 across it), verify BOTH
+      the simple probe AND nqueens (exit 70) AND the full canary_suite (→ ~598/0),
+      THEN commit all together. Interim workaround for read_dir: expose entries by
+      copying each name into a caller slot via existing (constant-index) machinery,
+      OR have the interpreter/const-eval own iteration until native indexing lands.
       Also `read`/`write` on a dir fd should be EISDIR (not yet modeled; no test
       needs it).
 14. [~] **Native wrapper lowering — PARTIALLY WORKS (investigated in depth).**
