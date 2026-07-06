@@ -278,6 +278,15 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         [host_operation("Filesystem", "fsync")],
         PlatformCallData::None,
     );
+    // `sync_data` (Rust `File::sync_data`) maps to `fsync` on darwin -- the same op
+    // as `sync`. (macOS has no `fdatasync`; Rust itself falls back to fsync there.)
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "sync_data",
+        [host_operation("Filesystem", "fsync")],
+        PlatformCallData::None,
+    );
     insert_platform_lowering(
         plan,
         "FilesystemHost",
