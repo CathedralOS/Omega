@@ -1276,3 +1276,61 @@ machine Main::main(&mut self) {
         "open_with(append) must grow 11->14 and open_with(truncate) must empty to 0"
     );
 }
+
+/// One-shot whole-file helpers via the std module: `write_all` (Rust
+/// `fs::write`) then `read_all` (Rust `fs::read`) round-trip the same 15 bytes
+/// with no `File` handle leaking to the caller; the first byte reads back 'o'
+/// (111). Also asserts the failure path: `read_all` on a missing path returns
+/// `IoResult::Error` (the entry's open fails and the `n >= 0` guard reports it).
+#[test]
+fn filesystem_std_module_whole_file_helpers() {
+    let main_path = write_program(
+        "fs-wholefile",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    io_result: IoResult;
+    cap: usize;
+    first: u8;
+    buffer: [u8; 64];
+}
+machine Main::main(&mut self) {
+    self.cap = 64;
+    self.unit_result = self.fs.write_all("/w.txt", "one-shot bytes!");
+    transition self.unit_result { UnitResult::Ok -> readback() _ -> fail() }
+    state readback(&mut self) {
+        self.io_result = self.fs.read_all("/w.txt", &mut self.buffer, self.cap);
+        transition self.io_result { IoResult::Ok { count } -> checkcount(count) _ -> fail() }
+    }
+    state checkcount(&mut self, count: usize) {
+        transition count == 15 { true -> checkbyte() _ -> fail() }
+    }
+    state checkbyte(&mut self) {
+        self.first = self.buffer[0];
+        transition self.first == 111 { true -> missing() _ -> fail() }
+    }
+    state missing(&mut self) {
+        // read_all on a path that does not exist must be Error, not Ok.
+        self.unit_result = self.fs.remove("/w.txt");
+        self.io_result = self.fs.read_all("/gone.txt", &mut self.buffer, self.cap);
+        transition self.io_result { IoResult::Error -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("whole-file program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "whole_file: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "write_all/read_all must round-trip 15 bytes and read_all(missing) must be Error"
+    );
+}

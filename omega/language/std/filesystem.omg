@@ -167,6 +167,38 @@ machine Filesystem::close(&mut self, file: File) -> i32 {
     self.host.close(file.fd)
 }
 
+// Write an entire buffer to a path in one shot (Rust `std::fs::write`): create
+// (or truncate) the file, write all the bytes, and close — no `File` handle
+// leaks to the caller. All three raw ops run in the entry: on a create failure
+// the fd is negative, so the subsequent write/close no-op with errors and the
+// `n >= 0` guard reports Error. Success requires the write to have returned a
+// non-negative count.
+machine Filesystem::write_all(&mut self, path: &[u8] in Path, bytes: &[u8]) -> UnitResult {
+    self.create_mode = 420;
+    let fd: i32 = self.host.create(path, self.create_mode);
+    let n: i64 = self.host.write(fd, bytes);
+    let rc: i32 = self.host.close(fd);
+    transition n >= 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { UnitResult::Error }
+}
+
+// Read a whole file into `buffer` in one shot (Rust `std::fs::read`): open the
+// path read-only, read up to `count` bytes, and close — returning the number
+// read. (Rust returns a freshly-grown `Vec`; Omega fills a caller buffer to
+// avoid an allocation in the std surface — pass a buffer at least as large as
+// the file, sized via `metadata().len`.) Like `write_all`, all raw ops run in
+// the entry so an open failure flows to Error via the `n >= 0` guard.
+machine Filesystem::read_all(&mut self, path: &[u8] in Path, buffer: &mut [u8], count: usize) -> IoResult {
+    self.read_flags = 0;
+    let fd: i32 = self.host.open(path, self.read_flags);
+    let n: i64 = self.host.read(fd, buffer, count);
+    let rc: i32 = self.host.close(fd);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state err(&mut self) -> IoResult { IoResult::Error }
+}
+
 // Remove a file.
 machine Filesystem::remove(&mut self, path: &[u8] in Path) -> UnitResult {
     let rc: i32 = self.host.remove(path);
