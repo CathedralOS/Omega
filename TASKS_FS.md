@@ -139,8 +139,12 @@ crate tests; interpreter fs coverage) and commits.
   by creation/offset order = arg order). `canaries/pass/filesystem/native_rename`
   RUNS: create A + write + rename A→B + read B back (16 bytes) → PASS.
 - Native raw ops now: create/open/read/write/close/remove/seek/create_dir/
-  remove_dir/rename/chmod/fchmod/link/symlink/readlink/stat/lstat/ftruncate/fsync —
-  all run-verified on macOS.
+  remove_dir/rename/chmod/fchmod/link/symlink/readlink/stat/lstat/realpath/
+  ftruncate/fsync — all run-verified on macOS.
+- **`canonicalize` (realpath) landed natively** (Rust `fs::canonicalize`) via
+  `_realpath`, reusing the `Stat` operand shape. `native_canonicalize` canary RUNS:
+  realpath resolves `/tmp` → `/private/tmp` for real. First fs op to return a
+  pointer-as-i64 success flag (no deref). See step 10f.
 - **`symlink_metadata` (lstat) landed natively** (Rust `fs::symlink_metadata`) via
   `_lstat`, reusing the `Stat` operand shape (just a new symbol). `native_symlink_metadata`
   canary RUNS: lstat distinguishes a symlink (S_IFLNK) from its target. `Metadata`
@@ -337,6 +341,32 @@ crate tests; interpreter fs coverage) and commits.
     links; the two now form the stat/lstat pair. NOTE: `as i64` casts on a host-call
     result don't lower natively ("needs runtime value lowering") — assign the raw
     i32 into the i64 field directly (implicit widen), as the other canaries do.
+10f. [x] **`canonicalize`** (Rust `fs::canonicalize`) via `realpath` — DONE,
+    complete NATIVE vertical. `HostOperation::Realpath` (op `realpath` → darwin
+    `_realpath`), added to the EXISTING `Stat`/`LStat` operand arm (identical
+    `[result, path ptr, buffer ptr]` shape), so ZERO new operand/encoder/width
+    work. KEY DESIGN CALL: `realpath` returns `char*` (the resolved-buffer pointer,
+    or NULL), NOT a byte count — so the raw seam `canonicalize(path, buffer) -> i64`
+    stores the returned POINTER as an i64 and treats it purely as a NON-NULL SUCCESS
+    FLAG (no deref; the useful output is the caller's NUL-terminated buffer). First
+    fs op to return a raw pointer-as-i64; the value-returning store handles it fine
+    (verified). Wrapper `Filesystem::canonicalize(path, buffer) -> UnitResult`
+    (`Ok` = buffer holds the NUL-terminated absolute path, reusable as a `Path`;
+    `Error{kind}` otherwise). Rust returns a fresh `PathBuf`; Omega fills a caller
+    buffer (>= PATH_MAX = 1024) to stay allocation-free; there is NO length returned
+    (realpath gives none) — the NUL terminator delimits it, and the common use
+    (feed the canonical path back into open/stat) needs no length. Interpreter
+    `canonicalize` handler: follows one symlink level (like `read_link`), then if
+    the resolved path exists writes it NUL-terminated + returns 1, else ENOENT + 0;
+    the hermetic FS is already absolute and does NOT resolve `.`/`..` (documented
+    approximation). DIFFERENTIAL SPLIT (like the stat mtime split): native
+    `native_canonicalize` canary RUNS on real macOS and asserts the REAL resolution
+    — `/tmp/omega_canon.txt` → `/private/tmp/...` (buffer[1]=='p' proves /tmp was
+    followed, not left as-is) → PASS; coverage `filesystem_std_module_canonicalize`
+    asserts the CONTRACT — canonicalize a `/link`→`/target.txt` symlink yields the
+    target path (buffer "/t..."), a missing path is `Error(NotFound)`. `metadata_path`
+    (stat) and `symlink_metadata` (lstat) still form the follow/no-follow pair;
+    `canonicalize` is the path-resolution primitive.
 11. [x] **Richer `Metadata`** via `stat` — DONE, complete NATIVE vertical (used
     `stat(path)`, not `fstat(fd)`, so it works on DIRECTORIES with no open/read
     perm). `HostOperation::Stat` (op `stat` → darwin `_stat`); operand arm

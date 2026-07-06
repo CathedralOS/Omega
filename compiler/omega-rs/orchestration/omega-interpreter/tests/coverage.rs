@@ -2337,6 +2337,73 @@ machine Main::main(&mut self) {
     );
 }
 
+/// `canonicalize` (Rust `fs::canonicalize`, via `realpath`): resolve a path to its
+/// canonical absolute form, FOLLOWING symlinks. Here a `/link` -> `/target.txt`
+/// symlink canonicalizes to the target's path (buffer begins "/t..."), and a
+/// missing path is `Error(NotFound)`. The hermetic FS is already absolute and does
+/// not resolve `.`/`..`; the native `native_canonicalize` canary carries the real
+/// symlink resolution (`/tmp` -> `/private/tmp` on macOS).
+#[test]
+fn filesystem_std_module_canonicalize() {
+    let main_path = write_program(
+        "fs-canonicalize",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    b0: u8;
+    b1: u8;
+    buffer: [u8; 1024];
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("/target.txt", "hi");
+    transition self.unit_result { UnitResult::Ok -> mklink() _ -> fail() }
+    state mklink(&mut self) {
+        self.unit_result = self.fs.symlink("/target.txt", "/link");
+        transition self.unit_result { UnitResult::Ok -> canon() _ -> fail() }
+    }
+    state canon(&mut self) {
+        // canonicalize follows the symlink to the target's path
+        self.unit_result = self.fs.canonicalize("/link", &mut self.buffer);
+        transition self.unit_result { UnitResult::Ok -> checkbuf() _ -> fail() }
+    }
+    state checkbuf(&mut self) {
+        self.b0 = self.buffer[0];
+        self.b1 = self.buffer[1];
+        transition self.b0 == 47 { true -> checkt() _ -> fail() }
+    }
+    state checkt(&mut self) {
+        // "/target.txt": buffer[1] == 't' (116), proving the link was resolved
+        transition self.b1 == 116 { true -> canonmissing() _ -> fail() }
+    }
+    state canonmissing(&mut self) {
+        self.unit_result = self.fs.canonicalize("/nope", &mut self.buffer);
+        transition self.unit_result { UnitResult::Error { kind } -> checkkind(kind) _ -> fail() }
+    }
+    state checkkind(&mut self, kind: ErrorKind) {
+        self.unit_result = self.fs.remove("/link");
+        self.unit_result = self.fs.remove("/target.txt");
+        transition kind { ErrorKind::NotFound -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("canonicalize program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "canonicalize: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "canonicalize: follows /link -> /target.txt (buffer '/t...'); missing path -> NotFound"
+    );
+}
+
 /// `try_exists` (Rust `Path::try_exists`) — the error-aware existence check:
 /// `Yes` for a present readable file, `No` for a missing path, and `Error`
 /// (PermissionDenied) for a present-but-unreadable path (chmod 0). Unlike
