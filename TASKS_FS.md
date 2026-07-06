@@ -244,6 +244,19 @@ crate tests; interpreter fs coverage) and commits.
   LOCK_EX → EWOULDBLOCK → release → reacquire); wrapper `lock`/`try_lock`(→
   `TryLockResult`)/`unlock` in coverage `filesystem_std_module_locking`. Reused the
   `SetLen` fd+scalar operand arm (zero new backend). fs coverage 40.
+- **✅ RUNTIME-INDEXED WRITE (storage source) IMPLEMENTED** — `arr[i] = <machine
+  field>` now lowers on aarch64 (was a silent NO-OP: width 0 / stub encoder). New
+  `encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage` is
+  the store-side mirror of the read fix (element addr → x16, source addr → x20,
+  `ldr [x20]` → `str [x16]`), region-aware width + a new source-address relocation
+  offset + an aarch64 branch in the relocation record (machine@start index-base,
+  frame@index-offset if RF, machine@source-offset). VERIFIED: probes pass elem
+  1/4/8, Machine + RuntimeFrame index, loops (`src[i]→dst[i]`); disassembly-clean.
+  GATED → zero regressions; canary_suite 492/105 → **512/85** (+20). Unblocks
+  BUFFER MANIPULATION (copying computed values into arrays at runtime indices) —
+  the path toward name-copying / path-building for `remove_dir_all`/`create_dir_all`.
+  (Immediate `arr[i] = 42` already worked; frame-SOURCE `arr[i] = <local>` still
+  rejected by instruction-selection — "use a machine field temp".)
 - **✅ RUNTIME-INDEXED READ FIXED → NATIVE `read_dir` ITERATION WORKS** (step 13) —
   the multi-fire blocker is CLOSED. `CopyRuntimeMachineIndexedToRuntimeStorage`
   (the `buffer[i]` read) now lowers correctly on aarch64 (region-threading +

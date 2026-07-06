@@ -857,10 +857,47 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_widt
         + runtime_storage_copy_data_width(0, 0, byte_count)
 }
 
-/// Write-side mirror; aarch64 emits no real instruction (the encoder errors),
-/// so the reserved width is zero.
-pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width() -> usize {
-    0
+/// Write-side mirror of `..._from_runtime_machine_indexed_to_runtime_storage_width`:
+/// same fixed part (index-address setup + region-dependent index load + the store
+/// base's adrp/add), with `source_offset`'s `add x20,#source` in place of the
+/// read's `add x20,#target`. MUST match the encoder.
+pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
+    source_offset: usize,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    let index_load = match index_region {
+        omega_target_operations::RuntimeStorageRegion::Machine => 4,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => 12,
+    };
+    24 + index_load
+        + add_constant_width(base_byte_offset)
+        + scale_index_width(element_byte_size)
+        + add_constant_width(field_byte_offset)
+        + add_constant_width(source_offset)
+        + runtime_storage_copy_data_width(0, 0, byte_count)
+}
+
+/// The byte offset of the SOURCE adrp (`adrp x20`) within the store — same
+/// position as the read's target adrp, region-aware. Used by the relocation
+/// planner to relocate the source page-pair to the machine symbol.
+pub fn runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    let index_load = match index_region {
+        omega_target_operations::RuntimeStorageRegion::Machine => 4,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => 12,
+    };
+    16 + index_load
+        + add_constant_width(base_byte_offset)
+        + scale_index_width(element_byte_size)
+        + add_constant_width(field_byte_offset)
 }
 
 pub fn runtime_storage_copy_to_runtime_pointee_width(

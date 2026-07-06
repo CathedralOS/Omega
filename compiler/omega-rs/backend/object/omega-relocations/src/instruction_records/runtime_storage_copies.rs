@@ -5,10 +5,12 @@ use super::super::offsets::{
     runtime_storage_copy_from_runtime_machine_indexed_target_address_offset,
     runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset,
     runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset,
+    runtime_storage_copy_to_runtime_machine_indexed_source_address_offset,
     runtime_storage_copy_from_runtime_pointee_to_runtime_frame_target_address_offset,
     runtime_storage_copy_target_address_offset,
 };
 use super::context::InstructionRelocationContext;
+use omega_target::Architecture;
 use omega_target_operations::SelectedInstructionKind;
 
 pub(super) fn collect_runtime_storage_copy_relocations(
@@ -119,23 +121,56 @@ pub(super) fn collect_runtime_storage_copy_relocations(
             true
         }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
-            source_region, ..
+            source_region,
+            base_byte_offset,
+            index_region,
+            element_byte_size,
+            field_byte_offset,
+            ..
         } => {
-            // The opening `mov r15,imm64` loads the SOURCE base -- the machine
-            // symbol for a field source (then value, index, and target element
-            // all ride that one base), or the runtime frame for a slot-backed
-            // local source, in which case a SECOND relocation re-loads the
-            // machine base for the index read + element store.
-            context.insert_data_address_at_instruction_start(
-                context.storage_region_symbol_handle(*source_region),
-            );
-            if *source_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+            if context.input.target.architecture == Architecture::Aarch64 {
+                // aarch64 store layout: `[index-address setup (adrp x16 = machine
+                // index base)] [source adrp x20] [load src / store elem]`. So the
+                // machine page-pair is relocated at instruction start (the index
+                // base) and again at the source adrp; a frame-resident INDEX adds
+                // its own frame page-pair between them (same offset as the read).
+                context
+                    .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+                if *index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                    context.insert_data_address_at_relative_offset(
+                        runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset(
+                            context.input.target.architecture,
+                            *base_byte_offset,
+                        ),
+                        context.runtime_frame_symbol_handle(),
+                    );
+                }
                 context.insert_data_address_at_relative_offset(
-                    runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset(
+                    runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
                         context.input.target.architecture,
+                        *base_byte_offset,
+                        *index_region,
+                        *element_byte_size,
+                        *field_byte_offset,
                     ),
-                    context.machine_storage_symbol_handle(),
+                    context.storage_region_symbol_handle(*source_region),
                 );
+            } else {
+                // x86_64: the opening `mov r15,imm64` loads the SOURCE base -- the
+                // machine symbol for a field source (index + target element ride
+                // it), or the runtime frame for a slot-backed local source, in
+                // which case a SECOND relocation re-loads the machine base.
+                context.insert_data_address_at_instruction_start(
+                    context.storage_region_symbol_handle(*source_region),
+                );
+                if *source_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                    context.insert_data_address_at_relative_offset(
+                        runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset(
+                            context.input.target.architecture,
+                        ),
+                        context.machine_storage_symbol_handle(),
+                    );
+                }
             }
             true
         }

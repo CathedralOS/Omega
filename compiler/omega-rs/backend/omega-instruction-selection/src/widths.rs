@@ -1608,18 +1608,56 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_widt
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
     architecture: Architecture,
     source_region: omega_target_operations::RuntimeStorageRegion,
+    source_offset: usize,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => {
-            aarch64::runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width()
+            aarch64::runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
+                source_offset,
+                base_byte_offset,
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+                byte_count,
+            )
         }
         Architecture::X86_64 => {
             x86_64::runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
                 source_region,
             )
+        }
+    }
+}
+
+/// aarch64 SOURCE-adrp offset inside the store (for the relocation planner).
+pub fn runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
+    architecture: Architecture,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
+                base_byte_offset,
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+            )
+        }
+        Architecture::X86_64 => {
+            let _ = (base_byte_offset, index_region, element_byte_size, field_byte_offset);
+            0
         }
     }
 }
