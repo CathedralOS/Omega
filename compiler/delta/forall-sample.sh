@@ -46,6 +46,7 @@ verify3() {
 }
 verify3 "count-forall (count(xs,n)=len(xs)+n)" count-forall.elab '/^(all xs/ s/(f 21 (f 9\([0-9]\) xs) n)/(k 3 (f 21 (f 9\1 xs) n))/'
 verify3 "pair-forall  (pairfold(xs,(s,c))=(listsum(xs)+s, len(xs)+c))" pair-forall.elab '/^(all xs/ s|(k 70 (f 21 (f 94 xs) s)|(k 70 (k 3 (f 21 (f 94 xs) s))|'
+verify3 "int-sum-fold  (intEq(intAdd(acc,listsum xs), sumfold(xs,acc)) — SIGNED ℤ difference pairs, acc-first)" proofs/int-sum-fold.elab '/^(all xs/ s/(f 101 (f 96 xs acc))/(s (f 101 (f 96 xs acc)))/'
 
 # ---- tie: real sample loops discharged for EVERY input ----
 cov=0; miss=0
@@ -77,10 +78,24 @@ for f in ../../samples/*/main.omg; do
       miss=$((miss+1)); echo "  MISS $s : a '+ b' accumulation but not the full read_byte (sum,count) pair-fold shape (count+1 + exit sum+count)"
     fi
   fi
+  # (c) SIGNED-integer sum fold: a machine NAME(&mut self, s: &[i32 ..], acc) recursing NAME(s[1..], acc + s[0])
+  #     under s.len > 0, base 'false -> acc' — int-sum-fold's ACC-FIRST shape exactly. Unlike the count fold
+  #     (ℤ-FREE, element-value-independent), the summed elements are SIGNED i32, so this is discharged by the
+  #     ℤ (difference-pair) fold theorem — the FIRST ∀-input connection over signed integers.
+  sumrec=$(grep -oE '[a-z_]+\([a-z_]+\[1\.\.\], *[a-z_]+ \+ [a-z_]+\[0\]\)' "$f" 2>/dev/null | head -1)
+  if [ -n "$sumrec" ]; then
+    sname=${sumrec%%\(*}
+    sacc=$(printf '%s' "$sumrec" | sed -E 's/.*, *([a-z_]+) \+ [a-z_]+\[0\]\)/\1/')
+    if grep -qE "$sname"'\(&mut self, *[a-z_]+: *&\[i32' "$f" && grep -qE '\.len > 0' "$f" && grep -qE "false -> [(]?$sacc[)]? *$" "$f"; then
+      cov=$((cov+1)); echo "  ok   $s : signed-sum machine '$sname' IS the ℤ fold ($sumrec, base 'false -> $sacc') -> = intAdd(acc, listsum s) up to ~ for EVERY input (int-sum-fold, SIGNED ℤ)"
+    else
+      miss=$((miss+1)); echo "  MISS $s : a '+ s[0]' recursion but not the full signed-sum-fold shape (&[i32] + .len>0 + base 'false -> $sacc')"
+    fi
+  fi
 done
 
 ok=1
 [ "$thmok" = 1 ] || ok=0
 [ "$cov" -gt 0 ] && [ "$miss" = 0 ] || ok=0
-echo "∀-input sample connection (real sample loops proven correct for EVERY input by 3-checker theorems; perturbations rejected): $cov sample loop(s) discharged (count over slices; (sum,count) pair over byte streams — both ℤ-free)"
+echo "∀-input sample connection (real sample loops proven correct for EVERY input by 3-checker theorems; perturbations rejected): $cov sample loop(s) discharged (count over slices + (sum,count) pair over byte streams — ℤ-free; PLUS the SIGNED-integer sum fold over i32 slices via the ℤ difference-pair fold theorem)"
 [ "$ok" = 1 ]
