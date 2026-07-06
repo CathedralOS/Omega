@@ -1668,6 +1668,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee
 pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
     base_byte_offset: usize,
     index_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -1676,6 +1677,7 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     let mut bytes = Vec::with_capacity(
         super::widths::runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
             base_byte_offset,
+            index_region,
             element_byte_size,
             field_byte_offset,
             target_offset,
@@ -1685,7 +1687,7 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     append_runtime_machine_index_target_address(
         &mut bytes,
         base_byte_offset,
-        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_region,
         index_offset,
         element_byte_size,
         field_byte_offset,

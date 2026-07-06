@@ -60,6 +60,7 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_ad
 pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
     architecture: Architecture,
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
@@ -68,6 +69,7 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_target_address_o
             omega_instruction_selection::runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
                 architecture,
                 base_byte_offset,
+                index_region,
                 element_byte_size,
                 field_byte_offset,
             )

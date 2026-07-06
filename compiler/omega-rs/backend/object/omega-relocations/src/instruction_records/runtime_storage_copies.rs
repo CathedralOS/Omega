@@ -110,6 +110,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                 runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
                     context.input.target.architecture,
                     *base_byte_offset,
+                    *index_region,
                     *element_byte_size,
                     *field_byte_offset,
                 ),

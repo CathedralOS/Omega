@@ -1,0 +1,96 @@
+// NATIVE fs read_dir ITERATION (Rust fs::read_dir's DirEntry walk) on real macOS.
+// This is the payoff of fixing the runtime-indexed-read instruction: it fills the
+// directory buffer via ___getdirentries64, then WALKS the packed dirent records
+// with a RUNTIME-INDEXED cursor — `buffer[off+16]`/`[off+17]` reads the LE u16
+// `d_reclen`, advancing `off` by `reclen` until the filled byte count. Counts the
+// entries (".", "..", "alpha", "beta" => 4). The `buffer[self.idx]` reads (idx a
+// runtime value) exercise `CopyRuntimeMachineIndexedToRuntimeStorage`, which now
+// lowers correctly on aarch64. Prints PASS iff exactly 4 entries are walked.
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
+    machine remove_dir(path: &[u8] in Path) -> i32;
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine open(path: &[u8] in Path, flags: i32) -> i32;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    machine read_dir(fd: i32, buffer: &mut [u8], count: usize, position: &mut i64) -> i64;
+}
+
+data Main {
+    fs: FilesystemHost;
+    dirmode: i32;
+    filemode: i32;
+    rdonly: i32;
+    cap: usize;
+    rc: i32;
+    fd: i32;
+    dfd: i32;
+    n: i64;
+    total: i64;
+    totalu: usize in Wrapping;
+    position: i64;
+    off: usize in Wrapping;
+    idx: usize in Wrapping;
+    count: i32 in Wrapping;
+    lo: u8;
+    hi: u8;
+    lou: usize in Wrapping;
+    hiu: usize in Wrapping;
+    reclen: usize in Wrapping;
+    buffer: [u8; 512];
+}
+
+machine Main::main(&mut self) {
+    self.dirmode = 493;
+    self.filemode = 420;
+    self.rdonly = 0;
+    self.cap = 512;
+    self.position = 0;
+    self.off = 0;
+    self.count = 0;
+    self.rc = self.fs.create_dir("/tmp/omega_rdi", self.dirmode);
+    self.fd = self.fs.create("/tmp/omega_rdi/alpha", self.filemode);
+    self.n = self.fs.close(self.fd);
+    self.fd = self.fs.create("/tmp/omega_rdi/beta", self.filemode);
+    self.n = self.fs.close(self.fd);
+    self.dfd = self.fs.open("/tmp/omega_rdi", self.rdonly);
+    transition self.dfd >= 0 { true -> readit() _ -> fail() }
+    state readit(&mut self) {
+        self.total = self.fs.read_dir(self.dfd, &mut self.buffer, self.cap, &mut self.position);
+        self.totalu = self.total as usize in Wrapping;
+        transition self.total > 0 { true -> walk() _ -> fail() }
+    }
+    state walk(&mut self) {
+        // dominating guard: cursor within the buffer so the header reads are
+        // provably in-bounds (discharges the static index-bounds obligation).
+        transition self.off < 480 { true -> walkbody() _ -> fail() }
+    }
+    state walkbody(&mut self) {
+        // d_reclen: little-endian u16 at record offset + 16 (RUNTIME-indexed read)
+        self.idx = self.off + 16;
+        self.lo = self.buffer[self.idx];
+        self.idx = self.off + 17;
+        self.hi = self.buffer[self.idx];
+        self.lou = self.lo as usize in Wrapping;
+        self.hiu = self.hi as usize in Wrapping;
+        self.reclen = (self.hiu << 8) | self.lou;
+        self.count = self.count + 1;
+        self.off = self.off + self.reclen;
+        transition self.off < self.totalu { true -> walk() _ -> done() }
+    }
+    state done(&mut self) {
+        self.n = self.fs.close(self.dfd);
+        self.n = self.fs.remove("/tmp/omega_rdi/alpha");
+        self.n = self.fs.remove("/tmp/omega_rdi/beta");
+        self.rc = self.fs.remove_dir("/tmp/omega_rdi");
+        // entries: ".", "..", "alpha", "beta" => 4
+        transition self.count == 4 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: read_dir iteration walked 4 entries (., .., alpha, beta) natively\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: read_dir iteration\n"); }
+}
