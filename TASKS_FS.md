@@ -234,9 +234,14 @@ crate tests; interpreter fs coverage) and commits.
      `Filesystem::last_error() -> ErrorKind` classifies the errno. Coverage
      `filesystem_std_module_error_kind` (open(missing) → Error → last_error() ==
      NotFound).
-   - FOLLOW-UPS (minor): map more errno codes (EACCES/ENOSPC/EISDIR/…) as the
-     surface grows; make the multi-syscall helpers capture the root-cause errno
-     (needs a post-first-op branch, i.e. threading the slice through a state).
+   - ERRNO CODES mapped so far: ENOENT→NotFound, EACCES→PermissionDenied,
+     EEXIST→AlreadyExists, EBADF→BadDescriptor, EISDIR→IsADirectory (the last set
+     in the interpreter when `open_with(write)` targets a directory; coverage
+     `filesystem_std_module_is_a_directory`). Add ENOTDIR/ENOTEMPTY/ENOSPC as
+     scenarios that produce them appear.
+   - FOLLOW-UP: make the multi-syscall helpers capture the root-cause errno
+     (needs a post-first-op branch, i.e. threading the slice through a state —
+     blocked on D-thread).
 10. [x] **Path-query helpers** — `exists(path) -> bool` (Rust `Path::exists`,
     open-probe) and `metadata_path(path) -> MetadataResult` (Rust `fs::metadata`,
     open+seek-end+close), the path-based counterparts to the fd-based ops. Pure
@@ -272,14 +277,28 @@ crate tests; interpreter fs coverage) and commits.
     follow-up (add a fixed-array-address + static-length arm to the write operand
     handler). The faithful copy (branch after read; write `buffer[0..n]`) lands
     once the interpreter threads slices through states.
-    - **D-thread (interpreter limitation, recorded).** A `&mut [u8]`/`&[u8]`
-      passed as a transition-target argument into a sibling state's param comes
-      through EMPTY/WRONG in the interpreter (scalars and `[copy]` structs thread
-      fine; slices do not). This forces the whole-file/copy helpers to run all
-      raw ops in one entry. Fixing it (make `eval_argument` alias the slice
-      descriptor into the state param, like it does for `&mut` struct refs) would
-      unblock faithful `copy`, root-cause errno in `write_all`/`read_all`, and
-      slice-passing to helper states generally.
+    - **D-thread (interpreter limitation — DIAGNOSTIC MAP from a full probing
+      pass).** Threading refs/slices as transition-target args into sibling state
+      params is INCONSISTENT in the interpreter — a fix must make these agree:
+        * scalars (`i64`/`usize`) and `[copy]` structs thread fine (any depth);
+        * `&mut [u8]` single-hop: `buf.len` ✓, `buf[i]` ✓, and `write(fd, buf)`
+          (whole, via `eval_name`'s one-level Ref deref) ✓ — wrote all 32 bytes;
+        * `buf[0..LITERAL]` subslice single-hop ✓ (no bounds guard needed);
+        * `buf[0..count]` subslice with a RUNTIME `count` needs a `count <=
+          buf.len` guard, which is a SECOND transition → a 2-hop forward, and a
+          2-hop threaded subslice comes through EMPTY (the real break);
+        * threading a shared `&[u8] in Path` (a domain slice) and/or a scalar
+          ALONGSIDE a slice into the same state can bind WRONG (observed a copy's
+          `set_len(fd, n)` receive 0 for a threaded `n`, and a threaded `dst`
+          path resolve empty) — arg/param positional binding for mixed
+          slice+scalar+path arg lists is suspect.
+      Net: faithful `copy` (branch after read → guard `count` → write
+      `buf[0..count]`) needs 2 hops + mixed args, both broken; the shipped
+      entry-only set_len-trick `copy` avoids all of it. Fix belongs in
+      `eval_argument`/`bind_frame`/`eval_subslice` (Ref forwarding + subslice
+      deref across ≥2 hops, and mixed-arg positional binding). Would unblock
+      faithful `copy`, root-cause errno in `write_all`/`read_all`, and general
+      slice-passing to helper states. Bounded interpreter work, but its own fire.
 13. [ ] **`read_dir`** (opendir/readdir) — directory iteration. Large (returns a
     growing sequence; needs an iterator/handle shape). Defer until an iteration
     idiom is settled.

@@ -1553,3 +1553,48 @@ machine Main::main(&mut self) {
         "copy must transfer exactly 14 bytes (truncated to n, not buffer cap) and match content"
     );
 }
+
+/// Opening a directory for writing is classified as `ErrorKind::IsADirectory`
+/// (Rust `io::ErrorKind::IsADirectory`, EISDIR). Create a dir, then `open_with`
+/// write on that path -> Error whose embedded kind is IsADirectory.
+#[test]
+fn filesystem_std_module_is_a_directory() {
+    let main_path = write_program(
+        "fs-isdir",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    open_result: OpenResult;
+    write_opts: OpenOptions;
+}
+machine Main::main(&mut self) {
+    self.write_opts = OpenOptions { read: false, write: true, append: false, truncate: false };
+    self.unit_result = self.fs.create_dir("/d");
+    transition self.unit_result { UnitResult::Ok -> openit() _ -> fail() }
+    state openit(&mut self) {
+        self.open_result = self.fs.open_with("/d", self.write_opts);
+        transition self.open_result { OpenResult::Error { kind } -> classify(kind) _ -> fail() }
+    }
+    state classify(&mut self, kind: ErrorKind) {
+        self.unit_result = self.fs.remove_dir("/d");
+        transition kind { ErrorKind::IsADirectory -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("is-a-directory program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "is_a_directory: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "open_with(write) on a directory must be Error with kind IsADirectory"
+    );
+}
