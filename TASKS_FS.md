@@ -799,6 +799,26 @@ crate tests; interpreter fs coverage) and commits.
       width + layout, in lockstep) — that is the only part that could push this past
       a single focused fire. This unblocks the ergonomic wrapper's `write_all`/`copy`
       and every forwarded-slice-literal call.
+    - **FIX LANDED — TRANSITION path (this fire).** The additive strategy is now in
+      `argument_materialization.rs::select_runtime_dispatch_argument_materialization`
+      (the transition-EDGE arg materializer, called from `edges.rs`): for a slice-
+      typed `StringLiteral` arg into a `slice_descriptor_size()` slot, resolve its
+      rodata data object (`string_literal_data_handle`) and emit ONE
+      `WriteRuntimeFrameString { byte_offset: slot.byte_offset, data, byte_length }`
+      — the full `{ptr, len}` descriptor. No new instruction kind was needed:
+      `WriteRuntimeFrameString` already existed (used by string local/field
+      initializers). VERIFIED: `native_forwarded_slice_literal` canary RUNS
+      (`transition … -> forward("hello")` then `write(fd, bytes)` → 5 bytes → PASS;
+      was 0 before). Additive + safe: instr-sel 10 / reloc 5 / isa-aarch64 31 crate
+      tests green, fs coverage 38, Console cli_mvp green, and native_crud/read_dir/
+      positioned_io/try_clone (heavy transition users) still PASS.
+    - **REMAINING — VALUE-CALL path.** A slice literal passed to a machine that
+      RETURNS a value (`self.n = self.put(fd, "hello")`, and the ergonomic
+      `fs.write_all("/f","hello")` which is a value call) materializes its args via a
+      DIFFERENT path (NOT `edges.rs`; value/inline-branching arg setup). The same
+      additive `WriteRuntimeFrameString` strategy must be added to that path too. The
+      `fwd_repro` (value-call `self.put`) still writes 0 until then. Find the value-
+      call/inline-branching argument materializer and apply the identical fix.
 15. [ ] **x86_64 / linux / windows seams** — see the reference below. Tables only;
     macOS is the only TESTED target now. Note: linux value-return needs the
     value-returning result-store wired into the `svc` syscall path (today only the
