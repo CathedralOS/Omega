@@ -624,32 +624,12 @@ machine Main::main(&mut self) {
 /// The raw `FilesystemHost` boundary (value-returning ints) + a Console for
 /// exit codes. Same surface the native backend lowers, so the interpreter is a
 /// faithful differential model of the on-disk syscalls.
+// The RAW `FilesystemHost` boundary + the `Path` domain come from the SINGLE
+// canonical std module (the same one the ergonomic wrapper imports) rather than
+// being re-declared inline here — so these interpreter tests exercise the exact
+// shipped boundary surface.
 const FS_PRELUDE: &str = r#"
-domain [u8]::Path when no_nul(self) {
-}
-
-boundary trait FilesystemHost {
-    machine create(path: &[u8] in Path, mode: i32) -> i32;
-    machine open(path: &[u8] in Path, flags: i32) -> i32;
-    machine read(fd: i32, buffer: &mut [u8], count: usize) -> i64;
-    machine write(fd: i32, bytes: &[u8]) -> i64;
-    machine close(fd: i32) -> i32;
-    machine remove(path: &[u8] in Path) -> i32;
-    machine seek(fd: i32, offset: i64, whence: i32) -> i64;
-    machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
-    machine remove_dir(path: &[u8] in Path) -> i32;
-    machine set_permissions(path: &[u8] in Path, mode: u32) -> i32;
-    machine set_file_permissions(fd: i32, mode: u32) -> i32;
-    machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
-    machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32;
-    machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> i32;
-    machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: usize) -> i64;
-    machine read_dir(fd: i32, buffer: &mut [u8], count: usize, position: &mut i64) -> i64;
-    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
-    machine set_len(fd: i32, length: i64) -> i32;
-    machine sync(fd: i32) -> i32;
-    machine errno() -> i32;
-}
+use omega::language::std::filesystem_host;
 
 boundary trait Console {
     machine exit_process(return_code: i32);

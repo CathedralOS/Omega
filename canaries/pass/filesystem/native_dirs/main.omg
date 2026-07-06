@@ -3,17 +3,7 @@
 // real), removes the file, then removes the directory. Prints PASS. NOT
 // registered in ACTIVE_PASS_CANARIES yet (canary_suite.rs is hot).
 
-domain [u8]::Path when no_nul(self) {
-}
-
-boundary trait FilesystemHost {
-    machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
-    machine remove_dir(path: &[u8] in Path) -> i32;
-    machine create(path: &[u8] in Path, mode: i32) -> i32;
-    machine write(fd: i32, bytes: &[u8]) -> i64;
-    machine close(fd: i32) -> i32;
-    machine remove(path: &[u8] in Path) -> i32;
-}
+use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

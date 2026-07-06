@@ -3,14 +3,7 @@
 // reports ENOENT (2). Proves the value-returning-with-pointer-deref host call
 // works end-to-end. Prints PASS iff errno == 2.
 
-domain [u8]::Path when no_nul(self) {
-}
-
-boundary trait FilesystemHost {
-    machine open(path: &[u8] in Path, flags: i32) -> i32;
-    machine write(fd: i32, bytes: &[u8]) -> i64;
-    machine errno() -> i32;
-}
+use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

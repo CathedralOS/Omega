@@ -9,18 +9,7 @@
 //   2. the backend marshalling `buffer[0..n]` as {base address, runtime length}.
 // Confirms the destination is exactly the 5 source bytes ("hello", first byte 'h').
 
-domain [u8]::Path when no_nul(self) {
-}
-
-boundary trait FilesystemHost {
-    machine create(path: &[u8] in Path, mode: i32) -> i32;
-    machine open(path: &[u8] in Path, flags: i32) -> i32;
-    machine read(fd: i32, buffer: &mut [u8], count: usize) -> i64;
-    machine write(fd: i32, bytes: &[u8]) -> i64;
-    machine close(fd: i32) -> i32;
-    machine seek(fd: i32, offset: i64, whence: i32) -> i64;
-    machine remove(path: &[u8] in Path) -> i32;
-}
+use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

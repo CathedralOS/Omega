@@ -4,17 +4,7 @@
 // (u64 @8), st_uid (u32 @16) and st_gid (u32 @20) decode from the real stat
 // record on macOS syscalls, and that inode identity behaves as POSIX specifies.
 
-domain [u8]::Path when no_nul(self) {
-}
-
-boundary trait FilesystemHost {
-    machine create(path: &[u8] in Path, mode: i32) -> i32;
-    machine write(fd: i32, bytes: &[u8]) -> i64;
-    machine close(fd: i32) -> i32;
-    machine remove(path: &[u8] in Path) -> i32;
-    machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32;
-    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
-}
+use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;

@@ -12,24 +12,7 @@
 //   8. remove both files + the directory
 // Prints PASS iff every step's rc/decoded field matches.
 
-domain [u8]::Path when no_nul(self) {
-}
-
-boundary trait FilesystemHost {
-    machine create(path: &[u8] in Path, mode: i32) -> i32;
-    machine open(path: &[u8] in Path, flags: i32) -> i32;
-    machine read(fd: i32, buffer: &mut [u8], count: usize) -> i64;
-    machine write(fd: i32, bytes: &[u8]) -> i64;
-    machine close(fd: i32) -> i32;
-    machine remove(path: &[u8] in Path) -> i32;
-    machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
-    machine remove_dir(path: &[u8] in Path) -> i32;
-    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
-    machine set_permissions(path: &[u8] in Path, mode: u32) -> i32;
-    machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32;
-    machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
-    machine lock_file(fd: i32, operation: i32) -> i32;
-}
+use omega::language::std::filesystem_host;
 
 data Main {
     fs: FilesystemHost;
