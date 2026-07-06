@@ -42,6 +42,19 @@ data UnitResult {
     case Ok;
 }
 
+// How to open an existing file (Rust `std::fs::OpenOptions`). A ZII-default
+// `OpenOptions` (all false) opens read-only. These flags cover EXISTING-file
+// opens (read / write / read+write / append / truncate); the creating flags
+// (`create`/`create_new` = O_CREAT/O_EXCL) need `open`'s variadic `mode`
+// argument, which is not yet marshalled on arm64 — use `create` for the common
+// create-and-truncate case until that lands (see TASKS_FS.md step 7-open).
+data OpenOptions [copy, zero_init] {
+    read: bool;
+    write: bool;
+    append: bool;
+    truncate: bool;
+}
+
 // File metadata (Rust `std::fs::Metadata`). `len` is the size in bytes; more
 // fields (permissions, times, kind) follow once `fstat` lands.
 data Metadata [copy, zero_init] {
@@ -91,6 +104,43 @@ machine Filesystem::create(&mut self, path: &[u8] in Path) -> OpenResult {
 machine Filesystem::open(&mut self, path: &[u8] in Path) -> OpenResult {
     self.read_flags = 0;
     let fd: i32 = self.host.open(path, self.read_flags);
+    transition fd >= 0 { true -> ok(fd) _ -> err() }
+    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(&mut self) -> OpenResult { OpenResult::Error }
+}
+
+// Open an existing file with explicit `OpenOptions` (Rust
+// `OpenOptions::open`). Composes the POSIX access mode + O_APPEND/O_TRUNC bits
+// from the option flags, then calls the raw `open`. Access mode: read+write
+// (or read+append) -> O_RDWR(2); write/append only -> O_WRONLY(1); otherwise
+// O_RDONLY(0). append -> O_APPEND(8); truncate -> O_TRUNC(1024). No O_CREAT:
+// opening a missing path fails (POSIX ENOENT), matching Rust without `.create`.
+// The flag math is BRANCH-FREE and purely bitwise: Omega's exact-arithmetic
+// proof obligation (decision 17) rejects `*`/`+` on `bool as i32` (it can't
+// prove the {0,1} range), but `&`/`|`/`^`/`<<` carry no overflow obligation.
+// `wbit` = writable (write OR append); access mode is the mutually-exclusive
+// O_WRONLY(1)/O_RDWR(2) pair selected by `read`, then O_APPEND(8)/O_TRUNC(1024)
+// OR'd in.
+machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult {
+    let wbit: i32 = (options.write as i32) | (options.append as i32);
+    let rbit: i32 = options.read as i32;
+    let wronly: i32 = wbit & (rbit ^ 1);
+    let rdwr: i32 = (wbit & rbit) << 1;
+    let append_flag: i32 = (options.append as i32) << 3;
+    let truncate_flag: i32 = (options.truncate as i32) << 10;
+    let flags: i32 = wronly | rdwr | append_flag | truncate_flag;
+    let fd: i32 = self.host.open(path, flags);
+    transition fd >= 0 { true -> ok(fd) _ -> err() }
+    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(&mut self) -> OpenResult { OpenResult::Error }
+}
+
+// Open an existing file for appending (Rust `OpenOptions::new().append(true)`).
+// Writes land at end-of-file; opening a missing path fails (no O_CREAT).
+// O_WRONLY(1) | O_APPEND(8) = 9.
+machine Filesystem::append(&mut self, path: &[u8] in Path) -> OpenResult {
+    let flags: i32 = 9;
+    let fd: i32 = self.host.open(path, flags);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
     state err(&mut self) -> OpenResult { OpenResult::Error }

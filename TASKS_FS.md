@@ -79,6 +79,22 @@ crate tests; interpreter fs coverage) and commits.
   tests), then layer the ergonomic `Filesystem` wrapper (Omega machines) on top,
   running on both engines. Remaining raw ops (fstat metadata struct, read_dir,
   fsync, set_len) are lower priority than the wrapper.
+- **D8. Flag math is BRANCH-FREE bitwise** (judgement call). Omega enforces exact
+  arithmetic as a proof obligation (decision 17): `*`/`+` on `bool as i32` is
+  REJECTED because the checker can't prove the operand is in {0,1}. `&`/`|`/`^`/
+  `<<` carry no overflow obligation, so `open_with` composes the POSIX open flags
+  purely bitwise (e.g. access mode = `(wbit & (rbit^1)) | ((wbit & rbit) << 1)`,
+  `O_APPEND = (append as i32) << 3`). This is the pattern to reuse for any future
+  flag/bitfield composition in the fs surface.
+- **D8-open. Deferred: variadic-mode `open` host call.** Full `OpenOptions`
+  (`.create`/`.create_new` = O_CREAT/O_EXCL) and a faithful `open(path, flags,
+  mode)` need the variadic `mode` argument marshalled on the STACK per AAPCS64
+  (arm64 passes variadic args on the stack; our host-call encoder passes args in
+  registers, so a register mode is dropped — the D4 finding). Building a
+  "one stack-passed trailing argument" path in the aarch64 host-call encoder is
+  the right unblock; it's bounded backend work but deeper than a single loop
+  fire, so deferred. Interim: `create` (→`_creat`, register mode) covers the
+  common create-and-truncate case.
 
 ## Current state (update every fire)
 
@@ -134,7 +150,20 @@ crate tests; interpreter fs coverage) and commits.
    (wrapper returns `UnitResult::Ok`, bytes intact). `sync_data`/`_fdatasync` not
    added (macOS has no `fdatasync`; Rust maps `sync_data`→`fsync`/F_FULLFSYNC there
    anyway — a later alias is trivial once an errno/fcntl story exists).
-7. [ ] **Error model** — negative raw return → typed Omega error `data` cases
+7. [x] **`OpenOptions`** (Rust `std::fs::OpenOptions`) — DONE for EXISTING-file
+   opens. `data OpenOptions [copy, zero_init] { read; write; append; truncate }`
+   + `Filesystem::open_with(path, options) -> OpenResult` compose the POSIX flags
+   (access mode O_RDONLY/O_WRONLY/O_RDWR + O_APPEND + O_TRUNC) and call the raw
+   `open`; plus `Filesystem::append(path)` convenience (O_WRONLY|O_APPEND). Pure
+   Omega, no new native op. Flag math is BRANCH-FREE bitwise (see D8). Coverage
+   `filesystem_std_module_open_options` (append grows 11→14, truncate empties to
+   0); native `native_open_rw` canary RUNS (O_RDWR read+write on one fd → PASS).
+   ⚠ CREATING opens (O_CREAT/O_EXCL: `.create`/`.create_new`) are NOT covered —
+   they need `open`'s VARIADIC `mode` argument marshalled on arm64 (stack-passed
+   per AAPCS64; today host-call args go in registers, so the mode is dropped —
+   the same D4 issue that routed `create`→`_creat`). Until a variadic-mode host
+   call lands, use `create` for the create-and-truncate case. See D8-open.
+8. [ ] **Error model** — negative raw return → typed Omega error `data` cases
    (Rust `io::ErrorKind`). Needs the `__error()` host call (pointer return +
    deref of errno) to distinguish ENOENT/EACCES/EEXIST/… . Medium.
 8. [ ] **Richer `Metadata`** via `fstat` — `st_size`/mode/times. Needs a
