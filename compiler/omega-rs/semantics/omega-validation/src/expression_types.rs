@@ -600,6 +600,12 @@ fn report_invalid_text_operator(
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
     use omega_typed_trees::expression::BinaryOperator;
+    // Everything except `+` (concat), `==`, and `!=` -- text has no defined
+    // arithmetic, bit, or ORDERING operators. Ordering in particular (`s < t`)
+    // otherwise reaches the backend as a 16-byte runtime compare it cannot encode,
+    // surfacing a cryptic "cannot load 16-byte runtime operands" error instead of a
+    // precise one. (Lexicographic text ordering is a possible future feature; until
+    // it exists, reject here rather than emit garbage or a confusing late error.)
     if !matches!(
         operator,
         BinaryOperator::Subtract
@@ -611,6 +617,10 @@ fn report_invalid_text_operator(
             | BinaryOperator::BitwiseAnd
             | BinaryOperator::BitwiseOr
             | BinaryOperator::BitwiseXor
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
     ) {
         return false;
     }
