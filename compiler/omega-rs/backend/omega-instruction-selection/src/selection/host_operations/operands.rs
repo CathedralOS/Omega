@@ -516,10 +516,17 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
-        (HostCapability::Filesystem, HostOperation::Chown | HostOperation::LChown) => {
+        (
+            HostCapability::Filesystem,
+            HostOperation::Chown | HostOperation::LChown | HostOperation::OpenCreate,
+        ) => {
             // Value-returning `rc = change_owner(path, uid, gid) -> _chown(path,
-            // uid, gid)` (and `_lchown`, no-symlink-follow). operand[0]=result,
-            // [1]=path POINTER (NUL-terminated C string), [2]=uid, [3]=gid.
+            // uid, gid)` (and `_lchown`), plus `fd = open_create(path, flags, mode)
+            // -> _open(path, flags, mode)` -- ALL `[result, path POINTER, scalar,
+            // scalar]`. `open_create` differs ONLY in the encoder: its trailing
+            // `mode` is marshalled on the STACK (variadic), keyed on
+            // `passes_trailing_mode_on_stack()`. operand[0]=result, [1]=path,
+            // [2]=uid/flags, [3]=gid/mode.
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
             let path = path_pointer_operand(input, host_call, dispatch_index, 1);
             let uid = scalar_argument_operand_at(input, host_call, dispatch_index, 2);

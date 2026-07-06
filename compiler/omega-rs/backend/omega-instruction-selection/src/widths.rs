@@ -33,7 +33,16 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
             // A deref-result op (errno) emits one extra `ldr w0,[x0]` (4 bytes)
             // between the BL and the result store; keep the layout width in
             // lockstep with the encoder + the data-address relocation offset.
-            base + if operation_key.dereferences_result() { 4 } else { 0 }
+            // A stack-mode op (`open_create`) brackets the call with `sub sp` +
+            // `str [sp]` + `add sp` = 12 bytes beyond counting the mode immediate
+            // as a register arg (same lockstep discipline).
+            let deref = if operation_key.dereferences_result() { 4 } else { 0 };
+            let stack_mode = if operation_key.passes_trailing_mode_on_stack() {
+                12
+            } else {
+                0
+            };
+            base + deref + stack_mode
         }
         Architecture::X86_64 => x86_64::host_call_sequence_width(operation_key, operands),
     }

@@ -1,0 +1,74 @@
+// NATIVE creating open — `open(path, flags, mode)` with O_CREAT (Rust
+// File::create_new / OpenOptions.create) on real macOS. This is the first host
+// call to marshal a VARIADIC argument (the create `mode`) on the STACK per the
+// Apple arm64 ABI (`sub sp,#16; str w,[sp]; bl _open; add sp,#16`). The scenario:
+//   1. open_create(O_RDWR|O_CREAT|O_EXCL = 2562, mode 0o600 = 384) -> a new fd
+//   2. write "hi", close
+//   3. a SECOND open_create with O_EXCL on the now-existing path -> -1, EEXIST(17)
+//   4. re-open + read back "hi" (the created file is real + usable)
+//   5. stat -> the create mode was applied (perm bits == 0o600)
+// Prints PASS iff all match. Proves the stack-marshalled variadic mode is correct.
+
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine open_create(path: &[u8] in Path, flags: i32, mode: i32) -> i32;
+    machine open(path: &[u8] in Path, flags: i32) -> i32;
+    machine read(fd: i32, buffer: &mut [u8], count: usize) -> i64;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
+    machine errno() -> i32;
+}
+
+data Main {
+    fs: FilesystemHost;
+    rdonly: i32;
+    cap: usize;
+    fd: i32;
+    rc: i32;
+    code: i32;
+    perm: i32;
+    first: u8;
+    discard: i32;
+    n: i64;
+    buffer: [u8; 144];
+}
+
+machine Main::main(&mut self) {
+    self.rdonly = 0;
+    self.cap = 144;
+    // 1. atomically create a NEW file (O_RDWR|O_CREAT|O_EXCL = 2562, mode 0o600)
+    self.fd = self.fs.open_create("/tmp/omega_ocr.txt", 2562, 384);
+    transition self.fd >= 0 { true -> wrote() _ -> fail() }
+    state wrote(&mut self) {
+        self.n = self.fs.write(self.fd, "hi");
+        self.discard = self.fs.close(self.fd);
+        // 2. a second create-new on the existing path -> EEXIST
+        self.fd = self.fs.open_create("/tmp/omega_ocr.txt", 2562, 384);
+        transition self.fd < 0 { true -> checkexist() _ -> fail() }
+    }
+    state checkexist(&mut self) {
+        self.code = self.fs.errno();
+        transition self.code == 17 { true -> readback() _ -> fail() }
+    }
+    state readback(&mut self) {
+        // 3. the created file is real + usable
+        self.fd = self.fs.open("/tmp/omega_ocr.txt", self.rdonly);
+        self.n = self.fs.read(self.fd, &mut self.buffer, self.cap);
+        self.first = self.buffer[0];
+        self.discard = self.fs.close(self.fd);
+        transition self.first == 104 { true -> checkmode() _ -> fail() }
+    }
+    state checkmode(&mut self) {
+        // 4. the create mode was applied: perm bits (st_mode & 0o777) == 0o600
+        self.rc = self.fs.read_metadata("/tmp/omega_ocr.txt", &mut self.buffer);
+        self.perm = ((self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8)) & 511;
+        self.discard = self.fs.remove("/tmp/omega_ocr.txt");
+        transition self.perm == 384 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: open_create O_CREAT|O_EXCL fd; EEXIST on second; mode 0o600 applied\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: native open_create\n"); }
+}
