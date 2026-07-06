@@ -974,14 +974,19 @@ exit.
   value resolution independently RE-FOLDS via `fold_binary_expression`. Fixing
   one fold layer is whack-a-mole; the type must ride ON the constant so it
   survives every layer (the metadata-on-`Expression::Integer` representation).
-  NEXT-SESSION PLAN (scoped 2026-07-04, NOT started — a focused session, not a
-  loop tick): change checked `Expression::Integer(i64)` →
-  `Integer(i64, Option<PrimitiveType>)` (signedness+width; `None` = the current
-  domain-neutral literal). Blast radius = 41 construct/match sites across
-  `omega-state-values` (bindings/folding/simplify), `omega-instruction-selection`
-  (guards, writes/static_values, writes/subslice_copy, storage_places/{expressions,
-  static_values}), and the checked-trees def — mostly mechanical (`Integer(v)` →
-  `Integer(v, _)` / `Integer(v, None)`). Then (a) POPULATE at substitution
+  ⚠️ SCOPE CORRECTED 2026-07-05 (attempted the Box-only scaffold, reverted clean): the "41
+  backend sites, Box `Expression::Integer`" estimate is TOO SMALL. Box `Expression::Integer`
+  (state-values folder) and TABLE `ExpressionNode::Integer` (arena form, what validation +
+  everyone else matches) are SEPARATE. instruction-selection re-materializes its Box exprs via
+  the CONTEXT-FREE `expressions.to_tree(handle)` straight from the TYPE-LESS TABLE (grep to_tree
+  in instruction-selection), so a Box-only stamp NEVER reaches its fold. The type must live on
+  the TABLE `ExpressionNode::Integer(i64)` → `Integer(i64, Option<PrimitiveType>)`, rippling to
+  the WHOLE typed-tree consumer base (validation's dozens of matches, lowering, interp, backend)
+  -- a major cross-compiler representation change, NOT backend-localized. `to_tree` is mechanical
+  so there is no single POPULATE site; stamp at typed→checked lowering from declared/context types.
+  NEXT-SESSION PLAN (scoped 2026-07-04, RE-SCOPE per above): change TABLE `ExpressionNode::Integer`
+  → carry `Option<PrimitiveType>`, mechanical (`Integer(v)` →
+  `Integer(v, _)` / `Integer(v, None)`) across the whole consumer base. Then (a) POPULATE at substitution
   (`simplify/bindings.rs` stamps the binding's declared `PrimitiveType` onto the
   folded value; checking stamps context type where a literal lands in a typed
   slot), and (b) READ in `fold_integer_math` — mask the result to the operand
