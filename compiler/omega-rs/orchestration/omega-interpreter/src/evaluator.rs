@@ -2941,6 +2941,12 @@ impl<'program> Evaluator<'program> {
             };
             put(4, (mode & 0xff) as u8);
             put(5, (mode >> 8) as u8);
+            // st_nlink (u16 @6): the hermetic FS models a fixed link count of 1 --
+            // it does not track hard-link groups (its `hard_link` copies bytes), so
+            // every path reports 1. Native `stat` returns the real count (2 after a
+            // `hard_link`); that case is asserted only in the native canary.
+            put(6, 1);
+            put(7, 0);
             for i in 0..8 {
                 put(32 + i, (VIRTUAL_ATIME_SECS >> (8 * i)) as u8); // st_atimespec.tv_sec
                 put(48 + i, (mtime_secs >> (8 * i)) as u8); // st_mtimespec.tv_sec

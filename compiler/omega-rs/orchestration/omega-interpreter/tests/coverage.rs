@@ -1350,6 +1350,51 @@ machine Main::main(&mut self) {
     );
 }
 
+/// `MetadataExt::nlink` via the std module (Rust `os::unix::fs::MetadataExt::nlink`):
+/// a fresh regular file reports a hard-link count of 1. (The hermetic FS models a
+/// fixed nlink of 1 -- its `hard_link` copies bytes rather than sharing an inode --
+/// so the 1 -> 2 increment after `hard_link` is asserted only in the native
+/// `native_metadata_nlink` canary.)
+#[test]
+fn filesystem_std_module_metadata_nlink() {
+    let main_path = write_program(
+        "fs-nlink",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+}
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("/nl.txt", "hi");
+    transition self.unit_result { UnitResult::Ok -> statit() _ -> fail() }
+    state statit(&mut self) {
+        self.meta_result = self.fs.metadata_path("/nl.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> checknlink(meta) _ -> fail() }
+    }
+    state checknlink(&mut self, meta: Metadata) {
+        self.unit_result = self.fs.remove("/nl.txt");
+        transition meta.nlink() == 1 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("nlink program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "nlink: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "a fresh regular file reports metadata().nlink() == 1"
+    );
+}
+
 /// `File::sync_all` via the std module: create → write → `sync` returns
 /// `UnitResult::Ok` → the file's bytes survive the flush (metadata().len still
 /// reports the written size). Exercises the shipped `Filesystem::sync` wrapper
