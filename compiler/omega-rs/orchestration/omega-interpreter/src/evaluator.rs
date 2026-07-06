@@ -28,6 +28,11 @@ const CONST_EVAL_STEP_BUDGET: u64 = 100_000;
 /// unsupported), never crash the differential harness.
 const CALL_DEPTH_BUDGET: u32 = 512;
 
+/// The modeled `st_mtime` (seconds since the Unix epoch) the hermetic virtual
+/// filesystem reports for every entry — it has no real clock. A recognizable
+/// round value (2001-09-09T01:46:40Z). Native `stat` returns the real time.
+const VIRTUAL_MTIME_SECS: i64 = 1_000_000_000;
+
 pub(crate) fn run(checked: &TypedTrees, stdin: &[u8]) -> InterpretOutcome {
     // Run on a worker thread with a generous stack: the tree-walker recurses with the
     // program's call/expression nesting, which can exceed the default test-thread stack on
@@ -2430,7 +2435,17 @@ impl<'program> Evaluator<'program> {
                 };
                 match meta {
                     Some((mode, size)) => {
-                        self.write_fs_stat(arguments.get(1).copied(), frame, mode, size);
+                        // The hermetic FS has no real clock, so every entry gets a
+                        // fixed modeled mtime (a plausible epoch); native `stat`
+                        // returns the real time. Tests assert exact == in the
+                        // interpreter and a lower bound natively.
+                        self.write_fs_stat(
+                            arguments.get(1).copied(),
+                            frame,
+                            mode,
+                            size,
+                            VIRTUAL_MTIME_SECS,
+                        );
                         0
                     }
                     None => {
@@ -2540,6 +2555,7 @@ impl<'program> Evaluator<'program> {
         frame: &Frame,
         mode: u16,
         size: i64,
+        mtime_secs: i64,
     ) {
         let Some(argument) = argument else {
             return;
@@ -2557,7 +2573,8 @@ impl<'program> Evaluator<'program> {
             put(4, (mode & 0xff) as u8);
             put(5, (mode >> 8) as u8);
             for i in 0..8 {
-                put(96 + i, (size >> (8 * i)) as u8);
+                put(48 + i, (mtime_secs >> (8 * i)) as u8); // st_mtimespec.tv_sec
+                put(96 + i, (size >> (8 * i)) as u8); // st_size
             }
         }
     }

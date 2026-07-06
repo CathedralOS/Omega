@@ -306,8 +306,15 @@ crate tests; interpreter fs coverage) and commits.
     `native_metadata_readonly` canary RUNS (chmod 0o444 → stat → write bit clear
     via runtime |,<<,& → PASS) AND coverage `filesystem_std_module_metadata_permissions`
     (fresh file is_file & writable; after chmod 0o444: readonly & permissions().mode
-    == 292). NEXT on this: `st_mtime` (i64 @48) → `modified()` (the seconds; the
-    interpreter would model a fixed mtime, so its differential test is loose).
+    == 292). `st_mtime` DONE: `Metadata` carries `modified_secs: i64` (whole
+    seconds since epoch, `st_mtimespec.tv_sec` @48) with `Metadata::modified()`
+    (Rust `Metadata::modified()`, which returns SystemTime — Omega returns the
+    seconds). The hermetic FS reports a FIXED modeled epoch (`VIRTUAL_MTIME_SECS`
+    = 1_000_000_000, it has no clock); native `stat` returns the real time.
+    DIFFERENTIAL split accordingly: coverage `filesystem_std_module_metadata_modified`
+    asserts `modified() == 1_000_000_000`, native `native_metadata_modified` canary
+    asserts `modified() > 1_000_000_000` (a real recent timestamp). `Metadata` is
+    now at good Rust parity: len/is_dir/is_file/readonly/permissions/modified.
     - **D-bitwise (backend feature, general).** The byte-assembly needs runtime
       `|` on aarch64, which the MVP encoder REJECTED (only logical `And`/`Or` and
       the shifts were wired; `BitwiseAnd`/`BitwiseOr`/`BitwiseXor` fell to the
