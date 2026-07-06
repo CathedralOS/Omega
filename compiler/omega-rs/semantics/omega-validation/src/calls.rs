@@ -1402,16 +1402,29 @@ fn validate_expression_call_bounds(
     call: &TableCallExpression,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // Extract receiver name-path members from the receiver expression.
-    // A self-call has no receiver (`call.receiver` is invalid) or an
-    // explicit `self` Name; an external-receiver call has a Name whose
-    // members name the receiver object.
-    let receiver_members: &[Identifier] = if !call.receiver.is_valid() {
-        &[]
+    // Resolve the receiver: is this a self-call, and if not, the name of the
+    // receiver object (field/local). A self-call has no receiver (`call.receiver`
+    // invalid) or an explicit `self`. A `Name`-path receiver names the object via
+    // its last member; a `Member` receiver (`self.host.method(..)`, where
+    // `self.host` is a member access, NOT a name path) names it via that member —
+    // WITHOUT this, a member receiver fell through as an empty path and the call
+    // was misrouted into the self-call branch (resolving to a same-named sibling
+    // state instead of the field's boundary/machine type).
+    let (call_is_self, external_receiver_name): (bool, Option<&str>) = if !call.receiver.is_valid()
+    {
+        (true, None)
     } else {
         match program.expression_table.expression(call.receiver) {
-            ExpressionNode::Name(path) => program.expression_table.name_path_members(path.members),
-            _ => &[],
+            ExpressionNode::Name(path) => {
+                let members = program.expression_table.name_path_members(path.members);
+                if members.is_empty() || matches!(members, [r] if r.as_str() == "self") {
+                    (true, None)
+                } else {
+                    (false, members.last().map(Identifier::as_str))
+                }
+            }
+            ExpressionNode::Member(member) => (false, Some(member.member.as_str())),
+            _ => (true, None),
         }
     };
 
@@ -1420,7 +1433,7 @@ fn validate_expression_call_bounds(
     // Self-call or `self`-prefixed call: the callee is a state of the
     // current machine, an attached-data sibling machine, or a free machine.
     // Mirrors the same three-way fallback in `validate_call_node`.
-    if receiver_members.is_empty() || matches!(receiver_members, [r] if r.as_str() == "self") {
+    if call_is_self {
         if let Some(callee_state) = machine_symbols.state(call.target.as_str()) {
             validate_machine_call_type_parameter_bounds(
                 program,
@@ -1514,10 +1527,7 @@ fn validate_expression_call_bounds(
         return;
     }
 
-    let receiver_name = receiver_members
-        .last()
-        .map(|m| m.as_str())
-        .unwrap_or_default();
+    let receiver_name = external_receiver_name.unwrap_or_default();
     let receiver_type = machine_symbols.contained_type(receiver_name);
 
     // External machine receiver.
