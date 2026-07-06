@@ -197,6 +197,42 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         }
     }
 
+    /// Reject `value in Type::Case` when the value's data type differs from `Type`.
+    /// `color in Direction::North` (for `color: Color`) lowers to a tag test against a
+    /// case of a DIFFERENT enum -- both `Color::Red` and `Direction::North` are tag 0,
+    /// so it spuriously reads TRUE -- the membership sibling of the cross-enum `==`
+    /// check in `try_lower_structural_equality`. Fires only when both `Type` and the
+    /// value's type are data definitions that DIFFER; a same-type case membership
+    /// (`c in Color::Red`, including the transition match-arm desugar) has equal names
+    /// and is untouched, and a declared-domain membership never reaches here.
+    pub(super) fn reject_cross_type_case_membership(
+        &self,
+        value: resolved::expression::ExpressionHandle,
+        domain: omega_core::arena::HandleSpan<resolved::name::DiagnosticName>,
+    ) -> Result<(), Diagnostic> {
+        let Some(program) = self.program else {
+            return Ok(());
+        };
+        let [type_name, case_name] = self.source.name_path_members(domain) else {
+            return Ok(());
+        };
+        let type_name = type_name.as_str();
+        let Some(value_type) = self.operand_data_type_name(value) else {
+            return Ok(());
+        };
+        if value_type != type_name
+            && data_definition_by_name(program, type_name).is_some()
+            && data_definition_by_name(program, &value_type).is_some()
+        {
+            return Err(Diagnostic::error(format!(
+                "cannot test whether a `{value_type}` value is `{type_name}::{}`: the case belongs \
+                 to `{type_name}`, not `{value_type}` (the operands are different data types)",
+                case_name.as_str()
+            )));
+        }
+        Ok(())
+    }
+
     /// The declared TYPE name of a classifier reference (`Direction::North` ->
     /// `Direction`): the FIRST segment of a multi-member, non-self name path. `None`
     /// for a value place, a bare local, or any non-classifier operand.
