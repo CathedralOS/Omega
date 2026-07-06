@@ -671,6 +671,50 @@ fn interpret_fs(name: &str, body: &str, expected_exit: i32, why: &str) {
     assert_eq!(outcome.exit_code, expected_exit, "{name}: {why}");
 }
 
+/// Subslice-domain grant (checker): `path[0..k]` (a subslice of a `no_nul` Path)
+/// flows into a `&[u8] in Path` argument -- the checker gate for `create_dir_all`
+/// and general path manipulation. Sound because `no_nul` is per-byte
+/// (subslice-closed); a `valid_utf8` subslice would still be rejected. Here mkdir
+/// the 5-byte prefix "/adir" of "/adir/x" via a runtime-`k` subslice, stat it back
+/// to confirm it exists, then remove it. (The subslice bounds are discharged by
+/// the dominating `k < path.len` guard.)
+#[test]
+fn filesystem_path_subslice_domain() {
+    interpret_fs(
+        "fs-path-subslice",
+        r#"
+data Main {
+    fs: FilesystemHost;
+    console: Console;
+    k: usize;
+    rc: i32;
+    ck: i32;
+    buffer: [u8; 144];
+}
+machine Main::main(&mut self) {
+    self.mk("/adir/x");
+}
+machine Main::mk(&mut self, path: &[u8] in Path) {
+    self.k = 5;
+    transition self.k < path.len { true -> makeit(path) _ -> fail() }
+    state makeit(&mut self, path: &[u8] in Path) {
+        self.rc = self.fs.create_dir(path[0..self.k], 493);
+        transition self.rc == 0 { true -> verify(path) _ -> fail() }
+    }
+    state verify(&mut self, path: &[u8] in Path) {
+        self.ck = self.fs.read_metadata(path[0..self.k], &mut self.buffer);
+        self.rc = self.fs.remove_dir(path[0..self.k]);
+        transition self.ck == 0 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+        70,
+        "mkdir + stat a Path subslice path[0..k] (subslice-domain grant)",
+    );
+}
+
 /// Full CRUD round-trip over the value-returning seam: create -> write 17B ->
 /// close -> open -> read (17) -> close -> remove. Exit 70 only if read returns
 /// exactly the 17 bytes written.
