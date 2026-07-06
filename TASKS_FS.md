@@ -130,10 +130,16 @@ crate tests; interpreter fs coverage) and commits.
    b. [x] **Ergonomic `Filesystem` wrapper RUNS** (Rust-like, interpreter). DONE.
       Value-returning machines (`create(path) -> OpenResult`, etc.) hide flags/
       mode/fd behind `File`/result enums (`OpenResult`/`IoResult`/`UnitResult` —
-      Rust `io::Result` → Omega `data` cases); Main touches only the clean API;
-      SAME human names on both layers. Fixed the D7 blocker (below).
-      `coverage.rs::filesystem_ergonomic_wrapper_crud` runs the full round-trip
-      (create/write/close/open/read(19)/remove → exit 70). 18/18 coverage green.
+      Rust `io::Result` → Omega `data` cases); SAME human names on both layers.
+      Fixed the D7 blocker (below).
+   c. [x] **Promoted to the REAL `omega/language/std/filesystem.omg`** — DONE.
+      The shipped std module IS the two-layer ergonomic design (Path domain,
+      `File`, result enums, `FilesystemHost` raw seam, `Filesystem` wrapper with
+      create/open/read/write/close/remove/create_dir/remove_dir/rename).
+      `coverage.rs::filesystem_std_module_ergonomic_crud` imports it via `use
+      omega::language::std::filesystem` and round-trips create/write/read(14)/
+      remove → exit 70. Retired the superseded old-design crud_roundtrip canary.
+      19/19 coverage green.
 4. **[deep, parallel] Native wrapper lowering** — forwarded-param → storage
    place; store enum through `&mut out`; const-folded-literal-arg fix. Then the
    ergonomic wrapper lowers natively too.

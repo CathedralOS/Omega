@@ -1,86 +1,139 @@
-// Filesystem surface exposed by the Omega standard library.
+// The Omega standard filesystem surface — a serious, ergonomic `std::fs` with
+// parity to Rust's `std::fs`, but Omega idioms rather than Rust ones:
+//   - paths are a BYTE DOMAIN (`&[u8] in Path`), not a language `String`;
+//   - results are bespoke `data` case enums, not `Result<T, E>` (an Err in Rust
+//     is usually a bespoke enum anyway — we skip the wrapper);
+//   - the open-file handle `File` is ZII: a zero-initialized handle is Closed;
+//   - HUMAN method names only — no legacy C abbreviations (creat/unlink/stat).
 //
-// The app-facing CRUD API over files, shaped like Rust's std::fs but with
-// Omega idioms rather than Rust ones:
-//   - paths are a BYTE DOMAIN, not a language `String` (Omega has no String
-//     keyword; text/paths are bytes refined by a domain);
-//   - results are BESPOKE SUM TYPES, not `Result<T, E>` (an Err in Rust is
-//     usually a bespoke enum anyway, so we skip the wrapper);
-//   - the open-file handle is ZII: a zero-initialized `File` is Closed.
-//
-// Like console.omg this is the friendly boundary. Its per-target lowering
-// (open/read/write/close via syscalls or libSystem imports) lives in the
-// calling-convention tables; native execution is wired separately
-// (see TASKS_FILESYSTEM.md, step 1e/2). Under `--check` the surface and its
-// callers type/flow-check without that backend wiring.
+// TWO LAYERS (= Rust's `std::fs` over `std::sys`):
+//   - `Filesystem` — the ergonomic capability users hold. Its machines hide
+//     flags/mode/fd behind `File` + the result enums.
+//   - `FilesystemHost` — the raw, VALUE-RETURNING per-OS boundary (each op
+//     returns its syscall result: fd / byte count / rc, negative on error). Its
+//     per-target lowering (libSystem imports on darwin, syscalls on linux,
+//     kernel32 on windows) lives in the calling-convention tables. The wrapper
+//     is written ONCE and portable; each OS supplies only the raw seam.
 
-// A filesystem path: NUL-free bytes. This is the real POSIX invariant -- a C
-// path string is NUL-terminated, so its content cannot contain an interior
-// 0x00. Deliberately NOT `Utf8`: POSIX paths are arbitrary (nul-free) bytes,
-// and Windows re-encodes to UTF-16 at the boundary. `no_nul` is a
-// compiler-recognized byte predicate, so this domain checks today.
+// A filesystem path: NUL-free bytes (the POSIX C-string invariant). Deliberately
+// not `Utf8`: POSIX paths are arbitrary nul-free bytes; Windows re-encodes at
+// the boundary. `no_nul` is a compiler-recognized byte predicate.
 domain [u8]::Path when no_nul(self) {
 }
 
-// An open file handle. ZII: the zero value is Closed. The standard streams
-// (fd 0/1/2) are never minted as `File` handles, so a zeroed `fd` is a safe
-// "not open" sentinel. `[copy]` so a handle passes by value into read/write/
-// close without a move.
+// An open file handle. ZII: a zero-initialized `File` is Closed. `[copy]` lets
+// it pass by value into read/write/close.
 data File [copy, zero_init] {
     fd: i32;
 }
 
-// ---- CRUD outcomes ---------------------------------------------------------
-//
-// Each outcome's FIRST case is the ZII zero case and means FAILURE, so an
-// untouched (zero-initialized) outcome reads as failure -- never as a spurious
-// success. The success case carries its payload. This pair is the bespoke
-// stand-in for Rust's `Result<T, E>`: the zero case is `Err`, the payload case
-// is `Ok(T)`. Error detail (an errno-style enum in the `Failed` payload) is a
-// deliberate follow-up; the first cut keeps `Failed` payload-free so it stays
-// the clean zero case.
-
-// `create` / `open_read`
-data OpenOutcome {
-    case Failed;
-    case Opened(file: File);
+// Bespoke result enums (Rust's `io::Result<T>`). First case = the ZII zero case
+// = the error, so an untouched result reads as failure, never spurious success.
+data OpenResult {
+    case Error;
+    case Ok(file: File);
+}
+data IoResult {
+    case Error;
+    case Ok(count: usize);
+}
+data UnitResult {
+    case Error;
+    case Ok;
 }
 
-// `read`. `Read(0)` is end-of-file (a clean zero-byte read), distinct from
-// `Failed` (an error).
-data ReadOutcome {
-    case Failed;
-    case Read(count: usize);
+// The RAW, VALUE-RETURNING per-OS boundary. Human names; the ugly libc spellings
+// (_creat/_unlink/_lseek) live only in the per-target binding table.
+boundary trait FilesystemHost {
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine open(path: &[u8] in Path, flags: i32) -> i32;
+    machine read(fd: i32, buffer: &mut [u8], count: usize) -> i64;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine seek(fd: i32, offset: i64, whence: i32) -> i64;
+    machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
+    machine remove_dir(path: &[u8] in Path) -> i32;
+    machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
 }
 
-// `write`
-data WriteOutcome {
-    case Failed;
-    case Wrote(count: usize);
+// The ergonomic capability. Holds the raw host plus the portable flag/mode
+// constants it applies (staged in fields).
+data Filesystem {
+    host: FilesystemHost;
+    create_mode: i32;
+    dir_mode: i32;
+    read_flags: i32;
 }
 
-// `remove`
-data RemoveOutcome {
-    case Failed;
-    case Removed;
+// Create (or truncate) a file for writing, returning an open `File`.
+machine Filesystem::create(&mut self, path: &[u8] in Path) -> OpenResult {
+    self.create_mode = 420;
+    let fd: i32 = self.host.create(path, self.create_mode);
+    transition fd >= 0 { true -> ok(fd) _ -> err() }
+    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(&mut self) -> OpenResult { OpenResult::Error }
 }
 
-// The app-facing filesystem boundary. Mirrors `boundary trait Console`: the
-// caller holds a `Filesystem` field and calls these as `self.fs.create(...)`.
-boundary trait Filesystem {
-    // CREATE: open for writing, creating the file (truncating if it exists).
-    machine create(path: &[u8] in Path, out: &mut OpenOutcome);
+// Open an existing file for reading.
+machine Filesystem::open(&mut self, path: &[u8] in Path) -> OpenResult {
+    self.read_flags = 0;
+    let fd: i32 = self.host.open(path, self.read_flags);
+    transition fd >= 0 { true -> ok(fd) _ -> err() }
+    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(&mut self) -> OpenResult { OpenResult::Error }
+}
 
-    // READ: open an existing file for reading.
-    machine open_read(path: &[u8] in Path, out: &mut OpenOutcome);
-    machine read(file: File, buffer: &mut [u8], out: &mut ReadOutcome);
+// Read up to `count` bytes into `buffer`; returns the number read (0 = EOF).
+machine Filesystem::read(&mut self, file: File, buffer: &mut [u8], count: usize) -> IoResult {
+    let n: i64 = self.host.read(file.fd, buffer, count);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state err(&mut self) -> IoResult { IoResult::Error }
+}
 
-    // UPDATE: write bytes to an open (writable) file.
-    machine write(file: File, bytes: &[u8], out: &mut WriteOutcome);
+// Write `bytes`; returns the number written.
+machine Filesystem::write(&mut self, file: File, bytes: &[u8]) -> IoResult {
+    let n: i64 = self.host.write(file.fd, bytes);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state err(&mut self) -> IoResult { IoResult::Error }
+}
 
-    // Release an open handle.
-    machine close(file: File);
+// Close a file handle, returning the raw rc (0 on success).
+machine Filesystem::close(&mut self, file: File) -> i32 {
+    self.host.close(file.fd)
+}
 
-    // DELETE: remove a path from the filesystem.
-    machine remove(path: &[u8] in Path, out: &mut RemoveOutcome);
+// Remove a file.
+machine Filesystem::remove(&mut self, path: &[u8] in Path) -> UnitResult {
+    let rc: i32 = self.host.remove(path);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { UnitResult::Error }
+}
+
+// Create a directory.
+machine Filesystem::create_dir(&mut self, path: &[u8] in Path) -> UnitResult {
+    self.dir_mode = 493;
+    let rc: i32 = self.host.create_dir(path, self.dir_mode);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { UnitResult::Error }
+}
+
+// Remove an empty directory.
+machine Filesystem::remove_dir(&mut self, path: &[u8] in Path) -> UnitResult {
+    let rc: i32 = self.host.remove_dir(path);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { UnitResult::Error }
+}
+
+// Move/rename a path.
+machine Filesystem::rename(&mut self, from: &[u8] in Path, to: &[u8] in Path) -> UnitResult {
+    let rc: i32 = self.host.rename(from, to);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { UnitResult::Error }
 }
