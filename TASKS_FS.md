@@ -43,6 +43,16 @@ crate tests; interpreter fs coverage) and commits.
   value-returning raw ops that DO lower natively (seek/stat/mkdir/…) and exercise
   them with run-verified canaries. The ergonomic wrapper already runs in the
   interpreter; native wrapper lowering is a separate track.
+- **D6. Raw-seam file-op breadth is now essentially COMPLETE** (create/open/read/
+  write/close/remove/seek/create_dir/remove_dir/rename + append via flags). The
+  highest-value remaining work is the **ergonomic wrapper** (the "serious,
+  easy-to-use" std::fs — `File`/`Path`/result enums, no flags/fd leaking). Since
+  native wrapper lowering is blocked (forwarded-param), pursue it INTERPRETER-
+  FIRST: unify the interpreter onto the value-returning `FilesystemHost` raw seam
+  (it currently handles an OLD out-param `Filesystem` shape in the coverage
+  tests), then layer the ergonomic `Filesystem` wrapper (Omega machines) on top,
+  running on both engines. Remaining raw ops (fstat metadata struct, read_dir,
+  fsync, set_len) are lower priority than the wrapper.
 
 ## Current state (update every fire)
 
@@ -65,6 +75,10 @@ crate tests; interpreter fs coverage) and commits.
   RUNS: create A + write + rename A→B + read B back (16 bytes) → PASS.
 - Native raw ops now: create/open/read/write/close/remove/seek/create_dir/
   remove_dir/rename — all run-verified on macOS.
+- **Append verified** (`canaries/pass/filesystem/native_append`): `open` with
+  `O_WRONLY|O_APPEND` (0x9) appends; file grows 3→6 bytes. No new op — proves
+  `open` handles arbitrary write flags (Rust `OpenOptions` parity). File-size is
+  already available via `seek(fd,0,SEEK_END)` (Rust `metadata().len()`).
 - aarch64 value-returning host calls implemented (the foundational primitive).
 - Runtime slice/path host-call args implemented.
 - Ergonomic wrapper runs in the INTERPRETER; lowering it natively is a separate
@@ -74,16 +88,26 @@ crate tests; interpreter fs coverage) and commits.
 
 1. [x] **Rename raw ops to human words** — DONE (create/open/read/write/close/
    remove; `find_lowering_prefer_exact` compiler feature; canaries updated + run).
-2. **Raw-seam Rust-parity breadth (native, run-verified)** — the steady track
-   (D5). Done: `seek`, `create_dir`, `remove_dir`, `rename`. Next candidates:
-   - append mode: `open` already takes `flags`; O_APPEND=0x8 on darwin (needs
-     O_WRONLY|O_APPEND=0x9). No new raw op — a canary that opens an existing file
-     with 0x9 and appends, verifying the file grows. Quick, safe.
-   - `metadata`/`stat`: `_fstat(fd, &stat_buf)` writes a `struct stat`; read
-     `st_size` (darwin arm64 offset **96**, `off_t`/i64). Needs a stat-buffer
-     out-param + a struct-field read. Heavier.
-   - `File::sync`/`fsync`, `set_len`/`ftruncate`, `read_dir` (opendir/readdir —
-     complex, defer). Check Rust `library/std/src/fs.rs` + `sys/pal/unix/fs.rs`.
+2. [x] **Raw-seam Rust-parity file-op breadth** — DONE (D6): create/open/read/
+   write/close/remove/seek/create_dir/remove_dir/rename + append. File-size via
+   seek. Further raw ops (fstat-metadata, read_dir, fsync, set_len) deferred
+   below the wrapper.
+3. **[NOW THE PRIORITY] Ergonomic wrapper, interpreter-first** (D6):
+   a. Unify the interpreter onto the value-returning `FilesystemHost` raw seam —
+      update `evaluator.rs::try_filesystem_call` to the value-returning ops
+      (create/open/read/write/close/remove/seek/create_dir/remove_dir/rename
+      returning ints against the in-memory FS), matching native. Update the
+      interpreter coverage programs to the `FilesystemHost` shape.
+   b. Layer the ergonomic `Filesystem` wrapper (Omega machines: File/Path/result
+      enums, hidden flags/mode) in `omega/language/std/filesystem.omg`; run it in
+      the interpreter; add coverage exercising the clean API.
+4. **[deep, parallel] Native wrapper lowering** — forwarded-param → storage
+   place; store enum through `&mut out`; const-folded-literal-arg fix. Then the
+   ergonomic wrapper lowers natively too.
+5. Error model: errno → bespoke Omega error `data` cases (negative raw returns).
+6. Remaining raw ops (native canaries): `fstat` metadata struct (st_size at
+   darwin arm64 off 96), `set_len`/`ftruncate`, `fsync`, `read_dir`.
+7. x86_64/linux/windows seams (tables only; not tested here).
 3. **[deep, parallel] Forwarded-param → storage-place resolution** so wrapper
    machines that pass a `&[u8]` param to the boundary lower natively; then store
    enum result through a wrapper `&mut out`; const-folded-literal-arg fix. Unlocks
