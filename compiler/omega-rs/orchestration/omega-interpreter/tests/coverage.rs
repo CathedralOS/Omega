@@ -1490,3 +1490,66 @@ machine Main::main(&mut self) {
         "exists: false->true->false around write/remove; metadata_path.len == 12"
     );
 }
+
+/// `copy` (Rust `std::fs::copy`) via the std module: write 13 bytes to a source,
+/// copy it to a destination, then read the destination back and confirm both the
+/// byte COUNT (13, not the buffer capacity 64) and the first byte match. Also
+/// exercises the new `eval_fs_bytes` byte-array path (the copy writes a buffer,
+/// not a string literal).
+#[test]
+fn filesystem_std_module_copy() {
+    let main_path = write_program(
+        "fs-copy",
+        r#"
+use omega::language::std::filesystem;
+use omega::language::std::console;
+
+data Main {
+    fs: Filesystem;
+    console: Console;
+    unit_result: UnitResult;
+    io_result: IoResult;
+    cap: usize;
+    first: u8;
+    buffer: [u8; 64];
+    verify: [u8; 64];
+}
+machine Main::main(&mut self) {
+    self.cap = 64;
+    self.unit_result = self.fs.write_all("/src.txt", "copy me please");
+    transition self.unit_result { UnitResult::Ok -> docopy() _ -> fail() }
+    state docopy(&mut self) {
+        self.io_result = self.fs.copy("/src.txt", "/dst.txt", &mut self.buffer, self.cap);
+        transition self.io_result { IoResult::Ok { count } -> checkcount(count) _ -> fail() }
+    }
+    state checkcount(&mut self, count: usize) {
+        // 14 bytes ("copy me please"), NOT the 64-byte buffer capacity.
+        transition count == 14 { true -> readback() _ -> fail() }
+    }
+    state readback(&mut self) {
+        self.io_result = self.fs.read_all("/dst.txt", &mut self.verify, self.cap);
+        transition self.io_result { IoResult::Ok { count } -> checklen(count) _ -> fail() }
+    }
+    state checklen(&mut self, count: usize) {
+        transition count == 14 { true -> checkbyte() _ -> fail() }
+    }
+    state checkbyte(&mut self) {
+        self.first = self.verify[0];
+        self.unit_result = self.fs.remove("/src.txt");
+        self.unit_result = self.fs.remove("/dst.txt");
+        transition self.first == 99 { true -> ok() _ -> fail() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state fail(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("copy program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "copy: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "copy must transfer exactly 14 bytes (truncated to n, not buffer cap) and match content"
+    );
+}
