@@ -244,6 +244,31 @@ crate tests; interpreter fs coverage) and commits.
   LOCK_EX → EWOULDBLOCK → release → reacquire); wrapper `lock`/`try_lock`(→
   `TryLockResult`)/`unlock` in coverage `filesystem_std_module_locking`. Reused the
   `SetLen` fd+scalar operand arm (zero new backend). fs coverage 40.
+- **`fs::copy` now PERMISSION-PRESERVING** (step 12) — stats the source, carries
+  its mode to the dest via chmod (Rust parity). `native_copy_preserve` canary PASS
+  (byte-exact + mode-exact); coverage upgraded. fs coverage 44.
+- **⚠ ASSESSMENT (2026-07-06): the clean-increment vein is EXHAUSTED.** The fs
+  surface is very complete (raw seam ~31 ops incl. creating-opens; full FileType/
+  MetadataExt parity; error model; ergonomic wrapper; integration samples). EVERY
+  remaining item is blocked on DEEP COMPILER work, not fs plumbing — none is a safe
+  unattended-loop increment; each needs a dedicated session:
+    1. **Native `read_dir` iteration / `create_dir_all` / `remove_dir_all`** —
+       blocked on the runtime-indexed-read register bug (step 13, fix 3b: the
+       encoder uses callee-saved x19/x20/x26 as scratch → clobbers loop-carried
+       values; a register-allocation-coordination fix). This ALSO gates all 146
+       canary_suite failures. Fix 3a (relocation offset) is SOLVED + recorded.
+    2. **`create_dir_all` path-prefix subslicing** ALSO needs TWO checker-proof
+       features (verified this fire by probe): (a) DOMAIN PROPAGATION — a subslice
+       of a `no_nul` (subslice-closed) domain is still `no_nul`, currently
+       "cannot prove `path[0..k] in Path`"; (b) SUBSLICE BOUNDS vs an UNKNOWN-length
+       slice param, currently "cannot prove `0..k` within unknown slice length".
+    3. **Native ergonomic wrapper lowering** — forwarded-param resolution (D5/step
+       14), deep backend.
+    4. **x86_64 / linux / windows seams** — structurally staged, UNTESTABLE here.
+  The loop stays scheduled (none of these is a "user-only design decision" per the
+  unschedule criteria), but the highest-leverage next move is a DEDICATED fire on
+  fix 3b (unblocks read_dir + fixes 146 canaries) rather than more incremental
+  surface work.
 - **NATIVE variadic-mode `open` DONE** (10t) — `open_create` lowers + RUNS on
   aarch64 (D8-open, the #1 parity gap, CLOSED). First host call to marshal a
   variadic arg on the STACK (`sub sp; str [sp]; bl; add sp`); a new
@@ -833,8 +858,15 @@ crate tests; interpreter fs coverage) and commits.
     encoder. The raw seam now does native creating-opens; the ergonomic
     `Filesystem::create_new`/`open_with(create)` wrappers still run interpreter-only
     until native WRAPPER lowering lands (D5, separate track).
-12. [x] **`copy(from, to)`** (Rust `fs::copy`) — DONE (interpreter). Enabled by a
-    small interpreter fix: `eval_fs_bytes` now accepts a `Value::Array` (a byte
+12. [x] **`copy(from, to)`** (Rust `fs::copy`) — DONE (interpreter), now PERMISSION-
+    PRESERVING (Rust `fs::copy` copies the source mode). `Filesystem::copy` stats
+    the source after the byte copy, decodes its permission bits (`st_mode & 0o777`),
+    and `chmod`s the destination. Coverage `filesystem_std_module_copy` upgraded
+    (chmod src 0o640 → copy → assert dst `(mode & 511) == 416`). NATIVE
+    `native_copy_preserve` canary RUNS on real macOS — combines the runtime-subslice
+    write (fire 20, faithful byte copy `buffer[0..n]`) with stat-decode + chmod:
+    dst is byte-exact (11) AND mode-exact (0o640). fs coverage 44. Original impl:
+    Enabled by a small interpreter fix: `eval_fs_bytes` now accepts a `Value::Array` (a byte
     array or a subslice view) as a host-call byte arg — the write-side mirror of
     `write_fs_buffer`'s `Array` arm — so a buffer can be written, not just a
     string literal. `Filesystem::copy(from, to, buffer, cap) -> IoResult` uses the
