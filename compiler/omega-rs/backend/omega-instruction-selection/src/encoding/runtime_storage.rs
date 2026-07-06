@@ -1002,11 +1002,10 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => {
-            // aarch64 hardcodes a frame-resident index (pre-existing); the
-            // index_region is consumed only by the x86_64 encoder for now.
             aarch64::encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
                 base_byte_offset,
                 index_offset,
+                index_region,
                 element_byte_size,
                 field_byte_offset,
                 target_offset,

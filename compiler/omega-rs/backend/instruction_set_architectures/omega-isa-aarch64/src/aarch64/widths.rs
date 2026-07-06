@@ -629,10 +629,19 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_o
 
 pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    28 + add_constant_width(base_byte_offset)
+    // Target adrp lands after the index-address setup (12) + `add x16,#base` +
+    // index LOAD (Machine 4 / RuntimeFrame 12) + scale + `add x16,x16,x26` (4) +
+    // `add x16,#field`. MUST match the region-aware `..._width` / the encoder.
+    let index_load = match index_region {
+        omega_target_operations::RuntimeStorageRegion::Machine => 4,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => 12,
+    };
+    16 + index_load
+        + add_constant_width(base_byte_offset)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
 }
@@ -827,12 +836,21 @@ pub fn runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width(
 
 pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
     byte_count: usize,
 ) -> usize {
-    32 + add_constant_width(base_byte_offset)
+    // Fixed part = index-address setup (adrp+add+mov = 12) + the index LOAD +
+    // `add x16,x16,x26` (4) + the target-region adrp+add (8). The index load is
+    // region-dependent (Machine 4 / RuntimeFrame 12); MUST match the encoder.
+    let index_load = match index_region {
+        omega_target_operations::RuntimeStorageRegion::Machine => 4,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => 12,
+    };
+    24 + index_load
+        + add_constant_width(base_byte_offset)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
         + add_constant_width(target_offset)
