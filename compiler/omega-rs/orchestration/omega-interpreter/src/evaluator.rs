@@ -44,6 +44,12 @@ const VIRTUAL_CTIME_SECS: i64 = 1_000_000_050;
 /// device; tests assert this constant in the interpreter and only that two files
 /// on the same FS share a device natively.
 const VIRTUAL_DEV: u64 = 16_777_220;
+/// Allocation fields (`st_blocks` = 512-byte block count, `st_blksize` = preferred
+/// I/O block size): the hermetic FS reports fixed modeled values. Native `stat`
+/// returns the real allocation; tests assert these constants in the interpreter and
+/// only `blksize > 0` natively (it is filesystem-dependent).
+const VIRTUAL_BLOCKS: u64 = 8;
+const VIRTUAL_BLKSIZE: u64 = 4096;
 /// The hermetic FS reports FIXED identity/ownership fields (`st_ino`/`st_uid`/
 /// `st_gid`): it has no real inodes or process identity. Native `stat` returns the
 /// real values; tests assert these exact constants in the interpreter and only the
@@ -2970,11 +2976,13 @@ impl<'program> Evaluator<'program> {
                 put(64 + i, (VIRTUAL_CTIME_SECS >> (8 * i)) as u8); // st_ctimespec.tv_sec
                 put(80 + i, (VIRTUAL_BIRTHTIME_SECS >> (8 * i)) as u8); // st_birthtimespec.tv_sec
                 put(96 + i, (size >> (8 * i)) as u8); // st_size
+                put(104 + i, (VIRTUAL_BLOCKS >> (8 * i)) as u8); // st_blocks (i64)
             }
             for i in 0..4 {
                 put(i, (VIRTUAL_DEV >> (8 * i)) as u8); // st_dev (i32 @0)
                 put(16 + i, (VIRTUAL_UID >> (8 * i)) as u8); // st_uid (u32)
                 put(20 + i, (VIRTUAL_GID >> (8 * i)) as u8); // st_gid (u32)
+                put(112 + i, (VIRTUAL_BLKSIZE >> (8 * i)) as u8); // st_blksize (i32)
             }
         }
     }

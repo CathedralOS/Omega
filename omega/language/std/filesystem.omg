@@ -118,6 +118,8 @@ data Metadata [copy, zero_init] {
     dev: u64;
     uid: u32;
     gid: u32;
+    blocks: u64;
+    blksize: u64;
     modified_secs: i64;
     accessed_secs: i64;
     created_secs: i64;
@@ -176,6 +178,18 @@ machine Metadata::uid(&self) -> u32 {
 // Rust `os::unix::fs::MetadataExt::gid()` — the owning group id (`st_gid`).
 machine Metadata::gid(&self) -> u32 {
     self.gid
+}
+
+// Rust `os::unix::fs::MetadataExt::blocks()` — the number of 512-byte blocks
+// allocated to the file (`st_blocks`); may be less than `len`/512 for a sparse file.
+machine Metadata::blocks(&self) -> u64 {
+    self.blocks
+}
+
+// Rust `os::unix::fs::MetadataExt::blksize()` — the filesystem's preferred I/O
+// block size (`st_blksize`), e.g. 4096.
+machine Metadata::blksize(&self) -> u64 {
+    self.blksize
 }
 
 // Rust `Metadata::modified()` — the last-modification time. Rust returns a
@@ -516,6 +530,18 @@ machine Filesystem::metadata_path(&mut self, path: &[u8] in Path) -> MetadataRes
             | ((self.stat_buf[69] as i64) << 40)
             | ((self.stat_buf[70] as i64) << 48)
             | ((self.stat_buf[71] as i64) << 56);
+        let blocks: u64 = (self.stat_buf[104] as u64)
+            | ((self.stat_buf[105] as u64) << 8)
+            | ((self.stat_buf[106] as u64) << 16)
+            | ((self.stat_buf[107] as u64) << 24)
+            | ((self.stat_buf[108] as u64) << 32)
+            | ((self.stat_buf[109] as u64) << 40)
+            | ((self.stat_buf[110] as u64) << 48)
+            | ((self.stat_buf[111] as u64) << 56);
+        let blksize: u64 = (self.stat_buf[112] as u64)
+            | ((self.stat_buf[113] as u64) << 8)
+            | ((self.stat_buf[114] as u64) << 16)
+            | ((self.stat_buf[115] as u64) << 24);
         let is_dir: bool = (mode & 61440) == 16384;
         let mtime: i64 = (self.stat_buf[48] as i64)
             | ((self.stat_buf[49] as i64) << 8)
@@ -541,7 +567,7 @@ machine Filesystem::metadata_path(&mut self, path: &[u8] in Path) -> MetadataRes
             | ((self.stat_buf[85] as i64) << 40)
             | ((self.stat_buf[86] as i64) << 48)
             | ((self.stat_buf[87] as i64) << 56);
-        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: false, mode: mode as u32, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime } }
+        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: false, mode: mode as u32, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime } }
     }
     state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
 }
@@ -592,6 +618,18 @@ machine Filesystem::symlink_metadata(&mut self, path: &[u8] in Path) -> Metadata
             | ((self.stat_buf[69] as i64) << 40)
             | ((self.stat_buf[70] as i64) << 48)
             | ((self.stat_buf[71] as i64) << 56);
+        let blocks: u64 = (self.stat_buf[104] as u64)
+            | ((self.stat_buf[105] as u64) << 8)
+            | ((self.stat_buf[106] as u64) << 16)
+            | ((self.stat_buf[107] as u64) << 24)
+            | ((self.stat_buf[108] as u64) << 32)
+            | ((self.stat_buf[109] as u64) << 40)
+            | ((self.stat_buf[110] as u64) << 48)
+            | ((self.stat_buf[111] as u64) << 56);
+        let blksize: u64 = (self.stat_buf[112] as u64)
+            | ((self.stat_buf[113] as u64) << 8)
+            | ((self.stat_buf[114] as u64) << 16)
+            | ((self.stat_buf[115] as u64) << 24);
         let is_dir: bool = (mode & 61440) == 16384;
         let is_symlink: bool = (mode & 61440) == 40960;
         let mtime: i64 = (self.stat_buf[48] as i64)
@@ -618,7 +656,7 @@ machine Filesystem::symlink_metadata(&mut self, path: &[u8] in Path) -> Metadata
             | ((self.stat_buf[85] as i64) << 40)
             | ((self.stat_buf[86] as i64) << 48)
             | ((self.stat_buf[87] as i64) << 56);
-        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: is_symlink, mode: mode as u32, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime } }
+        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: is_symlink, mode: mode as u32, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime } }
     }
     state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
 }
@@ -857,6 +895,18 @@ machine Filesystem::metadata(&mut self, file: File) -> MetadataResult {
             | ((self.stat_buf[69] as i64) << 40)
             | ((self.stat_buf[70] as i64) << 48)
             | ((self.stat_buf[71] as i64) << 56);
+        let blocks: u64 = (self.stat_buf[104] as u64)
+            | ((self.stat_buf[105] as u64) << 8)
+            | ((self.stat_buf[106] as u64) << 16)
+            | ((self.stat_buf[107] as u64) << 24)
+            | ((self.stat_buf[108] as u64) << 32)
+            | ((self.stat_buf[109] as u64) << 40)
+            | ((self.stat_buf[110] as u64) << 48)
+            | ((self.stat_buf[111] as u64) << 56);
+        let blksize: u64 = (self.stat_buf[112] as u64)
+            | ((self.stat_buf[113] as u64) << 8)
+            | ((self.stat_buf[114] as u64) << 16)
+            | ((self.stat_buf[115] as u64) << 24);
         let is_dir: bool = (mode & 61440) == 16384;
         let mtime: i64 = (self.stat_buf[48] as i64)
             | ((self.stat_buf[49] as i64) << 8)
@@ -882,7 +932,7 @@ machine Filesystem::metadata(&mut self, file: File) -> MetadataResult {
             | ((self.stat_buf[85] as i64) << 40)
             | ((self.stat_buf[86] as i64) << 48)
             | ((self.stat_buf[87] as i64) << 56);
-        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: false, mode: mode as u32, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime } }
+        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: false, mode: mode as u32, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime } }
     }
     state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
 }
