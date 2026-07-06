@@ -442,6 +442,9 @@ pub(crate) fn validate_binary_operand_types(
     crate::arithmetic_domains::report_out_of_range_comparison_literal(
         program, machine, state, operator, left, right, diagnostics,
     );
+    crate::arithmetic_domains::report_mismatched_width_comparison(
+        program, machine, state, operator, left, right, diagnostics,
+    );
 }
 
 /// Validate an `as` cast -- the single entry point for the Cast arm of

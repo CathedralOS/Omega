@@ -771,6 +771,60 @@ pub(crate) fn report_out_of_range_comparison_literal(
     false
 }
 
+/// Reject a comparison between two integer places of DIFFERENT primitive types
+/// (`self.i8_field == self.i32_field`): the backend compares at the NARROWER
+/// operand's width, silently truncating the wider one -- `i8(44) == i32(300)` reads
+/// TRUE because `300 & 0xFF == 44` (confirmed native). Two integer operands must be
+/// the SAME type; convert one with an `as` cast. Fires only when BOTH operands
+/// resolve to integer primitives (`primitive_range` is `Some`) that differ -- a
+/// literal operand (no declared place type, handled by the out-of-range check), a
+/// float/bool/text operand, and same-type comparisons are all skipped. Sibling of
+/// `report_out_of_range_comparison_literal`.
+pub(crate) fn report_mismatched_width_comparison(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    operator: BinaryOperator,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    if !matches!(
+        operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+    ) {
+        return false;
+    }
+    let operand_integer = |operand| {
+        crate::places::declared_place_type(program, machine, state, operand)
+            .and_then(|type_reference| program.primitive_type_reference(type_reference))
+            .filter(|primitive| primitive_range(*primitive).is_some())
+    };
+    let (Some(left_primitive), Some(right_primitive)) =
+        (operand_integer(left), operand_integer(right))
+    else {
+        return false;
+    };
+    if left_primitive == right_primitive {
+        return false;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}` compares a `{}` value and a `{}` value -- the operands have \
+         different integer types and the comparison would silently truncate the wider one to the \
+         narrower width; convert one with an `as` cast so both are the same type",
+        machine.name.as_str(),
+        state.map(|state| state.name.as_str()).unwrap_or(""),
+        left_primitive.name(),
+        right_primitive.name(),
+    )));
+    true
+}
+
 /// The operators whose result is genuine integer arithmetic and can therefore
 /// exceed the `{0, 1}` range even when the operands are bools (bool feeds in as
 /// its 0/1 value). Excludes bitwise `& | ^` (which preserve `{0, 1}` for `{0, 1}`
