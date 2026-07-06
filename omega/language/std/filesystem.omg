@@ -68,6 +68,24 @@ data DirStatsResult {
     case Error(kind: ErrorKind);
     case Ok(stats: DirStats);
 }
+// A single directory entry (Rust `std::fs::DirEntry`). `name` is the NUL-padded
+// file name copied out of the dirent record (max 255 bytes; `name_len` is the
+// true length); `is_dir`/`is_file` come from the dirent `d_type` (DT_DIR/DT_REG).
+// Self-contained (`[copy]`, the name embedded) so it outlives the read buffer.
+data DirEntry [copy, zero_init] {
+    name: [u8; 256];
+    name_len: usize;
+    is_dir: bool;
+    is_file: bool;
+}
+// The three-way result of `read_dir_nth` (Rust's `ReadDir` iterator yields
+// `Option<io::Result<DirEntry>>`): `Ok` an entry, `End` past the last entry, or a
+// read `Error`.
+data DirEntryResult {
+    case Error(kind: ErrorKind);
+    case End;
+    case Ok(entry: DirEntry);
+}
 data UnitResult {
     case Error(kind: ErrorKind);
     case Ok;
@@ -385,6 +403,15 @@ data Filesystem {
     rd_dtype: u8;
     rd_dirs: i32 in Wrapping;
     rd_files: i32 in Wrapping;
+    // `read_dir_nth`: record cursor, the target record index (n + 2, skipping
+    // "." and ".."), the extracted name buffer + its copy cursor.
+    rd_recno: usize in Wrapping;
+    rd_target: usize in Wrapping;
+    rd_namlen: usize in Wrapping;
+    rd_j: usize in Wrapping;
+    rd_ridx: usize in Wrapping;
+    rd_nb: u8;
+    entry_name: [u8; 256];
 }
 
 // Create (or truncate) a file for writing, returning an open `File`.
@@ -1048,6 +1075,118 @@ machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsRe
     state rds_err(&mut self) -> DirStatsResult {
         let kind: ErrorKind = self.last_error();
         DirStatsResult::Error { kind: kind }
+    }
+}
+
+// Fetch the N-th CHILD directory entry as a `DirEntry` (Rust's `ReadDir` iterator,
+// indexed): `read_dir_nth(path, 0)` is the first child, `1` the second, … . The
+// caller loops n = 0, 1, 2, … until `End`. Walks the single-fill dirent buffer to
+// record index `n + 2` (skipping "." and ".."), then EXTRACTS the name by copying
+// `dir_buf[off+21+j]` into the entry's `[u8; 256]` name field with a field-cursor
+// loop (the `ridx < 512` guard keeps each read in the buffer; `j < 255` keeps each
+// write in the name field), and reads the `d_type` for `is_dir`/`is_file`.
+//
+// JUDGEMENT CALL (D-readdir extends): single `read_dir` fill (a directory larger
+// than the 512-byte buffer is iterable only up to what one `getdirentries` returns);
+// a name longer than 255 bytes is truncated (`name_len` is the copied length). "."
+// and ".." are the first two records of every real directory, so child n is record
+// n + 2. This is the name-bearing rung `remove_dir_all` (recurse subdirs / unlink
+// files by name) builds on.
+machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: usize) -> DirEntryResult {
+    self.read_flags = 0;
+    self.rd_position = 0;
+    self.rd_off = 0;
+    self.rd_recno = 0;
+    self.rd_target = (n as usize in Wrapping) + 2;
+    let dfd: i32 = self.host.open(path, self.read_flags);
+    transition dfd >= 0 { true -> rdn_read(dfd) _ -> rdn_err() }
+    state rdn_read(&mut self, dfd: i32) -> DirEntryResult {
+        let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
+        let closed: i32 = self.host.close(dfd);
+        self.rd_total = total as usize in Wrapping;
+        transition total > 0 { true -> rdn_walk() _ -> rdn_end() }
+    }
+    state rdn_walk(&mut self) -> DirEntryResult {
+        transition self.rd_off < 480 { true -> rdn_at() _ -> rdn_end() }
+    }
+    state rdn_at(&mut self) -> DirEntryResult {
+        transition self.rd_recno == self.rd_target { true -> rdn_extract() _ -> rdn_advance() }
+    }
+    state rdn_advance(&mut self) -> DirEntryResult {
+        self.rd_idx = self.rd_off + 16;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 17;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = self.rd_lo as usize in Wrapping;
+        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
+        self.rd_recno = self.rd_recno + 1;
+        self.rd_off = self.rd_off + self.rd_reclen;
+        transition self.rd_off < self.rd_total { true -> rdn_walk() _ -> rdn_end() }
+    }
+    state rdn_extract(&mut self) -> DirEntryResult {
+        self.rd_idx = self.rd_off + 18;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 19;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = self.rd_lo as usize in Wrapping;
+        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_namlen = (self.rd_hiu << 8) | self.rd_lou;
+        self.rd_idx = self.rd_off + 20;
+        self.rd_dtype = self.dir_buf[self.rd_idx];
+        self.rd_j = 0;
+        transition { _ -> rdn_copy() }
+    }
+    state rdn_copy(&mut self) -> DirEntryResult {
+        transition self.rd_j < self.rd_namlen { true -> rdn_cap() _ -> rdn_build() }
+    }
+    state rdn_cap(&mut self) -> DirEntryResult {
+        transition self.rd_j < 255 { true -> rdn_cbyte() _ -> rdn_build() }
+    }
+    state rdn_cbyte(&mut self) -> DirEntryResult {
+        self.rd_ridx = self.rd_off + 21 + self.rd_j;
+        transition self.rd_ridx < 512 { true -> rdn_cdo() _ -> rdn_build() }
+    }
+    state rdn_cdo(&mut self) -> DirEntryResult {
+        self.rd_nb = self.dir_buf[self.rd_ridx];
+        self.entry_name[self.rd_j] = self.rd_nb;
+        self.rd_j = self.rd_j + 1;
+        transition { _ -> rdn_copy() }
+    }
+    state rdn_build(&mut self) -> DirEntryResult {
+        transition self.rd_dtype == 4 { true -> rdn_ok_dir() _ -> rdn_maybe_file() }
+    }
+    state rdn_ok_dir(&mut self) -> DirEntryResult {
+        DirEntryResult::Ok { entry: DirEntry {
+            name: self.entry_name,
+            name_len: self.rd_j,
+            is_dir: true,
+            is_file: false,
+        } }
+    }
+    state rdn_maybe_file(&mut self) -> DirEntryResult {
+        transition self.rd_dtype == 8 { true -> rdn_ok_file() _ -> rdn_ok_other() }
+    }
+    state rdn_ok_file(&mut self) -> DirEntryResult {
+        DirEntryResult::Ok { entry: DirEntry {
+            name: self.entry_name,
+            name_len: self.rd_j,
+            is_dir: false,
+            is_file: true,
+        } }
+    }
+    state rdn_ok_other(&mut self) -> DirEntryResult {
+        DirEntryResult::Ok { entry: DirEntry {
+            name: self.entry_name,
+            name_len: self.rd_j,
+            is_dir: false,
+            is_file: false,
+        } }
+    }
+    state rdn_end(&mut self) -> DirEntryResult { DirEntryResult::End }
+    state rdn_err(&mut self) -> DirEntryResult {
+        let kind: ErrorKind = self.last_error();
+        DirEntryResult::Error { kind: kind }
     }
 }
 
