@@ -406,6 +406,28 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Filesystem, HostOperation::OpenAt | HostOperation::UnlinkAt) => {
+            // Value-returning dirfd-relative `*at` ops: `fd = open_at(dirfd, name,
+            // flags) -> _openat(dirfd, name, flags)` and `rc = unlink_at(dirfd,
+            // name, flags) -> _unlinkat(dirfd, name, flags)`. Shape: [result, dirfd
+            // SCALAR, name POINTER (NUL-terminated), flags SCALAR] -> C args
+            // (dirfd, name, flags). A LITERAL name is NUL-terminated in rodata; a
+            // runtime SUBSLICE name is not (that is the pending NUL-termination
+            // seam, so native `remove_dir_all` awaits it -- the interpreter runs it).
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let dirfd = scalar_argument_operand_at(input, host_call, dispatch_index, 1);
+            let name = path_pointer_operand(input, host_call, dispatch_index, 2);
+            let flags = scalar_argument_operand_at(input, host_call, dispatch_index, 3);
+            match (result, dirfd, name, flags) {
+                (Some(result), Some(dirfd), Some(name), Some(flags)) => operands.insert_many([
+                    operand(result),
+                    operand(dirfd),
+                    operand(name),
+                    operand(flags),
+                ]),
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::Filesystem, HostOperation::ReadDir) => {
             // Value-returning `n = read_dir(fd, buf, count, position) ->
             // ___getdirentries64(fd, buf, count, &position)`. operand[0]=result,

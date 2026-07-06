@@ -164,6 +164,13 @@ pub enum HostOperation {
     MakeDir,
     /// `rmdir(path)` -- remove an empty directory (Rust `remove_dir`).
     RemoveDir,
+    /// `openat(dirfd, name, flags)` -- open `name` RELATIVE to the directory
+    /// `dirfd` (Rust `openat`, the `*at` family used by `remove_dir_all`).
+    /// `[result, dirfd, name POINTER (NUL-terminated), flags]`.
+    OpenAt,
+    /// `unlinkat(dirfd, name, flags)` -- remove `name` RELATIVE to `dirfd`
+    /// (`flags & AT_REMOVEDIR` = rmdir, else unlink). Same operand shape.
+    UnlinkAt,
     /// `chmod(path, mode)` -- set a path's permission bits (Rust
     /// `set_permissions`). Same shape as `mkdir`: a path pointer + a NAMED
     /// (register) mode scalar.
@@ -304,6 +311,8 @@ impl HostOperation {
             "lseek" => Self::Seek,
             "mkdir" => Self::MakeDir,
             "rmdir" => Self::RemoveDir,
+            "openat" => Self::OpenAt,
+            "unlinkat" => Self::UnlinkAt,
             "chmod" => Self::Chmod,
             "fchmod" => Self::Fchmod,
             "rename" => Self::Rename,
@@ -361,6 +370,8 @@ impl HostOperation {
             Self::Seek => "lseek",
             Self::MakeDir => "mkdir",
             Self::RemoveDir => "rmdir",
+            Self::OpenAt => "openat",
+            Self::UnlinkAt => "unlinkat",
             Self::Chmod => "chmod",
             Self::Fchmod => "fchmod",
             Self::Rename => "rename",
