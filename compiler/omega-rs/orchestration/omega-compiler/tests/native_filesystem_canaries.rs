@@ -402,3 +402,19 @@ fn nswindow_init_exits_3() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(out.status.code(), Some(3), "NSWindow initWithContentRect:...styleMask:15 should build + report styleMask 15 (HFA v0-v3 + x2-x4)");
 }
+
+// The framebuffer -> CGImage blit path: CGColorSpaceCreateDeviceRGB (0 args) +
+// CGBitmapContextCreate (7 register args, framebuffer pointer in x0) +
+// CGBitmapContextCreateImage + CGImageGetWidth. A 4x4 BGRA buffer yields a
+// CGImage whose width reads back as 4 -> exit 4.
+#[test]
+fn cgimage_blit_exits_4() {
+    let main_path = repo_root().join("canaries/pass/objc/cgimage_blit/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-blit-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("cgimage_blit should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(4), "CGBitmapContext -> CGImage of a 4x4 buffer should report width 4");
+}

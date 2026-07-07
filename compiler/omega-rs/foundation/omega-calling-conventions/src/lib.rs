@@ -370,6 +370,24 @@ pub enum HostOperation {
     /// `CoreGraphics::rect_max_y(x, y, w, h) -> f64` → `CGRectGetMaxY` = `origin.y +
     /// size.height` (v1 + v3).
     RectMaxY,
+    /// `CoreGraphics::color_space_rgb() -> u64` → `CGColorSpaceCreateDeviceRGB`. NO
+    /// args; returns a `CGColorSpaceRef` in x0. The colorspace for the blit's
+    /// bitmap context.
+    ColorSpaceRgb,
+    /// `CoreGraphics::bitmap_context(data, w, h, bpc, stride, space, info) -> u64` →
+    /// `CGBitmapContextCreate`. SEVEN integer/pointer args (x0–x6): `data` is a
+    /// pointer to the framebuffer, then width/height/bitsPerComponent/bytesPerRow
+    /// (ints), the colorspace (ptr), and the `CGBitmapInfo` (int). Returns a
+    /// `CGContextRef` backed by the framebuffer. Chosen over `CGImageCreate` (11
+    /// args, 3 on the stack) because all 7 fit in registers.
+    BitmapContext,
+    /// `CoreGraphics::bitmap_context_image(ctx) -> u64` →
+    /// `CGBitmapContextCreateImage`: snapshots the bitmap context into a
+    /// `CGImageRef`. One ptr arg.
+    BitmapContextImage,
+    /// `CoreGraphics::image_width(img) -> i64` → `CGImageGetWidth`: the width of a
+    /// `CGImageRef` (a `size_t` in x0). Used to run-verify the blit path.
+    ImageWidth,
     Sleep,
     TickCount,
     KeyState,
@@ -455,6 +473,10 @@ impl HostOperation {
             "send_rect" => Self::MsgSendRect,
             "rect_max_x" => Self::RectMaxX,
             "rect_max_y" => Self::RectMaxY,
+            "color_space_rgb" => Self::ColorSpaceRgb,
+            "bitmap_context" => Self::BitmapContext,
+            "bitmap_context_image" => Self::BitmapContextImage,
+            "image_width" => Self::ImageWidth,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
@@ -526,6 +548,10 @@ impl HostOperation {
             Self::MsgSendRect => "send_rect",
             Self::RectMaxX => "rect_max_x",
             Self::RectMaxY => "rect_max_y",
+            Self::ColorSpaceRgb => "color_space_rgb",
+            Self::BitmapContext => "bitmap_context",
+            Self::BitmapContextImage => "bitmap_context_image",
+            Self::ImageWidth => "image_width",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",

@@ -324,10 +324,24 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    `setContentView:` + `makeKeyAndOrderFront:` + `setActivationPolicy:` + a bounded
    non-blocking pump (folds into items #5/#6). The class-lookup / alloc / init / scalar /
    HFA pieces are all proven — the rest is composing them.
-5. **[ ] CGImage blit** — build a `CGImage` from the `[i32;4096]` BGRA framebuffer
-   (`CGColorSpaceCreateDeviceRGB` + `CGDataProviderCreateWithData` + `CGImageCreate`,
-   bitmapInfo `kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Little`; watch row
-   order vs the Win32 bottom-up DIB), wrap in `NSImage`, `setImage:` on the view.
+5. **[~] CGImage blit — framebuffer → CGImage DONE (fire 12); NSImage/view wrap next.**
+   ✅ The pixels-to-image half works: a `[i32;N]` BGRA framebuffer becomes a `CGImage`.
+   **JUDGEMENT CALL: use `CGBitmapContextCreate` (7 args, all registers) + snapshot,
+   NOT `CGImageCreate` (11 args, 3 on the STACK).** Same result, avoids building a
+   stack-arg ABI capability. Added `HostCapability::CoreGraphics` ops (all int/ptr args,
+   results in x0): `color_space_rgb()`→`CGColorSpaceCreateDeviceRGB` (0 args),
+   `bitmap_context(data, w, h, bpc, stride, space, info)`→`CGBitmapContextCreate` (7 args
+   x0–x6, `data` = framebuffer POINTER like an fs buffer), `bitmap_context_image(ctx)`→
+   `CGBitmapContextCreateImage`, `image_width(img)`→`CGImageGetWidth`. PROVEN:
+   `canaries/pass/objc/cgimage_blit` — a 4×4 BGRA buffer (bitmapInfo `0x2006` =
+   `kCGImageAlphaNoneSkipFirst|kCGBitmapByteOrder32Little`) → `CGImageGetWidth == 4` →
+   exit 4; `otool` shows `x0=&pixels, x1=4, x2=4, x3=8, x4=0x10(stride), x5=space,
+   x6=0x2006, bl _CGBitmapContextCreate`. Native harness 67/67; canary_suite zero new
+   failures. REMAINING: `NSImage initWithCGImage:size:` (needs a send with a CGImage
+   scalar + an `NSSize` = 2 doubles in v0,v1 — a small new mixed variant) + `NSImageView
+   setImage:` (`send_scalar`), then the window presents the frame. NB the sample is
+   top-down 32bpp; CGBitmapContext is also top-down, so NO row flip (unlike the Win32
+   bottom-up DIB) — good.
 6. **[ ] Event pump + quit** — `nextEventMatchingMask:NSEventMaskAny
    untilDate:distantPast inMode:default dequeue:YES` + `sendEvent:` (non-blocking, no
    `[NSApp run]`/delegate). Close-detect by POLLING `[window isVisible]` each frame (no
