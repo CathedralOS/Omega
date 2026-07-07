@@ -1,0 +1,21 @@
+// PROVES the darwin Input-provider SUBSTITUTION (render fire 26, task #60): declares
+// the UNCHANGED Win32-shaped `boundary trait Input` and holds an `input: Input` FIELD
+// with NO `use` of any macOS module -- exactly like samples/gui/window_app. On darwin
+// the compiler injects the bundled MacosInput provider and rewrites `input: Input` ->
+// `MacosInput`, so `self.input.key_state(27)` maps VK 27 (ESC) -> macOS keycode 53 and
+// asks CGEventSourceKeyState whether it is down. In headless CI ESC is not held, so
+// key_state returns 0 -> exit 4. Validates the substitution registry generalizes past
+// Gui to Input, and the CGEventSourceKeyState lowering runs end-to-end.
+boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
+data Main {
+    console: Console;
+    input: Input;
+    esc: u64;
+}
+machine Main::main(&mut self) {
+    self.esc = self.input.key_state(27);
+    transition self.esc == 0 { true -> notdown() _ -> down() }
+    state notdown(&mut self) { self.console.exit_process(4); }
+    state down(&mut self)    { self.console.exit_process(9); }
+}

@@ -540,6 +540,19 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
     `image_viewer` → large-offset scalar STORE, a #59 sibling at offset 33092 (task #61);
     `windowed_calculator` → saturating divide/modulo on aarch64 (task #62) + `Input.key_state`.
     The loop CONTINUES on these (window_demo, the flagship, runs; the rest are incremental).
+    ⚑ **fire 26: `Input.key_state` DONE (#60) → `samples/gui/window_app` now RUNS NATIVELY too.**
+    Added CoreGraphics `event_source_key_state(state_id, keycode)`→`CGEventSourceKeyState`
+    (proven ABI-first: `mov x0,#1; mov x1,#0x35; bl _CGEventSourceKeyState`), a `MacosInput`
+    provider in macos_gui.omg (maps Win32 VK→macOS keycode: ESC 27→53, arrows→123/124/126/125,
+    then queries CG), and GENERALIZED the substitution to a `DARWIN_BOUNDARY_PROVIDERS` registry
+    `[(Gui,MacosGui),(Input,MacosInput)]` — injects the provider module when EITHER boundary is
+    present and rewrites `gui:Gui`→MacosGui AND `input:Input`→MacosInput. PROVEN:
+    `input_provider_substitution_exits_4` (key_state(27)→0→exit 4) + the UNTOUCHED window_app
+    compiles AND renders natively without crashing (`sample_window_app_renders_natively`, a
+    2s bounded run — it's a stay-open app that loops until ESC/close). **TWO gui samples now run
+    natively: window_demo (auto-exit) + window_app (interactive).** Native harness 79/79.
+    Remaining: `image_viewer` (#61 large-offset STORE + it's human-interactive + needs .bmp
+    files), `windowed_calculator` (#62 saturating div/mod, has Input via the new #60).
     ---
     Historical (fire 16): `canaries/pass/objc/native_gui_loop` is `samples/gui/window_demo`'s shape running
     natively end-to-end: NSApp + NSWindow + NSImageView content view + `makeKeyAndOrderFront:`,
@@ -563,7 +576,7 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
 | `msg_translate` / `msg_dispatch` | `sendEvent:` (or fold into `msg_peek`); no-op otherwise |
 | `is_window(window) -> u32` | `[window isVisible]` (poll, no delegate) |
 | `window_destroy(window) -> u32` | `[window close]` |
-| `Input.key_state(vk) -> u64` | tracked NSEvent state (map VK 27 → keycode 53; ESC first) |
+| `Input.key_state(vk) -> u64` | ✅ DONE (fire 26) — `MacosInput` maps VK→macOS keycode (ESC 27→53, arrows→123/124/126/125) then `CGEventSourceKeyState(1, keycode)` |
 | `Clock.sleep(ms)` | ✅ DONE (fire 23) — `poll(NULL, 0, ms)` (poll's timeout IS ms; correct units, no scale/cap — chosen over `usleep`'s microseconds) |
 
 ## Gotchas / decisions to record

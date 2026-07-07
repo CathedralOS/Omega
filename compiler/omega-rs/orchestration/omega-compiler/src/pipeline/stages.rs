@@ -172,23 +172,26 @@ fn inject_build_prelude(
     Ok(())
 }
 
-/// The darwin GUI-provider substitution (task #57). The samples call the UNCHANGED
-/// `boundary trait Gui` (Win32-shaped) through a `gui: Gui` field. On darwin there is
-/// no host lowering for `Gui`; instead the bundled `MacosGui` data type
-/// (`omega::language::std::macos_gui`) implements every op by composing objc / Core
-/// Graphics boundary calls. This (1) injects that provider module (which the sample
-/// never `use`s) and (2) rewrites each `gui: Gui` FIELD's type to `MacosGui`, so
-/// `self.gui.op(..)` becomes an ordinary MacosGui value-call — the shape proven to run
-/// natively in fire 22. NATIVE-only: the interpreter's `compile_to_checked` keeps the
-/// abstract boundary trait (its own headless stub, item #9). Registry-shaped so
-/// Clock/Input providers can follow the same pattern.
+/// The darwin boundary-provider substitution (tasks #57/#60). The samples call the
+/// UNCHANGED Win32-shaped `boundary trait Gui` / `boundary trait Input` through
+/// `gui: Gui` / `input: Input` fields. On darwin there is no host lowering for these;
+/// instead the bundled `omega::language::std::macos_gui` module provides `MacosGui` /
+/// `MacosInput` data types that implement every op by composing objc / Core Graphics
+/// boundary calls. This (1) injects that provider module (which the sample never
+/// `use`s) and (2) rewrites each matching FIELD's type to its provider, so
+/// `self.gui.op(..)` / `self.input.op(..)` become ordinary provider value-calls — the
+/// shape proven to run natively (window_demo, fire 25). NATIVE-only: the interpreter's
+/// `compile_to_checked` keeps the abstract boundary traits (its own headless stubs,
+/// item #9). Registry-driven so Clock and future providers follow the same pattern.
+const DARWIN_BOUNDARY_PROVIDERS: &[(&str, &str)] = &[("Gui", "MacosGui"), ("Input", "MacosInput")];
+
 fn substitute_native_gui_provider(
     source_storage: &mut SourceStorage,
     target_name: Option<&str>,
     timings: &mut CompileTimings,
 ) -> Result<(), Vec<Diagnostic>> {
-    // Gate strictly on darwin/Mach-O: on Windows `Gui` has a real Win32 host lowering
-    // (do NOT substitute); on linux it has none (a clean unsupported diagnostic).
+    // Gate strictly on darwin/Mach-O: on Windows `Gui`/`Input` have real Win32 host
+    // lowerings (do NOT substitute); on linux they have none (a clean diagnostic).
     let is_darwin = NativeTarget::from_omega_target_name(target_name)
         .map(|target| target.object_format == omega_target::ObjectFormat::MachO)
         .unwrap_or(false);
@@ -196,32 +199,36 @@ fn substitute_native_gui_provider(
         return Ok(());
     }
 
-    // Detect the sample's `boundary trait Gui` and whether the provider is present.
-    let mut has_gui_boundary = false;
-    let mut has_macos_gui = false;
+    // Which registered `boundary trait`s does the program declare, and is the provider
+    // module already present? (`MacosGui` names the bundled module; it carries both
+    // MacosGui + MacosInput.)
+    let mut has_any_boundary = false;
+    let mut has_provider_module = false;
     for (_, file) in source_storage.files.iter() {
         for root_item in &file.root_items {
             match source_storage.syntax_trees.root_item(*root_item) {
                 omega_syntax_trees::item::Item::Trait(trait_definition)
                     if trait_definition.is_boundary
-                        && trait_definition.name.as_str() == "Gui" =>
+                        && DARWIN_BOUNDARY_PROVIDERS
+                            .iter()
+                            .any(|(boundary, _)| *boundary == trait_definition.name.as_str()) =>
                 {
-                    has_gui_boundary = true;
+                    has_any_boundary = true;
                 }
                 omega_syntax_trees::item::Item::Data(data) if data.name.as_str() == "MacosGui" => {
-                    has_macos_gui = true;
+                    has_provider_module = true;
                 }
                 _ => {}
             }
         }
     }
-    if !has_gui_boundary {
+    if !has_any_boundary {
         return Ok(());
     }
 
-    // Inject the bundled MacosGui provider module (self-contained; declares its own
+    // Inject the bundled provider module (self-contained; declares its own
     // ObjectiveC/CoreGraphics boundary traits + CString domain, no `use`).
-    if !has_macos_gui {
+    if !has_provider_module {
         let provider_source = read_bundled_std_source("macos_gui")?;
         let first_source_id = source_storage.next_source_id();
         let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
@@ -235,9 +242,10 @@ fn substitute_native_gui_provider(
         extend_source_storage(source_storage, parsed)?;
     }
 
-    // Rewrite each `gui: Gui`-typed FIELD -> `MacosGui`. Collect first (immutable
-    // borrows), then mutate, exactly like the plan-laid value-type desugar.
-    let mut rewrites: Vec<omega_syntax_trees::types::TypeReferenceHandle> = Vec::new();
+    // Rewrite each `<field>: <Boundary>` FIELD -> its provider data type. Collect first
+    // (immutable borrows), then mutate, exactly like the plan-laid value-type desugar.
+    let mut rewrites: Vec<(omega_syntax_trees::types::TypeReferenceHandle, &'static str)> =
+        Vec::new();
     for (_, file) in source_storage.files.iter() {
         for root_item in &file.root_items {
             let omega_syntax_trees::item::Item::Data(definition) =
@@ -255,14 +263,16 @@ fn substitute_native_gui_provider(
                     .tables
                     .type_references
                     .type_reference(field.type_reference)
-                    && name.as_str() == "Gui"
+                    && let Some((_, provider)) = DARWIN_BOUNDARY_PROVIDERS
+                        .iter()
+                        .find(|(boundary, _)| *boundary == name.as_str())
                 {
-                    rewrites.push(field.type_reference);
+                    rewrites.push((field.type_reference, provider));
                 }
             }
         }
     }
-    for handle in rewrites {
+    for (handle, provider) in rewrites {
         source_storage
             .syntax_trees
             .tables
@@ -270,7 +280,7 @@ fn substitute_native_gui_provider(
             .replace_type_reference(
                 handle,
                 omega_syntax_trees::types::TypeReferenceNode::Named(
-                    omega_syntax_trees::identifier::Identifier::generated("MacosGui".to_string()),
+                    omega_syntax_trees::identifier::Identifier::generated(provider.to_string()),
                 ),
             );
     }

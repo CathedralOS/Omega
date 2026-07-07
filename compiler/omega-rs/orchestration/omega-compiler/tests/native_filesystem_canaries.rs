@@ -676,6 +676,68 @@ fn sample_window_demo_runs_natively_exits_0() {
     assert_eq!(code, Some(0), "the untouched window_demo should render 60 frames natively and exit 0");
 }
 
+// The darwin INPUT-provider substitution (task #60): a program declaring the UNCHANGED
+// `boundary trait Input` + an `input: Input` field (no `use`) -- like window_app. On
+// darwin the compiler injects the bundled MacosInput provider and rewrites the field to
+// MacosInput, so `self.input.key_state(27)` maps VK 27 (ESC) -> macOS keycode 53 and
+// calls CGEventSourceKeyState. Headless CI does not hold ESC, so it returns 0 -> exit 4.
+// Proves the substitution registry generalizes past Gui to Input, and the key-state
+// lowering runs end-to-end.
+#[test]
+fn input_provider_substitution_exits_4() {
+    let main_path = repo_root().join("canaries/pass/objc/input_provider_substitution/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-inputsubst-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("input_provider_substitution should compile via the injected MacosInput provider:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(4), "input: Input should be substituted to MacosInput; ESC not held -> exit 4");
+}
+
+// The UNTOUCHED samples/gui/window_app runs natively: like window_demo but a STANDALONE
+// app that stays open until ESC or the window is closed (an infinite render loop). It
+// needs BOTH provider substitutions -- Gui (MacosGui) AND Input (MacosInput, for the ESC
+// poll) -- plus Clock.sleep and the large-offset scalar loads. Headless CI never presses
+// ESC / closes the window, so it renders forever; we confirm it STARTS and RENDERS
+// without crashing for 2s (a non-zero exit inside 2s = a crash), then kill it.
+#[test]
+fn sample_window_app_renders_natively() {
+    let main_path = repo_root().join("samples/gui/window_app/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-window-app-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("the untouched samples/gui/window_app should compile to a native mach-o:\n{d:#?}"));
+    let mut child = Command::new(build_dir.join("omega-program"))
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .spawn()
+        .expect("spawn");
+    // Let it render for ~2s; a crash would surface as an early non-zero exit.
+    let watch_until = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    let early = loop {
+        if let Some(status) = child.try_wait().expect("try_wait") {
+            break Some(status);
+        }
+        if std::time::Instant::now() > watch_until {
+            break None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    };
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = std::fs::remove_dir_all(&build_dir);
+    if let Some(status) = early {
+        // It exited on its own within 2s -- only a clean exit 0 is acceptable (ESC
+        // detection or window close); any other code is a crash/assertion failure.
+        assert_eq!(status.code(), Some(0), "window_app exited early with a non-zero code (crash) instead of rendering");
+    }
+    // Still running after 2s => rendering the infinite loop fine; killed above.
+}
+
+
+
+
 
 
 
