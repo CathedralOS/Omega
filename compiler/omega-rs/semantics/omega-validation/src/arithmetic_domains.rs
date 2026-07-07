@@ -1508,14 +1508,13 @@ pub(crate) fn validate_return_value_range(
     }
 }
 
-/// A type-constraint range bound as an i64, when it is a literal integer (the
-/// common case, `[0..100]`). Non-literal bounds are not narrowed (the caller
-/// falls back to the full type range -- sound).
+/// A type-constraint range bound as an i64: a literal integer (`[0..100]`) or
+/// a CONSTANT integer expression (`[0 - 1..=40]` folds to `-1` -- expression
+/// bounds used to silently behave UNBOUNDED). A non-constant bound is not
+/// narrowed (the caller falls back to the full type range -- sound; the
+/// declaration check in type_references.rs rejects it loudly).
 pub(crate) fn literal_i64(program: &TypedTrees, expression: ExpressionHandle) -> Option<i64> {
-    match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(value) => Some(*value),
-        _ => None,
-    }
+    program.expression_table.constant_integer_value(expression)
 }
 
 /// Whether a place's declared type is an atomic integer (`AtomicU32`, ...),

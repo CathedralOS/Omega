@@ -1,0 +1,24 @@
+// A range constraint with a CONSTANT-EXPRESSION bound: `[0 - 1..=40]` folds to
+// `[-1..=40]` via the expression-table const-eval. Such bounds used to parse
+// but silently behave UNBOUNDED (a store of 100 passed). Now they enforce like
+// literal bounds: this valid store of 40 compiles and runs -> exit 40. (The
+// out-of-range store and the non-constant bound are the fail-canary twins.)
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    x: i32 [0 - 1..=40];
+}
+
+machine Main::main(&mut self) {
+    self.x = 40;
+    transition self.x == 40 {
+        true -> stored()
+        false -> other()
+    }
+
+    state stored(&mut self) { self.console.exit_process(40); }
+    state other(&mut self) { self.console.exit_process(0); }
+}

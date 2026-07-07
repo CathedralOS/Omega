@@ -1,0 +1,17 @@
+// A range bound that is NOT a constant integer expression (`[0..=n]`, a field
+// read): it cannot be enforced, so it used to silently behave unbounded --
+// a constraint the declaration claims but never checks. Rejected at the
+// declaration instead.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    n: i32;
+    x: i32 [0..=n];
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(1);
+}

@@ -2709,6 +2709,43 @@ fn runtime_slice_length_field_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A range constraint with a CONSTANT-EXPRESSION bound: `x: i32 [0 - 1..=40]`
+// folds to `[-1..=40]` via the expression-table const-eval. Expression bounds
+// used to parse but silently behave UNBOUNDED (a store of 100 passed). This
+// valid store of 40 must compile and run -> exit 40; the out-of-range store and
+// the non-constant bound are the fail-canary twins.
+#[test]
+fn runtime_expression_range_bound_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_expression_range_bound_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-expr-range-bound-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("expression range bound canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("expression range bound canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(40),
+        "expected the store of 40 into `x: i32 [0 - 1..=40]` (folded to -1..=40) to \
+         compile and run -> exit 40, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A runtime slice `.len` read into a LOCAL binding in a VALUE position (`let n =
 // s.len`), NOT as an operand or guard subject. The native side used to leave the
 // local slot unwritten (the descriptor length was never materialized), so a later
@@ -21527,6 +21564,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "parser/nesting_exceeds_max_depth",
     "arithmetic/divide_by_zero_rejected",
     "arithmetic/modulo_by_zero_rejected",
+    "arithmetic/expression_range_bound_store_rejected",
+    "arithmetic/non_constant_range_bound_rejected",
     "arithmetic/bool_arithmetic_into_bool_rejected",
     "arithmetic/bitwise_numeric_into_bool_rejected",
     "arithmetic/undeclared_bare_name_rejected",
