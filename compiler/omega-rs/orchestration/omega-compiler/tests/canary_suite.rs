@@ -1364,6 +1364,43 @@ fn runtime_time_host_virtual_interpreter_oracle() {
 }
 
 #[test]
+fn runtime_instant_elapsed_exit_canary_runs() {
+    // std::time rung 6: Time::now() normalization over the seam +
+    // Instant::duration_since/checked_duration_since. DIFFERENTIAL: the
+    // >= 30ms and backwards=Overflow assertions hold on the interpreter's
+    // virtual clock (exactly 30_000_000 ns) AND the native QPC clock.
+    let canary = pass_canary("time/runtime_instant_elapsed_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("instant elapsed canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.error, None, "instant chain should interpret cleanly");
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for the instant chain, got {}",
+        outcome.exit_code
+    );
+    let build_dir = std::env::temp_dir().join(format!("omega-instant-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("instant elapsed canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("instant elapsed canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the instant chain to run natively (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 #[cfg(windows)]
 fn runtime_time_host_native_exit_canary_runs() {
     // std::time rung 5: the TimeHost seam bound natively on windows_x64 --
@@ -19711,6 +19748,55 @@ fn runtime_value_call_entry_field_write_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Same-callee value calls at two sites returning a 16-byte STRUCT: each
+// site's terminal construct must write ITS OWN `__call_result` slot. The
+// scalar multi-site pins below never caught this because the struct
+// DECOMPOSITION strategy re-resolves the slot as a NAME expression -- a
+// shared anonymous "__call_result" name sent BOTH sites' member writes into
+// the first site's slot, so the second call captured its own slot's ZII zero
+// (exit 2 = second zeroed, 1 = first zeroed).
+#[test]
+fn runtime_two_site_struct_result_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_two_site_struct_result_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("two-site struct result canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (both struct results delivered), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-two-site-struct-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("two-site struct result canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("two-site struct result canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected both same-callee struct results delivered per-site (exit 70), got {:?} \
+         (1 = first zeroed; 2 = second zeroed -- the shared __call_result name smear)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Same-callee value calls at MULTIPLE sites per state deliver per-site on the
 // dispatch path: two field stores, a discriminating three-site mix (field +
 // const-indexed elements), and LC1b (let-then-copy-to-field). These are the
@@ -23106,6 +23192,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "time/runtime_duration_core_exit",
     "time/runtime_duration_totals_exit",
     "time/runtime_time_host_native_exit",
+    "time/runtime_instant_elapsed_exit",
     "parser/deep_nesting_within_limit",
     "traits/boundary_trait_effects_host_call",
     "traits/dyn_trait_object_dispatch",
@@ -23148,6 +23235,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_call_entry_field_write_exit",
     "calls/runtime_value_call_nested_entry_call_exit",
     "calls/runtime_value_call_same_callee_sites_exit",
+    "calls/runtime_two_site_struct_result_exit",
     "calls/runtime_value_call_shared_payload_name_exit",
     "calls/runtime_value_call_shared_slot_straight_line_exit",
     "calls/runtime_value_call_struct_payload_cast_field_exit",

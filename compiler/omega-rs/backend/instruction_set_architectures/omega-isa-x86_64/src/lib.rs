@@ -5243,11 +5243,27 @@ pub fn runtime_storage_binary_write_width(
         // (see append_wrapping_signed_divide_modulo). Unsigned uses the *Unsigned
         // operators and cannot overflow, so it falls through.
         wrapping_signed_divide_modulo_width(byte_size, operator == StateGuardOperator::Modulo)
+    } else if is_float {
+        runtime_float_binary_operation_width()
     } else {
         // Trapping div/mod (idiv traps == Trapping semantics), Exact (proven
         // non-overflowing), and unsigned div/mod (cannot overflow) use the normal
-        // op width.
-        runtime_binary_operation_or_float_width(operator, byte_size, is_float)
+        // op width -- derived from the OPERANDS exactly as the encoder does
+        // (`runtime_binary_operation_byte_size`): div/mod/shift run at the
+        // operand width, comparisons at the compared width. Pricing them at the
+        // STORE's width instead diverges by a byte when e.g. a folded 8-byte
+        // divide feeds a `% literal` into a 4-byte ranged slot (cqo idiv = 11,
+        // 32-bit = 10).
+        runtime_binary_operation_width(
+            operator,
+            runtime_binary_operation_byte_size(
+                runtime_value_operands,
+                operator,
+                left,
+                right,
+                byte_size,
+            ),
+        )
     };
     // 10 (mov r14,imm64) + left + push r10 (2) + right + mov r11,r10 (3)
     // + pop r10 (2) + operation + store.
@@ -5308,18 +5324,6 @@ fn width_integer_add_sub_width(byte_size: usize) -> usize {
 
 /// Width of the in-register operation step, dispatching to the SSE float op when
 /// the write is floating-point.
-fn runtime_binary_operation_or_float_width(
-    operator: StateGuardOperator,
-    byte_size: usize,
-    is_float: bool,
-) -> usize {
-    if is_float {
-        runtime_float_binary_operation_width()
-    } else {
-        runtime_binary_operation_width(operator, byte_size)
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 pub fn encode_runtime_storage_binary_write(
     runtime_value_operands: &impl RuntimeValueOperandSource,

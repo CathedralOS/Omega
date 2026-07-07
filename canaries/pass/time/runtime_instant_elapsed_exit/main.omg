@@ -1,0 +1,69 @@
+// std::time rung 6: Instant + Time over the TimeHost seam -- `now()`
+// normalizes raw ticks/frequency into (seconds, subsecond_nanoseconds) (D6,
+// clamp-as-calibration-guard), `duration_since` saturates at ZERO,
+// `checked_duration_since` reports the backwards case as Overflow.
+//
+// DIFFERENTIAL (interp + native): sleep(30) then elapsed >= 30ms holds on
+// BOTH engines -- the interpreter's virtual clock (D12) makes it exactly
+// {0 s, 30_000_000 ns} (freq 1000, 1 tick = 1 ms), native is >= with the
+// real QPC clock. The backwards direction must be Overflow on both.
+//
+// AUTHORING (value-machine rules, see time.omg): every Instant RECEIVER
+// routes through `a` -- the FIRST Instant-typed field (known same-type
+// receiver-aliasing bug); `start_keep`/`end_keep` hold the captured
+// instants between calls.
+// Expected exit: 70.
+use omega::language::std::time;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Clock { machine sleep(milliseconds: u32); }
+
+data Main {
+    console: Console;
+    clock: Clock;
+    time: Time;
+    a: Instant;
+    b: Instant;
+    start_keep: Instant;
+    end_keep: Instant;
+    elapsed: Duration;
+    backwards: DurationResult;
+}
+
+machine Main::main(&mut self) {
+    self.start_keep = self.time.now();
+    self.clock.sleep(30);
+    self.end_keep = self.time.now();
+    self.a = self.end_keep;
+    self.b = self.start_keep;
+    self.elapsed = self.a.duration_since(self.b);
+    // A 30ms sleep never crosses a second boundary of ELAPSED time unless
+    // the scheduler stalled >= 1s -- either way time moved forward; the
+    // under-a-second path must show >= 30ms.
+    transition self.elapsed.seconds == 0 {
+        true -> check_subsecond()
+        false -> check_backwards()
+    }
+    state check_subsecond(&mut self) {
+        transition self.elapsed.subsecond_nanoseconds >= 30000000 {
+            true -> check_backwards()
+            false -> fail_elapsed_short()
+        }
+    }
+    state check_backwards(&mut self) {
+        // start - end runs the monotonic clock backwards: Overflow, never a
+        // fabricated Duration. Receiver discipline: `a` := start.
+        self.a = self.start_keep;
+        self.b = self.end_keep;
+        self.backwards = self.a.checked_duration_since(self.b);
+        transition self.backwards {
+            DurationResult::Overflow -> good()
+            DurationResult::Ok { duration } -> fail_backwards(duration)
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_elapsed_short(&mut self) { self.console.exit_process(1); }
+    state fail_backwards(&mut self, duration: Duration) {
+        self.console.exit_process(2);
+    }
+}

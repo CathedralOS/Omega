@@ -785,6 +785,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_value_call_entry_field_write_exit", 70),
     ("calls/runtime_value_call_nested_entry_call_exit", 70),
     ("calls/runtime_value_call_same_callee_sites_exit", 70),
+    ("calls/runtime_two_site_struct_result_exit", 70),
     ("calls/runtime_value_call_shared_slot_straight_line_exit", 22),
     ("calls/runtime_value_call_transition_args_exit", 70),
     (
@@ -794,6 +795,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_value_call_shared_payload_name_exit", 70),
     ("calls/runtime_value_call_struct_payload_cast_field_exit", 70),
     ("time/runtime_duration_core_exit", 70),
+    ("time/runtime_instant_elapsed_exit", 70),
     ("calls/runtime_value_machine_param_array_index_exit", 1),
     ("collections/runtime_declared_range_index_read_exit", 30),
     ("constants/runtime_scoped_const_exit", 70),
@@ -837,6 +839,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
 ///
 /// `(relative path under canaries/pass, reason for exclusion)`.
 const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
+    (
+        "time/runtime_time_host_native_exit",
+        "NATIVE-ONLY (windows-gated run test): asserts the WINDOWS calibration constants (10^7 / 11_644_473_600) and real-clock inequalities; the interpreter's virtual clock reports 1000/0 and exits 3 by design (its exact values are pinned by time/runtime_time_host_virtual_exit)",
+    ),
     (
         "targets/entry_run_args_bytes",
         "NATIVE-ONLY: the entry prologue binds `args: &[u8]` over the spilled platform argument registers; the interpreter has no entry-argument notion yet",

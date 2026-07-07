@@ -1,0 +1,37 @@
+// PROBE 7 (std-free): two value calls to the same pure 16-byte-struct
+// callee. 70 = both delivered; 2 = second zeroed; 1 = first zeroed.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Pair [copy, zero_init] { a: u64; b: u64; }
+
+data Wrapper { seed: u64; }
+
+machine Wrapper::make_pair(&mut self) -> Pair {
+    let v: u64 = self.seed + 41;
+    Pair { a: v, b: v }
+}
+
+data Main {
+    console: Console;
+    wrapper: Wrapper;
+    first: Pair;
+    second: Pair;
+}
+
+machine Main::main(&mut self) {
+    self.first = self.wrapper.make_pair();
+    self.second = self.wrapper.make_pair();
+    transition self.first.a > 0 {
+        true -> check_second()
+        false -> fail_first()
+    }
+    state check_second(&mut self) {
+        transition self.second.a > 0 {
+            true -> good()
+            false -> fail_second()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_first(&mut self) { self.console.exit_process(1); }
+    state fail_second(&mut self) { self.console.exit_process(2); }
+}

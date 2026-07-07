@@ -1,4 +1,5 @@
-// std::time — the Duration pure-value core (TASKS_TIME.md rung 3, D1-D5/D13).
+// std::time — Duration pure-value core (rung 3) + Instant/Time over the
+// TimeHost seam (rung 6) per TASKS_TIME.md D1-D7/D9/D13.
 //
 // `Duration` is a normalized span: whole seconds plus subsecond nanoseconds,
 // where the field RANGE carries the normalization invariant the compiler
@@ -25,6 +26,10 @@
 //   SINGLE inbound edge is the `<= 999999999` guard: single-predecessor edge
 //   guards flow into the target state, so the store proves. The `false` arms
 //   are unreachable by construction but total (never a silent face).
+
+// The raw per-OS boundary (`TimeHost`) is declared once in the sibling std
+// module; the `Time` capability below wraps it (the filesystem.omg layering).
+use omega::language::std::time_host;
 
 data Ordering [copy, zero_init] {
     case Less;
@@ -491,4 +496,140 @@ machine Duration::is_greater_than(&self, other: Duration) -> bool {
     }
     state greater_yes(&self) -> bool { true }
     state greater_no(&self) -> bool { false }
+}
+
+// A point on the MONOTONIC clock, normalized at `now()` (D6): whole seconds +
+// subsecond nanoseconds since an UNSPECIFIED epoch. Opaque-by-convention --
+// only differences between two Instants from the same process are meaningful.
+// Same field shapes as Duration, so the subtraction machinery mirrors it.
+data Instant [copy, zero_init] {
+    seconds: u64;
+    subsecond_nanoseconds: u32 [0..=999_999_999];
+}
+
+// self - earlier as a Duration; `Overflow` when `earlier` is later than self
+// (the monotonic clock cannot run backwards, so this means the caller swapped
+// the operands or mixed instants across processes). Mirrors
+// Duration::checked_subtract -- same borrow idiom, same authoring rules.
+machine Instant::checked_duration_since(&self, earlier: Instant) -> DurationResult {
+    let seconds_bigger: bool = self.seconds > earlier.seconds;
+    let seconds_equal: bool = self.seconds == earlier.seconds;
+    let nanoseconds_fit: bool = self.subsecond_nanoseconds >= earlier.subsecond_nanoseconds;
+    let seconds_direct: u64 in Wrapping =
+        (self.seconds as u64 in Wrapping) - (earlier.seconds as u64 in Wrapping);
+    let seconds_borrowed: u64 in Wrapping = (seconds_direct as u64 in Wrapping) - 1;
+    let nanoseconds_direct: u32 = ((self.subsecond_nanoseconds as u32 in Wrapping)
+        - (earlier.subsecond_nanoseconds as u32 in Wrapping)) as u32;
+    let nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
+        - (earlier.subsecond_nanoseconds as u32 in Wrapping))
+        + (self.subsecond_nanoseconds as u32 in Wrapping)) as u32;
+    transition seconds_bigger == true {
+        true -> since_bigger(nanoseconds_fit, seconds_direct, seconds_borrowed, nanoseconds_direct, nanoseconds_borrowed)
+        false -> since_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct, nanoseconds_direct)
+    }
+    state since_bigger(&self, nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> DurationResult {
+        transition nanoseconds_fit {
+            true -> since_emit(seconds_direct, nanoseconds_direct)
+            false -> since_emit(seconds_borrowed, nanoseconds_borrowed)
+        }
+    }
+    state since_equal_or_less(&self, seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> DurationResult {
+        transition seconds_equal && nanoseconds_fit {
+            true -> since_emit(seconds_direct, nanoseconds_direct)
+            false -> since_backwards()
+        }
+    }
+    state since_emit(&self, seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
+        DurationResult::Ok {
+            duration: Duration {
+                seconds: seconds_final,
+                subsecond_nanoseconds: nanoseconds_final % 1000000000,
+            },
+        }
+    }
+    state since_backwards(&self) -> DurationResult {
+        DurationResult::Overflow
+    }
+}
+
+// self - earlier, clamping at ZERO instead of reporting the backwards case
+// (total, the ZII-friendly default -- Rust's `duration_since` panics here).
+//
+// SINGLE-LEVEL body (the borrow logic spelled out rather than nesting
+// `checked_duration_since`): an inlined callee that TRANSITIONS on a nested
+// sibling call's result reads the nested result's PRE-STORE ZII tag natively
+// (the fs stat_rc guard-ordering face, filed in TASKS.md) -- the nested
+// spelling silently returned ZERO for every forward pair. Entry-let guards
+// have no such face.
+machine Instant::duration_since(&self, earlier: Instant) -> Duration {
+    let seconds_bigger: bool = self.seconds > earlier.seconds;
+    let seconds_equal: bool = self.seconds == earlier.seconds;
+    let nanoseconds_fit: bool = self.subsecond_nanoseconds >= earlier.subsecond_nanoseconds;
+    let seconds_direct: u64 in Wrapping =
+        (self.seconds as u64 in Wrapping) - (earlier.seconds as u64 in Wrapping);
+    let seconds_borrowed: u64 in Wrapping = (seconds_direct as u64 in Wrapping) - 1;
+    let nanoseconds_direct: u32 = ((self.subsecond_nanoseconds as u32 in Wrapping)
+        - (earlier.subsecond_nanoseconds as u32 in Wrapping)) as u32;
+    let nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
+        - (earlier.subsecond_nanoseconds as u32 in Wrapping))
+        + (self.subsecond_nanoseconds as u32 in Wrapping)) as u32;
+    transition seconds_bigger == true {
+        true -> total_bigger(nanoseconds_fit, seconds_direct, seconds_borrowed, nanoseconds_direct, nanoseconds_borrowed)
+        false -> total_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct, nanoseconds_direct)
+    }
+    state total_bigger(&self, nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> Duration {
+        transition nanoseconds_fit {
+            true -> total_emit(seconds_direct, nanoseconds_direct)
+            false -> total_emit(seconds_borrowed, nanoseconds_borrowed)
+        }
+    }
+    state total_equal_or_less(&self, seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> Duration {
+        transition seconds_equal && nanoseconds_fit {
+            true -> total_emit(seconds_direct, nanoseconds_direct)
+            false -> total_backwards()
+        }
+    }
+    state total_emit(&self, seconds_final: u64, nanoseconds_final: u32) -> Duration {
+        Duration {
+            seconds: seconds_final,
+            subsecond_nanoseconds: nanoseconds_final % 1000000000,
+        }
+    }
+    state total_backwards(&self) -> Duration { Duration::ZERO }
+}
+
+// The clock-read CAPABILITY (D9): reads live here, never ambiently on the
+// value types -- Rust's `Instant::now()`/`Instant::elapsed()` intentionally
+// have no equivalent (the Cathedral no-ambient-authority stance).
+data Time {
+    host: TimeHost;
+}
+
+// Read the monotonic clock and normalize ONCE (D6): raw ticks + calibration
+// in, (seconds, subsecond_nanoseconds) out. All conversion math lives here,
+// per D11 -- the lowering layer only delivers raw u64s.
+//
+// The `clamp` IS the calibration guard (O2's proof bound, D5): frequency in
+// [1, 18_446_744_073] proves the divisor nonzero AND that
+// `remainder * 1_000_000_000` fits u64 (remainder < frequency). Every real
+// host passes through unchanged (windows QPF 10^7 or 10^6-ish, POSIX 10^9,
+// the interpreter's virtual 1000); a host reporting 0 or an absurd frequency
+// measures degraded instead of faulting. Re-read per call: Time stays
+// stateless (no capture-once field machinery) until a profile says otherwise.
+machine Time::now(&mut self) -> Instant {
+    let ticks: u64 = self.host.monotonic_ticks();
+    let frequency_raw: u64 = self.host.monotonic_ticks_per_second();
+    let frequency: u64 = clamp(frequency_raw, 1, 18446744073);
+    let whole_seconds: u64 = ticks / frequency;
+    let remainder: u64 = ticks % frequency;
+    // Fits u64 by the clamp bound, but the interval fold cannot multiply
+    // variable bounds -- Wrapping spelling (the checked_multiply idiom).
+    let scaled_wrapped: u64 in Wrapping = (remainder as u64 in Wrapping) * 1000000000;
+    let scaled: u64 = scaled_wrapped as u64;
+    let subnanos_wide: u64 = scaled / frequency;
+    // Ranged-let witness: the `%` bounds the ranged store flow-insensitively
+    // (construction checks see only the let's declared range); it is an
+    // identity at runtime (the quotient is < 10^9 by math).
+    let subsecond: u32 [0..=999999999] = subnanos_wide % 1000000000;
+    Instant { seconds: whole_seconds, subsecond_nanoseconds: subsecond }
 }

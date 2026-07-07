@@ -105,6 +105,31 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   need the same deferral/contiguity treatment. The std authoring rule (entry-only
   lets, params-only states) dodges it; a minimal repro can be distilled from
   time.omg's divide at commit HEAD~1 if the fix lands here.
+- **[ ] NESTED-value-call transition guard in an INLINED callee reads the nested
+  result's PRE-STORE ZII TAG natively (2026-07-07, std::time rung 6; interp correct;
+  #2B splice family, generalizes fs's stat_rc guard-ordering note).** A wrapper
+  machine that calls a sibling and TRANSITIONS on the result
+  (`let since = self.checked_duration_since(e); transition since { Ok{d} -> .. }`)
+  takes the ZII-ZERO arm every time when the wrapper is itself inlined into Main:
+  the guard is scheduled before the nested callee's spliced result store. Repro:
+  canaries/pending/calls/nested_value_call_guard_zii (Duration::saturating_subtract
+  forward pair returns ZERO, exit 1; expected 70). ⚠️ CONSEQUENCE AUDIT: std time's
+  `saturating_add`/`saturating_subtract`/`is_less_than`/`is_greater_than` non-ZII
+  arms are silently WRONG natively today — runtime_duration_core_exit pins only the
+  arms whose expected value COINCIDES with the ZII tag (saturate-at-MAX = Overflow
+  tag 0; `a<b` = Less tag 0): the passing canary IS the bug (owner lesson). Instant's
+  `duration_since` was restructured single-level to dodge (time.omg comment); the
+  other four await the splice fix, then non-ZII-arm assertions must be ADDED to the
+  core canary. Deep fix = the nested call's result store must splice BEFORE the
+  wrapper's guard evaluation (deferral op-kind coverage for guard-position nested
+  results).
+- **[ ] Folded-binary left operand loses the UNSIGNED marker: `(a / b) % c` on u64
+  runs SIGNED idiv/modulo natively (2026-07-07, seen in Time::now lowering; the
+  inner divide selected DivideUnsigned but the outer modulo stayed signed
+  `Modulo`).** Semantically wrong only for msb-set u64 values (unreachable for real
+  clock frequencies; interp honors the unsigned witness) — [[signedness-codegen-gap]]
+  family. Fix = signedness resolution must consult the folded BINARY operand's
+  declared type, not just direct storage operands.
 - **[ ] Owner: REJECTED. NO-RECURSION directive ENFORCED 2026-07-10 (was: runtime_recursive_accumulator_exit).**
   Caused by THIS TASKS.md thread (the 2026-07-09 "recursive value machine" work -- my error:
   I read the pre-existing termination canaries' `self.countdown(..)` spelling as sanctioning
