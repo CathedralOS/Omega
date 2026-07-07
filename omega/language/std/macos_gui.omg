@@ -8,8 +8,11 @@
 //
 // The samples call `self.gui.window_create(cls, title, style, x, y, w, h)` etc.
 // through a `boundary trait Gui` field; on darwin that field is provided by this
-// `MacosGui` (the boundary→provider substitution). This file grows one Gui op at a
-// time, each proven by a run-verified canary before the next is built.
+// `MacosGui` (the boundary→provider substitution, task #57). Its ops are ordinary
+// value-calls — run-verified (fire 22): the WHOLE window_demo shape (window +
+// 60-frame blit + 3-op pump loop + liveness) runs natively through MacosGui value-
+// calls (`fullpump` → exit 7). The op signatures here EXACTLY match the samples'
+// `Gui` trait so the substitution is a drop-in provider.
 //
 // D-macgui-style: the Win32 `class_name`/`style` args are IGNORED — macOS always
 // builds a standard titled/closable/resizable window (styleMask 15). The samples
@@ -27,6 +30,7 @@ boundary trait ObjectiveC {
     machine send_scalar(recv: u64, sel: u64, arg: u64) -> u64;
     machine send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64;
     machine send_image_size(recv: u64, sel: u64, image: u64, w: f64, h: f64) -> u64;
+    machine send_string(recv: u64, sel: u64, text: &[u8] in CString) -> u64;
     machine send_scalar4(recv: u64, sel: u64, a: u64, b: u64, c: u64, d: u64) -> u64;
 }
 
@@ -57,6 +61,13 @@ data MacosGui {
     stride: i64;
     fbwf: f64;
     fbhf: f64;
+    // Pump scratch: the distantPast date, the run-loop-mode NSString, the
+    // nextEvent selector, the event mask, and the last dequeued NSEvent.
+    date: u64;
+    mode: u64;
+    psel: u64;
+    mask: u64;
+    evt: u64;
     // Scratch for the objc call sequences.
     cls: u64;
     sel: u64;
@@ -74,7 +85,7 @@ data MacosGui {
 
 // `Gui::window_create` — open a titled window whose content view is an NSImageView
 // (the blit target). Returns the NSWindow pointer (the samples check `> 0`).
-machine MacosGui::window_create(&mut self, class_name: [u8; 7], title: [u8; 10], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64 {
+machine MacosGui::window_create(&mut self, class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64 {
     self.rx = x as f64;
     self.ry = y as f64;
     self.rw = width as f64;
@@ -123,7 +134,8 @@ machine MacosGui::blit(&mut self, device: u64, dest_width: u32, dest_height: u32
     self.nsimg = self.objc.send_image_size(self.tmp, self.sel, self.cgimg, self.fbwf, self.fbhf);
     self.sel = self.objc.register_selector("setImage:");
     self.rc = self.objc.send_scalar(self.view, self.sel, self.nsimg);
-    self.r32 = 1;
+    // The samples assert `blit == source_height` (every source scanline copied).
+    self.r32 = source_height;
     transition { _ -> ret() }
     state ret(&mut self) -> u32 { self.r32 }
 }
@@ -136,6 +148,51 @@ machine MacosGui::get_dc(&mut self, window: u64) -> u64 {
     state ret(&mut self) -> u64 { window }
 }
 
+// `Gui::msg_peek` — non-blocking event dequeue. `[NSApp nextEventMatchingMask:0xffffffff
+// untilDate:[NSDate distantPast] inMode:kCFRunLoopDefaultMode dequeue:YES]`. Stashes
+// the NSEvent in `self.evt` for `msg_dispatch`; returns 1 if an event was dequeued
+// (the sample's `have`), 0 otherwise. The Win32 `message: [u64;6]` buffer is unused
+// on macOS (the event is an NSEvent object, not a copied-out MSG struct).
+machine MacosGui::msg_peek(&mut self, message: [u64; 6]) -> u32 {
+    self.cls = self.objc.get_class("NSDate");
+    self.sel = self.objc.register_selector("distantPast");
+    self.date = self.objc.send(self.cls, self.sel);
+    self.cls = self.objc.get_class("NSString");
+    self.sel = self.objc.register_selector("alloc");
+    self.tmp = self.objc.send(self.cls, self.sel);
+    self.sel = self.objc.register_selector("initWithUTF8String:");
+    self.mode = self.objc.send_string(self.tmp, self.sel, "kCFRunLoopDefaultMode");
+    self.psel = self.objc.register_selector("nextEventMatchingMask:untilDate:inMode:dequeue:");
+    self.mask = 4294967295;
+    self.evt = self.objc.send_scalar4(self.app, self.psel, self.mask, self.date, self.mode, 1);
+    self.r32 = 0;
+    transition self.evt != 0 { true -> got() _ -> ret() }
+    state got(&mut self) -> u32 {
+        self.r32 = 1;
+        transition { _ -> ret() }
+    }
+    state ret(&mut self) -> u32 { self.r32 }
+}
+
+// `Gui::msg_translate` — a Win32 keyboard pre-pass (WM_KEYDOWN → WM_CHAR). macOS
+// has no equivalent step; Cocoa delivers characters directly via `sendEvent:`. A
+// no-op that reports success (the sample only checks the count advances).
+machine MacosGui::msg_translate(&mut self, message: [u64; 6]) -> u32 {
+    self.r32 = 1;
+    transition { _ -> ret() }
+    state ret(&mut self) -> u32 { self.r32 }
+}
+
+// `Gui::msg_dispatch` — route the dequeued event back to the app: `[NSApp sendEvent:
+// self.evt]` (drives window dragging, the close button, key handling). Returns 0
+// (Win32 DispatchMessage's LRESULT; the sample ignores it).
+machine MacosGui::msg_dispatch(&mut self, message: [u64; 6]) -> u64 {
+    self.sel = self.objc.register_selector("sendEvent:");
+    self.rc = self.objc.send_scalar(self.app, self.sel, self.evt);
+    transition { _ -> ret() }
+    state ret(&mut self) -> u64 { self.rc }
+}
+
 // `Gui::is_window` — liveness. `[window isVisible]` is a live, on-screen window.
 machine MacosGui::is_window(&mut self, window: u64) -> u32 {
     self.sel = self.objc.register_selector("isVisible");
@@ -145,7 +202,8 @@ machine MacosGui::is_window(&mut self, window: u64) -> u32 {
     state ret(&mut self) -> u32 { self.r32 }
 }
 
-// `Gui::window_destroy` — `[window close]`.
+// `Gui::window_destroy` — `[window close]`. (Not in the samples' hot path, but part
+// of the Win32 Gui trait; kept for completeness.)
 machine MacosGui::window_destroy(&mut self, window: u64) -> u32 {
     self.sel = self.objc.register_selector("close");
     self.rc = self.objc.send_scalar(window, self.sel, 0);

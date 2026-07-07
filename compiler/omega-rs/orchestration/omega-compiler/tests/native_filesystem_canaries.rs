@@ -547,20 +547,37 @@ fn gui_window_i32_args_exits_8() {
     assert_eq!(out.status.code(), Some(8), "i32-arg window_create should convert to an f64 rect and build a non-null NSWindow");
 }
 
-// The shipped macOS Gui backend module (omega::language::std::macos_gui): its
-// MacosGui wrapper drives the sample-shaped Gui ops -- window_create (Win32
-// signature) -> get_dc -> blit (a [i32;4096] framebuffer -> CGImage -> setImage:)
-// -> is_window -> window_destroy, through a gui: MacosGui field. window != 0 AND
-// get_dc(win) == win AND blit > 0 -> exit 9. (is_window / window_destroy run but
-// are not gated on visibility, headless-safe.)
+// The shipped macOS Gui backend module (omega::language::std::macos_gui) driving
+// the FULL window_demo behavior natively: window_create -> get_dc -> a bounded
+// per-frame loop of fill (64x64 diagonal wash) -> blit ([i32;4096] framebuffer ->
+// CGImage -> setImage:, asserts copied == 64) -> a 3-op message pump loop
+// (msg_peek / msg_translate / msg_dispatch) -> is_window liveness -> advance, all
+// through a gui: MacosGui concrete-provider field (the proven value-call model).
+// Exercises all 7 Gui ops in their real sample loop shape; a clean run -> exit 3.
+// This is samples/gui/window_demo minus Clock.sleep pacing + the read_line pause
+// (both headless-CI concessions, not behavioral). Spawned with a deadline guard:
+// nextEvent on a live window should return immediately (distantPast), but the
+// window is real, so a stuck run is killed rather than hanging CI.
 #[test]
-fn macos_gui_module_exits_9() {
+fn macos_gui_module_exits_3() {
     let main_path = repo_root().join("canaries/pass/objc/macos_gui_module/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-macgui-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
         .unwrap_or_else(|d| panic!("macos_gui_module should compile:\n{d:#?}"));
-    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let mut child = Command::new(build_dir.join("omega-program")).spawn().expect("spawn");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let code = loop {
+        if let Some(status) = child.try_wait().expect("try_wait") {
+            break status.code();
+        }
+        if std::time::Instant::now() > deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("macos_gui_module hung past 20s deadline (window pump never drained)");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(9), "MacosGui window lifecycle (create/get_dc/is_window/destroy) should run and exit 9");
+    assert_eq!(code, Some(3), "full window_demo behavior through MacosGui (all 7 Gui ops in loop) should exit 3");
 }

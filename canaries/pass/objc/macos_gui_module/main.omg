@@ -1,43 +1,151 @@
-// PROVES the macOS Gui backend MODULE natively (render fire 19): imports the
-// shipped `omega::language::std::macos_gui` wrapper and drives its window-lifecycle
-// ops the way the samples do — `window_create` (Win32-shaped signature) then
-// `get_dc`, `is_window`, `window_destroy`. This is the real backend module (not a
-// throwaway), used through a `gui: MacosGui` field value-call. window_create builds
-// a titled window with an NSImageView content view (blit-ready) and returns the
-// NSWindow*; get_dc echoes it; is_window/window_destroy run. Asserts win != 0 AND
-// get_dc(win) == win -> exit 9. is_window/window_destroy are exercised but not
-// gated on visibility (headless-safe). Remaining Gui ops (blit/pump) + the
-// boundary->provider substitution follow.
+// PROVES the FULL window_demo behavior running natively through the shipped macOS
+// Gui backend module (render fire 22). This is `samples/gui/window_demo`'s main
+// state machine — the animated 64x64 diagonal wash, StretchDIBits-style blit, and
+// per-frame message pump — but driven through a `gui: MacosGui` CONCRETE-PROVIDER
+// field (the proven value-call model; fire 22 refuted the fire-21 "must inline"
+// finding). Every Gui op the sample calls is exercised in its real loop shape:
+// window_create → get_dc → (per frame: fill → blit → msg_peek/translate/dispatch
+// pump loop → is_window liveness → advance). All 7 ops are the shipped
+// `omega::language::std::macos_gui` machines, unchanged. A clean run of the whole
+// bounded loop -> exit 3.
+//
+// Differences from the sample (headless-CI faithful, NOT behavioral): 8 frames
+// instead of 60 (bounded + fast); no `Clock.sleep` pacing (Clock native lowering
+// is a separate pending op — see TASKS_RENDER "Clock.sleep → usleep"); no
+// `Console.read_line` pause (would block CI). Everything else is verbatim.
+//
+// The ONLY thing between this canary and the UNTOUCHED sample running is the
+// source-transparent substitution (task #57): resolving the sample's abstract
+// `gui: Gui` boundary field to this concrete `gui: MacosGui` provider on darwin.
 
 use omega::language::std::macos_gui;
 
 boundary trait Console {
+    machine write_line(text: String);
     machine exit_process(return_code: i32);
 }
 
+// FIELD ORDER: the loop counter `i` and the guard scalars are declared BEFORE the
+// large `pixels: [i32; 4096]` so their frame offsets stay inside the AArch64 LDR
+// scaled-immediate range (< 16380). The real sample declares them AFTER the
+// framebuffer, which needs the large-offset machine-index encoder fix (a pending
+// task, see TASKS_RENDER); that fix is orthogonal to what this canary proves (the
+// full MacosGui behavior). `pixels` itself sits last — its base address is
+// materialized into a register, so a large base offset is already handled.
 data Main {
     console: Console;
     gui: MacosGui;
-    cls: [u8; 7];
-    title: [u8; 10];
-    pixels: [i32; 4096];
-    info: [i32; 11];
-    win: u64;
-    dc: u64;
-    blitted: u32;
+    hwnd: u64;
+    hdc: u64;
+    dispatched: u64;
+    have: u32;
+    translated: u32;
     alive: u32;
-    killed: u32;
+    pumped: i32 [0..=16];
+    copied: u32;
+    frame: i32 [0..=8];
+    i: i32 [0..=4096];
+    c: i32;
+    px: i32;
+    cls: [u8; 7];
+    title: [u8; 11];
+    info: [i32; 11];
+    message: [u64; 6];
+    pixels: [i32; 4096];
 }
 
 machine Main::main(&mut self) {
-    self.win = self.gui.window_create(self.cls, self.title, 0, 0, 0, 200, 150);
-    self.dc = self.gui.get_dc(self.win);
-    self.blitted = self.gui.blit(self.dc, 256, 256, 64, 64, self.pixels, self.info);
-    self.alive = self.gui.is_window(self.win);
-    self.killed = self.gui.window_destroy(self.win);
-    transition self.win != 0 { true -> ck_dc() _ -> bad() }
-    state ck_dc(&mut self) { transition self.dc == self.win { true -> ck_blit() _ -> bad() } }
-    state ck_blit(&mut self) { transition self.blitted > 0 { true -> good() _ -> bad() } }
-    state good(&mut self) { self.console.exit_process(9); }
-    state bad(&mut self)  { self.console.exit_process(1); }
+    self.console.write_line("macos_gui_module: window_demo shape through the MacosGui provider");
+    // "#32770\0" — the predefined dialog class (ignored on macOS; D-macgui-style).
+    self.cls[0] = 35;
+    self.cls[1] = 51;
+    self.cls[2] = 50;
+    self.cls[3] = 55;
+    self.cls[4] = 55;
+    self.cls[5] = 48;
+    self.cls[6] = 0;
+    // "omega demo\0"
+    self.title[0] = 111;
+    self.title[1] = 109;
+    self.title[2] = 101;
+    self.title[3] = 103;
+    self.title[4] = 97;
+    self.title[5] = 32;
+    self.title[6] = 100;
+    self.title[7] = 101;
+    self.title[8] = 109;
+    self.title[9] = 111;
+    self.title[10] = 0;
+    // BITMAPINFOHEADER: 64x64 top-down 32bpp BI_RGB (ignored on macOS).
+    self.info[0] = 40;
+    self.info[1] = 64;
+    self.info[2] = 0 - 64;
+    self.info[3] = 2097153;
+    self.hwnd = self.gui.window_create(self.cls, self.title, 282001408, 200, 200, 272, 295);
+    transition self.hwnd > 0 { true -> dc() _ -> bad() }
+    state dc(&mut self) {
+        self.hdc = self.gui.get_dc(self.hwnd);
+        self.frame = 0;
+        transition self.hdc > 0 { true -> frame_loop() _ -> bad() }
+    }
+    state frame_loop(&mut self) {
+        transition self.frame < 8 { true -> fill_init() _ -> finish() }
+    }
+    state fill_init(&mut self) {
+        self.i = 0;
+        transition { _ -> fill_loop() }
+    }
+    state fill_loop(&mut self) {
+        transition self.i >= 0 && self.i < 4096 { true -> fill_cell() _ -> present() }
+    }
+    state fill_cell(&mut self) {
+        self.c = ((self.i / 64) + (self.i % 64) + self.frame * 4) % 256;
+        self.px = (self.c * 65536) + ((255 - self.c) * 256) + 64;
+        transition self.i >= 0 && self.i < 4096 { true -> fill_put() _ -> bad() }
+    }
+    state fill_put(&mut self) {
+        self.pixels[self.i] = self.px;
+        self.i = self.i + 1;
+        transition { _ -> fill_loop() }
+    }
+    state present(&mut self) {
+        self.copied = self.gui.blit(self.hdc, 256, 256, 64, 64, self.pixels, self.info);
+        transition self.copied == 64 { true -> pump_init() _ -> bad() }
+    }
+    state pump_init(&mut self) {
+        self.pumped = 0;
+        transition { _ -> pump_loop() }
+    }
+    state pump_loop(&mut self) {
+        self.have = self.gui.msg_peek(self.message);
+        transition self.have > 0 { true -> pump_handle() _ -> liveness() }
+    }
+    state pump_handle(&mut self) {
+        self.translated = self.gui.msg_translate(self.message);
+        self.dispatched = self.gui.msg_dispatch(self.message);
+        transition self.pumped < 16 { true -> pump_next() _ -> liveness() }
+    }
+    state pump_next(&mut self) {
+        self.pumped = self.pumped + 1;
+        transition { _ -> pump_loop() }
+    }
+    state liveness(&mut self) {
+        self.alive = self.gui.is_window(self.hwnd);
+        transition self.alive > 0 { true -> next_frame() _ -> finish() }
+    }
+    state next_frame(&mut self) {
+        transition self.frame < 8 { true -> advance() _ -> finish() }
+    }
+    state advance(&mut self) {
+        self.frame = self.frame + 1;
+        transition { _ -> frame_loop() }
+    }
+    state finish(&mut self) {
+        self.console.write_line("PASS: window_demo behavior blitted + pumped natively (exit 3)");
+        self.console.exit_process(3);
+    }
+    state bad(&mut self) {
+        self.console.write_line("FAIL: window/DC creation or a blit assertion failed (exit 1)");
+        self.console.exit_process(1);
+    }
 }

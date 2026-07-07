@@ -1926,6 +1926,14 @@ fn append_runtime_machine_index_target_address(
     append_add_constant_to_x_register(bytes, 16, base_byte_offset)?;
     // Index is a 32-bit value: load it zero-extended (LDR Wt) so high bytes of
     // the adjacent slot can't be spliced into the index.
+    // NOTE: a large `index_offset` (a loop counter declared AFTER a [i32;4096]
+    // framebuffer, offset > 16380) is NOT yet handled here — it errors in the LDR
+    // primitive. The frame-BASE-indexed path already materializes it
+    // (load_data_offset_width); extending the same to this MACHINE-indexed path
+    // requires updating this emission PLUS its width + relocation-address-offset
+    // functions in widths.rs (source/target adrp positions shift). See TASKS_RENDER
+    // "large-offset machine-index load". Until then, samples must not place a loop
+    // index after a large array (canaries reorder to keep the index offset small).
     match index_region {
         omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
             bytes.extend(encode_adrp_placeholder(20));
