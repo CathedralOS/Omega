@@ -478,10 +478,20 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >   required). `arr[i]=arr[j]` both-runtime bare-source: CLOSED (re-verified live
 >   2026-07-07 -- bare indexed read AND bare local into a runtime-indexed target
 >   both value-validate native==interp; pinned by the runtime_dual_*_copy_exit
->   canaries). Still open: computed-index `arr[k+1]` double-gate (checker
->   rejection is LOAD-BEARING -- backend miscompiles; fix both together), u64
->   literals > i64::MAX (i128 refactor). Fenced (safe) but block real programs.
->   One-fence-per-fire.
+>   canaries). Computed-index `arr[k+1]`: the LET-TEMP idiom LANDED 2026-07-07 —
+>   `let m: usize [1..=4] = self.k + 1; self.arr[m]` lowers on every face (read,
+>   write target, guard subject, backward offset via dominating guard; canary
+>   runtime_let_bound_computed_index_exit). Two pieces: state-storage keeps the
+>   local's slot when a COMPUTED-value initializer is consumed as a runtime
+>   index, and simplify does NOT fold a computed binding back into an index
+>   position (simplify_index_expression -- folding re-created `arr[k+1]`).
+>   Remaining rung: the AUTO-HOIST for the DIRECT `arr[k+1]` spelling (rewrite
+>   to a hoisted range-typed let at the statement.rs hoist layer; mind the two
+>   hoist scope gates in array-of-structs-indexing memory -- value positions
+>   only, self-field collections only, plus write-TARGET handling this time).
+>   The direct spelling stays a clean error meanwhile (checker index_is_computed
+>   + backend blocker both hold). Still open: u64 literals > i64::MAX (i128
+>   refactor). Fenced (safe) but block real programs. One-fence-per-fire.
 >
 > **Mint arc remainder (library-grade; the boot path used the boundary-vouch
 > shortcut):**

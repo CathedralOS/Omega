@@ -132,7 +132,7 @@ fn simplify_expression_with_bindings(
                 bindings,
                 preserve_call_locals,
             ),
-            index: simplify_expression_with_bindings(
+            index: simplify_index_expression(
                 program,
                 machine,
                 &indexed.index,
@@ -247,6 +247,33 @@ fn simplify_expression_with_bindings(
             ),
         }),
     }
+}
+
+/// Simplify an `Indexed` node's INDEX. A bare-Name local whose binding is a
+/// COMPUTED value (`let m = self.k + 1; self.arr[m]`) must NOT fold back: a
+/// computed index (`arr[k+1]`) has no lowering -- the index must be a plain
+/// place or a constant -- and state-storage keeps exactly this local's slot
+/// (the runtime-index carve-out in collection.rs), so the Name resolves to a
+/// populated slot. Constant and place bindings still fold (they lower, and
+/// their locals stay elidable).
+fn simplify_index_expression(
+    program: &CheckedTrees,
+    machine: &Machine,
+    index: &Expression,
+    bindings: &(impl BindingScope + ?Sized),
+    preserve_call_locals: bool,
+) -> Expression {
+    if let Expression::Name(path) = index
+        && let Some(binding) = bindings.find_path_binding(path)
+        && path.len() == 1
+        && matches!(
+            binding.value,
+            Expression::Binary(_) | Expression::Unary(_) | Expression::Cast(_)
+        )
+    {
+        return index.clone();
+    }
+    simplify_expression_with_bindings(program, machine, index, bindings, preserve_call_locals)
 }
 
 fn simplify_binary_expression(
