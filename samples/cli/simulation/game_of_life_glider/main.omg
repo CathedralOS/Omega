@@ -20,8 +20,11 @@ domain [u8; 24]::Utf8 when valid_utf8(self) {}
 domain [u8; 3]::Utf8 when valid_utf8(self) {}
 domain [u8; 2]::Utf8 when valid_utf8(self) {}
 
+boundary trait Clock { machine sleep(milliseconds: u32); }
+
 data Main {
     console: Console;
+    clock: Clock;
     grid: [i32; 364]; // 26 x 14, padded; real cells rows 1..12, cols 1..24
     next: [i32; 364];
     line: [u8; 24] in Utf8;       // one rendered row (visible width)
@@ -125,7 +128,7 @@ machine Main::main(&mut self) {
         transition { _ -> render_row() }
     }
     state after_render(&mut self) {
-        self.console.sleep(90);
+        self.clock.sleep(90);
         transition { _ -> compute_start() }
     }
 

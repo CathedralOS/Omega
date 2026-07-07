@@ -19,12 +19,15 @@ domain [u8; 30]::Utf8 when valid_utf8(self) {}
 domain [u8; 8]::Utf8 when valid_utf8(self) {}
 domain [u8; 3]::Utf8 when valid_utf8(self) {}
 
+boundary trait Clock { machine sleep(milliseconds: u32); }
+
 // FULLY EXACT -- no overflow domain anywhere: the counters carry ranges with
 // guard-proven increments (re-guard hops where the loop-head guard is several
 // states upstream), the offsets/distance fold bounded from those ranges, and the
 // ramp level folds through `% 8` (modulo bounds by the divisor).
 data Main {
     console: Console;
+    clock: Clock;
     line: [u8; 30] in Utf8;   // one rendered row
     ramp: [u8; 8] in Utf8;    // " .:-=+*#"  dim -> bright
     home: [u8; 3] in Utf8;    // ESC [ H  (cursor home)
@@ -123,7 +126,7 @@ machine Main::main(&mut self) {
     }
 
     state after_frame(&mut self) {
-        self.console.sleep(40);
+        self.clock.sleep(40);
         // re-guard so the increment's edge carries the frame bound (the keystone
         // reads the DIRECT incoming edge; frame_loop's guard is far upstream).
         transition self.frame < 60 { true -> advance() _ -> finish() }

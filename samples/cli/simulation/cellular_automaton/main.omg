@@ -18,8 +18,11 @@ domain [u8]::Utf8 when valid_utf8(self) {}
 domain [u8; 64]::Utf8 when valid_utf8(self) {}
 domain [u8; 2]::Utf8 when valid_utf8(self) {}
 
+boundary trait Clock { machine sleep(milliseconds: u32); }
+
 data Main {
     console: Console;
+    clock: Clock;
     cells: [i32; 64];       // current generation (0/1)
     next: [i32; 64];        // next generation
     line: [u8; 64] in Utf8; // render buffer
@@ -161,7 +164,7 @@ machine Main::main(&mut self) {
     // Sleep first (the host call would kill facts), then re-guard `gen < 32`
     // so the increment proves into [0..=32].
     state gen_next(&mut self) {
-        self.console.sleep(50);
+        self.clock.sleep(50);
         transition self.gen < 32 { true -> gen_bump() _ -> gen_loop() }
     }
     state gen_bump(&mut self) {

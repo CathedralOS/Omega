@@ -18,6 +18,8 @@ domain [u8; 20]::Utf8 when valid_utf8(self) {}
 domain [u8; 3]::Utf8 when valid_utf8(self) {}
 domain [u8; 2]::Utf8 when valid_utf8(self) {}
 
+boundary trait Clock { machine sleep(milliseconds: u32); }
+
 data Particle {
     x: i32 in Wrapping;
     y: i32 in Wrapping;
@@ -27,6 +29,7 @@ data Particle {
 
 data Main {
     console: Console;
+    clock: Clock;
     ps: [Particle; 4] in Wrapping;
     grid: [i32; 200] in Wrapping; // 20 x 10
     line: [u8; 20] in Utf8;
@@ -134,7 +137,7 @@ machine Main::main(&mut self) {
         transition { _ -> render_row() }
     }
     state after_render(&mut self) {
-        self.console.sleep(70);
+        self.clock.sleep(70);
         transition { _ -> update_init() }
     }
 

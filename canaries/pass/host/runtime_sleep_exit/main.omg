@@ -6,13 +6,13 @@
 // and continued. The runtime-arg form shares exit_process's single-u32-arg encoder.
 boundary trait Console {
     machine exit_process(return_code: i32);
-    machine sleep(milliseconds: u32);
 }
-data Main { console: Console; delay: u32 in Wrapping; }
+boundary trait Clock { machine sleep(milliseconds: u32); }
+data Main { console: Console; clock: Clock; delay: u32 in Wrapping; }
 machine Main::main(&mut self) {
-    self.console.sleep(2);
+    self.clock.sleep(2);
     self.delay = 1;
-    self.console.sleep(self.delay);
+    self.clock.sleep(self.delay);
     transition { _ -> done() }
     state done(&mut self) { self.console.exit_process(70); }
 }

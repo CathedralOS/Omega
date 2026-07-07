@@ -15,8 +15,11 @@ domain [u8; 24]::Utf8 when valid_utf8(self) {}
 domain [u8; 3]::Utf8 when valid_utf8(self) {}
 domain [u8; 2]::Utf8 when valid_utf8(self) {}
 
+boundary trait Clock { machine sleep(milliseconds: u32); }
+
 data Main {
     console: Console;
+    clock: Clock;
     grid: [i32; 288] in Wrapping; // 24 x 12 visited trail
     home: [u8; 3] in Utf8;
     line: [u8; 24] in Utf8;
@@ -112,7 +115,7 @@ machine Main::main(&mut self) {
         transition { _ -> show_row() }
     }
     state show_done(&mut self) {
-        self.console.sleep(90);
+        self.clock.sleep(90);
         transition { _ -> step() }
     }
 
