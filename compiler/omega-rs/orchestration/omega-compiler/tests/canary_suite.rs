@@ -2709,6 +2709,42 @@ fn runtime_slice_length_field_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// MULTI-predecessor edge agreement: two states funnel into `push` under
+// structurally IDENTICAL guards `sp >= 0 && sp < 16`, proving the guarded copy
+// into y: [0..=15]. The proof side's guard-equivalence walker gained literal
+// leaf arms; validation joins all incoming edge envs per-place. sp=7 -> 7.
+#[test]
+fn runtime_funnel_guard_agreement_exit_canary_runs() {
+    let canary = pass_canary("range/runtime_funnel_guard_agreement_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-funnel-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("funnel guard agreement canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("funnel guard agreement canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "expected the two-edge funnel (identical `sp >= 0 && sp < 16` guards) to \
+         prove `self.y = self.sp` into y: [0..=15] and exit 7, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A binary value with a GUARD-bounded operand: `self.y = self.p + self.dir`,
 // `p: [0..=8]` declared, `dir` bounded only by the sole incoming edge guard
 // `dir >= 0 && dir <= 1`. Validation seeds the target state's env from the
@@ -21951,6 +21987,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "range/guarded_copy_bound_too_wide",
     "range/guarded_binary_operand_too_wide",
     "range/guarded_binary_operand_stale",
+    "range/funnel_guard_one_edge_unguarded",
+    "range/funnel_guard_edges_disagree",
     "ranges/loop_increment_index_unbounded",
     "ranges/loop_body_resets_index",
     "ranges/loop_init_exceeds_capacity",

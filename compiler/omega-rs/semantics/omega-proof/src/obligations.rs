@@ -1080,6 +1080,16 @@ fn expressions_equivalent_for_precondition(
                 && expressions_equivalent_for_precondition(program, left.left, right.left)
                 && expressions_equivalent_for_precondition(program, left.right, right.right)
         }
+        // LEAVES: without these, two structurally-identical guards from
+        // DIFFERENT statements (distinct handles) never matched -- `(sp >= 0 &&
+        // sp < 16) == true` on two funnel edges hit `(Integer(0), Integer(0))`
+        // and fell through to `false`, so equivalent multi-edge guards never
+        // reached the checker (the "equivalent guards on N edges don't prove"
+        // keystone gap).
+        (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => left == right,
+        (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => left == right,
+        (ExpressionNode::Float(left), ExpressionNode::Float(right)) => left == right,
+        (ExpressionNode::String(left), ExpressionNode::String(right)) => left == right,
         _ => false,
     }
 }
