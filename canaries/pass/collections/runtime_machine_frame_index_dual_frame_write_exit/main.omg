@@ -1,0 +1,22 @@
+// MACHINE-owned array WRITE where BOTH the source and the index are
+// FRAME-resident params (`self.put(1, 44) { self.arr[k] = v }`) -- the
+// three-relocation case (frame source, machine re-load, frame index). -> 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    arr: [i32; 4];
+}
+machine Main::main(&mut self) {
+    transition { _ -> self.put(1, 44) }
+}
+machine Main::put(&mut self, k: usize [0..=3], v: i32) {
+    self.arr[k] = v;
+    transition self.arr[1] == 44 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

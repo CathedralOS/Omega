@@ -211,6 +211,20 @@ fn type_reference_for_symbol(
                 .find(|owned| owned.symbol == symbol)
                 .map(|owned| owned.type_reference)
         })
+        .or_else(|| {
+            // State bindings are WHOLE-MACHINE scope: a param declared on the
+            // machine's entry state is readable from every sub-state, so its
+            // declared range must feed the prover there too (`pick(k: usize
+            // [0..=3]) { ... state go { self.arr[k] } }`). Symbol match is
+            // exact, so a sibling state's same-named param cannot alias.
+            program.machine_states(machine).iter().find_map(|other| {
+                program
+                    .state_parameters(other)
+                    .iter()
+                    .find(|parameter| parameter.symbol == symbol)
+                    .map(|parameter| parameter.type_reference)
+            })
+        })
 }
 
 fn type_reference_for_name(
@@ -243,6 +257,23 @@ fn type_reference_for_name(
                 .iter()
                 .find(|owned| owned.name == *name)
                 .map(|owned| owned.type_reference)
+        })
+        .or_else(|| {
+            // Whole-machine param scope (see the symbol twin above). A NAME
+            // match is only sound when it is unambiguous machine-wide: two
+            // states declaring same-named params with different ranges must
+            // not prove against an arbitrary pick -- bail to unproven.
+            let mut matches = program.machine_states(machine).iter().flat_map(|other| {
+                program
+                    .state_parameters(other)
+                    .iter()
+                    .filter(|parameter| parameter.name == *name)
+            });
+            let first = matches.next()?;
+            if matches.next().is_some() {
+                return None;
+            }
+            Some(first.type_reference)
         })
 }
 

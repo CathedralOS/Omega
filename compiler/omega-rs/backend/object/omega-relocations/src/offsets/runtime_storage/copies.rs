@@ -74,10 +74,18 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_target_address_o
                 field_byte_offset,
             )
         }
-        // Start of the second `mov r15,imm64` (the target base), which follows
-        // the 34-byte source-address sequence (10+7+7+3+7); the relocation
-        // planner adds the +2 immediate offset itself.
-        Architecture::X86_64 => 34,
+        // Start of the target-base `mov r15,imm64`, which follows the
+        // source-address sequence; the relocation planner adds the +2
+        // immediate offset itself. Machine index: 10+7+7+3+7 = 34. A
+        // frame-resident index inserts `mov r10,imm64` (10) + reads the index
+        // off r10 (same 7 bytes): 44.
+        Architecture::X86_64 => {
+            if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                44
+            } else {
+                34
+            }
+        }
     }
 }
 
@@ -129,6 +137,28 @@ pub(crate) fn runtime_storage_copy_to_runtime_machine_indexed_frame_source_machi
         Architecture::Aarch64 => 0,
         // mov r15,imm64 (10) + load rax (7) precede it.
         Architecture::X86_64 => 17,
+    }
+}
+
+/// Start of the `mov r10,imm64` (the frame base for a FRAME-resident INDEX)
+/// inside the storage->machine-indexed write; the relocation planner adds the
+/// +2 immediate offset itself. x86_64 only (aarch64 relocates the frame index
+/// via the shared read-side offset in its own record branch).
+pub(crate) fn runtime_storage_copy_to_runtime_machine_indexed_frame_index_base_offset(
+    architecture: Architecture,
+    source_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        // mov r15,imm64 (10) + load rax (7) precede it; a FRAME source adds
+        // its machine re-load `mov r15,imm64` (10) in between.
+        Architecture::X86_64 => {
+            if source_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                27
+            } else {
+                17
+            }
+        }
     }
 }
 

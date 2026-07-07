@@ -1,0 +1,24 @@
+// MACHINE-owned array READ at a FRAME-resident (param) index
+// (`let v = self.arr[k]`): used to be a clean encoder error. The machine-
+// indexed copy encoder now loads the index off a second (frame) base
+// relocation. arr[2]=9, k=2 -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    arr: [i32; 4];
+}
+machine Main::main(&mut self) {
+    self.arr[2] = 9;
+    transition { _ -> self.pick(2) }
+}
+machine Main::pick(&mut self, k: usize [0..=3]) {
+    let v: i32 = self.arr[k];
+    transition v == 9 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

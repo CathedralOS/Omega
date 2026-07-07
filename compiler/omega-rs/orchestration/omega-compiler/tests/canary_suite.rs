@@ -3487,6 +3487,182 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// MACHINE-owned array READ at a FRAME-resident (param) index -- the machine-
+// indexed copy encoder's frame-index face (second frame-base relocation).
+#[test]
+fn runtime_machine_frame_index_read_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_machine_frame_index_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-mfi-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("machine frame-index read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("machine frame-index read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `self.arr[k]` (arr[2]=9, k=2 a param) to read 9 and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// MACHINE-owned array WRITE of a runtime value at a FRAME-resident index
+// (machine source + frame index).
+#[test]
+fn runtime_machine_frame_index_write_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_machine_frame_index_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-mfi-write-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("machine frame-index write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("machine frame-index write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `self.arr[k] = self.b` (b=7, k=2) to store 7 and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// MACHINE-owned array WRITE with BOTH source and index frame-resident params
+// -- the three-relocation case.
+#[test]
+fn runtime_machine_frame_index_dual_frame_write_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_machine_frame_index_dual_frame_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-mfi-dual-write-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("machine frame-index dual-frame write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("machine frame-index dual-frame write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `self.arr[k] = v` (k=1, v=44, both params) to store 44 and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// MACHINE-array RMW at a FRAME (param) index under a dominating guard: the
+// frame-index BINARY write encoder + the whole-machine param scope in the
+// index prover (k's declared range reaches the sub-state).
+#[test]
+fn runtime_machine_frame_index_rmw_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_machine_frame_index_rmw_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-mfi-rmw-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("machine frame-index rmw canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("machine frame-index rmw canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `self.arr[k] = self.arr[k] + 1` (arr[2]: 4 -> 5, k a param) to exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// Machine-array reads at FRAME indices as binary operands (incl. a struct
+// element field) and as a transition argument.
+#[test]
+fn runtime_machine_frame_index_arg_operand_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_machine_frame_index_arg_operand_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-mfi-arg-operand-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("machine frame-index arg/operand canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("machine frame-index arg/operand canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `self.arr[k] + self.cells[j].v` == 39 then `self.report(self.arr[k])` to exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A runtime slice `.len` read into a LOCAL binding in a VALUE position (`let n =
 // s.len`), NOT as an operand or guard subject. The native side used to leave the
 // local slot unwritten (the descriptor length was never materialized), so a later
