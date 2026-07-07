@@ -95,7 +95,7 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 "provably correct native output," which it meets.
 
 ## Open latent bugs / fenced gaps
-- **[x→review] NO-RECURSION directive ENFORCED 2026-07-10 (was: runtime_recursive_accumulator_exit).**
+- **[ ] Owner: REJECTED. NO-RECURSION directive ENFORCED 2026-07-10 (was: runtime_recursive_accumulator_exit).**
   Caused by THIS TASKS.md thread (the 2026-07-09 "recursive value machine" work -- my error:
   I read the pre-existing termination canaries' `self.countdown(..)` spelling as sanctioning
   recursion). NOW: `-> self.X(..)` targeting the machine's OWN ENTRY is a COMPILE ERROR
@@ -115,6 +115,16 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   value-call cycle walk (bounded clone specialization currently absorbs them).
   (Owner amendment upstream, same commit window: "machine calls are stack based,
   but state transitions are not" -- exactly the enforced distinction.)
+  machine Main::countdown(&mut self, remaining: usize) -> usize
+terminates
+decreases remaining
+{
+    transition remaining > 0 {
+        true -> countdown(remaining)
+        false -> 0
+    }
+}
+^ Fix fucking failed, fuck you. this is a machine creating a cycle. No fucking cycles. Retard. Removing the `self` keyword doesn't change fuck-all, read what I wrote you sack of shit.
 
 - **[ ] Struct-literal value-machine result with an INLINE BINARY field mis-sizes
   the write (2026-07-10 root-cause of the "16-byte value-store fence").** The
