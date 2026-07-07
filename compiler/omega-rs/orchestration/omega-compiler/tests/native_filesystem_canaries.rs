@@ -185,3 +185,27 @@ fn native_wrapper_write_all_passes() { assert_pass("native_wrapper_write_all"); 
 // the no-transition workaround for the value-call guard-ordering bug.
 #[test]
 fn native_wrapper_exists_passes() { assert_pass("native_wrapper_exists"); }
+
+// The `file_journal` CLI SAMPLE (samples/cli/systems/file_journal) — a real
+// end-to-end raw-seam workflow (mkdir -> create+write -> stat -> reopen+read ->
+// rename -> remove -> rmdir) that tallies its 7 verified steps and exits with the
+// count. Given green regression coverage HERE (this fs harness is green) rather
+// than relying on samples_compile, which is currently red from a pre-existing
+// aarch64 `b.ne target is not instruction aligned` encoder bug in many unrelated
+// samples (algorithms/arithmetic/basics/… — NOT the fs work; see TASKS_FS.md).
+#[test]
+fn sample_file_journal_exits_7() {
+    let main_path = repo_root().join("samples/cli/systems/file_journal/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-journal-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("file_journal sample should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(7), "file_journal should verify all 7 steps and exit 7");
+}
