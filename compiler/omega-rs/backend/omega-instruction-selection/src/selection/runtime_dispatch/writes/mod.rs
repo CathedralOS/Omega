@@ -898,7 +898,7 @@ fn case_tag_value(
 /// variant's field), `None` when it is a COMMON field shared across variants (or
 /// the type is not an enum). Mirrors the destructure/read path's tagging so a
 /// field-store construction writes at the same offset the read later resolves.
-fn case_payload_field_variant_tag(
+pub(in crate::selection::runtime_dispatch) fn case_payload_field_variant_tag(
     input: &InstructionSelectionInput<'_>,
     type_name: &Identifier,
     case_name: &Identifier,

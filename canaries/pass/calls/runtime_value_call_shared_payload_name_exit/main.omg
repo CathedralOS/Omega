@@ -1,0 +1,43 @@
+// RUN CANARY (exit 70). shared-name payload fields across variants delivered through a
+// VALUE-CALL leaf terminal. `amount` exists in Deposit (offset A) and in
+// Transfer (offset B != A). If the leaf-path per-field write resolves
+// `amount` without the constructed variant's tag, Transfer's amount lands at
+// Deposit's offset -- destructuring reads ZII/garbage.
+// exit 70 = both fields right; 71 = wrong tag; 72 = to lost; 73 = amount lost.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Event {
+    case Deposit(amount: i64);
+    case Transfer(to: i64, amount: i64);
+}
+
+data Probe { flag: bool; }
+
+machine Probe::make(&mut self) -> Event {
+    self.flag = false;
+    transition self.flag { true -> mk_deposit() _ -> mk_transfer() }
+    state mk_deposit(&mut self) -> Event { Event::Deposit { amount: 5 } }
+    state mk_transfer(&mut self) -> Event { Event::Transfer { to: 42, amount: 99 } }
+}
+
+data Main {
+    console: Console;
+    probe: Probe;
+    event: Event;
+}
+
+machine Main::main(&mut self) {
+    self.event = self.probe.make();
+    transition self.event {
+        Event::Transfer { to, amount } -> check_to(to, amount)
+        _ -> bad(71)
+    }
+    state check_to(&mut self, to: i64, amount: i64) {
+        transition to == 42 { true -> check_amount(amount) _ -> bad(72) }
+    }
+    state check_amount(&mut self, amount: i64) {
+        transition amount == 99 { true -> good() _ -> bad(73) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

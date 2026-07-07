@@ -19294,6 +19294,55 @@ fn windows_fs_raw_roundtrip_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// SHARED-NAME payload fields across variants through a value-call leaf
+// terminal: `amount` in Deposit(amount) AND Transfer(to, amount). The
+// leaf-path per-field decomposition passed case_variant: None, so `amount`
+// resolved the FIRST variant's offset and Transfer's payload landed wrong
+// (exit 72, silent -- the #38 collision class, previously fixed only on the
+// mutation path). The write now tags payload fields with the constructed
+// variant, matching the destructure side.
+#[test]
+fn runtime_value_call_shared_payload_name_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_value_call_shared_payload_name_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("shared-payload-name canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (Transfer{{to:42, amount:99}} delivered), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-shared-payload-name-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("shared-payload-name canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("shared-payload-name canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Transfer's shared-name payload to resolve ITS variant's offsets \
+         (exit 70), got {:?} (72/73 = a field landed at Deposit's offset)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A big multi-field StructLiteral payload through a value-call result slot with
 // one CAST-valued field (`mode: mode as u32` -- the fs metadata_path shape,
 // TASKS_FS.md blocker #2A). The leaf-path scalar write cascade had no convert
@@ -22437,6 +22486,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_captured_local_swap_exit",
     "calls/runtime_same_type_contained_direct_fields_exit",
     "calls/runtime_shared_ref_param_member_exit",
+    "calls/runtime_value_call_shared_payload_name_exit",
     "calls/runtime_value_call_struct_payload_cast_field_exit",
     "filesystem/windows_raw_roundtrip_exit",
     "filesystem/windows_wrapper_results_exit",

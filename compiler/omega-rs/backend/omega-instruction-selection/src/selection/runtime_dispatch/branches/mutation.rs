@@ -29,7 +29,7 @@ use super::super::text_writes::{
     runtime_text_builder_write_in_table_emit, string_literal_data_handle,
 };
 use super::super::writes::{
-    RuntimeStaticValues, runtime_storage_copy_in_table,
+    RuntimeStaticValues, case_payload_field_variant_tag, runtime_storage_copy_in_table,
     runtime_storage_fixed_indexed_source_copy_in_table,
     runtime_storage_indexed_source_copy_in_table, runtime_storage_indirect_copy_in_table,
     select_runtime_case_tag_write_in_table, select_runtime_convert_mutation_write_in_table,
@@ -164,11 +164,27 @@ fn select_runtime_resolved_mutation_write_in_mutable_table(
             let field = expressions
                 .struct_field_at_offset(struct_literal.fields, offset)
                 .clone();
+            // A case construction's PAYLOAD fields carry the constructed
+            // variant, exactly as the destructure/read path tags them -- so
+            // the write resolves the same variant-specific offset the read
+            // does. Without this, a payload field whose NAME is shared with an
+            // EARLIER variant (`amount` in Deposit(amount) vs Transfer(to,
+            // amount)) resolved the FIRST variant's offset through a
+            // value-call leaf terminal and the sibling field read garbage
+            // (the #38 collision, previously fixed only on the mutation path).
+            let case_variant = struct_literal.case_name.as_ref().and_then(|case_name| {
+                case_payload_field_variant_tag(
+                    input,
+                    &struct_literal.type_name,
+                    case_name,
+                    &field.name,
+                )
+            });
             let field_target = expressions.insert(ExpressionNode::Member(TableMemberExpression {
                 receiver: resolved_target,
                 member_symbol: SymbolHandle::invalid(),
                 member: field.name.clone(),
-                case_variant: None,
+                case_variant,
             }));
             let field_emitted = select_runtime_resolved_mutation_write_in_mutable_table(
                 input,
