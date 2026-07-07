@@ -106,10 +106,15 @@ impl ProofConstraint {
         minimum: ExpressionHandle,
         maximum: ExpressionHandle,
     ) -> Option<Self> {
-        if let (Some(minimum), Some(maximum)) = (
-            integer_constant_value_from_node(program, program.expression_table.expression(minimum)),
-            integer_constant_value_from_node(program, program.expression_table.expression(maximum)),
-        ) {
+        // CONSTANT integer expressions fold (`[0 - 1..=40]` -> -1..=40; they
+        // used to behave unbounded), then the node reader covers the
+        // `u32::MAX`-style named-constant spelling.
+        let integer_bound = |bound: ExpressionHandle| {
+            program.expression_table.constant_integer_value(bound).or_else(|| {
+                integer_constant_value_from_node(program, program.expression_table.expression(bound))
+            })
+        };
+        if let (Some(minimum), Some(maximum)) = (integer_bound(minimum), integer_bound(maximum)) {
             return Some(Self::IntegerRange { minimum, maximum });
         }
 

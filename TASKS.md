@@ -40,8 +40,6 @@ representation machinery behind a deliberate boundary.
    `sp < 16` guards on 3 edges don't prove; funnel states are the workaround).
 6. Declared ranges don't feed the INDEX lower-bound prover (an explicit
    `>= 0` conjunct is still needed).
-7. EXPRESSION range bounds (`[0 - 1..=40]`) parse but behave UNBOUNDED (no
-   const-eval); literal negative forms (`[-1..=10]`) work. Const-eval or reject.
 
 **Abort-as-effect (#65) design sketch (chat, NOT settled):** every trap-capable
 site (`in Trapping`, future assert/panic) carries an `abort` effect threaded to

@@ -1449,6 +1449,36 @@ impl ExpressionTable {
         self.expression(handle).display_name(self)
     }
 
+    /// Const-evaluate a PURE integer expression: a literal, or checked
+    /// `+ - * / %` over constant integer subtrees (peeling `Mutable`). `None`
+    /// the moment any leaf is not a constant integer (a place read, a call, a
+    /// float) or an operation overflows / divides by zero -- callers treat
+    /// `None` strictly as "not a constant", never as a value. The first
+    /// consumer is range-constraint bounds (`[0 - 1..=40]` folds to
+    /// `[-1..=40]` instead of silently behaving unbounded).
+    pub fn constant_integer_value(&self, handle: ExpressionHandle) -> Option<i64> {
+        if !handle.is_valid() {
+            return None;
+        }
+        match self.expression(handle) {
+            ExpressionNode::Integer(value) => Some(*value),
+            ExpressionNode::Mutable(inner) => self.constant_integer_value(*inner),
+            ExpressionNode::Binary(binary) => {
+                let left = self.constant_integer_value(binary.left)?;
+                let right = self.constant_integer_value(binary.right)?;
+                match binary.operator {
+                    BinaryOperator::Add => left.checked_add(right),
+                    BinaryOperator::Subtract => left.checked_sub(right),
+                    BinaryOperator::Multiply => left.checked_mul(right),
+                    BinaryOperator::Divide => left.checked_div(right),
+                    BinaryOperator::Modulo => left.checked_rem(right),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
     pub fn string_literal(&self, handle: ExpressionHandle) -> Option<&str> {
         match self.expression(handle) {
             ExpressionNode::String(value) => Some(value.as_ref()),

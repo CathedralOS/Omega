@@ -502,18 +502,37 @@ fn validate_type_constraints_node(
                         "{owner} uses `range` on `{}`, but `range` is only valid on numeric types",
                         primitive_type.name()
                     )));
-                } else if let (Some(low), Some(high)) = (
+                    continue;
+                }
+                match (
                     crate::arithmetic_domains::literal_i64(program, *minimum),
                     crate::arithmetic_domains::literal_i64(program, *maximum),
-                ) && low > high
-                {
-                    // An inverted range `[10..=5]` is the empty set -- no value can
-                    // satisfy it -- yet it silently disabled range checking (every
-                    // value "passed" the malformed bound). Reject it at the declaration.
-                    diagnostics.push(Diagnostic::error(format!(
-                        "{owner} declares an inverted range `[{low}..={high}]`: the low bound \
-                         exceeds the high bound, so no value can satisfy it",
-                    )));
+                ) {
+                    (Some(low), Some(high)) if low > high => {
+                        // An inverted range `[10..=5]` is the empty set -- no value can
+                        // satisfy it -- yet it silently disabled range checking (every
+                        // value "passed" the malformed bound). Reject it at the declaration.
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{owner} declares an inverted range `[{low}..={high}]`: the low bound \
+                             exceeds the high bound, so no value can satisfy it",
+                        )));
+                    }
+                    (Some(_), Some(_)) => {}
+                    // An INTEGER range whose bound does not const-evaluate (a place
+                    // read, a call): the range would silently behave UNBOUNDED --
+                    // every store "passes" a constraint the declaration claims.
+                    // Constant expressions (`[0 - 1..=40]`) fold above; anything
+                    // else is rejected rather than lied about. FLOAT ranges keep
+                    // their own literal path (the proof side reads them as
+                    // FloatRange), so they are exempt here.
+                    _ if primitive_type.accepts_integer_literal() => {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{owner} declares a range whose bound is not a constant integer \
+                             expression; a non-constant bound cannot be enforced (it would \
+                             silently behave unbounded)",
+                        )));
+                    }
+                    _ => {}
                 }
             }
             // An arithmetic overflow domain (`Wrapping`/`Saturating`/`Trapping`)
