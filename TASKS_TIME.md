@@ -607,13 +607,13 @@ boundary trait TimeHost {
      (a) the `now().duration_since(start)` composition needs a value call on
      a LOCAL receiver, which zeroes natively (receiver resolution reaches
      FIELDS only — pre-existing, filed); (b) sharing let NAMES with `now()`
-     #DE-crashed via the cross-callee let-name collision. UPDATE 2026-07-09:
-     the collision's MUTATION-FALLBACK flavor is FIXED (branch_key terminal
-     resolution; pinned by calls/runtime_cross_callee_let_names_exit) but the
-     INTERNAL-op flavor remains (duplicated spliced ops cross operands; div =
-     #DE) — the `stopwatch_*` prefixes stay LOAD-BEARING; see TASKS.md latent
-     bugs for the split status + repro instructions. ⚠️ AUDIT class: not
-     time-specific.
+     #DE-crashed via the cross-callee let-name collision. RESOLVED
+     2026-07-09: BOTH flavors fixed (branch_key terminal resolution +
+     role-gated prelude scalar writes — see TASKS.md, now [x]); the
+     `stopwatch_*` prefixes are REMOVED and elapsed_since deliberately shares
+     let names with now() again as the live std tripwire
+     (runtime_time_elapsed_since_exit; std-independent pins:
+     calls/runtime_cross_callee_let_names_exit + _division_exit).
    REMAINING for this rung: `Instant::checked_add/checked_subtract` +
    `InstantResult`; `SystemTime::checked_add/checked_subtract`;
    `Time::sleep_for(duration)` (u32-ms chunking).

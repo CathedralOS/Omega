@@ -1,0 +1,51 @@
+// The cross-callee let-name collision's INTERNAL-op flavor, pinned FIXED:
+// two callees sharing let names (`freq`, `out`), each DIVIDING by freq,
+// value-called from one caller state. The non-guard branch PRELUDE used to
+// re-emit each callee's scalar initializer writes WRONG-TIMED (before the
+// splice's host calls) with cross-callee name resolution -- the duplicated
+// `ticks / freq` executed with the OTHER callee's still-ZII freq and
+// #DE-crashed (0xC0000094) before the correct splice op ran. The prelude
+// now skips plain scalar writes for non-guard roles (the splice is their
+// executor); descriptor/indexed prelude writes remain (they have no splice
+// equivalent). A negative exit status here = the crash is back.
+// Differential: rate_b = ticks_per_second / clamp(ticks_per_second) == 1 on
+// both engines (interp virtual 1000/1000, native QPF/QPF).
+use omega::language::std::time_host;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Wrapper { host: TimeHost; }
+
+machine Wrapper::rate_a(&mut self) -> u64 {
+    let ticks: u64 = self.host.monotonic_ticks();
+    let freq_raw: u64 = self.host.monotonic_ticks_per_second();
+    let freq: u64 = clamp(freq_raw, 1, 18446744073);
+    let out: u64 = ticks / freq;
+    out
+}
+
+machine Wrapper::rate_b(&mut self) -> u64 {
+    let ticks: u64 = self.host.monotonic_ticks_per_second();
+    let freq_raw: u64 = self.host.monotonic_ticks_per_second();
+    let freq: u64 = clamp(freq_raw, 1, 18446744073);
+    let out: u64 = ticks / freq;
+    out
+}
+
+data Main {
+    console: Console;
+    wrapper: Wrapper;
+    a: u64;
+    b: u64;
+}
+
+machine Main::main(&mut self) {
+    self.a = self.wrapper.rate_a();
+    self.b = self.wrapper.rate_b();
+    transition self.b == 1 {
+        true -> good()
+        false -> fail_b()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_b(&mut self) { self.console.exit_process(1); }
+}

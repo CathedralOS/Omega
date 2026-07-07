@@ -13,6 +13,13 @@ pub struct RuntimeBranchPreludeExpansion {
     pub statement_index: usize,
     pub branch_key: StateKey,
     pub target_key: StateKey,
+    /// The spawning state call's role. Guard-role preludes are the callee's
+    /// ONLY executor (their splice is skipped); every other role's prelude
+    /// coexists with the splice, and the selection layer uses this to skip
+    /// re-emitting local-initializer VALUE writes the splice already covers
+    /// (the cross-callee let-name collision's internal-op flavor: the
+    /// prelude duplicate ran wrong-timed with cross-callee operands).
+    pub role: StateCallRole,
     pub bindings: HandleSpan<RuntimeBranchPreludeBinding>,
     pub operations: HandleSpan<RuntimeBranchPreludeOperation>,
 }
@@ -25,6 +32,7 @@ impl Default for RuntimeBranchPreludeExpansion {
             statement_index: 0,
             branch_key: StateKey::default(),
             target_key: StateKey::default(),
+            role: StateCallRole::default(),
             bindings: HandleSpan::empty(),
             operations: HandleSpan::empty(),
         }

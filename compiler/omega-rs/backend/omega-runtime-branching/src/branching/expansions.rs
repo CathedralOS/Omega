@@ -95,6 +95,7 @@ pub(super) fn append_branch_prelude_expansion(
         statement_index,
         branch_key,
         target_key: state_call.target_key,
+        role: state_call.role,
         bindings,
         operations,
     });
