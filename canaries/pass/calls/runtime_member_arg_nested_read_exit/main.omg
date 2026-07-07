@@ -1,0 +1,32 @@
+// R1: value-call arg = a MEMBER expression (`self.bx.inner`); the callee reads
+// a NESTED member of the param (`b.value`). The alias substitution appends the
+// suffix [value] to the Member receiver -- the old catch-all DROPPED it and
+// read the receiver's first bytes (pad == 99) instead of value == 42.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Inner {
+    pad: i32;
+    value: i32;
+}
+data Box {
+    inner: Inner;
+}
+data Main {
+    console: Console;
+    bx: Box;
+}
+machine Main::grab(&self, b: Inner) -> i32 {
+    transition { _ -> (b.value) }
+}
+machine Main::main(&mut self) {
+    self.bx.inner.pad = 99;
+    self.bx.inner.value = 42;
+    let got: i32 = self.grab(self.bx.inner);
+    transition got == 42 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}
