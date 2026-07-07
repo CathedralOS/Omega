@@ -96,15 +96,6 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 
 ## Open latent bugs / fenced gaps
 
-- **[ ] Value-let `in Wrapping` domain not honored through a hoisted indexed operand (found 2026-07-07).**
-  `let v: i32 in Wrapping = vals[k] + 100` (vals a by-value param array, unranged elements)
-  still rejects with the EXACT-arithmetic overflow error naming local `v` -- the Wrapping
-  annotation on the value-let does not reach the obligation when the operand is a hoisted
-  runtime-indexed read (`__hoist_N + 100`). Workaround: element ranges on the param type
-  (`[i32 [0..=30]; 3]`) prove it Exact (that path works and is canaried). Probe whether the
-  domain is lost at the hoist-temp typing or at obligation collection; a plain
-  `let v: i32 in Wrapping = <field> + 100` works, so it is specific to the hoist funnel.
-
 - **[ ] Range constraint + non-Exact domain = the range is a LIE (found 2026-07-06).**
   `i: usize [0..=4] in Wrapping` accepts `self.i = 100` -- the range enforces only under the
   EXACT domain ("Wrapping stays permissive" was scoped to source-type narrowing, but it also
