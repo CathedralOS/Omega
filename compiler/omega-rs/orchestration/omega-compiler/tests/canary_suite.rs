@@ -19688,6 +19688,101 @@ fn runtime_value_call_same_callee_sites_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Value-machine calls as DIRECT transition arguments deliver per-argument
+// (the retired validator stopgap's shape, now WORKING): call+literal,
+// same callee twice, and two different callees, each parameter checked.
+// Fixed by (a) deferring TransitionArgument-role leaf captures past the
+// callee's spliced body ops, (b) pairing leaf expansions with their own
+// call op by (role, call_ordinal), and (c) pairing delivery copies with
+// the Nth transition-argument call record by rank.
+#[test]
+fn runtime_value_call_transition_args_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_value_call_transition_args_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("transition-args canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (all six params delivered), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-transition-args-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("transition-args canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("transition-args canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected every value-call transition argument to deliver ITS call's \
+         result (exit 70), got {:?} (71/72 = call+literal; 73/74 = same-callee \
+         pair; 75/76 = different-callee pair)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The straight-line (guard-free) sibling: done(self.dbl(5), self.dbl(6))
+// exits with b, which must hold ITS call's result (12) -- the historical
+// bugs delivered call 1's result (10) or ZII 0.
+#[test]
+fn runtime_value_call_transition_args_straight_line_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_value_call_transition_args_straight_line_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("transition-args straight-line canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 12,
+        "interpreter oracle should exit 12 (b = dbl(6)), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-transition-args-sl-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("transition-args straight-line canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("transition-args straight-line canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(12),
+        "expected b = dbl(6) = 12, got {:?} (10 = b read call 1's result; \
+         0 = the capture never ran)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // The retired fence's own repro body, now a PASS: a guard-free
 // (straight-line-scheduled) state with two same-callee value calls stored
 // straight to fields. f=10 + g=12 -> sum exit 22; the historical shared-slot
@@ -22984,6 +23079,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_call_shared_payload_name_exit",
     "calls/runtime_value_call_shared_slot_straight_line_exit",
     "calls/runtime_value_call_struct_payload_cast_field_exit",
+    "calls/runtime_value_call_transition_args_exit",
+    "calls/runtime_value_call_transition_args_straight_line_exit",
     "filesystem/windows_raw_breadth_exit",
     "filesystem/windows_raw_roundtrip_exit",
     "filesystem/windows_wrapper_results_exit",
@@ -23874,7 +23971,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/contained_same_type_receiver_rejected",
     "calls/terminal_return_type_mismatch_rejected",
-    "calls/transition_arg_scalar_value_call_rejected",
     "collections/write_first_loop_bound_exceeds_capacity",
     "capabilities/duplicate_provider_declaration",
     "capabilities/effect_ceiling_exceeded",

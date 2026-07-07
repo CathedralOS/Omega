@@ -129,6 +129,28 @@ impl StateCallPlan {
             })
     }
 
+    /// The Nth (by ascending `call_ordinal`) TRANSITION-ARGUMENT call of a
+    /// statement. A transition passing several value calls as arguments
+    /// (`done(self.dbl(5), self.dbl(6))`) has one call record per argument;
+    /// argument materialization walks the target's Call-typed arguments in
+    /// order, so the Nth Call argument pairs with the Nth such record.
+    pub fn transition_argument_call_by_rank(
+        &self,
+        source_key: StateKey,
+        statement_index: usize,
+        call_rank: usize,
+    ) -> Option<&StateCall> {
+        let mut ordinals: Vec<usize> = self
+            .calls_for_statement(source_key, statement_index)
+            .filter(|state_call| state_call.role == StateCallRole::TransitionArgument)
+            .map(|state_call| state_call.call_ordinal)
+            .collect();
+        ordinals.sort_unstable();
+        ordinals.dedup();
+        let ordinal = *ordinals.get(call_rank)?;
+        self.transition_argument_call_by_ordinal(source_key, statement_index, ordinal)
+    }
+
     pub fn required_source_or_target(&self, state_key: StateKey) -> bool {
         self.calls.iter().any(|(_, state_call)| {
             state_call.required

@@ -264,6 +264,33 @@ pub(super) fn resolve_runtime_transition_argument_call_result_place(
     )
 }
 
+/// Per-argument variant: the Nth Call-typed transition argument reads the Nth
+/// transition-argument call's result slot (by ascending call_ordinal). The
+/// unranked resolver above finds the statement's FIRST slot, so with two
+/// value-call arguments in one transition both parameters read call 1's
+/// result.
+pub(super) fn resolve_runtime_transition_argument_call_result_place_by_rank(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+    call_rank: usize,
+) -> Option<RuntimeStoragePlace> {
+    let state_call = input.state_calls.transition_argument_call_by_rank(
+        source_key,
+        statement_index,
+        call_rank,
+    )?;
+    resolve_runtime_call_result_place(
+        input,
+        dispatch_index,
+        source_key,
+        statement_index,
+        StateCallRole::TransitionArgument,
+        Some(state_call.call_ordinal),
+    )
+}
+
 fn resolve_runtime_call_result_place(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,

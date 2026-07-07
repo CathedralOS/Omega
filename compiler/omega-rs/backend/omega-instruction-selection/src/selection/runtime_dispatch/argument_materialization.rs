@@ -14,6 +14,7 @@ use crate::selection::storage_places::{
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
     resolve_runtime_transition_argument_call_result_place,
+    resolve_runtime_transition_argument_call_result_place_by_rank,
 };
 use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, SelectedInstruction, SelectedInstructionKind,
@@ -96,6 +97,11 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
     };
     let mut scratch_cursor = input.runtime_storage.frame_scratch_base;
     let mut staged_copies: Vec<(usize, usize, usize)> = Vec::new();
+    // Rank of the next MACHINE-value-call argument (consumed left to right):
+    // the Nth such argument reads the Nth transition-argument call record's
+    // result slot. Builtin call arguments (`.unwrap()`) have no record and do
+    // not consume a rank.
+    let mut transition_call_argument_rank = 0usize;
 
     for (parameter_index, parameter) in input
         .control_flow
@@ -211,13 +217,49 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
             continue;
         }
 
-        if matches!(expressions.expression(argument), ExpressionNode::Call(_))
-            && let Some(place) = resolve_runtime_transition_argument_call_result_place(
+        // Pair each machine-value-call argument with ITS OWN result slot
+        // (by rank, verified against the callee name): the unranked resolver
+        // below finds the statement's FIRST slot, so two value-call arguments
+        // in one transition both read call 1's result. A rank whose record
+        // does not name this argument's callee (a builtin `.unwrap()` between
+        // machine calls) falls through to the pre-existing chain unchanged.
+        let ranked_place = if let ExpressionNode::Call(call) = expressions.expression(argument) {
+            resolve_runtime_transition_argument_call_result_place_by_rank(
                 input,
                 source_dispatch_index,
                 argument_source_key,
                 statement_index,
+                transition_call_argument_rank,
             )
+            .filter(|_| {
+                input
+                    .state_calls
+                    .transition_argument_call_by_rank(
+                        argument_source_key,
+                        statement_index,
+                        transition_call_argument_rank,
+                    )
+                    .and_then(|state_call| {
+                        input.control_flow.state_by_key(state_call.target_key)
+                    })
+                    .is_some_and(|target_state| target_state.name == call.target)
+            })
+        } else {
+            None
+        };
+        if ranked_place.is_some() {
+            transition_call_argument_rank += 1;
+        }
+        if matches!(expressions.expression(argument), ExpressionNode::Call(_))
+            && let Some(place) = ranked_place
+            .or_else(|| {
+                resolve_runtime_transition_argument_call_result_place(
+                    input,
+                    source_dispatch_index,
+                    argument_source_key,
+                    statement_index,
+                )
+            })
             .or_else(|| {
                 resolve_runtime_call_argument_call_result_place(
                     input,
