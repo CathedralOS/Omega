@@ -1811,6 +1811,38 @@ pub fn runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offs
     }
 }
 
+pub fn runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width(
+    architecture: Architecture,
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width(
+                source_region,
+                outer_index_region,
+                inner_index_region,
+            )
+        }
+    }
+}
+
+pub fn runtime_machine_double_indexed_integer_write_width(
+    architecture: Architecture,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => x86_64::runtime_machine_double_indexed_integer_write_width(
+            outer_index_region,
+            inner_index_region,
+        ),
+    }
+}
+
 pub fn runtime_storage_copy_to_runtime_pointee_width(
     architecture: Architecture,
     source_offset: usize,

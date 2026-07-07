@@ -282,6 +282,45 @@ pub(super) fn collect_runtime_storage_copy_relocations(
             );
             true
         }
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed {
+            source_region,
+            outer_index_region,
+            inner_index_region,
+            ..
+        } => {
+            context
+                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+            if [source_region, outer_index_region, inner_index_region].iter().any(|region| {
+                **region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            }) {
+                context.insert_data_address_at_relative_offset(
+                    runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
+                        context.input.target.architecture,
+                    ),
+                    context.runtime_frame_symbol_handle(),
+                );
+            }
+            true
+        }
+        SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger {
+            outer_index_region,
+            inner_index_region,
+            ..
+        } => {
+            context
+                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+            if [outer_index_region, inner_index_region].iter().any(|region| {
+                **region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            }) {
+                context.insert_data_address_at_relative_offset(
+                    runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
+                        context.input.target.architecture,
+                    ),
+                    context.runtime_frame_symbol_handle(),
+                );
+            }
+            true
+        }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { source_region, .. } => {
             let source_symbol = context.storage_region_symbol_handle(*source_region);
             context.insert_data_address_at_instruction_start(source_symbol);

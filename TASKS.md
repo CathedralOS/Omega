@@ -469,10 +469,18 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >   predicate mirrors the resolver's gates); canary
 >   runtime_double_indexed_read_exit (machine/let targets, frame/mixed
 >   regions, const-prefix 3D) + fail canary triple_runtime_indexed_read_
->   rejected. STILL FENCED/LOUD: both-runtime WRITES (`grid[i][j] = v`, needs
->   the write twin -- next rung), `rows[i].data[j]` (member between indices),
->   3+ runtime levels, local/param 2D arrays, aarch64 (encoder rejects
->   cleanly). Array-of-structs as a binary
+>   rejected. WRITE TWINS LANDED same day: CopyRuntimeStorageToRuntimeMachine
+>   DoubleIndexed (place source; the value loads into r14 BEFORE the base
+>   register is biased) + WriteRuntimeMachineDoubleIndexedInteger (const
+>   value); consumer block in mutation.rs after the single-index block; the
+>   operand HOIST temp now types through nested-Indexed collections
+>   (element-of-element descent in infer_hoist_temp_type), so `grid[i][j]+5`
+>   operands work too. Canaries runtime_double_indexed_{write,operand}_exit
+>   (write fail canary graduated). The nested-indexing matrix is now CLOSED
+>   on x86_64 except: direct RMW (`grid[i][j] = grid[i][j]+1` -- binary value
+>   into a double-indexed target = LOUD error; let-temp idiom works),
+>   `rows[i].data[j]` (member between indices), 3+ runtime levels, local
+>   /param 2D arrays, aarch64 (encoder rejects cleanly). All loud. Array-of-structs as a binary
 >   operand: CLOSED (verified 2026-07-07 -- the Member-over-indexed operand HOIST
 >   + machine-indexed copy closed the whole family without a dedicated operand
 >   kind: `cells[i].x + 5`

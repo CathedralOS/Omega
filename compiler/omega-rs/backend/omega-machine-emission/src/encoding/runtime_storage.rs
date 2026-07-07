@@ -913,6 +913,64 @@ pub(super) fn encode_runtime_storage_copy_from_runtime_machine_double_indexed_to
     )
 }
 
+pub(super) fn encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage(
+    input: MachineEmissionContext<'_>,
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    source_offset: usize,
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage(
+        input.target.architecture,
+        source_region,
+        source_offset,
+        base_byte_offset,
+        outer_index_offset,
+        outer_index_region,
+        outer_stride,
+        inner_index_offset,
+        inner_index_region,
+        inner_stride,
+        field_byte_offset,
+        byte_count,
+    )
+}
+
+pub(super) fn encode_runtime_machine_double_indexed_integer_write(
+    input: MachineEmissionContext<'_>,
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_machine_double_indexed_integer_write(
+        input.target.architecture,
+        base_byte_offset,
+        outer_index_offset,
+        outer_index_region,
+        outer_stride,
+        inner_index_offset,
+        inner_index_region,
+        inner_stride,
+        field_byte_offset,
+        byte_size,
+        value,
+    )
+}
+
 pub(super) fn encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame(
     input: MachineEmissionContext<'_>,
     base_byte_offset: usize,
