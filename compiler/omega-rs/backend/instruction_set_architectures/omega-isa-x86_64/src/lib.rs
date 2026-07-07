@@ -3183,6 +3183,145 @@ pub fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
     Ok(bytes)
 }
 
+/// Width of [`encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage`].
+/// MUST equal the emitter exactly. Any frame-resident index adds one r10
+/// frame-base load (mov r10,imm64 at +10).
+pub fn runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    // mov r15,imm64 (10) [+ mov r10,imm64 (10) if any frame index]
+    // + mov eax,[..+outer] (7) + mov r11d,[..+inner] (7)
+    // + imul rax,imm32 (7) + imul r11,imm32 (7) + add r15,rax (3)
+    // + add r15,r11 (3) + load rax,[r15+disp] (7)
+    // + mov r15,imm64 (10) + store [r15+target] (7)
+    if double_indexed_any_frame(outer_index_region, inner_index_region) {
+        78
+    } else {
+        68
+    }
+}
+
+fn double_indexed_any_frame(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> bool {
+    outer_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        || inner_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+}
+
+/// Start of the `mov r10,imm64` frame-base load inside the double-indexed
+/// read (pre-`+2`; present only when an index is frame-resident).
+pub fn runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset() -> usize {
+    10
+}
+
+/// Start of the WRITE-half `mov r15,imm64` (the target-region relocation,
+/// pre-`+2`) inside the double-indexed read.
+pub fn runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offset(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width(
+        outer_index_region,
+        inner_index_region,
+    ) - 17
+}
+
+/// The BOTH-RUNTIME nested read `grid[i][j]`: rax = outer index, r11 = inner
+/// index (each loaded from its own region -- machine base r15 or frame base
+/// r10), each scaled by its stride (outer = ROW byte size, inner = element
+/// byte size), both added to the machine base, then a width-correct load of
+/// the element and a store to the runtime-storage target. The two index
+/// computations use distinct registers, so neither clobbers the other; the
+/// frame base r10 is loaded once and serves both frame-resident indices.
+pub fn encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_count, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot read {byte_count}-byte double-indexed values yet"
+        )));
+    }
+    for region in [outer_index_region, inner_index_region] {
+        if !matches!(
+            region,
+            omega_target_operations::RuntimeStorageRegion::Machine
+                | omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        ) {
+            return Err(Diagnostic::error(
+                "X86_64 MVP encoder cannot read a double-indexed value with this index region yet",
+            ));
+        }
+    }
+    let outer_scale = i32::try_from(outer_stride).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot scale a double index by stride `{outer_stride}`"
+        ))
+    })?;
+    let inner_scale = i32::try_from(inner_stride).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot scale a double index by stride `{inner_stride}`"
+        ))
+    })?;
+    let outer_displacement = disp32(outer_index_offset)?;
+    let inner_displacement = disp32(inner_index_offset)?;
+    let mut bytes = Vec::with_capacity(
+        runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width(
+            outer_index_region,
+            inner_index_region,
+        ),
+    );
+    // r15 = machine source base (imm64 at +2 relocated to the machine symbol).
+    append_mov_r15_imm64(&mut bytes, 0);
+    if double_indexed_any_frame(outer_index_region, inner_index_region) {
+        // r10 = runtime-frame base (imm64 at +12), shared by both frame loads.
+        append_mov_r10_imm64(&mut bytes, 0);
+    }
+    // eax = outer index (32-bit, zero-extended) from its region's base.
+    if outer_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        bytes.extend([0x41, 0x8b, 0x82]); // mov eax, [r10+disp32]
+    } else {
+        bytes.extend([0x41, 0x8b, 0x87]); // mov eax, [r15+disp32]
+    }
+    bytes.extend(outer_displacement.to_le_bytes());
+    // r11d = inner index (32-bit, zero-extended) from its region's base.
+    if inner_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        bytes.extend([0x45, 0x8b, 0x9a]); // mov r11d, [r10+disp32]
+    } else {
+        bytes.extend([0x45, 0x8b, 0x9f]); // mov r11d, [r15+disp32]
+    }
+    bytes.extend(inner_displacement.to_le_bytes());
+    // Scale both indices, then walk r15 to the element.
+    append_imul_rax_imm32(&mut bytes, outer_scale);
+    bytes.extend([0x4d, 0x69, 0xdb]); // imul r11, r11, imm32
+    bytes.extend(inner_scale.to_le_bytes());
+    append_add_r15_rax(&mut bytes);
+    bytes.extend([0x4d, 0x01, 0xdf]); // add r15, r11
+    // rax = the element at [r15 + base + field].
+    append_load_rax_from_r15(&mut bytes, base_byte_offset + field_byte_offset)?;
+    // r15 = target base (imm64 relocated to the target region symbol); store.
+    append_mov_r15_imm64(&mut bytes, 0);
+    append_store_rax_to_r15(&mut bytes, target_offset, byte_count)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width(
+            outer_index_region,
+            inner_index_region,
+        )
+    );
+    Ok(bytes)
+}
+
 pub fn runtime_pointee_integer_write_width(_field_byte_offset: usize, _byte_size: usize) -> usize {
     // mov r15,imm64 (10) + mov r15,[r15+ptr] (7) + mov rax,imm64 (10) + store [r15+field] (7)
     34

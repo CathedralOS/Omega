@@ -458,8 +458,21 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >   resolver peels const Indexed layers, biasing the base per level
 >   (resolve_machine_owned_collection_with_const_prefix_in_table). Canary
 >   runtime_nested_deep_const_prefix_exit pins both faces + the alias shape.
->   REMAINING: BOTH-RUNTIME indices (`grid[i][j]`) = clean error; needs a
->   two-runtime-index op or an index-folding temp. Array-of-structs as a binary
+>   BOTH-RUNTIME READS (`grid[i][j]`) LANDED 2026-07-07: a new
+>   CopyRuntimeMachineDoubleIndexedToRuntimeStorage op (base + i*row_stride +
+>   j*elem_stride; ~20-site recipe mirrored from the dual-indexed #38 op)
+>   with resolve_runtime_machine_double_indexed_source_in_table + consumer
+>   arms in storage_copy.rs (machine targets) and frame_slots.rs (let/frame
+>   targets); x86_64 encoder covers all four index-region combinations (one
+>   shared r10 frame-base reloc). Read fence relaxed ONLY for the exact wired
+>   shape (directly-nested two-level self-field base -- the validation
+>   predicate mirrors the resolver's gates); canary
+>   runtime_double_indexed_read_exit (machine/let targets, frame/mixed
+>   regions, const-prefix 3D) + fail canary triple_runtime_indexed_read_
+>   rejected. STILL FENCED/LOUD: both-runtime WRITES (`grid[i][j] = v`, needs
+>   the write twin -- next rung), `rows[i].data[j]` (member between indices),
+>   3+ runtime levels, local/param 2D arrays, aarch64 (encoder rejects
+>   cleanly). Array-of-structs as a binary
 >   operand: CLOSED (verified 2026-07-07 -- the Member-over-indexed operand HOIST
 >   + machine-indexed copy closed the whole family without a dedicated operand
 >   kind: `cells[i].x + 5`

@@ -1164,6 +1164,40 @@ pub fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
     }
 }
 
+pub fn encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage(
+    architecture: Architecture,
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "aarch64 cannot encode a both-runtime nested read (`grid[i][j]`) yet;              make one index a constant or use a flat array",
+        )),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage(
+                base_byte_offset,
+                outer_index_offset,
+                outer_index_region,
+                outer_stride,
+                inner_index_offset,
+                inner_index_region,
+                inner_stride,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            )
+        }
+    }
+}
+
 pub fn encode_runtime_storage_copy_to_runtime_pointee(
     architecture: Architecture,
     source_offset: usize,

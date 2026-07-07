@@ -1026,6 +1026,20 @@ fn report_nested_runtime_indexed_read(
     if !base_is_runtime_indexed {
         return;
     }
+    // The DIRECTLY-nested two-level machine-owned read (`self.grid[i][j]`,
+    // both indices runtime, the base a `self` field behind only const-indexed
+    // /member links) lowers since 2026-07-07 via the double-indexed copy op
+    // (resolve_runtime_machine_double_indexed_source_in_table -- this
+    // predicate mirrors its shape gates exactly). Everything else stays
+    // fenced: 3+ runtime levels, a member BETWEEN the two indices
+    // (`rows[i].data[j]`), and frame/local/param collections. Faces the op's
+    // consumers do not cover (writes, member suffixes above the element,
+    // oversized elements) reject LOUDLY downstream -- the write classifier
+    // refuses the fast path and the storage blockers report unlowered
+    // statements, so nothing falls back to the legacy silent paths.
+    if double_indexed_machine_read_is_lowerable(program, indexed) {
+        return;
+    }
     diagnostics.push(Diagnostic::error(format!(
         "machine `{}` state `{}` reads an array element with a runtime index whose base is itself \
          indexed by another RUNTIME value (`grid[i][j]`, both indices runtime), which the backend \
@@ -1034,6 +1048,85 @@ fn report_nested_runtime_indexed_read(
         machine.name.as_str(),
         state.name.as_str(),
     )));
+}
+
+/// Whether a both-runtime nested read matches the DOUBLE-INDEXED lowering's
+/// shape: `<self-field base>[i][j]` -- the outer collection (Mutable-peeled)
+/// is DIRECTLY another `Indexed` with a runtime index, and that inner
+/// collection's chain reaches a `self` member through only CONST-indexed /
+/// member / mutable links (the const-prefix peel folds those). Mirrors
+/// `resolve_runtime_machine_double_indexed_source_in_table`.
+fn double_indexed_machine_read_is_lowerable(
+    program: &TypedTrees,
+    indexed: &omega_typed_trees::expression::TableIndexedExpression,
+) -> bool {
+    let mut inner = indexed.collection;
+    while let ExpressionNode::Mutable(next) = program.expression_table.expression(inner) {
+        inner = *next;
+    }
+    let ExpressionNode::Indexed(inner_indexed) = program.expression_table.expression(inner) else {
+        return false;
+    };
+    let mut inner_index = inner_indexed.index;
+    while let ExpressionNode::Mutable(next) = program.expression_table.expression(inner_index) {
+        inner_index = *next;
+    }
+    if matches!(
+        program.expression_table.expression(inner_index),
+        ExpressionNode::Integer(_) | ExpressionNode::Range(_)
+    ) {
+        return false;
+    }
+    // Below the two runtime levels: only const-indexed / member / mutable
+    // links, ending at a `self.<field>` head (machine-owned storage; a bare
+    // local/param array stays fenced -- the frame op family does not cover
+    // both-runtime yet).
+    let mut place = inner_indexed.collection;
+    loop {
+        match program.expression_table.expression(place) {
+            ExpressionNode::Indexed(below) => {
+                let mut below_index = below.index;
+                while let ExpressionNode::Mutable(next) =
+                    program.expression_table.expression(below_index)
+                {
+                    below_index = *next;
+                }
+                if !matches!(
+                    program.expression_table.expression(below_index),
+                    ExpressionNode::Integer(_)
+                ) {
+                    return false;
+                }
+                place = below.collection;
+            }
+            ExpressionNode::Member(member) => {
+                let receiver = member.receiver;
+                if matches!(
+                    program.expression_table.expression(receiver),
+                    ExpressionNode::Name(path)
+                        if program
+                            .expression_table
+                            .name_path_members(path.members)
+                            .first()
+                            .is_some_and(|name| name.as_str() == "self")
+                ) {
+                    return true;
+                }
+                place = receiver;
+            }
+            ExpressionNode::Mutable(next) => place = *next,
+            ExpressionNode::Name(path) => {
+                // A multi-member Name path starting at `self` (`self.grid`
+                // resolved as one path) is machine-owned too.
+                return program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .first()
+                    .is_some_and(|name| name.as_str() == "self");
+            }
+            _ => return false,
+        }
+    }
 }
 
 /// Recursively scan `expression` for `ExpressionNode::Call` nodes and

@@ -1,0 +1,11 @@
+// THREE runtime index levels (`cube[a][b][c]`) must stay a CLEAN ERROR: the
+// double-indexed op carries exactly TWO (row, element) runtime indices; a
+// third level has no computable address. (Two-level `grid[i][j]` lowers --
+// pass/collections/runtime_double_indexed_read_exit.)
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; cube: [[[i32; 2]; 2]; 2]; a: usize [0..=1]; b: usize [0..=1]; c: usize [0..=1]; }
+machine Main::main(&mut self) {
+    self.a = 1; self.b = 1; self.c = 1;
+    let n: i32 = self.cube[self.a][self.b][self.c];
+    self.console.exit_process(n);
+}

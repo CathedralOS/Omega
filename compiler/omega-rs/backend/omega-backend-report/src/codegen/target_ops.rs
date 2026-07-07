@@ -1059,6 +1059,23 @@ fn selected_instruction_name(
                 "copy runtime-machine indexed base@{source_base_byte_offset} index@{source_index_offset}({source_index_region:?}) elem {source_element_byte_size} field +{source_field_byte_offset} -> runtime-machine indexed base@{target_base_byte_offset} index@{target_index_offset}({target_index_region:?}) elem {target_element_byte_size} field +{target_field_byte_offset} bytes {byte_count}"
             )
         }
+        SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage {
+            base_byte_offset,
+            outer_index_offset,
+            outer_index_region,
+            outer_stride,
+            inner_index_offset,
+            inner_index_region,
+            inner_stride,
+            field_byte_offset,
+            target_region,
+            target_offset,
+            byte_count,
+        } => {
+            format!(
+                "copy runtime-machine double-indexed base@{base_byte_offset} outer@{outer_index_offset}({outer_index_region:?})*{outer_stride} inner@{inner_index_offset}({inner_index_region:?})*{inner_stride} field +{field_byte_offset} -> {target_region:?}@{target_offset} bytes {byte_count}"
+            )
+        }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
             source_region,
             source_offset,
