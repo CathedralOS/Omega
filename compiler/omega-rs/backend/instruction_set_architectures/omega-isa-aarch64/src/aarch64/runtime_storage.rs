@@ -975,9 +975,14 @@ pub fn encode_runtime_machine_string_write(
     bytes.extend(encode_add_page_offset_placeholder(17));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
-    bytes.extend(encode_store_x17_to_x16(byte_offset)?);
+    // Materialize a large descriptor offset (a String field after a big array) into
+    // x16 ONCE, then store the ptr at [x16] and the length at [x16+8]. (The two adrp
+    // page-pairs above are at fixed leading positions, so their relocations are
+    // unaffected; the width is a with_capacity hint, so a larger sequence just grows.)
+    append_add_constant_to_x_register(&mut bytes, 16, byte_offset)?;
+    bytes.extend(encode_store_x17_to_x16(0)?);
     append_unsigned_immediate(&mut bytes, 17, byte_length as u64);
-    bytes.extend(encode_store_x17_to_x16(byte_offset + 8)?);
+    bytes.extend(encode_store_x17_to_x16(8)?);
     Ok(bytes)
 }
 
@@ -990,9 +995,14 @@ pub fn encode_runtime_frame_string_write(
     bytes.extend(encode_add_page_offset_placeholder(17));
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
-    bytes.extend(encode_store_x17_to_x16(byte_offset)?);
+    // Materialize a large descriptor offset (a String field after a big array) into
+    // x16 ONCE, then store the ptr at [x16] and the length at [x16+8]. (The two adrp
+    // page-pairs above are at fixed leading positions, so their relocations are
+    // unaffected; the width is a with_capacity hint, so a larger sequence just grows.)
+    append_add_constant_to_x_register(&mut bytes, 16, byte_offset)?;
+    bytes.extend(encode_store_x17_to_x16(0)?);
     append_unsigned_immediate(&mut bytes, 17, byte_length as u64);
-    bytes.extend(encode_store_x17_to_x16(byte_offset + 8)?);
+    bytes.extend(encode_store_x17_to_x16(8)?);
     Ok(bytes)
 }
 

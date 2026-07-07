@@ -941,10 +941,21 @@ pub fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width(
 pub fn operand_width(operand: &Aarch64CallOperand) -> usize {
     match operand {
         DataAddress { .. } => 8,
-        RuntimeStringPointer { .. }
-        | RuntimeStringLength { .. }
-        | RuntimeScalarInteger { .. }
-        | RuntimeStorageAddress { .. } => 12,
+        // adrp + add (8) + a sized load (arg) / store (result) that materializes a
+        // large field offset (a scalar declared after a big array, offset > the LDR/STR
+        // scaled-immediate range): `load_data_offset_width` == `store_data_offset_width`
+        // (4 when encodable; 8 + add-constant otherwise), so this width tracks BOTH the
+        // arg-load and the result-store emission in lockstep — and the relocation
+        // planner (data_addresses.rs) sums these to place each operand's adrp exactly.
+        RuntimeScalarInteger {
+            byte_offset,
+            byte_count,
+        } => 8 + load_data_offset_width(*byte_offset, *byte_count),
+        // adrp + add (8) + `add field_offset` that materializes a large offset
+        // (`append_add_x_constant`; `add_constant_width` == 0 for offset 0, 4 when
+        // <=4095, else movz/movk + add-register). Matches the emission in lockstep.
+        RuntimeStorageAddress { byte_offset } => 8 + add_constant_width(*byte_offset),
+        RuntimeStringPointer { .. } | RuntimeStringLength { .. } => 12,
         RuntimePointeeStringPointer { .. } | RuntimePointeeStringLength { .. } => 16,
         // adrp + add + load + fmov (into a v-register) = 16.
         RuntimeScalarFloat { .. } => 16,
