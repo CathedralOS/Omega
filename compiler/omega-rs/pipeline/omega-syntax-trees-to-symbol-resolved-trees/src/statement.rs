@@ -155,6 +155,24 @@ fn lower_statement_node(
             // exhaustiveness (which needs a single shared subject across arms) is unaffected.
             let mut hoisted = Vec::new();
             if let TransitionGuard::When(expression) = guard {
+                // A USER value-machine call compared to an INTEGER literal
+                // (`transition self.dbl(5) == 11`) is hoisted into a `let`
+                // temp FIRST -- the direct shape has no guard lowering (the
+                // callee body is never spliced for guard-role calls; the
+                // emission blocker rejects it), while the let-bound call is
+                // the fully working assignment path. The rewritten guard
+                // (`__hoist == 11`) then flows through the match-subject /
+                // operand hoists below unchanged. Scoped to integer-literal
+                // comparisons: string/view call guards work via the
+                // TextEquals path, and bare/bool call guards (the effectful
+                // single-evaluation canaries) are untouched.
+                hoist_scalar_value_call_comparison(
+                    lowerer,
+                    syntax_trees,
+                    transition.guard,
+                    expression,
+                    &mut hoisted,
+                );
                 if guard_hoists_operands(lowerer, expression) {
                     // A bool-arm dispatch (`{ true -> .. false -> .. }`) over a
                     // hoistable comparison subject shares ONE temp across arms so
@@ -395,6 +413,163 @@ fn hoist_child(
     // indexed reads (`(a + arr[i]) * b`) are still hoisted.
     rewrite_children(lowerer, child, hoisted, hoist_builtin_calls);
     child
+}
+
+/// Hoists a USER value-machine call out of a guard's integer comparison:
+/// `self.dbl(5) == 11` becomes `let __hoist_N = self.dbl(5); __hoist_N == 11`.
+/// Fires only when the guard ROOT is a comparison with a Call on one side and
+/// an INTEGER literal on the other (builtin min/max/sqrt calls keep their own
+/// dedicated hoist below). The temp's type is resolved from the callee's
+/// DECLARED return by the symbol-resolved -> typed lowering
+/// (`infer_hoist_temp_type`); an inferred-return callee gets a clear
+/// annotate-or-bind diagnostic there.
+fn hoist_scalar_value_call_comparison(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    syntax_guard: syntax::statement::TransitionGuardNode,
+    guard_expression: ExpressionHandle,
+    hoisted: &mut Vec<Statement>,
+) {
+    let syntax::statement::TransitionGuardNode::When(mut syntax_cmp) = syntax_guard else {
+        return;
+    };
+    // Peel bool-arm wrappers in LOCKSTEP on both trees: a bool-arm dispatch
+    // wraps the subject per arm (`(dbl(5) == 11) == true`), and a match-over-
+    // call arm arrives directly as `roll(..) == <arm literal>` with the SAME
+    // syntax subject handle shared across arms.
+    let mut resolved_cmp = guard_expression;
+    let binary = loop {
+        let node = lowerer
+            .symbol_resolved_trees
+            .tables
+            .bodies
+            .expressions
+            .expression(resolved_cmp)
+            .clone();
+        let ExpressionNode::Binary(binary) = node else {
+            return;
+        };
+        if matches!(
+            binary.operator,
+            BinaryOperator::Equal | BinaryOperator::NotEqual
+        ) && matches!(
+            lowerer
+                .symbol_resolved_trees
+                .tables
+                .bodies
+                .expressions
+                .expression(binary.right),
+            ExpressionNode::Boolean(_)
+        ) {
+            let syntax::expression::ExpressionNode::Binary(syntax_outer) =
+                syntax_trees.expressions.expression(syntax_cmp)
+            else {
+                return;
+            };
+            resolved_cmp = binary.left;
+            syntax_cmp = syntax_outer.left;
+            continue;
+        }
+        break binary;
+    };
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+    ) {
+        return;
+    }
+    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let side_is_user_call = |handle: ExpressionHandle| match expressions.expression(handle) {
+        ExpressionNode::Call(call) => !matches!(call.target.as_str(), "min" | "max" | "sqrt"),
+        _ => false,
+    };
+    let side_is_integer = |handle: ExpressionHandle| {
+        matches!(expressions.expression(handle), ExpressionNode::Integer(_))
+    };
+    let call_is_left = side_is_user_call(binary.left) && side_is_integer(binary.right);
+    let call_is_right = side_is_user_call(binary.right) && side_is_integer(binary.left);
+    if !call_is_left && !call_is_right {
+        return;
+    }
+    let call_side = if call_is_left { binary.left } else { binary.right };
+
+    // The memo key is the CALL's SYNTAX handle: a match over a call subject
+    // (`transition self.roll(t) { 1 -> .. 2 -> .. }`) lowers one comparison
+    // PER ARM over the SAME syntax subject, and every arm must share ONE temp
+    // -- per-arm temps re-run the callee once per attempted arm (the
+    // effectful-subject single-evaluation tripwire).
+    let syntax_call = match syntax_trees.expressions.expression(syntax_cmp) {
+        syntax::expression::ExpressionNode::Binary(syntax_binary) => {
+            if call_is_left {
+                syntax_binary.left
+            } else {
+                syntax_binary.right
+            }
+        }
+        // A match-over-call arm whose SYNTAX guard is the bare subject (the
+        // arm value is synthesized): the subject itself is the call.
+        _ => syntax_cmp,
+    };
+    let subject_key = syntax_call.arena_index();
+
+    let name = match lowerer.match_subject_temp(subject_key) {
+        Some(existing) => DiagnosticName::generated(existing),
+        None => {
+            let fresh = lowerer.next_hoist_name();
+            lowerer.record_match_subject_temp(subject_key, fresh.clone());
+            let name = DiagnosticName::generated(fresh);
+            hoisted.push(Statement::LocalData(LocalData {
+                symbol: SymbolHandle::invalid(),
+                name: name.clone(),
+                storage: LocalDataStorage {
+                    // Unit is the inference sentinel; the symbol-resolved ->
+                    // typed lowering types the temp from the callee's DECLARED
+                    // return (`infer_hoist_temp_type`'s Call branch).
+                    type_reference: TypeReference::Unit,
+                    initial_value: call_side,
+                },
+            }));
+            name
+        }
+    };
+
+    let mut members = HandleSpan::empty();
+    lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .push_name_path_member(&mut members, name);
+    let name_reference = lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .insert(ExpressionNode::Name(TableNamePath {
+            members,
+            is_self_value: false,
+            head_symbol: SymbolHandle::invalid(),
+            symbol: SymbolHandle::invalid(),
+        }));
+    let rewritten = TableBinaryExpression {
+        left: if call_is_left {
+            name_reference
+        } else {
+            binary.left
+        },
+        operator: binary.operator,
+        right: if call_is_right {
+            name_reference
+        } else {
+            binary.right
+        },
+    };
+    set_expression(lowerer, resolved_cmp, ExpressionNode::Binary(rewritten));
 }
 
 /// Whether `expression` is a pure-builtin call (`min`/`max`/`sqrt`; `abs`/`clamp`

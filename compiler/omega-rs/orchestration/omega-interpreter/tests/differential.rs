@@ -783,6 +783,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_loop_accumulator_exit", 1),
     ("calls/runtime_loop_rotation_exit", 1),
     ("calls/runtime_value_call_entry_field_write_exit", 70),
+    ("calls/runtime_value_call_guard_subject_exit", 70),
     ("calls/runtime_value_call_nested_entry_call_exit", 70),
     ("calls/runtime_value_call_same_callee_sites_exit", 70),
     ("calls/runtime_two_site_struct_result_exit", 70),
