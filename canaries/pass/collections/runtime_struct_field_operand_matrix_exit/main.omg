@@ -1,0 +1,81 @@
+// Array-of-structs element field (`cells[i].x`, machine array, runtime index)
+// in EVERY binary-operand position -- the family TASKS once scoped as "PATH B:
+// a new machine-indexed struct-field value operand", closed instead by the
+// Member-over-indexed operand HOIST + the machine-indexed copy (2026-07-07).
+// This matrix extends runtime_indexed_struct_field_operand_exit with the faces
+// that memo flagged untested: machine-collection RMW, guard subject, indexed
+// target from indexed operand. Value-validated chain (37 seeded at cells[1].x):
+// b1: left operand (r = cells[i].x + 5)     b2: right operand (r = 5 + cells[i].x)
+// b3: both operands indexed (r = cells[i].x + cells[i].y)
+// b4/b4a: guard-DOMINATED RMW (cells[i].x == 37 proves cells[i].x += 5 fits
+//         [0..=100] -- guard refinement narrows an INDEXED place)
+// b5: guard subject (cells[i].x == 42)
+// b6: indexed target from indexed operand (cells[i].y = cells[i].x + 1)
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Cell {
+    x: i32 [0..=100];
+    y: i32 [0..=100];
+}
+data Main {
+    console: Console;
+    cells: [Cell; 3];
+    i: usize [0..=2];
+    r: i32;
+}
+machine Main::main(&mut self) {
+    self.cells[1].x = 37;
+    self.cells[1].y = 20;
+    self.cells[2].x = 90;
+    self.i = 1;
+    self.r = self.cells[self.i].x + 5;
+    transition self.r == 42 {
+        true -> b2()
+        false -> no()
+    }
+    state b2(&mut self) {
+        self.r = 5 + self.cells[self.i].x;
+        transition self.r == 42 {
+            true -> b3()
+            false -> no()
+        }
+    }
+    state b3(&mut self) {
+        self.r = self.cells[self.i].x + self.cells[self.i].y;
+        transition self.r == 57 {
+            true -> b4()
+            false -> no()
+        }
+    }
+    state b4(&mut self) {
+        transition self.cells[self.i].x == 37 {
+            true -> b4a()
+            false -> no()
+        }
+    }
+    state b4a(&mut self) {
+        self.cells[self.i].x += 5;
+        self.r = self.cells[1].x;
+        transition self.r == 42 {
+            true -> b5()
+            false -> no()
+        }
+    }
+    state b5(&mut self) {
+        transition self.cells[self.i].x == 42 {
+            true -> b6()
+            false -> no()
+        }
+    }
+    state b6(&mut self) {
+        self.cells[self.i].y = self.cells[self.i].x + 1;
+        self.r = self.cells[1].y;
+        transition self.r == 43 {
+            true -> yes()
+            false -> no()
+        }
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

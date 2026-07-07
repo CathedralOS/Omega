@@ -1,0 +1,28 @@
+// Array-of-structs element field as a binary operand through a BY-VALUE
+// machine param (`pick(cells: [Cell; 3], i)` computing `cells[i].x + 5`).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Cell {
+    x: i32 [0..=100];
+    y: i32 [0..=100];
+}
+data Main {
+    console: Console;
+    cells: [Cell; 3];
+    r: i32;
+}
+machine Main::pick(&self, cells: [Cell; 3], i: usize [0..=2]) -> i32 {
+    transition { _ -> (cells[i].x + 5) }
+}
+machine Main::main(&mut self) {
+    self.cells[1].x = 37;
+    self.cells[2].x = 90;
+    let got: i32 = self.pick(self.cells, 1);
+    transition got == 42 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}
