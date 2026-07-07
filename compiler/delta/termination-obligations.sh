@@ -42,7 +42,7 @@ echo "  negative control (reversed measure grows): check.beta=$nb check_ref=$nr 
 
 # ---- 3. tie each omega source obligation to the proven lemma ----
 cov=0; miss=0
-for f in ../../samples/*/main.omg; do
+for f in ../lattice-corpus/*/main.omg; do
   dec=$(grep -oE 'decreases [a-z_]+ -> Slice::Length' "$f" | head -1)
   [ -n "$dec" ] || continue
   s=$(basename "$(dirname "$f")")

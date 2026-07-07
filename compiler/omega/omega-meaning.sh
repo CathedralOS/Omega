@@ -27,7 +27,7 @@ PASS=0; FAIL=0
 # "Expected exit: N". Most samples verify themselves internally and exit a distinguished success
 # code only when their own checks pass — so agreement is computation, not coincidence.
 om() {
-  src="../../samples/$1/main.omg"
+  src="../lattice-corpus/$1/main.omg"
   want=$(grep -oE 'Expected exit: [0-9]+' "$src" | head -1 | grep -oE '[0-9]+')
   [ -n "$want" ] || { FAIL=$((FAIL+1)); echo "  FAIL $1 : no documented exit"; return; }
   "$T/e2g.exe" < "$src" 2>/dev/null | "$T/interp.exe" > "$T/mo.out" 2>&1; got=$?

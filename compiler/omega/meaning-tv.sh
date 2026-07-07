@@ -52,7 +52,7 @@ b ../delta/check.beta  "$T/check.exe"  || { echo "meaning-tv FAIL — build chec
 
 PASS=0; FAIL=0; VCTOT=0
 tv() {
-  src="../../samples/$1/main.omg"
+  src="../lattice-corpus/$1/main.omg"
   want=$(grep -oE 'Expected exit: [0-9]+' "$src" | head -1 | grep -oE '[0-9]+')
   "$T/e2g.exe" < "$src" > "$T/g" 2>/dev/null
   "$T/interp.exe" < "$T/g" > "$T/istdout" 2>/dev/null; got=$?

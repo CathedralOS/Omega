@@ -1,0 +1,12 @@
+use inventory::items;
+
+data Player {
+    name: String;
+    level: u32 in Wrapping;
+    xp: u32 in Wrapping;
+    max_health: i32 in Wrapping;
+    health: i32 in Wrapping;
+    attack: i32 in Wrapping;
+    defense: i32 in Wrapping;
+    inventory: Inventory;
+}

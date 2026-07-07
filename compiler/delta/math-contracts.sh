@@ -20,7 +20,7 @@ b() { ../beta-lang-rs/build/bc.exe < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "
 b check.beta        "$T/check.exe"  || { echo "math-contracts FAIL — build check.beta"; exit 1; }
 b ../gamma/interp.beta "$T/interp.exe" || { echo "math-contracts FAIL — build interp.beta"; exit 1; }
 DEFS=$(cat ../gamma/checker.gamma)
-SRC=../../samples/math_proofs/main.omg
+SRC=../lattice-corpus/math_proofs/main.omg
 
 gverdict() {
   gg=$(python3 prover.py --gamma "$1" 30 2>/dev/null)
