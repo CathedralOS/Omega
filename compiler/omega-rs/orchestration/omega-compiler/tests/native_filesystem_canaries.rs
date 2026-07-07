@@ -607,3 +607,37 @@ fn clock_sleep_poll_milliseconds_exits_6() {
     );
 }
 
+// The darwin GUI-provider SUBSTITUTION (task #57): a program that declares the
+// UNCHANGED Win32-shaped `boundary trait Gui` and holds a `gui: Gui` FIELD, with NO
+// `use` of any macOS module -- exactly like samples/gui/window_demo. On darwin the
+// compiler injects the bundled MacosGui provider and rewrites the `gui: Gui` field to
+// `MacosGui`, so `self.gui.window_create(..)` dispatches to the objc-composing
+// MacosGui machine as a value-call. A non-null window + get_dc echo -> exit 7. This is
+// the source-transparent wiring that runs the samples natively without touching their
+// traits. (The interpreter path keeps `gui: Gui`, so this substitution is native-only.)
+#[test]
+fn gui_provider_substitution_exits_7() {
+    let main_path = repo_root().join("canaries/pass/objc/gui_provider_substitution/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-guisubst-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("gui_provider_substitution should compile via the injected MacosGui provider:\n{d:#?}"));
+    let mut child = Command::new(build_dir.join("omega-program")).spawn().expect("spawn");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let code = loop {
+        if let Some(status) = child.try_wait().expect("try_wait") {
+            break status.code();
+        }
+        if std::time::Instant::now() > deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("gui_provider_substitution hung past 20s deadline");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(code, Some(7), "gui: Gui boundary field should be substituted to the MacosGui provider and exit 7");
+}
+
+
+

@@ -1,0 +1,43 @@
+// PROVES the darwin GUI-provider SUBSTITUTION (render fire 24, task #57): this file
+// declares the UNCHANGED Win32-shaped `boundary trait Gui` and holds a `gui: Gui`
+// FIELD — exactly like samples/gui/window_demo, with NO `use` of any macOS module.
+// On darwin the compiler injects the bundled `MacosGui` provider and rewrites the
+// `gui: Gui` field's type to `MacosGui`, so `self.gui.window_create(..)` dispatches
+// to the objc/Cocoa-composing MacosGui machine as an ordinary value-call. A non-null
+// window + get_dc echo -> exit 7. This is the source-transparent wiring that lets the
+// samples run natively without touching their traits.
+//
+// Minimal on purpose (window lifecycle only, no framebuffer array) so it proves the
+// SUBSTITUTION in isolation, independent of the large-offset encoder gap (task #59).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+boundary trait Gui {
+    machine window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
+    machine get_dc(window: u64) -> u64;
+    machine is_window(window: u64) -> u32;
+    machine window_destroy(window: u64) -> u32;
+}
+
+data Main {
+    console: Console;
+    gui: Gui;
+    win: u64;
+    dc: u64;
+    alive: u32;
+    killed: u32;
+    cls: [u8; 7];
+    title: [u8; 11];
+}
+
+machine Main::main(&mut self) {
+    self.win = self.gui.window_create(self.cls, self.title, 0, 0, 0, 200, 150);
+    self.dc = self.gui.get_dc(self.win);
+    self.alive = self.gui.is_window(self.win);
+    self.killed = self.gui.window_destroy(self.win);
+    transition self.win != 0 { true -> ck_dc() _ -> bad() }
+    state ck_dc(&mut self) { transition self.dc == self.win { true -> good() _ -> bad() } }
+    state good(&mut self) { self.console.exit_process(7); }
+    state bad(&mut self)  { self.console.exit_process(1); }
+}

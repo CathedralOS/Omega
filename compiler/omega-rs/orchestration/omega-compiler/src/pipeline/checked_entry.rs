@@ -1,5 +1,5 @@
 use crate::pipeline::stages::{
-    source_files_to_syntax_trees, symbol_resolved_trees_to_typed_trees,
+    source_files_to_syntax_trees_for_engine, symbol_resolved_trees_to_typed_trees,
     syntax_trees_to_symbol_resolved_trees, typed_trees_to_checked_trees,
 };
 use crate::pipeline::timing::CompileTimings;
@@ -19,8 +19,11 @@ pub fn compile_to_checked(
 ) -> Result<CheckedTrees, Vec<Diagnostic>> {
     let mut timings = CompileTimings::default();
 
+    // `native: false` — the interpreter path keeps the abstract `boundary trait Gui`
+    // (its own headless stub, item #9); only the native-image pipeline substitutes the
+    // darwin `MacosGui` provider (task #57).
     let (_source_file_count, mut syntax) =
-        source_files_to_syntax_trees(root_path, target_name, &mut timings)?;
+        source_files_to_syntax_trees_for_engine(root_path, target_name, false, &mut timings)?;
     // PLAN-LAID VALUE TYPES (layouts L4), desugar half -- exactly as the full
     // `compile` pipeline does.
     crate::pipeline::generic_instances::desugar_generic_data_instances(&mut syntax.syntax_trees)?;

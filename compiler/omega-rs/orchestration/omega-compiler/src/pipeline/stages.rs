@@ -1,5 +1,6 @@
 use crate::pipeline::frontend::{
-    discover_imports, extend_source_storage, lex_sources, load_sources, parse_sources,
+    discover_imports, extend_source_storage, lex_sources, load_injected_source, load_sources,
+    parse_sources, read_bundled_std_source,
 };
 use crate::pipeline::project::{project_roots, validate_selected_target};
 use crate::pipeline::source::{ImportQueue, SourceStorage};
@@ -56,6 +57,19 @@ pub(super) fn source_files_to_syntax_trees(
     target_name: Option<&str>,
     timings: &mut CompileTimings,
 ) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
+    // `native: true` — the full native-image path substitutes target-specific
+    // providers (task #57: `gui: Gui` -> `MacosGui` on darwin). The interpreter's
+    // `compile_to_checked` path keeps the abstract boundary traits (its own headless
+    // stubs), so it calls the `..._for_engine(false)` variant.
+    source_files_to_syntax_trees_for_engine(root_path, target_name, true, timings)
+}
+
+pub(super) fn source_files_to_syntax_trees_for_engine(
+    root_path: &Path,
+    target_name: Option<&str>,
+    native: bool,
+    timings: &mut CompileTimings,
+) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
     let mut imports = ImportQueue::default();
     for root in project_roots(root_path) {
         imports.seed(root);
@@ -85,6 +99,10 @@ pub(super) fn source_files_to_syntax_trees(
     }
 
     inject_build_prelude(&mut source_storage, timings)?;
+
+    if native {
+        substitute_native_gui_provider(&mut source_storage, target_name, timings)?;
+    }
 
     validate_selected_target(&source_storage, target_name)?;
     let source_file_count = source_storage.file_count();
@@ -151,6 +169,112 @@ fn inject_build_prelude(
         parse_sources(lexed, &mut source_storage.syntax_trees)
     })?;
     extend_source_storage(source_storage, parsed)?;
+    Ok(())
+}
+
+/// The darwin GUI-provider substitution (task #57). The samples call the UNCHANGED
+/// `boundary trait Gui` (Win32-shaped) through a `gui: Gui` field. On darwin there is
+/// no host lowering for `Gui`; instead the bundled `MacosGui` data type
+/// (`omega::language::std::macos_gui`) implements every op by composing objc / Core
+/// Graphics boundary calls. This (1) injects that provider module (which the sample
+/// never `use`s) and (2) rewrites each `gui: Gui` FIELD's type to `MacosGui`, so
+/// `self.gui.op(..)` becomes an ordinary MacosGui value-call — the shape proven to run
+/// natively in fire 22. NATIVE-only: the interpreter's `compile_to_checked` keeps the
+/// abstract boundary trait (its own headless stub, item #9). Registry-shaped so
+/// Clock/Input providers can follow the same pattern.
+fn substitute_native_gui_provider(
+    source_storage: &mut SourceStorage,
+    target_name: Option<&str>,
+    timings: &mut CompileTimings,
+) -> Result<(), Vec<Diagnostic>> {
+    // Gate strictly on darwin/Mach-O: on Windows `Gui` has a real Win32 host lowering
+    // (do NOT substitute); on linux it has none (a clean unsupported diagnostic).
+    let is_darwin = NativeTarget::from_omega_target_name(target_name)
+        .map(|target| target.object_format == omega_target::ObjectFormat::MachO)
+        .unwrap_or(false);
+    if !is_darwin {
+        return Ok(());
+    }
+
+    // Detect the sample's `boundary trait Gui` and whether the provider is present.
+    let mut has_gui_boundary = false;
+    let mut has_macos_gui = false;
+    for (_, file) in source_storage.files.iter() {
+        for root_item in &file.root_items {
+            match source_storage.syntax_trees.root_item(*root_item) {
+                omega_syntax_trees::item::Item::Trait(trait_definition)
+                    if trait_definition.is_boundary
+                        && trait_definition.name.as_str() == "Gui" =>
+                {
+                    has_gui_boundary = true;
+                }
+                omega_syntax_trees::item::Item::Data(data) if data.name.as_str() == "MacosGui" => {
+                    has_macos_gui = true;
+                }
+                _ => {}
+            }
+        }
+    }
+    if !has_gui_boundary {
+        return Ok(());
+    }
+
+    // Inject the bundled MacosGui provider module (self-contained; declares its own
+    // ObjectiveC/CoreGraphics boundary traits + CString domain, no `use`).
+    if !has_macos_gui {
+        let provider_source = read_bundled_std_source("macos_gui")?;
+        let first_source_id = source_storage.next_source_id();
+        let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
+            let sources =
+                load_injected_source("<macos-gui-provider>", &provider_source, first_source_id);
+            lex_sources(sources)
+        })?;
+        let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
+            parse_sources(lexed, &mut source_storage.syntax_trees)
+        })?;
+        extend_source_storage(source_storage, parsed)?;
+    }
+
+    // Rewrite each `gui: Gui`-typed FIELD -> `MacosGui`. Collect first (immutable
+    // borrows), then mutate, exactly like the plan-laid value-type desugar.
+    let mut rewrites: Vec<omega_syntax_trees::types::TypeReferenceHandle> = Vec::new();
+    for (_, file) in source_storage.files.iter() {
+        for root_item in &file.root_items {
+            let omega_syntax_trees::item::Item::Data(definition) =
+                source_storage.syntax_trees.root_item(*root_item)
+            else {
+                continue;
+            };
+            let members = definition.members;
+            for member in source_storage.syntax_trees.tables.items.data_members(members) {
+                let omega_syntax_trees::item::DataMember::Field(field) = member else {
+                    continue;
+                };
+                if let omega_syntax_trees::types::TypeReferenceNode::Named(name) = source_storage
+                    .syntax_trees
+                    .tables
+                    .type_references
+                    .type_reference(field.type_reference)
+                    && name.as_str() == "Gui"
+                {
+                    rewrites.push(field.type_reference);
+                }
+            }
+        }
+    }
+    for handle in rewrites {
+        source_storage
+            .syntax_trees
+            .tables
+            .type_references
+            .replace_type_reference(
+                handle,
+                omega_syntax_trees::types::TypeReferenceNode::Named(
+                    omega_syntax_trees::identifier::Identifier::generated("MacosGui".to_string()),
+                ),
+            );
+    }
+
     Ok(())
 }
 
