@@ -20,7 +20,11 @@ pub(crate) struct MachoImportThunk {
 /// ordinal is its library's index here, plus 1.
 pub(crate) fn macho_dylib_list(thunks: &[MachoImportThunk]) -> Vec<MachoDylib> {
     let mut dylibs = vec![MachoDylib::LIBSYSTEM];
+    let mut uses_objc = false;
     for thunk in thunks {
+        if thunk.library == DARWIN_LIBOBJC_PATH {
+            uses_objc = true;
+        }
         let already = dylibs.iter().any(|dylib| dylib.path == thunk.library);
         if !already {
             match thunk.library {
@@ -32,6 +36,17 @@ pub(crate) fn macho_dylib_list(thunks: &[MachoImportThunk]) -> Vec<MachoDylib> {
                 _ => {}
             }
         }
+    }
+    // A program that touches the Objective-C runtime needs the Cocoa frameworks
+    // LOADED so their classes REGISTER — `objc_getClass("NSString"/"NSWindow")`
+    // only sees classes from loaded dylibs (libobjc alone provides just `NSObject`
+    // + the runtime). These carry NO imported symbols; they are loaded purely for
+    // their class-registration side effect (appended AFTER libobjc so libobjc
+    // keeps ordinal 2 and existing binds are unaffected). See D-objc-load.
+    if uses_objc {
+        dylibs.push(MachoDylib::FOUNDATION);
+        dylibs.push(MachoDylib::APPKIT);
+        dylibs.push(MachoDylib::COREGRAPHICS);
     }
     dylibs
 }

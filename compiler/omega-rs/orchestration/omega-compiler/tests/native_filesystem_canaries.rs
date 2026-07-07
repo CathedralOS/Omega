@@ -339,3 +339,33 @@ fn objc_msgsend_scalar_exits_8() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(out.status.code(), Some(8), "[NSObject respondsToSelector:@selector(alloc)] should be 1 (3-arg scalar msgSend)");
 }
+
+// Framework auto-loading: a program touching the objc runtime now loads
+// Foundation + AppKit + CoreGraphics, so objc_getClass finds their classes.
+// NSString + NSApplication + NSWindow all non-null -> exit 9. Also confirms
+// AppKit loads cleanly from a bare CLI mach-o (no .app bundle).
+#[test]
+fn framework_classes_exits_9() {
+    let main_path = repo_root().join("canaries/pass/objc/framework_classes/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-fwclasses-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("framework_classes should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(9), "NSString/NSApplication/NSWindow should all resolve (Foundation+AppKit loaded)");
+}
+
+// objc_msgSend with a C-string arg + integer return VALUE, now that Foundation
+// loads: NSString alloc/initWithUTF8String:"hello", [str length] == 5 -> exit 5.
+#[test]
+fn nsstring_length_exits_5() {
+    let main_path = repo_root().join("canaries/pass/objc/nsstring_length/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-nsstrlen-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("nsstring_length should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(5), "[[NSString alloc] initWithUTF8String:\"hello\"] length should be 5");
+}

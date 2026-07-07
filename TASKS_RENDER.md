@@ -271,11 +271,23 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    correct; it needs a new operand path (import a DATA symbol, use its address as a value).
    `send_string` (char* arg) was implemented then removed — it can't be run-verified with
    libobjc alone (no NSObject method takes a char*); it returns with Foundation loaded.
-4. **[ ] Window without reverse callbacks** — `NSApplication sharedApplication` +
-   `setActivationPolicy:Regular` + `activateIgnoringOtherApps:YES`; `NSWindow` with an
-   `NSImageView` contentView (present via the image view, NOT a `drawRect:` subclass —
-   Omega has no guest-callback ABI). Static empty window that stays up via a bounded
-   non-blocking pump.
+   ✅ **fire 9: FRAMEWORK LOADING DONE + objc boundary COMPLETE.** Chose route (b) —
+   **D-objc-load: auto-load Foundation + AppKit + CoreGraphics whenever the objc runtime
+   is used** (simpler than route (a) and sufficient — `objc_getClass` resolves ANY class
+   in a loaded framework, so no class-data-symbol binding is needed). In `macho_dylib_list`,
+   if any thunk binds libobjc, append `MachoDylib::{FOUNDATION,APPKIT,COREGRAPHICS}` AFTER
+   libobjc (keeps ordinal 2 stable; they carry NO imported symbols, loaded purely for class
+   registration). Install-name paths + compat versions confirmed from a system app; compat
+   set to 1.0.0 so the dyld check always passes. Re-added `send_string` (char* arg → x2,
+   provable now). PROVEN: `framework_classes` — `NSString`+`NSApplication`+`NSWindow` all
+   non-null → exit 9 (`otool -l` shows all 5 LC_LOAD_DYLIB; **AppKit loads cleanly from a
+   bare CLI mach-o, no .app bundle, no window-server hang at load**); `nsstring_length` —
+   `[[NSString alloc] initWithUTF8String:"hello"] length] == 5` → exit 5 (full char*-arg
+   msgSend round-trip). Native harness 64/64; crate gates green; canary_suite zero new
+   failures (A/B vs FRESH baseline — the +1 `runtime_indexed_struct_field_rmw` is
+   pre-existing drift from an unrelated rebase, present with AND without my changes).
+   **The full objc→Cocoa surface (class lookup, selectors, msgSend 2/3-arg scalar+string,
+   framework classes) is now proven — the window path is unblocked.**
 4. **[ ] Window without reverse callbacks** — `NSApplication sharedApplication` +
    `setActivationPolicy:Regular` + `activateIgnoringOtherApps:YES`; `NSWindow` with an
    `NSImageView` contentView (present via the image view, NOT a `drawRect:` subclass —

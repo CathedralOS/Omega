@@ -1,0 +1,48 @@
+// PROVES objc_msgSend with a C-string arg + integer return VALUE end-to-end, now
+// that Foundation auto-loads (render fire 9). Builds an owned NSString:
+//   cls  = objc_getClass("NSString")                 (Foundation class, loaded)
+//   raw  = [cls alloc]                                (2-arg send)
+//   str  = [raw initWithUTF8String:"hello"]           (3-arg send, char* -> x2)
+//   n    = [str length]                               (2-arg send, integer return)
+// "hello" has length 5, so a correct dispatch (recv->x0, sel->x1, char*->x2;
+// NSUInteger result in x0) yields n == 5 -> exit 5. Before Foundation loading,
+// objc_getClass("NSString") was nil and this silently took the nil path.
+
+domain [u8]::CString when no_nul(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+boundary trait ObjectiveC {
+    machine get_class(name: &[u8] in CString) -> u64;
+    machine register_selector(name: &[u8] in CString) -> u64;
+    machine send(recv: u64, sel: u64) -> u64;
+    machine send_string(recv: u64, sel: u64, text: &[u8] in CString) -> u64;
+}
+
+data Main {
+    console: Console;
+    objc: ObjectiveC;
+    cls: u64;
+    sel_alloc: u64;
+    sel_init: u64;
+    sel_len: u64;
+    raw: u64;
+    str: u64;
+    n: u64;
+}
+
+machine Main::main(&mut self) {
+    self.cls = self.objc.get_class("NSString");
+    self.sel_alloc = self.objc.register_selector("alloc");
+    self.raw = self.objc.send(self.cls, self.sel_alloc);
+    self.sel_init = self.objc.register_selector("initWithUTF8String:");
+    self.str = self.objc.send_string(self.raw, self.sel_init, "hello");
+    self.sel_len = self.objc.register_selector("length");
+    self.n = self.objc.send(self.str, self.sel_len);
+    transition self.n == 5 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(5); }
+    state bad(&mut self)  { self.console.exit_process(1); }
+}

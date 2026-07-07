@@ -97,10 +97,11 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // the Mach-O backend derives the dylib from the symbol name.)
         darwin_import("ObjectiveC", "get_class", "_objc_getClass", &policy),
         darwin_import("ObjectiveC", "register_selector", "_sel_registerName", &policy),
-        // `send`/`send_scalar` share the `_objc_msgSend` symbol; the op arm decides
-        // how many args to marshal (`[recv, sel, …]`).
+        // `send`/`send_scalar`/`send_string` share the `_objc_msgSend` symbol; the
+        // op arm decides how many args to marshal (`[recv, sel, …]`).
         darwin_import("ObjectiveC", "send", "_objc_msgSend", &policy),
         darwin_import("ObjectiveC", "send_scalar", "_objc_msgSend", &policy),
+        darwin_import("ObjectiveC", "send_string", "_objc_msgSend", &policy),
     ]);
 
     insert_platform_lowering(
@@ -489,6 +490,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "ObjectiveC",
         "send_scalar",
         [host_operation("ObjectiveC", "send_scalar")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "ObjectiveC",
+        "send_string",
+        [host_operation("ObjectiveC", "send_string")],
         PlatformCallData::None,
     );
 }
