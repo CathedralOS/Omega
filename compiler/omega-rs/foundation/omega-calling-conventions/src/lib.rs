@@ -44,7 +44,10 @@ impl HostOperationKey {
     /// and handled by the x86_64-specific relocation sites, so only the
     /// aarch64-reachable fs ops need to be recognized here.
     pub fn returns_value(self) -> bool {
-        matches!(self.capability, HostCapability::Filesystem)
+        matches!(
+            self.capability,
+            HostCapability::Filesystem | HostCapability::Math
+        )
     }
 
     /// Whether this op's callee returns a POINTER whose pointee is the real
@@ -95,6 +98,11 @@ pub enum HostCapability {
     /// Filesystem access: open/read/write/close/unlink over file descriptors
     /// (libSystem imports on darwin, syscalls on linux).
     Filesystem,
+    /// Floating-point math (libm/libSystem `lround`, `sqrt`, …). Its ops carry
+    /// `f64` arguments/returns — the first host boundary to exercise the arm64
+    /// float calling convention (v-register args), the foundation for calling
+    /// Cocoa/Core Graphics `CGFloat`/`double` methods.
+    Math,
 }
 
 impl HostCapability {
@@ -108,6 +116,7 @@ impl HostCapability {
             "Input" => Self::Input,
             "Gui" => Self::Gui,
             "Filesystem" => Self::Filesystem,
+            "Math" => Self::Math,
             _ => Self::Unknown,
         }
     }
@@ -123,6 +132,7 @@ impl HostCapability {
             Self::Input => "Input",
             Self::Gui => "Gui",
             Self::Filesystem => "Filesystem",
+            Self::Math => "Math",
         }
     }
 }
@@ -261,6 +271,9 @@ pub enum HostOperation {
     /// `HostOperationKey::dereferences_result`) so the stored value is `errno`
     /// itself (the numeric failure kind), not the pointer.
     ReadErrno,
+    /// `Math::round_nearest(x: f64) -> i64` → libm `lround`. The first op with an
+    /// `f64` ARGUMENT (passed in v0), proving the arm64 float calling convention.
+    RoundNearest,
     Sleep,
     TickCount,
     KeyState,
@@ -334,6 +347,7 @@ impl HostOperation {
             "fchown" => Self::Fchown,
             "open_create" => Self::OpenCreate,
             "read_errno" => Self::ReadErrno,
+            "round_nearest" => Self::RoundNearest,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
@@ -393,6 +407,7 @@ impl HostOperation {
             Self::Fchown => "fchown",
             Self::OpenCreate => "open_create",
             Self::ReadErrno => "read_errno",
+            Self::RoundNearest => "round_nearest",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",

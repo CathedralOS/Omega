@@ -230,3 +230,18 @@ fn sample_file_journal_exits_7() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(out.status.code(), Some(7), "file_journal should verify all 7 steps and exit 7");
 }
+
+// The arm64 FLOAT-ARGUMENT calling convention: Math::round_nearest(x: f64) -> i64
+// via libm lround. Proves an f64 arg is marshalled into v0 (RuntimeScalarFloat
+// operand). round_nearest(3.7) == 4 -> exit 4.
+#[test]
+fn native_float_arg_exits_4() {
+    let main_path = repo_root().join("canaries/pass/float/native_float_arg/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-floatarg-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("native_float_arg should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(4), "round_nearest(3.7) should be 4 (float arg in v0)");
+}

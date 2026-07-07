@@ -53,6 +53,9 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // `open_create` fully today.
         darwin_import("Filesystem", "open_create", "_open", &policy),
         darwin_import("Filesystem", "read_errno", "___error", &policy),
+        // First float-arg op: `Math::round_nearest(x: f64) -> i64` → libm `lround`.
+        // Proves the arm64 float calling convention (double in v0, long in x0).
+        darwin_import("Math", "round_nearest", "_lround", &policy),
     ]);
 
     insert_platform_lowering(
@@ -362,6 +365,18 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "FilesystemHost",
         "errno",
         [host_operation("Filesystem", "read_errno")],
+        PlatformCallData::None,
+    );
+
+    // `Math::round_nearest(x: f64) -> i64` → `_lround`: the first host op with an
+    // f64 ARGUMENT (marshalled into v0 by the RuntimeScalarFloat operand). The
+    // value-returning shape is identical to the scalar fs ops (result in x0);
+    // only the argument register file differs.
+    insert_platform_lowering(
+        plan,
+        "Math",
+        "round_nearest",
+        [host_operation("Math", "round_nearest")],
         PlatformCallData::None,
     );
 }

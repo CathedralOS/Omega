@@ -7811,6 +7811,9 @@ mod vtable_call_encoding_tests {
                 _ => None,
             }
         }
+        // Float host-call args (v-registers) are aarch64-only today; x86_64 (untested)
+        // has no float operand kind yet.
+        fn runtime_scalar_float(&self) -> Option<(RuntimeStorageRegion, usize, usize)> { None }
         fn runtime_storage_address(&self) -> Option<(RuntimeStorageRegion, usize)> {
             match self {
                 Op::Address { region, offset } => Some((*region, *offset)),
