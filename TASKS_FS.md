@@ -408,13 +408,37 @@ crate tests; interpreter fs coverage) and commits.
      reason the transition-shaped `exists` "always returned true", and exactly why
      TERMINAL-VALUE COMPLETION fixed `exists` (a bare terminal expression has NO leaf
      terminal states, so no unconditional overwrite) while the `{ true -> yes() _ -> no() }`
-     shape stays broken. NEXT: find where the value-call result materialization emits the
-     leaf terminal(s) unconditionally — the guarded selection into the call-result slot is
-     correct, but a later straight-line/leaf emission of one leaf's terminal value overwrites
-     it. Look at `branches.rs` `select_runtime_leaf_branch_expansions_for_operation` /
-     `select_runtime_straight_line_branch_expansions_for_operation` and how a value-call whose
-     callee transitions to constant-returning leaf STATES lowers those states' terminal
-     values. Both #1 and #2 must land together for the payload-carrying wrappers to work.
+     shape stays broken.
+     - **PINPOINTED (2026-07-10) — bug #2 is the MUTATION storage-write for a value-call
+       assigned to a FIELD, not a leaf-expansion bug.** Dumped the full ordered
+       SelectedInstruction stream (instrumented `SelectedInstructionSink::push`) with per-op
+       PHASE markers for the repro. For Main's entry case the value-call `self.here =
+       self.probe.check()` lowers to THREE ops: op[0] `StateCall check`, op[1] `HostCall
+       close`, op[2] `Mutation self.here = <call result>`. The leaf expansions (exactly TWO:
+       arm `RuntimeEquality`→`Boolean(true)` guarded, arm `Always`→`Boolean(false)`) are
+       emitted at **op[0]** and correctly write the guarded value into the call-result frame
+       slot + copy it to `self.here`. THEN **op[2]'s `select_runtime_storage_write_for_
+       operation`** emits `WriteRuntimeStorageInteger{value:1}` (the callee's FIRST leaf
+       terminal `yes→true`, re-materialized as a CONSTANT, source_key = the yes leaf state)
+       into the call-result slot, then `CopyRuntimeStorage` frame→`self.here` —
+       UNCONDITIONALLY. That constant-true copy is the last write to `self.here`, so it wins.
+       (`leaf_expansion_matches_operation`, leaf.rs:163-182, only matches StateCall-kind ops,
+       so the Mutation op does NOT re-run the leaf — this is purely the mutation-write path
+       folding the value-call RHS to its first terminal.) The guarded copies from op[0] are
+       #5/#9 (conditional); the spurious constant is #13/#14 (unconditional).
+     - **FIX DIRECTION (for a focused session): make op[2]'s mutation storage-write SKIP when
+       the RHS is a value-call whose result the leaf expansions already delivered to the
+       target** — the analogue of the LocalStorage case, where the leaf does NOT emit a
+       call-result→local copy and the dispatch-loop initializer write handles it (leaf.rs
+       comment ~L294-300). For a FIELD (Mutation) target, BOTH the leaf's assignment-value
+       target copy AND op[2]'s storage-write fire, and op[2]'s re-materializes a constant.
+       Likely fix: in `writes::select_runtime_storage_write_for_operation` (or its
+       `simplify_state_expression_for_role` value resolution), detect that the mutation value
+       is a value-call delivering via a call-result slot at this statement (cf.
+       `statement_dispatches_call_result`) and either skip the write or copy the call-result
+       slot instead of folding to a terminal constant. HOT PATH (every field mutation) — needs
+       care + a full canary_suite sweep. Both #1 (ordering, fix known) and #2 (this) must land
+       together for the payload-carrying wrappers to work.
 
 - **🎉 STEP 14 COMPLETE — the SHIPPED ergonomic `Filesystem` wrapper runs NATIVELY
   (2026-07-08).** `Filesystem::write_all`/`read_all`/`remove` — the Rust-parity API,
