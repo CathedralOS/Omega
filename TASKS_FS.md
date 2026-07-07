@@ -69,6 +69,17 @@ corpus-wide bind-to-local rewrites incl. the dungeon — POLICY Q for Zach);
 builtins/strings/enums stay accepted — enum + string args verified
 delivering; fail canary `calls/transition_arg_scalar_value_call_rejected`).
 
+**Contained-machine same-type aliasing FENCED (2026-07-07).** Method dispatch
+resolves the receiver region by TYPE (first matching field), so
+`self.b.increment()` with `a: Counter; b: Counter` silently mutated `a`. New
+emission-planning blocker (`contained_receiver_blockers.rs`) mirrors the
+by-type walk and errors exactly when the receiver field's offset differs from
+the walk's first match — first-instance calls, single instances, and direct
+field access stay accepted (zero corpus impact). The state-call plan now
+carries `receiver_name` (symbol handles cross arenas vs layout). Fail canary
+`calls/contained_same_type_receiver_rejected`. Deep fix = thread the receiver
+offset through dispatch storage resolution (focused session, still open).
+
 **Value-call deferral (the machinery under wrapper results)** — five ordering
 faces closed, each pinned by a canary:
 1. Callee-entry HostCall store before the inline guard (`run/value_call_entry_host_state_payload`).
