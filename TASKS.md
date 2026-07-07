@@ -163,19 +163,28 @@ decreases remaining
   DOUBLE-LOWERING: the plain AssignmentValue mutation path emits again after
   the inline value-call machinery (the keystone-era suppression guard
   `state_call_is_dispatched` / the inline-append gate does not recognize the
-  RECEIVERLESS TYPE-SCOPED call shape). NARROWED FURTHER (instrumented,
-  2026-07-10 tick 2): the plain mutation path's value expression arrives as a
-  fresh `Integer("7")` -- the assignment's CALL handle was ALIASED to the
-  terminal struct literal's LAST FIELD VALUE somewhere in the branching alias
-  substitution (omega-runtime-branching aliases/expressions.rs), while the
-  LEAF-path cascade (branches/mutation.rs:139 struct-literal decomposition)
-  emits the CORRECT per-field writes in parallel. Next session: (a) find the
-  alias insertion that maps the call handle to a field value instead of the
-  whole literal; (b) check whether suppressing the plain Mutation op for
-  branching-lowered AssignmentValue statements (collection.rs:325 runs even
-  after the 277 inline-expand -- no `continue`) is safe for receiver-FUL
-  shapes, whose final result->target copy may ride that very op. Then drop
-  the frontend fence (calls.rs report_computed_field_constructor_result).
+  RECEIVERLESS TYPE-SCOPED call shape). ROOT CAUSE FOUND (panic-traced,
+  2026-07-10 tick 3) -- it is a PLACE-RESOLUTION FALLBACK, not an alias: the
+  emitter chain is select_runtime_storage_write_for_operation ->
+  select_runtime_storage_resolved_mutation_write_in_table_with_scratch ->
+  scalar variant -> select_runtime_resolved_target_value_source_mutation_writes
+  (x3, the struct-literal decomposition recursing per FIELD) -> the
+  static-integer emitter. The decomposition DID run; field `b`'s member
+  target (`self.p.b`, built with member_symbol INVALID into a SCRATCH
+  expression table) failed member resolution and SILENTLY FELL BACK to the
+  ROOT place at ROOT size -- `write integer machine@0 bytes 8 value 7`
+  clobbers the pair the leaf cascade just delivered. Same shape works for
+  DIRECT construction (non-scratch table keeps name-resolvable members).
+  FIX (focused): in the member-target place resolution used by the
+  with_scratch mutation path, a Member that cannot resolve its FIELD must
+  return None (or resolve by name against the receiver's data layout), never
+  the root place -- the root fallback converts every unresolved field write
+  into a whole-struct clobber. Then drop the frontend fence
+  (calls.rs report_computed_field_constructor_result). NOTE: a gate on
+  struct-literal terminals in branches/mutation.rs
+  select_runtime_static_inline_branching_call_mutation_write_in_table was
+  tried and did NOT change behavior (that path is not the emitter here);
+  left un-landed.
 
 - **[ ] Interpreter unsigned-u64 arithmetic remainder (2026-07-07).** Comparisons now
   take an UNSIGNED witness from declared types (evaluator: Frame.unsigned64_locals +
