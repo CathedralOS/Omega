@@ -229,16 +229,19 @@ machine Main::is_frozen(&mut self, idx: i32 in Wrapping) -> i32 {
 }
 
 // ── value-returning: balance_of (capture+mutate self+return) ──────────────────
-// Each readN: (1) capture balance into local b, (2) mutate self.query_count,
-// (3) return b. Replicates the stack_vm miscompile surface.
+// The query_count bump lives in the ENTRY (one bump per query, before the
+// dispatch): inline value-call ARM bodies run for every arm and re-emit, so a
+// per-arm mutation fired 3x per call natively (interp 1x -- unobserved by the
+// exit checks until the effectful-arm fence caught it 2026-07-07). Entry
+// effects are ordered by the deferral machinery and safe.
 machine Main::balance_of(&mut self, idx: i32 in Wrapping) -> i32 {
+    self.query_count = self.query_count + 1;
     transition idx == 0 {
         true -> read0()
         _ -> try1(idx)
     }
     state read0(&mut self) {
         let b: i32 in Wrapping = self.accounts[0].balance;
-        self.query_count = self.query_count + 1;
         transition { _ -> (b) }
     }
     state try1(&mut self, idx: i32 in Wrapping) {
@@ -249,7 +252,6 @@ machine Main::balance_of(&mut self, idx: i32 in Wrapping) -> i32 {
     }
     state read1(&mut self) {
         let b: i32 in Wrapping = self.accounts[1].balance;
-        self.query_count = self.query_count + 1;
         transition { _ -> (b) }
     }
     state try2(&mut self, idx: i32 in Wrapping) {
@@ -260,12 +262,10 @@ machine Main::balance_of(&mut self, idx: i32 in Wrapping) -> i32 {
     }
     state read2(&mut self) {
         let b: i32 in Wrapping = self.accounts[2].balance;
-        self.query_count = self.query_count + 1;
         transition { _ -> (b) }
     }
     state read3(&mut self) {
         let b: i32 in Wrapping = self.accounts[3].balance;
-        self.query_count = self.query_count + 1;
         transition { _ -> (b) }
     }
 }

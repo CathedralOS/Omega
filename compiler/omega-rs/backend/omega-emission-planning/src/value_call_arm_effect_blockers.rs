@@ -1,0 +1,91 @@
+use crate::EmissionPlanningInput;
+use crate::blocker;
+use crate::semantic_scope::state_name;
+use omega_backend_report_types::EmissionBlocker;
+use omega_core::arena::Arena;
+use omega_state_calls::StateCallRole;
+use omega_state_storage::StateMutationKind;
+
+/// An inline VALUE-position call whose callee has an EFFECTFUL arm state is a
+/// silent miscompile: the arm-body straight-line expansions are emitted
+/// UNGUARDED (every arm's body runs, not just the selected one) and the
+/// caller's own statement op re-emits them (the known duplication). Probed
+/// 2026-07-07: `self.vec = self.delta(d)` where each arm bumps a counter
+/// delivered the CORRECT struct (leaf captures are guard-paired) but
+/// hits = 22 -- both arms ran, twice each (11 x 2). PURE arm bodies (`let`
+/// decode locals -- the fs wrapper pattern) are unaffected: wrong-arm locals
+/// compute into their own unused slots and duplication of a pure compute is
+/// invisible. So reject exactly the effectful case: a MachineOwned mutation
+/// or a host call in a NON-ENTRY state of a value-called machine. The
+/// callee's ENTRY body stays allowed (entry effects are ordered by the
+/// deferral machinery and pinned by canaries).
+///
+/// Known accepted gap: `&mut` PARAM mutations in arm states
+/// (ParameterOrAlias kind) are not fenced -- the guard-subject tripwire
+/// canaries rely on param-mutating callees whose effects live in entries,
+/// and no probe has shown the param-arm face yet.
+pub(crate) fn collect_value_call_arm_effect_blockers(
+    input: &EmissionPlanningInput<'_>,
+    blockers: &mut Arena<EmissionBlocker>,
+) {
+    for (_, state_call) in input.state_calls.calls.iter() {
+        if !state_call.reachable {
+            continue;
+        }
+        if !matches!(
+            state_call.role,
+            StateCallRole::AssignmentValue
+                | StateCallRole::CallArgument
+                | StateCallRole::TransitionArgument
+                | StateCallRole::TransitionGuard
+        ) {
+            continue;
+        }
+        let callee_machine = state_call.target_key.machine;
+        if !callee_machine.is_valid() {
+            continue;
+        }
+        let entry_state = state_call.target_key.state;
+
+        let effectful_arm = input
+            .state_storage
+            .mutations
+            .iter()
+            .find(|(_, mutation)| {
+                mutation.source_key.machine == callee_machine
+                    && mutation.source_key.state != entry_state
+                    && mutation.mutation_kind == StateMutationKind::MachineOwned
+            })
+            .map(|(_, mutation)| mutation.source_key)
+            .or_else(|| {
+                input
+                    .host_calls
+                    .calls
+                    .iter()
+                    .find(|(_, host_call)| {
+                        host_call.source_key.machine == callee_machine
+                            && host_call.source_key.state != entry_state
+                    })
+                    .map(|(_, host_call)| host_call.source_key)
+            });
+
+        let Some(effect_key) = effectful_arm else {
+            continue;
+        };
+
+        blockers.insert(blocker(
+            "state calls",
+            &format!(
+                "{} statement {}: the value call's callee has a SIDE-EFFECTING arm \
+                 state ({}) -- inline value-call arm bodies currently run for EVERY \
+                 arm and re-emit, so the mutation/host call would fire multiple \
+                 times instead of once. Move the side effect into the callee's \
+                 ENTRY body (before its transition), or call the machine as a \
+                 statement and read the result from a field.",
+                state_name(input, state_call.source_key),
+                state_call.statement_index,
+                state_name(input, effect_key),
+            ),
+        ));
+    }
+}
