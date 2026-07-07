@@ -61,6 +61,7 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_target_address_o
     architecture: Architecture,
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
@@ -70,6 +71,7 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_target_address_o
                 architecture,
                 base_byte_offset,
                 index_region,
+                index_offset,
                 element_byte_size,
                 field_byte_offset,
             )
@@ -96,6 +98,7 @@ pub(crate) fn runtime_storage_copy_to_runtime_machine_indexed_source_address_off
     architecture: Architecture,
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
@@ -105,6 +108,7 @@ pub(crate) fn runtime_storage_copy_to_runtime_machine_indexed_source_address_off
                 architecture,
                 base_byte_offset,
                 index_region,
+                index_offset,
                 element_byte_size,
                 field_byte_offset,
             )

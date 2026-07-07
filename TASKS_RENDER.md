@@ -525,8 +525,23 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
 9. **[ ] Interpreter headless stub** for `Gui`/`Input`/`Clock` — open no real window,
    succeed all calls, report "no event / alive", quit after N frames — so the samples
    stay runnable on both engines and differential/coverage stay green.
-10. **[~] Run the samples natively — the WHOLE APP BEHAVIOR RUNS NATIVELY (fire 16).**
-    ✅ `canaries/pass/objc/native_gui_loop` is `samples/gui/window_demo`'s shape running
+10. **[✅ DONE — fire 25] `samples/gui/window_demo` RUNS NATIVELY, END TO END, UNTOUCHED.**
+    🎉 The UNTOUCHED `samples/gui/window_demo` (unchanged `boundary trait Gui`/`Clock`) compiles
+    to a native mach-o AND RUNS on macOS/aarch64: opens a real NSWindow (via the substituted
+    `MacosGui` provider), renders 60 frames of the software-rendered diagonal wash (every
+    `copied == 64` blit assertion passes), pumps events, paces with `Clock.sleep`→`poll`
+    (~1.5s of visible animation), reads a line, exits 0. Run-verified end-to-end:
+    `sample_window_demo_runs_natively_exits_0` (compile → run with `/dev/null` stdin, 30s
+    deadline guard, assert exit 0). This exercises the WHOLE stack: the Gui-provider
+    substitution (#57, fire 24), `Clock.sleep`→`poll` (fire 23), and the large-offset scalar
+    loads (#59, fire 25). Native harness 77/77.
+    ⚑ **The other 3 gui samples each need ONE more implementable feature (new tasks, not
+    user decisions):** `window_app` → `Input.key_state` native lowering (task #60);
+    `image_viewer` → large-offset scalar STORE, a #59 sibling at offset 33092 (task #61);
+    `windowed_calculator` → saturating divide/modulo on aarch64 (task #62) + `Input.key_state`.
+    The loop CONTINUES on these (window_demo, the flagship, runs; the rest are incremental).
+    ---
+    Historical (fire 16): `canaries/pass/objc/native_gui_loop` is `samples/gui/window_demo`'s shape running
     natively end-to-end: NSApp + NSWindow + NSImageView content view + `makeKeyAndOrderFront:`,
     then a bounded 3-frame loop of blit (`CGBitmapContext(&pixels)` → `CGImage` → `NSImage`
     → `setImage:`) + non-blocking `nextEventMatchingMask:untilDate:distantPast` pump, then
