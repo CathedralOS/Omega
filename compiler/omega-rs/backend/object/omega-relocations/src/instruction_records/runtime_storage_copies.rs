@@ -91,6 +91,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
             target_region,
             base_byte_offset,
             index_region,
+            index_offset,
             element_byte_size,
             field_byte_offset,
             ..
@@ -115,6 +116,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                     context.input.target.architecture,
                     *base_byte_offset,
                     *index_region,
+                    *index_offset,
                     *element_byte_size,
                     *field_byte_offset,
                 ),
@@ -143,6 +145,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
             source_region,
             base_byte_offset,
             index_region,
+            index_offset,
             element_byte_size,
             field_byte_offset,
             ..
@@ -169,6 +172,7 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                         context.input.target.architecture,
                         *base_byte_offset,
                         *index_region,
+                        *index_offset,
                         *element_byte_size,
                         *field_byte_offset,
                     ),

@@ -903,6 +903,7 @@ pub fn runtime_machine_indexed_integer_write_width(
     architecture: Architecture,
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_size: usize,
@@ -911,12 +912,13 @@ pub fn runtime_machine_indexed_integer_write_width(
         Architecture::Aarch64 => aarch64::runtime_machine_indexed_integer_write_width(
             base_byte_offset,
             index_region,
+            index_offset,
             element_byte_size,
             field_byte_offset,
             byte_size,
         ),
         Architecture::X86_64 => {
-            let _ = base_byte_offset;
+            let _ = (base_byte_offset, index_offset);
             x86_64::runtime_machine_indexed_integer_write_width(
                 index_region,
                 element_byte_size,
@@ -1142,6 +1144,7 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
     architecture: Architecture,
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
@@ -1150,12 +1153,13 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
             aarch64::runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
                 base_byte_offset,
                 index_region,
+                index_offset,
                 element_byte_size,
                 field_byte_offset,
             )
         }
         Architecture::X86_64 => {
-            let _ = (base_byte_offset, index_region, element_byte_size, field_byte_offset);
+            let _ = (base_byte_offset, index_region, index_offset, element_byte_size, field_byte_offset);
             0
         }
     }
@@ -1589,6 +1593,7 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_widt
     architecture: Architecture,
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -1599,6 +1604,7 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_widt
             aarch64::runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
                 base_byte_offset,
                 index_region,
+                index_offset,
                 element_byte_size,
                 field_byte_offset,
                 target_offset,
@@ -1645,6 +1651,7 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_widt
     source_offset: usize,
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
     byte_count: usize,
@@ -1655,6 +1662,7 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_widt
                 source_offset,
                 base_byte_offset,
                 index_region,
+                index_offset,
                 element_byte_size,
                 field_byte_offset,
                 byte_count,
@@ -1674,6 +1682,7 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
     architecture: Architecture,
     base_byte_offset: usize,
     index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
@@ -1682,12 +1691,13 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
             aarch64::runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
                 base_byte_offset,
                 index_region,
+                index_offset,
                 element_byte_size,
                 field_byte_offset,
             )
         }
         Architecture::X86_64 => {
-            let _ = (base_byte_offset, index_region, element_byte_size, field_byte_offset);
+            let _ = (base_byte_offset, index_region, index_offset, element_byte_size, field_byte_offset);
             0
         }
     }

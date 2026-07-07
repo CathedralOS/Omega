@@ -639,5 +639,44 @@ fn gui_provider_substitution_exits_7() {
     assert_eq!(code, Some(7), "gui: Gui boundary field should be substituted to the MacosGui provider and exit 7");
 }
 
+// THE MILESTONE: the UNTOUCHED samples/gui/window_demo runs natively end-to-end on
+// macOS/aarch64. It opens a real NSWindow (via the substituted MacosGui provider),
+// renders 60 frames of a software-rendered diagonal wash (each blit asserts all 64
+// source scanlines copied), pumps events, paces with Clock.sleep (poll), then reads a
+// line and exits 0. This exercises the whole stack: the Gui-provider substitution
+// (#57), Clock.sleep -> poll (#55/fire23), AND the large-offset scalar loads (#59 --
+// window_demo declares copied/alive/i AFTER pixels:[i32;4096], so the machine-index
+// index load + guards land past the LDR scaled-immediate range). stdin is /dev/null so
+// the trailing read_line returns EOF immediately; a deadline guard kills a stuck run.
+#[test]
+fn sample_window_demo_runs_natively_exits_0() {
+    let main_path = repo_root().join("samples/gui/window_demo/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-window-demo-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("the untouched samples/gui/window_demo should compile to a native mach-o:\n{d:#?}"));
+    let mut child = Command::new(build_dir.join("omega-program"))
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .expect("spawn");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    let code = loop {
+        if let Some(status) = child.try_wait().expect("try_wait") {
+            break status.code();
+        }
+        if std::time::Instant::now() > deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("window_demo hung past 30s deadline (window pump / render never finished)");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    };
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(code, Some(0), "the untouched window_demo should render 60 frames natively and exit 0");
+}
+
+
+
 
 
