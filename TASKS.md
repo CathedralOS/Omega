@@ -451,13 +451,17 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >   the blocker reports loudly). Canaries: pass/collections/runtime_nested_const_
 >   row_{indexed_read,struct_field_write}_exit + runtime_nested_middle_index_3d_
 >   exit (all three in differential RUN_CANARIES); both-runtime rejection
->   re-pinned in the three rewritten fail canaries. REMAINING: (a) BOTH-RUNTIME
->   indices (`grid[i][j]`) = clean error; needs a two-runtime-index op or an
->   index-folding temp. (b) TWO+ const levels BELOW the runtime index
->   (`cube[1][1][k]`) = clean error ("needs runtime storage write lowering"):
->   `normalized_storage_name_path_in_table` carries ONE root element index per
->   member; teach it nested const indices (or peel const Indexed nodes in the
->   machine-indexed resolver, biasing the base) to close. Then array-of-structs as a binary
+>   re-pinned in the three rewritten fail canaries. Deep const prefixes
+>   (`cube[1][1][k]`, 2+ const levels below the runtime index) CLOSED 2026-07-07:
+>   `storage_path_len` REFUSES stacked element indices (member_index returned
+>   only the OUTERMOST -- `cube[1][1]` silently aliased `cube[1]`; with
+>   unit-length inner arrays the element sizes MATCH and the consumer byte gate
+>   could not catch it, a silent wrong-address landmine) and the machine-indexed
+>   resolver peels const Indexed layers, biasing the base per level
+>   (resolve_machine_owned_collection_with_const_prefix_in_table). Canary
+>   runtime_nested_deep_const_prefix_exit pins both faces + the alias shape.
+>   REMAINING: BOTH-RUNTIME indices (`grid[i][j]`) = clean error; needs a
+>   two-runtime-index op or an index-folding temp. Then array-of-structs as a binary
 >   operand (NARROWED 2026-07-03: the `let t = arr[i].field; use t` idiom now
 >   works. The DIRECT `self.r = arr[i].field + 22` still errors. A frontend
 >   operand-hoist of `arr[i].field` is TOO BROAD -- at the pre-resolution hoist

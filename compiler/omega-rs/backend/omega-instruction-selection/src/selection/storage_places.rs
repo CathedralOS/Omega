@@ -1866,10 +1866,9 @@ pub(super) fn resolve_runtime_machine_indexed_target_in_table(
     {
         return None;
     }
-    let collection = resolve_machine_owned_collection_in_table(
-        &input.layouts,
-        input.entry_key.machine,
-        source_key.machine,
+    let collection = resolve_machine_owned_collection_with_const_prefix_in_table(
+        input,
+        source_key,
         expressions,
         indexed.collection,
     )?;
@@ -1936,6 +1935,63 @@ pub(super) fn resolve_runtime_machine_indexed_target(
     let mut delegated_expressions = ExpressionTable::default();
     let delegated_expression = delegated_expressions.insert_tree(expression);
     resolve_runtime_machine_indexed_target_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
+}
+
+/// Resolve a machine-owned COLLECTION place, peeling CONST-`Indexed` layers the
+/// name-path resolution cannot carry. `normalized_storage_name_path_in_table`
+/// holds ONE root element index per member, so `cube[1]` resolves directly but
+/// `cube[1][1]` (the collection of `cube[1][1][k]`) does not: peel the outer
+/// const `[1]`, resolve `cube[1]` (recursively -- any depth), then descend the
+/// element type, biasing the base by `index * element_size`. The direct
+/// resolution is always tried FIRST, so single-index and member-suffix shapes
+/// (`rows[2].data`) keep their existing path.
+fn resolve_machine_owned_collection_with_const_prefix_in_table(
+    input: &InstructionSelectionInput<'_>,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<MachineOwnedCollectionTarget> {
+    if let Some(collection) = resolve_machine_owned_collection_in_table(
+        &input.layouts,
+        input.entry_key.machine,
+        source_key.machine,
+        expressions,
+        expression,
+    ) {
+        return Some(collection);
+    }
+
+    let mut peeled = expression;
+    while let ExpressionNode::Mutable(inner) = expressions.expression(peeled) {
+        peeled = *inner;
+    }
+    let ExpressionNode::Indexed(inner) = expressions.expression(peeled) else {
+        return None;
+    };
+    let mut index = inner.index;
+    while let ExpressionNode::Mutable(next) = expressions.expression(index) {
+        index = *next;
+    }
+    let ExpressionNode::Integer(index) = expressions.expression(index) else {
+        return None;
+    };
+    let index = usize::try_from(index.value_i64()?).ok()?;
+
+    let base = resolve_machine_owned_collection_with_const_prefix_in_table(
+        input,
+        source_key,
+        expressions,
+        inner.collection,
+    )?;
+    let (element_type, length) = base.type_descriptor.fixed_array()?;
+    if index >= length {
+        return None;
+    }
+    let element_layout = descriptor_layout(input, element_type);
+    Some(MachineOwnedCollectionTarget {
+        byte_offset: base.byte_offset + index * element_layout.size,
+        type_descriptor: element_type.clone(),
+    })
 }
 
 pub(super) fn resolve_runtime_pointee_slot_offset(
