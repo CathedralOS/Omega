@@ -60,18 +60,19 @@ shared-result-slot fence was verified obsolete by discriminating probes and
 REMOVED (`shared_value_call_slot_blockers.rs` deleted; shapes pinned by pass
 canaries `calls/runtime_value_call_same_callee_sites_exit` +
 `calls/runtime_value_call_shared_slot_straight_line_exit`). Matrix status:
-(a) a scalar value-call as a GUARD SUBJECT = CLEAN ERROR since 2026-07-07
-(was silently always-true; the guard-role callee body is never spliced and
-the comparison lowered to NeedsRuntimeExpression which the emitter DROPS —
-schedule-success programs bypass all three dispatch can-emit gates, so the
-fence lives in `collect_unlowered_guard_blockers`: NeedsRuntimeExpression +
-a real operator = blocker; operator-None fallthrough edges stay accepted).
-ZERO corpus impact — the feared dungeon/single-eval rewrites don't arise, so
-the old policy question is MOOT. Fail canary
-`calls/guard_scalar_value_call_rejected`. Making the shape WORK (splice the
-callee once per dispatch frame — the effectful-subject memo constraint —
-then compare the populated slot) is future engineering with the
-transition-arg fix as the template.
+(a) a scalar value-call vs an INTEGER literal as a GUARD SUBJECT **WORKS**
+since 2026-07-07 (was silently always-true): the syntax lowering hoists the
+call into a `let` temp SHARED across arms via the match-subject memo
+(per-arm temps re-ran the callee once per attempted arm — the
+effectful-subject tripwire caught the first attempt at tally 43 vs 41),
+typed from the callee's DECLARED return; inferred-return callees get a
+clear annotate-or-bind diagnostic. Unhoisted shapes (Call-vs-Call etc.)
+still hit the emission backstop (`collect_unlowered_guard_blockers`:
+NeedsRuntimeExpression + a real operator = blocker — the only gate
+schedule-success programs pass through; operator-None fallthrough edges
+stay accepted). Pass canary `calls/runtime_value_call_guard_subject_exit`
+(designed-false + true + NotEqual legs); backstop fail canary
+`calls/guard_call_vs_call_rejected`.
 (b) TRANSITION-ARGUMENT value calls are FIXED (2026-07-07 deep fix — the
 one-day stopgap is retired): TransitionArgument leaf captures defer past the
 callee's spliced body ops; leaf expansions pair with their own call op by
