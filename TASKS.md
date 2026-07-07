@@ -27,12 +27,13 @@ representation machinery behind a deliberate boundary.
 
 ## KEYSTONE COMPLETENESS GAP CATALOG (the next round's worklist, from the de-Trapping sweep)
 
-1. guard_refined_binary_range is literal-only + top-level-only (`p + dir` and
-   compound values unrefinable); declared ranges of a non-self OPERAND don't
-   feed either fold.
-2. Multi-VARIABLE compound guards don't decompose (single-variable conjuncts work).
-3. Multi-predecessor edge agreement fails for the write keystone (equivalent
+1. Multi-predecessor edge agreement fails for the write keystone (equivalent
    `sp < 16` guards on 3 edges don't prove; funnel states are the workaround).
+   The SINGLE-predecessor case is covered as of 2026-07-06 (validation seeds
+   the sole incoming guard into the target state's env, conjunction-splitting;
+   the proof side refolds binary operands under the stability-gated edge
+   guard) -- the generalization = seed/refold only facts ALL incoming guarded
+   edges imply.
 
 **Abort-as-effect (#65) design sketch (chat, NOT settled):** every trap-capable
 site (`in Trapping`, future assert/panic) carries an `abort` effect threaded to

@@ -169,10 +169,45 @@ pub(crate) fn guard_narrowed_env(
     else {
         return env;
     };
-    let ExpressionNode::Binary(comparison) = program.expression_table.expression(equality.left)
-    else {
-        return env;
+    narrow_env_by_condition(program, machine, state, &mut env, equality.left, *arm_true);
+    env
+}
+
+/// Narrow `env` by a guard condition holding with the given polarity,
+/// recursing through the boolean structure: a POSITIVE `a && b` narrows by
+/// both conjuncts (each may bound a DIFFERENT place -- `dir >= 0 && dir <= 1`
+/// or multi-variable conjunctions both narrow); a NEGATIVE `a || b` narrows by
+/// both negated disjuncts (De Morgan). A negative `&&` / positive `||` cannot
+/// attribute which side holds, so it leaves the env unchanged (sound). Leaves
+/// are the existing simple `place <OP> literal` comparisons.
+fn narrow_env_by_condition(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    env: &mut ValueEnv,
+    condition: ExpressionHandle,
+    positive: bool,
+) {
+    let ExpressionNode::Binary(comparison) = program.expression_table.expression(condition) else {
+        return;
     };
+    match comparison.operator {
+        BinaryOperator::And if positive => {
+            let (left, right) = (comparison.left, comparison.right);
+            narrow_env_by_condition(program, machine, state, env, left, true);
+            narrow_env_by_condition(program, machine, state, env, right, true);
+            return;
+        }
+        BinaryOperator::Or if !positive => {
+            let (left, right) = (comparison.left, comparison.right);
+            narrow_env_by_condition(program, machine, state, env, left, false);
+            narrow_env_by_condition(program, machine, state, env, right, false);
+            return;
+        }
+        BinaryOperator::And | BinaryOperator::Or => return,
+        _ => {}
+    }
+    let comparison = comparison.clone();
     // Identify the (place, literal) sides.
     let (place_expr, literal, name_on_left) =
         if let Some(literal) = literal_i64(program, comparison.right) {
@@ -180,32 +215,244 @@ pub(crate) fn guard_narrowed_env(
         } else if let Some(literal) = literal_i64(program, comparison.left) {
             (comparison.right, literal, false)
         } else {
-            return env;
+            return;
         };
-    // The `false` arm narrows by the NEGATED comparison.
-    let operator = if *arm_true {
+    // A negative arm narrows by the NEGATED comparison.
+    let operator = if positive {
         comparison.operator
     } else {
         let Some(negated) = negate_comparison(comparison.operator) else {
-            return env;
+            return;
         };
         negated
     };
     let Some(name) = place_path(program, place_expr) else {
-        return env;
+        return;
     };
     let (_, low, high) = bound_from(name.clone(), operator, literal, name_on_left);
-    let guard_interval = Interval { low, high };
-    // Intersect with the place's type range to retain the other bound.
-    let type_interval = declared_place_type_raw(program, machine, state, place_expr)
-        .and_then(|handle| program.primitive_type_reference(handle))
-        .and_then(primitive_range);
-    let interval = match type_interval {
-        Some(type_interval) => guard_interval.intersect(type_interval),
-        None => guard_interval,
-    };
+    let mut interval = Interval { low, high };
+    // Intersect with the place's type range AND its declared `[a..=b]` range
+    // constraint to retain the bounds the guard leaves open. Skipping the
+    // DECLARED range here was a live regression: a one-sided `i < 7` on
+    // `i: i32 [0..=7]` seeded [i32::MIN, 6] into the env, which SHADOWS the
+    // declared [0, 7] in the operand analysis (env wins over the constraint
+    // there) -- `7 - i` then "may overflow" even though it provably cannot.
+    if let Some(handle) = declared_place_type_raw(program, machine, state, place_expr) {
+        if let Some(type_interval) = program
+            .primitive_type_reference(handle)
+            .and_then(primitive_range)
+        {
+            interval = interval.intersect(type_interval);
+        }
+        if let Some(declared_range) = range_constraint_interval(program, handle) {
+            interval = interval.intersect(declared_range);
+        }
+    }
+    // `narrow` intersects with anything already established, so a prior
+    // conjunct on the SAME place composes: `dir >= 0 && dir <= 1` lands [0, 1].
     env.narrow(name, interval);
-    env
+}
+
+/// Seed a NON-ENTRY state's starting env from its SOLE incoming guarded
+/// transition: `transition dir >= 0 && dir <= 1 { true -> store() }` means
+/// `store`'s body may assume the guard -- the target-state twin of the
+/// same-state arm narrowing. Strictly conservative; returns an EMPTY env
+/// unless ALL of:
+/// - exactly ONE transition arm in the whole machine TARGETS the state
+///   (a second entry, from anywhere, disqualifies);
+/// - that arm is a guard-TRUE target from a DIFFERENT state (a continuation
+///   fires on guard-FALSE with its own polarity; a self-loop back edge is
+///   loop-invariant territory, owned by loop_invariants.rs);
+/// - the state is never entered by a CALL (statement or value position) --
+///   calls carry no guard.
+/// Facts seeded here are body-scoped exactly like any env entry: a write to
+/// the guarded place inside the body replaces its interval.
+pub(crate) fn sole_incoming_guard_env(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+) -> ValueEnv {
+    use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
+    let state_name = state.name.as_str();
+    let mut sole_entry: Option<(
+        omega_typed_trees::statement::TransitionGuardNode,
+        omega_core::symbols::SymbolHandle,
+    )> = None;
+    let mut disqualified = false;
+
+    let target_names_state = |handle: omega_typed_trees::statement::TransitionTargetHandle| {
+        if !handle.is_valid() {
+            return false;
+        }
+        match program.statement_table.transition_target(handle) {
+            TransitionTargetNode::Named { path, .. } => program
+                .statement_table
+                .name_path_members(path.members)
+                .last()
+                .is_some_and(|name| name.as_str() == state_name),
+            _ => false,
+        }
+    };
+
+    for source in program.machine_states(machine) {
+        for statement in program.statement_table.statements(source.statement_nodes) {
+            match statement {
+                StatementNode::Transition(transition) => {
+                    if target_names_state(transition.target) {
+                        if sole_entry.is_some() || source.symbol == state.symbol {
+                            disqualified = true;
+                        } else {
+                            sole_entry = Some((transition.guard.clone(), source.symbol));
+                        }
+                    }
+                    if target_names_state(transition.continuation) {
+                        disqualified = true;
+                    }
+                }
+                StatementNode::Call(call) => {
+                    if call.target.as_str() == state_name {
+                        disqualified = true;
+                    }
+                }
+                _ => {}
+            }
+            if statement_expressions_call_state(program, statement, state_name) {
+                disqualified = true;
+            }
+        }
+    }
+
+    if disqualified {
+        return ValueEnv::new();
+    }
+    let Some((guard, _)) = sole_entry else {
+        return ValueEnv::new();
+    };
+    guard_narrowed_env(program, machine, Some(state), &guard, &ValueEnv::new())
+}
+
+/// Whether any CALL expression inside the statement's expression trees targets
+/// `state_name` (a value-position state entry, which carries no guard).
+fn statement_expressions_call_state(
+    program: &TypedTrees,
+    statement: &omega_typed_trees::statement::StatementNode,
+    state_name: &str,
+) -> bool {
+    use omega_typed_trees::statement::StatementNode;
+    let mut handles: Vec<ExpressionHandle> = Vec::new();
+    match statement {
+        StatementNode::LocalData(local) => handles.push(local.initial_value),
+        StatementNode::Assignment(assignment) => {
+            handles.push(assignment.target);
+            handles.push(assignment.value);
+        }
+        StatementNode::Expression(expression) => handles.push(*expression),
+        StatementNode::Call(call) => {
+            handles.extend(
+                program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied(),
+            );
+        }
+        StatementNode::Transition(transition) => {
+            if let omega_typed_trees::statement::TransitionGuardNode::When(condition) =
+                &transition.guard
+            {
+                handles.push(*condition);
+            }
+            for handle in [transition.target, transition.continuation] {
+                if !handle.is_valid() {
+                    continue;
+                }
+                match program.statement_table.transition_target(handle) {
+                    omega_typed_trees::statement::TransitionTargetNode::Named {
+                        arguments, ..
+                    } => handles.extend(
+                        program
+                            .expression_table
+                            .expression_handles(*arguments)
+                            .iter()
+                            .copied(),
+                    ),
+                    omega_typed_trees::statement::TransitionTargetNode::Value(value) => {
+                        handles.push(*value)
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    handles
+        .into_iter()
+        .any(|handle| expression_calls_state(program, handle, state_name))
+}
+
+fn expression_calls_state(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+    state_name: &str,
+) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => {
+            if call.target.as_str() == state_name {
+                return true;
+            }
+            let receiver = call.receiver;
+            let arguments = call.arguments;
+            (receiver.is_valid() && expression_calls_state(program, receiver, state_name))
+                || program
+                    .expression_table
+                    .expression_handles(arguments)
+                    .iter()
+                    .any(|argument| expression_calls_state(program, *argument, state_name))
+        }
+        ExpressionNode::Binary(binary) => {
+            let (left, right) = (binary.left, binary.right);
+            expression_calls_state(program, left, state_name)
+                || expression_calls_state(program, right, state_name)
+        }
+        ExpressionNode::Unary(unary) => {
+            expression_calls_state(program, unary.operand, state_name)
+        }
+        ExpressionNode::Member(member) => {
+            expression_calls_state(program, member.receiver, state_name)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let (collection, index) = (indexed.collection, indexed.index);
+            expression_calls_state(program, collection, state_name)
+                || expression_calls_state(program, index, state_name)
+        }
+        ExpressionNode::Cast(cast) => expression_calls_state(program, cast.value, state_name),
+        ExpressionNode::Mutable(inner) => expression_calls_state(program, *inner, state_name),
+        ExpressionNode::Range(range) => {
+            let (start, end) = (range.start, range.end);
+            expression_calls_state(program, start, state_name)
+                || expression_calls_state(program, end, state_name)
+        }
+        ExpressionNode::ArrayLiteral(values) => program
+            .expression_table
+            .expression_handles(*values)
+            .iter()
+            .any(|value| expression_calls_state(program, *value, state_name)),
+        ExpressionNode::StructLiteral(literal) => {
+            let fields = literal.fields;
+            program
+                .expression_table
+                .struct_fields(fields)
+                .iter()
+                .any(|field| expression_calls_state(program, field.value, state_name))
+        }
+        ExpressionNode::Name(_)
+        | ExpressionNode::Integer(_)
+        | ExpressionNode::Float(_)
+        | ExpressionNode::Boolean(_)
+        | ExpressionNode::String(_) => false,
+    }
 }
 
 /// S4 flow-sensitive value environment: the proven interval of each place

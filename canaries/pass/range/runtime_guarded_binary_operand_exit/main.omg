@@ -1,0 +1,38 @@
+// A binary value with a GUARD-bounded operand: `self.y = self.p + self.dir`
+// where `p: [0..=8]` is declared and `dir` is bounded only by the sole
+// incoming edge guard `dir >= 0 && dir <= 1`. Two halves compose:
+// - VALIDATION seeds the target state's env from its sole incoming guarded
+//   transition (conjunction-splitting `&&`), so exact-overflow discharges;
+// - the PROOF side refolds the binary operand-wise, the guard filling in the
+//   operand the declaration leaves unbounded -> [0..=9] fits y.
+// p=8, dir=1 -> exit 9.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    p: i32 [0..=8];
+    dir: i32;
+    y: i32 [0..=9];
+}
+
+machine Main::main(&mut self) {
+    self.p = 8;
+    self.dir = 1;
+    transition self.dir >= 0 && self.dir <= 1 {
+        true -> store()
+        false -> bad()
+    }
+
+    state store(&mut self) {
+        self.y = self.p + self.dir;
+        transition self.y == 9 {
+            true -> matched()
+            false -> unmatched()
+        }
+    }
+    state matched(&mut self) { self.console.exit_process(9); }
+    state unmatched(&mut self) { self.console.exit_process(0); }
+    state bad(&mut self) { self.console.exit_process(8); }
+}
