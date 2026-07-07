@@ -529,3 +529,20 @@ fn gui_impl_through_field_exits_7() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(out.status.code(), Some(7), "a through-field GuiImpl wrapper should compose objc into a non-null NSWindow");
 }
+
+// The sample-shaped window_create: a GuiImpl wrapper op taking i32 x/y/w/h args
+// (as the sample's Gui.window_create does), converting i32 -> f64 via `as f64`
+// into scratch fields, and building the NSWindow with an HFA rect -- all through a
+// field value-call. Combines int-args-through-value-call + scvtf cast + objc.
+// Non-null window -> exit 8. The hardest Gui op proven in its true sample shape.
+#[test]
+fn gui_window_i32_args_exits_8() {
+    let main_path = repo_root().join("canaries/pass/objc/gui_window_i32_args/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-i32gui-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("gui_window_i32_args should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(8), "i32-arg window_create should convert to an f64 rect and build a non-null NSWindow");
+}

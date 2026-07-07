@@ -404,6 +404,16 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    (window_create/blit/pump/is_window/window_destroy via the proven primitives, fields +
    terminal-value); (2) implement the darwin boundary-trait→provider substitution; then
    #9/#10. Native harness 72/72; no compiler change this fire (canary + test only).
+   ✅ **fire 18: the SAMPLE-SHAPED window_create is proven.** The sample's
+   `Gui.window_create(.., x: i32, y: i32, w: i32, h: i32)` passes INT rect args, but
+   `initWithContentRect:` needs an f64 NSRect. `canaries/pass/objc/gui_window_i32_args` —
+   `GuiImpl::window_create(x,y,w,h: i32)` receives INT args through the field value-call,
+   converts `x as f64` → scratch f64 fields (scvtf, already wired), and builds the NSWindow
+   with the HFA rect → exit 8. So ALL building blocks for the `MacosGui` wrapper are proven:
+   through-field value-call + int-args-through-value-call + i32→f64 cast + objc/CG sequences
+   + terminal-value return. The wrapper is now pure Omega assembly work (task #58); the only
+   compiler feature left is the boundary→provider substitution (task #57). Native harness
+   73/73.
 9. **[ ] Interpreter headless stub** for `Gui`/`Input`/`Clock` — open no real window,
    succeed all calls, report "no event / alive", quit after N frames — so the samples
    stay runnable on both engines and differential/coverage stay green.

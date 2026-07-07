@@ -1,0 +1,67 @@
+// PROVES the SAMPLE-SHAPED window_create through the macOS Gui backend (render
+// fire 18): the sample calls `self.gui.window_create(cls, title, style, x, y, w,
+// h)` with i32 x/y/w/h, but Cocoa's initWithContentRect: needs an NSRect of f64s
+// in v0-v3. So the MacosGui wrapper op must (a) receive INT args through a FIELD
+// value-call, (b) convert i32 -> f64 (scvtf via `as f64`) into scratch fields, and
+// (c) pass them as the HFA rect. This canary exercises exactly that: a separate
+// GuiImpl data type whose window_create(x,y,w,h: i32) converts to f64 fields and
+// builds the NSWindow, value-called with integer literals. A non-null window ->
+// exit 8. This is the hardest Gui op proven in its true sample shape.
+
+domain [u8]::CString when no_nul(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+boundary trait ObjectiveC {
+    machine get_class(name: &[u8] in CString) -> u64;
+    machine register_selector(name: &[u8] in CString) -> u64;
+    machine send(recv: u64, sel: u64) -> u64;
+    machine send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64;
+}
+
+data GuiImpl {
+    objc: ObjectiveC;
+    rx: f64;
+    ry: f64;
+    rw: f64;
+    rh: f64;
+    app_cls: u64;
+    win_cls: u64;
+    sel: u64;
+    app: u64;
+    alloc: u64;
+    win: u64;
+}
+
+data Main {
+    console: Console;
+    gui: GuiImpl;
+    win: u64;
+}
+
+machine Main::main(&mut self) {
+    self.win = self.gui.window_create(0, 0, 200, 150);
+    transition self.win != 0 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(8); }
+    state bad(&mut self)  { self.console.exit_process(1); }
+}
+
+machine GuiImpl::window_create(&mut self, x: i32, y: i32, w: i32, h: i32) -> u64 {
+    self.rx = x as f64;
+    self.ry = y as f64;
+    self.rw = w as f64;
+    self.rh = h as f64;
+    self.app_cls = self.objc.get_class("NSApplication");
+    self.sel = self.objc.register_selector("sharedApplication");
+    self.app = self.objc.send(self.app_cls, self.sel);
+    self.win_cls = self.objc.get_class("NSWindow");
+    self.sel = self.objc.register_selector("alloc");
+    self.alloc = self.objc.send(self.win_cls, self.sel);
+    self.sel = self.objc.register_selector("initWithContentRect:styleMask:backing:defer:");
+    self.win = self.objc.send_rect(self.alloc, self.sel, self.rx, self.ry, self.rw, self.rh, 15, 2, 0);
+    transition { _ -> ret() }
+    state ret(&mut self) -> u64 { self.win }
+}
