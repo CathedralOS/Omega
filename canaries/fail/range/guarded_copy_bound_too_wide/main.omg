@@ -1,0 +1,27 @@
+// A guard whose established range does NOT fit the target: [0..=20] into
+// y: [0..=9] must still reject -- the guard narrows the copy, but only to
+// its own bounds.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    yv: i32;
+    y: i32 [0..=9];
+}
+
+machine Main::main(&mut self) {
+    self.yv = 7;
+    transition self.yv >= 0 && self.yv <= 20 {
+        true -> store()
+        false -> bad()
+    }
+
+    state store(&mut self) {
+        self.y = self.yv;
+        transition self.y == 7 { true -> m() false -> m() }
+    }
+    state m(&mut self) { self.console.exit_process(1); }
+    state bad(&mut self) { self.console.exit_process(8); }
+}

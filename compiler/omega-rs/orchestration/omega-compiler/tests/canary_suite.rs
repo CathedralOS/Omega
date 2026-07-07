@@ -2709,6 +2709,42 @@ fn runtime_slice_length_field_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The guarded-COPY narrowing: an UNRANGED `yv` copied into `y: [0..=9]` under
+// the dominating edge guard `yv >= 0 && yv <= 9`. The checker used to bail
+// before consulting the guard (guards could only refine an existing declared
+// range, never establish one). yv=7 -> exit 7.
+#[test]
+fn runtime_guarded_copy_narrowing_exit_canary_runs() {
+    let canary = pass_canary("range/runtime_guarded_copy_narrowing_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-guarded-copy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guarded copy narrowing canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guarded copy narrowing canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "expected the edge-guarded copy `self.y = self.yv` (guard establishes \
+         [0..=9]) to prove and exit 7, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // The proof-side range fold folds DIVISION and MODULO through a chain:
 // `(c / 26) % 5` with `c: [0..=259]` proves into `y: [0..=4]` with no guard
 // (corner-quotient divide -> [0..=9], modulo -> [0..=4]). c=259 -> exit 4.
@@ -21874,6 +21910,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "slices/invalid_fixed_array_literal_index_unchecked",
     "slices/known_length_dynamic_index_unproven",
     "slices/machine_field_index_reassigned_unproven",
+    "range/guarded_copy_stale_after_write",
+    "range/guarded_copy_bound_too_wide",
     "ranges/loop_increment_index_unbounded",
     "ranges/loop_body_resets_index",
     "ranges/loop_init_exceeds_capacity",

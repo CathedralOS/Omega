@@ -500,7 +500,19 @@ fn guarded_integer_range_for_assignment(
     proof_plan: &ProofPlan,
     obligation: &BoundedAssignmentObligation,
 ) -> Option<IntegerRange> {
-    let mut range = integer_range_for_assignment(proof_plan, obligation)?;
+    // An UNRANGED integer value starts NEUTRAL (the full i64 line) instead of
+    // bailing, so a stable edge guard ALONE can establish its range -- the
+    // guarded-COPY shape `transition self.yv >= 0 && self.yv <= 9 { true ->
+    // store() }` then `self.y = self.yv` used to return None here before the
+    // guard was ever consulted. Starting wider is sound: guard refinement only
+    // intersects, and a bound the guard leaves at the i64 extreme fails the
+    // target fit exactly as the old None did.
+    const NEUTRAL: IntegerRange = IntegerRange {
+        minimum: i64::MIN,
+        maximum: i64::MAX,
+    };
+    let declared = integer_range_for_assignment(proof_plan, obligation);
+    let mut range = declared.unwrap_or(NEUTRAL);
 
     // The incoming-edge guard held at STATE ENTRY; it still holds at this
     // assignment only if nothing earlier in the state could have changed what
@@ -514,6 +526,11 @@ fn guarded_integer_range_for_assignment(
         range = guard_refined_binary_range(proof_plan, range, obligation.value, guard);
     }
 
+    // Nothing declared AND nothing narrowed: keep reporting "no range" rather
+    // than a vacuous full-line interval.
+    if declared.is_none() && range == NEUTRAL {
+        return None;
+    }
     Some(range)
 }
 
