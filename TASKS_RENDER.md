@@ -308,11 +308,22 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    pre-existing drift from an unrelated rebase, present with AND without my changes).
    **The full objc→Cocoa surface (class lookup, selectors, msgSend 2/3-arg scalar+string,
    framework classes) is now proven — the window path is unblocked.**
-4. **[ ] Window without reverse callbacks** — `NSApplication sharedApplication` +
-   `setActivationPolicy:Regular` + `activateIgnoringOtherApps:YES`; `NSWindow` with an
-   `NSImageView` contentView (present via the image view, NOT a `drawRect:` subclass —
-   Omega has no guest-callback ABI). Static empty window that stays up via a bounded
-   non-blocking pump.
+4. **[~] Window without reverse callbacks — NSWindow INSTANTIATED (fire 11).** ✅ A real
+   `NSWindow` is now created natively from Omega. Added `ObjectiveC::send_rect(recv, sel,
+   x, y, w, h, a, b, c) -> u64` → `_objc_msgSend` — the MIXED HFA-plus-scalar send: the
+   `NSRect` (4 doubles) goes in v0–v3 and the three trailing scalars in x2–x4 (op arm
+   `[result, recv, sel, x_f, y_f, w_f, h_f, a, b, c]`; the independent x/v counters place
+   them without interference). PROVEN: `canaries/pass/objc/nswindow_init` —
+   `[NSApplication sharedApplication]` then `[[NSWindow alloc] initWithContentRect:
+   {0,0,200,150} styleMask:15 backing:2 defer:0]` builds a non-null window AND
+   `[win styleMask] == 15` → exit 3. `otool` shows the textbook AAPCS layout: `x0=recv,
+   x1=sel, fmov d0..d3=rect, x2=#0xf, x3=#0x2, x4=#0x0, bl _objc_msgSend`. Headless-safe
+   (never ordered on-screen). Native harness 66/66; canary_suite zero new failures (A/B vs
+   FRESH baseline — 5 pre-existing `runtime_frame_indexed_*` drift, present w/ and w/o my
+   changes). REMAINING for a VISIBLE static window: `NSImageView` contentView +
+   `setContentView:` + `makeKeyAndOrderFront:` + `setActivationPolicy:` + a bounded
+   non-blocking pump (folds into items #5/#6). The class-lookup / alloc / init / scalar /
+   HFA pieces are all proven — the rest is composing them.
 5. **[ ] CGImage blit** — build a `CGImage` from the `[i32;4096]` BGRA framebuffer
    (`CGColorSpaceCreateDeviceRGB` + `CGDataProviderCreateWithData` + `CGImageCreate`,
    bitmapInfo `kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Little`; watch row

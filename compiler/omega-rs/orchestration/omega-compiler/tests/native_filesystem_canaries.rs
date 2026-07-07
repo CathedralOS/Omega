@@ -385,3 +385,20 @@ fn cgrect_hfa_exits_6() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(out.status.code(), Some(6), "CGRectGetMaxX/Y of {{10,20,30,40}} should be 40/60 (HFA in v0-v3)");
 }
+
+// The MIXED HFA-plus-scalar objc_msgSend — a real NSWindow built by hand via
+// [[NSWindow alloc] initWithContentRect:{0,0,200,150} styleMask:15 backing:2
+// defer:0]. The rect goes in v0-v3, styleMask/backing/defer in x2-x4 (independent
+// register files). Verifies the window is non-null AND [win styleMask] == 15, so
+// both files are placed right. Headless-safe (never ordered on-screen). -> exit 3.
+#[test]
+fn nswindow_init_exits_3() {
+    let main_path = repo_root().join("canaries/pass/objc/nswindow_init/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-nswin-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("nswindow_init should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(3), "NSWindow initWithContentRect:...styleMask:15 should build + report styleMask 15 (HFA v0-v3 + x2-x4)");
+}

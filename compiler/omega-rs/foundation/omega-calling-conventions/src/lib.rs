@@ -355,6 +355,13 @@ pub enum HostOperation {
     /// `initWithUTF8String:` (window titles etc.). Shares `_objc_msgSend`. Only
     /// provable once Foundation is loaded (NSString registered).
     MsgSendString,
+    /// `ObjectiveC::send_rect(recv, sel, x, y, w, h, a, b, c) -> u64` →
+    /// `objc_msgSend` with an `NSRect`/`CGRect` (4 doubles) HFA argument plus three
+    /// trailing integer/pointer args: `recv`→x0, `sel`→x1, the rect→v0–v3, then
+    /// `a`→x2, `b`→x3, `c`→x4. The MIXED HFA-plus-scalar call the window's
+    /// `initWithContentRect:styleMask:backing:defer:` needs (rect + styleMask +
+    /// backing + defer). Shares the `_objc_msgSend` symbol.
+    MsgSendRect,
     /// `CoreGraphics::rect_max_x(x, y, w, h) -> f64` → `CGRectGetMaxX`. Takes a
     /// `CGRect` = 4 doubles passed as an HFA in v0–v3, returns `origin.x +
     /// size.width` (v0 + v2) as a `CGFloat` in d0. The run-verified proof that 4
@@ -445,6 +452,7 @@ impl HostOperation {
             "send" => Self::MsgSend,
             "send_scalar" => Self::MsgSendScalar,
             "send_string" => Self::MsgSendString,
+            "send_rect" => Self::MsgSendRect,
             "rect_max_x" => Self::RectMaxX,
             "rect_max_y" => Self::RectMaxY,
             "sleep" => Self::Sleep,
@@ -515,6 +523,7 @@ impl HostOperation {
             Self::MsgSend => "send",
             Self::MsgSendScalar => "send_scalar",
             Self::MsgSendString => "send_string",
+            Self::MsgSendRect => "send_rect",
             Self::RectMaxX => "rect_max_x",
             Self::RectMaxY => "rect_max_y",
             Self::Sleep => "sleep",
