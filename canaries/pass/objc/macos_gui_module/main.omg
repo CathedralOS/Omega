@@ -20,8 +20,11 @@ data Main {
     gui: MacosGui;
     cls: [u8; 7];
     title: [u8; 10];
+    pixels: [i32; 4096];
+    info: [i32; 11];
     win: u64;
     dc: u64;
+    blitted: u32;
     alive: u32;
     killed: u32;
 }
@@ -29,10 +32,12 @@ data Main {
 machine Main::main(&mut self) {
     self.win = self.gui.window_create(self.cls, self.title, 0, 0, 0, 200, 150);
     self.dc = self.gui.get_dc(self.win);
+    self.blitted = self.gui.blit(self.dc, 256, 256, 64, 64, self.pixels, self.info);
     self.alive = self.gui.is_window(self.win);
     self.killed = self.gui.window_destroy(self.win);
     transition self.win != 0 { true -> ck_dc() _ -> bad() }
-    state ck_dc(&mut self) { transition self.dc == self.win { true -> good() _ -> bad() } }
+    state ck_dc(&mut self) { transition self.dc == self.win { true -> ck_blit() _ -> bad() } }
+    state ck_blit(&mut self) { transition self.blitted > 0 { true -> good() _ -> bad() } }
     state good(&mut self) { self.console.exit_process(9); }
     state bad(&mut self)  { self.console.exit_process(1); }
 }

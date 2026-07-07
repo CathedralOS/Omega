@@ -33,7 +33,11 @@ boundary trait ObjectiveC {
 // The Core Graphics seam (CoreGraphics framework) for the framebuffer blit.
 boundary trait CoreGraphics {
     machine color_space_rgb() -> u64;
-    machine bitmap_context(data: &mut [i32], w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64;
+    // `data` is READ-ONLY here: the framebuffer is snapshotted into the CGImage
+    // (`bitmap_context_image`), never drawn into, so an immutable ref suffices —
+    // and a by-value `pixels` PARAM cannot be borrowed `&mut`. The ABI passes a
+    // plain pointer either way.
+    machine bitmap_context(data: &[i32], w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64;
     machine bitmap_context_image(ctx: u64) -> u64;
 }
 
@@ -44,10 +48,22 @@ data MacosGui {
     window: u64;
     view: u64;
     app: u64;
+    // A device-RGB colorspace, created once at window_create and reused per blit.
+    space: u64;
+    // Staged blit dimensions (a host-call arg must be a storage place / literal,
+    // not a live cast expression, so the `as i64`/`as f64` results land in fields).
+    fbw: i64;
+    fbh: i64;
+    stride: i64;
+    fbwf: f64;
+    fbhf: f64;
     // Scratch for the objc call sequences.
     cls: u64;
     sel: u64;
     tmp: u64;
+    ctx: u64;
+    cgimg: u64;
+    nsimg: u64;
     rx: f64;
     ry: f64;
     rw: f64;
@@ -82,8 +98,34 @@ machine MacosGui::window_create(&mut self, class_name: [u8; 7], title: [u8; 10],
     self.rc = self.objc.send_scalar(self.window, self.sel, self.view);
     self.sel = self.objc.register_selector("makeKeyAndOrderFront:");
     self.rc = self.objc.send_scalar(self.window, self.sel, 0);
+    self.space = self.cg.color_space_rgb();
     transition { _ -> ret() }
     state ret(&mut self) -> u64 { self.window }
+}
+
+// `Gui::blit` — copy a top-down 32bpp BGRA framebuffer into the window's image
+// view: `CGBitmapContextCreate(&pixels)` → snapshot to a CGImage → `NSImage
+// initWithCGImage:size:` → `[imageView setImage:]`. `dest_*` and `device`/`info`
+// are ignored (the image view auto-scales; macOS is top-down like the source, so
+// NO row flip). `stride = source_width * 4` via `<< 2` (shift is obligation-free).
+machine MacosGui::blit(&mut self, device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32 {
+    self.fbw = source_width as i64;
+    self.fbh = source_height as i64;
+    self.stride = (source_width as i64) << 2;
+    self.fbwf = source_width as f64;
+    self.fbhf = source_height as f64;
+    self.ctx = self.cg.bitmap_context(&pixels, self.fbw, self.fbh, 8, self.stride, self.space, 8198);
+    self.cgimg = self.cg.bitmap_context_image(self.ctx);
+    self.cls = self.objc.get_class("NSImage");
+    self.sel = self.objc.register_selector("alloc");
+    self.tmp = self.objc.send(self.cls, self.sel);
+    self.sel = self.objc.register_selector("initWithCGImage:size:");
+    self.nsimg = self.objc.send_image_size(self.tmp, self.sel, self.cgimg, self.fbwf, self.fbhf);
+    self.sel = self.objc.register_selector("setImage:");
+    self.rc = self.objc.send_scalar(self.view, self.sel, self.nsimg);
+    self.r32 = 1;
+    transition { _ -> ret() }
+    state ret(&mut self) -> u32 { self.r32 }
 }
 
 // `Gui::get_dc` — the samples pass the returned "device context" to `blit`; on

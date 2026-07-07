@@ -548,10 +548,11 @@ fn gui_window_i32_args_exits_8() {
 }
 
 // The shipped macOS Gui backend module (omega::language::std::macos_gui): its
-// MacosGui wrapper drives the sample-shaped window lifecycle -- window_create
-// (Win32 signature) -> get_dc -> is_window -> window_destroy, through a gui:
-// MacosGui field. window != 0 AND get_dc(win) == win -> exit 9. (is_window /
-// window_destroy run but are not gated on visibility, headless-safe.)
+// MacosGui wrapper drives the sample-shaped Gui ops -- window_create (Win32
+// signature) -> get_dc -> blit (a [i32;4096] framebuffer -> CGImage -> setImage:)
+// -> is_window -> window_destroy, through a gui: MacosGui field. window != 0 AND
+// get_dc(win) == win AND blit > 0 -> exit 9. (is_window / window_destroy run but
+// are not gated on visibility, headless-safe.)
 #[test]
 fn macos_gui_module_exits_9() {
     let main_path = repo_root().join("canaries/pass/objc/macos_gui_module/main.omg");
