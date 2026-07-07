@@ -1465,6 +1465,15 @@ fn validate_expression_call_bounds(
     // Mirrors the same three-way fallback in `validate_call_node`.
     if call_is_self {
         if let Some(callee_state) = machine_symbols.state(call.target.as_str()) {
+            report_void_value_callee(
+                program,
+                current_machine,
+                current_machine,
+                current_state,
+                callee_state,
+                call.target.as_str(),
+                diagnostics,
+            );
             validate_machine_call_type_parameter_bounds(
                 program,
                 symbols,
@@ -1504,6 +1513,15 @@ fn validate_expression_call_bounds(
             });
 
         if let Some((callee_machine, callee_state)) = attached_state {
+            report_void_value_callee(
+                program,
+                callee_machine,
+                current_machine,
+                current_state,
+                callee_state,
+                call.target.as_str(),
+                diagnostics,
+            );
             fence_generic_value_callee(program, callee_machine, call.target.as_str(), diagnostics);
             validate_machine_call_type_parameter_bounds(
                 program,
@@ -1532,6 +1550,15 @@ fn validate_expression_call_bounds(
         if let Some((callee_machine, callee_state)) =
             free_machine_entry_state(program, symbols, call.target.as_str())
         {
+            report_void_value_callee(
+                program,
+                callee_machine,
+                current_machine,
+                current_state,
+                callee_state,
+                call.target.as_str(),
+                diagnostics,
+            );
             fence_generic_value_callee(program, callee_machine, call.target.as_str(), diagnostics);
             validate_machine_call_type_parameter_bounds(
                 program,
@@ -1581,6 +1608,15 @@ fn validate_expression_call_bounds(
             .iter()
             .find(|s| s.name == call.target)
         {
+            report_void_value_callee(
+                program,
+                callee_machine,
+                current_machine,
+                current_state,
+                callee_state,
+                call.target.as_str(),
+                diagnostics,
+            );
             fence_generic_value_callee(program, callee_machine, call.target.as_str(), diagnostics);
             validate_machine_call_type_parameter_bounds(
                 program,
@@ -1621,6 +1657,15 @@ fn validate_expression_call_bounds(
     if let Some((callee_machine, callee_state)) = receiver_type.and_then(|type_name| {
         symbols.attached_machine_state(program, type_name, call.target.as_str())
     }) {
+        report_void_value_callee(
+            program,
+            callee_machine,
+            current_machine,
+            current_state,
+            callee_state,
+            call.target.as_str(),
+            diagnostics,
+        );
         fence_generic_value_callee(program, callee_machine, call.target.as_str(), diagnostics);
         validate_machine_call_type_parameter_bounds(
             program,
@@ -1657,6 +1702,58 @@ fn validate_expression_call_bounds(
     );
 
     let _ = writable_roots;
+}
+
+/// A VOID callee in VALUE position used to compile and silently bind 0 (ZII)
+/// -- and native/interp DIVERGED on the bound value. "Void" means: no declared
+/// return type on the resolved state (the parser now lands `-> T` written
+/// after the machine clauses too; it used to be silently dropped) AND no state
+/// of the callee machine produces a value through a transition VALUE arm --
+/// undeclared-return value machines (`transition r > 0 { true -> self.f(r-1)
+/// false -> 0 }`, the termination-canary surface) stay callable.
+fn report_void_value_callee(
+    program: &TypedTrees,
+    callee_machine: &Machine,
+    current_machine: &Machine,
+    current_state: &State,
+    callee_state: &State,
+    callee_display: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if callee_state.return_type.is_valid() {
+        return;
+    }
+    let produces_value = program.machine_states(callee_machine).iter().any(|state| {
+        state.return_type.is_valid()
+            || program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .any(|statement| {
+                    let StatementNode::Transition(transition) = statement else {
+                        return false;
+                    };
+                    [transition.target, transition.continuation]
+                        .iter()
+                        .any(|handle| {
+                            handle.is_valid()
+                                && matches!(
+                                    program.statement_table.transition_target(*handle),
+                                    TransitionTargetNode::Value(_)
+                                )
+                        })
+                })
+    });
+    if produces_value {
+        return;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}`: `{callee_display}(..)` does not return a value but is \
+         used in a VALUE position -- it would silently bind 0 (ZII) at runtime. Declare \
+         a return type on the callee (`-> T`) or call it as a statement.",
+        current_machine.name,
+        current_state.name.as_str(),
+    )));
 }
 
 /// The declared TYPE NAME of a receiver that is a state param, state local,

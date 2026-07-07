@@ -1,0 +1,20 @@
+// V1: VOID callee in VALUE position -- `let r: i32 = self.act()`.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    n: i32;
+}
+machine Main::act(&mut self) {
+    self.n = 5;
+}
+machine Main::main(&mut self) {
+    let r: i32 = self.act();
+    transition r == 0 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

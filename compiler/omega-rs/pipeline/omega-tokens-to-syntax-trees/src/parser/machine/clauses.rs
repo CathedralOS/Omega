@@ -14,6 +14,7 @@ type MachineClauses = (
     HandleSpan<Identifier>,
     HandleSpan<Identifier>,
     HandleSpan<CapabilityContract>,
+    omega_syntax_trees::types::TypeReferenceHandle,
 );
 
 type DecreasesClause = (
@@ -32,6 +33,7 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
     let mut effect_count = 0u32;
     let mut contract_start = Handle::invalid();
     let mut contract_count = 0u32;
+    let mut return_type = omega_syntax_trees::types::TypeReferenceHandle::invalid();
 
     while !input.at_punctuation(PunctuationKind::LeftBrace) {
         if input.at_contextual("terminates") {
@@ -144,8 +146,43 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
             continue;
         }
 
-        let (_, rest) = input.expect_token()?;
-        input = rest;
+        // A return type may follow the clauses (`machine f(..) terminates {..}
+        // -> usize { .. }`). This used to be eaten by a skip-any-token
+        // fallback, so the machine silently parsed as VOID -- the declared
+        // `-> usize` never reached any state.
+        if input.at_punctuation(PunctuationKind::Arrow) {
+            let (parsed, rest) =
+                crate::parser::state::parse_optional_return_type(syntax_trees, input)?;
+            return_type = parsed;
+            input = rest;
+            continue;
+        }
+
+        // A `where` clause (generic machine requirements, ch12: `where machine
+        // T::increment(&mut self)`). Its constraints are consumed up to the
+        // body brace -- the same treatment the old skip gave it, but scoped so
+        // ONLY a where clause is tolerated here.
+        if input.at_contextual("where") {
+            input = input.take_contextual("where")?;
+            while !input.at_punctuation(PunctuationKind::LeftBrace) {
+                let (_, rest) = input.expect_token()?;
+                input = rest;
+            }
+            continue;
+        }
+
+        // Anything else between the machine header and its `{` is a mistake --
+        // silently skipping it hid dropped return types and typo'd clauses.
+        return Err(input.expected_one_of_here(&[
+            "`terminates`",
+            "`decreases`",
+            "`effects`",
+            "`boundary`",
+            "`requires`",
+            "`ensures`",
+            "`->`",
+            "`{`",
+        ]));
     }
 
     let effects = if effect_count == 0 {
@@ -159,7 +196,14 @@ pub(super) fn parse_machine_clauses<'tokens, 'source>(
         HandleSpan::from_parts(contract_start, contract_count)
     };
     Ok((
-        (terminates, decreases, decrease_order, effects, contracts),
+        (
+            terminates,
+            decreases,
+            decrease_order,
+            effects,
+            contracts,
+            return_type,
+        ),
         input,
     ))
 }

@@ -3785,6 +3785,42 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// `-> usize` written AFTER the machine clauses (`terminates -> usize`): the
+// parser used to silently DROP it (skip-any-token fallback), so the machine
+// parsed as VOID and callers bound ZII 0. Non-recursive value flows -> exit 1.
+#[test]
+fn runtime_post_clauses_return_type_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_post_clauses_return_type_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-post-clauses-ret-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("post-clauses return type canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("post-clauses return type canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `terminates -> usize` pick(1) to return 5 and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A runtime slice `.len` read into a LOCAL binding in a VALUE position (`let n =
 // s.len`), NOT as an operand or guard subject. The native side used to leave the
 // local slot unwritten (the descriptor length was never materialized), so a later
@@ -22867,6 +22903,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/wrapping_target_plain_operands_rejected",
     "calls/unresolved_value_call_rejected",
     "calls/unresolved_receiver_method_rejected",
+    "calls/void_value_callee_rejected",
+    "calls/empty_body_return_machine_rejected",
+    "parse/machine_clause_garbage_rejected",
     "arithmetic/nested_field_exact_overflow_rejected",
     "arithmetic/zii_range_excludes_zero_rejected",
     "arithmetic/guard_invalidated_by_prior_write_rejected",

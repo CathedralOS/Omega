@@ -1,0 +1,7 @@
+// Stray tokens between a machine header and its body used to be SILENTLY
+// SKIPPED (which is how a post-clauses `-> usize` was dropped and the machine
+// parsed as void). Now a parse error.
+data Main {
+}
+machine Main::main(&mut self) bogus tokens {
+}
