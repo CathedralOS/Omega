@@ -63,11 +63,8 @@ machine Duration::from_seconds(seconds: u64) -> Duration {
 
 machine Duration::from_milliseconds(milliseconds: u64) -> Duration {
     // Flow-sensitive LETS carry the proofs (`% 1000` bounds the remainder,
-    // the narrowing cast and `* 1000000` prove under it). EVERY field value is
-    // a LET: the native inline value materialization delivers a 16-byte
-    // struct result only in the construct-from-LOCALS shape (an inline BINARY
-    // field expression mis-sizes the write to the whole struct and hits the
-    // 16-byte store fence -- see TASKS).
+    // the narrowing cast and `* 1000000` prove under it); constructing from
+    // the lets keeps each construction check on a named, ranged local.
     let scaled_wide: u64 = (milliseconds % 1000) * 1000000;
     let scaled: u32 = scaled_wide as u32;
     let whole_seconds: u64 = milliseconds / 1000;

@@ -1,9 +1,9 @@
-// A type-scoped constructor whose result literal COMPUTES a field inline
-// (`Pair8 { a: n / 100, b: 7 }`) is rejected: this delivery route only
-// carries place/literal fields -- an 8-byte struct was written WRONG
-// SILENTLY (b == 0 natively, interp right), a 16-byte one hit the cryptic
-// encoder fence. Bind computations to lets in the callee (the Duration
-// constructors' shape).
+// A type-scoped constructor whose result literal COMPUTES fields inline
+// (`Pair8 { a: n / 100, b: 7 }`) delivers NATIVELY now: the decomposed field
+// writes used to DROP their member suffix (append_place_suffix's catch-all
+// returned the receiver unchanged), so the last field's value clobbered the
+// whole struct at root size (silent for <=8-byte structs, the loud 16-byte
+// fence otherwise). make(3500) -> {35, 7} -> exit 1.
 boundary trait Console {
     machine exit_process(return_code: i32);
 }

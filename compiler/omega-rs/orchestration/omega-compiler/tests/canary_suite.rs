@@ -4030,6 +4030,41 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Type-scoped constructor with COMPUTED struct-literal fields delivers
+// natively (the member-suffix drop in append_place_suffix is fixed). -> 1.
+#[test]
+fn runtime_constructor_computed_field_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_constructor_computed_field_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-ctor-computed-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("constructor computed field canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("constructor computed field canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected Pair8::make(3500) == {{35, 7}} (per-field delivery, no root clobber) to exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // MACHINE-FIELD-bounded subslice local (`self.arr[self.lo..self.hi]`) --
 // the START's indexed-address op is region-tagged now. len 3 -> exit 3.
 #[test]
@@ -23752,7 +23787,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/void_value_callee_rejected",
     "calls/nested_value_call_arg_rejected",
     "calls/machine_self_call_recursion_rejected",
-    "calls/constructor_computed_field_rejected",
     "calls/empty_body_return_machine_rejected",
     "parse/machine_clause_garbage_rejected",
     "arithmetic/nested_field_exact_overflow_rejected",
