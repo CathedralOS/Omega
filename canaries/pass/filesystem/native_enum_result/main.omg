@@ -1,0 +1,57 @@
+// Regression for the ENUM-transition-leaf delivery bug (FIXED 2026-07-12). A
+// value-call whose callee transitions to leaf states returning a DATA-ENUM
+// (`PairResult::Err` vs `PairResult::Ok { pair: Pair{...} }`), result assigned to a
+// field and matched. The `_`/false arm (mk_ok) is taken -> Ok, pair.a == 42.
+//
+// The bug: the NULLARY arm (`PairResult::Err`, a bare `Type::Case` Name) into a slot
+// whose enum is LARGER than a scalar (24 bytes) emitted NO terminal-slot write (the
+// frame-slot value-write's scalar paths are gated on byte_size in {1,2,4,8}), so its
+// result-slot copy read the ZII frame and the whole 2-arm delivery mis-selected. FIX:
+// the frame-slot value-write now writes a nullary enum variant's TAG at the slot
+// start for a non-scalar enum (mutation/frame_slots.rs). canary_suite 85-baseline
+// (zero new failures).
+
+use omega::language::std::filesystem_host;
+
+data Pair [copy, zero_init] {
+    a: i64;
+    b: i64;
+}
+
+data PairResult {
+    case Err;
+    case Ok(pair: Pair);
+}
+
+data Probe {
+    host: FilesystemHost;
+    flag: bool;
+}
+
+machine Probe::make(&mut self) -> PairResult {
+    self.flag = false;
+    transition self.flag { true -> mk_err() _ -> mk_ok() }
+    state mk_err(&mut self) -> PairResult { PairResult::Err }
+    state mk_ok(&mut self) -> PairResult { PairResult::Ok { pair: Pair { a: 42, b: 99 } } }
+}
+
+data Main {
+    probe: Probe;
+    raw: FilesystemHost;
+    n: i64;
+    res: PairResult;
+}
+
+machine Main::main(&mut self) {
+    self.res = self.probe.make();
+    transition self.res {
+        PairResult::Ok { pair } -> check(pair)
+        PairResult::Err -> bad_tag()
+    }
+    state check(&mut self, pair: Pair) {
+        transition pair.a == 42 { true -> good() _ -> bad_payload() }
+    }
+    state good(&mut self)        { self.n = self.raw.write(1, "PASS: struct payload delivered (a==42)\n"); }
+    state bad_tag(&mut self)     { self.n = self.raw.write(1, "FAIL: result tag not Ok\n"); }
+    state bad_payload(&mut self) { self.n = self.raw.write(1, "FAIL: struct payload lost (a != 42)\n"); }
+}

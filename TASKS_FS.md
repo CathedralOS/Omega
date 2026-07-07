@@ -33,7 +33,7 @@ coverage; the native fs canary harness) and commits.
 **Green baselines:** canary_suite **518 pass / 85 fail** (the 85 are pre-existing
 interpreter-differential-unsupported cases from the other omega-rs workstream —
 NOT ours; verify no NEW failures by A/B failure-set diff, never by raw count).
-Native fs harness **54/54** (`omega-compiler --test native_filesystem_canaries`).
+Native fs harness **55/55** (`omega-compiler --test native_filesystem_canaries`).
 
 **What works today**
 - **Interpreter:** full Rust-parity fs (all ops + the ergonomic `Filesystem`
@@ -51,32 +51,32 @@ Native fs harness **54/54** (`omega-compiler --test native_filesystem_canaries`)
 **LIVE BLOCKERS (the remaining native ergonomic-wrapper work).** Both are
 codegen bugs beyond the deep fix; the interpreter is fully correct for all of it.
 
-1. **ENUM-transition-leaf DELIVERY bug** — a value-call whose callee TRANSITIONS
-   to enum leaves (`Err` / `Ok{payload}`) delivers the WRONG arm's value to the
-   result field (even the TAG is wrong). Reaches the wrappers via `metadata_path
-   -> Ok{meta}` (meta ZII) and `open -> Ok{file}`. Parked minimal repro:
-   `canaries/run/filesystem/struct_payload_repro/main.omg`.
-   - ISOLATION: a value-call TERMINAL returning `Ok{pair}` works (payload
-     delivered); a bool-returning transition works (`native_value_call_guard`);
-     fires even on a FIELD guard, so NOT the deep-fix ordering bug. Specific to a
-     callee that TRANSITIONS to ENUM leaves.
-   - INSTRUCTION DUMP (via `SelectedInstructionSink::push` trace): the 2-arm
-     transition emits TWO full-width `CopyRuntimeStorage frame[0] -> Machine[res]`
-     (24 bytes) — one BEFORE the selected arm's `WriteRuntimeStorageInteger`s (so
-     it copies the ZII frame) and one after — and the NULLARY `Err` arm writes its
-     tag to `Machine[0]` (the machine's own/self base), NOT the call-result frame
-     slot. Arm selection + the two copies + the nullary-arm target are all tangled.
-   - FIX DIRECTION (`branches/leaf.rs`: `select_runtime_leaf_branch_expansion` +
-     `_terminal_value_write` + `_assignment_value_target_copy`): a payload-carrying
-     enum leaf must (i) write its terminal INTO the call-result frame slot (not
-     Machine[0]) and (ii) copy that slot to the target ONCE, AFTER the arm's writes,
-     under the arm's guard — the discipline the scalar path already follows. Focused
-     multi-step effort like the deep fix; do NOT blind-edit the hot leaf path.
-2. **`Error{kind}` uses a nested `last_error()` value-call** (errno→ErrorKind);
-   its `kind` may be ZII by the same nesting the `try_exists` rewrite sidestepped.
-   The Yes/No/Error TAG is right; the kind PAYLOAD is the open item. Could inline
-   the errno→kind `match` on the already-captured `self.stat_errno` (scalar
-   payload, simpler than the struct case).
+1. **✅ ENUM-transition-leaf NULLARY-arm delivery — FIXED (2026-07-12).** A value-call
+   whose callee transitions to enum leaves where an arm is a NULLARY variant (`Err`, a
+   bare `Type::Case` Name) into a slot whose enum is LARGER than a scalar (>8 bytes)
+   emitted NO terminal-slot write — the frame-slot value-write's scalar paths are gated
+   on `byte_size ∈ {1,2,4,8}`, so a nullary variant into a 24-byte enum slot fell
+   through to `None`; its result-slot copy then read the ZII frame and the whole 2-arm
+   delivery mis-selected. FIX (`writes/mutation/frame_slots.rs`): when the value resolves
+   to an enum variant (`enum_variant_value_in_table`) and the slot is non-scalar, write
+   the variant's TAG (`ENUM_TAG_BYTES`) at the slot start. Regression:
+   `canaries/pass/filesystem/native_enum_result`. canary_suite **85-baseline, zero new
+   failures**; native fs harness **55/55**.
+2. **STILL OPEN — a BIG multi-field StructLiteral payload isn't fully delivered.**
+   `metadata_path -> MetadataResult::Ok{meta: Metadata}` gives the right TAG but
+   `meta.len == 0` (the 16-field ~120-byte `Metadata` payload is ZII). Parked repro:
+   `canaries/run/filesystem/wrapper_metadata_repro/main.omg`. ISOLATED (2026-07-12): NOT
+   the nullary-arm bug (fixed above); NOT local-valued fields (a 2-field `Ok{Pair{a:x,
+   b:y}}` from locals delivers correctly); NOT the `Error{kind: last_error()}` nested
+   value-call (a literal err arm still fails). Specific to the LARGE multi-field
+   Metadata StructLiteral terminal through a value-call result slot. NEXT: the
+   mutation-write for a big StructLiteral terminal (many fields) into a call-result slot
+   — check whether every field is written and the frame→target copy width is right
+   (look at how `StructLiteral` lowers in `writes/mutation.rs` ~L802 + the leaf copy).
+3. **`Error{kind}` uses a nested `last_error()` value-call** (errno→ErrorKind); its
+   `kind` may be ZII by the same nesting the `try_exists` rewrite sidestepped. The
+   Yes/No/Error TAG is right; the kind PAYLOAD is the open item. Could inline the
+   errno→kind `match` on the already-captured `self.stat_errno`.
 
 **Wrapper pattern for nested host-call results (established):** capture a host
 result into a FIELD in the machine ENTRY (before any transition), then guard on
@@ -153,14 +153,15 @@ Regression canary `canaries/pass/filesystem/native_value_call_guard`.
 
 ## Next steps
 
-1. [ ] **Fix the ENUM-transition-leaf delivery bug** (LIVE BLOCKER #1 above) —
-   unblocks `metadata_path`/`open` struct payloads. Focused effort in
-   `branches/leaf.rs`; verify against `struct_payload_repro` + full canary_suite.
-2. [ ] **Fix `Error{kind}` payload** (LIVE BLOCKER #2) — inline the errno→kind
+1. [x] **ENUM-transition-leaf nullary-arm delivery** — FIXED (blocker #1 above).
+2. [ ] **Fix the BIG multi-field StructLiteral payload** (blocker #2 above) —
+   unblocks `metadata_path`/`open` struct payloads. Verify against
+   `wrapper_metadata_repro` + full canary_suite.
+3. [ ] **Fix `Error{kind}` payload** (blocker #3) — inline the errno→kind
    classification on `self.stat_errno` instead of the nested `last_error()`.
-3. [ ] **Promote result-asserting wrapper canaries** once #1/#2 land
+4. [ ] **Promote result-asserting wrapper canaries** once #2/#3 land
    (`metadata_path` len, `open` file usability, faithful `try_exists` Error).
-4. [ ] **x86_64 / linux / windows seams** — binding TABLES only (structural
+5. [ ] **x86_64 / linux / windows seams** — binding TABLES only (structural
    readiness); macOS is the only tested target. See the cross-target reference.
 
 ## Observations (not fs, flagged for the user)

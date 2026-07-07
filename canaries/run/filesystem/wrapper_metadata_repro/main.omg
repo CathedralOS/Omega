@@ -1,0 +1,42 @@
+// PARKED REPRO — a BIG multi-field StructLiteral payload through a value-call
+// result is NOT fully delivered (TASKS_FS.md follow-up: metadata_path payload).
+// `Filesystem::metadata_path -> MetadataResult::Ok { meta: Metadata }` for a
+// present 5-byte file gives the right TAG (Ok arm taken) but `meta.len == 0` (the
+// 16-field ~120-byte Metadata payload is not delivered). ISOLATED (2026-07-12):
+// NOT the nullary-arm bug (fixed, native_enum_result) — both arms here are
+// StructLiterals; NOT the local-valued fields (a 2-field Ok{Pair{a:x,b:y}} from
+// locals works); NOT the Error{kind: last_error()} nested value-call (a literal
+// err arm still fails). Specific to the LARGE multi-field Metadata StructLiteral.
+// NEXT: the mutation-write for a big StructLiteral terminal (many fields) into a
+// value-call result slot — check whether all fields are written / the copy width.
+
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: Filesystem;
+    raw: FilesystemHost;
+    mode: i32;
+    fd: i32;
+    n: i64;
+    res: MetadataResult;
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.fd = self.raw.create("/tmp/omega_wrapper_metadata.txt", self.mode);
+    self.n = self.raw.write(self.fd, "hello");
+    self.n = self.raw.close(self.fd);
+
+    self.res = self.fs.metadata_path("/tmp/omega_wrapper_metadata.txt");
+    transition self.res {
+        MetadataResult::Ok { meta } -> got(meta)
+        MetadataResult::Error { kind } -> fail_err()
+    }
+    state got(&mut self, meta: Metadata) {
+        transition meta.len == 5 { true -> good() _ -> fail_len() }
+    }
+    state good(&mut self)     { self.n = self.raw.write(1, "PASS: metadata_path Ok with meta.len == 5\n"); }
+    state fail_err(&mut self) { self.n = self.raw.write(1, "FAIL: metadata_path not Ok\n"); }
+    state fail_len(&mut self) { self.n = self.raw.write(1, "FAIL: metadata_path len != 5 (payload not delivered)\n"); }
+}
