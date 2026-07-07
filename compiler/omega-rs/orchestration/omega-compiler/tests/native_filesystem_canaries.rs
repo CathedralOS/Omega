@@ -418,3 +418,20 @@ fn cgimage_blit_exits_4() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(out.status.code(), Some(4), "CGBitmapContext -> CGImage of a 4x4 buffer should report width 4");
 }
+
+// The full frame-presentation object graph: framebuffer -> CGImage -> NSImage
+// (initWithCGImage:size:, a scalar in x2 + NSSize in v0,v1) -> NSImageView
+// (setImage:) -> NSWindow content view (setContentView:) -> makeKeyAndOrderFront:.
+// Verifies the image is attached to the view ([iv image] != nil) -> exit 5.
+// Headless-safe: the assert is on the object graph, not on-screen visibility.
+#[test]
+fn present_frame_exits_5() {
+    let main_path = repo_root().join("canaries/pass/objc/present_frame/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-present-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("present_frame should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(5), "present_frame should attach the CGImage-backed NSImage to the view");
+}

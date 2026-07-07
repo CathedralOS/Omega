@@ -1,0 +1,115 @@
+// PROVES the full frame-presentation object graph natively (render fire 13): a
+// framebuffer becomes a CGImage, wrapped in an NSImage, shown by an NSImageView
+// set as an NSWindow's content view, ordered on-screen. This is the whole blit
+// path the samples need. Steps:
+//   space = CGColorSpaceCreateDeviceRGB();  ctx = CGBitmapContextCreate(&px,4,4,..)
+//   cgimg = CGBitmapContextCreateImage(ctx)
+//   [NSApplication sharedApplication]; [NSApp setActivationPolicy:0]
+//   nsimg = [[NSImage alloc] initWithCGImage:cgimg size:{4,4}]  (scalar x2 + NSSize v0,v1)
+//   iv    = [[NSImageView alloc] initWithFrame:{0,0,200,150}]   (NSRect v0-v3)
+//   [iv setImage:nsimg]
+//   win   = [[NSWindow alloc] initWithContentRect:{0,0,200,150} styleMask:15 backing:2 defer:0]
+//   [win setContentView:iv];  [win makeKeyAndOrderFront:nil]
+//   attached = [iv image]
+// The NEW ABI piece is initWithCGImage:size: (a pointer arg in x2 + an NSSize of 2
+// doubles in v0,v1). Success = the image is attached to the view: attached != 0 ->
+// exit 5. Headless-safe: the asserted check is the object graph ([iv image]), not
+// on-screen visibility, so it holds with or without a window-server session.
+
+domain [u8]::CString when no_nul(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+boundary trait ObjectiveC {
+    machine get_class(name: &[u8] in CString) -> u64;
+    machine register_selector(name: &[u8] in CString) -> u64;
+    machine send(recv: u64, sel: u64) -> u64;
+    machine send_scalar(recv: u64, sel: u64, arg: u64) -> u64;
+    machine send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64;
+    machine send_image_size(recv: u64, sel: u64, image: u64, w: f64, h: f64) -> u64;
+}
+
+boundary trait CoreGraphics {
+    machine color_space_rgb() -> u64;
+    machine bitmap_context(data: &mut [i32], w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64;
+    machine bitmap_context_image(ctx: u64) -> u64;
+}
+
+data Main {
+    console: Console;
+    objc: ObjectiveC;
+    cg: CoreGraphics;
+    pixels: [i32; 16];
+    space: u64;
+    ctx: u64;
+    cgimg: u64;
+    app_cls: u64;
+    img_cls: u64;
+    view_cls: u64;
+    win_cls: u64;
+    sel: u64;
+    app: u64;
+    nsimg: u64;
+    iv: u64;
+    win: u64;
+    obj: u64;
+    fx: f64;
+    fy: f64;
+    fw: f64;
+    fh: f64;
+    sw: f64;
+    sh: f64;
+    attached: u64;
+}
+
+machine Main::main(&mut self) {
+    // Framebuffer -> CGImage.
+    self.space = self.cg.color_space_rgb();
+    self.ctx = self.cg.bitmap_context(&mut self.pixels, 4, 4, 8, 16, self.space, 8198);
+    self.cgimg = self.cg.bitmap_context_image(self.ctx);
+    // NSApplication singleton + regular activation policy.
+    self.app_cls = self.objc.get_class("NSApplication");
+    self.sel = self.objc.register_selector("sharedApplication");
+    self.app = self.objc.send(self.app_cls, self.sel);
+    self.sel = self.objc.register_selector("setActivationPolicy:");
+    self.obj = self.objc.send_scalar(self.app, self.sel, 0);
+    // NSImage from the CGImage (scalar image in x2 + NSSize {4,4} in v0,v1).
+    self.img_cls = self.objc.get_class("NSImage");
+    self.sel = self.objc.register_selector("alloc");
+    self.obj = self.objc.send(self.img_cls, self.sel);
+    self.sw = 4.0;
+    self.sh = 4.0;
+    self.sel = self.objc.register_selector("initWithCGImage:size:");
+    self.nsimg = self.objc.send_image_size(self.obj, self.sel, self.cgimg, self.sw, self.sh);
+    // NSImageView with a frame, then attach the image.
+    self.fx = 0.0;
+    self.fy = 0.0;
+    self.fw = 200.0;
+    self.fh = 150.0;
+    self.view_cls = self.objc.get_class("NSImageView");
+    self.sel = self.objc.register_selector("alloc");
+    self.obj = self.objc.send(self.view_cls, self.sel);
+    self.sel = self.objc.register_selector("initWithFrame:");
+    self.iv = self.objc.send_rect(self.obj, self.sel, self.fx, self.fy, self.fw, self.fh, 0, 0, 0);
+    self.sel = self.objc.register_selector("setImage:");
+    self.obj = self.objc.send_scalar(self.iv, self.sel, self.nsimg);
+    // NSWindow, set the image view as its content, order on-screen.
+    self.win_cls = self.objc.get_class("NSWindow");
+    self.sel = self.objc.register_selector("alloc");
+    self.obj = self.objc.send(self.win_cls, self.sel);
+    self.sel = self.objc.register_selector("initWithContentRect:styleMask:backing:defer:");
+    self.win = self.objc.send_rect(self.obj, self.sel, self.fx, self.fy, self.fw, self.fh, 15, 2, 0);
+    self.sel = self.objc.register_selector("setContentView:");
+    self.obj = self.objc.send_scalar(self.win, self.sel, self.iv);
+    self.sel = self.objc.register_selector("makeKeyAndOrderFront:");
+    self.obj = self.objc.send_scalar(self.win, self.sel, 0);
+    // Verify the image is attached to the view (object graph correct).
+    self.sel = self.objc.register_selector("image");
+    self.attached = self.objc.send(self.iv, self.sel);
+    transition self.attached != 0 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(5); }
+    state bad(&mut self)  { self.console.exit_process(1); }
+}
