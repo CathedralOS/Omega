@@ -1,8 +1,9 @@
-// A runtime COMPUTED index `arr[k + 1]` used as a value operand silently read 0 -- the
-// backend cannot lower a computed index as an operand (and a computed-index WRITE no-ops).
-// Even when the bound on `k + 1` is explicitly guarded -- which gets it past the bounds
-// proof -- it must be REJECTED, not silently miscompiled (#40). The sound workaround is to
-// compute the index into a field first: `self.m = self.k + 1; self.arr[self.m]`.
+// GUARD-BOUNDED computed index as a binary operand: `acc + arr[k + 1]`
+// under `transition k + 1 >= 0 && k + 1 < 5`. Was the computed-index FAIL
+// canary; the index auto-hoist (2026-07-07) rewrites `arr[k + 1]` to index a
+// slotted `__hoist` temp, and the index prover consults guard facts under the
+// temp's INITIALIZER label ("self.k + 1") -- sound because the synthesized
+// `let` is adjacent to its use. k = arr[0] = 1, so acc = arr[2] = 30 = exit.
 boundary trait Console {
     machine exit_process(return_code: i32);
 }

@@ -1683,26 +1683,73 @@ fn u64_literal_above_i64_max_canary_is_rejected() {
 }
 
 #[test]
-fn computed_index_operand_canary_is_rejected() {
-    // `arr[k + 1]` as a value operand silently read 0 (computed index not lowerable);
-    // even with `k + 1`'s bound explicitly guarded it must be refused, not miscompiled.
-    let canary = fail_canary("collections/computed_index_operand_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected computed-index canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
-    let combined = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        combined.contains("is a computed expression"),
-        "expected computed-index diagnostic, got:\n{combined}"
+fn runtime_guarded_computed_index_operand_exit_canary_runs() {
+    // `acc + arr[k + 1]` under an explicit `k + 1 >= 0 && k + 1 < 5` guard:
+    // the auto-hoisted index temp's bounds discharge from the guard facts
+    // under its INITIALIZER label. Was the computed-index FAIL canary.
+    let canary = pass_canary("collections/runtime_guarded_computed_index_operand_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-guarded-computed-index-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guarded computed-index canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guarded computed-index canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(30),
+        "expected `acc + arr[k + 1]` (k = arr[0] = 1) to read arr[2] = 30 and exit 30, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
     );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// DIRECT computed-index spellings (read/operand/write/reversed/backward).
+#[test]
+fn runtime_computed_index_direct_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_computed_index_direct_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-computed-index-direct-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("direct computed-index canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("direct computed-index canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected the direct computed-index faces (arr[k+1] read/operand/write, arr[1+k], guarded arr[k-1]) to hit the right elements and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]

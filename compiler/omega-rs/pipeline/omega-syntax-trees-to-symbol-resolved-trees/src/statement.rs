@@ -50,6 +50,10 @@ fn lower_statement_node(
             let target = lower_statement_expression(lowerer, syntax_trees, assignment.target)?;
             let value = lower_statement_expression(lowerer, syntax_trees, assignment.value)?;
             let mut hoisted = Vec::new();
+            // A computed index in the write TARGET (`arr[k + 1] = v`) hoists
+            // the same way as in value positions: the temp indexes as a
+            // slotted plain place.
+            hoist_target_computed_indices(lowerer, target, &mut hoisted);
             let value = hoist_operand_indexed_reads(lowerer, value, &mut hoisted, false);
             // A BARE ref-param member as the whole RHS (`self.c = table.con_out`)
             // is not an operand, so the rewrite above leaves it -- and the flat
@@ -335,7 +339,7 @@ fn rewrite_children(
             // value root. Leave it whole (the root whole-value copy path), but
             // still rewrite its index sub-expression so a runtime-indexed read
             // INSIDE the index (`arr[other[i]]`) is hoisted.
-            let index = hoist_child(lowerer, indexed.index, hoisted, hoist_builtin_calls);
+            let index = hoist_index(lowerer, indexed.index, hoisted, hoist_builtin_calls);
             set_expression(
                 lowerer,
                 expression,
@@ -349,6 +353,118 @@ fn rewrite_children(
         // nodes (names, integers, ...) are left untouched: an operand-position
         // indexed read appears only as a direct child handled above, and these
         // forms either do not surface the blocker or are out of scope.
+        _ => {}
+    }
+}
+
+/// Rewrites an `Indexed` node's INDEX position. A hoistable COMPUTED index
+/// (`arr[k + 1]` -- see `index_is_hoistable_computed`) is hoisted into a
+/// `let __hoist_N = k + 1;` temp so the access indexes a slotted plain place:
+/// the checker proves the temp's bounds from its env interval, state-storage
+/// keeps its slot (the runtime-index carve-out), and simplify never folds a
+/// computed binding back into an index position. Anything else goes through
+/// `hoist_child` unchanged (a runtime-indexed read INSIDE the index,
+/// `arr[other[i]]`, still hoists there).
+fn hoist_index(
+    lowerer: &mut Lowerer,
+    index: ExpressionHandle,
+    hoisted: &mut Vec<Statement>,
+    hoist_builtin_calls: bool,
+) -> ExpressionHandle {
+    if index_is_hoistable_computed(lowerer, index) {
+        return hoist_into_temp(lowerer, index, hoisted);
+    }
+    hoist_child(lowerer, index, hoisted, hoist_builtin_calls)
+}
+
+/// A single-level `Binary` index (`k + 1`, `2 * k`, `k - 1`) whose operands are
+/// each TYPEABLE at the hoist-temp layer: an integer literal, a `self.<field>`
+/// member, or a state-PARAMETER name -- with at least one non-literal (a
+/// pure-const binary is left for the const fold, which resolves it to a fixed
+/// index without a temp). A LOCAL operand is refused: `infer_hoist_temp_type`
+/// resolves self-fields and params only, and an untypeable temp would mint a
+/// Unit layout error where the checker's computed-index fence gives a clear
+/// message today. Nested binaries (`k + j + 1`) are likewise left fenced.
+fn index_is_hoistable_computed(lowerer: &Lowerer, index: ExpressionHandle) -> bool {
+    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let ExpressionNode::Binary(binary) = expressions.expression(index) else {
+        return false;
+    };
+    let operand_is_typeable = |operand: ExpressionHandle| -> bool {
+        match expressions.expression(operand) {
+            ExpressionNode::Integer(_) => true,
+            ExpressionNode::Member(member) => matches!(
+                expressions.expression(member.receiver),
+                ExpressionNode::Name(path)
+                    if expressions
+                        .name_path_members(path.members)
+                        .first()
+                        .is_some_and(|name| name.as_str() == "self")
+            ),
+            ExpressionNode::Name(path) => {
+                let members = expressions.name_path_members(path.members);
+                let [only] = members else {
+                    return false;
+                };
+                lowerer
+                    .current_state_parameter_names
+                    .iter()
+                    .any(|name| name == only.as_str())
+            }
+            _ => false,
+        }
+    };
+    let left_is_literal = matches!(
+        expressions.expression(binary.left),
+        ExpressionNode::Integer(_)
+    );
+    let right_is_literal = matches!(
+        expressions.expression(binary.right),
+        ExpressionNode::Integer(_)
+    );
+    if left_is_literal && right_is_literal {
+        return false;
+    }
+    operand_is_typeable(binary.left) && operand_is_typeable(binary.right)
+}
+
+/// Hoists computed indices inside an assignment TARGET's place chain
+/// (`self.arr[self.k + 1] = v`), walking `Member` receivers and `Indexed`
+/// collections. Only INDEX positions are rewritten -- the place structure
+/// itself is never hoisted (it is a write target, not a value).
+fn hoist_target_computed_indices(
+    lowerer: &mut Lowerer,
+    target: ExpressionHandle,
+    hoisted: &mut Vec<Statement>,
+) {
+    let node = lowerer
+        .symbol_resolved_trees
+        .tables
+        .bodies
+        .expressions
+        .expression(target)
+        .clone();
+    match node {
+        ExpressionNode::Indexed(indexed) => {
+            hoist_target_computed_indices(lowerer, indexed.collection, hoisted);
+            if index_is_hoistable_computed(lowerer, indexed.index) {
+                let index = hoist_into_temp(lowerer, indexed.index, hoisted);
+                set_expression(
+                    lowerer,
+                    target,
+                    ExpressionNode::Indexed(TableIndexedExpression {
+                        collection: indexed.collection,
+                        index,
+                    }),
+                );
+            }
+        }
+        ExpressionNode::Member(member) => {
+            hoist_target_computed_indices(lowerer, member.receiver, hoisted);
+        }
+        ExpressionNode::Mutable(inner) => {
+            hoist_target_computed_indices(lowerer, inner, hoisted);
+        }
         _ => {}
     }
 }

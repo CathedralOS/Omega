@@ -143,6 +143,72 @@ pub(super) fn infer_hoist_temp_type(
         return Ok(None);
     }
 
+    // A COMPUTED-INDEX temp (`let __hoist = self.k + 1`, hoisted by the
+    // syntax->resolved index hoist so `arr[k + 1]` indexes a slotted plain
+    // place): the temp's type is the BASE SCALAR of the first typeable place
+    // operand -- the operand's OWN range does not hold for the computed value
+    // (`k in [0..=3]` but `k + 1` reaches 4) -- carrying a SYNTHESIZED range
+    // computed by interval arithmetic over the operands' Exact declared
+    // ranges. The range is what lets the index prover discharge the bound
+    // (`expression_enforced_declared_range`), and it is SOUND because a
+    // declared range is store-enforced: the temp's one store (the
+    // initializer) is range-proved, which accepts `k + 1` outright and
+    // rejects an unguarded `k - 1` (underflow at k=0) unless a dominating
+    // guard narrows k -- exactly the manual let-temp idiom's behavior. An
+    // operand with no Exact range yields a bare scalar temp (the index prover
+    // then reports its clean cannot-prove error).
+    if let ExpressionNode::Binary(binary) = expressions.expression(initial_value) {
+        for operand in [binary.left, binary.right] {
+            if let Some(place_type) =
+                collection_type_reference(lowerer, attached_data, state, operand)
+            {
+                let base = base_scalar_type(lowerer.source_trees, &place_type).clone();
+                let base_handle = lower_type_reference_into_table(lowerer, &base)?;
+                let Some((low, high)) = computed_index_interval(
+                    lowerer,
+                    attached_data,
+                    state,
+                    binary.operator,
+                    binary.left,
+                    binary.right,
+                ) else {
+                    return Ok(Some(base_handle));
+                };
+                // A negative bound cannot ride an UNSIGNED scalar's range;
+                // clamp the low end to 0 (the store proof still gates every
+                // value, so clamping never widens what is accepted).
+                let low = if scalar_is_unsigned(&base) {
+                    if high < 0 {
+                        return Ok(Some(base_handle));
+                    }
+                    low.max(0)
+                } else {
+                    low
+                };
+                let minimum = lowerer.typed_trees.expression_table.insert(
+                    typed::expression::ExpressionNode::Integer(
+                        omega_core::literals::IntegerLiteral::from_value(low),
+                    ),
+                );
+                let maximum = lowerer.typed_trees.expression_table.insert(
+                    typed::expression::ExpressionNode::Integer(
+                        omega_core::literals::IntegerLiteral::from_value(high),
+                    ),
+                );
+                let constraints = lowerer.typed_trees.type_reference_table.insert_constraints(
+                    [typed::types::TypeConstraintNode::Range { minimum, maximum }],
+                );
+                return Ok(Some(lowerer.typed_trees.type_reference_table.insert(
+                    typed::types::TypeReferenceNode::Constrained {
+                        base_type: base_handle,
+                        constraints,
+                    },
+                )));
+            }
+        }
+        return Ok(None);
+    }
+
     let ExpressionNode::Indexed(indexed) = expressions.expression(initial_value) else {
         return Ok(None);
     };
@@ -224,6 +290,136 @@ fn collection_type_reference(
         }
         _ => None,
     }
+}
+
+/// The BASE SCALAR of a place type, peeling `Constrained` wrappers: a declared
+/// range or domain describes that PLACE's stored values, not a value computed
+/// FROM it.
+fn base_scalar_type<'trees>(
+    source_trees: &'trees resolved::SymbolResolvedTrees,
+    type_reference: &'trees TypeReference,
+) -> &'trees TypeReference {
+    match type_reference {
+        TypeReference::Constrained(constrained) => base_scalar_type(
+            source_trees,
+            source_trees.child_type_reference(constrained.base_type),
+        ),
+        other => other,
+    }
+}
+
+fn scalar_is_unsigned(type_reference: &TypeReference) -> bool {
+    matches!(
+        type_reference,
+        TypeReference::Named { name, .. }
+            if matches!(name.as_str(), "u8" | "u16" | "u32" | "u64" | "usize")
+    )
+}
+
+/// The inclusive interval of a hoisted computed index, by interval arithmetic
+/// over the two operands' intervals. `None` when an operand has no usable
+/// interval, the operator is not +/-/*, or the arithmetic overflows i64.
+fn computed_index_interval(
+    lowerer: &Lowerer,
+    attached_data: Option<&resolved::name::DiagnosticName>,
+    state: &resolved::state::State,
+    operator: resolved::expression::BinaryOperator,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> Option<(i64, i64)> {
+    let left = operand_declared_interval(lowerer, attached_data, state, left)?;
+    let right = operand_declared_interval(lowerer, attached_data, state, right)?;
+    match operator {
+        resolved::expression::BinaryOperator::Add => Some((
+            left.0.checked_add(right.0)?,
+            left.1.checked_add(right.1)?,
+        )),
+        resolved::expression::BinaryOperator::Subtract => Some((
+            left.0.checked_sub(right.1)?,
+            left.1.checked_sub(right.0)?,
+        )),
+        resolved::expression::BinaryOperator::Multiply => {
+            let products = [
+                left.0.checked_mul(right.0)?,
+                left.0.checked_mul(right.1)?,
+                left.1.checked_mul(right.0)?,
+                left.1.checked_mul(right.1)?,
+            ];
+            Some((
+                *products.iter().min().expect("non-empty"),
+                *products.iter().max().expect("non-empty"),
+            ))
+        }
+        _ => None,
+    }
+}
+
+/// An OPERAND's inclusive interval: an integer literal's exact value, or a
+/// place's declared Exact range (a non-Exact domain's range is deliberately
+/// permissive -- probed live: `[0..=4] in Wrapping` accepts a store of 100 --
+/// so it must never seed an index-bound synthesis).
+fn operand_declared_interval(
+    lowerer: &Lowerer,
+    attached_data: Option<&resolved::name::DiagnosticName>,
+    state: &resolved::state::State,
+    operand: ExpressionHandle,
+) -> Option<(i64, i64)> {
+    let expressions = &lowerer.source_trees.tables.bodies.expressions;
+    if let ExpressionNode::Integer(literal) = expressions.expression(operand) {
+        let value = literal.value_i64()?;
+        return Some((value, value));
+    }
+    let place_type = collection_type_reference(lowerer, attached_data, state, operand)?;
+    declared_exact_range(lowerer.source_trees, &place_type)
+}
+
+/// The Range constraint of a resolved place type, ONLY when every arithmetic
+/// domain in its Constrained shells is Exact (mirrors the checker's
+/// `enforced_range_of_type_reference`).
+fn declared_exact_range(
+    source_trees: &resolved::SymbolResolvedTrees,
+    type_reference: &TypeReference,
+) -> Option<(i64, i64)> {
+    let TypeReference::Constrained(constrained) = type_reference else {
+        return None;
+    };
+    let constraints = source_trees
+        .tables
+        .types
+        .constraints
+        .span_or_empty(constrained.constraints);
+    if constraints.iter().any(|constraint| {
+        matches!(
+            constraint,
+            TypeConstraint::ArithmeticDomain(domain)
+                if *domain != omega_core::arithmetic::ArithmeticDomain::Exact
+        )
+    }) {
+        return None;
+    }
+    constraints
+        .iter()
+        .find_map(|constraint| match constraint {
+            TypeConstraint::Range { minimum, maximum } => {
+                let expressions = &source_trees.tables.bodies.expressions;
+                let low = match expressions.expression(*minimum) {
+                    ExpressionNode::Integer(literal) => literal.value_i64()?,
+                    _ => return None,
+                };
+                let high = match expressions.expression(*maximum) {
+                    ExpressionNode::Integer(literal) => literal.value_i64()?,
+                    _ => return None,
+                };
+                Some((low, high))
+            }
+            _ => None,
+        })
+        .or_else(|| {
+            declared_exact_range(
+                source_trees,
+                source_trees.child_type_reference(constrained.base_type),
+            )
+        })
 }
 
 /// The declared resolved type of `field_name` in the data definition named
