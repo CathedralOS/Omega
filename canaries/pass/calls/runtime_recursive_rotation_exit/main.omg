@@ -1,0 +1,29 @@
+// V8: 3-arg ROTATION through a recursive self-loop -- the full
+// parallel-assignment cycle (`self.rot(k-1, b, c, a)`). rot(3, 1,2,3):
+// (1,2,3)->(2,3,1)->(3,1,2)->(1,2,3) -> a==1 -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+}
+machine Main::rot(&mut self, k: usize, a: usize, b: usize, c: usize)
+terminates {
+    decreases k;
+}
+-> usize
+{
+    transition k > 0 {
+        true -> self.rot(k - 1, b, c, a)
+        false -> a
+    }
+}
+machine Main::main(&mut self) {
+    let r: usize = self.rot(3, 1, 2, 3);
+    transition r == 1 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

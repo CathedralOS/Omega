@@ -63,7 +63,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
     // first (source -> scratch, all reads safe) then scratch -> target (all writes
     // safe), instead of writing targets directly.
     let stage = input.runtime_storage.frame_scratch_base != 0 && {
-        let mut ranges: Vec<((usize, usize), Option<(usize, usize)>)> = Vec::new();
+        let mut ranges: Vec<((usize, usize), Vec<(usize, usize)>)> = Vec::new();
         for (parameter_index, parameter) in input
             .control_flow
             .state_parameters(target_state)
@@ -77,7 +77,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                 continue;
             };
             let target = (slot.byte_offset, slot.byte_offset + slot.byte_size);
-            let source = argument_source_frame_range(
+            let sources = argument_source_frame_ranges(
                 input,
                 source_key,
                 statement_index,
@@ -86,11 +86,11 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
                 aliases,
                 alias_expressions,
             );
-            ranges.push((target, source));
+            ranges.push((target, sources));
         }
         ranges.iter().enumerate().any(|(i, (target, _))| {
-            ranges.iter().enumerate().any(|(j, (_, source))| {
-                i != j && source.is_some_and(|source| ranges_overlap(*target, source))
+            ranges.iter().enumerate().any(|(j, (_, sources))| {
+                i != j && sources.iter().any(|source| ranges_overlap(*target, *source))
             })
         })
     };
@@ -796,7 +796,14 @@ fn materialize_static_inline_branching_call_argument_result(
 /// place (so a parameter-slot write could clobber it). `None` for immediates and
 /// non-frame (machine-owned/static) sources, which cannot be clobbered.
 #[allow(clippy::too_many_arguments)]
-fn argument_source_frame_range(
+/// EVERY frame range the argument expression READS: the whole argument when it
+/// is a place, and otherwise each place/descriptor leaf under binary/cast
+/// operands. The overlap detector must see ALL reads: a recursive accumulator
+/// arm (`self.sum(n - 1, acc + n)`) reads `n` inside the SECOND argument while
+/// the FIRST argument's write targets `n`'s slot -- an unstaged in-place write
+/// sequence decrements `n` before `acc + n` reads it (the parallel-assignment
+/// hazard; sum(5,0) natively computed 10 instead of 15).
+fn argument_source_frame_ranges(
     input: &InstructionSelectionInput<'_>,
     source_key: StateKey,
     statement_index: usize,
@@ -804,7 +811,7 @@ fn argument_source_frame_range(
     raw_argument: ExpressionHandle,
     aliases: &[RuntimeAliasBinding],
     alias_expressions: &ExpressionTable,
-) -> Option<(usize, usize)> {
+) -> Vec<(usize, usize)> {
     let mut scratch = ExpressionTable::with_expression_capacity(
         alias_expressions.expression_count().saturating_add(4),
     );
@@ -825,52 +832,46 @@ fn argument_source_frame_range(
         &mut scratch,
         resolved.expression,
     );
-    if let Some(place) = resolve_runtime_storage_place_in_table(
+    let mut sources = Vec::new();
+    collect_argument_source_frame_ranges(
         input,
         source_dispatch_index,
         argument_source_key,
         &scratch,
         argument,
-    ) {
-        return (place.region == RuntimeStorageRegion::RuntimeFrame)
-            .then_some((place.byte_offset, place.byte_offset + place.byte_count));
-    }
-
-    // A constant-index slice element (`items[0].value`) has no static frame
-    // place, but its read still goes THROUGH the descriptor slot's data pointer.
-    // Report the descriptor slot as the frame source so a transition that also
-    // RETARGETS that descriptor (`self.accumulate(items[1..], items[0].value)`)
-    // sees the overlap and stages: an unstaged in-place descriptor update would
-    // shrink the window BEFORE the element read, fetching the next window's head.
-    //
-    // The element read may be NESTED inside a binary accumulator
-    // (`self.sum(s[1..], acc + s[0])`), so recurse through binary/cast operands
-    // to find it -- otherwise the whole-argument resolution fails, the overlap
-    // is missed, the descriptor is advanced before `s[0]` is read, and the
-    // recursion sums the wrong elements (off-by-one). Returns the FIRST element
-    // read's descriptor slot; that is the source that overlaps a retargeted
-    // slice parameter, which is all the overlap detector needs to force staging.
-    frame_indexed_descriptor_source_in_table(
-        input,
-        source_dispatch_index,
-        argument_source_key,
-        &scratch,
-        argument,
-    )
+        &mut sources,
+    );
+    sources
 }
 
-/// Find the slice descriptor slot read by a constant-index element access
-/// (`s[0]`), including when it is NESTED inside a binary/cast accumulator
-/// argument (`acc + s[0]`). Returns the descriptor slot's frame range so the
-/// argument-overlap detector stages the call instead of advancing the
-/// descriptor in place before the element is read.
-fn frame_indexed_descriptor_source_in_table(
+/// Leaf collector for [`argument_source_frame_ranges`]: a resolvable FRAME
+/// place contributes its range; a constant-index slice element (`s[0]`)
+/// contributes its DESCRIPTOR slot's range (its read goes through the
+/// descriptor's data pointer, so a transition that also RETARGETS that
+/// descriptor -- `self.accumulate(items[1..], items[0].value)` -- must stage:
+/// an unstaged in-place descriptor update would shrink the window BEFORE the
+/// element read, fetching the next window's head). Binary/cast/mutable nodes
+/// recurse into their operands.
+fn collect_argument_source_frame_ranges(
     input: &InstructionSelectionInput<'_>,
     source_dispatch_index: u32,
     argument_source_key: StateKey,
     scratch: &ExpressionTable,
     argument: ExpressionHandle,
-) -> Option<(usize, usize)> {
+    sources: &mut Vec<(usize, usize)>,
+) {
+    if let Some(place) = resolve_runtime_storage_place_in_table(
+        input,
+        source_dispatch_index,
+        argument_source_key,
+        scratch,
+        argument,
+    ) {
+        if place.region == RuntimeStorageRegion::RuntimeFrame {
+            sources.push((place.byte_offset, place.byte_offset + place.byte_count));
+        }
+        return;
+    }
     if let Some(indexed) = resolve_runtime_frame_fixed_indexed_target_in_table(
         input,
         source_dispatch_index,
@@ -878,25 +879,48 @@ fn frame_indexed_descriptor_source_in_table(
         scratch,
         argument,
     ) {
-        return Some((
+        sources.push((
             indexed.descriptor_offset,
             indexed.descriptor_offset + input.runtime_abi.pointer_size,
         ));
+        return;
     }
-    let recurse = |handle| {
-        frame_indexed_descriptor_source_in_table(
+    match scratch.expression(argument) {
+        ExpressionNode::Binary(binary) => {
+            collect_argument_source_frame_ranges(
+                input,
+                source_dispatch_index,
+                argument_source_key,
+                scratch,
+                binary.left,
+                sources,
+            );
+            collect_argument_source_frame_ranges(
+                input,
+                source_dispatch_index,
+                argument_source_key,
+                scratch,
+                binary.right,
+                sources,
+            );
+        }
+        ExpressionNode::Cast(cast) => collect_argument_source_frame_ranges(
             input,
             source_dispatch_index,
             argument_source_key,
             scratch,
-            handle,
-        )
-    };
-    match scratch.expression(argument) {
-        ExpressionNode::Binary(binary) => recurse(binary.left).or_else(|| recurse(binary.right)),
-        ExpressionNode::Cast(cast) => recurse(cast.value),
-        ExpressionNode::Mutable(inner) => recurse(*inner),
-        _ => None,
+            cast.value,
+            sources,
+        ),
+        ExpressionNode::Mutable(inner) => collect_argument_source_frame_ranges(
+            input,
+            source_dispatch_index,
+            argument_source_key,
+            scratch,
+            *inner,
+            sources,
+        ),
+        _ => {}
     }
 }
 

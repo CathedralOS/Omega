@@ -1,0 +1,32 @@
+// RECURSIVE ACCUMULATOR: `self.sum(n - 1, acc + n)` -- the loop-carried
+// argument writes used to run IN PLACE and in order, so `acc + n` read the
+// ALREADY-DECREMENTED n (the parallel-assignment hazard; sum(5,0) natively
+// computed 10). The overlap detector now collects every place read inside
+// binary/cast argument operands, so the transition stages through scratch.
+// sum(5,0) -> 15 -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+}
+machine Main::sum(&mut self, n: usize, acc: usize in Wrapping)
+terminates {
+    decreases n;
+}
+-> usize
+{
+    transition n > 0 {
+        true -> self.sum(n - 1, acc + (n as usize in Wrapping))
+        false -> acc
+    }
+}
+machine Main::main(&mut self) {
+    let total: usize = self.sum(5, 0);
+    transition total == 15 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}
