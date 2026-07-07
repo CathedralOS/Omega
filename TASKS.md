@@ -135,10 +135,17 @@ decreases remaining
   hits the loud store fence; the construct-from-LETS shape (every field a
   local/param/literal) delivers 16-byte results fine, so std::time now binds
   lets (the working idiom, backtrace-verified via encode_runtime_storage_
-  binary_write). REMAINING: either lower binary field expressions per-field
-  (byte_size = the FIELD at slot+offset) in the struct-literal value
-  materialization, or catch the shape in the frontend with a bind-to-lets
-  teaching error instead of the cryptic encoder fence.
+  binary_write). FENCED 2026-07-10: the shape is
+  worse than the fence suggested -- a <=8-byte struct result was written WRONG
+  SILENTLY (probe: `Pair8 { a: n / 100, b: 7 }` delivered b == 0 natively,
+  interp right); only >=16-byte hit the loud fence. The frontend now rejects a
+  type-scoped constructor whose result literal computes ANY field inline
+  (binary/cast/etc.), teaching the construct-from-lets shape (fail canary
+  calls/constructor_computed_field_rejected; receiver-FUL value machines
+  deliver computed-field literals correctly and stay accepted). REMAINING
+  (engineering, de-fence): lower computed struct-literal fields per-field
+  (byte_size = the FIELD at slot+offset) in the type-scoped constructor's
+  result materialization, then drop the fence.
 
 - **[ ] Interpreter unsigned-u64 arithmetic remainder (2026-07-07).** Comparisons now
   take an UNSIGNED witness from declared types (evaluator: Frame.unsigned64_locals +
