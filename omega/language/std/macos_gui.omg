@@ -215,6 +215,18 @@ machine MacosGui::window_destroy(&mut self, window: u64) -> u32 {
     state ret(&mut self) -> u32 { self.r32 }
 }
 
+// `Gui::foreground_window` — the focus gate for the samples' GLOBAL key polling
+// (Win32 `GetForegroundWindow`; on macOS `CGEventSourceKeyState` is just as
+// global). `[NSApp keyWindow]` is THIS app's focused window — the NSWindow
+// pointer `window_create` returned when the app is frontmost and the window is
+// key, 0 otherwise — so the samples' `fw == hwnd` gate works unchanged.
+machine MacosGui::foreground_window(&mut self) -> u64 {
+    self.sel = self.objc.register_selector("keyWindow");
+    self.rc = self.objc.send(self.app, self.sel);
+    transition { _ -> ret() }
+    state ret(&mut self) -> u64 { self.rc }
+}
+
 // The macOS `Input` backend — implements the samples' Win32-shaped `Input` trait
 // (`key_state(virtual_key) -> u64`) by mapping a Win32 virtual-key to the macOS
 // keycode and asking Core Graphics whether that physical key is currently down

@@ -94,12 +94,18 @@ chord contains ESC. New 0-arg user32 op `Gui.foreground_window`
 (GetForegroundWindow, rides the general import call; interp = last live
 virtual window) gates ALL sample key polling on focus. Canary:
 `host/runtime_gui_foreground_window_exit` (call-path pin; no value assertion —
-interp/native foreground semantics differ by design). (c) The exe now falls
+interp/native foreground semantics differ by design). The darwin provider grew
+`MacosGui::foreground_window` (`[NSApp keyWindow]` — returns the NSWindow
+`window_create` minted when focused, so `fw == hwnd` works unchanged); all
+three samples cross-compile to macos_arm64 post-change. (c) The exe now falls
 back to `../imgN.bmp` so double-clicking in build\ works. STILL OPEN: the
 title-bar CONTEXT-MENU Close sends (not posts) WM_SYSCOMMAND — invisible to a
 pump; the real fix is outbound WndProc entry stubs (extern brief §12.4).
 DESIGN Q for Zach: build.omg asset copying (declarative `Build` asset list the
 compiler copies at emit? — build.omg must describe, never do).
+ALSO NOTED (pre-existing, next up): 11 omega-interpreter
+`filesystem_std_module_*` coverage tests fail on Windows with "non-integer
+operand" — present at the fs handoff commit too (A/B'd); investigating.
 
 **What works today**
 - **Interpreter:** full Rust-parity fs (all ops + the ergonomic `Filesystem`
