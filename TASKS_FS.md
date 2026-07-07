@@ -68,9 +68,18 @@ call-site proofs (j=0 and j+1 under j<i). (2) PUZZLE while there: why does
 `value_call_arm_effect_blockers` NOT fire on the existing
 `self.walk_rc = self.mkall_step(..)` value call, whose `mkall_mk` arm state
 does a HOST CALL? Either the fence has a reachability/keying hole (check
-target_key vs machine symbols for attached wrapper machines) or these calls
-lower dispatched-not-inline and the fence should filter by lowering --
-investigate BEFORE relying on either. First
+target_key vs machine symbols for attached wrapper machines) RESOLVED same
+day: the fence never ran for these probes because the pipeline ABORTS at
+host-call planning (windows mkdir encoding; on the macos_arm64 cross-compile
+a separate pre-existing 'AArch64 value-returning host call has no result
+storage operand' gap) BEFORE emission planning. On a real Mac -- where the
+pipeline reaches emission planning -- the fence WILL fire on mkall_step's
+host-call arm, and per the doctrine that is CORRECT: the arm effects run
+per-arm today, invisibly, because redundant best-effort mkdirs are
+EEXIST-harmless. So the macOS wrapper needs the same entry-effect mkall
+rework as the runtime-path item -- the two converge into one restructure
+(requires-clause-bounded entry-recursion copy walk + entry-effect
+discipline). Flag for the macOS confirmation session. First
 wave detail — `filesystem/windows_wrapper_results_exit` runs write_all→Ok,
 create_dir×2→AlreadyExists, open→Ok{File} destructured and USED, close, remove→Ok,
 remove missing→NotFound. Discipline established: host results captured into
