@@ -1,0 +1,36 @@
+// PROVES sel_registerName + the 2-argument objc_msgSend (render fire 8). Builds
+// `[[NSObject class] alloc]` by hand: objc_getClass("NSObject") -> Class,
+// sel_registerName("alloc") -> SEL, objc_msgSend(cls, sel) -> a freshly allocated
+// instance. recv -> x0, sel -> x1, id result -> x0. A non-null instance means the
+// message send dispatched correctly through the libobjc runtime. obj != 0 ->
+// exit 7; a broken send (wrong regs / unbound symbol) -> 0 or crash.
+
+domain [u8]::CString when no_nul(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+boundary trait ObjectiveC {
+    machine get_class(name: &[u8] in CString) -> u64;
+    machine register_selector(name: &[u8] in CString) -> u64;
+    machine send(recv: u64, sel: u64) -> u64;
+}
+
+data Main {
+    console: Console;
+    objc: ObjectiveC;
+    cls: u64;
+    sel: u64;
+    obj: u64;
+}
+
+machine Main::main(&mut self) {
+    self.cls = self.objc.get_class("NSObject");
+    self.sel = self.objc.register_selector("alloc");
+    self.obj = self.objc.send(self.cls, self.sel);
+    transition self.obj != 0 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(7); }
+    state bad(&mut self)  { self.console.exit_process(1); }
+}

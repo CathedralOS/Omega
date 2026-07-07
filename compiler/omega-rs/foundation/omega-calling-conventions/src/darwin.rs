@@ -96,6 +96,11 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // ordinal 2. (The binding's `library` string below is unused on darwin —
         // the Mach-O backend derives the dylib from the symbol name.)
         darwin_import("ObjectiveC", "get_class", "_objc_getClass", &policy),
+        darwin_import("ObjectiveC", "register_selector", "_sel_registerName", &policy),
+        // `send`/`send_scalar` share the `_objc_msgSend` symbol; the op arm decides
+        // how many args to marshal (`[recv, sel, …]`).
+        darwin_import("ObjectiveC", "send", "_objc_msgSend", &policy),
+        darwin_import("ObjectiveC", "send_scalar", "_objc_msgSend", &policy),
     ]);
 
     insert_platform_lowering(
@@ -459,6 +464,31 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "ObjectiveC",
         "get_class",
         [host_operation("ObjectiveC", "get_class")],
+        PlatformCallData::None,
+    );
+    // `ObjectiveC::register_selector(name) -> u64` → `_sel_registerName`: same
+    // string-arg/pointer-result shape as `get_class`.
+    insert_platform_lowering(
+        plan,
+        "ObjectiveC",
+        "register_selector",
+        [host_operation("ObjectiveC", "register_selector")],
+        PlatformCallData::None,
+    );
+    // `ObjectiveC::send(recv, sel) -> u64` and `send_string(recv, sel, text) -> u64`
+    // → `_objc_msgSend`: the message-send workhorse (recv→x0, sel→x1, then args).
+    insert_platform_lowering(
+        plan,
+        "ObjectiveC",
+        "send",
+        [host_operation("ObjectiveC", "send")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "ObjectiveC",
+        "send_scalar",
+        [host_operation("ObjectiveC", "send_scalar")],
         PlatformCallData::None,
     );
 }

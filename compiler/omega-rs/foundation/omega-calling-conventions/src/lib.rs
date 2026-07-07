@@ -321,6 +321,19 @@ pub enum HostOperation {
     /// path) and returns the `Class` pointer in x0. The first op binding a SECOND
     /// dylib (libobjc) — proves multi-dylib linking.
     GetClass,
+    /// `ObjectiveC::register_selector(name) -> u64` → libobjc `sel_registerName`.
+    /// A NUL-terminated selector name → the interned `SEL` pointer (x0). Same
+    /// operand shape as `get_class`.
+    RegisterSelector,
+    /// `ObjectiveC::send(recv: u64, sel: u64) -> u64` → libobjc `objc_msgSend`.
+    /// The zero-argument message send: `recv`→x0, `sel`→x1, result `id`/scalar in
+    /// x0. The Objective-C workhorse (`[recv sel]`).
+    MsgSend,
+    /// `ObjectiveC::send_scalar(recv, sel, arg: u64) -> u64` → `objc_msgSend` with
+    /// one integer/pointer argument (`recv`→x0, `sel`→x1, `arg`→x2). For selectors
+    /// taking a scalar: `respondsToSelector:` (SEL), `setActivationPolicy:` (int),
+    /// `activateIgnoringOtherApps:` (BOOL). Shares `_objc_msgSend` with `send`.
+    MsgSendScalar,
     Sleep,
     TickCount,
     KeyState,
@@ -399,6 +412,9 @@ impl HostOperation {
             "hypotenuse" => Self::Hypotenuse,
             "fused_multiply_add" => Self::FusedMultiplyAdd,
             "get_class" => Self::GetClass,
+            "register_selector" => Self::RegisterSelector,
+            "send" => Self::MsgSend,
+            "send_scalar" => Self::MsgSendScalar,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
@@ -463,6 +479,9 @@ impl HostOperation {
             Self::Hypotenuse => "hypotenuse",
             Self::FusedMultiplyAdd => "fused_multiply_add",
             Self::GetClass => "get_class",
+            Self::RegisterSelector => "register_selector",
+            Self::MsgSend => "send",
+            Self::MsgSendScalar => "send_scalar",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",
