@@ -15,6 +15,8 @@ domain [u8]::Utf8 when valid_utf8(self) {}
 domain [u8; 8]::Utf8 when valid_utf8(self) {}
 domain [u8; 3]::Utf8 when valid_utf8(self) {}
 
+boundary trait Clock { machine sleep(milliseconds: u32); }
+
 // FULLY EXACT -- no overflow domain anywhere: every counter carries a range and
 // every increment is guard-proven on its DIRECT incoming edge (re-guard hops added
 // where the loop-head guard sits several states upstream). The element values
@@ -22,6 +24,7 @@ domain [u8; 3]::Utf8 when valid_utf8(self) {}
 // arithmetic, so they carry no obligation.
 data Main {
     console: Console;
+    clock: Clock;
     arr: [i32; 8];
     home: [u8; 3] in Utf8;
     line: [u8; 8] in Utf8;
@@ -97,7 +100,7 @@ machine Main::main(&mut self) {
         transition { _ -> show_row() }
     }
     state show_done(&mut self) {
-        self.console.sleep(180);
+        self.clock.sleep(180);
         transition { _ -> step() }
     }
 

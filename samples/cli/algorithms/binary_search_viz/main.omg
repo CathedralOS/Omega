@@ -12,8 +12,11 @@ domain [u8]::Utf8 when valid_utf8(self) {}
 domain [u8; 31]::Utf8 when valid_utf8(self) {}
 domain [u8; 4]::Utf8 when valid_utf8(self) {}
 
+boundary trait Clock { machine sleep(milliseconds: u32); }
+
 data Main {
     console: Console;
+    clock: Clock;
     arr: [i32; 31];
     line: [u8; 31] in Utf8;   // render buffer
     chars: [u8; 4] in Utf8;   // " -*#"  excluded / range / target / mid
@@ -96,7 +99,7 @@ machine Main::main(&mut self) {
     }
     state emit(&mut self) {
         self.console.write_line(self.line);
-        self.console.sleep(250);
+        self.clock.sleep(250);
         transition { _ -> probe() }
     }
 

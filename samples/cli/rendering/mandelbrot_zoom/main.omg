@@ -11,8 +11,11 @@ domain [u8; 48]::Utf8 when valid_utf8(self) {}
 domain [u8; 8]::Utf8 when valid_utf8(self) {}
 domain [u8; 3]::Utf8 when valid_utf8(self) {}
 
+boundary trait Clock { machine sleep(milliseconds: u32); }
+
 data Main {
     console: Console;
+    clock: Clock;
     row: [u8; 48] in Utf8;
     palette: [u8; 8] in Utf8;
     home: [u8; 3] in Utf8;
@@ -113,7 +116,7 @@ machine Main::main(&mut self) {
     // Re-guard so the increment's direct edge proves `frame + 1` back into
     // [0..=12] (the sleep call severs the frame_loop guard anyway).
     state frame_end(&mut self) {
-        self.console.sleep(70);
+        self.clock.sleep(70);
         self.span = self.span * 0.62;
         transition self.frame >= 0 && self.frame < 12 { true -> frame_advance() _ -> finish() }
     }

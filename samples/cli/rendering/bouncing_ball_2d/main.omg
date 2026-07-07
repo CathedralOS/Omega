@@ -15,8 +15,11 @@ domain [u8]::Utf8 when valid_utf8(self) {}
 domain [u8; 24]::Utf8 when valid_utf8(self) {}
 domain [u8; 3]::Utf8 when valid_utf8(self) {}
 
+boundary trait Clock { machine sleep(milliseconds: u32); }
+
 data Main {
     console: Console;
+    clock: Clock;
     line: [u8; 24] in Utf8;
     home: [u8; 3] in Utf8;
     bx: f64;
@@ -144,7 +147,7 @@ machine Main::main(&mut self) {
         // but not float-provable) conversion honestly.
         self.ball_x = self.bx as i32 in Wrapping;
         self.ball_y = self.by as i32 in Wrapping;
-        self.console.sleep(40);
+        self.clock.sleep(40);
         transition self.frame < 70 { true -> frame_bump() _ -> frame_loop() }
     }
     state frame_bump(&mut self) {
