@@ -569,11 +569,14 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
     image_viewer's TWO 16KB arrays (buffer[16384]+pixels[16384]) push many fields past the
     LDR/STR/ADD scaled-immediate range, so it's a BROAD large-offset sweep (same materialize
     pattern). Fixed: host-call RESULT store (mod.rs x4) + host-call scalar ARG load +
-    RuntimeStorageAddress pointer-arg add + String-descriptor writes; `operand_width` made
+    RuntimeStorageAddress pointer-arg add; `operand_width` made
     offset-aware (RuntimeScalarInteger, RuntimeStorageAddress) so the width self-check AND the
     relocation planner (data_addresses.rs) stay in lockstep automatically. The compile error
     marched 33108(store)->16680(add)->33248(line-read descriptor). NEXT: encode_runtime_text_line_read
-    (read_line(&mut self.pause) descriptor store) + any further paths, then a bounded run. 3/4
+    (read_line(&mut self.pause) descriptor store) + any further paths, then a bounded run. NOTE:
+    a preemptive String-descriptor-write change was REVERTED — it added an unconditional `add`
+    that regressed 2 cli samples' width (the old code embeds the small offset in the free STR
+    immediate); the large-offset string-write needs CONDITIONAL materialization + width threading. 3/4
     gui samples run natively; image_viewer is the last (also human-interactive + reads .bmp).
     ---
     Historical (fire 16): `canaries/pass/objc/native_gui_loop` is `samples/gui/window_demo`'s shape running
