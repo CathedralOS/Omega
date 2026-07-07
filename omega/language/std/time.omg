@@ -47,6 +47,24 @@ const Duration::ZERO: Duration = Duration { seconds: 0, subsecond_nanoseconds: 0
 // struct-literal fields for u64-magnitude literals.
 const Duration::MAX: Duration = Duration { seconds: 18446744073709551615, subsecond_nanoseconds: 999999999 };
 
+// Unit constructors (receiverless type-scoped machines).
+machine Duration::from_seconds(seconds: u64) -> Duration {
+    Duration { seconds: seconds, subsecond_nanoseconds: 0 }
+}
+
+machine Duration::from_milliseconds(milliseconds: u64) -> Duration {
+    // Flow-sensitive LETS carry the proofs (`% 1000` bounds the remainder,
+    // the narrowing cast and `* 1000000` prove under it); the field store
+    // uses the cascade-safe `name % literal` shape (construction checks are
+    // flow-insensitive, and modulo bounds by its divisor regardless).
+    let scaled_wide: u64 = (milliseconds % 1000) * 1000000;
+    let scaled: u32 = scaled_wide as u32;
+    Duration {
+        seconds: milliseconds / 1000,
+        subsecond_nanoseconds: scaled % 1000000000,
+    }
+}
+
 // Whole seconds, truncating the subsecond part (Rust `as_secs`).
 machine Duration::as_seconds(&self) -> u64 {
     self.seconds

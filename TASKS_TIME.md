@@ -483,10 +483,19 @@ boundary trait TimeHost {
    take an UNSIGNED witness from declared types (Frame-recorded u64-classed
    locals/params, cast targets, self-fields; positive-witness-only, so signed
    compares cannot regress). REMAINING interp face (filed in TASKS.md):
-   unsigned div/mod/shift-right and min/max on msb-set u64. REMAINING rung-3
-   surface: `from_*` unit constructors (receiverless type-scoped value calls
-   — verify resolution); `checked_as_*` totals; `checked_multiply` /
-   `divide`.
+   unsigned div/mod/shift-right and min/max on msb-set u64. FIRE F (2026-07-07):
+   `from_seconds`/`from_milliseconds` land — receiverless type-scoped value
+   calls PARSE + CHECK + INTERPRET (a new interpreter resolution arm (1b):
+   type-qualified receiverless calls resolve the group-qualified machine);
+   NATIVE is a loud fence ("X86_64 MVP encoder cannot store 16-byte runtime
+   values yet") on THIS call shape's result store — receiver-ful multi-state
+   value machines deliver 16-byte results through different, working
+   machinery. Interp-only canary
+   `time/runtime_duration_constructors_exit` (NOT in ACTIVE_PASS_CANARIES —
+   the native compile fences); promote when the 16-byte value store lands
+   (filed in TASKS.md). REMAINING rung-3 surface: remaining `from_*`
+   (microseconds/nanoseconds — same shapes); `checked_as_*` totals;
+   `checked_multiply` / `divide`.
 4. [ ] **`TimeHost` seam + interpreter support** (`time_host.omg`, D12):
    virtual-clock interpreter implementations for the five value ops;
    interpreter canaries asserting EXACT values (monotonicity across a virtual

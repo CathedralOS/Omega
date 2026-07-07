@@ -3952,6 +3952,39 @@ impl<'program> Evaluator<'program> {
             }
         }
 
+        // (1b) TYPE-qualified receiverless call (`Duration::from_milliseconds(x)`):
+        // the "receiver" names a type GROUP, not a place, and the callee is the
+        // group-qualified machine `<Type>::<target>`. Such a machine takes no
+        // receiver (a pure constructor/helper), so the caller's self cell rides
+        // along untouched -- same as the free-machine arm (3).
+        if call.receiver.is_valid() {
+            if let omega_typed_trees::expression::ExpressionNode::Name(path) =
+                self.program.expression_table.expression(call.receiver)
+            {
+                let members = self.program.expression_table.name_path_members(path.members);
+                if members.len() == 1
+                    && members[0].as_str() != "self"
+                    && frame.get(members[0].as_str()).is_none()
+                {
+                    let group = members[0].as_str();
+                    if let Some(machine) = self
+                        .program
+                        .machines()
+                        .iter()
+                        .find(|machine| {
+                            let mut segments = machine.name.as_str().split("::");
+                            segments.next() == Some(group)
+                                && machine.name.as_str().ends_with(target)
+                                && self.find_state(machine, target).is_some()
+                        })
+                        .cloned()
+                    {
+                        return Ok((machine, target.to_owned(), Rc::clone(&frame.self_cell)));
+                    }
+                }
+            }
+        }
+
         // (2) Sibling state of the current machine -- ONLY for self/receiverless
         // calls (a non-self receiver was handled by (1) or falls to the host
         // fallback below).
