@@ -292,6 +292,9 @@ fn validate_state_statement_node(
                 );
             }
             let before = diagnostics.len();
+            let assignment_target_domain = assignment_target_type
+                .map(|handle| program.arithmetic_domain_for_type_reference(handle))
+                .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact);
             let (interval, source_primitive) = arithmetic_domains::validate_value_range(
                 program,
                 machine,
@@ -299,6 +302,7 @@ fn validate_state_statement_node(
                 assignment.value,
                 value_env,
                 assignment_target_primitive,
+                assignment_target_domain,
                 &owner,
                 diagnostics,
             );
@@ -434,6 +438,7 @@ fn validate_state_statement_node(
                 *expression,
                 value_env,
                 return_primitive,
+                program.arithmetic_domain_for_type_reference(state.return_type),
                 &owner,
                 diagnostics,
             );
@@ -554,6 +559,7 @@ fn validate_state_statement_node(
                 local_data.initial_value,
                 value_env,
                 local_target_primitive,
+                program.arithmetic_domain_for_type_reference(local_data.type_reference),
                 &owner,
                 diagnostics,
             );
@@ -726,6 +732,7 @@ fn validate_state_statement_node(
                             *argument,
                             &narrowed,
                             None,
+                            omega_core::arithmetic::ArithmeticDomain::Exact,
                             &format!(
                                 "machine `{}` state `{state_name}` transition argument",
                                 machine.name

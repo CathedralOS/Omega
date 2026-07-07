@@ -424,6 +424,7 @@ fn enforce_construction_field_obligations(
                     field.value,
                     &ValueEnv::new(),
                     None,
+                    omega_core::arithmetic::ArithmeticDomain::Exact,
                     &owner,
                     &mut throwaway,
                 );
