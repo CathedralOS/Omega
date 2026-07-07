@@ -1,4 +1,5 @@
 mod capability;
+mod const_item;
 mod context;
 mod data;
 mod diagnostics;

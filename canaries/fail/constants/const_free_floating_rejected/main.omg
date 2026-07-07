@@ -1,0 +1,11 @@
+// FAIL canary (const-v0): a free-floating const is rejected until the
+// local-shadowing walk lands -- a bare-name substitution could silently win
+// over a like-named local or field; a `Type::NAME` path cannot.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+const CEILING: i32 = 60;
+
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

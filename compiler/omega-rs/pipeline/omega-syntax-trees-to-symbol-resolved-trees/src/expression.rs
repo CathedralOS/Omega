@@ -248,6 +248,19 @@ fn lower_expression_node_into_table(
             Ok(expressions.insert(ExpressionNode::Mutable(expression)))
         }
         syntax::expression::ExpressionNode::Name(path) => {
+            // A `Type::NAME` path naming a const substitutes a fresh copy of
+            // its literal initializer (const-v0, crate::constant) -- consts
+            // never survive into symbol-resolved trees. Locals/fields are
+            // single-segment paths and case constructors are checked against
+            // consts at the const's declaration, so the intercept is
+            // unambiguous.
+            if let Some(substituted) = crate::constant::try_lower_const_reference(
+                syntax_trees,
+                expressions,
+                syntax_trees.expressions.identifier_path_members(*path),
+            ) {
+                return substituted;
+            }
             let mut members = HandleSpan::empty();
             for member in syntax_trees.expressions.identifier_path_members(*path) {
                 expressions.push_name_path_member(&mut members, lower_name(member));
