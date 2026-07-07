@@ -1,13 +1,18 @@
-// A runtime-bounded subslice bound to a USED local: `let sub =
+// A MACHINE-FIELD-bounded subslice bound to a USED local: `let sub =
 // self.arr[self.lo..self.hi]; let n = sub.len`. The bounds are PROVEN in range
-// (dominating exact assignments), so the prover admits it -- but the subslice
-// descriptor CONSTRUCTION (ptr/len from runtime bounds) has no lowering for a
-// local descriptor slot yet. This shape used to slip past the descriptor blocker
-// when the local was ELIDED (uses folded inline) and silently read 0 (native took
-// the wrong guard arm while the interpreter was right). Storage planning now
-// keeps the slot for a used runtime-bounded subslice local, so emission
-// planning's descriptor-local verification reports it loudly. (Literal-bounded
-// subslice locals and runtime-END subslices in ARGUMENT position still lower.)
+// (dominating exact assignments), so the prover admits it -- but a machine-FIELD
+// START has no lowering (`WriteRuntimeFrameIndexedAddressToRuntimeFrame`'s index
+// load is frame-only). This shape used to slip past the descriptor blocker when
+// the local was ELIDED (uses folded inline) and silently read 0 (native took the
+// wrong guard arm while the interpreter was right); storage planning now keeps
+// the slot for a used runtime-bounded subslice local, so emission planning's
+// descriptor-local verification reports it loudly.
+//
+// WORKING SHAPES (do not fence more broadly): literal bounds; runtime-END with a
+// literal/open start (`self.arr[1..self.hi]`, seed-then-shrink); PARAM bounds
+// incl. a runtime START (`f(self.lo, self.hi)` then `arr[lo..hi]` inside `f`,
+// with the `lo <= hi && hi <= self.arr.len` guard) -- the canonical WORKAROUND
+// for this fence; and runtime-END subslices in ARGUMENT position (fs canaries).
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
