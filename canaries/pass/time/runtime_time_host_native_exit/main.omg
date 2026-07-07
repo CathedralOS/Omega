@@ -1,0 +1,84 @@
+// std::time rung 5: the TimeHost seam bound NATIVELY on windows_x64 --
+// QueryPerformanceCounter/-Frequency and GetSystemTimePreciseAsFileTime as
+// OUT-PARAM u64 imports, plus the two wall-clock calibration CONSTANTS
+// lowered with no call at all (PlatformCallData::ConstantResult).
+//
+// Native assertions are INEQUALITIES (the real clock moves); the sibling
+// runtime_time_host_virtual_exit asserts the interpreter's EXACT virtual
+// values (D12). The two constants ARE exact here -- they are the windows
+// lowering rows themselves: FILETIME ticks at 10^7 per second and the
+// 1601 -> 1970 epoch shift of 11_644_473_600 seconds.
+//
+// Wall-clock sanity brackets seconds-since-1601 between 2026-01-01
+// (13_411_699_200) and ~2076 (15_000_000_000): a zeroed or garbage result
+// fails low, an un-divided raw FILETIME (~10^17) fails high.
+// Expected exit: 70.
+use omega::language::std::time_host;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    host: TimeHost;
+    first_ticks: u64;
+    second_ticks: u64;
+    frequency: u64;
+    wall_raw: u64;
+    wall_units: u64;
+    wall_offset: u64;
+    seconds_since_1601: u64;
+}
+
+machine Main::main(&mut self) {
+    self.first_ticks = self.host.monotonic_ticks();
+    self.host.sleep(30);
+    self.second_ticks = self.host.monotonic_ticks();
+    // 30ms at any real QPC frequency (10MHz on modern windows) is thousands
+    // of ticks: strictly greater, never equal.
+    transition self.second_ticks > self.first_ticks {
+        true -> check_frequency()
+        false -> fail_monotonic()
+    }
+    state check_frequency(&mut self) {
+        self.frequency = self.host.monotonic_ticks_per_second();
+        transition self.frequency >= 1000 {
+            true -> check_units()
+            false -> fail_frequency()
+        }
+    }
+    state check_units(&mut self) {
+        self.wall_units = self.host.wall_clock_units_per_second();
+        transition self.wall_units == 10000000 {
+            true -> check_offset()
+            false -> fail_units()
+        }
+    }
+    state check_offset(&mut self) {
+        self.wall_offset = self.host.wall_clock_epoch_offset_seconds();
+        transition self.wall_offset == 11644473600 {
+            true -> check_wall_lower()
+            false -> fail_offset()
+        }
+    }
+    state check_wall_lower(&mut self) {
+        self.wall_raw = self.host.wall_clock_raw();
+        self.seconds_since_1601 = self.wall_raw / 10000000;
+        transition self.seconds_since_1601 > 13411699200 {
+            true -> check_wall_upper()
+            false -> fail_wall_low()
+        }
+    }
+    state check_wall_upper(&mut self) {
+        transition self.seconds_since_1601 < 15000000000 {
+            true -> good()
+            false -> fail_wall_high()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_monotonic(&mut self) { self.console.exit_process(1); }
+    state fail_frequency(&mut self) { self.console.exit_process(2); }
+    state fail_units(&mut self) { self.console.exit_process(3); }
+    state fail_offset(&mut self) { self.console.exit_process(4); }
+    state fail_wall_low(&mut self) { self.console.exit_process(5); }
+    state fail_wall_high(&mut self) { self.console.exit_process(6); }
+}

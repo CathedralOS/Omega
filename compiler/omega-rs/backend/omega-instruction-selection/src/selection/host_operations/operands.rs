@@ -1,6 +1,6 @@
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::RuntimeAliasResolutionContext;
-use omega_calling_conventions::{HostCapability, HostOperation};
+use omega_calling_conventions::{HostCapability, HostOperation, PlatformCallData};
 use omega_platform_interface::{
     HostCall, HostCallArgument, HostCallArgumentKind, LoweredHostOperation,
 };
@@ -192,6 +192,46 @@ pub(super) fn select_host_operation_operands(
                     operand(InstructionOperandKind::ImmediateInteger(0)),
                     operand(InstructionOperandKind::ImmediateInteger(0)),
                     operand(ms),
+                ]),
+                None => HandleSpan::empty(),
+            }
+        }
+        (
+            HostCapability::Clock,
+            HostOperation::MonotonicTicks
+            | HostOperation::MonotonicTicksPerSecond
+            | HostOperation::WallClockRaw,
+        ) => {
+            // Value-returning, ARGUMENT-FREE time reads (std::time rung 5). On
+            // windows these are OUT-PARAM imports (QueryPerformanceCounter/
+            // -Frequency write a LARGE_INTEGER, GetSystemTimePreciseAsFileTime
+            // a FILETIME): operand[0] is the u64 result place and that is the
+            // whole operand list (the read_errno shape); the architecture
+            // encoder brackets the call with the out-param stack slot.
+            // Unresolvable result => no operands so the encoder hard-errors
+            // rather than storing garbage.
+            match first_scalar_argument_operand(input, host_call, dispatch_index) {
+                Some(result) => operands.insert_many([operand(result)]),
+                None => HandleSpan::empty(),
+            }
+        }
+        (
+            HostCapability::Clock,
+            HostOperation::WallClockUnitsPerSecond | HostOperation::WallClockEpochOffsetSeconds,
+        ) => {
+            // Per-target calibration CONSTANTS (D11: the lowering layer never
+            // does arithmetic — it only publishes the two constants the proven
+            // wrapper math divides by). No call at all: operand[0] is the
+            // result place, operand[1] the constant from the platform-lowering
+            // row's `ConstantResult` data. A row without that data or an
+            // unresolvable result => no operands so the encoder hard-errors.
+            let PlatformCallData::ConstantResult { value } = host_call.data else {
+                return HandleSpan::empty();
+            };
+            match first_scalar_argument_operand(input, host_call, dispatch_index) {
+                Some(result) => operands.insert_many([
+                    operand(result),
+                    operand(InstructionOperandKind::ImmediateInteger(value)),
                 ]),
                 None => HandleSpan::empty(),
             }

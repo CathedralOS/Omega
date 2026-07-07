@@ -977,6 +977,23 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
         (HostCapability::Clock, HostOperation::TickCount) => {
             encode_win64_import_call(operands, true, false)
         }
+        // 0-arg value-returning imports whose result arrives through an
+        // OUT-PARAM (QueryPerformanceCounter/-Frequency write a LARGE_INTEGER,
+        // GetSystemTimePreciseAsFileTime a FILETIME): bracket the call with a
+        // stack slot and load the u64 back (std::time rung 5).
+        (
+            HostCapability::Clock,
+            HostOperation::MonotonicTicks
+            | HostOperation::MonotonicTicksPerSecond
+            | HostOperation::WallClockRaw,
+        ) => encode_win64_out_param_call(operands),
+        // Per-target calibration CONSTANTS (D11: the lowering layer never does
+        // arithmetic): no call at all, just the immediate through the result
+        // store tail.
+        (
+            HostCapability::Clock,
+            HostOperation::WallClockUnitsPerSecond | HostOperation::WallClockEpochOffsetSeconds,
+        ) => encode_constant_result(operands),
         (HostCapability::Input, HostOperation::KeyState) => encode_key_state_call(operands),
         // Every Gui import is value-returning and encodes through the GENERAL
         // import call: operands[0] = result place, then the full ABI argument
@@ -1602,6 +1619,133 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
 /// region-base site per staged argument (inside its `mov r15, imm64`), the
 /// Relative32 `call rel32` after all marshalling, and (value-returning) the
 /// result region base inside the store tail's `mov r15, imm64`.
+/// Total byte width of `encode_win64_out_param_call`'s fixed sequence:
+/// sub(4) + lea(5) + call(5) + load(5) + add(4) + mov r15,imm64(10) + store(7).
+const WIN64_OUT_PARAM_CALL_WIDTH: usize = 40;
+
+/// A 0-arg Win64 import whose RESULT arrives through an OUT-PARAM (std::time
+/// rung 5: QueryPerformanceCounter/-Frequency and
+/// GetSystemTimePreciseAsFileTime all write a u64 through their pointer
+/// argument). Reserve 56 bytes — the 0-arg import reserve (40) + 16 so the
+/// out slot at `[rsp+40]` sits ABOVE the callee-owned 32-byte shadow space
+/// and rsp keeps the same 16-byte parity — pass the slot's address in RCX,
+/// call, load the u64 back into RAX, release, then store through the
+/// standard result tail. operands[0] = the result place.
+fn encode_win64_out_param_call<T: InstructionOperandLike>(
+    operands: &[T],
+) -> Result<Vec<u8>, Diagnostic> {
+    const RESERVE: usize = 56;
+    const SLOT: u8 = 40;
+    let Some((_, byte_offset, byte_count)) = operands
+        .first()
+        .and_then(InstructionOperandLike::runtime_scalar_integer)
+    else {
+        return Err(Diagnostic::error(
+            "cannot encode X86_64 out-param import call: the result storage place did not lower \
+             to a runtime scalar operand",
+        ));
+    };
+    let mut bytes = Vec::with_capacity(WIN64_OUT_PARAM_CALL_WIDTH);
+    append_sub_rsp(&mut bytes, RESERVE);
+    bytes.extend([0x48, 0x8d, 0x4c, 0x24, SLOT]); // lea rcx, [rsp+SLOT]
+    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 (relocated)
+    bytes.extend([0x48, 0x8b, 0x44, 0x24, SLOT]); // mov rax, [rsp+SLOT]
+    append_add_rsp(&mut bytes, RESERVE);
+    append_mov_r15_imm64(&mut bytes, 0); // relocated to the result region base
+    match byte_count {
+        4 => bytes.extend([0x41, 0x89, 0x87]), // mov [r15+disp32], eax
+        8 => bytes.extend([0x49, 0x89, 0x87]), // mov [r15+disp32], rax
+        other => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 out-param import call cannot store a {other}-byte result (expected 4 or 8)"
+            )));
+        }
+    }
+    bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    debug_assert_eq!(bytes.len(), WIN64_OUT_PARAM_CALL_WIDTH);
+    Ok(bytes)
+}
+
+/// Relocation sites for `encode_win64_out_param_call`: the import-thunk call
+/// rel32 at 10 (sub 4 + lea 5 + the call opcode) and the result region base
+/// at 25 (14 + load 5 + add 4 + the mov r15,imm64 prefix).
+fn win64_out_param_call_relocation_sites() -> Vec<X86_64RelocationSite> {
+    vec![
+        X86_64RelocationSite {
+            operand_index: None,
+            byte_offset: 10,
+            byte_width: 4,
+            kind: X86_64RelocationSiteKind::Relative32,
+        },
+        X86_64RelocationSite {
+            operand_index: Some(0),
+            byte_offset: 25,
+            byte_width: 8,
+            kind: X86_64RelocationSiteKind::Absolute64,
+        },
+    ]
+}
+
+/// Total byte width of `encode_constant_result`'s fixed sequence:
+/// mov rax,imm64(10) + mov r15,imm64(10) + store(7).
+const CONSTANT_RESULT_WIDTH: usize = 27;
+
+/// A host operation lowered to a per-target CONSTANT (std::time rung 5's
+/// wall-clock calibration constants, `PlatformCallData::ConstantResult`): no
+/// call at all — materialize the immediate in RAX and run the standard
+/// result store tail. operands[0] = the result place, operands[1] = the
+/// constant as an immediate operand.
+fn encode_constant_result<T: InstructionOperandLike>(
+    operands: &[T],
+) -> Result<Vec<u8>, Diagnostic> {
+    let Some((_, byte_offset, byte_count)) = operands
+        .first()
+        .and_then(InstructionOperandLike::runtime_scalar_integer)
+    else {
+        return Err(Diagnostic::error(
+            "cannot encode X86_64 constant-result host call: the result storage place did not \
+             lower to a runtime scalar operand",
+        ));
+    };
+    let Some(value) = operands
+        .get(1)
+        .and_then(InstructionOperandLike::immediate_integer)
+    else {
+        return Err(Diagnostic::error(
+            "cannot encode X86_64 constant-result host call: the constant did not lower to an \
+             immediate operand",
+        ));
+    };
+    let mut bytes = Vec::with_capacity(CONSTANT_RESULT_WIDTH);
+    bytes.extend([0x48, 0xb8]); // mov rax, imm64
+    bytes.extend((value as u64).to_le_bytes());
+    append_mov_r15_imm64(&mut bytes, 0); // relocated to the result region base
+    match byte_count {
+        4 => bytes.extend([0x41, 0x89, 0x87]), // mov [r15+disp32], eax
+        8 => bytes.extend([0x49, 0x89, 0x87]), // mov [r15+disp32], rax
+        other => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 constant-result host call cannot store a {other}-byte result (expected 4 \
+                 or 8)"
+            )));
+        }
+    }
+    bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    debug_assert_eq!(bytes.len(), CONSTANT_RESULT_WIDTH);
+    Ok(bytes)
+}
+
+/// Relocation sites for `encode_constant_result`: only the result region base
+/// at 12 (the mov rax,imm64 + the mov r15,imm64 prefix). No call site.
+fn constant_result_relocation_sites() -> Vec<X86_64RelocationSite> {
+    vec![X86_64RelocationSite {
+        operand_index: Some(0),
+        byte_offset: 12,
+        byte_width: 8,
+        kind: X86_64RelocationSiteKind::Absolute64,
+    }]
+}
+
 fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
@@ -1788,6 +1932,16 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
             // original bespoke site list).
             win64_import_call_relocation_sites(operands, true, false)
         }
+        (
+            HostCapability::Clock,
+            HostOperation::MonotonicTicks
+            | HostOperation::MonotonicTicksPerSecond
+            | HostOperation::WallClockRaw,
+        ) => win64_out_param_call_relocation_sites(),
+        (
+            HostCapability::Clock,
+            HostOperation::WallClockUnitsPerSecond | HostOperation::WallClockEpochOffsetSeconds,
+        ) => constant_result_relocation_sites(),
         (HostCapability::Gui, _) => {
             // Value-returning general import calls (mirrors the encode arm).
             win64_import_call_relocation_sites(operands, true, false)

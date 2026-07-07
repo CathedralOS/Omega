@@ -1364,6 +1364,37 @@ fn runtime_time_host_virtual_interpreter_oracle() {
 }
 
 #[test]
+#[cfg(windows)]
+fn runtime_time_host_native_exit_canary_runs() {
+    // std::time rung 5: the TimeHost seam bound natively on windows_x64 --
+    // out-param u64 imports (QPC/QPF/GetSystemTimePreciseAsFileTime) plus the
+    // two constant-result calibration ops. NO interpreter oracle: the canary
+    // asserts the WINDOWS calibration constants (10^7 / 11_644_473_600) and
+    // real-clock inequalities; the interpreter's virtual clock (1000 / 0) is
+    // asserted exactly by runtime_time_host_virtual_exit instead.
+    let canary = pass_canary("time/runtime_time_host_native_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-time-host-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("time host native canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("time host native canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the native time-host chain to exit 70, got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_duration_totals_exit_canary_runs() {
     // checked_as_nanoseconds/microseconds/milliseconds exact values + the
     // Overflow arm at Duration::MAX, interpreter oracle + native. Exit 70.
@@ -22907,6 +22938,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "constants/runtime_scoped_const_exit",
     "time/runtime_duration_core_exit",
     "time/runtime_duration_totals_exit",
+    "time/runtime_time_host_native_exit",
     "parser/deep_nesting_within_limit",
     "traits/boundary_trait_effects_host_call",
     "traits/dyn_trait_object_dispatch",
