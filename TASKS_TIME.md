@@ -512,10 +512,21 @@ boundary trait TimeHost {
    min/max face stays filed). NEW face filed in TASKS.md: post-entry-state
    LETS in an inlined value callee misdeliver natively (entry-only discipline
    dodges it). Rung 4 (TimeHost seam + virtual interp clock) is NEXT.
-4. [ ] **`TimeHost` seam + interpreter support** (`time_host.omg`, D12):
-   virtual-clock interpreter implementations for the five value ops;
-   interpreter canaries asserting EXACT values (monotonicity across a virtual
-   sleep; `system_time_now()` == seed + advance).
+4. [~] **`TimeHost` seam + interpreter support — LANDED 2026-07-07.**
+   `omega/language/std/time_host.omg` fixes the D11 contract (five value ops
+   + sleep, portable semantics + per-target reference documented in the
+   module). The interpreter implements the VIRTUAL clock (D12) through ONE
+   shared helper (`virtual_time_host_value`) wired into BOTH host-dispatch
+   positions (statement-position try_host_call + the value-position
+   resolution fallback — that fallback is a hand-maintained name list; the
+   helper keeps time ops single-sourced): 1 tick = 1 ms, reads never
+   advance, `sleep(ms)` advances by ms, wall = 2026-01-01T00:00:00Z +
+   elapsed in Unix units (offset 0). EXACT-value interp canary
+   `time/runtime_time_host_virtual_exit` (delta == 30 across sleep(30);
+   calibration 1000/1000/0; wall == seed + elapsed) — interp-only until
+   rung 5 binds natively (NOT in ACTIVE_PASS_CANARIES: native lowering is
+   unbound and loud). REMAINING: none for this rung; rung 5 (windows
+   bindings: out-param + constant-result shapes) is NEXT.
 5. [ ] **Windows bindings** — engineering items 1–3: out-param shape,
    constant-result shape, QPC/QPF/`GetSystemTimePreciseAsFileTime` rows +
    lowerings. Native canaries mirroring `runtime_tick_count_monotonic_exit`:
