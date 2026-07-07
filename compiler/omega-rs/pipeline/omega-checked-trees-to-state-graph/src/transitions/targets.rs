@@ -59,6 +59,25 @@ pub(super) fn plan_transition_target(
         TransitionTargetNode::Named { path, arguments: _ } => {
             let members = program.statement_table.name_path_members(path.members);
             if members.len() == 2 {
+                // `self.X(..)` where X is a segment of THIS machine is a LOCAL
+                // transition -- the RECURSIVE value-machine arm (`true ->
+                // self.countdown(remaining - 1)` inside `Main::countdown`)
+                // spells the machine's own entry with a `self.` receiver. It
+                // used to fall into the Nested (contained-machine) plan, whose
+                // inline-branching value path silently materialized 0; the
+                // bare-name spelling (`-> countdown(..)`) already resolved
+                // here and dispatched correctly, so route the `self.` spelling
+                // the same way. Sibling-machine targets (`self.report(..)`)
+                // stay Nested: their name is not a segment of this machine.
+                if members[0].as_str() == "self"
+                    && let Some(target) = find_initial_segment_by_name(segments, &members[1])
+                {
+                    return Ok(PlannedTransitionTarget::State {
+                        index: target.0,
+                        key: target.1.key,
+                        name: members[1].clone(),
+                    });
+                }
                 return Ok(PlannedTransitionTarget::Nested {
                     receiver_symbol: path.head_symbol,
                     state_symbol: path.symbol,
