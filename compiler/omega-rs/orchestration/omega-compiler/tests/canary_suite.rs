@@ -3663,6 +3663,75 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// DUAL-indexed copy with BOTH indices FRAME-resident params.
+#[test]
+fn runtime_dual_frame_index_copy_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_dual_frame_index_copy_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-dual-fi-copy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dual frame-index copy canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dual frame-index copy canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `self.arr[k] = self.arr[j]` (k=3, j=1 params, arr[1]=77) to exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// DUAL-indexed copies with MIXED index regions (frame/machine on opposite
+// sides, both directions).
+#[test]
+fn runtime_dual_mixed_index_copy_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_dual_mixed_index_copy_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-dual-mi-copy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dual mixed-index copy canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dual mixed-index copy canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `arr[k]=arr[self.j]` then `arr[self.j]=arr[m]` to land on the right          elements and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A runtime slice `.len` read into a LOCAL binding in a VALUE position (`let n =
 // s.len`), NOT as an operand or guard subject. The native side used to leave the
 // local slot unwritten (the descriptor length was never materialized), so a later

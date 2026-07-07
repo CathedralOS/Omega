@@ -1,0 +1,33 @@
+// DUAL-indexed copies with MIXED index regions, both directions:
+// `arr[k] = arr[self.j]` (frame target idx / machine source idx) then
+// `arr[self.j] = arr[m]` (machine target idx / frame source idx). -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    arr: [i32; 4];
+    j: usize [0..=3];
+}
+machine Main::main(&mut self) {
+    self.arr[1] = 21;
+    self.arr[2] = 42;
+    self.j = 1;
+    transition { _ -> self.shuffle(3, 2) }
+}
+machine Main::shuffle(&mut self, k: usize [0..=3], m: usize [0..=3]) {
+    self.arr[k] = self.arr[self.j];
+    self.arr[self.j] = self.arr[m];
+    transition self.arr[3] == 21 {
+        true -> check2()
+        false -> no()
+    }
+    state check2(&mut self) {
+        transition self.arr[1] == 42 {
+            true -> yes()
+            false -> no()
+        }
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

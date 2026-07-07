@@ -963,11 +963,15 @@ fn machine_instruction_width(
             *field_byte_offset,
             *byte_count,
         ),
-        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. } => {
-            runtime_storage_copy_machine_indexed_to_machine_indexed_width(
-                input.target.architecture,
-            )
-        }
+        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
+            source_index_region,
+            target_index_region,
+            ..
+        } => runtime_storage_copy_machine_indexed_to_machine_indexed_width(
+            input.target.architecture,
+            *source_index_region,
+            *target_index_region,
+        ),
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
             source_offset,
             pointer_byte_offset,

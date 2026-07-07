@@ -3,6 +3,7 @@ use super::super::offsets::{
     runtime_storage_copy_from_runtime_frame_indexed_target_address_offset,
     runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset,
     runtime_storage_copy_from_runtime_machine_indexed_target_address_offset,
+    runtime_storage_copy_machine_indexed_frame_index_offset,
     runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset,
     runtime_storage_copy_to_runtime_machine_indexed_frame_index_base_offset,
     runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset,
@@ -202,18 +203,45 @@ pub(super) fn collect_runtime_storage_copy_relocations(
             }
             true
         }
-        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. } => {
+        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
+            source_index_region,
+            target_index_region,
+            ..
+        } => {
             // TWO machine-base relocations: the read part's `mov r15,imm64` at
-            // instruction start and the write part's at +34 (both the machine
-            // symbol -- source and target elements share the machine region).
+            // instruction start and the write part's after the read part (both
+            // the machine symbol -- source and target elements share the machine
+            // region). A FRAME-resident index on either side adds its own
+            // frame-base `mov r10,imm64` relocation.
             context
                 .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+            if *source_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                context.insert_data_address_at_relative_offset(
+                    runtime_storage_copy_machine_indexed_frame_index_offset(
+                        context.input.target.architecture,
+                        *source_index_region,
+                        false,
+                    ),
+                    context.runtime_frame_symbol_handle(),
+                );
+            }
             context.insert_data_address_at_relative_offset(
                 runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset(
                     context.input.target.architecture,
+                    *source_index_region,
                 ),
                 context.machine_storage_symbol_handle(),
             );
+            if *target_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                context.insert_data_address_at_relative_offset(
+                    runtime_storage_copy_machine_indexed_frame_index_offset(
+                        context.input.target.architecture,
+                        *source_index_region,
+                        true,
+                    ),
+                    context.runtime_frame_symbol_handle(),
+                );
+            }
             true
         }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { source_region, .. } => {

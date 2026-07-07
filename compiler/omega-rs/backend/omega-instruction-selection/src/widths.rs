@@ -1708,6 +1708,8 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base
 
 pub fn runtime_storage_copy_machine_indexed_to_machine_indexed_width(
     architecture: Architecture,
+    source_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_index_region: omega_target_operations::RuntimeStorageRegion,
 ) -> usize {
     match architecture {
         // aarch64 has no dual-indexed-copy encoder yet; emission rejects the
@@ -1715,20 +1717,10 @@ pub fn runtime_storage_copy_machine_indexed_to_machine_indexed_width(
         // the width is never consumed.
         Architecture::Aarch64 => 0,
         Architecture::X86_64 => {
-            x86_64::runtime_storage_copy_machine_indexed_to_machine_indexed_width()
-        }
-    }
-}
-
-/// The second machine-base relocation offset inside the dual-indexed copy (the
-/// write part's `mov r15, imm64` immediate). x86_64 only, like the encoder.
-pub fn runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset(
-    architecture: Architecture,
-) -> usize {
-    match architecture {
-        Architecture::Aarch64 => 0,
-        Architecture::X86_64 => {
-            x86_64::runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset()
+            x86_64::runtime_storage_copy_machine_indexed_to_machine_indexed_width(
+                source_index_region,
+                target_index_region,
+            )
         }
     }
 }
