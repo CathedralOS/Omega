@@ -146,18 +146,6 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   no numeric carrier at all; also absorbs the type-blind const-fold sign-miscompile
   class, since a context-less folder defers instead of folding); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
-- **[x] Value-call frontier CLOSED 2026-07-09 (all three faces).** Nonexistent targets,
-  VOID callees in value position, and empty-body declared-return machines all reject
-  (calls.rs `report_unresolved_value_call` + `report_void_value_callee`; lib.rs
-  empty-body check, generic surface exempt). The old false-positive trap was a PARSER
-  hole: `-> T` after the machine clauses was silently EATEN by a skip-any-token
-  fallback (machines parsed as void); the clauses loop now parses `-> T`, consumes
-  `where` clauses structurally, and errors on garbage. Extend the resolver channels in
-  calls.rs if a new valid shape ever hits the error. NOTE surfaced en route: the
-  RECURSIVE value-machine countdown (`true -> self.countdown(r-1)`) still DIVERGES
-  native-vs-interp (native != 7, interp 7) -- the pre-existing
-  [[recursive-value-call-silent-miscompile]], now easier to see since post-clauses
-  return types are real; that memory topic is the tracker.
 - **[ ] MACHINE-FIELD-START subslice of a fixed array (fenced; everything else lowered 2026-07-06).**
   `let sub = self.arr[self.lo..self.hi]` (START = a machine FIELD) = clean error ("subslice
   descriptor construction ... not lowered"; fail canary
