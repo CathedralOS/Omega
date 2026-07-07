@@ -17,6 +17,11 @@ pub(crate) struct CollectedStateCall {
     pub call_ordinal: usize,
     pub role: StateCallRole,
     pub receiver_symbol: SymbolHandle,
+    /// The receiver's spelled field/local name (`b` in `self.b.increment()`).
+    /// Symbol handles cross arenas between control flow and layout, so
+    /// downstream layout matching (the contained-receiver blocker) keys on
+    /// this name; empty when the call has no named receiver.
+    pub receiver_name: Identifier,
     pub target_key: StateKey,
     pub raw_arguments: HandleSpan<ExpressionHandle>,
     pub reachable: bool,
@@ -45,7 +50,7 @@ pub(crate) fn collect_machine_state_calls(
                 receiver_symbol,
                 target_symbol,
                 has_receiver,
-                receiver: _,
+                receiver,
                 target,
             } = &operation.kind
             {
@@ -87,6 +92,7 @@ pub(crate) fn collect_machine_state_calls(
                             call_ordinal,
                             role: StateCallRole::Statement,
                             receiver_symbol: *receiver_symbol,
+                            receiver_name: receiver.clone(),
                             target_key: candidate.key,
                             raw_arguments: match operation.expressions {
                                 OperationExpressionRefs::Call { arguments } => arguments,
@@ -120,6 +126,7 @@ pub(crate) fn collect_machine_state_calls(
                     call_ordinal,
                     role: StateCallRole::Statement,
                     receiver_symbol: *receiver_symbol,
+                    receiver_name: receiver.clone(),
                     target_key: resolved_target
                         .as_ref()
                         .map(|target| target.key)
@@ -469,6 +476,7 @@ fn collect_expression_state_calls_in_table(
                             call_ordinal: *call_ordinal,
                             role,
                             receiver_symbol: receiver.symbol,
+                            receiver_name: receiver.name.clone(),
                             target_key: candidate.key,
                             raw_arguments: call.arguments,
                             reachable: context.runtime_state_is_reachable_by_key(source_key),
@@ -541,6 +549,7 @@ fn collect_expression_state_calls_in_table(
                 call_ordinal: *call_ordinal,
                 role,
                 receiver_symbol: receiver.symbol,
+                receiver_name: receiver.name.clone(),
                 target_key: resolved_target
                     .as_ref()
                     .map(|target| target.key)
@@ -702,11 +711,17 @@ fn call_receiver_parts(expressions: &ExpressionTable, receiver: ExpressionHandle
         ExpressionNode::Mutable(inner) => call_receiver_parts(expressions, *inner),
         ExpressionNode::Name(path) => ReceiverParts {
             symbol: path.symbol,
+            name: expressions
+                .name_path_members(path.members)
+                .last()
+                .cloned()
+                .unwrap_or_default(),
             is_present: true,
         },
         ExpressionNode::Member(member) => {
             let mut receiver = call_receiver_parts(expressions, member.receiver);
             receiver.symbol = member.member_symbol;
+            receiver.name = member.member.clone();
             receiver.is_present = true;
             receiver
         }
@@ -717,6 +732,7 @@ fn call_receiver_parts(expressions: &ExpressionTable, receiver: ExpressionHandle
 #[derive(Debug, Clone, Default)]
 struct ReceiverParts {
     symbol: SymbolHandle,
+    name: Identifier,
     is_present: bool,
 }
 

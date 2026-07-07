@@ -20,6 +20,7 @@ use omega_target::NativeTarget;
 use omega_target_operations::{InstructionPlan, TargetDataPlan};
 
 mod builder;
+mod contained_receiver_blockers;
 mod descriptor_argument_blockers;
 mod guard_expression_support;
 mod host_argument_blockers;

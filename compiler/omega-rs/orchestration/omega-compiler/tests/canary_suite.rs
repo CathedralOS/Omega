@@ -23771,6 +23771,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "termination/bounded_distance_inverted",
     "termination/subtraction_spelling_retired",
     // --- Language-guide chapter coverage (Ch1-22) ---
+    "calls/contained_same_type_receiver_rejected",
     "calls/terminal_return_type_mismatch_rejected",
     "calls/transition_arg_scalar_value_call_rejected",
     "collections/write_first_loop_bound_exceeds_capacity",

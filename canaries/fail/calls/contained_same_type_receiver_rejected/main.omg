@@ -1,0 +1,25 @@
+// SILENT MISCOMPILE STOPGAP: contained-machine method dispatch resolves the
+// receiver's storage region by TYPE (first matching field), so with two
+// same-type contained machines a call through the SECOND runs on the FIRST's
+// storage -- `self.b.increment()` mutated `self.a` (a=4/b=0 after a x3 + b x1;
+// memory: contained-machine-same-type-aliasing). Until per-instance dispatch
+// threads the receiver field through storage resolution, reject exactly the
+// calls the by-type walk would misresolve (receiver field offset != the
+// walk's first-match offset). Calls through the FIRST instance and direct
+// field access on ANY instance stay accepted (pinned by
+// calls/runtime_same_type_contained_direct_fields_exit).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Counter { value: i32 in Wrapping; }
+machine Counter::increment(&mut self) {
+    self.value = self.value + 1;
+    transition { _ -> done() }
+    state done(&mut self) { }
+}
+data Main { console: Console; a: Counter; b: Counter; }
+machine Main::main(&mut self) {
+    self.a.increment();
+    self.b.increment();
+    transition self.b.value == 1 { true -> good() _ -> bad(71) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
