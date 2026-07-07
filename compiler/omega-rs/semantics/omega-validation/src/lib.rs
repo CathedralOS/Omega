@@ -178,6 +178,7 @@ fn validate_state_statement_node(
                 writable_roots,
                 diagnostics,
                 machine,
+                machine_symbols.state(state_name),
                 state_name,
             );
             // Indexing the `String` carrier as an assignment TARGET (`s[i] = x`) is

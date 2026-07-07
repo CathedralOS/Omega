@@ -1,0 +1,26 @@
+// The WRITE twin of the unknown nested-field read: `self.o.inner.nonexistent = 7`
+// (Inner has only `value`). This used to fall through to the backend's "needs
+// runtime storage write lowering" blocker -- loud but MISLEADING (it reads as a
+// missing lowering, not a typo). The nested walker now reports the missing
+// member on its resolved container at validation, matching the read side.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Inner {
+    value: i32;
+}
+
+data Outer {
+    inner: Inner;
+}
+
+data Main {
+    console: Console;
+    o: Outer;
+}
+
+machine Main::main(&mut self) {
+    self.o.inner.nonexistent = 7;
+    self.console.exit_process(1);
+}
