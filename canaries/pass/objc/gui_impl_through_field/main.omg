@@ -1,0 +1,69 @@
+// PROVES the macOS Gui backend shape natively (render fire 17): a SEPARATE data
+// type `GuiImpl` (holding the objc boundary handle + scratch FIELDS) implements a
+// Gui op by composing objc calls, and is reached through a FIELD value-call
+// (`self.gui.window_create()`) — exactly like the shipped `Filesystem` wrapper
+// (`self.fs.write_all(..)`, proven native). This is the missing half of the
+// provider approach: the impl is a data type with its own storage, so it does NOT
+// need frame-slot locals. A non-null window from the through-field call -> exit 7.
+// The result is consumed via TERMINAL VALUE COMPLETION (the machine's final value),
+// not a transition guard on the raw host result — the wrapper's guard-ordering
+// workaround. Remaining gap after this: substituting the sample's `boundary trait
+// Gui` field with this `GuiImpl` provider on darwin.
+
+domain [u8]::CString when no_nul(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+boundary trait ObjectiveC {
+    machine get_class(name: &[u8] in CString) -> u64;
+    machine register_selector(name: &[u8] in CString) -> u64;
+    machine send(recv: u64, sel: u64) -> u64;
+    machine send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64;
+}
+
+data GuiImpl {
+    objc: ObjectiveC;
+    x: f64;
+    y: f64;
+    w: f64;
+    h: f64;
+    app_cls: u64;
+    win_cls: u64;
+    sel: u64;
+    app: u64;
+    alloc: u64;
+    win: u64;
+}
+
+data Main {
+    console: Console;
+    gui: GuiImpl;
+    win: u64;
+}
+
+machine Main::main(&mut self) {
+    self.win = self.gui.window_create();
+    transition self.win != 0 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(7); }
+    state bad(&mut self)  { self.console.exit_process(1); }
+}
+
+machine GuiImpl::window_create(&mut self) -> u64 {
+    self.x = 0.0;
+    self.y = 0.0;
+    self.w = 200.0;
+    self.h = 150.0;
+    self.app_cls = self.objc.get_class("NSApplication");
+    self.sel = self.objc.register_selector("sharedApplication");
+    self.app = self.objc.send(self.app_cls, self.sel);
+    self.win_cls = self.objc.get_class("NSWindow");
+    self.sel = self.objc.register_selector("alloc");
+    self.alloc = self.objc.send(self.win_cls, self.sel);
+    self.sel = self.objc.register_selector("initWithContentRect:styleMask:backing:defer:");
+    self.win = self.objc.send_rect(self.alloc, self.sel, self.x, self.y, self.w, self.h, 15, 2, 0);
+    transition { _ -> ret() }
+    state ret(&mut self) -> u64 { self.win }
+}

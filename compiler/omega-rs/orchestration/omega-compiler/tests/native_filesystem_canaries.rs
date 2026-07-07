@@ -511,3 +511,21 @@ fn native_gui_loop_exits_4() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(code, Some(4), "native_gui_loop should run the full window+blit+pump loop and exit 4");
 }
+
+// The macOS Gui backend SHAPE: a separate GuiImpl data type (objc handle + scratch
+// fields) implements window_create via objc calls and is reached through a FIELD
+// value-call (self.gui.window_create()), like the shipped Filesystem wrapper. A
+// non-null window from the through-field call -> exit 7. Confirms the backend can
+// be an ordinary Omega wrapper data type; the remaining gap is substituting the
+// sample's boundary Gui field with this provider on darwin.
+#[test]
+fn gui_impl_through_field_exits_7() {
+    let main_path = repo_root().join("canaries/pass/objc/gui_impl_through_field/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-tfgui-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("gui_impl_through_field should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(7), "a through-field GuiImpl wrapper should compose objc into a non-null NSWindow");
+}
