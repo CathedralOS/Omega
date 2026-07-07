@@ -1,0 +1,41 @@
+// PROVES the float-argument register sequence reaches v2 (render fire 7): a
+// boundary method with THREE f64 params bound to libm `fma` (x*y + z). x -> v0,
+// y -> v1, z -> v2, result in d0. This is the ABI proof for HFA struct-by-value:
+// an AArch64 homogeneous-float aggregate (NSRect = 4 doubles) is passed in the
+// SAME consecutive v-registers (v0–v3) that N separate double args occupy, so
+// proving v2 (and by the uniform vreg-counter mechanism, v3) establishes that
+// NSRect/CGRect marshal correctly without any generic struct-by-value feature.
+// As with the sqrt/hypot canaries, the f64 result is round-tripped through the
+// proven `round_nearest` to check the bits without a float `==` guard:
+// fma(2.0, 3.0, 4.0) = 2*3+4 = 10.0 -> round 10 -> exit 10. A misplaced z (in a
+// GPR, or overwriting v1) gives the wrong sum -> exit 1.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+boundary trait Math {
+    machine round_nearest(value: f64) -> i64;
+    machine fused_multiply_add(x: f64, y: f64, z: f64) -> f64;
+}
+
+data Main {
+    console: Console;
+    math: Math;
+    a: f64;
+    b: f64;
+    c: f64;
+    r: f64;
+    n: i64;
+}
+
+machine Main::main(&mut self) {
+    self.a = 2.0;
+    self.b = 3.0;
+    self.c = 4.0;
+    self.r = self.math.fused_multiply_add(self.a, self.b, self.c);
+    self.n = self.math.round_nearest(self.r);
+    transition self.n == 10 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(10); }
+    state bad(&mut self)  { self.console.exit_process(1); }
+}

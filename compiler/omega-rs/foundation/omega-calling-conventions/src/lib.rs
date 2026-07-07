@@ -95,7 +95,9 @@ impl HostOperationKey {
         matches!(self.capability, HostCapability::Math)
             && matches!(
                 self.operation,
-                HostOperation::SquareRoot | HostOperation::Hypotenuse
+                HostOperation::SquareRoot
+                    | HostOperation::Hypotenuse
+                    | HostOperation::FusedMultiplyAdd
             )
     }
 }
@@ -300,6 +302,12 @@ pub enum HostOperation {
     /// `f64` arguments (v0, v1) AND a float return — proves multi-float-arg
     /// register sequencing alongside the float return.
     Hypotenuse,
+    /// `Math::fused_multiply_add(x: f64, y: f64, z: f64) -> f64` → libm `fma`
+    /// (`x*y + z`). THREE `f64` args (v0, v1, v2) — proves the float-arg sequence
+    /// extends past v1 to v2, i.e. that a homogeneous-float aggregate (`NSRect` = 4
+    /// doubles → v0–v3) marshals correctly, since an HFA and N separate double args
+    /// occupy the SAME consecutive v-registers on AArch64 AAPCS.
+    FusedMultiplyAdd,
     Sleep,
     TickCount,
     KeyState,
@@ -376,6 +384,7 @@ impl HostOperation {
             "round_nearest" => Self::RoundNearest,
             "square_root" => Self::SquareRoot,
             "hypotenuse" => Self::Hypotenuse,
+            "fused_multiply_add" => Self::FusedMultiplyAdd,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
@@ -438,6 +447,7 @@ impl HostOperation {
             Self::RoundNearest => "round_nearest",
             Self::SquareRoot => "square_root",
             Self::Hypotenuse => "hypotenuse",
+            Self::FusedMultiplyAdd => "fused_multiply_add",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",

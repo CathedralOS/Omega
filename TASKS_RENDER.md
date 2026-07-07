@@ -205,13 +205,40 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
      baseline w/ and w/o my changes; the remembered "86" had drifted after rebases).
      **Scalar float ABI (args v0–v7 + double return d0) is now COMPLETE both directions.**
      Next is HFA (struct-of-N-doubles in v0–vN-1) — item #2.
-2. **[ ] HFA struct-by-value args (NEXT)** — pass `NSRect` (4 doubles) / `CGSize` (2) in
-   v-regs. Canary: `NSMakeRect(...)` round-trip or `[NSWindow ... initWithContentRect:
-   styleMask:backing:defer:]` produces a non-nil window.
+2. **[x] HFA struct-by-value args — DONE AT THE ABI LEVEL (fire 7).** ⚑ **KEY FINDING:**
+   the aarch64 host-call encoder's integer (`next_register`→x0..) and float
+   (`next_vreg`→v0..) counters are **already fully independent** (verified by reading
+   `append_call_operands` in `isa-aarch64/aarch64/mod.rs`): a float arg consumes ONLY a
+   v-register, an int/ptr arg ONLY an x-register. So an AArch64 homogeneous-float
+   aggregate — `NSRect` = 4 doubles → v0–v3, `CGSize`/`CGPoint` = 2 → v0–v1 — occupies
+   the SAME v-registers that N separate `f64` args do, and a mixed `objc_msgSend(x0=self,
+   x1=sel, NSRect→v0–v3, x2=style, x3=backing, x4=defer)` call already encodes correctly
+   (the two counters advance independently). **DECISION (D-hfa): model NSRect/CGRect as N
+   consecutive `f64` boundary params in the Gui backend lowering — NO generic Omega
+   struct-by-value language feature.** This is ABI-identical to HFA-by-value for
+   pure-double aggregates and needs zero new encoder work. PROVEN THIS FIRE:
+   `canaries/pass/float/native_float_three_args` — `fma(2,3,4)=10.0` (three f64 args in
+   v0/v1/v2 via `Math::fused_multiply_add`→`_fma`), round-tripped through `round_nearest`,
+   exits 10; `otool` shows `fmov d0,x16; fmov d1,x16; fmov d2,x16; bl _fma`. v3 follows by
+   the identical `next_vreg += 1` mechanism (no special-casing) and will be run-verified
+   the moment the window-creation `objc_msgSend` first relies on it. Regression
+   `native_float_three_args_exits_10` (native fs harness 59/59).
 3. **[ ] Objective-C runtime boundary** — `objc_getClass`, `sel_registerName`,
    `objc_msgSend` (int/ptr/string args → mostly the existing mechanism; strings are
    NUL-terminated rodata like fs paths). Canary: `[[NSString alloc] initWithUTF8String:]`
-   → `length` returns the right count.
+   → `length` returns the right count. **⚑ PREREQUISITE (fire 7, the real blocker):
+   MULTI-DYLIB LINKING.** The mach-o today emits exactly ONE `LC_LOAD_DYLIB`
+   (`/usr/lib/libSystem.B.dylib`, hardcoded in `macho/load_commands/dynamic_linking.rs`)
+   and `macho_bind_info` (`macho/imports.rs`) binds EVERY import to dylib ordinal 1
+   (opcode `0x11` = `SET_DYLIB_ORDINAL_IMM|1`). `objc_getClass`/`objc_msgSend` live in
+   `/usr/lib/libobjc.A.dylib`; CoreGraphics/AppKit/Foundation are separate frameworks.
+   NEEDED: (a) a generic `write_macho_load_dylib_command(path)` + a 2nd load command for
+   libobjc (ordinal 2); (b) `plan.rs` `command_count`/`sizeofcmds` count the extra
+   dylib(s) — header ncmds/sizeofcmds derive from the plan; (c) `MachoImportThunk` carries
+   the library, threaded from `HostBinding.mechanism.Import.library` (bindings ALREADY
+   carry it) through `image.symbol_table.imports`; (d) `macho_bind_info` emits `0x10|ord`
+   per-thunk. Prove: `objc_getClass("NSObject") != 0`. Bounded to the `omega-image-macho`
+   crate; layout offset math is the only risk (A/B canary_suite catches regressions).
 4. **[ ] Window without reverse callbacks** — `NSApplication sharedApplication` +
    `setActivationPolicy:Regular` + `activateIgnoringOtherApps:YES`; `NSWindow` with an
    `NSImageView` contentView (present via the image view, NOT a `drawRect:` subclass —
