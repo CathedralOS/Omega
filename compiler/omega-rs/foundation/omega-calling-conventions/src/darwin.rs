@@ -130,6 +130,8 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("CoreGraphics", "bitmap_context", "_CGBitmapContextCreate", &policy),
         darwin_import("CoreGraphics", "bitmap_context_image", "_CGBitmapContextCreateImage", &policy),
         darwin_import("CoreGraphics", "image_width", "_CGImageGetWidth", &policy),
+        // `Input.key_state` backing: `CGEventSourceKeyState(state_id, keycode) -> bool`.
+        darwin_import("CoreGraphics", "event_source_key_state", "_CGEventSourceKeyState", &policy),
         // `Clock::sleep(milliseconds)` → libc `poll(NULL, 0, milliseconds)`: with
         // zero fds, `poll`'s timeout IS a millisecond sleep (correct units, no
         // <1s cap — unlike `usleep`). Bound under the distinct `sleep_poll` op so
@@ -598,6 +600,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "CoreGraphics",
         "image_width",
         [host_operation("CoreGraphics", "image_width")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "CoreGraphics",
+        "event_source_key_state",
+        [host_operation("CoreGraphics", "event_source_key_state")],
         PlatformCallData::None,
     );
     // `Clock::sleep(milliseconds)` → the distinct `sleep_poll` op (poll-based

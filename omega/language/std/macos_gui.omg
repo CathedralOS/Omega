@@ -43,6 +43,9 @@ boundary trait CoreGraphics {
     // plain pointer either way.
     machine bitmap_context(data: &[i32], w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64;
     machine bitmap_context_image(ctx: u64) -> u64;
+    // `CGEventSourceKeyState(state_id, keycode) -> bool` — is a physical key down?
+    // The macOS backing for `Input.key_state` (see MacosInput below).
+    machine event_source_key_state(state_id: u64, keycode: u64) -> u64;
 }
 
 data MacosGui {
@@ -210,4 +213,49 @@ machine MacosGui::window_destroy(&mut self, window: u64) -> u32 {
     self.r32 = 1;
     transition { _ -> ret() }
     state ret(&mut self) -> u32 { self.r32 }
+}
+
+// The macOS `Input` backend — implements the samples' Win32-shaped `Input` trait
+// (`key_state(virtual_key) -> u64`) by mapping a Win32 virtual-key to the macOS
+// keycode and asking Core Graphics whether that physical key is currently down
+// (`CGEventSourceKeyState`, HID system state = 1). On darwin the samples' `input:
+// Input` boundary field is provided by this `MacosInput` (the boundary→provider
+// substitution, task #57/#60), so `self.input.key_state(27)` (ESC) dispatches here
+// as an ordinary value-call. Unmapped virtual-keys report "not down" (0) rather than
+// querying a wrong keycode.
+data MacosInput {
+    cg: CoreGraphics;
+    keycode: u64;
+    rc: u64;
+}
+
+// Win32 VK -> macOS keycode: ESC 27->53, LEFT 37->123, RIGHT 39->124, UP 38->126,
+// DOWN 40->125 (the keys the gui samples poll). Anything else -> not-down.
+machine MacosInput::key_state(&mut self, virtual_key: u32) -> u64 {
+    self.keycode = 0;
+    transition virtual_key == 27 { true -> set_esc() _ -> t_left() }
+    state set_esc(&mut self) -> u64 { self.keycode = 53; transition { _ -> query() } }
+    state t_left(&mut self) -> u64 {
+        transition virtual_key == 37 { true -> set_left() _ -> t_right() }
+    }
+    state set_left(&mut self) -> u64 { self.keycode = 123; transition { _ -> query() } }
+    state t_right(&mut self) -> u64 {
+        transition virtual_key == 39 { true -> set_right() _ -> t_up() }
+    }
+    state set_right(&mut self) -> u64 { self.keycode = 124; transition { _ -> query() } }
+    state t_up(&mut self) -> u64 {
+        transition virtual_key == 38 { true -> set_up() _ -> t_down() }
+    }
+    state set_up(&mut self) -> u64 { self.keycode = 126; transition { _ -> query() } }
+    state t_down(&mut self) -> u64 {
+        transition virtual_key == 40 { true -> set_down() _ -> unmapped() }
+    }
+    state set_down(&mut self) -> u64 { self.keycode = 125; transition { _ -> query() } }
+    // No macOS keycode for this VK: report not-down (avoid querying keycode 0 = 'a').
+    state unmapped(&mut self) -> u64 { 0 }
+    state query(&mut self) -> u64 {
+        self.rc = self.cg.event_source_key_state(1, self.keycode);
+        transition { _ -> ret() }
+    }
+    state ret(&mut self) -> u64 { self.rc }
 }

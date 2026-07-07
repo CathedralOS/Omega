@@ -399,6 +399,13 @@ pub enum HostOperation {
     /// `CoreGraphics::image_width(img) -> i64` → `CGImageGetWidth`: the width of a
     /// `CGImageRef` (a `size_t` in x0). Used to run-verify the blit path.
     ImageWidth,
+    /// `CoreGraphics::event_source_key_state(state_id, keycode) -> u64` →
+    /// `CGEventSourceKeyState(CGEventSourceStateID, CGKeyCode)`: is a physical key
+    /// currently down? Two scalar args (state_id → x0, keycode → x1), returns a BOOL
+    /// (0/1) in x0. The macOS backing for the samples' `Input.key_state` (the
+    /// `MacosInput` provider maps a Win32 virtual-key to the macOS keycode). In the
+    /// CoreGraphics framework (`_CG*` → CoreGraphics dylib).
+    EventSourceKeyState,
     Sleep,
     /// `Clock::sleep(milliseconds)` on darwin → `poll(NULL, 0, milliseconds)`:
     /// with zero fds `poll` is a portable millisecond sleep whose timeout is ALREADY
@@ -497,6 +504,7 @@ impl HostOperation {
             "bitmap_context" => Self::BitmapContext,
             "bitmap_context_image" => Self::BitmapContextImage,
             "image_width" => Self::ImageWidth,
+            "event_source_key_state" => Self::EventSourceKeyState,
             "sleep" => Self::Sleep,
             "sleep_poll" => Self::SleepPoll,
             "tick_count" => Self::TickCount,
@@ -575,6 +583,7 @@ impl HostOperation {
             Self::BitmapContext => "bitmap_context",
             Self::BitmapContextImage => "bitmap_context_image",
             Self::ImageWidth => "image_width",
+            Self::EventSourceKeyState => "event_source_key_state",
             Self::Sleep => "sleep",
             Self::SleepPoll => "sleep_poll",
             Self::TickCount => "tick_count",
