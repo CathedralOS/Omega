@@ -82,6 +82,25 @@ impl HostOperationKey {
     /// add is AFTER it) so the external-call relocation adds 8. The `mode` must be
     /// an immediate (no relocation of its own). MUST stay in lockstep across those
     /// three sites + the encoder.
+    /// Whether this op's callee writes its u64 result THROUGH AN OUT-POINTER
+    /// argument rather than returning it: windows `QueryPerformanceCounter`/
+    /// `QueryPerformanceFrequency`/`GetSystemTimePreciseAsFileTime` all take
+    /// `&u64` and return a status the seam ignores. The x86_64 lowering
+    /// brackets the call with a 16-byte stack extension: `lea rcx,[rsp+40]`
+    /// before the call and `mov rax,[rsp+40]` after it, then the normal
+    /// store-rax tail. The x86_64 width/relocation functions live in the same
+    /// crate as the encoder (omega-isa-x86_64) and are parameterized together;
+    /// aarch64 does not use this shape (darwin's `_nsec_np` returns directly).
+    pub fn writes_result_through_out_pointer(self) -> bool {
+        matches!(self.capability, HostCapability::Clock)
+            && matches!(
+                self.operation,
+                HostOperation::MonotonicTicks
+                    | HostOperation::MonotonicTicksPerSecond
+                    | HostOperation::WallClockRaw
+            )
+    }
+
     pub fn passes_trailing_mode_on_stack(self) -> bool {
         matches!(self.capability, HostCapability::Filesystem)
             && matches!(self.operation, HostOperation::OpenCreate)
@@ -415,6 +434,24 @@ pub enum HostOperation {
     /// `Sleep` arm (which marshals a single arg into x0 for Win32 `Sleep(ms)`).
     SleepPoll,
     TickCount,
+    /// std::time monotonic source (TimeHost seam, TASKS_TIME.md rung 5).
+    /// windows: `QueryPerformanceCounter(&ticks)` -- an OUT-PARAM u64 (see
+    /// `writes_result_through_out_pointer`); darwin (later):
+    /// `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)` returns the u64 directly.
+    MonotonicTicks,
+    /// Ticks-per-second calibration for `MonotonicTicks`. windows:
+    /// `QueryPerformanceFrequency(&freq)` (out-param); darwin: constant 1e9.
+    MonotonicTicksPerSecond,
+    /// Wall clock as ONE raw u64 read. windows:
+    /// `GetSystemTimePreciseAsFileTime(&ft)` (out-param FILETIME); darwin:
+    /// `clock_gettime_nsec_np(CLOCK_REALTIME)`.
+    WallClockRaw,
+    /// Units-per-second for `WallClockRaw` -- a per-target CONSTANT delivered
+    /// via `PlatformCallData::ConstantResult` (no call at all). windows 1e7.
+    WallClockUnitsPerSecond,
+    /// Platform-epoch -> Unix-epoch shift in seconds -- also a per-target
+    /// `ConstantResult`. windows 11_644_473_600 (1601 -> 1970); darwin 0.
+    WallClockEpochOffsetSeconds,
     KeyState,
     /// `CreateCompatibleDC(0)` -- a memory device context (the CI-safe,
     /// differential-testable blit target).
@@ -511,6 +548,11 @@ impl HostOperation {
             "sleep" => Self::Sleep,
             "sleep_poll" => Self::SleepPoll,
             "tick_count" => Self::TickCount,
+            "monotonic_ticks" => Self::MonotonicTicks,
+            "monotonic_ticks_per_second" => Self::MonotonicTicksPerSecond,
+            "wall_clock_raw" => Self::WallClockRaw,
+            "wall_clock_units_per_second" => Self::WallClockUnitsPerSecond,
+            "wall_clock_epoch_offset_seconds" => Self::WallClockEpochOffsetSeconds,
             "key_state" => Self::KeyState,
             "dc_create" => Self::DcCreate,
             "get_dc" => Self::GetDc,
@@ -591,6 +633,11 @@ impl HostOperation {
             Self::Sleep => "sleep",
             Self::SleepPoll => "sleep_poll",
             Self::TickCount => "tick_count",
+            Self::MonotonicTicks => "monotonic_ticks",
+            Self::MonotonicTicksPerSecond => "monotonic_ticks_per_second",
+            Self::WallClockRaw => "wall_clock_raw",
+            Self::WallClockUnitsPerSecond => "wall_clock_units_per_second",
+            Self::WallClockEpochOffsetSeconds => "wall_clock_epoch_offset_seconds",
             Self::KeyState => "key_state",
             Self::DcCreate => "dc_create",
             Self::GetDc => "get_dc",
@@ -690,6 +737,13 @@ pub enum PlatformCallData {
     },
     MutableOutputBuffer {
         byte_capacity: usize,
+    },
+    /// The op's result is a PER-TARGET CONSTANT: no call happens at all -- the
+    /// selection pushes the value as an immediate operand and the encoder
+    /// materializes `mov rax, imm64` + the normal result store (std::time
+    /// calibration constants: wall-clock units-per-second / epoch offset).
+    ConstantResult {
+        value: i64,
     },
 }
 

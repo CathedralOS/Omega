@@ -19,6 +19,12 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     ("Process", "exit_process", "Kernel32.dll", "ExitProcess"),
     ("Clock", "sleep", "Kernel32.dll", "Sleep"),
     ("Clock", "tick_count", "Kernel32.dll", "GetTickCount64"),
+    // std::time TimeHost seam (rung 5): out-param u64 reads (the constants
+    // wall_clock_units_per_second / wall_clock_epoch_offset_seconds have NO
+    // import row -- they lower as ConstantResult, no call at all).
+    ("Clock", "monotonic_ticks", "Kernel32.dll", "QueryPerformanceCounter"),
+    ("Clock", "monotonic_ticks_per_second", "Kernel32.dll", "QueryPerformanceFrequency"),
+    ("Clock", "wall_clock_raw", "Kernel32.dll", "GetSystemTimePreciseAsFileTime"),
     ("Input", "key_state", "User32.dll", "GetAsyncKeyState"),
     ("Gui", "dc_create", "Gdi32.dll", "CreateCompatibleDC"),
     ("Gui", "get_dc", "User32.dll", "GetDC"),
@@ -149,9 +155,48 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         [host_operation("Process", "exit_process")],
         PlatformCallData::None,
     );
-    // Frame pacing for timed loops: `Sleep(DWORD ms)` -- a single kernel32 call,
-    // one u32 arg in ecx, no return (non-terminal). Same call shape as
-    // `get_std_handle`/`exit_process`.
+    // The std::time seam (TASKS_TIME.md rung 5, D11): three OUT-PARAM u64
+    // reads (QueryPerformanceCounter/-Frequency, GetSystemTimePreciseAsFileTime)
+    // plus the two wall-clock calibration CONSTANTS -- FILETIME ticks at 10^7
+    // per second, offset 11_644_473_600 s (1601 -> 1970). The lowering layer
+    // never does arithmetic; wrapper code divides by these.
+    insert_platform_lowering(
+        plan,
+        "*",
+        "monotonic_ticks",
+        [host_operation("Clock", "monotonic_ticks")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "monotonic_ticks_per_second",
+        [host_operation("Clock", "monotonic_ticks_per_second")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "wall_clock_raw",
+        [host_operation("Clock", "wall_clock_raw")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "wall_clock_units_per_second",
+        [host_operation("Clock", "wall_clock_units_per_second")],
+        PlatformCallData::ConstantResult { value: 10000000 },
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "wall_clock_epoch_offset_seconds",
+        [host_operation("Clock", "wall_clock_epoch_offset_seconds")],
+        PlatformCallData::ConstantResult {
+            value: 11644473600,
+        },
+    );
     insert_platform_lowering(
         plan,
         "*",
@@ -166,6 +211,9 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         [host_operation("Input", "key_state")],
         PlatformCallData::None,
     );
+    // Frame pacing for timed loops: `Sleep(DWORD ms)` -- a single kernel32 call,
+    // one u32 arg in ecx, no return (non-terminal). Same call shape as
+    // `get_std_handle`/`exit_process`.
     insert_platform_lowering(
         plan,
         "*",

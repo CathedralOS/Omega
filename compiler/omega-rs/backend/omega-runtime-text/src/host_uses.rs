@@ -20,7 +20,8 @@ pub(crate) fn collect_host_call_runtime_text(
         PlatformCallData::MutableOutputBuffer { byte_capacity } => {
             collect_runtime_text_buffer(host_calls, host_call, plan, byte_capacity);
         }
-        PlatformCallData::None => {}
+        // A constant result carries no text.
+        PlatformCallData::None | PlatformCallData::ConstantResult { .. } => {}
     }
 }
 

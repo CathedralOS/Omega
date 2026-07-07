@@ -523,19 +523,43 @@ boundary trait TimeHost {
    advance, `sleep(ms)` advances by ms, wall = 2026-01-01T00:00:00Z +
    elapsed in Unix units (offset 0). EXACT-value interp canary
    `time/runtime_time_host_virtual_exit` (delta == 30 across sleep(30);
-   calibration 1000/1000/0; wall == seed + elapsed) — interp-only until
-   rung 5 binds natively (NOT in ACTIVE_PASS_CANARIES: native lowering is
-   unbound and loud). REMAINING: none for this rung; rung 5 (windows
-   bindings: out-param + constant-result shapes) is NEXT.
-5. [ ] **Windows bindings** — engineering items 1–3: out-param shape,
-   constant-result shape, QPC/QPF/`GetSystemTimePreciseAsFileTime` rows +
-   lowerings. Native canaries mirroring `runtime_tick_count_monotonic_exit`:
-   `runtime_instant_elapsed_exit` (t1 = now, sleep 30ms, elapsed_since(t1) ≥
-   30ms → distinct exit codes per failure arm) and
-   `runtime_system_time_after_2026_exit`
-   (`system_time_now() > from_unix_seconds(1_767_225_600)`).
+   calibration 1000/1000/0; wall == seed + elapsed) — interp-only (its EXACT
+   values are the virtual clock's; the native seam has its own inequality
+   canary from rung 5). REMAINING: none.
+5. [x] **Windows bindings — LANDED 2026-07-07, first-try native green.**
+   Foundation: five `HostOperation` variants (`MonotonicTicks`,
+   `MonotonicTicksPerSecond`, `WallClockRaw`, `WallClockUnitsPerSecond`,
+   `WallClockEpochOffsetSeconds`) + `writes_result_through_out_pointer()`
+   + `PlatformCallData::ConstantResult { value }`; windows.rs import rows
+   (QPC / QPF / `GetSystemTimePreciseAsFileTime`, all Kernel32) + five
+   `"*"`-trait lowerings (the two calibration ops carry `ConstantResult`
+   10^7 / 11_644_473_600 — the trait-name column is a WILDCARD, so the
+   `TimeHost` trait needs no capability-name mapping). Selection: the three
+   call ops build `[result]` (the read_errno shape); the constant ops build
+   `[result, immediate]` from the row data. x86_64: NEW
+   `encode_win64_out_param_call` (reserve 56 = the 0-arg import reserve + an
+   aligned out slot at `[rsp+40]` above the callee shadow; `lea rcx` → call →
+   load back → standard result tail; 40 bytes, rel32 at 10, result base at
+   25) + NEW `encode_constant_result` (`mov rax, imm64` + result tail; 27
+   bytes, result base at 12; NO call site) — width is measured off the
+   encoder, so only encode + relocation arms lockstep (2 sites, not 3).
+   Native canary `time/runtime_time_host_native_exit` (in
+   ACTIVE_PASS_CANARIES + a windows-gated run test): monotonic strictly
+   advances across sleep(30), frequency ≥ 1000, the two constants EXACT,
+   seconds-since-1601 bracketed between 2026-01-01 (13_411_699_200) and
+   ~2076 — a zeroed result fails low, an undivided raw FILETIME fails high.
+   VERIFIED: canary_suite 661 green / 1 pre-existing red
+   (`build_machine_wrong_arity` missing files; `runtime_entry_return_field`
+   flaked under load, green in isolation), samples_compile = the 4 documented
+   knowns only. The rung-5 sketch's `runtime_instant_elapsed_exit` /
+   `runtime_system_time_after_2026_exit` canaries are WRAPPER-level — they
+   move to rung 6 where `Instant`/`SystemTime` exist.
 6. [ ] **Wrapper completion** — `Instant`/`SystemTime`/`Time` machines over the
-   seam, entry-capture pattern, calibration guard (O2).
+   seam, entry-capture pattern, calibration guard (O2). Native canaries
+   inherited from the rung-5 sketch: `runtime_instant_elapsed_exit` (t1 = now,
+   sleep 30ms, elapsed_since(t1) ≥ 30ms → distinct exit codes per failure arm)
+   and `runtime_system_time_after_2026_exit`
+   (`system_time_now() > from_unix_seconds(1_767_225_600)`).
 7. [x] **Kill `Console::sleep` (D16) — DONE 2026-07-06, killed OUTRIGHT (no
    deprecation needed).** Entry removed from `std/console.omg`; the 11 samples
    + `runtime_sleep_exit` migrated onto inline `boundary trait Clock` + a
