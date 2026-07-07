@@ -188,7 +188,7 @@ fn expression_places_preserve_roots_and_segments() {
             head_symbol: root_symbol,
             symbol: field_symbol,
         }));
-    let index = program.expression_table.insert(ExpressionNode::Integer(0));
+    let index = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
     let indexed =
         program
             .expression_table

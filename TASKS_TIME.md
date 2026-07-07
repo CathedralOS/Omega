@@ -401,12 +401,26 @@ boundary trait TimeHost {
 
 ## Next steps
 
-1. [ ] **Anonymous integer literals (D14).** Payload representation + the
-   `value_for(type)` accessor + the consumer audit (deanonymize-or-defer) +
-   `IntegerRange` widening; canaries per engineering item 5. Verify by A/B
-   failure-set diff every fire (this touches proof/validation/folding — high
-   blast radius; in-range programs must be behavior-identical, fold-defers
-   must never silently change results).
+1. [~] **Anonymous integer literals (D14) — FIRE B LANDED 2026-07-06.**
+   `omega_core::literals::IntegerLiteral` (canonical spelling payload, Arc-str,
+   `value_i64()` as the sole window, NO unbounded getter) rides all three tree
+   enums; parser validates + canonicalizes, any magnitude parses; negative fold
+   is textual (mirrors Float). ~180 consumer sites audited: typed positions
+   read through the window, context-less consumers DEFER (folder leaves
+   oversize unfolded; equality folds compare by VALUE so `5 == 0x5` still
+   folds true; borrow-overlap treats oversize as may-alias — conservative,
+   never unsound). The validation gate (omega-validation/src/literals.rs, a
+   whole-expression-table scan) makes any surviving oversize literal ONE clear
+   "exceeds the i64 range" error. PROVEN: i64::MIN now directly spellable
+   (`runtime_i64_min_literal_exit` runs natively, exit 70, was a parse error);
+   u64::MAX parses and gates (`u64_literal_above_i64_max` rescoped). VERIFIED:
+   canary_suite 627/1 (the 1 = pre-existing build_machine_wrong_arity
+   missing-files), samples_compile = the 4 documented knowns only, all crate
+   gates green. REMAINING (fire C+): typed u64 ACCEPTANCE — `value_for(target
+   range)` at binding boundaries, codegen u64 bit-pattern immediates,
+   `IntegerRange` widening, interpreter u64 values, per-position gate
+   relaxation (`Duration::MAX` needs this); then fold-behind-typing (the
+   const-fold sign class merge).
 2. [ ] **const-v0 (D15).** Declaration + literal-only eval + use-site
    materialization; canaries per engineering item 6.
 3. [ ] **Duration pure-value core** (`time.omg`, no host work): data + consts +

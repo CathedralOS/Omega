@@ -380,9 +380,9 @@ pub(super) fn parse_type_constraint_handles<'tokens, 'source>(
                     let rest = rest.take_punctuation(PunctuationKind::DotDot, "..")?;
                     let (end_exclusive, rest) = rest.take_integer()?;
                     input = rest;
-                    let maximum = syntax_trees
-                        .expressions
-                        .insert(ExpressionNode::Integer(end_exclusive - 1));
+                    let maximum = syntax_trees.expressions.insert(ExpressionNode::Integer(
+                        omega_core::literals::IntegerLiteral::from_value(end_exclusive - 1),
+                    ));
                     TypeConstraintNode::Range { minimum, maximum }
                 } else {
                     return Err(

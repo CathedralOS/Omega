@@ -9,12 +9,12 @@ use std::sync::Arc;
 #[test]
 fn expression_table_stores_recursive_typed_expressions_as_handles() {
     let expression = Expression::Binary(Box::new(BinaryExpression {
-        left: Expression::Integer(1),
+        left: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(1)),
         operator: BinaryOperator::Add,
         right: Expression::Binary(Box::new(BinaryExpression {
-            left: Expression::Integer(2),
+            left: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(2)),
             operator: BinaryOperator::Add,
-            right: Expression::Integer(3),
+            right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(3)),
         })),
     }));
 

@@ -14,13 +14,25 @@ pub(super) fn index_expressions_may_overlap(
         program.expression_table.expression(right),
     ) {
         (ExpressionNode::Integer(left_value), ExpressionNode::Integer(right_value)) => {
-            left_value == right_value
+            // Compare by VALUE through the i64 window; an oversize literal
+            // conservatively MAY overlap (never claim disjointness on a
+            // spelling difference -- 5 vs 0x5 must still alias).
+            match (left_value.value_i64(), right_value.value_i64()) {
+                (Some(left_value), Some(right_value)) => left_value == right_value,
+                _ => true,
+            }
         }
         (ExpressionNode::Range(left_range), ExpressionNode::Integer(right_value)) => {
-            range_may_contain_integer(program, left_range, *right_value)
+            match right_value.value_i64() {
+                Some(right_value) => range_may_contain_integer(program, left_range, right_value),
+                None => true,
+            }
         }
         (ExpressionNode::Integer(left_value), ExpressionNode::Range(right_range)) => {
-            range_may_contain_integer(program, right_range, *left_value)
+            match left_value.value_i64() {
+                Some(left_value) => range_may_contain_integer(program, right_range, left_value),
+                None => true,
+            }
         }
         (ExpressionNode::Range(left_range), ExpressionNode::Range(right_range)) => {
             ranges_may_overlap(program, left_range, right_range)
@@ -129,7 +141,7 @@ fn integer_expression_value(
     }
 
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Integer(value) => value.value_i64(),
         _ => None,
     }
 }
@@ -141,7 +153,9 @@ mod tests {
     fn integer(program: &mut omega_typed_trees::TypedTrees, value: i64) -> ExpressionHandle {
         program
             .expression_table
-            .insert(ExpressionNode::Integer(value))
+            .insert(ExpressionNode::Integer(
+                omega_core::literals::IntegerLiteral::from_value(value),
+            ))
     }
 
     fn range(

@@ -1,5 +1,6 @@
 use crate::name::DiagnosticName;
 use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_core::literals::IntegerLiteral;
 use omega_core::source::SourceText;
 use omega_core::symbols::SymbolHandle;
 
@@ -222,7 +223,7 @@ impl ExpressionTable {
                     index,
                 }))
             }
-            ExpressionNode::Integer(value) => self.insert(ExpressionNode::Integer(*value)),
+            ExpressionNode::Integer(value) => self.insert(ExpressionNode::Integer(value.clone())),
             ExpressionNode::Membership(membership) => {
                 let value = self.copy_from(source, membership.value);
                 let domain = self.copy_name_path_members(source, membership.domain);
@@ -794,7 +795,9 @@ impl ExpressionTable {
                 let ExpressionNode::Integer(index) = self.expression(indexed.index) else {
                     return None;
                 };
-                let index = *index;
+                // An index beyond i64 cannot name a real element; treat it
+                // like any non-constant index.
+                let index = index.value_i64()?;
                 self.fill_storage_path_members(indexed.collection, members, offset)?;
                 let path_len = self.storage_path_len(indexed.collection)?;
                 let last_offset = offset
@@ -847,7 +850,7 @@ pub enum ExpressionNode {
     Call(TableCallExpression),
     Float(FloatLiteral),
     Indexed(TableIndexedExpression),
-    Integer(i64),
+    Integer(IntegerLiteral),
     Membership(TableMembershipExpression),
     Member(TableMemberExpression),
     Mutable(ExpressionHandle),
@@ -860,7 +863,7 @@ pub enum ExpressionNode {
 
 impl Default for ExpressionNode {
     fn default() -> Self {
-        Self::Integer(0)
+        Self::Integer(IntegerLiteral::zero())
     }
 }
 

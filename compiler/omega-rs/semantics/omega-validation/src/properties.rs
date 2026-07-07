@@ -349,7 +349,7 @@ fn expression_is_zero_literal(
     expression: omega_typed_trees::expression::ExpressionHandle,
 ) -> bool {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(value) => *value == 0,
+        ExpressionNode::Integer(value) => value.value_i64() == Some(0),
         ExpressionNode::Float(literal) => literal.value() == 0.0,
         ExpressionNode::Boolean(value) => !*value,
         _ => false,

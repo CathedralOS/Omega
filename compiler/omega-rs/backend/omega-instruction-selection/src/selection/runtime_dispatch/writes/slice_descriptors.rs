@@ -283,7 +283,7 @@ fn resolve_subslice_bound(
     allow_machine_region: bool,
 ) -> Option<SubsliceBound> {
     if let ExpressionNode::Integer(value) = expressions.expression(bound) {
-        return usize::try_from(*value).ok().map(SubsliceBound::Literal);
+        return usize::try_from(value.value_i64()?).ok().map(SubsliceBound::Literal);
     }
     let place = resolve_runtime_storage_place_in_table(
         input,
@@ -326,7 +326,7 @@ fn resolve_runtime_descriptor_window(
             let ExpressionNode::Integer(start) = expressions.expression(range.start) else {
                 return None;
             };
-            usize::try_from(*start).ok()?
+            usize::try_from(start.value_i64()?).ok()?
         } else {
             0
         };
@@ -334,7 +334,7 @@ fn resolve_runtime_descriptor_window(
             let ExpressionNode::Integer(end) = expressions.expression(range.end) else {
                 return None;
             };
-            let end = usize::try_from(*end).ok()?;
+            let end = usize::try_from(end.value_i64()?).ok()?;
             // Inclusive literal ends fold to the half-open `end + 1`.
             Some(if range.end_inclusive {
                 end.checked_add(1)?

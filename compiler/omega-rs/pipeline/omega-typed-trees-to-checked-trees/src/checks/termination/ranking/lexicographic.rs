@@ -92,7 +92,8 @@ fn component_comparison(
             )
             && matches!(
                 program.expression_table.expression(binary.right),
-                ExpressionNode::Integer(literal) if *literal > 0
+                ExpressionNode::Integer(literal)
+                    if literal.value_i64().is_some_and(|literal| literal > 0)
             )
         {
             return Some(Comparison::StrictlyDecreasing);

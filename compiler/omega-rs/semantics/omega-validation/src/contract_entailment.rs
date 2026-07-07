@@ -1418,7 +1418,7 @@ impl<'program> Engine<'program> {
     fn normalize(&mut self, expression: ExpressionHandle) -> Option<Polynomial> {
         let node = self.program.expression_table.expression(expression).clone();
         match node {
-            ExpressionNode::Integer(value) => Some(Polynomial::constant(value)),
+            ExpressionNode::Integer(value) => Some(Polynomial::constant(value.value_i64()?)),
             ExpressionNode::Mutable(inner) => self.normalize(inner),
             ExpressionNode::Name(path) => {
                 let members = self

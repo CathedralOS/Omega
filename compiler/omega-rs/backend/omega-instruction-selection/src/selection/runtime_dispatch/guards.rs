@@ -1543,7 +1543,7 @@ fn runtime_value_guard_in_table(
 fn static_guard_value(expression: &Expression) -> Option<i64> {
     match expression {
         Expression::Boolean(value) => Some(i64::from(*value)),
-        Expression::Integer(value) => Some(*value),
+        Expression::Integer(value) => value.value_i64(),
         // Transparent through an inlined-argument `mut <literal>` wrapper.
         Expression::Mutable(inner) => static_guard_value(inner),
         _ => None,
@@ -1556,7 +1556,7 @@ fn static_guard_value_in_table(
 ) -> Option<i64> {
     match expressions.expression(expression) {
         ExpressionNode::Boolean(value) => Some(i64::from(*value)),
-        ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Integer(value) => value.value_i64(),
         ExpressionNode::Mutable(inner) => static_guard_value_in_table(expressions, *inner),
         // A field read on a STRUCT LITERAL receiver projects to the literal
         // field value: a call argument `Card { power: 3 }` substituted into

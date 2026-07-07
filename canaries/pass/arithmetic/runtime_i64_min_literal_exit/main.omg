@@ -1,0 +1,19 @@
+// i64::MIN is directly spellable (D14 anonymous literals): `-9223372036854775808`
+// used to DIE AT PARSE (the magnitude exceeds i64::MAX before the sign folds in);
+// with anonymous payloads the parse-time negative fold flips the sign textually
+// and the value types as i64 exactly. The guard proves the stored value really is
+// the minimum (strictly below -(i64::MAX)) on both engines.
+// Expected exit: 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    floor: i64;
+}
+
+machine Main::main(&mut self) {
+    self.floor = -9223372036854775808;
+    transition self.floor < -9223372036854775807 { true -> good() false -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}

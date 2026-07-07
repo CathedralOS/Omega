@@ -22,6 +22,6 @@ pub(super) fn argument_is_parameter_tail_slice(
 
     matches!(
         program.expression_table.expression(range.start),
-        ExpressionNode::Integer(1)
+        ExpressionNode::Integer(literal) if literal.value_i64() == Some(1)
     ) && !range.end.is_valid()
 }

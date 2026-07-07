@@ -1,25 +1,32 @@
+use omega_core::literals::{IntegerLiteral, IntegerRadix};
 use omega_tokens::{FloatLiteralKind, IntegerLiteralKind, NumericBase};
 
+/// Parse an integer literal token into its ANONYMOUS payload (D14): the token
+/// is validated (digits legal for the radix, known suffix) and canonicalized,
+/// but NO numeric value is produced -- any magnitude is representable. The
+/// fit-check happens wherever a USE gives the literal a type; positions that
+/// genuinely need a number at parse time go through `take_integer`'s i64
+/// ceiling instead.
 pub(super) fn parse_integer_literal(
     text: &str,
     kind: IntegerLiteralKind,
-) -> Result<i64, &'static str> {
+) -> Result<IntegerLiteral, &'static str> {
     if kind.empty_digits {
         return Err("invalid integer literal");
     }
 
     let (radix, body) = match kind.base {
         NumericBase::Binary => (
-            2,
+            IntegerRadix::Binary,
             text.strip_prefix("0b").or_else(|| text.strip_prefix("0B")),
         ),
         NumericBase::Octal => (
-            8,
+            IntegerRadix::Octal,
             text.strip_prefix("0o").or_else(|| text.strip_prefix("0O")),
         ),
-        NumericBase::Decimal => (10, Some(text)),
+        NumericBase::Decimal => (IntegerRadix::Decimal, Some(text)),
         NumericBase::Hexadecimal => (
-            16,
+            IntegerRadix::Hexadecimal,
             text.strip_prefix("0x").or_else(|| text.strip_prefix("0X")),
         ),
     };
@@ -30,19 +37,7 @@ pub(super) fn parse_integer_literal(
     } else {
         body
     };
-    let normalized: String = body.chars().filter(|character| *character != '_').collect();
-    i64::from_str_radix(&normalized, radix).map_err(|_| {
-        // Distinguish a too-LARGE (but otherwise well-formed) literal from genuinely
-        // invalid digits. The literal value is carried as i64 through the IR, so a u64
-        // literal above i64::MAX (a full-width mask, a u64::MAX sentinel) is well-formed
-        // yet not representable; reporting it as "invalid" misleads. If it parses as i128
-        // it is a magnitude overflow, not a syntax error -- name the real limitation.
-        if i128::from_str_radix(&normalized, radix).is_ok() {
-            "integer literal exceeds the i64 range (u64 literals above i64::MAX are not yet supported)"
-        } else {
-            "invalid integer literal"
-        }
-    })
+    IntegerLiteral::from_parts(false, radix, body)
 }
 
 pub(super) fn validate_float_literal(

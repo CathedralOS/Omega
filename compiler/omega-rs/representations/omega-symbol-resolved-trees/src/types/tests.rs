@@ -65,8 +65,8 @@ fn type_reference_table_stores_typed_constraints_as_expression_handles() {
         symbol: SymbolHandle::invalid(),
         name: DiagnosticName::generated("i32"),
     });
-    let minimum = source_expressions.insert(crate::expression::ExpressionNode::Integer(0));
-    let maximum = source_expressions.insert(crate::expression::ExpressionNode::Integer(10));
+    let minimum = source_expressions.insert(crate::expression::ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
+    let maximum = source_expressions.insert(crate::expression::ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(10)));
     let constraints = source_constraints.insert_many([TypeConstraint::Range { minimum, maximum }]);
     let type_reference = TypeReference::Constrained(ConstrainedTypeReference {
         storage: ConstrainedTypeReferenceStorage {

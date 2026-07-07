@@ -19,8 +19,8 @@ fn records_indexed_expression_operator_spelling_resolution() {
         OperatorSpelling::Range,
     ));
 
-    let collection = program.expression_table.insert(ExpressionNode::Integer(0));
-    let index = program.expression_table.insert(ExpressionNode::Integer(0));
+    let collection = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
+    let index = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
     let indexed =
         program
             .expression_table
@@ -29,8 +29,8 @@ fn records_indexed_expression_operator_spelling_resolution() {
                 index,
             }));
 
-    let range_start = program.expression_table.insert(ExpressionNode::Integer(0));
-    let range_end = program.expression_table.insert(ExpressionNode::Integer(1));
+    let range_start = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
+    let range_end = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(1)));
     let range = program
         .expression_table
         .insert(ExpressionNode::Range(TableRangeExpression {
@@ -89,8 +89,8 @@ fn records_ambiguous_operator_spelling_status() {
         OperatorSpelling::Index,
     ));
 
-    let collection = program.expression_table.insert(ExpressionNode::Integer(0));
-    let index = program.expression_table.insert(ExpressionNode::Integer(0));
+    let collection = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
+    let index = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
     let indexed =
         program
             .expression_table
@@ -132,8 +132,8 @@ fn records_domain_owned_operator_candidates() {
     );
     program.push_domain_definition(domain);
 
-    let collection = program.expression_table.insert(ExpressionNode::Integer(0));
-    let index = program.expression_table.insert(ExpressionNode::Integer(0));
+    let collection = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
+    let index = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
     let indexed =
         program
             .expression_table
@@ -171,8 +171,8 @@ fn records_operator_contract_span_for_proof_bridge() {
     let operator_contracts = operator.contracts;
     program.push_operator(operator);
 
-    let collection = program.expression_table.insert(ExpressionNode::Integer(0));
-    let index = program.expression_table.insert(ExpressionNode::Integer(0));
+    let collection = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
+    let index = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
     let indexed =
         program
             .expression_table
@@ -207,8 +207,8 @@ fn records_operator_uses_per_semantic_origin() {
         OperatorSpelling::Index,
     ));
 
-    let collection = program.expression_table.insert(ExpressionNode::Integer(0));
-    let index = program.expression_table.insert(ExpressionNode::Integer(0));
+    let collection = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
+    let index = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
     let indexed =
         program
             .expression_table
@@ -384,7 +384,7 @@ fn narrows_index_operator_candidates_by_receiver_type() {
             items_symbol,
             items_symbol,
         )));
-    let index = program.expression_table.insert(ExpressionNode::Integer(0));
+    let index = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
     let indexed =
         program
             .expression_table
@@ -498,7 +498,7 @@ fn narrows_index_operator_candidates_by_local_receiver_type() {
             local_symbol,
             local_symbol,
         )));
-    let index = program.expression_table.insert(ExpressionNode::Integer(0));
+    let index = program.expression_table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
     let indexed =
         program
             .expression_table

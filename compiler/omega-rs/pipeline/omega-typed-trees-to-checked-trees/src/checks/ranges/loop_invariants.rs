@@ -493,7 +493,7 @@ fn integer_literal(
     expression: ExpressionHandle,
 ) -> Option<i64> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Integer(value) => value.value_i64(),
         _ => None,
     }
 }
@@ -517,7 +517,7 @@ fn is_positive_integer_literal(
 ) -> bool {
     matches!(
         program.expression_table.expression(expression),
-        ExpressionNode::Integer(value) if *value > 0
+        ExpressionNode::Integer(value) if value.value_i64().is_some_and(|value| value > 0)
     )
 }
 
@@ -668,7 +668,10 @@ fn probe_state_init(
                     continue;
                 }
                 probe = match program.expression_table.expression(assignment.value) {
-                    ExpressionNode::Integer(value) => InitProbe::Constant(*value),
+                    ExpressionNode::Integer(value) => match value.value_i64() {
+                        Some(value) => InitProbe::Constant(value),
+                        None => InitProbe::Unknown,
+                    },
                     _ => InitProbe::Unknown,
                 };
             }

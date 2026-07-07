@@ -155,7 +155,10 @@ pub(crate) fn initial_static_values(
             .expression_table
             .expression(owned_data.initial_value)
         {
-            ExpressionNode::Integer(value) => StaticValue::Integer(*value),
+            ExpressionNode::Integer(value) => match value.value_i64() {
+                Some(value) => StaticValue::Integer(value),
+                None => continue,
+            },
             ExpressionNode::String(value) => StaticValue::Text(value.clone()),
             ExpressionNode::Name(path) if path.symbol.is_valid() => StaticValue::Expression(
                 expressions.copy_from(&program.expression_table, owned_data.initial_value),
@@ -240,7 +243,7 @@ pub(crate) fn resolve_static_value_handle(
     static_values: &StaticValues,
 ) -> Option<StaticValue> {
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(value) => Some(StaticValue::Integer(*value)),
+        ExpressionNode::Integer(value) => value.value_i64().map(StaticValue::Integer),
         ExpressionNode::String(value) => Some(StaticValue::Text(value.clone())),
         ExpressionNode::Name(path) => {
             let key = static_place_key_handle(program, expression)?;

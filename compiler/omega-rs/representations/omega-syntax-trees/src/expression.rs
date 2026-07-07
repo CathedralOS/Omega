@@ -1,5 +1,6 @@
 use crate::identifier::Identifier;
 use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_core::literals::IntegerLiteral;
 use omega_core::source::SourceText;
 
 mod display;
@@ -121,7 +122,7 @@ pub enum ExpressionNode {
     Call(TableCallExpression),
     Float(SourceText),
     Indexed(TableIndexedExpression),
-    Integer(i64),
+    Integer(IntegerLiteral),
     Membership(TableMembershipExpression),
     Member(TableMemberExpression),
     Mutable(ExpressionHandle),
@@ -135,7 +136,7 @@ pub enum ExpressionNode {
 
 impl Default for ExpressionNode {
     fn default() -> Self {
-        Self::Integer(0)
+        Self::Integer(IntegerLiteral::zero())
     }
 }
 

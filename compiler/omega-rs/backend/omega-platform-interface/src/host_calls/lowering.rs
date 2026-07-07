@@ -273,7 +273,14 @@ pub(crate) fn lower_host_call_argument(
 ) -> HostCallArgumentKind {
     match program.expression_table.expression(argument) {
         ExpressionNode::String(value) => HostCallArgumentKind::Text(value.clone()),
-        ExpressionNode::Integer(value) => HostCallArgumentKind::Integer(*value),
+        // Oversize (u64-magnitude) literals fall through to the Expression
+        // path, whose consumers reject non-simple host arguments LOUDLY.
+        ExpressionNode::Integer(value) => match value.value_i64() {
+            Some(value) => HostCallArgumentKind::Integer(value),
+            None => HostCallArgumentKind::Expression(
+                expressions.copy_from(&program.expression_table, argument),
+            ),
+        },
         ExpressionNode::Name(_) => {
             resolve_static_value_handle(program, expressions, argument, static_values)
                 .map(|value| host_argument_from_static_value(value))

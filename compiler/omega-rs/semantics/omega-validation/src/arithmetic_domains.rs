@@ -996,11 +996,30 @@ pub(crate) fn check_literal_default_narrowing(
     };
     check_narrowing_assignment(
         Some(target),
-        Interval::constant(*literal),
+        literal_interval(literal),
         None,
         owner,
         diagnostics,
     );
+}
+
+/// The interval of an anonymous literal (D14). A literal that fits i64 is a
+/// point; an oversize u64-magnitude literal is honestly over-approximated as
+/// "above i64::MAX" (or "below i64::MIN" for its folded negation), so
+/// narrowing checks against i64-bounded targets still REJECT by interval
+/// math alone -- never by silently skipping.
+fn literal_interval(literal: &omega_core::literals::IntegerLiteral) -> Interval {
+    match literal.value_i64() {
+        Some(value) => Interval::constant(value),
+        None if !literal.text().starts_with('-') => Interval {
+            low: Some(i64::MAX),
+            high: None,
+        },
+        None => Interval {
+            low: None,
+            high: Some(i64::MIN),
+        },
+    }
 }
 
 /// The representable range of an integer primitive. `None` for non-integers
@@ -1032,7 +1051,7 @@ fn integer_literal_value(program: &TypedTrees, value: ExpressionHandle) -> Optio
         node = program.expression_table.expression(*inner);
     }
     match node {
-        ExpressionNode::Integer(literal) => Some(*literal),
+        ExpressionNode::Integer(literal) => literal.value_i64(),
         _ => None,
     }
 }
@@ -1495,7 +1514,7 @@ fn analyze(
         }
         ExpressionNode::Integer(value) => Analysis {
             domain: None,
-            interval: Interval::constant(*value),
+            interval: literal_interval(value),
             primitive: None,
         },
         ExpressionNode::Float(_) | ExpressionNode::Boolean(_) => NEUTRAL,

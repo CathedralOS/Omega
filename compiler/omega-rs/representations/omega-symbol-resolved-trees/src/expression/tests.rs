@@ -9,9 +9,9 @@ use omega_core::symbols::SymbolHandle;
 #[test]
 fn expression_table_stores_nested_expressions_as_handles() {
     let mut table = ExpressionTable::new();
-    let one = table.insert(ExpressionNode::Integer(1));
-    let two = table.insert(ExpressionNode::Integer(2));
-    let three = table.insert(ExpressionNode::Integer(3));
+    let one = table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(1)));
+    let two = table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(2)));
+    let three = table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(3)));
     let right = table.insert(ExpressionNode::Binary(TableBinaryExpression {
         left: two,
         operator: BinaryOperator::Add,

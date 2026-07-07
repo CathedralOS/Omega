@@ -513,7 +513,7 @@ fn subslice_bound_literal_in_table(
         return None;
     }
     match expressions.expression(peel_mutable_in_table(expressions, handle)) {
-        ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Integer(value) => value.value_i64(),
         _ => None,
     }
 }
@@ -678,7 +678,7 @@ fn static_elided_local_value_traced(
     let expression = peel_mutable_in_table(expressions, expression);
     match expressions.expression(expression) {
         ExpressionNode::Boolean(value) => return Some(i64::from(*value)),
-        ExpressionNode::Integer(value) => return Some(*value),
+        ExpressionNode::Integer(value) => return value.value_i64(),
         ExpressionNode::Name(_) => {}
         _ => return None,
     }
@@ -2534,9 +2534,10 @@ fn fixed_indexed_target_path_in_table(
             let ExpressionNode::Integer(index) = table.expression(indexed.index) else {
                 return None;
             };
+            let index = index.value_i64()?;
             Some(TableFixedIndexedTargetPath {
                 collection,
-                index: *index,
+                index,
                 suffix_root: expression,
             })
         }
@@ -2659,7 +2660,7 @@ fn resolve_indexed_target_suffix_cursor_in_table<'layout>(
             let ExpressionNode::Integer(index) = expressions.expression(indexed.index) else {
                 return None;
             };
-            apply_fixed_array_index_to_cursor(collection_cursor, usize::try_from(*index).ok()?)
+            apply_fixed_array_index_to_cursor(collection_cursor, usize::try_from(index.value_i64()?).ok()?)
         }
         ExpressionNode::Member(member) => {
             let cursor = resolve_indexed_target_suffix_cursor_in_table(

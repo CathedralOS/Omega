@@ -245,7 +245,7 @@ fn storage_path_member_index(
                 let ExpressionNode::Integer(value) = table.expression(indexed.index) else {
                     return None;
                 };
-                usize::try_from(*value).ok()
+                usize::try_from(value.value_i64()?).ok()
             } else {
                 storage_path_member_index(table, indexed.collection, index)
             }

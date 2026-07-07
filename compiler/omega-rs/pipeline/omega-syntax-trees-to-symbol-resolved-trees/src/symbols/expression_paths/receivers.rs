@@ -103,6 +103,10 @@ pub(in crate::symbols) fn resolve_expression_table_receiver_path_symbols(
             else {
                 return invalid_symbol_pair();
             };
+            // An index beyond i64 cannot name a real element.
+            let Some(index) = index.value_i64() else {
+                return invalid_symbol_pair();
+            };
 
             resolve_indexed_expression_table_receiver_path_symbols(
                 symbols,
@@ -110,7 +114,7 @@ pub(in crate::symbols) fn resolve_expression_table_receiver_path_symbols(
                 state_symbol,
                 expression_table,
                 indexed.collection,
-                *index,
+                index,
             )
         }
         _ => invalid_symbol_pair(),

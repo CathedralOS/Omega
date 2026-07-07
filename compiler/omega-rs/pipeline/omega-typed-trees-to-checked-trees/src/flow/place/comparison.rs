@@ -126,7 +126,7 @@ mod tests {
         program
             .expression_table
             .insert(omega_checked_trees::expression::ExpressionNode::Integer(
-                value,
+                omega_core::literals::IntegerLiteral::from_value(value),
             ))
     }
 

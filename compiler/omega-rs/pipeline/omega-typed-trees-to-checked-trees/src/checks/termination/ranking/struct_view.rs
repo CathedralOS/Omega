@@ -50,7 +50,7 @@ fn guard_is_positive_member(
         && patterns::expression_is_parameter_member(program, binary.left, parameter, field.as_str())
         && matches!(
             program.expression_table.expression(binary.right),
-            ExpressionNode::Integer(0)
+            ExpressionNode::Integer(literal) if literal.value_i64() == Some(0)
         )
 }
 
@@ -89,6 +89,6 @@ fn field_value_is_member_minus_one(
         && patterns::expression_is_parameter_member(program, binary.left, parameter, field.as_str())
         && matches!(
             program.expression_table.expression(binary.right),
-            ExpressionNode::Integer(1)
+            ExpressionNode::Integer(literal) if literal.value_i64() == Some(1)
         )
 }

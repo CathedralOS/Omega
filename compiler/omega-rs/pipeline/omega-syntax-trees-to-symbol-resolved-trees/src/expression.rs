@@ -106,7 +106,9 @@ fn lower_expression_node_into_table(
                     ));
                 }
                 let x = lower_expression_into_table(syntax_trees, expressions, argument_handle)?;
-                let zero = expressions.insert(ExpressionNode::Integer(0));
+                let zero = expressions.insert(ExpressionNode::Integer(
+                    omega_core::literals::IntegerLiteral::zero(),
+                ));
                 let negated = expressions.insert(ExpressionNode::Binary(TableBinaryExpression {
                     left: zero,
                     operator: BinaryOperator::Subtract,
@@ -211,7 +213,7 @@ fn lower_expression_node_into_table(
             )
         }
         syntax::expression::ExpressionNode::Integer(value) => {
-            Ok(expressions.insert(ExpressionNode::Integer(*value)))
+            Ok(expressions.insert(ExpressionNode::Integer(value.clone())))
         }
         syntax::expression::ExpressionNode::Membership(membership) => {
             let value = lower_expression_into_table(syntax_trees, expressions, membership.value)?;

@@ -1319,11 +1319,38 @@ fn unknown_field_read_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn runtime_i64_min_literal_exit_canary_runs() {
+    // D14 anonymous literals: `-9223372036854775808` (i64::MIN) is directly spellable --
+    // the magnitude parses as an uninterpreted payload and the negative fold flips the
+    // sign textually. Guard proves the stored value is strictly below -(i64::MAX); exit 70.
+    let canary = pass_canary("arithmetic/runtime_i64_min_literal_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-i64min-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("i64::MIN literal canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("i64::MIN literal canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the spelled i64::MIN to compare strictly below -(i64::MAX) (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn u64_literal_above_i64_max_canary_is_rejected() {
-    // A u64 literal above i64::MAX (the literal value is carried as i64 through the IR) is
-    // rejected with a CLEAR "exceeds the i64 range" diagnostic that names the real
-    // limitation, not the misleading "invalid integer literal". Remove this test when
-    // full-width u64 literals land (the i128 literal-widening fix).
+    // A u64 literal above i64::MAX PARSES since D14 (anonymous literals) but no position
+    // ACCEPTS it yet: the validation gate (omega-validation/src/literals.rs) rejects with
+    // a CLEAR "exceeds the i64 range" diagnostic, not the misleading "invalid integer
+    // literal". Rescope this test when the typed u64 lowering (next D14 rung) lands.
     let canary = fail_canary("arithmetic/u64_literal_above_i64_max");
     let diagnostics = match compile_canary_without_output(&canary) {
         Ok(report) => panic!(
@@ -21793,6 +21820,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/bare_name_scopes",
     "arithmetic/shift_amount_over_width_compiles",
     "arithmetic/const_fold_overflow_compiles",
+    "arithmetic/runtime_i64_min_literal_exit",
     "parser/deep_nesting_within_limit",
     "traits/boundary_trait_effects_host_call",
     "traits/dyn_trait_object_dispatch",

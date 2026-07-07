@@ -169,7 +169,7 @@ fn constant_default_value(
     field_size: usize,
 ) -> Option<i64> {
     match input.program.expression_table.expression(initial_value) {
-        ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Integer(value) => value.value_i64(),
         ExpressionNode::Boolean(value) => Some(i64::from(*value)),
         ExpressionNode::Float(literal) => Some(if field_size <= 4 {
             i64::from((literal.value() as f32).to_bits())

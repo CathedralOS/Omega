@@ -24,7 +24,7 @@ pub(crate) fn resolve_static_value(
                 .or_else(|| static_symbol_value(table, expression))
         }
         ExpressionNode::Boolean(value) => Some(StaticValue::Boolean(*value)),
-        ExpressionNode::Integer(value) => Some(StaticValue::Integer(*value)),
+        ExpressionNode::Integer(value) => value.value_i64().map(StaticValue::Integer),
         ExpressionNode::String(value) => Some(StaticValue::String(value.clone())),
         _ => None,
     }

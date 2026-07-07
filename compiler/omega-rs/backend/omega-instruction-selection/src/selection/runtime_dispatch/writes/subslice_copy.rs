@@ -375,7 +375,7 @@ fn literal_usize(expression: &Expression) -> Option<usize> {
     let Expression::Integer(value) = expression else {
         return None;
     };
-    usize::try_from(*value).ok()
+    usize::try_from(value.value_i64()?).ok()
 }
 
 fn literal_usize_in_table(
@@ -385,5 +385,5 @@ fn literal_usize_in_table(
     let ExpressionNode::Integer(value) = expressions.expression(expression) else {
         return None;
     };
-    usize::try_from(*value).ok()
+    usize::try_from(value.value_i64()?).ok()
 }

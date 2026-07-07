@@ -14,7 +14,7 @@ pub(super) fn argument_is_parameter_minus_one(
         && patterns::expression_is_parameter(program, binary.left, parameter)
         && matches!(
             program.expression_table.expression(binary.right),
-            ExpressionNode::Integer(1)
+            ExpressionNode::Integer(literal) if literal.value_i64() == Some(1)
         )
 }
 
@@ -30,7 +30,7 @@ pub(super) fn argument_is_parameter_plus_one(
         && patterns::expression_is_parameter(program, binary.left, parameter)
         && matches!(
             program.expression_table.expression(binary.right),
-            ExpressionNode::Integer(1)
+            ExpressionNode::Integer(literal) if literal.value_i64() == Some(1)
         )
 }
 
@@ -74,6 +74,6 @@ fn argument_is_parameter_member_minus_one(
         && patterns::expression_is_parameter_member(program, binary.left, parameter, member_name)
         && matches!(
             program.expression_table.expression(binary.right),
-            ExpressionNode::Integer(1)
+            ExpressionNode::Integer(literal) if literal.value_i64() == Some(1)
         )
 }

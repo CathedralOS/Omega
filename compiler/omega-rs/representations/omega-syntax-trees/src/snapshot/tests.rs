@@ -11,7 +11,7 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
     let i32_type = syntax_trees
         .type_references
         .insert(TypeReferenceNode::Named(Identifier::generated("i32")));
-    let one = syntax_trees.expressions.insert(ExpressionNode::Integer(1));
+    let one = syntax_trees.expressions.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(1)));
     let field = TableStructLiteralField {
         name: Identifier::generated("value"),
         value: one,
@@ -90,7 +90,9 @@ fn snapshots_materialize_handle_backed_syntax_shape() {
                                 end: 0,
                                 source_backed: false,
                             },
-                            value: ExpressionSnapshot::Integer { value: 1 },
+                            value: ExpressionSnapshot::Integer {
+                                text: "1".to_owned(),
+                            },
                         }],
                     },
                 }],

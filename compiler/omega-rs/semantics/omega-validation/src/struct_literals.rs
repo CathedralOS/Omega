@@ -623,7 +623,7 @@ fn construction_field_type(
 /// non-literal value -- those are conservatively rejected by the caller.
 fn construction_field_literal(program: &TypedTrees, value: ExpressionHandle) -> Option<i64> {
     match program.expression_table.expression(value) {
-        ExpressionNode::Integer(literal) => Some(*literal),
+        ExpressionNode::Integer(literal) => literal.value_i64(),
         _ => None,
     }
 }
