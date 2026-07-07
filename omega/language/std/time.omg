@@ -127,11 +127,15 @@ machine Duration::checked_subtract(&self, other: Duration) -> DurationResult {
     let seconds_direct: u64 in Wrapping =
         (self.seconds as u64 in Wrapping) - (other.seconds as u64 in Wrapping);
     let seconds_borrowed: u64 in Wrapping = (seconds_direct as u64 in Wrapping) - 1;
-    let nanoseconds_direct: u32 in Wrapping = (self.subsecond_nanoseconds as u32 in Wrapping)
-        - (other.subsecond_nanoseconds as u32 in Wrapping);
-    let nanoseconds_borrowed: u32 in Wrapping = (((1000000000 as u32 in Wrapping)
+    // The final `as u32` re-domains each wrapped result to Exact IN THE LET:
+    // a payload field value of shape `(cast) % literal` is silently dropped by
+    // the parallel write cascade (known landmine, filed in TASKS.md), so the
+    // emit states must see a BARE param (`nanoseconds_final % 1000000000`).
+    let nanoseconds_direct: u32 = ((self.subsecond_nanoseconds as u32 in Wrapping)
+        - (other.subsecond_nanoseconds as u32 in Wrapping)) as u32;
+    let nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
         - (other.subsecond_nanoseconds as u32 in Wrapping))
-        + (self.subsecond_nanoseconds as u32 in Wrapping));
+        + (self.subsecond_nanoseconds as u32 in Wrapping)) as u32;
     transition seconds_bigger == true {
         true -> subtract_bigger(nanoseconds_fit, seconds_direct, seconds_borrowed, nanoseconds_direct, nanoseconds_borrowed)
         false -> subtract_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct, nanoseconds_direct)
@@ -156,7 +160,7 @@ machine Duration::checked_subtract(&self, other: Duration) -> DurationResult {
         DurationResult::Ok {
             duration: Duration {
                 seconds: seconds_final,
-                subsecond_nanoseconds: (nanoseconds_final as u32) % 1000000000,
+                subsecond_nanoseconds: nanoseconds_final % 1000000000,
             },
         }
     }

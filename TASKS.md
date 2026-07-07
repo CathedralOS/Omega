@@ -96,15 +96,19 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 
 ## Open latent bugs / fenced gaps
 
-- **[ ] TWO value-callee native miscompile faces (found 2026-07-07 authoring std::time;
-  repro canaries/pending/time/value_machine_receiver_field_postentry).** Interp correct,
-  native silent: (1) `as T in Domain` casts inside an INLINED value callee emit i8-width
-  converts (cast target type resolves against a wrong/un-remapped type-reference entry
-  during the value-call splice; masked whenever operands fit i8); (2) post-entry
-  `self.field` reads in a value callee resolve against the CALLER's frame (receiver
-  substitution stops at the entry; the "guarded branch expansion" fence is this same
-  machinery refusing where it knows). Fix (1) first — it unblocks std::time's native
-  Duration promotion; (2) needs receiver substitution past the entry or a loud fence.
+- **[ ] Same-type receiver aliasing: VALUE-CALL flavor confirmed (2026-07-07, std::time
+  authoring; repro canaries/pending/time/value_machine_receiver_field_postentry).** A
+  pure-value method receiver (`self.sum.checked_subtract(...)` with several
+  Duration-typed fields) resolves to the FIRST field of the type — the SAME root as the
+  contained-machine aliasing entry above (machine_storage_offset by type). Std value
+  types make same-type fields ubiquitous, so the deep fix (thread the receiver field
+  offset through dispatch) is now HIGH-LEVERAGE for all std authoring. Workaround
+  (canaried): route receivers through the first field of the type.
+  ALSO CONFIRMED same session: the parallel write cascade silently DROPS a case-payload
+  field whose value is `(x as T) % literal` (Binary with a Cast operand) — tag+siblings
+  land, that field never writes (the known missing-arm landmine; bare `x % literal`
+  works). NOTE for report readers: backend_report renders convert widths in BYTES
+  (`as i8->i8` = an 8-byte u64 identity convert, NOT i8).
 
 - **[ ] Range constraint + non-Exact domain = the range is a LIE (found 2026-07-06).**
   `i: usize [0..=4] in Wrapping` accepts `self.i = 100` -- the range enforces only under the
