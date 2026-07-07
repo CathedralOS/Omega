@@ -1606,7 +1606,9 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_widt
             )
         }
         Architecture::X86_64 => {
-            x86_64::runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width()
+            x86_64::runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
+                index_region,
+            )
         }
     }
 }
@@ -1661,6 +1663,7 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_widt
         Architecture::X86_64 => {
             x86_64::runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
                 source_region,
+                index_region,
             )
         }
     }

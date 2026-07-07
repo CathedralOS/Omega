@@ -1,0 +1,35 @@
+// Machine-array reads at FRAME indices as BINARY OPERANDS
+// (`self.arr[k] + self.cells[j].v` -- incl. a struct element FIELD) and as a
+// transition ARGUMENT (`self.report(self.arr[k])`). 9+30=39 -> report(9) -> 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Cell {
+    v: i32 [0..=50];
+}
+data Main {
+    console: Console;
+    arr: [i32 [0..=40]; 4];
+    cells: [Cell; 3];
+}
+machine Main::main(&mut self) {
+    self.arr[2] = 9;
+    self.cells[1].v = 30;
+    transition { _ -> self.pick(2, 1) }
+}
+machine Main::pick(&mut self, k: usize [0..=3], j: usize [0..=2]) {
+    let sum: i32 = self.arr[k] + self.cells[j].v;
+    transition sum == 39 {
+        true -> self.report(self.arr[k])
+        false -> no()
+    }
+    state no(&mut self) { self.console.exit_process(2); }
+}
+machine Main::report(&mut self, got: i32) {
+    transition got == 9 {
+        true -> yes()
+        false -> half()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state half(&mut self) { self.console.exit_process(3); }
+}

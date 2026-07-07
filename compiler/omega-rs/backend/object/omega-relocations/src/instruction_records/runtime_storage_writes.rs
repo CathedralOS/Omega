@@ -6,6 +6,7 @@ use crate::offsets::{
     runtime_machine_indexed_integer_runtime_frame_address_offset,
     runtime_pointee_binary_left_operand_offset, runtime_storage_binary_left_operand_offset,
 };
+use omega_target::Architecture;
 use omega_target_operations::SelectedInstructionKind;
 
 pub(super) fn collect_runtime_storage_write_relocations(
@@ -236,6 +237,7 @@ pub(super) fn collect_runtime_storage_write_relocations(
         SelectedInstructionKind::WriteRuntimeMachineIndexedBinary {
             base_byte_offset,
             index_offset,
+            index_region,
             element_byte_size,
             field_byte_offset,
             left,
@@ -245,13 +247,25 @@ pub(super) fn collect_runtime_storage_write_relocations(
             // Machine-region sibling of `WriteRuntimeFrameBaseIndexedBinary`: the
             // base at the instruction start (`mov r14, imm64`) relocates to the
             // MACHINE-storage symbol instead of the frame symbol. The byte layout
-            // is identical, so the left/right value-operand offsets reuse the
-            // frame-base helper. Only the Machine-resident index is emitted (the
-            // frame-index case errors in the encoder), so there is no extra
-            // frame-symbol relocation for the index.
+            // matches, so the left/right value-operand offsets reuse the
+            // frame-base helper. A FRAME-resident index (x86_64) inserts a
+            // `mov r15,imm64` frame-base load at +10, shifting the operands.
             context
                 .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+            let frame_index_shift = if context.input.target.architecture
+                == Architecture::X86_64
+                && *index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            {
+                context.insert_data_address_at_relative_offset(
+                    10,
+                    context.runtime_frame_symbol_handle(),
+                );
+                10
+            } else {
+                0
+            };
             let left_offset = context.selected_text_offset
+                + frame_index_shift
                 + runtime_frame_base_indexed_binary_left_operand_offset(
                     context.input.target.architecture,
                     *base_byte_offset,

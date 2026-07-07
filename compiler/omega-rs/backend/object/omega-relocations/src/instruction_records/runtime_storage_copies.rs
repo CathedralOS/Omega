@@ -4,6 +4,7 @@ use super::super::offsets::{
     runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset,
     runtime_storage_copy_from_runtime_machine_indexed_target_address_offset,
     runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset,
+    runtime_storage_copy_to_runtime_machine_indexed_frame_index_base_offset,
     runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset,
     runtime_storage_copy_to_runtime_machine_indexed_source_address_offset,
     runtime_storage_copy_from_runtime_pointee_to_runtime_frame_target_address_offset,
@@ -176,7 +177,8 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                 // x86_64: the opening `mov r15,imm64` loads the SOURCE base -- the
                 // machine symbol for a field source (index + target element ride
                 // it), or the runtime frame for a slot-backed local source, in
-                // which case a SECOND relocation re-loads the machine base.
+                // which case a SECOND relocation re-loads the machine base. A
+                // FRAME-resident index adds its own frame-base `mov r10,imm64`.
                 context.insert_data_address_at_instruction_start(
                     context.storage_region_symbol_handle(*source_region),
                 );
@@ -186,6 +188,15 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                             context.input.target.architecture,
                         ),
                         context.machine_storage_symbol_handle(),
+                    );
+                }
+                if *index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                    context.insert_data_address_at_relative_offset(
+                        runtime_storage_copy_to_runtime_machine_indexed_frame_index_base_offset(
+                            context.input.target.architecture,
+                            *source_region,
+                        ),
+                        context.runtime_frame_symbol_handle(),
                     );
                 }
             }

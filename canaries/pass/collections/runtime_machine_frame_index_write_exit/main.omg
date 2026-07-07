@@ -1,0 +1,25 @@
+// MACHINE-owned array WRITE of a runtime value at a FRAME-resident index
+// (`self.arr[k] = self.b`): machine source + frame index (two relocations).
+// b=7, k=2 -> arr[2]==7 -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    arr: [i32; 4];
+    b: i32;
+}
+machine Main::main(&mut self) {
+    self.arr[2] = 9;
+    self.b = 7;
+    transition { _ -> self.pick(2) }
+}
+machine Main::pick(&mut self, k: usize [0..=3]) {
+    self.arr[k] = self.b;
+    transition self.arr[2] == 7 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

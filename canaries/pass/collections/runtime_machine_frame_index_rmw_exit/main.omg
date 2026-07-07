@@ -1,0 +1,33 @@
+// MACHINE-array RMW at a FRAME (param) index under a dominating guard
+// (`self.arr[k] = self.arr[k] + 1` with `self.arr[k] < 10`). Locks three
+// pieces: the frame-index BINARY write encoder (+10-shifted operands, frame
+// reloc @10), the guard-position frame-index read, and the WHOLE-MACHINE
+// param scope in the index prover (k's declared range reaches the sub-state).
+// arr[2]: 4 -> 5 -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    arr: [i32 [0..=10]; 4];
+}
+machine Main::main(&mut self) {
+    self.arr[2] = 4;
+    transition { _ -> self.bump(2) }
+}
+machine Main::bump(&mut self, k: usize [0..=3]) {
+    transition self.arr[k] < 10 {
+        true -> go()
+        false -> full()
+    }
+    state go(&mut self) {
+        self.arr[k] = self.arr[k] + 1;
+        transition self.arr[2] == 5 {
+            true -> yes()
+            false -> no()
+        }
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+    state full(&mut self) { self.console.exit_process(8); }
+}

@@ -2448,23 +2448,34 @@ pub fn encode_runtime_machine_indexed_integer_write(
     Ok(bytes)
 }
 
-/// Width of [`encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`]
-/// for the machine-resident-index case. MUST equal the emitter exactly. The
-/// two relocations are the machine source base (@+2, the instruction start) and
-/// the target base (@+36); there is NO runtime-frame load, so a program without
-/// any frame storage relocates cleanly.
-pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width() -> usize {
-    // mov r15,imm64 (10) + mov eax,[r15+idx] (7) + imul rax,rax,imm32 (7)
-    // + add r15,rax (3) + mov rax,[r15+disp] (7) + mov r15,imm64 (10)
-    // + store [r15+disp] (7).
-    51
+/// Width of [`encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`].
+/// MUST equal the emitter exactly. Machine-resident index: the two relocations
+/// are the machine source base (@+2, the instruction start) and the target base
+/// (@+36); there is NO runtime-frame load, so a program without any frame
+/// storage relocates cleanly. Frame-resident index: a THIRD relocation loads
+/// the frame base into r10 (mov at +10) for the index read, and the target mov
+/// shifts to +44.
+pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
+    index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    match index_region {
+        // mov r15,imm64 (10) + mov r10,imm64 (10) + mov eax,[r10+idx] (7)
+        // + imul rax,rax,imm32 (7) + add r15,rax (3) + mov rax,[r15+disp] (7)
+        // + mov r15,imm64 (10) + store [r15+disp] (7).
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => 61,
+        // mov r15,imm64 (10) + mov eax,[r15+idx] (7) + imul rax,rax,imm32 (7)
+        // + add r15,rax (3) + mov rax,[r15+disp] (7) + mov r15,imm64 (10)
+        // + store [r15+disp] (7).
+        _ => 51,
+    }
 }
 
 /// Read `collection[index]` (an element of a machine-resident inline array,
-/// indexed by a runtime field) and copy it into a runtime-storage target -- the
+/// indexed by a runtime value) and copy it into a runtime-storage target -- the
 /// mirror of [`encode_runtime_machine_indexed_integer_write`] in the read
-/// direction. Only a machine-resident index is implemented; a frame-resident
-/// index (`let i = ..; self.arr[i]`) is a clean error for now.
+/// direction. The index may be machine-resident (`self.arr[self.k]`) or
+/// frame-resident (`self.arr[k]`, a param/local slot -- read off a second
+/// frame-base register).
 pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
     base_byte_offset: usize,
     index_offset: usize,
@@ -2479,9 +2490,13 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
             "X86_64 MVP encoder cannot read {byte_count}-byte machine indexed values yet"
         )));
     }
-    if index_region != omega_target_operations::RuntimeStorageRegion::Machine {
+    if !matches!(
+        index_region,
+        omega_target_operations::RuntimeStorageRegion::Machine
+            | omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+    ) {
         return Err(Diagnostic::error(
-            "X86_64 MVP encoder cannot read a machine indexed value with a frame-resident index yet",
+            "X86_64 MVP encoder cannot read a machine indexed value with this index region yet",
         ));
     }
     let element_scale = i32::try_from(element_byte_size).map_err(|_| {
@@ -2491,26 +2506,33 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     })?;
     let index_displacement = disp32(index_offset)?;
     let mut bytes = Vec::with_capacity(
-        runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(),
+        runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(index_region),
     );
     // r15 = machine source base (imm64 at +2 relocated to the machine symbol).
     append_mov_r15_imm64(&mut bytes, 0);
-    // eax = index, loaded 32-bit (zero-extended, so a nonzero adjacent slot can't
-    // splice into it) from the machine storage base.
-    bytes.extend([0x41, 0x8b, 0x87]); // mov eax, [r15+disp32]
-    bytes.extend(index_displacement.to_le_bytes());
+    if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        // Frame-resident index: r10 = frame base (imm64 at +10+2, the frame
+        // relocation); eax = index, 32-bit zero-extended off the frame base.
+        append_mov_r10_imm64(&mut bytes, 0);
+        append_load_index_eax_from_r10(&mut bytes, index_offset)?;
+    } else {
+        // eax = index, loaded 32-bit (zero-extended, so a nonzero adjacent slot
+        // can't splice into it) from the machine storage base.
+        bytes.extend([0x41, 0x8b, 0x87]); // mov eax, [r15+disp32]
+        bytes.extend(index_displacement.to_le_bytes());
+    }
     // rax = index * element_byte_size; r15 = source base + scaled index.
     append_imul_rax_imm32(&mut bytes, element_scale);
     append_add_r15_rax(&mut bytes);
     // rax = the source element at [r15 + base + field].
     append_load_rax_from_r15(&mut bytes, base_byte_offset + field_byte_offset)?;
-    // r15 = target base (imm64 at +36 relocated to the target region symbol);
-    // store the low byte_count bytes of rax there.
+    // r15 = target base (imm64 relocated to the target region symbol); store
+    // the low byte_count bytes of rax there.
     append_mov_r15_imm64(&mut bytes, 0);
     append_store_rax_to_r15(&mut bytes, target_offset, byte_count)?;
     debug_assert_eq!(
         bytes.len(),
-        runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width()
+        runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(index_region)
     );
     Ok(bytes)
 }
@@ -2571,16 +2593,22 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_fr
 
 pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
     source_region: omega_target_operations::RuntimeStorageRegion,
+    index_region: omega_target_operations::RuntimeStorageRegion,
 ) -> usize {
-    match source_region {
-        // mov r15,imm64 (10) + load rax,[r15+src] (7) + SECOND mov r15,imm64
-        // (10, the machine base) + mov r10d,[r15+idx] (7) + imul (7) + add (3)
-        // + store (7): the source rides the FRAME base first.
-        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => 51,
-        // mov r15,imm64 (10) + mov rax,[r15+src] (7) + mov r10d,[r15+idx] (7)
-        // + imul r10,r10,imm32 (7) + add r15,r10 (3) + store [r15+disp] (7).
-        _ => 41,
+    // Base sequence: mov r15,imm64 (10) + mov rax,[r15+src] (7)
+    // + mov r10d,[idx base] (7) + imul r10,r10,imm32 (7) + add r15,r10 (3)
+    // + store [r15+disp] (7) = 41.
+    // A FRAME source inserts a second `mov r15,imm64` (the machine base, +10)
+    // after the source load; a FRAME index inserts `mov r10,imm64` (the frame
+    // base, +10) before the index load.
+    let mut width = 41;
+    if source_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        width += 10;
     }
+    if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        width += 10;
+    }
+    width
 }
 
 /// Start of the SECOND `mov r15,imm64` (the machine base) inside the
@@ -2590,13 +2618,24 @@ pub fn runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base
     17
 }
 
+/// Start of the `mov r10,imm64` (the frame base for a FRAME-resident index)
+/// inside the write half -- the frame relocation; sits after the source
+/// load (+17) and after the frame-source machine re-load when present (+10).
+pub fn runtime_storage_copy_to_runtime_machine_indexed_frame_index_base_offset(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    if source_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        27
+    } else {
+        17
+    }
+}
+
 /// Write a runtime-storage value into `collection[index]` (an element of a
-/// machine-resident inline array, indexed by a runtime field) -- the mirror of
+/// machine-resident inline array, indexed by a runtime value) -- the mirror of
 /// [`encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`]
-/// in the write direction (`self.nums[self.j] = self.b`). Only a machine-resident
-/// source AND a machine-resident index are implemented (the common case where
-/// every field shares the machine base); a frame-resident source or index is a
-/// clean error for now.
+/// in the write direction (`self.nums[self.j] = self.b`). Source and index may
+/// each be machine- or frame-resident (`self.arr[k] = self.b`, k a param).
 pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
     source_region: omega_target_operations::RuntimeStorageRegion,
     source_offset: usize,
@@ -2612,9 +2651,13 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_stora
             "X86_64 MVP encoder cannot write {byte_count}-byte machine indexed values yet"
         )));
     }
-    if index_region != omega_target_operations::RuntimeStorageRegion::Machine {
+    if !matches!(
+        index_region,
+        omega_target_operations::RuntimeStorageRegion::Machine
+            | omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+    ) {
         return Err(Diagnostic::error(
-            "X86_64 MVP encoder cannot write a machine indexed value with a frame-resident index yet",
+            "X86_64 MVP encoder cannot write a machine indexed value with this index region yet",
         ));
     }
     let element_scale = i32::try_from(element_byte_size).map_err(|_| {
@@ -2624,7 +2667,10 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_stora
     })?;
     let index_displacement = disp32(index_offset)?;
     let mut bytes = Vec::with_capacity(
-        runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(source_region),
+        runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
+            source_region,
+            index_region,
+        ),
     );
     // r15 = the SOURCE base (imm64 at +2, relocated to the source region's
     // symbol -- the machine for a field source, the runtime frame for a
@@ -2633,12 +2679,21 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_stora
     append_load_rax_from_r15(&mut bytes, source_offset)?;
     if source_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
         // Frame-resident source: re-load r15 with the MACHINE base (imm64 at
-        // +17+2, the second relocation) for the index read + element store.
+        // +17+2, the second relocation) for the element store.
         append_mov_r15_imm64(&mut bytes, 0);
     }
-    // r10d = index, loaded 32-bit (zero-extended) from the machine base.
-    bytes.extend([0x45, 0x8b, 0x97]); // mov r10d, [r15+disp32]
-    bytes.extend(index_displacement.to_le_bytes());
+    if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        // Frame-resident index: r10 = frame base (its own relocation), then
+        // r10d = [r10 + idx] overwrites the base with the 32-bit
+        // zero-extended index (the load completes before write-back).
+        append_mov_r10_imm64(&mut bytes, 0);
+        bytes.extend([0x45, 0x8b, 0x92]); // mov r10d, [r10+disp32]
+        bytes.extend(index_displacement.to_le_bytes());
+    } else {
+        // r10d = index, loaded 32-bit (zero-extended) from the machine base.
+        bytes.extend([0x45, 0x8b, 0x97]); // mov r10d, [r15+disp32]
+        bytes.extend(index_displacement.to_le_bytes());
+    }
     // r10 = index * element_byte_size.
     bytes.extend([0x4d, 0x69, 0xd2]); // imul r10, r10, imm32
     bytes.extend(element_scale.to_le_bytes());
@@ -2648,7 +2703,10 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_stora
     append_store_rax_to_r15(&mut bytes, base_byte_offset + field_byte_offset, byte_count)?;
     debug_assert_eq!(
         bytes.len(),
-        runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(source_region)
+        runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
+            source_region,
+            index_region,
+        )
     );
     Ok(bytes)
 }
@@ -5630,23 +5688,30 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
 
 pub fn runtime_machine_indexed_binary_write_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
-    _index_region: omega_target_operations::RuntimeStorageRegion,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     byte_size: usize,
     left: RuntimeValueOperandHandle,
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> usize {
-    // Byte layout is identical to the frame-base binary write; only the base
-    // relocation targets the machine symbol (handled by the relocations crate).
-    // The frame-resident-index case errors in the encoder before width matters,
-    // so a single width keeps the function total.
+    // Byte layout matches the frame-base binary write (only the base relocation
+    // targets the machine symbol, handled by the relocations crate); a
+    // FRAME-resident index inserts a `mov r15,imm64` frame-base load (+10)
+    // before the index read.
+    let frame_index_extra = if index_region
+        == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+    {
+        10
+    } else {
+        0
+    };
     runtime_frame_base_indexed_binary_write_width(
         runtime_value_operands,
         byte_size,
         left,
         operator,
         right,
-    )
+    ) + frame_index_extra
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -5676,18 +5741,19 @@ pub fn encode_runtime_machine_indexed_binary_write(
     // imm64 at +2 is relocated to the MACHINE symbol (relocations crate), unlike
     // the frame-base sibling that relocates to the frame symbol.
     append_mov_r14_imm64(&mut bytes, 0);
-    // Load the index. Only a machine-resident index is implemented (the index is
-    // read from the machine base already in r14, matching the frame-base sibling
-    // which reads the frame-resident index from the frame base in r14). A
-    // frame-resident index (`let i = ..; self.arr[i]`) is a clean error for now.
+    // Load the index: a machine-resident index reads off the machine base
+    // already in r14; a frame-resident index (`self.arr[k]`, k a param/local
+    // slot) loads the frame base into r15 (its own relocation at +10+2) and
+    // reads the 32-bit zero-extended index off it (the load overwrites the
+    // base after it completes).
     match index_region {
         omega_target_operations::RuntimeStorageRegion::Machine => {
             append_load_index_r15d_from_r14(&mut bytes, index_offset)?;
         }
         omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
-            return Err(Diagnostic::error(
-                "X86_64 MVP encoder cannot write a machine-indexed binary with a frame-resident index yet".to_string(),
-            ));
+            append_mov_r15_imm64(&mut bytes, 0);
+            bytes.extend([0x45, 0x8b, 0xbf]); // mov r15d, [r15 + disp32]
+            bytes.extend(disp32(index_offset)?.to_le_bytes());
         }
     }
     append_imul_r15_imm32(&mut bytes, element_scale(element_byte_size)?);
@@ -5695,6 +5761,11 @@ pub fn encode_runtime_machine_indexed_binary_write(
     debug_assert_eq!(
         bytes.len(),
         runtime_frame_base_indexed_binary_left_operand_offset()
+            + if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                10
+            } else {
+                0
+            }
     );
     // Stash the left result across the right operand's evaluation (both accumulate
     // in r10). r14 (target address) survives push/pop and operand evaluation.
