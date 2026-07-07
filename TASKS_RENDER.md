@@ -414,6 +414,19 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    + terminal-value return. The wrapper is now pure Omega assembly work (task #58); the only
    compiler feature left is the boundary→provider substitution (task #57). Native harness
    73/73.
+   ✅ **fire 19: the `omega/language/std/macos_gui.omg` MODULE now EXISTS.** Shipped
+   `data MacosGui { objc: ObjectiveC; cg: CoreGraphics; + scratch fields }` (mirrors
+   `std/filesystem.omg`) with the FIRST Gui ops in the sample's EXACT Win32 signatures:
+   `window_create(class_name:[u8;7], title:[u8;10], style:u32, x,y,w,h: i32) -> u64` (NSApp
+   + NSWindow + NSImageView content view + orderFront; **D-macgui-style: class_name/style
+   IGNORED, always a standard titled window styleMask 15**), `get_dc(window)->u64` (echoes
+   the window), `is_window(window)->u32` (`[isVisible]`), `window_destroy(window)->u32`
+   (`[close]`). Results via terminal-value completion; `is_window`/`window_destroy` narrow
+   the u64 send result to u32 via `as u32`. PROVEN: `canaries/pass/objc/macos_gui_module`
+   imports the module, drives the lifecycle through a `gui: MacosGui` field → `win != 0` AND
+   `get_dc(win) == win` → exit 9. The module is inert unless imported (no fs-corpus impact).
+   Native harness 74/74. REMAINING in the module: `blit` (framebuffer→setImage:) +
+   `msg_peek`/`msg_translate`/`msg_dispatch` (pump). Then task #57 substitution.
 9. **[ ] Interpreter headless stub** for `Gui`/`Input`/`Clock` — open no real window,
    succeed all calls, report "no event / alive", quit after N frames — so the samples
    stay runnable on both engines and differential/coverage stay green.

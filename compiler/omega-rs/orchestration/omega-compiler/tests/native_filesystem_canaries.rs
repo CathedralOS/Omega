@@ -546,3 +546,20 @@ fn gui_window_i32_args_exits_8() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(out.status.code(), Some(8), "i32-arg window_create should convert to an f64 rect and build a non-null NSWindow");
 }
+
+// The shipped macOS Gui backend module (omega::language::std::macos_gui): its
+// MacosGui wrapper drives the sample-shaped window lifecycle -- window_create
+// (Win32 signature) -> get_dc -> is_window -> window_destroy, through a gui:
+// MacosGui field. window != 0 AND get_dc(win) == win -> exit 9. (is_window /
+// window_destroy run but are not gated on visibility, headless-safe.)
+#[test]
+fn macos_gui_module_exits_9() {
+    let main_path = repo_root().join("canaries/pass/objc/macos_gui_module/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-macgui-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("macos_gui_module should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(9), "MacosGui window lifecycle (create/get_dc/is_window/destroy) should run and exit 9");
+}

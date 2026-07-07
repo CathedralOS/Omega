@@ -1,0 +1,38 @@
+// PROVES the macOS Gui backend MODULE natively (render fire 19): imports the
+// shipped `omega::language::std::macos_gui` wrapper and drives its window-lifecycle
+// ops the way the samples do — `window_create` (Win32-shaped signature) then
+// `get_dc`, `is_window`, `window_destroy`. This is the real backend module (not a
+// throwaway), used through a `gui: MacosGui` field value-call. window_create builds
+// a titled window with an NSImageView content view (blit-ready) and returns the
+// NSWindow*; get_dc echoes it; is_window/window_destroy run. Asserts win != 0 AND
+// get_dc(win) == win -> exit 9. is_window/window_destroy are exercised but not
+// gated on visibility (headless-safe). Remaining Gui ops (blit/pump) + the
+// boundary->provider substitution follow.
+
+use omega::language::std::macos_gui;
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    gui: MacosGui;
+    cls: [u8; 7];
+    title: [u8; 10];
+    win: u64;
+    dc: u64;
+    alive: u32;
+    killed: u32;
+}
+
+machine Main::main(&mut self) {
+    self.win = self.gui.window_create(self.cls, self.title, 0, 0, 0, 200, 150);
+    self.dc = self.gui.get_dc(self.win);
+    self.alive = self.gui.is_window(self.win);
+    self.killed = self.gui.window_destroy(self.win);
+    transition self.win != 0 { true -> ck_dc() _ -> bad() }
+    state ck_dc(&mut self) { transition self.dc == self.win { true -> good() _ -> bad() } }
+    state good(&mut self) { self.console.exit_process(9); }
+    state bad(&mut self)  { self.console.exit_process(1); }
+}

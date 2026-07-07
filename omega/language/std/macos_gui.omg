@@ -1,0 +1,113 @@
+// The macOS Gui backend — an ordinary Omega WRAPPER that implements the samples'
+// Win32-shaped `Gui` trait by composing the proven Objective-C / Core Graphics
+// boundary primitives (`objc_getClass`/`objc_msgSend`/`CGBitmapContextCreate`/…).
+// Mirrors `omega::language::std::filesystem`'s pattern: a `data` type holding the
+// boundary handles + scratch FIELDS, its ops consumed via terminal-value
+// completion (never a transition guard on the raw host result). No C shim — Omega
+// calls Cocoa directly, the same way the fs seam calls libc.
+//
+// The samples call `self.gui.window_create(cls, title, style, x, y, w, h)` etc.
+// through a `boundary trait Gui` field; on darwin that field is provided by this
+// `MacosGui` (the boundary→provider substitution). This file grows one Gui op at a
+// time, each proven by a run-verified canary before the next is built.
+//
+// D-macgui-style: the Win32 `class_name`/`style` args are IGNORED — macOS always
+// builds a standard titled/closable/resizable window (styleMask 15). The samples
+// want a visible titled window; the Win32 class/style bits do not translate.
+
+domain [u8]::CString when no_nul(self) {
+}
+
+// The Objective-C runtime seam (libobjc). Human method names; the `_objc_*`/`_sel_*`
+// symbols live only in the darwin binding table.
+boundary trait ObjectiveC {
+    machine get_class(name: &[u8] in CString) -> u64;
+    machine register_selector(name: &[u8] in CString) -> u64;
+    machine send(recv: u64, sel: u64) -> u64;
+    machine send_scalar(recv: u64, sel: u64, arg: u64) -> u64;
+    machine send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64;
+    machine send_image_size(recv: u64, sel: u64, image: u64, w: f64, h: f64) -> u64;
+    machine send_scalar4(recv: u64, sel: u64, a: u64, b: u64, c: u64, d: u64) -> u64;
+}
+
+// The Core Graphics seam (CoreGraphics framework) for the framebuffer blit.
+boundary trait CoreGraphics {
+    machine color_space_rgb() -> u64;
+    machine bitmap_context(data: &mut [i32], w: i64, h: i64, bpc: i64, stride: i64, space: u64, info: i64) -> u64;
+    machine bitmap_context_image(ctx: u64) -> u64;
+}
+
+data MacosGui {
+    objc: ObjectiveC;
+    cg: CoreGraphics;
+    // The current window + its image-view content (single-window apps).
+    window: u64;
+    view: u64;
+    app: u64;
+    // Scratch for the objc call sequences.
+    cls: u64;
+    sel: u64;
+    tmp: u64;
+    rx: f64;
+    ry: f64;
+    rw: f64;
+    rh: f64;
+    rc: u64;
+    r32: u32;
+}
+
+// `Gui::window_create` — open a titled window whose content view is an NSImageView
+// (the blit target). Returns the NSWindow pointer (the samples check `> 0`).
+machine MacosGui::window_create(&mut self, class_name: [u8; 7], title: [u8; 10], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64 {
+    self.rx = x as f64;
+    self.ry = y as f64;
+    self.rw = width as f64;
+    self.rh = height as f64;
+    self.cls = self.objc.get_class("NSApplication");
+    self.sel = self.objc.register_selector("sharedApplication");
+    self.app = self.objc.send(self.cls, self.sel);
+    self.sel = self.objc.register_selector("setActivationPolicy:");
+    self.rc = self.objc.send_scalar(self.app, self.sel, 0);
+    self.cls = self.objc.get_class("NSWindow");
+    self.sel = self.objc.register_selector("alloc");
+    self.tmp = self.objc.send(self.cls, self.sel);
+    self.sel = self.objc.register_selector("initWithContentRect:styleMask:backing:defer:");
+    self.window = self.objc.send_rect(self.tmp, self.sel, self.rx, self.ry, self.rw, self.rh, 15, 2, 0);
+    self.cls = self.objc.get_class("NSImageView");
+    self.sel = self.objc.register_selector("alloc");
+    self.tmp = self.objc.send(self.cls, self.sel);
+    self.sel = self.objc.register_selector("initWithFrame:");
+    self.view = self.objc.send_rect(self.tmp, self.sel, self.rx, self.ry, self.rw, self.rh, 0, 0, 0);
+    self.sel = self.objc.register_selector("setContentView:");
+    self.rc = self.objc.send_scalar(self.window, self.sel, self.view);
+    self.sel = self.objc.register_selector("makeKeyAndOrderFront:");
+    self.rc = self.objc.send_scalar(self.window, self.sel, 0);
+    transition { _ -> ret() }
+    state ret(&mut self) -> u64 { self.window }
+}
+
+// `Gui::get_dc` — the samples pass the returned "device context" to `blit`; on
+// macOS the drawing target is the window's image view, reached from the window, so
+// `get_dc` just echoes the window handle back (the sample only checks `> 0`).
+machine MacosGui::get_dc(&mut self, window: u64) -> u64 {
+    transition { _ -> ret() }
+    state ret(&mut self) -> u64 { window }
+}
+
+// `Gui::is_window` — liveness. `[window isVisible]` is a live, on-screen window.
+machine MacosGui::is_window(&mut self, window: u64) -> u32 {
+    self.sel = self.objc.register_selector("isVisible");
+    self.rc = self.objc.send(window, self.sel);
+    self.r32 = self.rc as u32;
+    transition { _ -> ret() }
+    state ret(&mut self) -> u32 { self.r32 }
+}
+
+// `Gui::window_destroy` — `[window close]`.
+machine MacosGui::window_destroy(&mut self, window: u64) -> u32 {
+    self.sel = self.objc.register_selector("close");
+    self.rc = self.objc.send_scalar(window, self.sel, 0);
+    self.r32 = 1;
+    transition { _ -> ret() }
+    state ret(&mut self) -> u32 { self.r32 }
+}
