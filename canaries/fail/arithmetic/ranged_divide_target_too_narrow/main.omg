@@ -1,0 +1,16 @@
+// The divide fold's SOUNDNESS twin: `[0..=259] / 26` folds to [0..=9], which
+// does NOT fit `y: [0..=8]` -- the store must still reject (9 > 8).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    c: i32 [0..=259];
+    y: i32 [0..=8];
+}
+
+machine Main::main(&mut self) {
+    self.y = self.c / 26;
+    self.console.exit_process(1);
+}

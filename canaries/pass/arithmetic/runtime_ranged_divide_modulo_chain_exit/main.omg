@@ -1,0 +1,25 @@
+// The proof-side range fold now folds DIVISION (keystone catalog #1):
+// `c: [0..=259]`, `(c / 26) % 5` folds through the corner-quotient divide
+// ([0..=9]) then modulo ([0..=4]) -- the whole chain proves into `y: [0..=4]`
+// with no guard. Both `y = c/26` alone and the `% K` chain used to reject
+// ("cannot prove assignment value"). c=259 -> 259/26=9 -> 9%5=4 -> exit 4.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    c: i32 [0..=259];
+    y: i32 [0..=4];
+}
+
+machine Main::main(&mut self) {
+    self.c = 259;
+    self.y = (self.c / 26) % 5;
+    transition self.y == 4 {
+        true -> matched()
+        false -> unmatched()
+    }
+    state matched(&mut self) { self.console.exit_process(4); }
+    state unmatched(&mut self) { self.console.exit_process(0); }
+}

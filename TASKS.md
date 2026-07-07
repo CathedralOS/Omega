@@ -27,16 +27,12 @@ representation machinery behind a deliberate boundary.
 
 ## KEYSTONE COMPLETENESS GAP CATALOG (the next round's worklist, from the de-Trapping sweep)
 
-1. The proof-side range fold has NO Divide (obligations.rs integer_binary_range
-   returns None for Divide + BitwiseAnd) while validation's Interval::divide
-   folds -- the two folds disagree; `y = c/26` into a ranged y rejects even
-   with c ranged, and appending `% K` doesn't rescue it.
-2. guard_refined_binary_range is literal-only + top-level-only (`p + dir` and
+1. guard_refined_binary_range is literal-only + top-level-only (`p + dir` and
    compound values unrefinable); declared ranges of a non-self OPERAND don't
    feed either fold.
-3. A guarded COPY (`y = self.yv` with yv fully edge-guarded) doesn't narrow.
-4. Multi-VARIABLE compound guards don't decompose (single-variable conjuncts work).
-5. Multi-predecessor edge agreement fails for the write keystone (equivalent
+2. A guarded COPY (`y = self.yv` with yv fully edge-guarded) doesn't narrow.
+3. Multi-VARIABLE compound guards don't decompose (single-variable conjuncts work).
+4. Multi-predecessor edge agreement fails for the write keystone (equivalent
    `sp < 16` guards on 3 edges don't prove; funnel states are the workaround).
 
 **Abort-as-effect (#65) design sketch (chat, NOT settled):** every trap-capable

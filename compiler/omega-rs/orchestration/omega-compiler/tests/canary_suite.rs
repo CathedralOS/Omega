@@ -2709,6 +2709,75 @@ fn runtime_slice_length_field_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The proof-side range fold folds DIVISION and MODULO through a chain:
+// `(c / 26) % 5` with `c: [0..=259]` proves into `y: [0..=4]` with no guard
+// (corner-quotient divide -> [0..=9], modulo -> [0..=4]). c=259 -> exit 4.
+#[test]
+fn runtime_ranged_divide_modulo_chain_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_ranged_divide_modulo_chain_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-ranged-divmod-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("ranged divide/modulo chain canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("ranged divide/modulo chain canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(4),
+        "expected `(self.c / 26) % 5` (c=259, ranged [0..=259]) to prove into \
+         y: [0..=4] and exit 4, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The proof-side range fold folds BITWISE-AND over provably non-negative
+// operands: `c & 15` with `c: [0..=259]` lands in [0, 15]. 259 & 15 = 3.
+#[test]
+fn runtime_ranged_bitwise_and_mask_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_ranged_bitwise_and_mask_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-ranged-andmask-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("ranged bitwise-and mask canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("ranged bitwise-and mask canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "expected `self.c & 15` (c=259, ranged) to prove into y: [0..=15] and \
+         exit 259 & 15 = 3, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A DECLARED range discharges the index obligation with no guard: `i: usize
 // [0..=4]` indexing `[i32; 5]` proves both bounds (Exact-domain ranges are
 // store-enforced invariants). Read face: ZII i=0 -> arr[0]=30 -> exit 30.
@@ -21635,6 +21704,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/modulo_by_zero_rejected",
     "arithmetic/expression_range_bound_store_rejected",
     "arithmetic/non_constant_range_bound_rejected",
+    "arithmetic/ranged_divide_target_too_narrow",
+    "arithmetic/ranged_divide_possibly_zero_divisor",
     "arithmetic/bool_arithmetic_into_bool_rejected",
     "arithmetic/bitwise_numeric_into_bool_rejected",
     "arithmetic/undeclared_bare_name_rejected",

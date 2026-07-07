@@ -1,0 +1,24 @@
+// The proof-side range fold now folds BITWISE-AND over provably non-negative
+// operands: `c & 15` with `c: [0..=259]` lands in [0, 15] (an AND never sets
+// a bit absent from either operand), proving into `y: [0..=15]` with no
+// guard. c=259 -> 259 & 15 = 3 -> exit 3.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    c: i32 [0..=259];
+    y: i32 [0..=15];
+}
+
+machine Main::main(&mut self) {
+    self.c = 259;
+    self.y = self.c & 15;
+    transition self.y == 3 {
+        true -> matched()
+        false -> unmatched()
+    }
+    state matched(&mut self) { self.console.exit_process(3); }
+    state unmatched(&mut self) { self.console.exit_process(0); }
+}

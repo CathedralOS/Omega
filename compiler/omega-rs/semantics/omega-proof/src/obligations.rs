@@ -1984,11 +1984,45 @@ fn integer_binary_range(
                 maximum: left.maximum.max(0),
             })
         }
+        BinaryOperator::Divide => {
+            // The divisor must provably exclude 0: entirely positive or
+            // entirely negative. On a single-signed divisor interval the four
+            // corner quotients are extremal for truncating division (x/k is
+            // monotone in x for fixed k, and piecewise monotone in k on one
+            // sign side), so min/max over the corners is exact --
+            // `[0..=259] / 26` folds to `[0..=9]`, which used to return None
+            // and reject a provably-in-range store. `i64::MIN / -1` overflows;
+            // checked_div bails to None (conservative).
+            if !(right.minimum >= 1 || right.maximum <= -1) {
+                return None;
+            }
+            let corners = [
+                left.minimum.checked_div(right.minimum)?,
+                left.minimum.checked_div(right.maximum)?,
+                left.maximum.checked_div(right.minimum)?,
+                left.maximum.checked_div(right.maximum)?,
+            ];
+            Some(IntegerRange {
+                minimum: *corners.iter().min()?,
+                maximum: *corners.iter().max()?,
+            })
+        }
+        BinaryOperator::BitwiseAnd => {
+            // `x & mask` with BOTH operands provably non-negative: an AND
+            // never sets a bit absent from either operand, so the result is
+            // in [0, min(left.max, right.max)]. A possibly-negative operand
+            // (sign bits) stays unfolded.
+            if left.minimum < 0 || right.minimum < 0 {
+                return None;
+            }
+            Some(IntegerRange {
+                minimum: 0,
+                maximum: left.maximum.min(right.maximum),
+            })
+        }
         BinaryOperator::And
-        | BinaryOperator::BitwiseAnd
         | BinaryOperator::BitwiseOr
         | BinaryOperator::BitwiseXor
-        | BinaryOperator::Divide
         | BinaryOperator::Equal
         | BinaryOperator::Greater
         | BinaryOperator::GreaterOrEqual
