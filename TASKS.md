@@ -141,8 +141,10 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   field offset through dispatch (deep). A precise frontend fence for (1) rejects
   currently-compiling code -> needs a Zach decision, not landed unilaterally.
 - u64 literals above i64::MAX rejected at parse (`literals.rs`) — **CLAIMED by the
-  std::time workstream** (TASKS_TIME.md D14: i128 literal carrier, rung 1); const
-  float arith in a guard refused (clean error); a tail of value-call corner cases.
+  std::time workstream** (TASKS_TIME.md D14: ANONYMOUS literals — payload-until-use,
+  no numeric carrier at all; also absorbs the type-blind const-fold sign-miscompile
+  class, since a context-less folder defers instead of folding); const float arith
+  in a guard refused (clean error); a tail of value-call corner cases.
 - **[ ] Unresolved value-call returns 0 silently (found 2026-07-05).**
   `let y: i32 = bogus_fn(1)` compiles and yields 0 (silent miscompile);
   statement-position `bogus_fn(1);` is correctly rejected by `validate_call_node` ("has

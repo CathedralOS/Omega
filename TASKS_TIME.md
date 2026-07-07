@@ -167,22 +167,41 @@ Two layers, exactly the fs pattern: portable wrapper in
   `is_less_than`/`is_greater_than` bool conveniences. Struct equality via the
   synthesized `Equatable` `equals`. Do not depend on `==` for payload-bearing
   case enums (payload-aware equality is still pending language-side).
-- **D14. i128 literal carrier (ROPED IN, Zach 2026-07-06: "sounds like a
-  compiler bug").** Integer literals become anonymous-until-use (the squalr
-  model: the literal is an inert payload; the fit-check happens where a type
-  meets it). Omega already HAS the use-site half (`integer_literal_constraints`
-  → `[v,v]` interval intersected with the target-type range at every binding
-  boundary); the fix is the CARRIER: `Integer(i64)` → `Integer(i128)` in the
-  three tree enums (syntax / typed / symbol-resolved `expression.rs`), widen
-  `IntegerRange { minimum, maximum }` (omega-proof `obligations.rs:378`) to
-  i128, accept full-magnitude parse in `literals.rs` (reject only above
-  u64::MAX / below i64::MIN at the USE against the target type). ~284 accesses
-  / ~167 logical sites / 123 files, overwhelmingly mechanical match-arm
-  destructures. NO backend work (both ISAs already take 64-bit two's-complement
-  bit patterns). Negative literals keep folding at parse (`wrapping_neg` —
-  now exact in i128). EXPLICITLY NOT FIXED BY THIS: the type-blind const-folder
-  miscompile class (`>>`/`/`/`%` on high-bit constants) — that fix stays "the
-  type rides on the constant" and is NOT this workstream's item.
+- **D14. ANONYMOUS integer literals (ROPED IN; corrected 2026-07-06 — Zach: an
+  i128 carrier "misses the point", e.g. the day a u128 type exists).** A
+  literal is an UNINTERPRETED PAYLOAD — normalized digits + radix + sign, the
+  squalr model — and is NEVER a numeric value until a USE gives it a type.
+  There is no numeric carrier to outgrow; a future u128/u256 changes nothing
+  at the literal layer.
+  - Representation: `Integer(i64)` in the three tree enums (syntax / typed /
+    symbol-resolved `expression.rs`) → the payload. The ONLY way to get a
+    number out is `value_for(target_type) -> value | diagnostic` (fit-check at
+    the use; the error names the literal and the target type). No bare getter.
+  - Consumers WITH type context — binding boundaries
+    (`integer_literal_constraints` → `[v,v]` interval ∩ target range, which
+    already exists), typed operands, codegen immediates (both ISAs already
+    take full 64-bit bit patterns) — deanonymize; mechanical.
+  - Consumers WITHOUT type context DEFER. In particular the type-blind const
+    folder must NOT fold anonymous literals; folding moves behind typing
+    ("the type rides on the constant"). This MERGES the open const-fold
+    sign-miscompile class ([[shift-right-signedness-const-fold]] /
+    [[decision-17-const-fold-domain-hole]]) into this rung — it is no longer
+    orthogonal. Canary the defer tail: a previously-folded constant now
+    reaching lowering UNFOLDED must either still lower or reject loudly,
+    never miscompile.
+  - Negative literals: the sign joins the payload (parse-time `wrapping_neg`
+    dies with the eager i64).
+  - `IntegerRange { minimum, maximum }` (omega-proof `obligations.rs:378`)
+    widens as an INTERNAL prover detail (precision for the widest SUPPORTED
+    type's range) — the prover's width is contained in one struct and is no
+    longer the language's literal ceiling.
+  - Pin at implementation: the default-type rule for an annotation-less
+    `let x = 5` (today's rule, unchanged — the binding IS the use); what an
+    interval means in a genuinely untyped context (should not exist post-audit).
+  - Scope: the same ~284 accesses / ~167 logical sites / 123 files, but each
+    is an AUDIT (type context? → deanonymize; none? → defer), not a rename.
+    Budget MULTI-FIRE; the defer-caused fold changes are the regression risk,
+    A/B the full canary tail every fire.
 - **D15. const-v0 (ROPED IN; design settled 2026-07-04, unclaimed in TASKS.md).**
   Implement the `const` declaration per `static_root_and_constants.md`, scoped
   to LITERAL-ONLY initializers: scalars and struct-literals-of-literals, free
@@ -355,10 +374,12 @@ boundary trait TimeHost {
 4. **NO aarch64 fence lift needed** (corrected): the x86_64 gate in
    `windows.rs` wraps Gui ops only; Clock rows bind unconditionally and fs
    proved aarch64 value returns. Darwin Clock additions are table work.
-5. **D14 literal carrier** — scope in D14; land as ONE focused commit;
+5. **D14 anonymous literals** — scope in D14; multi-fire, each fire green;
    canaries: `let x: u64 = 18446744073709551615` exact round-trip natively +
-   interp, and a FAIL canary for a magnitude no type fits / a u64-range
-   literal bound to i64 (fit-check at use).
+   interp; a FAIL canary for a magnitude no type fits AND for a u64-range
+   literal bound to i64 (fit-check at use names literal + target); a fold-defer
+   canary (an expression the folder used to fold sign-blindly now either
+   lowers correctly or rejects loudly).
 6. **D15 const-v0** — declaration parse (free + `Type::`-scoped), symbol
    resolution, literal-only initializer evaluation, pure-value check,
    use-site materialization (a const use folds to its literal value / struct
@@ -380,10 +401,12 @@ boundary trait TimeHost {
 
 ## Next steps
 
-1. [ ] **i128 literal carrier (D14).** The mechanical sweep + parse acceptance +
+1. [ ] **Anonymous integer literals (D14).** Payload representation + the
+   `value_for(type)` accessor + the consumer audit (deanonymize-or-defer) +
    `IntegerRange` widening; canaries per engineering item 5. Verify by A/B
-   failure-set diff (this touches proof/validation/folding — high blast
-   radius, zero intended behavior change for in-range programs).
+   failure-set diff every fire (this touches proof/validation/folding — high
+   blast radius; in-range programs must be behavior-identical, fold-defers
+   must never silently change results).
 2. [ ] **const-v0 (D15).** Declaration + literal-only eval + use-site
    materialization; canaries per engineering item 6.
 3. [ ] **Duration pure-value core** (`time.omg`, no host work): data + consts +
