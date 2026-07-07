@@ -1,0 +1,102 @@
+// elapsed_timer: times a real workload with std::time -- the first full
+// consumer of the Instant/Time surface (TASKS_TIME.md rung 8).
+//
+// Chain: Time::now() captures a start Instant; Time::sleep_for sleeps a
+// 50ms Duration (the workload -- returns the clamped millisecond request);
+// Time::elapsed_since reads the stopwatch; Duration::checked_as_milliseconds
+// totals it; the total renders zero-padded into a console line
+// ("elapsed milliseconds: 00050"-shaped; real clocks may overshoot).
+//
+// The exit code proves the elapsed->sleep chain: elapsed must be at least
+// the 50ms the workload slept (the interpreter's virtual clock makes it
+// exactly 50; a real clock is >= 50). Exit 70 on success; 1 = sleep_for
+// returned the wrong request; 2 = elapsed under the sleep; 3 = the
+// millisecond total overflowed (impossible for a fresh stopwatch).
+//
+// Expected exit: 70.
+
+use omega::language::std::console;
+use omega::language::std::time;
+
+// Text carriers are byte arrays in the Utf8 domain (declared per storage
+// type; encodings are library, not intrinsics).
+domain [u8; 27]::Utf8 when valid_utf8(self) {}
+domain [u8; 10]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    time: Time;
+    start_keep: Instant;
+    elapsed: Duration;
+    pause: Duration;
+    total_result: TotalResult;
+    milliseconds: u64;
+    slept: u32;
+    line: [u8; 27] in Utf8;   // "elapsed milliseconds: 00000"
+    digits: [u8; 10] in Utf8;
+    glyph: u8;
+    digit: u64;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("elapsed_timer: times a 50ms workload with std::time");
+    self.digits = "0123456789";
+    self.line = "elapsed milliseconds: 00000";
+    self.start_keep = self.time.now();
+    self.pause = Duration { seconds: 0, subsecond_nanoseconds: 50000000 };
+    self.slept = self.time.sleep_for(self.pause);
+    transition self.slept == 50 {
+        true -> read_elapsed()
+        false -> fail_request()
+    }
+    state read_elapsed(&mut self) {
+        self.elapsed = self.time.elapsed_since(self.start_keep);
+        self.total_result = self.elapsed.checked_as_milliseconds();
+        transition self.total_result {
+            TotalResult::Ok { total } -> render_ten_thousands(total)
+            TotalResult::Overflow -> fail_overflow()
+        }
+    }
+    state render_ten_thousands(&mut self, total: u64) {
+        self.milliseconds = total;
+        self.digit = (self.milliseconds / 10000) % 10;
+        transition self.digit < 10 { true -> put_ten_thousands() false -> fail_overflow() }
+    }
+    state put_ten_thousands(&mut self) {
+        self.glyph = self.digits[self.digit];
+        self.line[22] = self.glyph;
+        self.digit = (self.milliseconds / 1000) % 10;
+        transition self.digit < 10 { true -> put_thousands() false -> fail_overflow() }
+    }
+    state put_thousands(&mut self) {
+        self.glyph = self.digits[self.digit];
+        self.line[23] = self.glyph;
+        self.digit = (self.milliseconds / 100) % 10;
+        transition self.digit < 10 { true -> put_hundreds() false -> fail_overflow() }
+    }
+    state put_hundreds(&mut self) {
+        self.glyph = self.digits[self.digit];
+        self.line[24] = self.glyph;
+        self.digit = (self.milliseconds / 10) % 10;
+        transition self.digit < 10 { true -> put_tens() false -> fail_overflow() }
+    }
+    state put_tens(&mut self) {
+        self.glyph = self.digits[self.digit];
+        self.line[25] = self.glyph;
+        self.digit = self.milliseconds % 10;
+        transition self.digit < 10 { true -> put_ones() false -> fail_overflow() }
+    }
+    state put_ones(&mut self) {
+        self.glyph = self.digits[self.digit];
+        self.line[26] = self.glyph;
+        self.console.write_line(self.line);
+        transition self.milliseconds >= 50 {
+            true -> good()
+            false -> fail_elapsed()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_request(&mut self) { self.console.exit_process(1); }
+    state fail_elapsed(&mut self) { self.console.exit_process(2); }
+    state fail_overflow(&mut self) { self.console.exit_process(3); }
+}
