@@ -1628,7 +1628,7 @@ fn overflow_operand_value_call_target(
         .map(|_| call.target.as_str().to_string())
 }
 
-fn call_return_type(
+pub(crate) fn call_return_type(
     program: &TypedTrees,
     current_machine: &Machine,
     call: &TableCallExpression,
