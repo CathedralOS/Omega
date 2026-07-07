@@ -116,16 +116,19 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   (Owner amendment upstream, same commit window: "machine calls are stack based,
   but state transitions are not" -- exactly the enforced distinction.)
 
-- **[ ] 16-byte value-store fence blocks receiverless-constructor NATIVE lowering
-  (2026-07-07, std::time).** `self.b = Duration::from_milliseconds(3500)` (a
-  receiverless type-scoped SINGLE-STATE value machine returning a 16-byte struct)
-  fails native compile LOUDLY: "X86_64 MVP encoder cannot store 16-byte runtime
-  values yet" — this call shape's result store takes a different route than
-  receiver-ful multi-state value machines (whose 16-byte results already deliver).
-  Interp resolves via the new type-qualified receiverless arm (evaluator (1b)).
-  Fix = the 16-byte runtime value store in the MVP encoder (or route this shape
-  through the working delivery); then promote
-  time/runtime_duration_constructors_exit to a native `_canary_runs` test.
+- **[ ] Struct-literal value-machine result with an INLINE BINARY field mis-sizes
+  the write (2026-07-10 root-cause of the "16-byte value-store fence").** The
+  Duration constructors are NATIVE now (promoted to `_canary_runs`, exit 70):
+  the blocker was not the call shape but the STRUCT LITERAL's field values --
+  `Duration { seconds: milliseconds / 1000, .. }` (a BINARY field expression)
+  selects ONE WriteRuntimeStorageBinary sized to the WHOLE 16-byte struct and
+  hits the loud store fence; the construct-from-LETS shape (every field a
+  local/param/literal) delivers 16-byte results fine, so std::time now binds
+  lets (the working idiom, backtrace-verified via encode_runtime_storage_
+  binary_write). REMAINING: either lower binary field expressions per-field
+  (byte_size = the FIELD at slot+offset) in the struct-literal value
+  materialization, or catch the shape in the frontend with a bind-to-lets
+  teaching error instead of the cryptic encoder fence.
 
 - **[ ] Interpreter unsigned-u64 arithmetic remainder (2026-07-07).** Comparisons now
   take an UNSIGNED witness from declared types (evaluator: Frame.unsigned64_locals +
