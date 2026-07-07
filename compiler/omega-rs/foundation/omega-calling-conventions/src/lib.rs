@@ -441,6 +441,9 @@ pub enum HostOperation {
     IsWindow,
     /// `DestroyWindow(hwnd)`.
     WindowDestroy,
+    /// `GetForegroundWindow()` -- the focused top-level window (0 when none).
+    /// Lets a pump scope global key state (GetAsyncKeyState) to its own window.
+    ForegroundWindow,
 }
 
 impl HostOperation {
@@ -518,6 +521,7 @@ impl HostOperation {
             "msg_dispatch" => Self::MsgDispatch,
             "is_window" => Self::IsWindow,
             "window_destroy" => Self::WindowDestroy,
+            "foreground_window" => Self::ForegroundWindow,
             _ => Self::Unknown,
         }
     }
@@ -597,6 +601,7 @@ impl HostOperation {
             Self::MsgDispatch => "msg_dispatch",
             Self::IsWindow => "is_window",
             Self::WindowDestroy => "window_destroy",
+            Self::ForegroundWindow => "foreground_window",
         }
     }
 }

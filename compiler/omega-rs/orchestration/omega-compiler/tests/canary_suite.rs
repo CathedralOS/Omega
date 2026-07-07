@@ -14535,6 +14535,49 @@ fn runtime_gui_window_lifecycle_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// `foreground_window()` -- the focus gate for GLOBAL GetAsyncKeyState (an
+// unfocused app must not treat a desktop-wide ESC, e.g. the Ctrl+Shift+Esc
+// chord, as its quit key). No value assertion: the interp's virtual desktop
+// foregrounds the last live window while a native style-0 window is invisible
+// and never foreground -- the canary pins the call path, not the value.
+// Windows-gated so the macOS baseline failure set gains no new test name.
+#[cfg(windows)]
+#[test]
+fn runtime_gui_foreground_window_exit_canary_runs() {
+    let canary = pass_canary("host/runtime_gui_foreground_window_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("gui foreground-window canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (virtual foreground call + destroy), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir().join(format!("omega-gui-fg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("gui foreground-window canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("gui foreground-window canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected create + foreground_window + destroy (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn runtime_gui_window_blit_exit_canary_runs() {
     // The windowed integration proof: CreateWindowExA("STATIC", style 0 -- INVISIBLE, CI-safe)
@@ -22626,6 +22669,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "host/runtime_gui_memory_dc_blit_exit",
     "host/runtime_gui_window_blit_exit",
     "host/runtime_gui_window_lifecycle_exit",
+    "host/runtime_gui_foreground_window_exit",
     "inline_asm/asm_block_jmp_state",
     "memory/repr_native_stable_layout",
     "modules/use_imports_sibling_data",

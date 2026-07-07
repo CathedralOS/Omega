@@ -1,0 +1,42 @@
+// RUN CANARY (exit 70). `foreground_window() -> GetForegroundWindow()` -- the
+// 0-arg value-returning user32 import that lets a pump scope the GLOBAL
+// GetAsyncKeyState to its own window (an unfocused app must not treat a
+// desktop-wide ESC -- e.g. the Ctrl+Shift+Esc chord -- as its quit key).
+//
+// Deliberately NO value assertion on fw: the interpreter's virtual desktop
+// makes the last-created live window foreground, but natively this style-0
+// window is INVISIBLE and never foreground (fw = whatever the CI desktop
+// focuses). The canary pins the call path (operand arm + general import call
+// + result store) in both worlds: a drop/crash/hang fails, exit 70 passes.
+boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Gui {
+    machine window_create(class_name: [u8; 7], title: [u8; 10], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
+    machine foreground_window() -> u64;
+    machine window_destroy(window: u64) -> u32;
+}
+data Main {
+    console: Console;
+    gui: Gui;
+    cls: [u8; 7];
+    title: [u8; 10];
+    hwnd: u64;
+    fw: u64;
+    killed: u32;
+}
+machine Main::main(&mut self) {
+    // "#32770\0"
+    self.cls[0] = 35; self.cls[1] = 51; self.cls[2] = 50; self.cls[3] = 55;
+    self.cls[4] = 55; self.cls[5] = 48; self.cls[6] = 0;
+    // "fgwin\0"
+    self.title[0] = 102; self.title[1] = 103; self.title[2] = 119; self.title[3] = 105;
+    self.title[4] = 110; self.title[5] = 0;
+    self.hwnd = self.gui.window_create(self.cls, self.title, 0, 10, 10, 50, 50);
+    transition self.hwnd > 0 { true -> probe() _ -> bad(71) }
+    state probe(&mut self) {
+        self.fw = self.gui.foreground_window();
+        self.killed = self.gui.window_destroy(self.hwnd);
+        transition self.killed > 0 { true -> good() _ -> bad(72) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
