@@ -19748,6 +19748,57 @@ fn runtime_value_call_entry_field_write_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// An inlined callee that TRANSITIONS on a nested sibling call's result must
+// read the WRITTEN result, not the pre-store ZII tag: a bare-call binding
+// whose local ALSO has storage minted a call-result slot carrying the SAME
+// name, so the guarded arms' by-NAME terminal writes landed in whichever
+// slot matched first and the guard read the other's ZII. Every leg asserts a
+// NON-ZII arm (ZII-coinciding arms pass under both correct and buggy
+// emission): saturating_subtract/add exact values, is_greater_than true,
+// is_less_than FALSE on a > b.
+#[test]
+fn runtime_nested_value_call_guard_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_nested_value_call_guard_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("nested-guard canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (all non-ZII arms delivered), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested-guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested-guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected every nested-call guard to read the written result (exit 70), got {:?} \
+         (1/2 = saturating_subtract Ok arm; 3 = is_greater_than; 4 = is_less_than designed-false; \
+         5/6 = saturating_add unclamped arm)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Same-callee value calls at two sites returning a 16-byte STRUCT: each
 // site's terminal construct must write ITS OWN `__call_result` slot. The
 // scalar multi-site pins below never caught this because the struct
@@ -23287,6 +23338,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_call_nested_entry_call_exit",
     "calls/runtime_value_call_same_callee_sites_exit",
     "calls/runtime_two_site_struct_result_exit",
+    "calls/runtime_nested_value_call_guard_exit",
     "calls/runtime_value_call_shared_payload_name_exit",
     "calls/runtime_value_call_shared_slot_straight_line_exit",
     "calls/runtime_value_call_struct_payload_cast_field_exit",

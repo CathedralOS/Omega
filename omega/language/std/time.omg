@@ -554,48 +554,17 @@ machine Instant::checked_duration_since(&self, earlier: Instant) -> DurationResu
 
 // self - earlier, clamping at ZERO instead of reporting the backwards case
 // (total, the ZII-friendly default -- Rust's `duration_since` panics here).
-//
-// SINGLE-LEVEL body (the borrow logic spelled out rather than nesting
-// `checked_duration_since`): an inlined callee that TRANSITIONS on a nested
-// sibling call's result reads the nested result's PRE-STORE ZII tag natively
-// (the fs stat_rc guard-ordering face, filed in TASKS.md) -- the nested
-// spelling silently returned ZERO for every forward pair. Entry-let guards
-// have no such face.
+// Mirrors Duration::saturating_subtract (transitioning on a nested sibling
+// call's result is safe again since the guard-ZII slot-naming fix,
+// 2026-07-08 -- pinned by calls/runtime_nested_value_call_guard_exit).
 machine Instant::duration_since(&self, earlier: Instant) -> Duration {
-    let seconds_bigger: bool = self.seconds > earlier.seconds;
-    let seconds_equal: bool = self.seconds == earlier.seconds;
-    let nanoseconds_fit: bool = self.subsecond_nanoseconds >= earlier.subsecond_nanoseconds;
-    let seconds_direct: u64 in Wrapping =
-        (self.seconds as u64 in Wrapping) - (earlier.seconds as u64 in Wrapping);
-    let seconds_borrowed: u64 in Wrapping = (seconds_direct as u64 in Wrapping) - 1;
-    let nanoseconds_direct: u32 = ((self.subsecond_nanoseconds as u32 in Wrapping)
-        - (earlier.subsecond_nanoseconds as u32 in Wrapping)) as u32;
-    let nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
-        - (earlier.subsecond_nanoseconds as u32 in Wrapping))
-        + (self.subsecond_nanoseconds as u32 in Wrapping)) as u32;
-    transition seconds_bigger == true {
-        true -> total_bigger(nanoseconds_fit, seconds_direct, seconds_borrowed, nanoseconds_direct, nanoseconds_borrowed)
-        false -> total_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct, nanoseconds_direct)
+    let since: DurationResult = self.checked_duration_since(earlier);
+    transition since {
+        DurationResult::Ok { duration } -> since_value(duration)
+        DurationResult::Overflow -> since_zero()
     }
-    state total_bigger(&self, nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> Duration {
-        transition nanoseconds_fit {
-            true -> total_emit(seconds_direct, nanoseconds_direct)
-            false -> total_emit(seconds_borrowed, nanoseconds_borrowed)
-        }
-    }
-    state total_equal_or_less(&self, seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> Duration {
-        transition seconds_equal && nanoseconds_fit {
-            true -> total_emit(seconds_direct, nanoseconds_direct)
-            false -> total_backwards()
-        }
-    }
-    state total_emit(&self, seconds_final: u64, nanoseconds_final: u32) -> Duration {
-        Duration {
-            seconds: seconds_final,
-            subsecond_nanoseconds: nanoseconds_final % 1000000000,
-        }
-    }
-    state total_backwards(&self) -> Duration { Duration::ZERO }
+    state since_value(&self, duration: Duration) -> Duration { duration }
+    state since_zero(&self) -> Duration { Duration::ZERO }
 }
 
 // The clock-read CAPABILITY (D9): reads live here, never ambiently on the
