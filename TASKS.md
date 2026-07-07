@@ -126,23 +126,18 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   no numeric carrier at all; also absorbs the type-blind const-fold sign-miscompile
   class, since a context-less folder defers instead of folding); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
-- **[ ] Value-call frontier SIBLINGS (the nonexistent-target face CLOSED 2026-07-09).**
-  `let y: i32 = bogus_fn(1)` and `recv.bogus_method()` are now COMPILE ERRORS
-  (`report_unresolved_value_call` in calls.rs: a decision layer after the partial bounds
-  resolver -- builtins {min,max,sqrt,as_slice,as_mut_slice,as_view,bytes}, wire
-  encode/decode on a data receiver, then platform/trait/machine/attached through three
-  receiver-type channels: contained type, DECLARED local/param type walked to its Named
-  head, receiver-as-type-name). Vocabulary was collected empirically via fall-through
-  logging across canaries+samples -- extend the channels there if a new valid shape ever
-  hits the error. It caught real silent-0s in the dungeon (Option `is_some`/`unwrap`
-  resolved to nothing; inventory never stacked -- rewritten to the usize-sentinel idiom).
-  REMAINING siblings (both still silently bind ZII 0; need resolved-void vs unresolved
-  DISTINCTION, which the decision layer now makes possible): (a) a VOID callee in value
-  position (`let r: i32 = self.act()` for a unit `act`) -- prior attempt false-positived
-  on terminating/transition machines whose entry-state return_type is EMPTY (`weaken ->
-  usize`), so the fix needs the RESOLVED callee's return type from the SAME channel that
-  resolved it, not a second lookup; (b) a value-returning machine with an EMPTY body
-  (`machine get -> i32 { }`).
+- **[x] Value-call frontier CLOSED 2026-07-09 (all three faces).** Nonexistent targets,
+  VOID callees in value position, and empty-body declared-return machines all reject
+  (calls.rs `report_unresolved_value_call` + `report_void_value_callee`; lib.rs
+  empty-body check, generic surface exempt). The old false-positive trap was a PARSER
+  hole: `-> T` after the machine clauses was silently EATEN by a skip-any-token
+  fallback (machines parsed as void); the clauses loop now parses `-> T`, consumes
+  `where` clauses structurally, and errors on garbage. Extend the resolver channels in
+  calls.rs if a new valid shape ever hits the error. NOTE surfaced en route: the
+  RECURSIVE value-machine countdown (`true -> self.countdown(r-1)`) still DIVERGES
+  native-vs-interp (native != 7, interp 7) -- the pre-existing
+  [[recursive-value-call-silent-miscompile]], now easier to see since post-clauses
+  return types are real; that memory topic is the tracker.
 - **[ ] MACHINE-FIELD-START subslice of a fixed array (fenced; everything else lowered 2026-07-06).**
   `let sub = self.arr[self.lo..self.hi]` (START = a machine FIELD) = clean error ("subslice
   descriptor construction ... not lowered"; fail canary
