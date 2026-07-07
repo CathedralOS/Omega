@@ -465,27 +465,23 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >   (resolve_machine_owned_collection_with_const_prefix_in_table). Canary
 >   runtime_nested_deep_const_prefix_exit pins both faces + the alias shape.
 >   REMAINING: BOTH-RUNTIME indices (`grid[i][j]`) = clean error; needs a
->   two-runtime-index op or an index-folding temp. Then array-of-structs as a binary
->   operand (NARROWED 2026-07-03: the `let t = arr[i].field; use t` idiom now
->   works. The DIRECT `self.r = arr[i].field + 22` still errors. A frontend
->   operand-hoist of `arr[i].field` is TOO BROAD -- at the pre-resolution hoist
->   layer the field's TYPE is unknown, so hoisting every `arr[i].field` operand
->   breaks STRING/SLICE fields, which have their own operand paths and must NOT be
->   hoisted. Only a SCALAR `arr[i].field` should hoist, which needs a TYPE-AWARE
->   hoist (typed layer) or a backend operand resolver. RE-SCOPED 2026-07-04: the
->   backend fix is PATH B -- a NEW machine-indexed struct-field VALUE OPERAND
->   (`base + i*elem + field_off`) + x86_64 emission. Pinned: struct `cells[i].x+5`
->   fails at resolve_runtime_value_operand_in_table's storage fallback (Member
->   unresolvable); plain `nums[i]+5` does NOT use the generic resolver, so machine
->   arrays aren't FrameIndexed operands -- add the new branch using
->   resolve_runtime_machine_indexed_target_in_table. The entity/particle pattern
->   works today via the field-temp idiom in samples/cli/collections/entity_list.
->   See array-of-structs-indexing memory), `arr[i]=arr[j]` both-runtime
->   (#38 -- last BARE-source case into an indexed target; a binary/literal/field
->   source already selects, only a bare local or bare indexed read fails, both
->   NeedsMachineOwnedWrite in the mutation emitter), computed-index `arr[k+1]`
->   double-gate, u64 literals > i64::MAX (i128 refactor). Fenced (safe) but block
->   real programs. One-fence-per-fire.
+>   two-runtime-index op or an index-folding temp. Array-of-structs as a binary
+>   operand: CLOSED (verified 2026-07-07 -- the Member-over-indexed operand HOIST
+>   + machine-indexed copy closed the whole family without a dedicated operand
+>   kind: `cells[i].x + 5`
+>   left/right/both-operand, guard subject, guard-DOMINATED RMW (`cells[i].x ==
+>   37` proves `+= 5` fits the bounded field -- guard refinement narrows INDEXED
+>   places), indexed target from indexed operand, and the by-value-param face all
+>   run value-validated native==interp. Canaries runtime_struct_field_operand_
+>   {matrix,param}_exit pin them; the PATH-B "new value operand" plan is obsolete.
+>   The field-temp idiom in samples/cli/collections/entity_list is no longer
+>   required). `arr[i]=arr[j]` both-runtime bare-source: CLOSED (re-verified live
+>   2026-07-07 -- bare indexed read AND bare local into a runtime-indexed target
+>   both value-validate native==interp; pinned by the runtime_dual_*_copy_exit
+>   canaries). Still open: computed-index `arr[k+1]` double-gate (checker
+>   rejection is LOAD-BEARING -- backend miscompiles; fix both together), u64
+>   literals > i64::MAX (i128 refactor). Fenced (safe) but block real programs.
+>   One-fence-per-fire.
 >
 > **Mint arc remainder (library-grade; the boot path used the boundary-vouch
 > shortcut):**

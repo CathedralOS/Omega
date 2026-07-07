@@ -4078,6 +4078,75 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Array-of-structs element field in every binary-operand position (left/right
+// operand, both-indexed, guard-dominated RMW, guard subject, indexed target).
+#[test]
+fn runtime_struct_field_operand_matrix_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_struct_field_operand_matrix_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-sf-operand-matrix-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct-field operand matrix canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("struct-field operand matrix canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `cells[i].x` to compute correctly in all six operand positions and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// Array-of-structs element field as a binary operand through a BY-VALUE param.
+#[test]
+fn runtime_struct_field_operand_param_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_struct_field_operand_param_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-sf-operand-param-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct-field operand param canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("struct-field operand param canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `cells[i].x + 5` through a by-value param array to compute 42 and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Deep const-prefix (`cube[1][1][k]`) + the stacked-index alias landmine
 // (unit-length inner arrays, where the byte gate can't catch the swallow).
 #[test]
