@@ -2709,6 +2709,42 @@ fn runtime_slice_length_field_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// ARRAY-ELEMENT RANGES: `cells: [i32 [0..=7]; 4]` -- writes (const + runtime
+// index) collect bounded obligations, ZII requires 0 in the element range, and
+// an indexed READ carries the range so `cells[i] * 2 + 1` proves into
+// `next: [0..=15]` with no guard (the grid-dataflow de-Trapping wall). -> 15.
+#[test]
+fn runtime_element_range_dataflow_exit_canary_runs() {
+    let canary = pass_canary("range/runtime_element_range_dataflow_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-elem-range-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("element range dataflow canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("element range dataflow canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(15),
+        "expected `self.cells[self.i] * 2 + 1` (element range [0..=7]) to prove \
+         into next: [0..=15] and exit 15, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // MULTI-predecessor edge agreement: two states funnel into `push` under
 // structurally IDENTICAL guards `sp >= 0 && sp < 16`, proving the guarded copy
 // into y: [0..=15]. The proof side's guard-equivalence walker gained literal
@@ -21989,6 +22025,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "range/guarded_binary_operand_stale",
     "range/funnel_guard_one_edge_unguarded",
     "range/funnel_guard_edges_disagree",
+    "range/element_range_write_rejected",
+    "range/element_range_runtime_write_rejected",
+    "range/element_range_zero_excluded",
     "ranges/loop_increment_index_unbounded",
     "ranges/loop_body_resets_index",
     "ranges/loop_init_exceeds_capacity",

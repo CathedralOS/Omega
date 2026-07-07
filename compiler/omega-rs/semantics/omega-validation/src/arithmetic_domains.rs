@@ -1419,7 +1419,22 @@ fn analyze(
         // A place (`x`, `self.field`): its declared type gives the domain and the
         // integer primitive. The value range is the FLOW-tracked interval (S4) if
         // we have proven one on this linear path, else the primitive's full range.
-        _ => match declared_place_type_raw(program, machine, state, expression) {
+        // An INDEXED read (`self.cells[rp]`) resolves through its collection's
+        // ELEMENT type, so a range-refined element (`[i32 [0..=7]; N]`) feeds
+        // the overflow proof exactly like a range-refined field (writes into
+        // elements are range-enforced by the proof side, and ZII requires 0 in
+        // the element range -- the interval is a true invariant).
+        _ => match declared_place_type_raw(program, machine, state, expression).or_else(|| {
+            // Only a RANGE-refined element feeds the analysis. An unranged
+            // element stays NEUTRAL (unchecked) as before -- resolving it
+            // would stamp `primitive + Exact` onto reads whose enclosing
+            // arithmetic was historically domain-neutral (`[i32; 3] in
+            // Wrapping` carries the domain on the ARRAY, so its bare-`i32`
+            // element read as Exact broke Wrapping-array canaries with
+            // spurious overflow + domain-mixing rejects).
+            crate::places::declared_indexed_element_type_raw(program, machine, state, expression)
+                .filter(|handle| range_constraint_interval(program, *handle).is_some())
+        }) {
             Some(handle) => {
                 let primitive = program.primitive_type_reference(handle);
                 let type_range = primitive

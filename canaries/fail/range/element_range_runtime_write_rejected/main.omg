@@ -1,0 +1,17 @@
+// Element-range WRITE enforcement (RUNTIME index): the element type governs the
+// target regardless of which element is written -- `self.cells[self.i] = 100`
+// must reject like the const-index face.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    cells: [i32 [0..=7]; 4];
+    i: usize [0..=3];
+}
+
+machine Main::main(&mut self) {
+    self.cells[self.i] = 100;
+    self.console.exit_process(1);
+}

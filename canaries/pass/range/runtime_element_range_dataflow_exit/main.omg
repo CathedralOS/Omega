@@ -1,0 +1,33 @@
+// ARRAY-ELEMENT RANGES (the de-Trapping sweep's wall): `cells: [i32 [0..=7]; 4]`
+// declares a range on the ELEMENT type, and the whole invariant machinery now
+// flows through indexed access:
+// - every indexed WRITE (const or runtime index) collects a bounded-assignment
+//   obligation (out-of-range stores reject);
+// - ZII requires 0 in the element range (a `[1..=7]` element rejects at the
+//   declaration);
+// - an indexed READ carries the element range, so `cells[i] * 2 + 1` proves
+//   into `next: i32 [0..=15]` with no guard -- the cells[rp]-style dataflow
+//   that kept grid samples partially Wrapping.
+// cells[1]=7 -> 7*2+1 = 15 -> exit 15.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    cells: [i32 [0..=7]; 4];
+    i: usize [0..=3];
+    next: i32 [0..=15];
+}
+
+machine Main::main(&mut self) {
+    self.cells[1] = 7;
+    self.i = 1;
+    self.next = self.cells[self.i] * 2 + 1;
+    transition self.next == 15 {
+        true -> matched()
+        false -> unmatched()
+    }
+    state matched(&mut self) { self.console.exit_process(15); }
+    state unmatched(&mut self) { self.console.exit_process(0); }
+}

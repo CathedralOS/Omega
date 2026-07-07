@@ -1173,16 +1173,21 @@ fn expression_constraints(
         {
             integer_literal_constraints(u32::MAX as i64)
         }
-        ExpressionNode::Member(_) | ExpressionNode::Mutable(_) | ExpressionNode::Name(_) => {
-            expression_type_reference(program, machine, state, expression)
-                .map(|type_reference| {
-                    collect_constraints_in_state(program, machine, state, type_reference)
-                })
-                .unwrap_or_default()
-        }
+        // An INDEXED read carries its collection's ELEMENT-type constraints
+        // (`cells: [i32 [0..=7]; 4]` -> `cells[rp]` reads as [0..=7]). Sound
+        // because the same element type now collects a bounded-assignment
+        // obligation at every indexed WRITE (the #40 rule: no read narrowing
+        // without write enforcement), and ZII requires 0 in the element range.
+        ExpressionNode::Indexed(_)
+        | ExpressionNode::Member(_)
+        | ExpressionNode::Mutable(_)
+        | ExpressionNode::Name(_) => expression_type_reference(program, machine, state, expression)
+            .map(|type_reference| {
+                collect_constraints_in_state(program, machine, state, type_reference)
+            })
+            .unwrap_or_default(),
         ExpressionNode::ArrayLiteral(_)
         | ExpressionNode::Boolean(_)
-        | ExpressionNode::Indexed(_)
         | ExpressionNode::String(_)
         | ExpressionNode::StructLiteral(_) => ConstraintBuffer::new(),
     }
@@ -1248,6 +1253,42 @@ fn expression_type_reference(
                     type_reference_for_symbol(program, machine, state, member.member_symbol)
                 })
         }
+        // An INDEXED place (`self.cells[k]`, const or runtime k) is typed by
+        // its collection's ELEMENT type. Without this arm, a range-refined
+        // element (`cells: [i32 [0..=7]; 4]`) had NO bounded-assignment
+        // obligation (writes went unenforced -- the declared element range was
+        // a lie) and no read constraints. The element type carries its
+        // constraints intact, so the same walk that enforces field ranges
+        // enforces element ranges.
+        ExpressionNode::Indexed(indexed) => {
+            let collection_type =
+                expression_type_reference(program, machine, state, indexed.collection)?;
+            element_type_reference(program, collection_type)
+        }
+        _ => None,
+    }
+}
+
+/// The ELEMENT type of an array/slice type reference, through reference and
+/// constraint shells: `[T; N]` / `[T]` / `&[T]` -> `T` (constraints intact).
+fn element_type_reference(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    if !type_reference.is_valid() {
+        return None;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        omega_typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+            element_type_reference(program, *referee)
+        }
+        omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+            element_type_reference(program, *base_type)
+        }
+        omega_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
+            Some(*element_type)
+        }
+        omega_typed_trees::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
         _ => None,
     }
 }

@@ -1,0 +1,15 @@
+// ZII conformance for ELEMENT ranges: every element starts 0, so an element
+// range excluding 0 (`[i32 [1..=7]; 4]`) is violated by the initial state --
+// reject at the declaration, exactly like a field range excluding 0.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    cells: [i32 [1..=7]; 4];
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(1);
+}
