@@ -1346,14 +1346,14 @@ fn runtime_i64_min_literal_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_duration_core_interpreter_oracle() {
+fn runtime_duration_core_exit_canary_runs() {
     // std::time rung 3: Duration checked/saturating arithmetic, exact values
-    // (carry, borrow, clamp, ordering, underflow arms) -- INTERPRETER oracle.
-    // (No `_canary_runs` suffix: the NATIVE run is blocked on the value-callee
-    // domain-cast width miscompile -- `x as u64 in Wrapping` inside an inlined
-    // value machine lowers as an i8->i8 convert; see
-    // canaries/pending/time/value_machine_receiver_field_postentry. Promote to
-    // a native `_canary_runs` test when that face is fixed.)
+    // (carry, borrow, clamp, ordering, underflow arms), interpreter oracle +
+    // native differential. Exit 70. The canary routes every Duration RECEIVER
+    // through the FIRST field of its type (the known same-type
+    // receiver-aliasing bug, value-call flavor) and time.omg keeps payload
+    // field values cascade-safe (bare `param % literal`) -- both documented
+    // in canaries/pending/time/value_machine_receiver_field_postentry.
     let canary = pass_canary("time/runtime_duration_core_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("duration core canary should compile to checked trees");
@@ -1363,6 +1363,25 @@ fn runtime_duration_core_interpreter_oracle() {
         "interpreter oracle should exit 70 for the Duration chain, got {}",
         outcome.exit_code
     );
+    let build_dir = std::env::temp_dir().join(format!("omega-duration-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("duration core canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("duration core canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the Duration arithmetic chain to run natively (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]

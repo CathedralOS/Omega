@@ -456,15 +456,27 @@ boundary trait TimeHost {
    evaluation arc (TASKS.md). `Duration::ZERO`/`MAX`/`UNIX_EPOCH` are now
    spellable — MAX's u64::MAX field additionally needs the struct-literal
    field position blessed for u64-magnitude literals (D14 fire D).
-3. [ ] **Duration pure-value core** (`time.omg`, no host work): data + consts +
-   constructors + accessors + checked/saturating arithmetic + compare +
-   `Ordering`. Interpreter canaries under `canaries/pass/time/` asserting exact
-   values: construction, `checked_add` overflow arm taken, saturating clamps at
-   `MAX`/`ZERO`, unit conversions, borrow-carrying subtraction, `divide` by
-   zero takes the first case; a FAIL canary pinning literal-construction
-   rejection of `subsecond_nanoseconds` > 999_999_999. Native runs on
-   windows_x64. (Native struct-returning value machines were fixed 2026-07-06;
-   interpreter-first ordering covers residual faces.)
+3. [~] **Duration pure-value core — NATIVE + INTERPRETER VERIFIED 2026-07-07
+   (differential canary `time/runtime_duration_core_exit`, exit 70 both
+   engines).** `omega/language/std/time.omg` ships `Ordering`, `Duration`,
+   `DurationResult`, `Duration::ZERO` (const-v0), `as_seconds`, `is_zero`,
+   `checked_add` (wrapped-compare overflow idiom — no u64::MAX literal
+   needed), `checked_subtract` (borrow path), `saturating_subtract` (ZERO
+   clamp), `compare`/`is_less_than`/`is_greater_than`. VALUE-MACHINE AUTHORING
+   RULES (documented in time.omg + canary; the day's misdiagnoses corrected):
+   receivers route through the FIRST field of their type (the KNOWN same-type
+   receiver-aliasing bug has a value-call flavor — repro
+   canaries/pending/time/value_machine_receiver_field_postentry, deep fix now
+   high-leverage per TASKS.md); payload field values stay cascade-safe (bare
+   `param % literal`; a `(cast) % literal` payload value is SILENTLY DROPPED
+   by the parallel write cascade — Exact-casts belong in entry lets);
+   entry-only field reads + params-only post-entry states; operand-tagged
+   Wrapping lets; inline `%`-bounded ranged stores. backend_report renders
+   convert widths in BYTES (`as i8->i8` = 8-byte identity). REMAINING:
+   `from_*` unit constructors (receiverless type-scoped value calls — verify
+   resolution); `checked_as_*` totals; `MAX` + `saturating_add` /
+   `checked_multiply` / `divide` (MAX needs the D14 struct-literal-field
+   position); the `subsecond_nanoseconds` construction FAIL canary.
 4. [ ] **`TimeHost` seam + interpreter support** (`time_host.omg`, D12):
    virtual-clock interpreter implementations for the five value ops;
    interpreter canaries asserting EXACT values (monotonicity across a virtual

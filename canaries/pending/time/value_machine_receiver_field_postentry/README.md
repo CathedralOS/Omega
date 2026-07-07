@@ -1,49 +1,43 @@
-# PARKED REPRO (2026-07-07): value-callee miscompiles, TWO native faces
+# PARKED REPRO (2026-07-07, diagnosis CORRECTED same day)
 
-Found authoring `std::time`'s Duration core (the first multi-state pure-value
-machines in std). Interpreter is correct throughout; native diverges. `main.omg`
-here is the full failing differential canary; `time_at_repro.omg.txt` is the
-std/time.omg body at the time (an earlier probe iteration; the live
-`omega/language/std/time.omg` carries the workarounds).
+Found authoring std::time's Duration core (the first multi-state pure-value
+machines in std). Interpreter correct throughout; native diverged. `main.omg`
+is an early differential canary iteration; `time_at_repro.omg.txt` the
+matching std/time.omg body. The LIVE canary
+(canaries/pass/time/runtime_duration_core_exit) now passes BOTH engines via
+the workarounds below.
 
-## Face 1 — domain-cast WIDTH inside an inlined value callee (SILENT, root)
+## Face A — same-type receiver aliasing, VALUE-CALL flavor (KNOWN bug)
 
-`(x as u64 in Wrapping) + (y as u64 in Wrapping)` inside a value machine's
-entry, inlined at its call sites, EMITS AS AN i8 CONVERT — backend_report
-Target Operations show:
+`self.sum.checked_subtract(self.b)` with several Duration-typed fields on Main
+resolves the RECEIVER to the FIRST field of the type (`a`): the emitted ops
+read `Main_storage@0` where `sum`'s offset was meant. Same root as the
+contained-machine same-type aliasing entry in TASKS.md
+(`machine_storage_offset` resolves by TYPE). `checked_add` "worked" only
+because its receiver WAS the first field. WORKAROUND: route every receiver
+through the first field of its type (copy into it first).
 
-    write runtime storage binary ... bytes 8
-        (omega_machine_Main::main_storage@0/8 as i8->i8) Add (3 as i8->i8)
+## Face B — payload write cascade drops `(cast) % literal` field values (KNOWN landmine class)
 
-The cast's target type resolves against a wrong/un-remapped type-reference
-entry during the value-call splice (the per-call-site `LocalStorage` dumps for
-the same let show DIFFERENT `type_reference` handles). Small values mask the
-truncation (this is why `checked_add` "worked": every operand fit i8);
-`1000000000 as u32 in Wrapping` truncates to byte 0x00 and the borrow path
-collapses. Every existing corpus `as X in Domain` cast lives in a TOP-LEVEL
-machine, which is why this never fired before.
+A case-payload field value of shape `(x as u32) % 1000000000` (Binary with a
+Cast operand) is SILENTLY DROPPED by the parallel write cascade: the tag and
+sibling fields land, that field never writes (ZII garbage read back). Bare
+`x % literal` works. WORKAROUND: do the Exact re-domaining cast in the entry
+LETS so emit states construct from bare params.
 
-## Face 2 — receiver-field reads in POST-ENTRY states (SILENT)
+## Misdiagnoses corrected (kept so nobody re-chases them)
 
-In the same inlined value callee, `self.field` / `other.field` reads in states
-AFTER the entry resolve against the CALLER's frame (the report renders the
-inlined guard as `self.seconds > self.b.seconds ...` — the ARGUMENT
-substituted, the RECEIVER did not). The fenced guard-subject case
-("runtime dispatch body needs guarded branch expansion") is this same
-machinery refusing where it KNOWS; assignment-position multi-state callees
-slip through silently.
-
-## Workarounds (live in omega/language/std/time.omg)
-
-- Entry-only field reads; post-entry states consume threaded params only.
-- No `as T in Domain` casts in value machines (face 1) — but Wrapping LETS
-  REQUIRE operand casts (decision 17 is operand-driven), so full-range u64
-  checked arithmetic is currently INTERPRETER-ONLY; the native promotion of
-  `runtime_duration_core_interpreter_oracle` waits on face 1.
+- "`as T in Domain` emits i8-width converts" — FALSE: backend_report renders
+  convert widths in BYTES; `as i8->i8` is an 8-byte u64 identity convert.
+- "receiver substitution stops at the entry" — the report's guard TEXT is
+  rendered unsubstituted, but the emitted ops show the real story: the
+  receiver resolves by TYPE to the first field (face A), entry included.
 
 ## Next
 
-Fix face 1 first (likely the value-call splice's Cast copy: remap/resolve the
-target type from the callee's table); face 2 needs either the receiver
-substitution extended past the entry or a loud fence. Then promote the oracle
-test to a `_canary_runs` native test and delete this directory.
+The deep fix is the KNOWN one: thread the receiver FIELD OFFSET through
+value-call dispatch (TASKS.md same-type aliasing entry — now high-leverage,
+std value types make same-type fields ubiquitous). Face B's cascade arm
+(Binary-with-Cast-operand payload values) is a separate missing-arm fix.
+Delete this directory when face A's fix lands and the first-field workaround
+is removed from time.omg's canary.

@@ -37,7 +37,12 @@ machine Main::main(&mut self) {
         }
     }
     state do_subtract(&mut self) {
-        self.difference_result = self.sum.checked_subtract(self.b);
+        // KNOWN FACE (contained-machine-same-type-aliasing, value-call
+        // receiver flavor): a method receiver resolves to the FIRST field of
+        // its type, so every Duration receiver here must be `a` -- the sum is
+        // copied into `a` before subtracting. Arguments are unaffected.
+        self.a = self.sum;
+        self.difference_result = self.a.checked_subtract(self.b);
         transition self.difference_result {
             DurationResult::Ok { duration } -> check_difference(duration)
             DurationResult::Overflow -> fail_subtract()
@@ -57,6 +62,7 @@ machine Main::main(&mut self) {
         }
     }
     state do_saturate(&mut self) {
+        self.a = Duration { seconds: 2, subsecond_nanoseconds: 600000000 };
         self.clamped = self.a.saturating_subtract(self.b);
         transition self.clamped.seconds == 0 && self.clamped.subsecond_nanoseconds == 0 {
             true -> do_compare()
