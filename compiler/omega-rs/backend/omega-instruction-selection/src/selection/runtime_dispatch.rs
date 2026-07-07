@@ -468,6 +468,16 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                             })
                             .unwrap();
                         let deferred = deferred_leaf_operations.remove(deferred_index);
+                        select_runtime_straight_line_branch_expansions_for_operation(
+                            input,
+                            dispatch_case.dispatch_index,
+                            &deferred,
+                            &mut straight_line_expansion_cursor,
+                            &mut straight_line_selection_scratch,
+                            operands,
+                            runtime_value_operands,
+                            selected_instructions,
+                        );
                         select_runtime_leaf_branch_expansions_for_operation(
                             input,
                             dispatch_case.dispatch_index,
@@ -556,6 +566,16 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         // earlier indices (rare: typically 0 or 1 match).
                         for deferred_index in deferred_indices_to_fire.into_iter().rev() {
                             let deferred = deferred_leaf_operations.remove(deferred_index);
+                            select_runtime_straight_line_branch_expansions_for_operation(
+                                input,
+                                dispatch_case.dispatch_index,
+                                &deferred,
+                                &mut straight_line_expansion_cursor,
+                                &mut straight_line_selection_scratch,
+                                operands,
+                                runtime_value_operands,
+                                selected_instructions,
+                            );
                             select_runtime_leaf_branch_expansions_for_operation(
                                 input,
                                 dispatch_case.dispatch_index,
@@ -589,16 +609,6 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     operation,
                     &mut prelude_expansion_cursor,
                     &mut prelude_selection_scratch,
-                    operands,
-                    runtime_value_operands,
-                    selected_instructions,
-                );
-                select_runtime_straight_line_branch_expansions_for_operation(
-                    input,
-                    dispatch_case.dispatch_index,
-                    operation,
-                    &mut straight_line_expansion_cursor,
-                    &mut straight_line_selection_scratch,
                     operands,
                     runtime_value_operands,
                     selected_instructions,
@@ -653,8 +663,26 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     has_caller_local || has_callee_local
                 };
                 if defers_to_local_initializer {
+                    // The callee's ARM statements (its straight-line expansion:
+                    // the guarded state's `let` locals + nested-call statements)
+                    // defer WITH the leaf. They run after the callee's entry
+                    // body, so emitting them here — before the entry's spliced
+                    // HostCall/LocalStorage ops — made them read PRE-entry state
+                    // (metadata_path's decode locals read the stat_buf before
+                    // `stat` filled it: right tag, all-ZII payload — TASKS_FS.md
+                    // blocker #2B). They fire with the leaf at the fire sites.
                     deferred_leaf_operations.push(operation.clone());
                 } else {
+                    select_runtime_straight_line_branch_expansions_for_operation(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation,
+                        &mut straight_line_expansion_cursor,
+                        &mut straight_line_selection_scratch,
+                        operands,
+                        runtime_value_operands,
+                        selected_instructions,
+                    );
                     select_runtime_leaf_branch_expansions_for_operation(
                         input,
                         dispatch_case.dispatch_index,
@@ -739,6 +767,16 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         .collect();
                     for deferred_index in deferred_indices_to_fire.into_iter().rev() {
                         let deferred = deferred_leaf_operations.remove(deferred_index);
+                        select_runtime_straight_line_branch_expansions_for_operation(
+                            input,
+                            dispatch_case.dispatch_index,
+                            &deferred,
+                            &mut straight_line_expansion_cursor,
+                            &mut straight_line_selection_scratch,
+                            operands,
+                            runtime_value_operands,
+                            selected_instructions,
+                        );
                         select_runtime_leaf_branch_expansions_for_operation(
                             input,
                             dispatch_case.dispatch_index,

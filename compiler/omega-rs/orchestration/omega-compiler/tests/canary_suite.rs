@@ -18245,6 +18245,120 @@ fn contained_loop_command_branch_carrier_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A big multi-field StructLiteral payload through a value-call result slot with
+// one CAST-valued field (`mode: mode as u32` -- the fs metadata_path shape,
+// TASKS_FS.md blocker #2A). The leaf-path scalar write cascade had no convert
+// arm, so the cast field silently dropped while its 15 siblings landed (exit 74).
+#[test]
+fn runtime_value_call_struct_payload_cast_field_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_value_call_struct_payload_cast_field_exit");
+    let main_path = canary.join("main.omg");
+
+    // Interpreter oracle first: it must agree the exit is 70.
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("value-call cast-field payload canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (full 16-field payload incl. the cast field), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-value-call-cast-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call cast-field payload canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call cast-field payload canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the full 16-field payload incl. the cast-valued mode field (exit 70), \
+         got {:?} (74 = the cast field arrived ZII)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// A value-call whose ENTRY host call writes self state (read_line into the
+// carrier) and whose leaf arms build payloads FROM that state: the Ok arm's
+// StructLiteral takes `len` from the host-written carrier; the Error arm's
+// `kind` comes from a NESTED value-call guarding on it (the fs wrapper's
+// `let kind = self.last_error()` shape). Regression pin for TASKS_FS.md
+// blocker #2B: the arm statements (straight-line expansion) used to be emitted
+// ABOVE the entry host call, so the terminal copied pre-call ZII state --
+// right tag, zero payload. Both stdin legs run interpreter-first.
+#[test]
+fn value_call_entry_host_state_payload_canary_runs() {
+    let canary = run_canary("value_call_entry_host_state_payload");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("entry-host-state payload canary should compile to checked trees");
+    for (stdin, expected) in [(&b"ok\n"[..], 70), (&b"no\n"[..], 75)] {
+        let outcome = omega_interpreter::interpret(&checked, stdin);
+        assert_eq!(
+            outcome.exit_code,
+            expected,
+            "interpreter oracle should exit {expected} for stdin {:?}, got {}",
+            String::from_utf8_lossy(stdin),
+            outcome.exit_code
+        );
+    }
+
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-entry-host-state-payload-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("entry-host-state payload canary should compile");
+
+    for (stdin, expected) in [(&b"ok\n"[..], 70), (&b"no\n"[..], 75)] {
+        let mut child = Command::new(build_dir.join(executable_name()))
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("entry-host-state payload canary should start");
+        child
+            .stdin
+            .as_mut()
+            .expect("stdin should be piped")
+            .write_all(stdin)
+            .expect("entry-host-state payload input should be written");
+        let output = child
+            .wait_with_output()
+            .expect("entry-host-state payload canary should finish");
+        assert_eq!(
+            output.status.code(),
+            Some(expected),
+            "expected exit {expected} for stdin {:?} (72 = Ok len read the pre-host-call ZII \
+             carrier; 76 = Error kind lost through the nested value-call), got {:?}\nstderr:\n{}",
+            String::from_utf8_lossy(stdin),
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 carrier command-loop with a health gate: each iteration checks health, reads
 // a line into a `[u8; 16]` carrier, resolves a Command, and loops until `quit`.
 #[test]
@@ -21271,6 +21385,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_captured_local_swap_exit",
     "calls/runtime_same_type_contained_direct_fields_exit",
     "calls/runtime_shared_ref_param_member_exit",
+    "calls/runtime_value_call_struct_payload_cast_field_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",

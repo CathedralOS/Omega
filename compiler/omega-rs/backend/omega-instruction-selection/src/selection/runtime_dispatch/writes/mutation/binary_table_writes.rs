@@ -886,7 +886,7 @@ fn scalar_primitive_byte_size(primitive: PrimitiveType) -> Option<usize> {
 /// must resolve to a storage place (so its primitive type is known); literal
 /// sources are a follow-on.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_convert_mutation_write_in_table(
+pub(in crate::selection::runtime_dispatch) fn select_runtime_convert_mutation_write_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     target_source_key: StateKey,
