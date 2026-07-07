@@ -565,6 +565,16 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
     **ONLY `image_viewer` remains** — needs #61 (large-offset scalar STORE, a #59 sibling at
     offset ~33108) AND it's human-interactive (waits for a window close) AND reads img*.bmp
     from disk at runtime. That's the last gui sample; the loop continues on #61.
+    ⚑ **fire 28: image_viewer #61 sweep STARTED — 4 large-offset paths fixed (green, 81/81).**
+    image_viewer's TWO 16KB arrays (buffer[16384]+pixels[16384]) push many fields past the
+    LDR/STR/ADD scaled-immediate range, so it's a BROAD large-offset sweep (same materialize
+    pattern). Fixed: host-call RESULT store (mod.rs x4) + host-call scalar ARG load +
+    RuntimeStorageAddress pointer-arg add + String-descriptor writes; `operand_width` made
+    offset-aware (RuntimeScalarInteger, RuntimeStorageAddress) so the width self-check AND the
+    relocation planner (data_addresses.rs) stay in lockstep automatically. The compile error
+    marched 33108(store)->16680(add)->33248(line-read descriptor). NEXT: encode_runtime_text_line_read
+    (read_line(&mut self.pause) descriptor store) + any further paths, then a bounded run. 3/4
+    gui samples run natively; image_viewer is the last (also human-interactive + reads .bmp).
     ---
     Historical (fire 16): `canaries/pass/objc/native_gui_loop` is `samples/gui/window_demo`'s shape running
     natively end-to-end: NSApp + NSWindow + NSImageView content view + `makeKeyAndOrderFront:`,

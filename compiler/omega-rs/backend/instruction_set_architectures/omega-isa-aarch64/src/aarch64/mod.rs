@@ -64,11 +64,10 @@ pub fn encode_host_call_sequence_value_returning_from_operands(
     // the return register at the field's offset.
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
-    if byte_count >= 8 {
-        bytes.extend(encode_store_x_to_x(0, 16, byte_offset)?);
-    } else {
-        bytes.extend(encode_store_w_to_x(0, 16, byte_offset, byte_count)?);
-    }
+    // Materialize a large result-field offset (a scalar after a big array) via scratch
+    // x17 (caller-saved; x0 holds the result, x16 the region base). Kept in lockstep
+    // with operand_width's store_data_offset_width accounting + the relocation planner.
+    append_store_data_to_x_offset(&mut bytes, 0, 16, byte_offset, byte_count, 17)?;
     Ok(bytes)
 }
 
@@ -108,11 +107,10 @@ pub fn encode_host_call_sequence_value_returning_deref_from_operands(
     // Result store: x16 <- result region base (adrp/add relocated), then store.
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
-    if byte_count >= 8 {
-        bytes.extend(encode_store_x_to_x(0, 16, byte_offset)?);
-    } else {
-        bytes.extend(encode_store_w_to_x(0, 16, byte_offset, byte_count)?);
-    }
+    // Materialize a large result-field offset (a scalar after a big array) via scratch
+    // x17 (caller-saved; x0 holds the result, x16 the region base). Kept in lockstep
+    // with operand_width's store_data_offset_width accounting + the relocation planner.
+    append_store_data_to_x_offset(&mut bytes, 0, 16, byte_offset, byte_count, 17)?;
     Ok(bytes)
 }
 
@@ -156,11 +154,10 @@ pub fn encode_host_call_sequence_value_returning_float_from_operands(
     // Result store: x16 <- result region base (adrp/add relocated), then store.
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
-    if byte_count >= 8 {
-        bytes.extend(encode_store_x_to_x(0, 16, byte_offset)?);
-    } else {
-        bytes.extend(encode_store_w_to_x(0, 16, byte_offset, byte_count)?);
-    }
+    // Materialize a large result-field offset (a scalar after a big array) via scratch
+    // x17 (caller-saved; x0 holds the result, x16 the region base). Kept in lockstep
+    // with operand_width's store_data_offset_width accounting + the relocation planner.
+    append_store_data_to_x_offset(&mut bytes, 0, 16, byte_offset, byte_count, 17)?;
     Ok(bytes)
 }
 
@@ -215,11 +212,10 @@ pub fn encode_host_call_sequence_value_returning_open_create_from_operands(
     // Result store: x16 <- result region base (adrp/add relocated), then store.
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
-    if byte_count >= 8 {
-        bytes.extend(encode_store_x_to_x(0, 16, byte_offset)?);
-    } else {
-        bytes.extend(encode_store_w_to_x(0, 16, byte_offset, byte_count)?);
-    }
+    // Materialize a large result-field offset (a scalar after a big array) via scratch
+    // x17 (caller-saved; x0 holds the result, x16 the region base). Kept in lockstep
+    // with operand_width's store_data_offset_width accounting + the relocation planner.
+    append_store_data_to_x_offset(&mut bytes, 0, 16, byte_offset, byte_count, 17)?;
     Ok(bytes)
 }
 
@@ -365,27 +361,21 @@ fn append_call_operands(
             } => {
                 bytes.extend(encode_adrp_placeholder(next_register));
                 bytes.extend(encode_add_page_offset_placeholder(next_register));
-                // Load the scalar at its OWN width (LDR x for an 8-byte i64/usize,
-                // LDR w for a 4-byte i32) -- matching the result-store side, which
-                // already stores at byte_count. A u64 load needs an 8-aligned offset;
-                // a 4-byte scalar's slot is only 4-aligned, so at a large data-region
-                // offset (e.g. a field after a big wrapper struct, offset 1396 = 4- but
-                // not 8-aligned) the u64 load had no single-instruction encoding and
-                // errored. The sized load keeps the alignment at byte_count, so it is
-                // always one direct instruction and the operand width stays 12
-                // (adrp + add + load) -- no lockstep width change. The register's low
-                // byte_count bytes carry the value the callee reads (a 32-bit arg reads
-                // Wn); the sized load also drops the stray high bytes the u64 load read.
-                if *byte_count >= 8 {
-                    bytes.extend(encode_load_x_from_x(next_register, next_register, *byte_offset)?);
-                } else {
-                    bytes.extend(encode_load_w_from_x(
-                        next_register,
-                        next_register,
-                        *byte_offset,
-                        *byte_count,
-                    )?);
-                }
+                // Load the scalar at its OWN width (LDR x for 8-byte, LDR w for <=4),
+                // materializing a large field offset (a scalar declared after a big
+                // array, offset > the LDR scaled-immediate range) via scratch x9 — x9
+                // is not an arg register (args ride x0..x7) and is caller-saved, so the
+                // already-marshalled args are untouched. `load_data_offset_width` (the
+                // operand-width helper) tracks this in lockstep for both the width
+                // self-check and the relocation planner.
+                append_load_data_from_x_offset(
+                    bytes,
+                    next_register,
+                    next_register,
+                    *byte_offset,
+                    *byte_count,
+                    9,
+                )?;
                 next_register += 1;
             }
             RuntimeScalarFloat {
@@ -409,15 +399,14 @@ fn append_call_operands(
                 next_vreg += 1;
             }
             RuntimeStorageAddress { byte_offset } => {
-                // The place's ADDRESS: adrp/add to the region base (relocated),
-                // then add the field offset. No load — the pointer is the arg.
+                // The place's ADDRESS: adrp/add to the region base (relocated), then add
+                // the field offset. No load — the pointer is the arg. `append_add_x_constant`
+                // materializes a large offset (a field after a big array, offset > 4095)
+                // via scratch x9 (not an arg register); `add_constant_width` tracks it in
+                // lockstep for the width self-check + the relocation planner.
                 bytes.extend(encode_adrp_placeholder(next_register));
                 bytes.extend(encode_add_page_offset_placeholder(next_register));
-                bytes.extend(encode_add_x_immediate(
-                    next_register,
-                    next_register,
-                    *byte_offset,
-                )?);
+                append_add_x_constant(bytes, next_register, next_register, *byte_offset, 9)?;
                 next_register += 1;
             }
             ByteLength(value) => {
