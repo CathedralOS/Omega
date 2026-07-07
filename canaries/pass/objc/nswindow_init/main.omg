@@ -1,0 +1,70 @@
+// PROVES the MIXED HFA-plus-scalar objc_msgSend (render fire 11) — the window's
+// initWithContentRect:styleMask:backing:defer:. Builds an NSWindow by hand:
+//   [NSApplication sharedApplication]                     (init the app singleton)
+//   win = [[NSWindow alloc]
+//            initWithContentRect:{0,0,200,150}            (NSRect -> v0,v1,v2,v3)
+//            styleMask:15                                 (-> x2)
+//            backing:2  (NSBackingStoreBuffered)          (-> x3)
+//            defer:0    (NO)]                             (-> x4)
+//   mask = [win styleMask]
+// The 4-double rect goes in the FLOAT registers v0–v3 while styleMask/backing/defer
+// go in the INTEGER registers x2–x4 — the two register files are filled by
+// independent counters. A correct result requires BOTH to be placed right: win is
+// non-null AND [win styleMask] == 15 (a clobbered x2 would give a different mask;
+// a clobbered v-register would corrupt the frame). Headless-safe: the window is
+// created + queried but never ordered on-screen and no event loop runs. Both
+// checks pass -> exit 3; any failure -> exit 1.
+
+domain [u8]::CString when no_nul(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+boundary trait ObjectiveC {
+    machine get_class(name: &[u8] in CString) -> u64;
+    machine register_selector(name: &[u8] in CString) -> u64;
+    machine send(recv: u64, sel: u64) -> u64;
+    machine send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64;
+}
+
+data Main {
+    console: Console;
+    objc: ObjectiveC;
+    ns_app_cls: u64;
+    ns_win_cls: u64;
+    sel_shared: u64;
+    sel_alloc: u64;
+    sel_init: u64;
+    sel_style: u64;
+    app: u64;
+    win_alloc: u64;
+    win: u64;
+    rx: f64;
+    ry: f64;
+    rw: f64;
+    rh: f64;
+    mask: u64;
+}
+
+machine Main::main(&mut self) {
+    self.ns_app_cls = self.objc.get_class("NSApplication");
+    self.sel_shared = self.objc.register_selector("sharedApplication");
+    self.app = self.objc.send(self.ns_app_cls, self.sel_shared);
+    self.ns_win_cls = self.objc.get_class("NSWindow");
+    self.sel_alloc = self.objc.register_selector("alloc");
+    self.win_alloc = self.objc.send(self.ns_win_cls, self.sel_alloc);
+    self.sel_init = self.objc.register_selector("initWithContentRect:styleMask:backing:defer:");
+    self.rx = 0.0;
+    self.ry = 0.0;
+    self.rw = 200.0;
+    self.rh = 150.0;
+    self.win = self.objc.send_rect(self.win_alloc, self.sel_init, self.rx, self.ry, self.rw, self.rh, 15, 2, 0);
+    self.sel_style = self.objc.register_selector("styleMask");
+    self.mask = self.objc.send(self.win, self.sel_style);
+    transition self.win != 0 { true -> ck_mask() _ -> bad() }
+    state ck_mask(&mut self) { transition self.mask == 15 { true -> good() _ -> bad() } }
+    state good(&mut self) { self.console.exit_process(3); }
+    state bad(&mut self)  { self.console.exit_process(1); }
+}

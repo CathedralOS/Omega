@@ -331,6 +331,49 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::ObjectiveC, HostOperation::MsgSendRect) => {
+            // `r = send_rect(recv, sel, x, y, w, h, a, b, c) -> _objc_msgSend(recv,
+            // sel, NSRect{x,y,w,h}, a, b, c)`. The MIXED call: recv/sel/a/b/c are
+            // SCALARS (→ x0,x1,x2,x3,x4 in list order) and x/y/w/h are FLOATS (→
+            // v0,v1,v2,v3). The two register counters advance independently, so the
+            // interleaving in this operand list does not affect placement.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let recv = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let sel = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let x = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let y = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            let w = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 5);
+            let h = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 6);
+            let a = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 7);
+            let b = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 8);
+            let c = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 9);
+            match (result, recv, sel, x, y, w, h, a, b, c) {
+                (
+                    Some(result),
+                    Some(recv),
+                    Some(sel),
+                    Some(x),
+                    Some(y),
+                    Some(w),
+                    Some(h),
+                    Some(a),
+                    Some(b),
+                    Some(c),
+                ) => operands.insert_many([
+                    operand(result),
+                    operand(recv),
+                    operand(sel),
+                    operand(x),
+                    operand(y),
+                    operand(w),
+                    operand(h),
+                    operand(a),
+                    operand(b),
+                    operand(c),
+                ]),
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::CoreGraphics, HostOperation::RectMaxX | HostOperation::RectMaxY) => {
             // `r = rect_max_x(x, y, w, h) -> _CGRectGetMaxX({x,y,w,h})`. The CGRect's
             // 4 doubles marshal as an HFA into v0–v3 (four consecutive
