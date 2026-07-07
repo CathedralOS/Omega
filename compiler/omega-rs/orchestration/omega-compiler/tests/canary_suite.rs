@@ -3101,6 +3101,78 @@ fn runtime_expression_range_bound_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A MACHINE-owned array's runtime-indexed read as a transition ARGUMENT
+// (`self.report(self.arr[self.k])`): used to silently pass a stale/zero
+// parameter (wrong arm; interp right). Now lowered via the machine-indexed
+// copy into the parameter slot. arr[2]=9, k=2 -> exit 1.
+#[test]
+fn runtime_machine_indexed_arg_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_machine_indexed_arg_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-machine-indexed-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("machine indexed arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("machine indexed arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `self.report(self.arr[self.k])` (arr[2]=9, k=2) to pass 9 and          exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The STRUCT-FIELD face: `self.report(self.cells[self.k].v)` -- an
+// array-of-structs element's field as a transition argument. -> exit 1.
+#[test]
+fn runtime_machine_indexed_struct_field_arg_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_machine_indexed_struct_field_arg_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-machine-indexed-sfa-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("machine indexed struct field arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("machine indexed struct field arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `self.report(self.cells[self.k].v)` (cells[2].v=9, k=2) to pass          9 and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A runtime slice `.len` read into a LOCAL binding in a VALUE position (`let n =
 // s.len`), NOT as an operand or guard subject. The native side used to leave the
 // local slot unwritten (the descriptor length was never materialized), so a later
