@@ -1747,6 +1747,72 @@ pub(crate) fn report_nested_call_in_bound_value_call(
     }
 }
 
+/// A RECEIVERLESS TYPE-SCOPED constructor's struct-literal result is delivered
+/// through a route that only handles PLACE/LITERAL field values: a COMPUTED
+/// field (`Duration { seconds: milliseconds / 1000, .. }` -- binary, cast,
+/// nested call, indexed, ...) mis-sizes the write to the whole struct. A
+/// >=16-byte struct hits the loud "cannot store 16-byte" encoder fence, but a
+/// <=8-byte struct is written WRONG SILENTLY (probed: `Pair8 { a: n / 100,
+/// b: 7 }` natively delivered b == 0). Reject the callee shape at the call
+/// site, teaching the construct-from-LETS idiom that delivers correctly.
+/// (Receiver-FUL value machines deliver computed-field literals fine -- this
+/// runs ONLY for the type-scoped constructor resolution channel.)
+fn report_computed_field_constructor_result(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: &State,
+    callee_machine: &Machine,
+    target: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for state in program.machine_states(callee_machine) {
+        for statement in program.statement_table.statements(state.statement_nodes) {
+            let StatementNode::Transition(transition) = statement else {
+                continue;
+            };
+            for handle in [transition.target, transition.continuation] {
+                if !handle.is_valid() {
+                    continue;
+                }
+                let TransitionTargetNode::Value(value) =
+                    program.statement_table.transition_target(handle)
+                else {
+                    continue;
+                };
+                let ExpressionNode::StructLiteral(literal) =
+                    program.expression_table.expression(*value)
+                else {
+                    continue;
+                };
+                for field in program.expression_table.struct_fields(literal.fields) {
+                    let delivers = matches!(
+                        program.expression_table.expression(field.value),
+                        ExpressionNode::Name(_)
+                            | ExpressionNode::Member(_)
+                            | ExpressionNode::Integer(_)
+                            | ExpressionNode::Boolean(_)
+                            | ExpressionNode::Float(_)
+                            | ExpressionNode::String(_)
+                    );
+                    if !delivers {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "machine `{}` state `{}`: `{target}(..)` is a type-scoped \
+                             constructor whose result literal computes field `{}` inline -- \
+                             this delivery route only carries place/literal fields (a \
+                             computed field writes the WRONG value). In the callee, bind \
+                             the computation to a `let` first and construct from the local.",
+                            current_machine.name,
+                            current_state.name.as_str(),
+                            field.name.as_str(),
+                        )));
+                        return;
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// The first NON-BUILTIN machine call nested anywhere inside `expression`
 /// (its target name, for the diagnostic), or None. Reserved value builtins
 /// (`min`/`max`/`sqrt`) and the view builtins (`as_slice`/`as_mut_slice`/
@@ -1995,6 +2061,25 @@ fn report_unresolved_value_call(
     }
 
     let declared_type = receiver_declared_type_name(program, current_machine, current_state, receiver);
+    // The receiver may BE a type name -- the RECEIVERLESS TYPE-SCOPED
+    // constructor shape (`Duration::from_milliseconds(..)`, `Pair8::make(..)`).
+    // Its result-delivery route only handles PLACE/LITERAL struct-literal
+    // fields, so vet the callee's terminal literals.
+    if receiver_type.is_none()
+        && declared_type.is_none()
+        && let Some((callee_machine, _)) =
+            symbols.attached_machine_state(program, receiver, target)
+    {
+        report_computed_field_constructor_result(
+            program,
+            current_machine,
+            current_state,
+            callee_machine,
+            target,
+            diagnostics,
+        );
+        return;
+    }
     let resolves = receiver_type
         .is_some_and(|type_name| type_name_resolves_value_call(program, symbols, type_name, target))
         || declared_type

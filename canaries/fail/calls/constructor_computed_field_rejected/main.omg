@@ -1,0 +1,29 @@
+// A type-scoped constructor whose result literal COMPUTES a field inline
+// (`Pair8 { a: n / 100, b: 7 }`) is rejected: this delivery route only
+// carries place/literal fields -- an 8-byte struct was written WRONG
+// SILENTLY (b == 0 natively, interp right), a 16-byte one hit the cryptic
+// encoder fence. Bind computations to lets in the callee (the Duration
+// constructors' shape).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Pair8 {
+    a: u32;
+    b: u32;
+}
+data Main {
+    console: Console;
+    p: Pair8;
+}
+machine Pair8::make(n: u32 [0..=10000]) -> Pair8 {
+    transition { _ -> Pair8 { a: n / 100, b: 7 } }
+}
+machine Main::main(&mut self) {
+    self.p = Pair8::make(3500);
+    transition self.p.a == 35 && self.p.b == 7 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

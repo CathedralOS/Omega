@@ -1,0 +1,1 @@
+is a type-scoped constructor whose result literal computes field `a` inline
