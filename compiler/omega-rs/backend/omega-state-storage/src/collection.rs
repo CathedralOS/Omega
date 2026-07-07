@@ -413,6 +413,36 @@ fn local_data_requires_storage(
         return true;
     }
 
+    // A RUNTIME-BOUNDED SUBSLICE local (`let sub = arr[self.lo..self.hi]` -- a
+    // Range index with a non-literal bound) must keep its descriptor slot when
+    // used later. Elided, its uses trace back to the inline subslice, whose
+    // CONSTRUCTION (ptr/len from runtime bounds) has no lowering in the local
+    // value paths -- `let n = sub.len` silently read 0 and took the wrong guard
+    // arm (interp right, native wrong). With the slot kept, the descriptor
+    // write is attempted and, until the runtime-bound construction lowers,
+    // emission planning's descriptor-local verification reports it LOUDLY
+    // (exactly like the already-slotted guard-use case). LITERAL-bounded
+    // subslices stay elided -- their window folds are proven (length + element
+    // + argument paths all lower).
+    if initializer_is_runtime_bounded_subslice(expressions, initial_value)
+        && statements
+            .iter()
+            .skip(local_statement_index + 1)
+            .any(|statement| {
+                statement_references_local(
+                    expressions,
+                    statement_table,
+                    statement,
+                    local_symbol,
+                    local_name,
+                    uses_runtime_flow,
+                ) || local_data_value_references_symbol(expressions, statement, local_symbol, local_name)
+                    || assignment_value_references_symbol(expressions, statement, local_symbol, local_name)
+            })
+    {
+        return true;
+    }
+
     // A local CAPTURING a field read (`let t = self.v`) keeps its slot when the
     // SOURCE FIELD is reassigned later and the local is still used AFTER that
     // write. Slot-less, the use alias-folds back to `self.v` and reads the NEW
@@ -727,6 +757,37 @@ fn initializer_is_array_literal(
     match expressions.expression(expression) {
         ExpressionNode::ArrayLiteral(_) => true,
         ExpressionNode::Mutable(inner) => initializer_is_array_literal(expressions, *inner),
+        _ => false,
+    }
+}
+
+/// Whether an initializer is a SUBSLICE (`base[a..b]`, a Range index) with at
+/// least one RUNTIME (non-literal-integer) bound, peeling `Mutable` at both the
+/// initializer and bound levels. An open bound (invalid handle) is static.
+/// Literal-bounded subslices fold correctly when elided and must NOT match.
+fn initializer_is_runtime_bounded_subslice(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            initializer_is_runtime_bounded_subslice(expressions, *inner)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            let ExpressionNode::Range(range) = expressions.expression(indexed.index) else {
+                return false;
+            };
+            [range.start, range.end].into_iter().any(|bound| {
+                if !bound.is_valid() {
+                    return false;
+                }
+                let mut handle = bound;
+                while let ExpressionNode::Mutable(inner) = expressions.expression(handle) {
+                    handle = *inner;
+                }
+                !matches!(expressions.expression(handle), ExpressionNode::Integer(_))
+            })
+        }
         _ => false,
     }
 }

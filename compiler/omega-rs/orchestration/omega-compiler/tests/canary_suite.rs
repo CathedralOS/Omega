@@ -21538,6 +21538,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "slices/dynamic_subslice_bounded_unproven",
     "slices/dynamic_subslice_end_unproven",
     "slices/dynamic_subslice_start_unproven",
+    "slices/runtime_bounded_subslice_local_unlowered",
     "slices/invalid_fixed_array_literal_index_unchecked",
     "slices/known_length_dynamic_index_unproven",
     "slices/machine_field_index_reassigned_unproven",

@@ -167,6 +167,17 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   states with a VALID return type, so a resolved-void callee and an unresolved call both
   yield None (indistinguishable), and it's self/attached-only. Distinguishing "resolved
   void" from "unresolved" is precisely what the complete value-call resolver provides.
+- **[ ] Runtime-bounded subslice LOCAL descriptor construction (fenced 2026-07-06).**
+  `let sub = self.arr[self.lo..self.hi]` (any runtime bound, proven in-range) = clean error
+  ("subslice descriptor construction ... not lowered"); used to be a SILENT read-0 when the
+  local was elided (storage planning now keeps the slot; fail canary
+  slices/runtime_bounded_subslice_local_unlowered). POSITION-SPECIFIC status: runtime-END
+  subslices in ARGUMENT position DO lower (transition arg via `resolve_subslice_bound`
+  Machine-region-END relaxation; host arg via {base, runtime-len} marshalling -- fs canaries)
+  -- so do NOT fence at the frontend. Remaining = lower the LOCAL descriptor-slot write from
+  runtime bounds (ptr = base + lo*elem_size, len = hi-lo, both runtime values), then the
+  kept slot flows through the existing `.len`/element/arg reads unchanged. Memory
+  [[slice-byteslice-native-consume]].
 
 ## Cathedral first-boot ladder — remaining language readiness
 
