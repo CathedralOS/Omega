@@ -644,12 +644,22 @@ boundary trait TimeHost {
    assertions); canary_suite 626 pass / 1 fail, the 1 being the pre-existing
    `build_machine_wrong_arity` missing-files red (never committed to git —
    fs-thread issue, task chip spawned), `runtime_sleep_exit` green.
-8. [ ] **Sample** — `samples/cli/systems/elapsed_timer`: measure a real
-   workload with `Instant`, print milliseconds, exit code proves the
-   elapsed-≥-sleep chain (the stopwatch sample stays simulated-tick).
+8. [x] **Sample — LANDED 2026-07-09.** `samples/cli/systems/elapsed_timer`:
+   the first full consumer of the surface. now() -> sleep_for(50ms Duration)
+   -> elapsed_since -> checked_as_milliseconds -> zero-padded decimal render
+   into a `[u8; 27] in Utf8` console line (per-digit guard-proven byte
+   writes, the binary_search_viz carrier idiom -- `String` deliberately does
+   not byte-index; encodings are library domains declared per storage type).
+   Exit proves elapsed >= slept; native prints the real measurement
+   (observed "elapsed milliseconds: 00052"). The stopwatch sample stays
+   simulated-tick.
 9. [ ] **Filesystem interop** — `SystemTime::from_unix_seconds` consumed from
    `Metadata` timestamps; later, fs-side `modified() -> SystemTime` parity
-   (coordinate with the fs workstream; their file, their call).
+   (coordinate with the fs workstream; their file, their call). NOTE
+   2026-07-09: NATIVE verification is blocked on the fs thread's windows
+   `read_metadata` lowering row (the documented file_journal sample fail);
+   the time-side surface (`from_unix_seconds`, i64 seconds) is ready and
+   canaried -- when their row lands, the interop leg is a small canary.
 10. [ ] **darwin/aarch64** — `_nsec_np` rows (constant-arg injection) +
     constant-result rows; `usleep` stays render's (do not duplicate). Native
     confirmation needs a Mac.
