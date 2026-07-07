@@ -1497,7 +1497,10 @@ pub fn runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage_width(
                 byte_count,
             )
         }
-        Architecture::X86_64 => 0,
+        // Was `=> 0`: the slice-element -> storage copy silently DROPPED on x86_64.
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage_width()
+        }
     }
 }
 
@@ -1549,7 +1552,10 @@ pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage_
                 byte_count,
             )
         }
-        Architecture::X86_64 => 0,
+        // Was `=> 0` (same silent-drop class).
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage_width()
+        }
     }
 }
 

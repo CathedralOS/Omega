@@ -1,0 +1,40 @@
+// Slice-descriptor element ops against MACHINE storage, value-validated:
+// read `self.got = s[1]` (was WIDTH-0 on x86_64 -- the copy silently dropped
+// and the machine field kept ZII 0), write `s[2] = self.put`, and RMW
+// `s[0] = s[0] + 5`. Exact values distinguish every wrong-op face. -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    arr: [i32; 4];
+    got: i32;
+    put: i32;
+}
+machine Main::main(&mut self) {
+    self.arr[1] = 11;
+    self.arr[2] = 22;
+    self.put = 77;
+    let s: &mut [i32] = self.arr.as_mut_slice();
+    transition s.len == 4 {
+        true -> work(s)
+        false -> no()
+    }
+    state work(&mut self, s: &mut [i32]) {
+        transition 2 < s.len {
+            true -> go(s)
+            false -> no()
+        }
+    }
+    state go(&mut self, s: &mut [i32]) {
+        self.got = s[1];
+        s[2] = self.put;
+        s[0] = s[0] + 5;
+        transition self.got == 11 && self.arr[2] == 77 && self.arr[0] == 5 {
+            true -> yes()
+            false -> no()
+        }
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

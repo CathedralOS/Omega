@@ -3930,6 +3930,75 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Slice-descriptor element read/write/RMW against MACHINE storage -- the
+// fixed-index read was width-0 (silently dropped) on x86_64. -> exit 1.
+#[test]
+fn runtime_slice_element_machine_roundtrip_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_slice_element_machine_roundtrip_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-slice-elem-rt-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("slice element machine roundtrip canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("slice element machine roundtrip canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected s[1] read == 11, s[2] write == 77, s[0] RMW == 5 to exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// RUNTIME-index slice-descriptor element read into a machine field. -> 1.
+#[test]
+fn runtime_slice_element_runtime_index_read_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_slice_element_runtime_index_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-slice-elem-ri-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("slice element runtime index read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("slice element runtime index read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `self.got = s[i]` (i=1, s[1]=11) to read 11 and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // MACHINE-FIELD-bounded subslice local (`self.arr[self.lo..self.hi]`) --
 // the START's indexed-address op is region-tagged now. len 3 -> exit 3.
 #[test]
