@@ -879,9 +879,18 @@ fn append_state_call_result_slot(
     let (symbol, name) =
         call_result_slot_symbol_and_name(context, source_key, statement_index, role)
             .unwrap_or_else(|| {
+                // The anonymous scratch name must be UNIQUE per call site: the
+                // struct-decomposition write strategy rebuilds the slot as a
+                // NAME expression (`runtime_frame_slot_target_expression`) and
+                // re-resolves it BY NAME, so a shared "__call_result" made
+                // every same-callee site's struct terminal construct write
+                // into the FIRST site's slot (the second call then captured
+                // its own slot's untouched ZII zero).
                 (
                     SymbolHandle::invalid(),
-                    Identifier::generated_static("__call_result"),
+                    Identifier::generated(format!(
+                        "__call_result_{statement_index}_{role:?}_{call_ordinal}"
+                    )),
                 )
             });
 

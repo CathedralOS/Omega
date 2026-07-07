@@ -554,12 +554,45 @@ boundary trait TimeHost {
    knowns only. The rung-5 sketch's `runtime_instant_elapsed_exit` /
    `runtime_system_time_after_2026_exit` canaries are WRAPPER-level — they
    move to rung 6 where `Instant`/`SystemTime` exist.
-6. [ ] **Wrapper completion** — `Instant`/`SystemTime`/`Time` machines over the
-   seam, entry-capture pattern, calibration guard (O2). Native canaries
-   inherited from the rung-5 sketch: `runtime_instant_elapsed_exit` (t1 = now,
-   sleep 30ms, elapsed_since(t1) ≥ 30ms → distinct exit codes per failure arm)
-   and `runtime_system_time_after_2026_exit`
-   (`system_time_now() > from_unix_seconds(1_767_225_600)`).
+6. [~] **Wrapper completion — SLICE 1 LANDED 2026-07-08** (`Instant` +
+   `Time { host }` + `Time::now()` + `Instant::duration_since`/
+   `checked_duration_since`; differential canary
+   `time/runtime_instant_elapsed_exit` — ≥30ms across sleep(30) both engines,
+   backwards = Overflow). Design deltas from the sketch, both deliberate:
+   (a) CLAMP IS THE CALIBRATION GUARD — `clamp(freq, 1, 18_446_744_073)` per
+   read proves divisor-nonzero + the D5 product bound with zero stored-state
+   machinery (clamp narrowing is canary-pinned); `Time` stays STATELESS until
+   a profile argues for capture-once fields (O2's shape kept as a comment).
+   (b) `elapsed_since` deferred — it is `now().duration_since(start)`
+   composition; two-deep host-call nesting buys nothing until the splice fix.
+   LANDED ALONGSIDE (the canary flushed real miscompiles — see TASKS.md "Open
+   latent bugs" for the two still open):
+   - FIXED: same-callee TWO-SITE value calls returning a 16-byte STRUCT wrote
+     both terminals into the FIRST site's `__call_result` slot (the struct
+     DECOMPOSITION strategy re-resolves the slot BY NAME; anonymous scratch
+     names are now unique per site). Canary
+     calls/runtime_two_site_struct_result_exit (differential). Pre-existing on
+     main — the scalar multi-site pins never covered the struct flavor.
+   - FIXED: `runtime_storage_binary_write_width` priced div/mod/shift/compare
+     at the STORE's width while the encoder derives from OPERANDS — a folded
+     8-byte divide feeding `% literal` into a 4-byte ranged slot planned 167 /
+     emitted 168 (loud fence). Planner now calls the encoder's own
+     `runtime_binary_operation_byte_size`.
+   - FILED (TASKS.md): nested-value-call transition guards in inlined callees
+     read the PRE-STORE ZII TAG natively — std time's `saturating_add`/
+     `saturating_subtract`/`is_less_than`/`is_greater_than` non-ZII arms are
+     silently wrong natively (the core canary pins only ZII-coinciding arms:
+     the passing canary IS the bug). `Instant::duration_since` ships
+     SINGLE-LEVEL to dodge; the four std bodies await the splice fix + new
+     non-ZII-arm canary assertions. Repro:
+     canaries/pending/calls/nested_value_call_guard_zii.
+   REMAINING for this rung: `SystemTime` + `system_time_now()` (D7 —
+   `from_unix_seconds`, `duration_since` → SystemTimeDifference,
+   checked_add/subtract; canary `runtime_system_time_after_2026_exit`:
+   `system_time_now() > from_unix_seconds(1_767_225_600)`);
+   `Instant::checked_add/checked_subtract` + `InstantResult`;
+   `Time::sleep_for(duration)` (u32-ms chunking); `elapsed_since` once the
+   splice fix lands.
 7. [x] **Kill `Console::sleep` (D16) — DONE 2026-07-06, killed OUTRIGHT (no
    deprecation needed).** Entry removed from `std/console.omg`; the 11 samples
    + `runtime_sleep_exit` migrated onto inline `boundary trait Clock` + a
