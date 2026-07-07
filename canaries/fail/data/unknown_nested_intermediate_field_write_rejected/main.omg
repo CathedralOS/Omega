@@ -1,0 +1,24 @@
+// The INTERMEDIATE-missing face of the unknown nested-field WRITE:
+// `self.o.bogus.value = 7` where Outer has no field `bogus`. Reported at
+// validation with the container attribution, like the read side.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Inner {
+    value: i32;
+}
+
+data Outer {
+    inner: Inner;
+}
+
+data Main {
+    console: Console;
+    o: Outer;
+}
+
+machine Main::main(&mut self) {
+    self.o.bogus.value = 7;
+    self.console.exit_process(1);
+}

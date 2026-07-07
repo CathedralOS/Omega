@@ -13,6 +13,7 @@ pub(crate) fn validate_assignment_target_handle(
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
     machine: &Machine,
+    current_state: Option<&omega_typed_trees::state::State>,
     state_name: &str,
 ) {
     let machine_name = machine.name.as_str();
@@ -38,6 +39,23 @@ pub(crate) fn validate_assignment_target_handle(
             "machine `{machine_name}` state `{state_name}` assignment: data `{}` has no field \
              `{field_name}` (check the spelling of the field name)",
             data.name.as_str()
+        )));
+        return;
+    }
+
+    // The NESTED-target twin of the direct check (same walker as the READ side):
+    // `self.o.inner.nonexistent = 7` / `self.o.bogus.value = 7` used to fall
+    // through to the backend's "needs runtime storage write lowering" blocker --
+    // loud but MISLEADING (it reads as a missing lowering, not a typo). Report
+    // the missing member on its resolved container instead. The walker's skips
+    // (versioned containers, contained-machine/owned-data roots, non-data hops)
+    // keep every legal write untouched.
+    if let Some((container, member)) =
+        first_unknown_nested_field(program, machine, current_state, target)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{machine_name}` state `{state_name}` assignment: data `{container}` has \
+             no field `{member}` (check the spelling of the field name)"
         )));
         return;
     }
