@@ -1,0 +1,30 @@
+// A FIXED-ARRAY base subslice with a RUNTIME (machine-field) END bound to a
+// LOCAL: `let sub = self.arr[1..self.hi]`. The base is a raw machine-field
+// array (no pre-existing descriptor), so the emitter seeds the local's slot
+// with the whole-array descriptor (ptr = &arr, len = 5) and shrinks it IN
+// PLACE with the runtime end (the documented self-recursive order of the
+// runtime-descriptor subslice). Previously this shape was fenced ("subslice
+// descriptor construction ... not lowered"); a machine-field START remains
+// fenced (the indexed-address op's index is frame-only). hi=4 -> len 3 -> 3.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 5];
+    hi: usize;
+}
+
+machine Main::main(&mut self) {
+    self.hi = 4;
+    let sub: &[i32] = self.arr[1..self.hi];
+    let n: usize = sub.len;
+    transition n == 3 {
+        true -> matched()
+        false -> unmatched()
+    }
+
+    state matched(&mut self) { self.console.exit_process(3); }
+    state unmatched(&mut self) { self.console.exit_process(0); }
+}

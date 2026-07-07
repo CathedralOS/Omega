@@ -2858,6 +2858,79 @@ fn runtime_inline_subslice_length_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A FIXED-ARRAY base subslice with a RUNTIME (machine-field) END bound to a
+// LOCAL: `let sub = self.arr[1..self.hi]`. The emitter seeds the local's slot
+// with the whole-array descriptor (ptr = &arr, len = declared length) and
+// shrinks it IN PLACE with the runtime end. Was fenced before this lowering.
+// hi=4 -> window [1,4) -> len 3 -> exit 3.
+#[test]
+fn runtime_end_fixed_array_subslice_local_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_end_fixed_array_subslice_local_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-rt-end-subslice-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime-end fixed-array subslice local canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime-end fixed-array subslice local canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "expected `let sub = self.arr[1..self.hi]` (hi=4) to seed-and-shrink the \
+         descriptor so `sub.len == 3` matches -> exit 3, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The ELEMENT-READ face of the fixed-array runtime-END subslice local: the
+// seeded-then-shrunk descriptor's POINTER must be element 1's address, not just
+// a correct length. `sub = self.arr[1..self.hi]` over 10,20,30,40,50 -> a
+// guarded `sub[0]` read through the descriptor -> 20.
+#[test]
+fn runtime_end_fixed_array_subslice_element_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_end_fixed_array_subslice_element_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-rt-end-subslice-elem-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime-end fixed-array subslice element canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime-end fixed-array subslice element canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(20),
+        "expected `sub[0]` through the seeded-then-shrunk `self.arr[1..self.hi]` \
+         descriptor to read element 1 (20) -> exit 20, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 owned `[u8; N] in Utf8` carrier builder/concat, native: `self.text =
 // "Room " + self.label` materializes into the target carrier's inline storage --
 // the first literal initializes it, then the source carrier's content is appended
