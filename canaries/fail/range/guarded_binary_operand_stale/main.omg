@@ -1,0 +1,29 @@
+// The operand-refold's STABILITY twin: a write to `dir` inside the guarded
+// state before the sum invalidates the edge fact -- the stability gate must
+// drop the guard and the ranged store must reject.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    p: i32 [0..=8];
+    dir: i32;
+    y: i32 [0..=9];
+}
+
+machine Main::main(&mut self) {
+    self.dir = 1;
+    transition self.dir >= 0 && self.dir <= 1 {
+        true -> store()
+        false -> bad()
+    }
+
+    state store(&mut self) {
+        self.dir = 2000000000;
+        self.y = self.p + self.dir;
+        transition self.y == 9 { true -> m() false -> m() }
+    }
+    state m(&mut self) { self.console.exit_process(1); }
+    state bad(&mut self) { self.console.exit_process(8); }
+}

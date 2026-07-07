@@ -313,6 +313,9 @@ pub struct BoundedAssignmentObligation {
     pub value_constraints: HandleSpan<ProofConstraint>,
     pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<ProofConstraint>,
+    /// Present when `value` is a top-level integer BINARY: its operands with
+    /// their declared ranges, for the checker's guard-assisted refold.
+    pub binary_operands: Option<BinaryValueOperands>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -368,9 +371,23 @@ pub struct BoundedTransitionArgumentObligation {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct IntegerRange {
-    minimum: i64,
-    maximum: i64,
+pub(crate) struct IntegerRange {
+    pub(crate) minimum: i64,
+    pub(crate) maximum: i64,
+}
+
+/// A top-level BINARY assignment value's operands with their DECLARED ranges,
+/// resolved at obligation-build time. The checker refolds them with the
+/// stability-gated edge guard filling in an operand the declaration leaves
+/// unbounded (`self.y = self.p + self.dir` with `p: [0..=8]` declared and
+/// `dir` bounded only by the incoming guard).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BinaryValueOperands {
+    pub operator: BinaryOperator,
+    pub left: ExpressionHandle,
+    pub(crate) left_range: Option<IntegerRange>,
+    pub right: ExpressionHandle,
+    pub(crate) right_range: Option<IntegerRange>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -669,6 +686,26 @@ fn collect_bounded_assignment_obligation(
         proof_plan.store_constraints(expression_constraints(program, machine, state, value));
     let constraints = proof_plan.store_constraint_nodes(program, constraints);
     let state_guard = incoming_state_guard(program, machine, state);
+    // A top-level integer BINARY value carries its operands with their DECLARED
+    // ranges so the checker can refold with the (stability-gated) edge guard
+    // filling in an operand the declaration leaves unbounded.
+    let binary_operands = match program.expression_table.expression(value) {
+        ExpressionNode::Binary(binary) => {
+            let operand_range = |operand: ExpressionHandle| {
+                integer_range_from_constraints(&expression_constraints(
+                    program, machine, state, operand,
+                ))
+            };
+            Some(BinaryValueOperands {
+                operator: binary.operator,
+                left: binary.left,
+                left_range: operand_range(binary.left),
+                right: binary.right,
+                right_range: operand_range(binary.right),
+            })
+        }
+        _ => None,
+    };
 
     proof_plan.push_obligation(ProofObligation::BoundedAssignment(
         BoundedAssignmentObligation {
@@ -682,6 +719,7 @@ fn collect_bounded_assignment_obligation(
             value_constraints,
             base_type,
             constraints,
+            binary_operands,
         },
     ));
 }
@@ -1938,7 +1976,7 @@ fn float_range_from_constraints(constraints: &ConstraintBuffer) -> Option<FloatR
     range
 }
 
-fn integer_binary_range(
+pub(crate) fn integer_binary_range(
     operator: BinaryOperator,
     left: IntegerRange,
     right: IntegerRange,

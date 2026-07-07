@@ -1,0 +1,28 @@
+// The operand-refold's soundness twin: guard `dir <= 2` makes the sum
+// [0..=8] + [0..=2] = [0..=10], which does NOT fit y: [0..=9] -> reject.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    p: i32 [0..=8];
+    dir: i32;
+    y: i32 [0..=9];
+}
+
+machine Main::main(&mut self) {
+    self.p = 8;
+    self.dir = 1;
+    transition self.dir >= 0 && self.dir <= 2 {
+        true -> store()
+        false -> bad()
+    }
+
+    state store(&mut self) {
+        self.y = self.p + self.dir;
+        transition self.y == 9 { true -> m() false -> m() }
+    }
+    state m(&mut self) { self.console.exit_process(1); }
+    state bad(&mut self) { self.console.exit_process(8); }
+}

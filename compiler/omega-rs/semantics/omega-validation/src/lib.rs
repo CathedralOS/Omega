@@ -114,7 +114,11 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
             let mut value_env = if state_index == 0 {
                 arithmetic_domains::requires_value_env(program, machine)
             } else {
-                arithmetic_domains::ValueEnv::new()
+                // A non-entry state entered by exactly ONE guarded transition
+                // may assume that guard at entry -- the target-state twin of
+                // the same-state arm narrowing (`transition dir >= 0 && dir <=
+                // 1 { true -> store() }` seeds `store` with dir in [0, 1]).
+                arithmetic_domains::sole_incoming_guard_env(program, machine, state)
             };
             for statement in program.statement_table.statements(state.statement_nodes) {
                 // VALUE-position calls inside this statement's expression trees

@@ -1,18 +1,12 @@
 use crate::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
-    BoundedStateReturnObligation, BoundedTransitionArgumentObligation, ProofConstraint,
-    ProofObligation, ProofPlan,
+    BoundedStateReturnObligation, BoundedTransitionArgumentObligation, IntegerRange,
+    ProofConstraint, ProofObligation, ProofPlan, integer_binary_range,
 };
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use omega_typed_trees::statement::TransitionGuardNode;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct IntegerRange {
-    minimum: i64,
-    maximum: i64,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct FloatRange {
@@ -524,6 +518,33 @@ fn guarded_integer_range_for_assignment(
     {
         range = apply_assignment_guard(proof_plan, range, obligation.value, guard);
         range = guard_refined_binary_range(proof_plan, range, obligation.value, guard);
+
+        // OPERAND-wise refold of a top-level binary value: each operand's
+        // range = its DECLARED range (resolved at build time), with the guard
+        // filling in one the declaration leaves unbounded -- `self.p +
+        // self.dir` with `p: [0..=8]` declared and `dir` bounded only by the
+        // incoming `dir >= 0 && dir <= 1`. The whole-value fold dies at build
+        // time on the unranged operand, and `guard_refined_binary_range`
+        // above is place-vs-LITERAL only, so neither reaches this shape.
+        if let TransitionGuardNode::When(condition) = guard
+            && let Some(operands) = &obligation.binary_operands
+        {
+            let operand_range = |declared: Option<IntegerRange>, handle: ExpressionHandle| {
+                let base = declared.unwrap_or(NEUTRAL);
+                let narrowed = apply_handle_condition(proof_plan, base, handle, *condition);
+                (narrowed != NEUTRAL).then_some(narrowed)
+            };
+            if let (Some(left), Some(right)) = (
+                operand_range(operands.left_range, operands.left),
+                operand_range(operands.right_range, operands.right),
+            ) && let Some(folded) = integer_binary_range(operands.operator, left, right)
+            {
+                range = IntegerRange {
+                    minimum: range.minimum.max(folded.minimum),
+                    maximum: range.maximum.min(folded.maximum),
+                };
+            }
+        }
     }
 
     // Nothing declared AND nothing narrowed: keep reporting "no range" rather
