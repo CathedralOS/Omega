@@ -660,9 +660,34 @@ boundary trait TimeHost {
    `read_metadata` lowering row (the documented file_journal sample fail);
    the time-side surface (`from_unix_seconds`, i64 seconds) is ready and
    canaried -- when their row lands, the interop leg is a small canary.
-10. [ ] **darwin/aarch64** — `_nsec_np` rows (constant-arg injection) +
-    constant-result rows; `usleep` stays render's (do not duplicate). Native
-    confirmation needs a Mac.
+10. [ ] **darwin/aarch64** — RECON DONE 2026-07-09; NOT pure table work.
+    The aarch64 host-call routing is PREDICATE-keyed
+    (omega-instruction-selection/src/encoding/host.rs) and the aarch64
+    import encoder is operand-generic (no per-op arms) — but four compiler
+    pieces are missing:
+    1. `HostOperationKey::returns_value()` is CAPABILITY-keyed (Filesystem/
+       Math/ObjectiveC/CoreGraphics) — Clock's value ops would route to the
+       NON-returning encoder and drop the result. Needs op-aware Clock arms
+       (MonotonicTicks/MonotonicTicksPerSecond/WallClockRaw; Sleep/SleepPoll
+       stay non-returning).
+    2. NEW `PlatformCallData::ConstantArgument { value }` (+ the 4
+       exhaustive-match cascade arms, rung-5 list) — selection injects it as
+       an ImmediateInteger arg after the result operand: darwin
+       `_clock_gettime_nsec_np` takes the clockid (CLOCK_UPTIME_RAW = 8 for
+       monotonic_ticks, CLOCK_REALTIME = 0 for wall_clock_raw).
+    3. An aarch64 CONSTANT-RESULT encoder (movz/movk + the standard result
+       store tail; no BL, no import relocation) + width + relocation arms +
+       a routing arm keyed on the two calibration ops (mirror the x86_64
+       rung-5 arms).
+    4. darwin.rs rows: `_clock_gettime_nsec_np` import (ONE symbol, TWO ops)
+       + lowerings (monotonic_ticks: ConstantArgument{8}; wall_clock_raw:
+       ConstantArgument{0}; monotonic_ticks_per_second +
+       wall_clock_units_per_second: ConstantResult{1_000_000_000};
+       wall_clock_epoch_offset_seconds: ConstantResult{0}). `usleep` stays
+       render's (do not duplicate).
+    Verification without a Mac = the cross-compile backend_report probe
+    (--target + Target Operations + slots) — structural only; note it
+    honestly. Native confirmation still needs a Mac.
 11. [ ] **linux** — monotonic/wall rows stay DEFERRED (timespec out-param needs
     arithmetic no lowering shape provides); document the gap honestly rather
     than a broken row. `nanosleep` row only.
