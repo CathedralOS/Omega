@@ -668,14 +668,10 @@ fn validate_value_call_argument_classes(
     callee_state: &State,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // NOTE: a void-callee-in-value-position check (`let r: i32 = self.act()` for a
-    // unit `act`, which silently binds a ZII 0) does NOT belong here -- the resolved
-    // `callee_state.return_type` is EMPTY for terminating/transition machine shapes
-    // (a `-> usize` after a `terminates` block, or a value returned via a transition
-    // arm), so keying off it false-positives on machines that DO return a value
-    // (verified: it flagged `weaken -> usize` and `table_size() -> usize`). That
-    // check needs reliable per-call return-type resolution (the complete value-call
-    // resolver), the same frontier as the nonexistent-value-call gap in TASKS.
+    // (The void-callee-in-value-position check lives in report_void_value_callee:
+    // it consults the resolved state's return type AND the callee machine's
+    // transition VALUE arms, which is what keying off `callee_state.return_type`
+    // alone could not do.)
 
     // Arity: value-position calls (`let r = self.pick(1)`) reach only this path,
     // never `validate_call_arguments_handles`, so without this a wrong argument
@@ -1702,6 +1698,90 @@ fn validate_expression_call_bounds(
     );
 
     let _ = writable_roots;
+}
+
+/// A LET/ASSIGNMENT-bound value call whose ARGUMENT nests another machine call
+/// (`let out = self.double(self.inc(3))`) reads a garbage inner result: the
+/// inner callee's frame locals cannot materialize inside the outer call's
+/// argument context in the VALUE sink (some consumer shapes fence loudly with
+/// "needs stack/local storage lowering", but the guard-consumer shape slipped
+/// through and natively bound 0). STATEMENT-call arguments take a different
+/// materialization path and legitimately nest (the dungeon's
+/// `self.append_exit(.., self.direction_command(self.opposite(d)), ..)`), so
+/// this check runs ONLY on the value expression of a local/assignment.
+pub(crate) fn report_nested_call_in_bound_value_call(
+    program: &TypedTrees,
+    machine: &Machine,
+    state_name: &str,
+    value: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !value.is_valid() {
+        return;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
+        return;
+    };
+    // A BUILTIN outer call (`let v = max(self.range(..), floor)`) composes:
+    // builtin arguments materialize as operands through the call-result-local
+    // machinery (canaried). Only a MACHINE outer call's argument context is
+    // broken.
+    if matches!(
+        call.target.as_str(),
+        "min" | "max" | "sqrt" | "as_slice" | "as_mut_slice" | "as_view" | "bytes"
+    ) {
+        return;
+    }
+    for argument in program.expression_table.expression_handles(call.arguments) {
+        if let Some(inner) = first_non_builtin_call(program, *argument) {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{state_name}`: a value-call argument cannot itself \
+                 be a machine call yet (`{inner}(..)` nested in `{}(..)` would read a \
+                 garbage result) -- bind the inner call to a local first, then pass \
+                 the local.",
+                machine.name,
+                call.target.as_str(),
+            )));
+            return;
+        }
+    }
+}
+
+/// The first NON-BUILTIN machine call nested anywhere inside `expression`
+/// (its target name, for the diagnostic), or None. Reserved value builtins
+/// (`min`/`max`/`sqrt`) and the view builtins (`as_slice`/`as_mut_slice`/
+/// `as_view`/`bytes`) compose in arguments and are exempt.
+fn first_non_builtin_call(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<Identifier> {
+    if !expression.is_valid() {
+        return None;
+    }
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Call(call) => {
+            if !matches!(
+                call.target.as_str(),
+                "min" | "max" | "sqrt" | "as_slice" | "as_mut_slice" | "as_view" | "bytes"
+            ) {
+                return Some(call.target.clone());
+            }
+            program
+                .expression_table
+                .expression_handles(call.arguments)
+                .iter()
+                .find_map(|argument| first_non_builtin_call(program, *argument))
+        }
+        ExpressionNode::Binary(binary) => first_non_builtin_call(program, binary.left)
+            .or_else(|| first_non_builtin_call(program, binary.right)),
+        ExpressionNode::Unary(unary) => first_non_builtin_call(program, unary.operand),
+        ExpressionNode::Cast(cast) => first_non_builtin_call(program, cast.value),
+        ExpressionNode::Mutable(inner) => first_non_builtin_call(program, *inner),
+        ExpressionNode::Indexed(indexed) => first_non_builtin_call(program, indexed.collection)
+            .or_else(|| first_non_builtin_call(program, indexed.index)),
+        ExpressionNode::Member(member) => first_non_builtin_call(program, member.receiver),
+        _ => None,
+    }
 }
 
 /// A VOID callee in VALUE position used to compile and silently bind 0 (ZII)

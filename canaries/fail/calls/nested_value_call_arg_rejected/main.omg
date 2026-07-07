@@ -1,0 +1,28 @@
+// A machine call nested as a BOUND value-call's argument
+// (`let out = self.double(self.inc(3))`) reads a garbage inner result -- the
+// guard-consumer shape used to compile and natively bind 0 (interp right).
+// Now rejected with the bind-to-a-local teaching. Builtin outers
+// (`max(self.range(..), floor)`) and statement-call args still compose.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+}
+machine Main::inc(&self, x: i32 [0..=10]) -> i32 {
+    let r: i32 [1..=11] = x + 1;
+    transition { _ -> r }
+}
+machine Main::double(&self, x: i32 [0..=20]) -> i32 {
+    let r: i32 [0..=40] = x + x;
+    transition { _ -> r }
+}
+machine Main::main(&mut self) {
+    let out: i32 = self.double(self.inc(3));
+    transition out == 8 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}
