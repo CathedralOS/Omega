@@ -1,1 +1,1 @@
-whose base is itself array-indexed
+indexed by another RUNTIME value

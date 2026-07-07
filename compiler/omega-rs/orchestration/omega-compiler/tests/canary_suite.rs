@@ -3975,6 +3975,109 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// CONST-row + RUNTIME-column 2D reads: machine-field AND frame-let consumers.
+#[test]
+fn runtime_nested_const_row_indexed_read_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_nested_const_row_indexed_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-nested-const-row-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested const-row indexed read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested const-row indexed read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `self.grid[1][j]` (j=2 runtime, grid[1][2]=42) to read 42 through both the machine-field and let consumers and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// CONST-element + RUNTIME-leaf struct-field array WRITE, neighbor-validated.
+#[test]
+fn runtime_nested_const_row_struct_field_write_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_nested_const_row_struct_field_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-nested-const-row-sf-write-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested const-row struct-field write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested const-row struct-field write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `self.rows[2].data[j] = 77` (j=1 runtime) to write the right element (neighbors untouched) and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// 3D RUNTIME-MIDDLE index (`cube[1][b][0]`): const leaf rides the suffix walk
+// above the runtime level, const prefix folds into the collection resolution.
+#[test]
+fn runtime_nested_middle_index_3d_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_nested_middle_index_3d_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-nested-middle-3d-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested runtime-middle 3D canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested runtime-middle 3D canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `cube[1][b][0]` read+write (b=0 runtime) to hit the right element and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // DUAL-indexed copy with BOTH indices FRAME-resident params.
 #[test]
 fn runtime_dual_frame_index_copy_exit_canary_runs() {

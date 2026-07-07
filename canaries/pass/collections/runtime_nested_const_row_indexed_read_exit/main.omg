@@ -1,0 +1,42 @@
+// CONST-row + RUNTIME-column 2D reads (`grid[1][j]`, j runtime): used to be
+// fenced (and before that a silent read-0). The const level folds into the
+// machine-owned collection resolution's fixed offset (root-element-index
+// ordering fix + suffix-walk boundary threading); the op carries the one
+// runtime index. Pins BOTH consumers: machine-field target (`self.got = ..`)
+// and frame LET target (`let picked = ..`). grid[1][2]=42, j=2 -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    grid: [[i32; 4]; 3];
+    j: usize [0..=3];
+    got: i32;
+}
+machine Main::main(&mut self) {
+    self.grid[1][2] = 42;
+    self.grid[1][3] = 9;
+    self.grid[2][2] = 5;
+    self.j = 2;
+    self.got = self.grid[1][self.j];
+    transition self.got == 42 {
+        true -> let_read()
+        false -> no()
+    }
+    state let_read(&mut self) {
+        let picked: i32 = self.grid[1][self.j];
+        transition picked == 42 {
+            true -> neighbor()
+            false -> no()
+        }
+    }
+    state neighbor(&mut self) {
+        self.got = self.grid[2][self.j];
+        transition self.got == 5 {
+            true -> yes()
+            false -> no()
+        }
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

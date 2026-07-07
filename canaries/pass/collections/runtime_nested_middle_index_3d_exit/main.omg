@@ -1,0 +1,42 @@
+// 3D RUNTIME-MIDDLE index with const prefix + const leaf (`cube[1][b][0]`,
+// b runtime): the const leaf rides the suffix walk ABOVE the runtime level
+// (walk boundary = the runtime `Indexed` node), the const prefix folds into
+// the collection resolution. Read AND write faces, neighbor-validated.
+// (`cube[1][1][k]` -- TWO const levels BELOW the runtime index -- still a
+// clean error: the name-path collection resolution carries one root index.)
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    cube: [[[i32; 2]; 2]; 2];
+    b: usize [0..=1];
+    got: i32;
+}
+machine Main::main(&mut self) {
+    self.cube[1][0][0] = 7;
+    self.cube[1][1][0] = 30;
+    self.b = 0;
+    self.got = self.cube[1][self.b][0];
+    transition self.got == 7 {
+        true -> wr()
+        false -> no()
+    }
+    state wr(&mut self) {
+        self.cube[1][self.b][0] = 55;
+        self.got = self.cube[1][0][0];
+        transition self.got == 55 {
+            true -> neighbor()
+            false -> no()
+        }
+    }
+    state neighbor(&mut self) {
+        self.got = self.cube[1][1][0];
+        transition self.got == 30 {
+            true -> yes()
+            false -> no()
+        }
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}
