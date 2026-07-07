@@ -835,6 +835,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("expressions/runtime_widened_comparison_exit", 70),
     ("filesystem/windows_raw_breadth_exit", 70),
     ("filesystem/windows_raw_roundtrip_exit", 70),
+    ("filesystem/windows_wrapper_breadth_exit", 70),
     ("filesystem/windows_wrapper_results_exit", 70),
     ("host/runtime_gui_foreground_window_exit", 70),
     ("range/runtime_element_range_dataflow_exit", 15),

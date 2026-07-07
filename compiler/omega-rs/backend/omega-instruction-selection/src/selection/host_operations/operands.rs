@@ -953,11 +953,21 @@ pub(super) fn select_host_operation_operands(
             // `rc = hard_link(original, link) -> _link(original, link)`, and
             // `rc = symlink(target, linkpath) -> _symlink(target, linkpath)`.
             // operand[0]=result, [1]=first path POINTER, [2]=second path POINTER.
-            // Two path LITERALS in one statement, resolved by creation order.
-            // (Runtime-path forms are a future extension.)
+            // Each path resolves PER ARGUMENT through the alias chain to its
+            // literal data object (`fs.rename(a, b)` forwards the wrapper's
+            // params, whose literals live at the CALLER's statement -- the old
+            // creation-order scan only saw THIS statement's literals, so the
+            // wrapper form had no encodable sequence; per-argument resolution
+            // also removes the swap hazard when only one side is direct).
+            // Creation-order remains the fallback for both-direct forms.
+            // (Runtime/computed path forms are still a future extension.)
             let result = first_scalar_argument_operand(input, host_call, dispatch_index);
-            let from = find_nth_data_object(input, host_call, 0);
-            let to = find_nth_data_object(input, host_call, 1);
+            let from = aliased_literal_data_object(input, host_call, alias_context, 1)
+                .map(|(handle, _)| handle)
+                .unwrap_or_else(|| find_nth_data_object(input, host_call, 0));
+            let to = aliased_literal_data_object(input, host_call, alias_context, 2)
+                .map(|(handle, _)| handle)
+                .unwrap_or_else(|| find_nth_data_object(input, host_call, 1));
             match result {
                 Some(result) if from.is_valid() && to.is_valid() => operands.insert_many([
                     operand(result),
