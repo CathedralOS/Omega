@@ -979,7 +979,21 @@ impl ExpressionTable {
                     )
                 }
             }
-            _ => self.insert_copy(expression),
+            // Member receivers (and anything else) get the member-suffix
+            // chain. The old catch-all copied the receiver WITHOUT the suffix
+            // -- silently dropping it -- so an alias substitution through here
+            // resolved to the RECEIVER's place instead of the member's (the
+            // append_place_suffix clobber class; the suffix must never be
+            // dropped).
+            _ => {
+                let copied = self.insert_copy(expression);
+                self.insert_member_suffix_chain(
+                    copied,
+                    suffix_members,
+                    suffix_member_symbols,
+                    suffix_start_offset,
+                )
+            }
         }
     }
 
@@ -1421,7 +1435,20 @@ impl ExpressionTable {
             ExpressionNode::Mutable(target) => {
                 Expression::Mutable(Box::new(self.to_tree_with_place_suffix(*target, suffix)))
             }
-            _ => self.to_tree(expression),
+            // Same rule as the Indexed non-path arm above: NEVER drop the
+            // suffix (the old catch-all returned the bare tree, so the caller
+            // read the RECEIVER's place instead of the member's).
+            _ => suffix
+                .iter()
+                .cloned()
+                .fold(self.to_tree(expression), |receiver, member| {
+                    Expression::Member(Box::new(MemberExpression {
+                        receiver,
+                        member_symbol: SymbolHandle::invalid(),
+                        member,
+                        case_variant: None,
+                    }))
+                }),
         }
     }
 

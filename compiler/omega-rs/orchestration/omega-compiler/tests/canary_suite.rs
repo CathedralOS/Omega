@@ -4030,6 +4030,43 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A MEMBER-expression value-call arg (`self.grab(self.bx.inner)`) with a
+// NESTED member read in the callee (`b.value`): the alias substitution's
+// suffix must survive the member-rooted receiver (the suffix-drop class).
+// pad=99/value=42 discriminate offset-0 reads. -> exit 1.
+#[test]
+fn runtime_member_arg_nested_read_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_member_arg_nested_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-member-arg-nested-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("member arg nested read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("member arg nested read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected b.value == 42 (not pad's 99 at offset 0) to exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Type-scoped constructor with COMPUTED struct-literal fields delivers
 // natively (the member-suffix drop in append_place_suffix is fixed). -> 1.
 #[test]
