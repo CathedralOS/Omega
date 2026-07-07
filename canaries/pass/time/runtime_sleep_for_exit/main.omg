@@ -1,0 +1,46 @@
+// std::time rung 6 slice 3: Time::sleep_for -- Duration-shaped sleep through
+// the millisecond host op, clamped to one u32 chunk, returning the clamped
+// request. DIFFERENTIAL: the returned milliseconds are pure math (exactly 30
+// on both engines); the elapsed check is >= 30ms (interp virtual clock:
+// exactly 30). The over-u32 clamp arm stays unexercised at runtime -- a
+// 49-day sleep cannot run in a canary; the clamp lets carry compile-time
+// proof and the returned-value equality pins the conversion math.
+// Expected exit: 70.
+use omega::language::std::time;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    time: Time;
+    start_keep: Instant;
+    d: Duration;
+    slept: u32;
+    elapsed: Duration;
+}
+
+machine Main::main(&mut self) {
+    self.start_keep = self.time.now();
+    self.d = Duration { seconds: 0, subsecond_nanoseconds: 30000000 };
+    self.slept = self.time.sleep_for(self.d);
+    transition self.slept == 30 {
+        true -> check_elapsed()
+        false -> fail_request()
+    }
+    state check_elapsed(&mut self) {
+        self.elapsed = self.time.elapsed_since(self.start_keep);
+        transition self.elapsed.seconds == 0 {
+            true -> check_elapsed_subsecond()
+            false -> good()
+        }
+    }
+    state check_elapsed_subsecond(&mut self) {
+        transition self.elapsed.subsecond_nanoseconds >= 30000000 {
+            true -> good()
+            false -> fail_elapsed()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_request(&mut self) { self.console.exit_process(1); }
+    state fail_elapsed(&mut self) { self.console.exit_process(2); }
+}

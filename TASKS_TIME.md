@@ -614,9 +614,26 @@ boundary trait TimeHost {
      let names with now() again as the live std tripwire
      (runtime_time_elapsed_since_exit; std-independent pins:
      calls/runtime_cross_callee_let_names_exit + _division_exit).
-   REMAINING for this rung: `Instant::checked_add/checked_subtract` +
-   `InstantResult`; `SystemTime::checked_add/checked_subtract`;
-   `Time::sleep_for(duration)` (u32-ms chunking).
+   SLICE 3 LANDED 2026-07-09 -- **RUNG 6 COMPLETE** (the full sketched
+   wrapper surface exists). `InstantResult` + `Instant::checked_add/
+   checked_subtract` (mirror Duration's carry/borrow idioms exactly);
+   `SystemTimeResult` + `SystemTime::checked_add/checked_subtract` -- the
+   signed i64-seconds overflow detection runs in BIASED u64 space (bias
+   spelled `(1 as u64 in Wrapping) << 63`; the raw 2^63 literal is not
+   blessed in operand position) so "exceeds i64::MAX/MIN" is the plain
+   unsigned wrapped-compare idiom, uniform for duration seconds above
+   i64::MAX; result seconds compute in i64-domained Wrapping bit-arithmetic
+   (probe-verified incl. above-i64::MAX operands, negative operands).
+   `Time::sleep_for(duration) -> u32`: ONE clamped u32-ms chunk (~49.7-day
+   saturation, clamp-carried narrowing proofs, all-entry lets, void host
+   sleep inside the value callee -- probe-verified), returns the clamped
+   request. Differential canaries:
+   `time/runtime_checked_time_arith_exit` (8 exact legs incl. u64::MAX /
+   i64::MAX / i64::MIN / huge-addend overflow pins; first-try native green)
+   + `time/runtime_sleep_for_exit`. NOT built (deliberate): multi-chunk
+   sleeps (a >49-day sleep is a loop in a value callee -- unsupported
+   machinery, absurd use case; documented in the machine header);
+   `saturating_*` twins still wait on terminal-position u64 blessing (D14).
 7. [x] **Kill `Console::sleep` (D16) — DONE 2026-07-06, killed OUTRIGHT (no
    deprecation needed).** Entry removed from `std/console.omg`; the 11 samples
    + `runtime_sleep_exit` migrated onto inline `boundary trait Clock` + a
