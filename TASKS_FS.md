@@ -8,13 +8,15 @@
 >
 > **START HERE (fresh pickup).** The fs is broadly complete (interpreter = full
 > Rust-parity; native raw seam = complete; native ergonomic wrapper = scalar/tag
-> results work). The remaining work is native delivery of PAYLOAD-carrying wrapper
-> results — see **LIVE BLOCKERS** under Current state. The next concrete task is
-> **blocker #2: a big multi-field StructLiteral payload isn't fully delivered**
-> (`metadata_path -> Ok{Metadata}` gives `meta.len == 0`). Parked minimal repro:
-> `canaries/run/filesystem/wrapper_metadata_repro/main.omg`. Every blocker has a
-> precise diagnosis + fix direction. The interpreter is fully correct for all of
-> it, so this is purely native codegen.
+> results work). **Blockers #2 and #3 are FIXED in shared instruction selection
+> (2026-07-06, Windows thread)** — see LIVE BLOCKERS for the decomposition, fix
+> sites, and the two pure-language twin canaries that pin them (verified RUNNING
+> natively on windows_x64 + by the fs repro's cross-compiled aarch64
+> backend_report). The next concrete task is **macOS runtime confirmation +
+> promotion**: on a Mac, run `canaries/run/filesystem/wrapper_metadata_repro`
+> (expect "PASS: metadata_path Ok with meta.len == 5"), then promote the
+> result-asserting wrapper canaries into `native_filesystem_canaries` (next
+> steps #4).
 >
 > **WORKING RULES (were the loop's standing instructions).** Consult
 > `wiki/language_guide/*` before adding language features; prefer ZII / arena /
@@ -68,8 +70,8 @@ Native fs harness **55/55** (`omega-compiler --test native_filesystem_canaries`)
 - **Sample:** `samples/cli/systems/file_journal` — real end-to-end raw-seam
   workflow, `Expected exit: 7`, covered by `sample_file_journal_exits_7`.
 
-**LIVE BLOCKERS (the remaining native ergonomic-wrapper work).** Both are
-codegen bugs beyond the deep fix; the interpreter is fully correct for all of it.
+**BLOCKERS (all three now FIXED in shared instruction selection; macOS runtime
+confirmation pending).** The interpreter was fully correct for all of it.
 
 1. **✅ ENUM-transition-leaf NULLARY-arm delivery — FIXED (2026-07-12).** A value-call
    whose callee transitions to enum leaves where an arm is a NULLARY variant (`Err`, a
@@ -82,21 +84,38 @@ codegen bugs beyond the deep fix; the interpreter is fully correct for all of it
    the variant's TAG (`ENUM_TAG_BYTES`) at the slot start. Regression:
    `canaries/pass/filesystem/native_enum_result`. canary_suite **85-baseline, zero new
    failures**; native fs harness **55/55**.
-2. **STILL OPEN — a BIG multi-field StructLiteral payload isn't fully delivered.**
-   `metadata_path -> MetadataResult::Ok{meta: Metadata}` gives the right TAG but
-   `meta.len == 0` (the 16-field ~120-byte `Metadata` payload is ZII). Parked repro:
-   `canaries/run/filesystem/wrapper_metadata_repro/main.omg`. ISOLATED (2026-07-12): NOT
-   the nullary-arm bug (fixed above); NOT local-valued fields (a 2-field `Ok{Pair{a:x,
-   b:y}}` from locals delivers correctly); NOT the `Error{kind: last_error()}` nested
-   value-call (a literal err arm still fails). Specific to the LARGE multi-field
-   Metadata StructLiteral terminal through a value-call result slot. NEXT: the
-   mutation-write for a big StructLiteral terminal (many fields) into a call-result slot
-   — check whether every field is written and the frame→target copy width is right
-   (look at how `StructLiteral` lowers in `writes/mutation.rs` ~L802 + the leaf copy).
-3. **`Error{kind}` uses a nested `last_error()` value-call** (errno→ErrorKind); its
-   `kind` may be ZII by the same nesting the `try_exists` rewrite sidestepped. The
-   Yes/No/Error TAG is right; the kind PAYLOAD is the open item. Could inline the
-   errno→kind `match` on the already-captured `self.stat_errno`.
+2. **✅ BIG multi-field StructLiteral payload — FIXED (2026-07-06, Windows thread).**
+   The `meta.len == 0` symptom decomposed into TWO shared-selection bugs, isolated by
+   CROSS-COMPILING the repro to macos_arm64 from Windows and reading the emitted
+   `backend_report.txt` (build a temp `build.omg` declaring the target — the report's
+   Target Operations list is the linear emission):
+   - **#2B (the payload-ZII poison): the decode arm's straight-line statements were
+     emitted ABOVE the entry's host call.** The deferred value-call leaf fired its
+     GUARD after `stat` (the deep fix), but the arm's `let` locals (the straight-line
+     expansion) stayed hoisted above it, so the terminal copied a pre-stat ZII
+     stat_buf — right tag, zero payload. FIX (`runtime_dispatch.rs`): when a leaf
+     defers past the callee's spliced HostCall/LocalStorage ops, its straight-line
+     expansions defer WITH it and fire (locals first, then guard/terminal) at all
+     three fire sites. Twin canary RUNNING on windows_x64:
+     `canaries/run/value_call_entry_host_state_payload` (read_line as the entry host
+     call; exit 72 = the regression).
+   - **#2A: the one CAST-valued field (`mode: mode as u32`) had NO write at all.**
+     The leaf-path scalar write cascade (`branches/mutation.rs`, a PARALLEL
+     decomposition to `writes/mod.rs`) had no convert arm, so a Cast field failed
+     every strategy and silently dropped while its 15 siblings landed. FIX: the
+     cascade gained a convert-write arm (reuses
+     `select_runtime_convert_mutation_write_in_table`). Twin canary:
+     `canaries/pass/calls/runtime_value_call_struct_payload_cast_field_exit`
+     (exit 74 = the regression).
+   Verified: both twins run natively on windows_x64 (74→70, 72→70); the fs repro's
+   arm64 report now shows stat → guard → locals → terminal and all 16 payload
+   writes incl. the mode convert. AWAITING a real macOS RUN to promote.
+3. **✅ `Error{kind}` nested `last_error()` value-call — rides fix #2B.** The kind
+   payload chain (errno → classification → kind local → payload) was present but
+   mis-ordered like the decode locals; the run twin's "no" leg pins the nested
+   value-call err-kind shape natively (exit 76 = the regression). The
+   inline-the-errno-match workaround is NOT needed. Confirm on macOS with the
+   faithful `try_exists` Error canary when promoting.
 
 **Wrapper pattern for nested host-call results (established):** capture a host
 result into a FIELD in the machine ENTRY (before any transition), then guard on
@@ -174,13 +193,14 @@ Regression canary `canaries/pass/filesystem/native_value_call_guard`.
 ## Next steps
 
 1. [x] **ENUM-transition-leaf nullary-arm delivery** — FIXED (blocker #1 above).
-2. [ ] **Fix the BIG multi-field StructLiteral payload** (blocker #2 above) —
-   unblocks `metadata_path`/`open` struct payloads. Verify against
-   `wrapper_metadata_repro` + full canary_suite.
-3. [ ] **Fix `Error{kind}` payload** (blocker #3) — inline the errno→kind
-   classification on `self.stat_errno` instead of the nested `last_error()`.
-4. [ ] **Promote result-asserting wrapper canaries** once #2/#3 land
-   (`metadata_path` len, `open` file usability, faithful `try_exists` Error).
+2. [x] **BIG multi-field StructLiteral payload** — FIXED (blocker #2 above,
+   two-bug decomposition; twins pin both natively on windows_x64).
+3. [x] **`Error{kind}` payload** — rides fix #2B (blocker #3 above); no stdlib
+   rewrite needed.
+4. [ ] **macOS runtime confirmation + promote result-asserting wrapper canaries**
+   (needs a Mac): run `wrapper_metadata_repro` (expect PASS + len 5), then wire
+   result-asserting canaries into `native_filesystem_canaries` (`metadata_path`
+   len, `open` file usability, faithful `try_exists` Error).
 5. [ ] **x86_64 / linux / windows seams** — binding TABLES only (structural
    readiness); macOS is the only tested target. See the cross-target reference.
 
@@ -192,6 +212,19 @@ Regression canary `canaries/pass/filesystem/native_value_call_guard`.
   compiles + runs cleanly. A task chip was spawned for it. The required gates
   (Console lowering, instr-sel/reloc/calling-conv crate tests, interpreter fs
   coverage, native fs harness) all stay green.
+- On a WINDOWS host, `samples_compile` has 4 pre-existing failures (A/B-verified
+  identical on the pre-fix compiler, 2026-07-06): `cli__systems__file_journal`
+  (fs raw seam has no windows_x64 binding rows — by design until next-step #5)
+  and `stdin_checksum`/`stdin_rot1`/`stdin_upper` (frontend errors: a computed
+  `exit_process` arg, and `no local state write_byte` — the other workstream's
+  samples, presumably WIP). NOT the fs codegen work.
+- The fail canary `canaries/fail/build/build_machine_wrong_arity` was referenced
+  by the suite since 18c2acb6e (the build.omg workstream) but its FILES were
+  never committed — `fail_canaries_reject_with_expected_diagnostic_fragment`
+  red-lit on every fresh checkout. Reconstructed 2026-07-06 (main.omg +
+  build.omg with a 2-param `build`, expected fragment = the actual arity
+  diagnostic); if the original author's local copy differs, theirs can replace
+  it.
 
 ## Reference — cross-target seam
 

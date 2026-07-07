@@ -1,0 +1,99 @@
+// RUN CANARY (exit 70). A big multi-field StructLiteral payload delivered
+// through a value-call result slot, with one CAST-valued field (`mode: mode as
+// u32` — the metadata_path shape, TASKS_FS.md blocker #2A). The leaf-path
+// scalar write cascade (branches/mutation.rs) had no convert arm, so the cast
+// field failed every strategy and SILENTLY dropped while its 15 siblings
+// landed: the payload arrived with meta.mode == 0 (exit 74) and the delivery
+// still reported success. Locals are assembled from const-indexed byte reads
+// of a self buffer (little-endian shift-or chains) exactly like the fs stat
+// decode, so the values are genuinely runtime.
+//
+// exit 70 = full payload; 71 = wrong tag; 72 = len lost; 73 = tail field lost;
+// 74 = the cast-valued mode field lost (the regression this canary pins).
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Big [copy, zero_init] {
+    len: i64;
+    is_dir: bool;
+    is_symlink: bool;
+    mode: u32;
+    nlink: u64;
+    ino: u64;
+    dev: u64;
+    uid: u32;
+    gid: u32;
+    rdev: u64;
+    blocks: u64;
+    blksize: u64;
+    modified_secs: i64;
+    accessed_secs: i64;
+    created_secs: i64;
+    changed_secs: i64;
+}
+
+data BigResult {
+    case Error(kind: i32);
+    case Ok(meta: Big);
+}
+
+data Probe {
+    buf: [u8; 144];
+    rc: i32;
+}
+
+machine Probe::make(&mut self) -> BigResult {
+    transition self.rc == 0 { true -> mk_ok() _ -> mk_err() }
+    state mk_err(&mut self) -> BigResult { BigResult::Error { kind: 7 } }
+    state mk_ok(&mut self) -> BigResult {
+        let len: i64 = (self.buf[96] as i64)
+            | ((self.buf[97] as i64) << 8)
+            | ((self.buf[98] as i64) << 16)
+            | ((self.buf[99] as i64) << 24);
+        let mode: i32 = (self.buf[4] as i32) | ((self.buf[5] as i32) << 8);
+        let nlink: u64 = (self.buf[6] as u64) | ((self.buf[7] as u64) << 8);
+        let ino: u64 = (self.buf[8] as u64) | ((self.buf[9] as u64) << 8);
+        let uid: u32 = (self.buf[16] as u32) | ((self.buf[17] as u32) << 8);
+        let gid: u32 = (self.buf[20] as u32) | ((self.buf[21] as u32) << 8);
+        let dev: u64 = (self.buf[0] as u64) | ((self.buf[1] as u64) << 8);
+        let rdev: u64 = (self.buf[24] as u64) | ((self.buf[25] as u64) << 8);
+        let ctime: i64 = (self.buf[64] as i64) | ((self.buf[65] as i64) << 8);
+        let blocks: u64 = (self.buf[104] as u64) | ((self.buf[105] as u64) << 8);
+        let blksize: u64 = (self.buf[112] as u64) | ((self.buf[113] as u64) << 8);
+        let is_dir: bool = (mode & 61440) == 16384;
+        let mtime: i64 = (self.buf[48] as i64) | ((self.buf[49] as i64) << 8);
+        let atime: i64 = (self.buf[32] as i64) | ((self.buf[33] as i64) << 8);
+        let btime: i64 = (self.buf[80] as i64) | ((self.buf[81] as i64) << 8);
+        BigResult::Ok { meta: Big { len: len, is_dir: is_dir, is_symlink: false, mode: mode as u32, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime } }
+    }
+}
+
+data Main {
+    console: Console;
+    probe: Probe;
+    res: BigResult;
+}
+
+machine Main::main(&mut self) {
+    self.probe.buf[96] = 5;
+    self.probe.buf[64] = 444 - 256;   // low byte of 444 = 0x01BC
+    self.probe.buf[65] = 1;           // high byte of 444
+    self.probe.buf[4] = 164;          // st_mode low byte  (0x81A4 = 33188)
+    self.probe.buf[5] = 129;          // st_mode high byte
+    self.res = self.probe.make();
+    transition self.res {
+        BigResult::Ok { meta } -> check_len(meta)
+        BigResult::Error { kind } -> bad(71)
+    }
+    state check_len(&mut self, meta: Big) {
+        transition meta.len == 5 { true -> check_tail(meta) _ -> bad(72) }
+    }
+    state check_tail(&mut self, meta: Big) {
+        transition meta.changed_secs == 444 { true -> check_mode(meta) _ -> bad(73) }
+    }
+    state check_mode(&mut self, meta: Big) {
+        transition meta.mode == 33188 { true -> good() _ -> bad(74) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

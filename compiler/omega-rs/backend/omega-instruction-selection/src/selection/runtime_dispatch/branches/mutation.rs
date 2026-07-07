@@ -32,8 +32,8 @@ use super::super::writes::{
     RuntimeStaticValues, runtime_storage_copy_in_table,
     runtime_storage_fixed_indexed_source_copy_in_table,
     runtime_storage_indexed_source_copy_in_table, runtime_storage_indirect_copy_in_table,
-    select_runtime_case_tag_write_in_table, signedness_adjusted_operator,
-    signedness_adjusted_operator_for_operands,
+    select_runtime_case_tag_write_in_table, select_runtime_convert_mutation_write_in_table,
+    signedness_adjusted_operator, signedness_adjusted_operator_for_operands,
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
 
@@ -359,6 +359,28 @@ fn select_runtime_resolved_scalar_mutation_write_in_table_with_scratch(
             expressions,
             resolved_target,
             resolved_value,
+            runtime_value_operands,
+        )
+    })
+    .or_else(|| {
+        // A CAST-valued field in a leaf terminal (`Metadata { mode: mode as
+        // u32, .. }` delivered through a value-call result slot): no arm above
+        // matches a Cast (not a place, not foldable, not Binary), so the field
+        // write silently dropped while its siblings landed — the payload
+        // arrived with ONE field ZII (the metadata_path `mode` bug,
+        // TASKS_FS.md blocker #2A). Reuse the mutation-path convert write;
+        // this path tracks no static values, so pass a throwaway.
+        let mut convert_static_values = RuntimeStaticValues::new();
+        select_runtime_convert_mutation_write_in_table(
+            input,
+            dispatch_index,
+            target_source_key,
+            value_source_key,
+            statement_index,
+            expressions,
+            resolved_target,
+            resolved_value,
+            &mut convert_static_values,
             runtime_value_operands,
         )
     }) {

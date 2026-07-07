@@ -1,0 +1,102 @@
+// RUN CANARY (stdin-driven, two invocations: "ok\n" -> exit 70, "no\n" -> 75).
+// The callee's ENTRY does a host call that writes self state (read_line into
+// self.buf), and BOTH leaf arms build their payloads from that state:
+//  - the Ok arm's 15-field StructLiteral takes `len` from a local that reads
+//    the host-written carrier (`let l = self.buf.len`);
+//  - the Error arm's `kind` comes from a NESTED value-call (`self.classify()`)
+//    that guards on the host-written carrier — the `let kind = self.last_error()`
+//    shape of the fs wrapper (TASKS_FS.md blocker #3).
+//
+// Regression pinned (TASKS_FS.md blocker #2B): the deferred value-call leaf
+// used to fire its GUARD after the entry host call, but the arm STATEMENTS
+// (the straight-line expansion: `let l = ...`) stayed hoisted ABOVE the host
+// call, so the terminal copied a pre-call ZII carrier len — right tag, zero
+// payload (metadata_path's meta.len == 0). Fixed by deferring the straight-line
+// expansions together with the leaf (runtime_dispatch.rs).
+//
+// exit 70 = Ok payload delivered; 71 unused; 72 = Ok len lost (the mis-order);
+// 73 = Ok tail lost; 75 = Error kind delivered; 76 = Error kind lost.
+
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 16]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine read_line(out_line: &mut [u8; 16] in Utf8);
+    machine exit_process(return_code: i32);
+}
+
+data Big [copy, zero_init] {
+    len: i64;
+    is_dir: bool;
+    is_symlink: bool;
+    nlink: u64;
+    ino: u64;
+    dev: u64;
+    uid: u32;
+    gid: u32;
+    rdev: u64;
+    blocks: u64;
+    blksize: u64;
+    modified_secs: i64;
+    accessed_secs: i64;
+    created_secs: i64;
+    changed_secs: i64;
+}
+
+data BigResult {
+    case Error(kind: i64);
+    case Ok(meta: Big);
+}
+
+data Probe {
+    console: Console;
+    buf: [u8; 16] in Utf8;
+}
+
+machine Probe::classify(&mut self) -> i64 {
+    transition self.buf == "no" { true -> known() _ -> unknown() }
+    state known(&mut self) -> i64 { 9 }
+    state unknown(&mut self) -> i64 { 1 }
+}
+
+machine Probe::make(&mut self) -> BigResult {
+    self.console.read_line(&mut self.buf);
+    transition self.buf == "ok" { true -> mk_ok() _ -> mk_err() }
+    state mk_err(&mut self) -> BigResult {
+        let k: i64 = self.classify();
+        BigResult::Error { kind: k }
+    }
+    state mk_ok(&mut self) -> BigResult {
+        let l: i64 = self.buf.len;
+        BigResult::Ok { meta: Big { len: l, is_dir: false, is_symlink: false, nlink: 1, ino: 42, dev: 3, uid: 501, gid: 20, rdev: 0, blocks: 8, blksize: 4096, modified_secs: 111, accessed_secs: 222, created_secs: 333, changed_secs: 444 } }
+    }
+}
+
+data Main {
+    console: Console;
+    probe: Probe;
+    res: BigResult;
+}
+
+machine Main::main(&mut self) {
+    self.res = self.probe.make();
+    transition self.res {
+        BigResult::Ok { meta } -> check_len(meta)
+        BigResult::Error { kind } -> check_kind(kind)
+    }
+    state check_len(&mut self, meta: Big) {
+        transition meta.len == 2 { true -> check_tail(meta) _ -> bad(72) }
+    }
+    state check_tail(&mut self, meta: Big) {
+        transition meta.changed_secs == 444 { true -> good() _ -> bad(73) }
+    }
+    state check_kind(&mut self, kind: i64) {
+        transition kind == 9 { true -> err_ok() _ -> bad(76) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state err_ok(&mut self) { self.console.exit_process(75); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
