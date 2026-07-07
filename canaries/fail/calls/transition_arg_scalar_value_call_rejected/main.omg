@@ -1,0 +1,24 @@
+// SILENT MISCOMPILE STOPGAP (#40 family, face b): a SCALAR/BOOL user
+// value-machine call used DIRECTLY as a transition argument is never
+// materialized into the argument slot -- the target state's parameter reads
+// 0, and with TWO such calls in one transition a paired argument reads the
+// wrong call's result (probed 2026-07-07: done(self.dbl(5), 7) delivered
+// a=0; done(self.dbl(5), self.dbl(6)) delivered b=10). Reject the shape
+// with the sound workaround: bind the result to a `let`, pass the local.
+// Builtin methods (unwrap/is_some) and string/view-returning machines stay
+// accepted (strings work via the carrier path).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; k: i32; }
+machine Main::dbl(&self, x: i32 in Wrapping) -> i32 in Wrapping {
+    let r: i32 in Wrapping = x * 2;
+    transition { _ -> r }
+}
+machine Main::main(&mut self) {
+    self.k = 1;
+    transition self.k == 1 { true -> done(self.dbl(5), 7) _ -> bad(73) }
+    state done(&mut self, a: i32 in Wrapping, b: i32 in Wrapping) {
+        transition a == 10 { true -> good() _ -> bad(71) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
