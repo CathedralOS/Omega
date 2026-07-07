@@ -130,6 +130,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("CoreGraphics", "bitmap_context", "_CGBitmapContextCreate", &policy),
         darwin_import("CoreGraphics", "bitmap_context_image", "_CGBitmapContextCreateImage", &policy),
         darwin_import("CoreGraphics", "image_width", "_CGImageGetWidth", &policy),
+        // `Clock::sleep(milliseconds)` → libc `poll(NULL, 0, milliseconds)`: with
+        // zero fds, `poll`'s timeout IS a millisecond sleep (correct units, no
+        // <1s cap — unlike `usleep`). Bound under the distinct `sleep_poll` op so
+        // its operand arm places `[NULL, 0, ms]` in x0/x1/x2 (the shared `Sleep`
+        // arm marshals a single arg into x0 for Win32 `Sleep`). `_poll` is in the
+        // libSystem umbrella, so no new dylib.
+        darwin_import("Clock", "sleep_poll", "_poll", &policy),
     ]);
 
     insert_platform_lowering(
@@ -591,6 +598,16 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "CoreGraphics",
         "image_width",
         [host_operation("CoreGraphics", "image_width")],
+        PlatformCallData::None,
+    );
+    // `Clock::sleep(milliseconds)` → the distinct `sleep_poll` op (poll-based
+    // millisecond sleep). The `"*"` platform matches the sample's `clock.sleep(ms)`
+    // boundary call regardless of the receiver type.
+    insert_platform_lowering(
+        plan,
+        "*",
+        "sleep",
+        [host_operation("Clock", "sleep_poll")],
         PlatformCallData::None,
     );
 }

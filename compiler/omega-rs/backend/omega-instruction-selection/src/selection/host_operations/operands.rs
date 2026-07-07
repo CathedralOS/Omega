@@ -181,6 +181,21 @@ pub(super) fn select_host_operation_operands(
                 None => HandleSpan::empty(),
             }
         }
+        (HostCapability::Clock, HostOperation::SleepPoll) => {
+            // `sleep(ms) -> poll(NULL, 0, ms)`: darwin's poll-based millisecond
+            // sleep. Two synthesized constant args (fds = NULL → x0, nfds = 0 → x1)
+            // precede the boundary `milliseconds` arg (→ x2, poll's `timeout`, which
+            // is already in milliseconds). An unresolvable `ms` lowers to NO
+            // operands so the encoder hard-errors rather than sleeping garbage.
+            match first_scalar_argument_operand(input, host_call, dispatch_index) {
+                Some(ms) => operands.insert_many([
+                    operand(InstructionOperandKind::ImmediateInteger(0)),
+                    operand(InstructionOperandKind::ImmediateInteger(0)),
+                    operand(ms),
+                ]),
+                None => HandleSpan::empty(),
+            }
+        }
         (HostCapability::Filesystem, HostOperation::Close | HostOperation::Dup) => {
             // Value-returning `rc = close(fd) -> _close(fd)` and
             // `new_fd = duplicate(fd) -> _dup(fd)` (identical one-fd shape; dup

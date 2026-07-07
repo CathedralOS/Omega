@@ -581,3 +581,29 @@ fn macos_gui_module_exits_3() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(code, Some(3), "full window_demo behavior through MacosGui (all 7 Gui ops in loop) should exit 3");
 }
+
+// The macOS `Clock.sleep` native lowering: `self.clock.sleep(ms)` through the
+// UNCHANGED `Clock` boundary trait -> `poll(NULL, 0, ms)` (a millisecond sleep).
+// The canary sleeps 3x150ms = ~450ms then exits 6. We TIME the run to confirm the
+// units are MILLISECONDS: poll-as-milliseconds ~= 450ms; a units bug (usleep-style
+// microseconds) would finish ~instantly, and a *1000 error would take ~450s. Assert
+// the elapsed wall-clock lands in [250ms, 5s] -- loose enough for CI jitter but tight
+// enough to catch a 1000x units error either direction.
+#[test]
+fn clock_sleep_poll_milliseconds_exits_6() {
+    let main_path = repo_root().join("canaries/pass/objc/clock_sleep/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-clocksleep-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("clock_sleep should compile:\n{d:#?}"));
+    let start = std::time::Instant::now();
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let elapsed = start.elapsed();
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(6), "clock_sleep should run the 3x sleep loop and exit 6");
+    assert!(
+        elapsed >= std::time::Duration::from_millis(250) && elapsed < std::time::Duration::from_secs(5),
+        "3x150ms poll-sleep should take ~450ms (millisecond units); took {elapsed:?}"
+    );
+}
+
