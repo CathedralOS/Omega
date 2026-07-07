@@ -21,7 +21,7 @@ terminates {
 -> usize
 {
     transition index < entries.len {
-        true -> self.walk(entries, index + 1)
+        true -> walk(entries, index + 1)
         false -> index
     }
 }

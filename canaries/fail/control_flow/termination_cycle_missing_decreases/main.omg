@@ -9,7 +9,7 @@ machine Main::countdown(&mut self, remaining: usize) -> usize
 terminates
 {
     transition remaining > 0 {
-        true -> self.countdown(remaining - 1)
+        true -> countdown(remaining - 1)
         false -> 0
     }
 }

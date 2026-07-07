@@ -22,7 +22,7 @@ ensures
     result * 2 == acc * 2 + n * (n + 1)
 {
     transition n > 0 {
-        true -> self.gauss_sum(n - 1, acc + n)
+        true -> gauss_sum(n - 1, acc + n)
         false -> acc
     }
 }

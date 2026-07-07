@@ -1,0 +1,32 @@
+// Accumulator factorial via a SELF-TRANSITION LOOP (`-> fact(n - 1, acc * n)`
+// re-enters the entry state -- a jump with re-bound arguments; Omega has NO
+// recursion, and the call-spelled `self.fact(..)` form is a compile error).
+// The loop-carried arguments stage through scratch so the multiply reads the
+// PRE-decrement n (the parallel-assignment guarantee), proven terminating by
+// `terminates { decreases n; }`.
+//
+//   fact(5, 1) = 120
+//
+// Expected exit: 120
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+}
+machine Main::fact(&mut self, n: usize, acc: usize in Wrapping)
+terminates {
+    decreases n;
+}
+-> usize
+{
+    transition n > 0 {
+        true -> fact(n - 1, acc * (n as usize in Wrapping))
+        false -> acc
+    }
+}
+machine Main::main(&mut self) {
+    let result: usize = self.fact(5, 1);
+    let code: i32 = result as i32;
+    self.console.exit_process(code);
+}

@@ -27,7 +27,7 @@ requires
     limit > 0
 {
     transition n > 0 {
-        true -> self.gauss_sum(n - 1, acc + n, limit)
+        true -> gauss_sum(n - 1, acc + n, limit)
         false -> acc
     }
 }

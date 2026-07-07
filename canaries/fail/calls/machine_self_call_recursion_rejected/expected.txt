@@ -1,0 +1,1 @@
+is call-spelled recursion, which Omega does not support

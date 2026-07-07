@@ -1,9 +1,7 @@
-// RECURSIVE value machine spelled with a `self.` receiver
-// (`true -> self.countdown(remaining - 1)`): used to plan as a NESTED
-// (contained-machine) transition whose inline-branching value path silently
-// materialized 0 (native != interp). Now routed to the machine's own entry
-// segment -- the same dispatch self-loop the bare-name spelling always took.
-// countdown(2) -> base case 7 -> exit 1.
+// CALL-SPELLED SELF-RECURSION (`true -> self.countdown(remaining - 1)`) is
+// REJECTED by design (owner directive 2026-07-07): Omega has no recursion --
+// stack size must be predictable; repetition is a bare state self-transition
+// loop (`-> countdown(..)`), a jump with re-bound arguments.
 boundary trait Console {
     machine exit_process(return_code: i32);
 }

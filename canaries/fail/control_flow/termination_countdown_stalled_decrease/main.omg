@@ -10,7 +10,7 @@ terminates
 decreases remaining
 {
     transition remaining > 0 {
-        true -> self.countdown(remaining)
+        true -> countdown(remaining)
         false -> 0
     }
 }

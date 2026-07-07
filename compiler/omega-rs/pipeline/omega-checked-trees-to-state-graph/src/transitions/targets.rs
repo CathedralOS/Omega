@@ -50,6 +50,17 @@ pub(super) fn plan_transition_target(
                 )));
             };
 
+            // Same fence as the non-local arm below: a `self.X(..)` spelling
+            // that resolved to a LOCAL segment is call-spelled recursion.
+            if members.len() == 2 && members[0].as_str() == "self" {
+                return Err(Diagnostic::error(format!(
+                    "`self.{name}(..)` in a transition arm is call-spelled recursion, \
+                     which Omega does not support (stack size must be predictable). \
+                     Write the state transition bare -- `-> {name}(..)` -- which is a \
+                     self-transition LOOP (a jump with re-bound arguments), not a call.",
+                )));
+            }
+
             Ok(PlannedTransitionTarget::State {
                 index: target.0,
                 key: target.1.key,
@@ -59,19 +70,43 @@ pub(super) fn plan_transition_target(
         TransitionTargetNode::Named { path, arguments: _ } => {
             let members = program.statement_table.name_path_members(path.members);
             if members.len() == 2 {
-                // `self.X(..)` where X is a segment of THIS machine is a LOCAL
-                // transition -- the RECURSIVE value-machine arm (`true ->
-                // self.countdown(remaining - 1)` inside `Main::countdown`)
-                // spells the machine's own entry with a `self.` receiver. It
-                // used to fall into the Nested (contained-machine) plan, whose
-                // inline-branching value path silently materialized 0; the
-                // bare-name spelling (`-> countdown(..)`) already resolved
-                // here and dispatched correctly, so route the `self.` spelling
-                // the same way. Sibling-machine targets (`self.report(..)`)
-                // stay Nested: their name is not a segment of this machine.
+                // `self.X(..)` where X is a segment of THIS machine:
+                // - X == the machine's OWN ENTRY is CALL-SPELLED SELF-RECURSION,
+                //   rejected by design (owner directive 2026-07-07): Omega has
+                //   NO recursion -- a predictable stack is a language goal, and
+                //   repetition is the bare self-transition loop `-> X(..)` (a
+                //   jump with re-bound arguments).
+                // - X == a SUB-STATE is an oddly-spelled local state transition
+                //   (`false -> self.mkall_leaf(path)` in the std filesystem);
+                //   route it to the state like the bare spelling. (Before this
+                //   it fell into the Nested plan and silently materialized 0.)
+                // Sibling-machine targets (`self.report(..)`) stay Nested:
+                // their name is not a segment of this machine.
                 if members[0].as_str() == "self"
                     && let Some(target) = find_initial_segment_by_name(segments, &members[1])
                 {
+                    let targets_own_entry = program
+                        .machines()
+                        .iter()
+                        .find(|machine| machine.symbol == source_key.machine)
+                        .is_some_and(|machine| {
+                            machine
+                                .name
+                                .as_str()
+                                .rsplit("::")
+                                .next()
+                                .unwrap_or(machine.name.as_str())
+                                == members[1].as_str()
+                        });
+                    if targets_own_entry {
+                        return Err(Diagnostic::error(format!(
+                            "`self.{name}(..)` in a transition arm is call-spelled recursion, \
+                             which Omega does not support (stack size must be predictable). \
+                             Write the state transition bare -- `-> {name}(..)` -- which is a \
+                             self-transition LOOP (a jump with re-bound arguments), not a call.",
+                            name = members[1].as_str(),
+                        )));
+                    }
                     return Ok(PlannedTransitionTarget::State {
                         index: target.0,
                         key: target.1.key,

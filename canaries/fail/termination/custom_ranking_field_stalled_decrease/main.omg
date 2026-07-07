@@ -18,7 +18,7 @@ terminates {
 -> usize
 {
     transition card.power > 0 {
-        true -> self.weaken(Card { power: card.power })
+        true -> weaken(Card { power: card.power })
         false -> card.power
     }
 }

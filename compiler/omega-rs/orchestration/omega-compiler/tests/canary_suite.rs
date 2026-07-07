@@ -3841,11 +3841,11 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-// RECURSIVE ACCUMULATOR through the dispatch self-loop: loop-carried args
+// LOOP-CARRIED accumulator through the dispatch self-loop: transition args
 // stage through scratch so `acc + n` reads the pre-decrement n. -> 15 -> 1.
 #[test]
-fn runtime_recursive_accumulator_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_recursive_accumulator_exit");
+fn runtime_loop_accumulator_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_loop_accumulator_exit");
     let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir()
         .join(format!("omega-rec-accum-{}", std::process::id()));
@@ -3876,11 +3876,11 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-// 3-arg ROTATION through a recursive self-loop -- the full parallel-assignment
-// cycle (`self.rot(k-1, b, c, a)`). rot(3,1,2,3) -> a==1 -> exit 1.
+// 3-arg ROTATION through a self-transition loop -- the full parallel-assignment
+// cycle (`-> rot(k-1, b, c, a)`). rot(3,1,2,3) -> a==1 -> exit 1.
 #[test]
-fn runtime_recursive_rotation_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_recursive_rotation_exit");
+fn runtime_loop_rotation_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_loop_rotation_exit");
     let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir()
         .join(format!("omega-rec-rot-{}", std::process::id()));
@@ -3902,42 +3902,6 @@ fn runtime_recursive_rotation_exit_canary_runs() {
         output.status.code(),
         Some(1),
         "expected rot(3,1,2,3) to rotate back to a==1 and exit 1, got {:?}
-stderr:
-{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-// RECURSIVE value machine via the `self.` spelling: used to silently
-// materialize 0 natively (planned as a Nested/contained transition). Now the
-// dispatch self-loop. countdown(2) -> 7 -> exit 1.
-#[test]
-fn runtime_recursive_self_spelling_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_recursive_self_spelling_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir()
-        .join(format!("omega-rec-self-spell-{}", std::process::id()));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("recursive self-spelling canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("recursive self-spelling canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(1),
-        "expected `self.countdown(2)` to reach the base case 7 and exit 1, got {:?}
 stderr:
 {}",
         output.status.code(),
@@ -17710,8 +17674,8 @@ fn runtime_trailing_local_return_exit_canary_runs() {
 }
 
 #[test]
-fn runtime_recursive_value_return_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_recursive_value_return_exit");
+fn runtime_looping_value_return_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_looping_value_return_exit");
     let main_path = canary.join("main.omg");
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-recursive-value-return-{}",
@@ -23174,6 +23138,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/unresolved_receiver_method_rejected",
     "calls/void_value_callee_rejected",
     "calls/nested_value_call_arg_rejected",
+    "calls/machine_self_call_recursion_rejected",
     "calls/empty_body_return_machine_rejected",
     "parse/machine_clause_garbage_rejected",
     "arithmetic/nested_field_exact_overflow_rejected",

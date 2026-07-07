@@ -106,7 +106,7 @@ machine CommandParser::find_exit_at(
 
         transition {
             found -> self.navigation(NavigationChoice::Move, exits[index].destination)
-            has_next -> self.find_exit_at(exits, exit_count, command, next_index)
+            has_next -> find_exit_at(exits, exit_count, command, next_index)
             _ -> self.invalid_navigation()
         }
     }
