@@ -2709,6 +2709,43 @@ fn runtime_slice_length_field_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The RUNTIME-index guarded element increment: both the operand hoist
+// (`__hoist_N + 1`) and the frontend-hoisted boolean guard subject are
+// DE-HOISTED through their states' call-free initializers, so
+// `tallies[self.k] < 16` proves `tallies[self.k] += 1`. -> 1.
+#[test]
+fn runtime_guarded_runtime_index_increment_exit_canary_runs() {
+    let canary = pass_canary("range/runtime_guarded_runtime_index_increment_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-guarded-rt-idx-inc-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guarded runtime-index increment canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guarded runtime-index increment canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `tallies[self.k] = tallies[self.k] + 1` under the          `tallies[self.k] < 16` guard to prove and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // The accumulate-into-array keystone: a dominating guard `tallies[1] < 16`
 // proves the element increment `tallies[1] = tallies[1] + 1` into the element
 // range [0..=16] -- the structural matcher now compares INDEXED places. -> 1.
@@ -22180,6 +22217,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "range/element_range_zero_excluded",
     "range/guarded_element_increment_too_wide",
     "range/guarded_element_increment_stale",
+    "range/guarded_runtime_index_reassigned",
+    "range/guarded_runtime_index_collection_write",
     "ranges/loop_increment_index_unbounded",
     "ranges/loop_body_resets_index",
     "ranges/loop_init_exceeds_capacity",

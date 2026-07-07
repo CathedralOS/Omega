@@ -1,0 +1,29 @@
+// The runtime-index guarded increment's INDEX-stability twin: `self.k` is
+// reassigned between the guard and the increment, so the guard's fact about
+// `tallies[k-at-entry]` must not apply to `tallies[k-now]` -- reject.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    tallies: [i32 [0..=16]; 4];
+    k: usize [0..=3];
+}
+machine Main::main(&mut self) {
+    self.k = 2;
+    transition self.tallies[self.k] < 16 {
+        true -> bump()
+        false -> full()
+    }
+    state bump(&mut self) {
+        self.k = 3;
+        self.tallies[self.k] = self.tallies[self.k] + 1;
+        transition self.tallies[2] == 1 {
+            true -> matched()
+            false -> unmatched()
+        }
+    }
+    state matched(&mut self) { self.console.exit_process(1); }
+    state unmatched(&mut self) { self.console.exit_process(9); }
+    state full(&mut self) { self.console.exit_process(8); }
+}

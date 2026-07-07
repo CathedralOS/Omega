@@ -308,6 +308,10 @@ pub struct BoundedAssignmentObligation {
     pub state_symbol: SymbolHandle,
     pub state: Identifier,
     pub state_guard: Option<TransitionGuardNode>,
+    /// The SOURCE state the incoming `state_guard` was taken from, for
+    /// resolving guard-side hoisted locals (`__hoist_N` in the guard's own
+    /// scope). Invalid when `state_guard` is None.
+    pub state_guard_source: SymbolHandle,
     pub target: ExpressionHandle,
     pub value: ExpressionHandle,
     pub value_constraints: HandleSpan<ProofConstraint>,
@@ -685,10 +689,22 @@ fn collect_bounded_assignment_obligation(
     let value_constraints =
         proof_plan.store_constraints(expression_constraints(program, machine, state, value));
     let constraints = proof_plan.store_constraint_nodes(program, constraints);
-    let state_guard = incoming_state_guard(program, machine, state);
+    let (state_guard, state_guard_source) = match incoming_state_guard(program, machine, state) {
+        Some((guard, source)) => (Some(guard), source),
+        None => (None, SymbolHandle::invalid()),
+    };
     // A top-level integer BINARY value carries its operands with their DECLARED
     // ranges so the checker can refold with the (stability-gated) edge guard
     // filling in an operand the declaration leaves unbounded.
+    // Each operand is DE-HOISTED first: the operand hoist rewrites a
+    // runtime-indexed read into `let __hoist_N = tallies[self.k];` and the
+    // value into `__hoist_N + 1`, hiding the place from both the guard match
+    // and the element's declared range. A bare name whose call-free
+    // initializer is a PLACE read resolves to that initializer. Sound: the
+    // checker's stability gate re-collects read paths from these handles (an
+    // aliasing write drops the fact), and a REASSIGNED user local keeps its
+    // own name in the read paths via the obligation value, so the rebind
+    // kills the fact conservatively.
     let binary_operands = match program.expression_table.expression(value) {
         ExpressionNode::Binary(binary) => {
             let operand_range = |operand: ExpressionHandle| {
@@ -696,12 +712,14 @@ fn collect_bounded_assignment_obligation(
                     program, machine, state, operand,
                 ))
             };
+            let left = dehoisted_operand(program, state, binary.left);
+            let right = dehoisted_operand(program, state, binary.right);
             Some(BinaryValueOperands {
                 operator: binary.operator,
-                left: binary.left,
-                left_range: operand_range(binary.left),
-                right: binary.right,
-                right_range: operand_range(binary.right),
+                left,
+                left_range: operand_range(left),
+                right,
+                right_range: operand_range(right),
             })
         }
         _ => None,
@@ -714,6 +732,7 @@ fn collect_bounded_assignment_obligation(
             state_symbol: state.symbol,
             state: state.name.clone(),
             state_guard,
+            state_guard_source,
             target,
             value,
             value_constraints,
@@ -934,8 +953,8 @@ fn incoming_state_guard(
     program: &TypedTrees,
     machine: &Machine,
     target_state: &State,
-) -> Option<TransitionGuardNode> {
-    let mut guard: Option<TransitionGuardNode> = None;
+) -> Option<(TransitionGuardNode, SymbolHandle)> {
+    let mut guard: Option<(TransitionGuardNode, SymbolHandle)> = None;
 
     for source_state in program.machine_states(machine) {
         for statement in program
@@ -964,7 +983,7 @@ fn incoming_state_guard(
             };
 
             match &guard {
-                Some(existing)
+                Some((existing, _))
                     if !guards_equivalent_for_precondition(
                         program,
                         existing,
@@ -974,7 +993,7 @@ fn incoming_state_guard(
                     return None;
                 }
                 Some(_) => {}
-                None => guard = Some(transition_guard),
+                None => guard = Some((transition_guard, source_state.symbol)),
             }
         }
     }
@@ -1429,6 +1448,67 @@ fn collect_constraints_in_state(
 ) -> ConstraintBuffer {
     collect_constraints(program, type_reference)
 }
+
+/// Resolve a bare-name operand through its call-free LocalData initializer
+/// when that initializer is a PLACE read (Indexed/Member/Name through
+/// `Mutable`): `__hoist_N` -> `tallies[self.k]`. Anything else (calls,
+/// arithmetic, non-locals) stays as-is.
+pub(crate) fn dehoisted_operand(
+    program: &TypedTrees,
+    state: &State,
+    operand: ExpressionHandle,
+) -> ExpressionHandle {
+    match dehoisted_initializer(program, state, operand) {
+        Some(initializer)
+            if matches!(
+                program.expression_table.expression(initializer),
+                ExpressionNode::Indexed(_) | ExpressionNode::Member(_) | ExpressionNode::Name(_)
+            ) =>
+        {
+            initializer
+        }
+        _ => operand,
+    }
+}
+
+/// The CONDITION-level twin: a hoisted GUARD SUBJECT binds the whole boolean
+/// comparison (`let __hoist_N = tallies[self.k] < 16; transition __hoist_N`),
+/// so a bare-name condition resolves through any call-free initializer shape
+/// (Binary comparisons included).
+pub(crate) fn dehoisted_condition(
+    program: &TypedTrees,
+    state: &State,
+    condition: ExpressionHandle,
+) -> ExpressionHandle {
+    dehoisted_initializer(program, state, condition).unwrap_or(condition)
+}
+
+/// A bare single-segment name's call-free LocalData initializer in `state`
+/// (peeling `Mutable`), or None.
+fn dehoisted_initializer(
+    program: &TypedTrees,
+    state: &State,
+    operand: ExpressionHandle,
+) -> Option<ExpressionHandle> {
+    let ExpressionNode::Name(path) = program.expression_table.expression(operand) else {
+        return None;
+    };
+    let [name] = program.expression_table.name_path_members(path.members) else {
+        return None;
+    };
+    let local = local_data_by_name(program, state, name)?;
+    if !local.initial_value.is_valid()
+        || expression_contains_call_node(program, local.initial_value)
+    {
+        return None;
+    }
+    let mut initializer = local.initial_value;
+    while let ExpressionNode::Mutable(inner) = program.expression_table.expression(initializer) {
+        initializer = *inner;
+    }
+    Some(initializer)
+}
+
 
 fn local_data_by_name<'program>(
     program: &'program TypedTrees,
