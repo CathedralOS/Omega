@@ -578,21 +578,22 @@ boundary trait TimeHost {
      8-byte divide feeding `% literal` into a 4-byte ranged slot planned 167 /
      emitted 168 (loud fence). Planner now calls the encoder's own
      `runtime_binary_operation_byte_size`.
-   - FILED (TASKS.md): nested-value-call transition guards in inlined callees
-     read the PRE-STORE ZII TAG natively — std time's `saturating_add`/
-     `saturating_subtract`/`is_less_than`/`is_greater_than` non-ZII arms are
-     silently wrong natively (the core canary pins only ZII-coinciding arms:
-     the passing canary IS the bug). `Instant::duration_since` ships
-     SINGLE-LEVEL to dodge; the four std bodies await the splice fix + new
-     non-ZII-arm canary assertions. Repro:
-     canaries/pending/calls/nested_value_call_guard_zii.
+   - FIXED 2026-07-08 (was filed): nested-value-call transition guards read
+     the PRE-STORE ZII TAG natively — root cause was the bare-call binding's
+     call-result slot CARRYING THE LOCAL'S NAME while the local also had
+     storage (by-name write resolution split the writers/readers across the
+     two slots), not splice ordering. The name-carrying decision now checks
+     `local_slot_exists`. All four std time wrappers' non-ZII arms deliver
+     natively (pinned: calls/runtime_nested_value_call_guard_exit, every leg
+     a non-ZII arm + an is_less_than designed-FALSE);
+     `Instant::duration_since` reverted to the house nested idiom;
+     `elapsed_since` UNBLOCKED.
    REMAINING for this rung: `SystemTime` + `system_time_now()` (D7 —
    `from_unix_seconds`, `duration_since` → SystemTimeDifference,
    checked_add/subtract; canary `runtime_system_time_after_2026_exit`:
    `system_time_now() > from_unix_seconds(1_767_225_600)`);
    `Instant::checked_add/checked_subtract` + `InstantResult`;
-   `Time::sleep_for(duration)` (u32-ms chunking); `elapsed_since` once the
-   splice fix lands.
+   `Time::sleep_for(duration)` (u32-ms chunking); `Time::elapsed_since`.
 7. [x] **Kill `Console::sleep` (D16) — DONE 2026-07-06, killed OUTRIGHT (no
    deprecation needed).** Entry removed from `std/console.omg`; the 11 samples
    + `runtime_sleep_exit` migrated onto inline `boundary trait Clock` + a

@@ -878,6 +878,19 @@ fn append_state_call_result_slot(
 
     let (symbol, name) =
         call_result_slot_symbol_and_name(context, source_key, statement_index, role)
+            // A bare-call binding names its call-result slot after the binding
+            // ONLY when the binding has no LocalStorage slot of its own (then
+            // the call-result slot IS the local, and name-based reads must
+            // find it). When the local ALSO has storage, the pair is kept in
+            // sync by the call-result->local copy and name-based reads must
+            // resolve to the LOCAL alone -- a name-carrying call-result slot
+            // made the guarded arms' terminal writes (which rebuild the slot
+            // as a NAME expression and re-resolve it) land in whichever slot
+            // the name matched FIRST, so the guard read the other slot's
+            // pre-store ZII tag (the nested-value-call guard-ZII miscompile).
+            .filter(|(symbol, _)| {
+                !local_slot_exists(plan, dispatch_index, source_key, statement_index, *symbol)
+            })
             .unwrap_or_else(|| {
                 // The anonymous scratch name must be UNIQUE per call site: the
                 // struct-decomposition write strategy rebuilds the slot as a

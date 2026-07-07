@@ -105,24 +105,23 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   need the same deferral/contiguity treatment. The std authoring rule (entry-only
   lets, params-only states) dodges it; a minimal repro can be distilled from
   time.omg's divide at commit HEAD~1 if the fix lands here.
-- **[ ] NESTED-value-call transition guard in an INLINED callee reads the nested
-  result's PRE-STORE ZII TAG natively (2026-07-07, std::time rung 6; interp correct;
-  #2B splice family, generalizes fs's stat_rc guard-ordering note).** A wrapper
-  machine that calls a sibling and TRANSITIONS on the result
-  (`let since = self.checked_duration_since(e); transition since { Ok{d} -> .. }`)
-  takes the ZII-ZERO arm every time when the wrapper is itself inlined into Main:
-  the guard is scheduled before the nested callee's spliced result store. Repro:
-  canaries/pending/calls/nested_value_call_guard_zii (Duration::saturating_subtract
-  forward pair returns ZERO, exit 1; expected 70). ⚠️ CONSEQUENCE AUDIT: std time's
-  `saturating_add`/`saturating_subtract`/`is_less_than`/`is_greater_than` non-ZII
-  arms are silently WRONG natively today — runtime_duration_core_exit pins only the
-  arms whose expected value COINCIDES with the ZII tag (saturate-at-MAX = Overflow
-  tag 0; `a<b` = Less tag 0): the passing canary IS the bug (owner lesson). Instant's
-  `duration_since` was restructured single-level to dodge (time.omg comment); the
-  other four await the splice fix, then non-ZII-arm assertions must be ADDED to the
-  core canary. Deep fix = the nested call's result store must splice BEFORE the
-  wrapper's guard evaluation (deferral op-kind coverage for guard-position nested
-  results).
+- **[x] NESTED-value-call transition guard read the nested result's PRE-STORE ZII
+  TAG natively — FIXED 2026-07-08.** NOT a splice-ordering bug: a bare-call binding
+  (`let since = self.checked_subtract(..)`) whose local ALSO has a LocalStorage
+  slot minted a call-result slot carrying the SAME name, and the guarded arms'
+  terminal writes (which rebuild the slot as a NAME expression and re-resolve it)
+  landed in whichever slot the name matched FIRST — the arms wrote the LOCAL while
+  the guard read the CALL-RESULT slot's ZII. Fix: the call-result slot takes the
+  binding's name ONLY when the binding has no storage of its own
+  (`call_result_slot_symbol_and_name` + `local_slot_exists` filter,
+  omega-runtime-storage/src/body.rs); otherwise it gets the unique anonymous name.
+  std time's `saturating_add`/`saturating_subtract`/`is_less_than`/
+  `is_greater_than` non-ZII arms now deliver natively; `Instant::duration_since`'s
+  single-level dodge reverted to the house nested idiom. Pinned by
+  calls/runtime_nested_value_call_guard_exit (differential; every leg asserts a
+  NON-ZII arm incl. an is_less_than designed-FALSE — the ZII-coinciding arms of
+  runtime_duration_core_exit pass under both correct and buggy emission, the
+  owner's "passing canary IS the bug" lesson).
 - **[ ] Folded-binary left operand loses the UNSIGNED marker: `(a / b) % c` on u64
   runs SIGNED idiv/modulo natively (2026-07-07, seen in Time::now lowering; the
   inner divide selected DivideUnsigned but the outer modulo stayed signed
