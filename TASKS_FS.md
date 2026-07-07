@@ -103,9 +103,24 @@ title-bar CONTEXT-MENU Close sends (not posts) WM_SYSCOMMAND — invisible to a
 pump; the real fix is outbound WndProc entry stubs (extern brief §12.4).
 DESIGN Q for Zach: build.omg asset copying (declarative `Build` asset list the
 compiler copies at emit? — build.omg must describe, never do).
-ALSO NOTED (pre-existing, next up): 11 omega-interpreter
-`filesystem_std_module_*` coverage tests fail on Windows with "non-integer
-operand" — present at the fs handoff commit too (A/B'd); investigating.
+**Interp fs coverage FIXED (2026-07-07).** The 11 `filesystem_std_module_*`
+failures ("non-integer operand", pre-existing at the fs handoff commit) were
+the value-position `match` desugar doing TAG ARITHMETIC over payload-free
+cases (`ErrorKind::NotFound - ErrorKind::Other`, parser primary.rs) that the
+interpreter evaluated as `Value::Enum` operands. Fix (evaluator.rs): integer
+binary operands accept a payload-free case at its TAG ORDINAL
+(`arithmetic_operand_int`/`enum_variant_tag`), and `values_equal` compares a
+tag INT against a case by ordinal (the desugar's Int result flows back into
+enum-typed places; native compares tag constants either way). Also synced the
+differential drift guard's RUN_CANARIES with 45 accumulated canaries from
+both workstreams (incl. windows_raw_roundtrip + gui foreground_window).
+⚠️ FOLLOW-UP: `enum_variant_tag` resolves by variant NAME program-wide
+(first declaration wins) — same-name variants across enums with different
+ordinals (`Ok` = 0 in UnitResult, 1 in MetadataResult) would mis-resolve.
+Matches `values_equal`'s existing name-keyed grain, and today's desugared
+arithmetic only touches ErrorKind's unique names — but the durable fix is
+carrying `type_symbol` on `Value::Enum` (like `Value::Struct`) and resolving
+ordinals type-locally. The #38 payload-collision landmine class.
 
 **What works today**
 - **Interpreter:** full Rust-parity fs (all ops + the ergonomic `Filesystem`
