@@ -2,7 +2,7 @@ use crate::InstructionSelectionInput;
 use crate::selection::runtime_dispatch::text_writes::string_literal_data_handle;
 use crate::selection::runtime_dispatch::writes::mutation::operators::supports_scalar_integer_write;
 use crate::selection::storage_places::{
-    resolve_runtime_frame_base_indexed_target_in_table,
+    enum_variant_value_in_table, resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_near_slot_in_table,
@@ -14,6 +14,7 @@ use crate::selection::storage_places::{
 use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, SelectedInstructionKind, StateGuardOperator,
 };
+use omega_layout::ENUM_TAG_BYTES;
 use omega_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
 };
@@ -202,6 +203,26 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
             byte_offset: slot.byte_offset,
             byte_size: slot.byte_size,
             value,
+        });
+    }
+
+    // A NULLARY enum variant (`PairResult::Err`, a bare `Type::Case` Name) written
+    // into a slot whose enum is LARGER than a scalar (a payload-carrying result enum,
+    // byte_size > 8): the scalar paths above are skipped, but the value is still just
+    // the variant's TAG. Write the tag at the slot start (the enum tag lives at
+    // offset 0); the nullary variant carries no payload, so no field writes follow.
+    // Without this the leaf terminal-value-write emits NOTHING for the nullary arm,
+    // so its result-slot copy reads the ZII frame and the arm delivers the wrong tag
+    // (the enum-transition-leaf delivery bug, TASKS_FS.md). The payload-carrying arm
+    // (a `StructLiteral`) is handled by the mutation-write path, not here.
+    if !supports_scalar_integer_write(slot.byte_size)
+        && let Some(tag) = enum_variant_value_in_table(&input.layouts, expressions, value)
+    {
+        return Some(SelectedInstructionKind::WriteRuntimeStorageInteger {
+            target_region: RuntimeStorageRegion::RuntimeFrame,
+            byte_offset: slot.byte_offset,
+            byte_size: ENUM_TAG_BYTES,
+            value: tag,
         });
     }
 

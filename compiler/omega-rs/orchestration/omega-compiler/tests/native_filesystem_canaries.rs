@@ -190,6 +190,11 @@ fn native_wrapper_exists_passes() { assert_pass("native_wrapper_exists"); }
 // assigned to a field. Guards the ordering fix + the field-mutation constant-fold fix.
 #[test]
 fn native_value_call_guard_passes() { assert_pass("native_value_call_guard"); }
+// ENUM-transition-leaf delivery: a value-call whose callee transitions to enum
+// leaves (Err / Ok{pair}) delivers the correct arm's tag+payload to a field. Guards
+// the nullary-enum-variant frame-slot tag write (mutation/frame_slots.rs).
+#[test]
+fn native_enum_result_passes() { assert_pass("native_enum_result"); }
 // The PAYLOAD-CARRYING ergonomic wrapper result natively (unblocked by the deep
 // fix): `Filesystem::write_all -> UnitResult` reports Error for a bad path and Ok
 // for a good one — the RESULT, not just the side effect, is now correct.
