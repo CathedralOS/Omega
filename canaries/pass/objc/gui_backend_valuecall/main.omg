@@ -1,0 +1,63 @@
+// PROVES the macOS Gui-backend BUILDING BLOCK (render fire 15): an Omega machine
+// that COMPOSES the objc window primitives, reached through a VALUE-CALL, returns
+// a usable window handle. This is the shape the macOS Gui backend uses — one
+// trait-op-sized machine (`open_window`) built from the proven objc sends, called
+// like `self.gui.window_create(...)` maps to. Here it is a SAME-data-type value
+// call (Main::open_window) to sidestep the through-field value-call wrinkle
+// (TASKS_FS step 14 / TASKS_RENDER task #45); the caller shares the rect via self
+// fields so no args cross the value-call. The callee runs a multi-host-call objc
+// sequence (getClass/alloc/init) and yields the NSWindow* from a terminal state.
+// A non-null window from the value-called composer -> exit 7.
+
+domain [u8]::CString when no_nul(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+boundary trait ObjectiveC {
+    machine get_class(name: &[u8] in CString) -> u64;
+    machine register_selector(name: &[u8] in CString) -> u64;
+    machine send(recv: u64, sel: u64) -> u64;
+    machine send_rect(recv: u64, sel: u64, x: f64, y: f64, w: f64, h: f64, a: u64, b: u64, c: u64) -> u64;
+}
+
+data Main {
+    console: Console;
+    objc: ObjectiveC;
+    x: f64;
+    y: f64;
+    w: f64;
+    h: f64;
+    app_cls: u64;
+    win_cls: u64;
+    sel: u64;
+    app: u64;
+    alloc: u64;
+    win: u64;
+}
+
+machine Main::main(&mut self) {
+    self.x = 0.0;
+    self.y = 0.0;
+    self.w = 200.0;
+    self.h = 150.0;
+    self.win = self.open_window();
+    transition self.win != 0 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(7); }
+    state bad(&mut self)  { self.console.exit_process(1); }
+}
+
+machine Main::open_window(&mut self) -> u64 {
+    self.app_cls = self.objc.get_class("NSApplication");
+    self.sel = self.objc.register_selector("sharedApplication");
+    self.app = self.objc.send(self.app_cls, self.sel);
+    self.win_cls = self.objc.get_class("NSWindow");
+    self.sel = self.objc.register_selector("alloc");
+    self.alloc = self.objc.send(self.win_cls, self.sel);
+    self.sel = self.objc.register_selector("initWithContentRect:styleMask:backing:defer:");
+    self.win = self.objc.send_rect(self.alloc, self.sel, self.x, self.y, self.w, self.h, 15, 2, 0);
+    transition self.win != 0 { true -> ret(self.win) _ -> ret(self.win) }
+    state ret(&mut self, r: u64) -> u64 { r }
+}

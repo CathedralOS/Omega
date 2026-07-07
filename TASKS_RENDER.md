@@ -366,7 +366,29 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    stream; `sleep` → `usleep(ms*1000)` (plain int arg, existing mechanism).
 8. **[ ] Wire behind the existing trait ops** (mapping below) so the samples are
    UNCHANGED. The `pixels:[i32;4096]` / `[u64;6]` message buffers pass as POINTERS
-   (fs already materializes fixed-array-arg pointers).
+   (fs already materializes fixed-array-arg pointers). — **⚑ THE INTEGRATION; ALL ABI
+   PRIMITIVES ARE PROVEN, this is composition + provider wiring (fire 15 investigation).**
+   HOW MULTI-OP LOWERING WORKS: a boundary call → ONE `HostCall` carrying a LIST of host
+   operations (`insert_platform_lowering(plan, trait, method, [ops], data)`); the ENCODER
+   emits the sequence, threading intermediates in registers (e.g. win32 `write_line` →
+   `[get_std_handle, write_file]`). But a ~8-call `window_create` with class-lookup +
+   runtime selector interning + intermediate-ptr threading is HEAVY bespoke encoder code
+   per op. **DECISION D-gui-backend: the macOS Gui/Input/Clock backend is an OMEGA module**
+   — one trait-op-sized machine per op, built from the PROVEN ObjectiveC/CoreGraphics/libc
+   boundary primitives (the fs-wrapper pattern: a machine making host calls, proven
+   native). PROVEN THIS FIRE: `canaries/pass/objc/gui_backend_valuecall` — a value-called
+   `open_window` machine composes getClass/alloc/`initWithContentRect:` into a non-null
+   NSWindow → exit 7. The one remaining COMPILER GAP is PROVIDER WIRING — dispatching the
+   sample's `boundary trait Gui` call to that macOS implementation machine. Two routes:
+   **(W1)** per-target boundary-trait provider (compiler recognizes on darwin that Gui/
+   Input/Clock are satisfied by the `macos_gui` module's machines and lowers
+   `self.gui.window_create(..)` to a value-call into it) — clean architecture, NEW compiler
+   feature, and if the provider is a SEPARATE `data` type it needs the through-FIELD
+   value-call fix (task #45, deferred); the same-data-type value-call already works (this
+   fire). **(W2)** bespoke composite host-op lowering per Gui op in the aarch64 encoder —
+   no new feature but heavy/fragile. **Recommend W1.** Prereq: decide whether the macos_gui
+   provider is same-data (avoids #45) or a separate data type (needs #45). Next fires:
+   build the `macos_gui` Omega module + the W1 dispatch, then #9/#10.
 9. **[ ] Interpreter headless stub** for `Gui`/`Input`/`Clock` — open no real window,
    succeed all calls, report "no event / alive", quit after N frames — so the samples
    stay runnable on both engines and differential/coverage stay green.
