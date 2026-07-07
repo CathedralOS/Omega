@@ -1,0 +1,45 @@
+// The ELEMENT-READ face of the fixed-array runtime-END subslice local: the
+// seeded-then-shrunk descriptor's POINTER must be the array's element-1
+// address, not just its length. `sub = self.arr[1..self.hi]` (elements
+// 20,30,40), then a guarded `sub[0]` read through the descriptor -> 20.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 5];
+    hi: usize;
+}
+
+machine Main::main(&mut self) {
+    self.arr[0] = 10;
+    self.arr[1] = 20;
+    self.arr[2] = 30;
+    self.arr[3] = 40;
+    self.arr[4] = 50;
+    self.hi = 4;
+    let sub: &[i32] = self.arr[1..self.hi];
+    transition 0 < sub.len {
+        true -> self.pick(sub)
+        false -> bad()
+    }
+    state bad(&mut self) { self.console.exit_process(8); }
+}
+
+machine Main::pick(&mut self, sub: &[i32]) {
+    transition 0 < sub.len {
+        true -> self.got(sub[0])
+        false -> bad2()
+    }
+    state bad2(&mut self) { self.console.exit_process(7); }
+}
+
+machine Main::got(&mut self, v: i32) {
+    transition v == 20 {
+        true -> matched()
+        false -> unmatched()
+    }
+    state matched(&mut self) { self.console.exit_process(20); }
+    state unmatched(&mut self) { self.console.exit_process(0); }
+}
