@@ -163,11 +163,19 @@ decreases remaining
   DOUBLE-LOWERING: the plain AssignmentValue mutation path emits again after
   the inline value-call machinery (the keystone-era suppression guard
   `state_call_is_dispatched` / the inline-append gate does not recognize the
-  RECEIVERLESS TYPE-SCOPED call shape). Fix = extend the suppression to that
-  call shape (find why the substituted value static-resolves to the last
-  field's 7 -- the emitter is mutation.rs ~1767 WriteRuntimeStorageInteger,
-  target 8 bytes passes supports_scalar_integer_write); then drop the
-  frontend fence (calls.rs report_computed_field_constructor_result).
+  RECEIVERLESS TYPE-SCOPED call shape). NARROWED FURTHER (instrumented,
+  2026-07-10 tick 2): the plain mutation path's value expression arrives as a
+  fresh `Integer("7")` -- the assignment's CALL handle was ALIASED to the
+  terminal struct literal's LAST FIELD VALUE somewhere in the branching alias
+  substitution (omega-runtime-branching aliases/expressions.rs), while the
+  LEAF-path cascade (branches/mutation.rs:139 struct-literal decomposition)
+  emits the CORRECT per-field writes in parallel. Next session: (a) find the
+  alias insertion that maps the call handle to a field value instead of the
+  whole literal; (b) check whether suppressing the plain Mutation op for
+  branching-lowered AssignmentValue statements (collection.rs:325 runs even
+  after the 277 inline-expand -- no `continue`) is safe for receiver-FUL
+  shapes, whose final result->target copy may ride that very op. Then drop
+  the frontend fence (calls.rs report_computed_field_constructor_result).
 
 - **[ ] Interpreter unsigned-u64 arithmetic remainder (2026-07-07).** Comparisons now
   take an UNSIGNED witness from declared types (evaluator: Frame.unsigned64_locals +
