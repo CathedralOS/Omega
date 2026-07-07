@@ -1611,6 +1611,31 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_widt
     }
 }
 
+pub fn runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width(
+    architecture: Architecture,
+) -> usize {
+    match architecture {
+        // aarch64 frame-base-indexed copy is unimplemented (errors at encode);
+        // reuse the x86_64 width as a placeholder so layout reservation does
+        // not panic.
+        Architecture::Aarch64 | Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width()
+        }
+    }
+}
+
+/// Relocation offset of the TARGET frame-base `mov` in the frame-base-indexed
+/// copy (pre-`+2`, mirroring
+/// [`runtime_frame_base_indexed_address_target_frame_offset`]).
+pub fn runtime_storage_copy_from_runtime_frame_base_indexed_target_frame_offset(
+    architecture: Architecture,
+) -> Option<usize> {
+    match architecture {
+        Architecture::Aarch64 => None,
+        Architecture::X86_64 => Some(x86_64::FRAME_BASE_INDEXED_COPY_TARGET_FRAME_IMM_OFFSET),
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
     architecture: Architecture,

@@ -80,6 +80,7 @@ pub enum MachineInstructionKind {
     RuntimeStorageCopyFromRuntimeFrameFixedIndexedToRuntimePointee,
     RuntimeStorageCopyFromRuntimeFrameIndexedToRuntimePointee,
     RuntimeStorageCopyFromRuntimeMachineIndexed,
+    RuntimeStorageCopyFromRuntimeFrameBaseIndexed,
     RuntimeStorageCopyToRuntimeMachineIndexed,
     RuntimeStorageCopyMachineIndexedToMachineIndexed,
     RuntimeStorageCopyToRuntimePointee,

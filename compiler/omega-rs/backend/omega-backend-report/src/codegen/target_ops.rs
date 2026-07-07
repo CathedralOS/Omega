@@ -1013,6 +1013,18 @@ fn selected_instruction_name(
                 "copy runtime-machine indexed base@{base_byte_offset} index@{index_offset}({index_region:?}) elem {element_byte_size} field +{field_byte_offset} -> {target_symbol}@{target_offset} bytes {byte_count}"
             )
         }
+        SelectedInstructionKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+        } => {
+            format!(
+                "copy runtime-frame base-indexed base@{base_byte_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} -> frame@{target_offset} bytes {byte_count}"
+            )
+        }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
             source_region,
             source_offset,

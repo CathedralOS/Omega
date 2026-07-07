@@ -1,0 +1,28 @@
+// Element-FIELD read of a by-value struct-array param at a runtime index
+// (`points[k].y` -- field_byte_offset in the frame-base-indexed copy).
+// points[1].y=42, k=1 -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Point {
+    x: i32;
+    y: i32;
+}
+data Main {
+    console: Console;
+    points: [Point; 3];
+}
+machine Main::main(&mut self) {
+    self.points[1].x = 7;
+    self.points[1].y = 42;
+    transition { _ -> self.pick(self.points, 1) }
+}
+machine Main::pick(&mut self, points: [Point; 3], k: usize [0..=2]) {
+    let v: i32 = points[k].y;
+    transition v == 42 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

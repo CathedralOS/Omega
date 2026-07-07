@@ -1718,7 +1718,48 @@ pub(super) fn resolve_runtime_frame_base_indexed_target_in_table(
         expressions,
         indexed.collection,
     )?;
-    let element_descriptor = inline_fixed_array_element_type(&collection_slot.type_descriptor)?;
+    // The slot match is by HEAD symbol, so a MEMBER-of-slot collection
+    // (`container.items[k]` -- an array FIELD of a by-value struct param)
+    // returns the WHOLE struct slot. Walk the member suffix to the array
+    // field's prefix offset + element descriptor; a direct array slot
+    // (`arr[k]`) walks zero steps and keeps prefix 0.
+    let member_element_descriptor: TypeLayoutDescriptor;
+    let (array_prefix_offset, element_descriptor) =
+        if let Some(element) = inline_fixed_array_element_type(&collection_slot.type_descriptor) {
+            (0usize, element)
+        } else {
+            let path = normalized_storage_name_path_in_table(expressions, indexed.collection)?;
+            if path.len() <= 1 {
+                return None;
+            }
+            let struct_root = FieldLayout {
+                symbol: collection_slot.symbol,
+                name: collection_slot.name.clone(),
+                offset: 0,
+                type_symbol: collection_slot.type_descriptor.storage_symbol(),
+                type_name: "".into(),
+                type_descriptor: collection_slot.type_descriptor.clone(),
+                layout: TypeLayout {
+                    size: collection_slot.byte_size,
+                    alignment: collection_slot.alignment,
+                },
+            };
+            let mut cursor = NestedFieldLayoutCursor::from_root(&struct_root);
+            for (field_name, field_symbol, field_index, case_variant) in path.suffix(1).iter() {
+                cursor = resolve_nested_field_layout_step(
+                    &input.layouts,
+                    cursor,
+                    field_name,
+                    field_symbol,
+                    field_index,
+                    case_variant,
+                )?;
+            }
+            let prefix_offset = cursor.byte_offset();
+            member_element_descriptor =
+                inline_fixed_array_element_type(cursor.type_descriptor())?.clone();
+            (prefix_offset, &member_element_descriptor)
+        };
     let index_place = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,
@@ -1748,7 +1789,7 @@ pub(super) fn resolve_runtime_frame_base_indexed_target_in_table(
     )?;
 
     Some(RuntimeFrameBaseIndexedTarget {
-        base_byte_offset: collection_slot.byte_offset,
+        base_byte_offset: collection_slot.byte_offset + array_prefix_offset,
         index_offset: index_place.byte_offset,
         element_byte_size: element_layout.size,
         field_byte_offset,

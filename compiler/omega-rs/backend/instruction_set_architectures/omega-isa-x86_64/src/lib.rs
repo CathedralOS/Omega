@@ -2515,6 +2515,60 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     Ok(bytes)
 }
 
+/// Width of [`encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame`].
+/// MUST equal the emitter exactly. Two runtime-frame relocations: the source
+/// base at the instruction start (@+2) and the target base at
+/// [`FRAME_BASE_INDEXED_COPY_TARGET_FRAME_IMM_OFFSET`] (pre-`+2`).
+pub fn runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width() -> usize {
+    // mov r14,imm64(frame) (10) + mov r11d,[r14+idx] (7) + imul r11,r11,elem (7)
+    // + add r14,r11 (3) + add r14,base+field (7) + load rax,[r14] (7)
+    // + mov r15,imm64(frame) (10) + store [r15+target],rax (7)
+    58
+}
+
+/// Relocation imm offset (pre-`+2`) of the frame base loaded for the target slot
+/// store in `encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame`.
+pub const FRAME_BASE_INDEXED_COPY_TARGET_FRAME_IMM_OFFSET: usize = 41;
+
+/// Read `collection[index]` from a FRAME-resident inline array (a by-value
+/// param or local `[T; N]` at `frame[base]`, no descriptor) at a runtime index
+/// (`frame[index_offset]`) and copy the element (or its field) into another
+/// frame slot. The address computation is exactly
+/// [`encode_runtime_frame_base_indexed_address_to_runtime_frame_write`]'s
+/// (frame + base + index*elem + field), followed by a width-correct LOAD
+/// through the computed address instead of storing the address itself.
+pub fn encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame(
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_count, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot read {byte_count}-byte frame indexed values yet"
+        )));
+    }
+    let mut bytes = Vec::with_capacity(
+        runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width(),
+    );
+    append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +2)
+    append_load_r11_from_r14(&mut bytes, index_offset)?; // r11 = index (32-bit ZX)
+    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
+    append_add_r14_r11(&mut bytes); // r14 = frame + index*elem
+    append_add_r14_imm32(&mut bytes, base_byte_offset + field_byte_offset)?; // + base + field
+    append_load_rax_from_r14(&mut bytes, 0, byte_count)?; // rax = the element
+    debug_assert_eq!(bytes.len(), FRAME_BASE_INDEXED_COPY_TARGET_FRAME_IMM_OFFSET);
+    append_mov_r15_imm64(&mut bytes, 0); // frame base for the target slot (reloc @ +2)
+    append_store_rax_to_r15(&mut bytes, target_offset, byte_count)?; // frame[target] = element
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width()
+    );
+    Ok(bytes)
+}
+
 pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
     source_region: omega_target_operations::RuntimeStorageRegion,
 ) -> usize {

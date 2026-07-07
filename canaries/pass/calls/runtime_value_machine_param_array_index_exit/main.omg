@@ -1,0 +1,37 @@
+// A VALUE-machine reading a MEMBER array of its by-value struct param at a
+// runtime index (`self.worker.find(self.bx, 1)` reading `container.items[k]
+// .id`) -- the dungeon lookup / task #15 shape. The member-of-slot branch in
+// the frame-base-indexed resolver walks `container -> items` to the array
+// field's prefix offset. items[1].id=42, k=1 -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Item {
+    id: i32;
+}
+data Box {
+    tag: i32;
+    items: [Item; 2];
+}
+data Finder {
+    scratch: i32;
+}
+machine Finder::find(&self, container: Box, k: usize [0..=1]) -> i32 {
+    let v: i32 = container.items[k].id;
+    transition { _ -> v }
+}
+data Main {
+    console: Console;
+    bx: Box;
+    worker: Finder;
+}
+machine Main::main(&mut self) {
+    self.bx.items[1].id = 42;
+    let r: i32 = self.worker.find(self.bx, 1);
+    transition r == 42 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}
