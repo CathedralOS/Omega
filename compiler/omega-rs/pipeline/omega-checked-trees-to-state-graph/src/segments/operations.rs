@@ -134,7 +134,9 @@ fn target_is_nested_runtime_indexed(table: &ExpressionTable, target: ExpressionH
 }
 
 /// Whether a place chain (through `Member` receivers and `Mutable`) reaches an `Indexed` node --
-/// i.e. the base is itself array-indexed.
+/// i.e. the base is itself array-indexed. (Refining this to RUNTIME-indexed-only was tried and
+/// REVERTED 2026-07-07: the const-outer shape's consumers are not wired, so it ran silently
+/// wrong -- see the read fence's note in omega-validation calls.rs.)
 fn collection_chain_reaches_index(table: &ExpressionTable, mut place: ExpressionHandle) -> bool {
     loop {
         match table.expression(place) {
