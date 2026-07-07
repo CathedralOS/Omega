@@ -3518,10 +3518,24 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::Float(value) => Ok(Value::Float(value.value())),
             ExpressionNode::String(value) => Ok(Value::str(value.to_string())),
             ExpressionNode::Name(path) => self.eval_name(&path, frame),
-            ExpressionNode::Member(_) => {
-                let cell = self.resolve_place(handle, frame)?;
-                let value = cell.borrow().clone();
-                Ok(value)
+            ExpressionNode::Member(member) => {
+                // A member on a PLACE receiver reads through its storage cell,
+                // preserving aliasing. An inline NON-place receiver -- e.g. `.len`
+                // on a subslice literal `(arr[a..b]).len`, whose receiver is a VIEW,
+                // not a storage location -- has no place; evaluate the receiver to a
+                // value and read the field off it. (A subslice BOUND to a local is a
+                // place and takes the fast path.) Without this fallback the
+                // receiver's range index reached the `Range` arm below and tripped
+                // "range expression outside index position", diverging from the
+                // native fold of `(arr[a..b]).len`.
+                match self.resolve_place(handle, frame) {
+                    Ok(cell) => Ok(cell.borrow().clone()),
+                    Err(_) => {
+                        let receiver = self.eval_expression(member.receiver, frame)?;
+                        let field = self.field_cell(&receiver.cell(), member.member.as_str())?;
+                        Ok(self.deref_cell(field).borrow().clone())
+                    }
+                }
             }
             ExpressionNode::Mutable(inner) => {
                 let cell = self.resolve_place(inner, frame)?;

@@ -167,16 +167,6 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   states with a VALID return type, so a resolved-void callee and an unresolved call both
   yield None (indistinguishable), and it's self/attached-only. Distinguishing "resolved
   void" from "unresolved" is precisely what the complete value-call resolver provides.
-- **[ ] Inline subslice `.len` — native vs interp inconsistency (found 2026-07-06).**
-  `let n = (self.arr[1..4]).len` (subslice `.len` WITHOUT a `let sub` binding) folds to the
-  window length on NATIVE (correct) but the INTERPRETER rejects it -- `evaluator.rs`
-  `eval_expression` hits `ExpressionNode::Range(_) => unsupported("range expression outside
-  index position")` because `.len`'s receiver `arr[1..4]` reaches the Range off the
-  Indexed→`eval_subslice` arm. A LOUD interp error, not a silent miscompile; the subslice-LOCAL
-  form (`let sub = arr[1..4]; sub.len`) is consistent in both (fixed 2026-07-06, canary
-  runtime_subslice_length_local_binding_exit). Fix = teach the interp Member/`.len` receiver
-  eval to route an `Indexed{Range}` receiver through `eval_subslice`. Memory
-  [[slice-byteslice-native-consume]].
 
 ## Cathedral first-boot ladder — remaining language readiness
 
