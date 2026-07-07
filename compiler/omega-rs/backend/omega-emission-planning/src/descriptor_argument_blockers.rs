@@ -118,8 +118,10 @@ fn collect_subslice_local_initializer_blockers(
                 "descriptor local",
                 &format!(
                     "{} statement {} local `{}` = `{}`: runtime-bounded subslice \
-                     construction (ptr/len from runtime bounds) is not lowered yet; \
-                     bind the bounds to literals or index the base array directly{}",
+                     construction is not lowered for this shape (a machine-FIELD \
+                     bound is the common cause); pass the bounds as machine \
+                     PARAMETERS instead -- `f(self.lo, self.hi)` with `arr[lo..hi]` \
+                     inside `f` lowers{}",
                     state_name(input, local.source_key),
                     local.statement_index,
                     local.name,

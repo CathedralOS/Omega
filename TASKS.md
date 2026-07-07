@@ -184,7 +184,13 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   slices/runtime_bounded_fixed_array_subslice_arg_exit. Guard fold is deliberately narrow:
   EXPLICIT `self.<field>.len` on the attached data, literal length only (no implicit-self
   receivers -- a shadowing local must never mis-fold; const-param lengths stay unfolded and
-  error loudly). Memory [[slice-byteslice-native-consume]].
+  error loudly). WORKAROUND for the fence (verified 2026-07-06, native==interp): pass the
+  machine fields as PARAMS -- `self.view(self.lo, self.hi)` then the guarded `arr[lo..hi]`
+  inside `view` -- the blocker message now teaches this. Arg-position machine-field START
+  (`f(self.arr[self.lo..])`) also errors CLEANLY (descriptor-argument blocker) -- both faces
+  loud, defer the encoder work (region-tagged base+index touches the isa/relocation files the
+  fs thread is actively fixing; take it as a focused session after their region-awareness
+  work settles). Memory [[slice-byteslice-native-consume]].
 
 ## Cathedral first-boot ladder — remaining language readiness
 
