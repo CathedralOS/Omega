@@ -44,7 +44,42 @@ pub(super) fn infer_hoist_temp_type(
             {
                 Some(expressions.expression_handles(call.arguments).first().copied())
             }
-            ExpressionNode::Call(_) => Some(None),
+            // A USER value-machine call hoisted out of a guard comparison
+            // (`let __hoist = self.dbl(5)`, syntax->symbol-resolved
+            // `hoist_scalar_value_call_comparison`): the temp's type is the
+            // callee's DECLARED return type, resolved by target symbol over
+            // the machine-state arena. An inferred-return callee cannot be
+            // typed at this phase -- reject it with the actionable fix
+            // instead of the confusing Unit frame-slot layout error.
+            ExpressionNode::Call(call) => {
+                let target_symbol = call.target_symbol;
+                let target_name = call.target.as_str().to_string();
+                let declared_return = target_symbol
+                    .is_valid()
+                    .then(|| {
+                        lowerer
+                            .source_trees
+                            .tables
+                            .declarations
+                            .machine_states
+                            .iter()
+                            .find(|(_, candidate)| candidate.symbol == target_symbol)
+                            .and_then(|(_, candidate)| candidate.storage.return_type.clone())
+                    })
+                    .flatten();
+                let Some(declared_return) = declared_return else {
+                    return Err(Diagnostic::error(format!(
+                        "a value-machine call in a guard comparison needs the callee's \
+                         return type declared: annotate `{target_name}` with an explicit \
+                         `-> Type`, or bind the call to a typed `let` first and guard \
+                         the local"
+                    )));
+                };
+                return Ok(Some(lower_type_reference_into_table(
+                    lowerer,
+                    &declared_return,
+                )?));
+            }
             _ => None,
         };
     if let Some(first) = builtin_first_arg {

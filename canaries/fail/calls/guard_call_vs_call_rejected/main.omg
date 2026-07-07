@@ -1,0 +1,16 @@
+// BACKSTOP FENCE: guard-call shapes the frontend hoist does NOT cover (here
+// Call-vs-Call -- no integer-literal side) still have no runtime lowering:
+// the guard-role callee bodies are never spliced and the comparison lowers to
+// NeedsRuntimeExpression with a real operator, which the emitter drops (arm
+// entered unconditionally). The emission blocker keeps rejecting them.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::dbl(&self, x: i32 in Wrapping) -> i32 in Wrapping {
+    let r: i32 in Wrapping = x * 2;
+    transition { _ -> r }
+}
+machine Main::main(&mut self) {
+    transition self.dbl(5) == self.dbl(6) { true -> bad(71) _ -> good() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

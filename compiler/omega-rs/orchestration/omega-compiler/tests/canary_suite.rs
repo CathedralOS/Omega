@@ -19987,6 +19987,56 @@ fn runtime_value_call_shared_slot_straight_line_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A scalar value-call compared to an integer literal DIRECTLY in a guard
+// subject discriminates (the historical always-true face): the syntax
+// lowering hoists the call into a shared let temp typed from the callee's
+// declared return, and the guard compares the local. Both designed-false
+// legs and the designed-true leg are checked; the effectful-subject
+// single-evaluation tripwire pins that match-over-call arms share ONE temp
+// (per-arm temps re-ran the callee once per attempted arm).
+#[test]
+fn runtime_value_call_guard_subject_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_value_call_guard_subject_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("guard-subject canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (all three guard legs discriminate), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-guard-subject-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guard-subject canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guard-subject canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected every value-call guard leg to DISCRIMINATE (exit 70), got {:?} \
+         (71 = designed-false Equal took the true arm -- the always-true bug is \
+         back; 72 = designed-true failed; 73 = NotEqual designed-false)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Deferral face #5: a NESTED value call inside the callee's entry
 // (`self.flag = self.helper.check(1)` in Probe::make, guarded on flag,
 // through an outer value call). The nested callee splices a THIRD
@@ -23233,6 +23283,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_same_type_contained_direct_fields_exit",
     "calls/runtime_shared_ref_param_member_exit",
     "calls/runtime_value_call_entry_field_write_exit",
+    "calls/runtime_value_call_guard_subject_exit",
     "calls/runtime_value_call_nested_entry_call_exit",
     "calls/runtime_value_call_same_callee_sites_exit",
     "calls/runtime_two_site_struct_result_exit",
@@ -24129,7 +24180,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "termination/subtraction_spelling_retired",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/contained_same_type_receiver_rejected",
-    "calls/guard_scalar_value_call_rejected",
+    "calls/guard_call_vs_call_rejected",
     "calls/terminal_return_type_mismatch_rejected",
     "collections/write_first_loop_bound_exceeds_capacity",
     "capabilities/duplicate_provider_declaration",
