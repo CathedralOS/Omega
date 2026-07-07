@@ -6,6 +6,7 @@ use crate::selection::storage_places::{
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_near_slot_in_table,
+    resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_arithmetic_domain_in_table,
     resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
@@ -382,6 +383,36 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
                 index_offset: indexed_source.index_offset,
                 element_byte_size: indexed_source.element_byte_size,
                 field_byte_offset: indexed_source.field_byte_offset,
+                target_offset: slot.byte_offset,
+                byte_count: slot.byte_size,
+            },
+        );
+    }
+
+    // A MACHINE-owned array's runtime-indexed READ (`self.arr[self.k]`) into a
+    // frame slot -- the transition-ARGUMENT face used to fall through every
+    // strategy here and silently pass a stale/zero parameter (`self.report(
+    // self.arr[self.k])` took the wrong arm while the interpreter was right).
+    // The write-side machinery already had the resolver and the copy op
+    // carries a target_region, so the read is the same lowering pointed the
+    // other way.
+    if let Some(machine_source) = resolve_runtime_machine_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    ) && machine_source.byte_count == slot.byte_size
+        && machine_source.byte_count > 0
+    {
+        return Some(
+            SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
+                base_byte_offset: machine_source.base_byte_offset,
+                index_offset: machine_source.index_offset,
+                index_region: machine_source.index_region,
+                element_byte_size: machine_source.element_byte_size,
+                field_byte_offset: machine_source.field_byte_offset,
+                target_region: RuntimeStorageRegion::RuntimeFrame,
                 target_offset: slot.byte_offset,
                 byte_count: slot.byte_size,
             },

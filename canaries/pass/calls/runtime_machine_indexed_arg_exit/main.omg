@@ -1,0 +1,28 @@
+// A MACHINE-owned array's runtime-indexed read as a transition ARGUMENT:
+// `self.report(self.arr[self.k])`. This used to fall through every argument
+// materialization strategy and silently pass a stale/zero parameter (the
+// callee took the wrong arm while the interpreter was right). The shared
+// value-write resolver now lowers it via CopyRuntimeMachineIndexedToRuntime-
+// Storage into the parameter's frame slot -- the read-side twin of the
+// machine-indexed write machinery. arr[2]=9, k=2 -> v==9 -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    arr: [i32; 4];
+    k: usize [0..=3];
+}
+machine Main::main(&mut self) {
+    self.arr[2] = 9;
+    self.k = 2;
+    transition { _ -> self.report(self.arr[self.k]) }
+}
+machine Main::report(&mut self, v: i32) {
+    transition v == 9 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

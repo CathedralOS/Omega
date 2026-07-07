@@ -1,0 +1,28 @@
+// The STRUCT-FIELD face of the machine-indexed argument: an array-of-structs
+// element's field (`self.cells[self.k].v`) passed as a transition argument.
+// Same silent wrong-arm miscompile, same fix (the field offset rides
+// field_byte_offset in the machine-indexed copy). cells[2].v=9 -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Cell {
+    v: i32;
+}
+data Main {
+    console: Console;
+    cells: [Cell; 4];
+    k: usize [0..=3];
+}
+machine Main::main(&mut self) {
+    self.cells[2].v = 9;
+    self.k = 2;
+    transition { _ -> self.report(self.cells[self.k].v) }
+}
+machine Main::report(&mut self, v: i32) {
+    transition v == 9 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}
