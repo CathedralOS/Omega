@@ -52,6 +52,12 @@ pub enum ItemSnapshot {
         type_name: IdentifierSnapshot,
         trait_name: IdentifierSnapshot,
     },
+    Const {
+        scope: IdentifierSnapshot,
+        name: IdentifierSnapshot,
+        type_reference: TypeReferenceSnapshot,
+        value: Box<ExpressionSnapshot>,
+    },
     Data {
         name: IdentifierSnapshot,
         type_parameters: Vec<TypeParameterSnapshot>,
@@ -547,6 +553,12 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Conformance(value) => ItemSnapshot::Conformance {
             type_name: snapshot_identifier(&value.type_name),
             trait_name: snapshot_identifier(&value.trait_name),
+        },
+        Item::Const(value) => ItemSnapshot::Const {
+            scope: snapshot_identifier(&value.scope),
+            name: snapshot_identifier(&value.name),
+            type_reference: snapshot_type_reference_handle(syntax_trees, value.type_reference),
+            value: Box::new(snapshot_expression_handle(syntax_trees, value.value)),
         },
         Item::Data(value) => ItemSnapshot::Data {
             name: snapshot_identifier(&value.name),

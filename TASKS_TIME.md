@@ -437,8 +437,25 @@ boundary trait TimeHost {
    u64-range PROOF facts (today an oversize literal carries no facts — fine
    for Wrapping, rejects Exact arithmetic), then fold-behind-typing (the
    const-fold sign class merge).
-2. [ ] **const-v0 (D15).** Declaration + literal-only eval + use-site
-   materialization; canaries per engineering item 6.
+2. [~] **const-v0 (D15) — TYPE-SCOPED CONSTS LANDED 2026-07-07.**
+   `const Type::NAME: T = <literal>;` parses (contextual keyword, item
+   position; `pub` prefix rides the existing wrapper). Consts exist ONLY until
+   symbol resolution: validated at their item arm
+   (syntax-trees-to-symbol-resolved/src/constant.rs — literal-only
+   initializers, duplicate check, case-constructor collision check,
+   free-floating rejected with "scope it to a type"), then every `Type::NAME`
+   path substitutes a FRESH initializer copy at expression lowering. Typed
+   trees, validation, proofs, backends, interp never see a const — the
+   copied-at-each-use semantics of the brief, and zero downstream churn.
+   PROVEN: `constants/runtime_scoped_const_exit` (scalar const through
+   exact-arithmetic interval proofs + struct const constructed into a field,
+   native exit 70, interp via ACTIVE_PASS_CANARIES); 3 fail canaries pin the
+   v0 boundaries. REMAINING: free-floating consts (needs the local-shadowing
+   walk); declaration-site type conformance for UNUSED consts (uses are
+   checked post-substitution today); richer initializers = the build-time
+   evaluation arc (TASKS.md). `Duration::ZERO`/`MAX`/`UNIX_EPOCH` are now
+   spellable — MAX's u64::MAX field additionally needs the struct-literal
+   field position blessed for u64-magnitude literals (D14 fire D).
 3. [ ] **Duration pure-value core** (`time.omg`, no host work): data + consts +
    constructors + accessors + checked/saturating arithmetic + compare +
    `Ordering`. Interpreter canaries under `canaries/pass/time/` asserting exact

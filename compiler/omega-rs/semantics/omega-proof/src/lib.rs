@@ -66,6 +66,9 @@ pub fn build_proof_surface_report(syntax_trees: &SyntaxTrees) -> ProofSurfaceRep
     for item in syntax_trees.root_items() {
         match item {
             Item::Capability(_) => {}
+            // Consts substitute away at symbol resolution; their literal
+            // initializers carry no bounded-type surface of their own.
+            Item::Const(_) => {}
             Item::Data(data_definition) => {
                 for member in syntax_trees.items.data_members(data_definition.members) {
                     if let DataMember::Field(field) = member {

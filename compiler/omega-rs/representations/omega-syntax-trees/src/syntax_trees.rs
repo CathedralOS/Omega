@@ -105,6 +105,7 @@ impl SyntaxTrees {
             Item::Trait(trait_definition) => self.insert_trait_definition(trait_definition),
             Item::Capability(_)
             | Item::Conformance(_)
+            | Item::Const(_)
             | Item::Data(_)
             | Item::Domain(_)
             | Item::Export(_)
@@ -147,6 +148,12 @@ impl SyntaxTrees {
                 Item::Capability(self.copy_capability_definition(other, capability))
             }
             Item::Conformance(conformance) => Item::Conformance(conformance.clone()),
+            Item::Const(constant) => Item::Const(crate::item::ConstDefinition {
+                scope: constant.scope.clone(),
+                name: constant.name.clone(),
+                type_reference: self.copy_type_reference_handle(other, constant.type_reference),
+                value: self.copy_expression_handle(other, constant.value),
+            }),
             Item::Data(data) => Item::Data(self.copy_data_definition(other, data)),
             Item::Domain(domain) => Item::Domain(DomainDefinition {
                 name: domain.name.clone(),

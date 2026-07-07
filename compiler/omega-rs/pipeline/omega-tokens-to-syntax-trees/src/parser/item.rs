@@ -1,4 +1,5 @@
 use crate::parser::capability::parse_capability_definition;
+use crate::parser::const_item::parse_const_definition;
 use crate::parser::data::parse_data_definition;
 use crate::parser::domain::parse_domain_definition;
 use crate::parser::export_item::parse_export_item;
@@ -103,6 +104,12 @@ pub(super) fn parse_item<'tokens, 'source>(
         let input = input.take_contextual("domain")?;
         let (item, rest) = parse_domain_definition(syntax_trees, input)?;
         return Ok((Item::Domain(item), rest));
+    }
+
+    if input.at_contextual("const") {
+        let input = input.take_contextual("const")?;
+        let (item, rest) = parse_const_definition(syntax_trees, input)?;
+        return Ok((Item::Const(item), rest));
     }
 
     if input.at_keyword(KeywordKind::Enum) {

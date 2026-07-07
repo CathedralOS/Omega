@@ -14,6 +14,7 @@ pub type TraitHandle = Handle<TraitNode>;
 pub enum Item {
     Capability(CapabilityDefinition),
     Conformance(ConformanceItem),
+    Const(ConstDefinition),
     Data(DataDefinition),
     Domain(DomainDefinition),
     Invariant(InvariantDefinition),
@@ -31,6 +32,28 @@ pub enum Item {
     Trait(TraitDefinition),
     Target(TargetDefinition),
     WireData(WireDataDefinition),
+}
+
+/// A named compile-time PURE VALUE (design brief static_root_and_constants.md,
+/// SETTLED 2026-07-04; built as const-v0, TASKS_TIME.md D15). Type-scoped:
+/// `const EfiStatus::SUCCESS: EfiStatus = EfiStatus { code: 0 };` — declared
+/// like a machine (`Type::NAME`), never a `data` member, so never in `sizeof`.
+/// v0 initializers are LITERAL-ONLY (scalars, negated scalars, struct/array
+/// literals of literals — build-time evaluation of richer expressions is its
+/// own arc). Consts exist only until symbol resolution: every use substitutes
+/// a fresh copy of the initializer, so typed trees and everything downstream
+/// never see a const — the copied-at-each-use semantics the brief specifies.
+/// (Free-floating `const NAME: T = ...;` parses but is rejected until the
+/// local-shadowing walk lands: a bare-name substitution could silently win
+/// over a like-named local; a `Type::NAME` path cannot.)
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ConstDefinition {
+    /// The type scope (`EfiStatus` in `EfiStatus::SUCCESS`); EMPTY text for
+    /// the not-yet-accepted free-floating form.
+    pub scope: Identifier,
+    pub name: Identifier,
+    pub type_reference: crate::types::TypeReferenceHandle,
+    pub value: crate::expression::ExpressionHandle,
 }
 
 /// A boundary primitive provider declaration (frozen Wave 0 decision #4):

@@ -61,6 +61,9 @@ pub fn build_type_surface_report(syntax_trees: &SyntaxTrees) -> TypeSurfaceRepor
 
     for item in syntax_trees.root_items() {
         match item {
+            // Consts substitute away at symbol resolution; the declared type
+            // is v0-documentation (uses are checked post-substitution).
+            Item::Const(_) => {}
             Item::Capability(capability) => {
                 insert_declaration(
                     &mut report,

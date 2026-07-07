@@ -1,0 +1,16 @@
+// FAIL canary (const-v0): `Type::NAME` must stay unambiguous against the case
+// constructors of the scope type -- const substitution would otherwise
+// silently shadow the case reference.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Verdict {
+    case Unknown;
+    case Confirmed;
+}
+
+const Verdict::Confirmed: i32 = 1;
+
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

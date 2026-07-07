@@ -98,6 +98,12 @@ pub(crate) fn lower_item(
             let wire_schema = lower_wire_schema(lowerer, syntax_trees, wire_data)?;
             lowerer.symbol_resolved_trees.wire_schemas.push(wire_schema);
         }
+        // Consts exist only until symbol resolution: validated here, then
+        // every `Type::NAME` use substitutes the initializer at expression
+        // lowering (crate::constant) -- nothing is carried forward.
+        syntax::item::Item::Const(definition) => {
+            crate::constant::validate_const_definition(syntax_trees, definition)?;
+        }
         syntax::item::Item::Capability(_)
         | syntax::item::Item::Module(_)
         | syntax::item::Item::Package(_)

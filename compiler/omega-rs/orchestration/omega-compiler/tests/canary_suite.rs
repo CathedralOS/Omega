@@ -1346,6 +1346,32 @@ fn runtime_i64_min_literal_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_scoped_const_exit_canary_runs() {
+    // const-v0 (D15): scalar + struct type-scoped consts substitute their
+    // literal initializers at symbol resolution; 60 + 10 == 70, exit 70.
+    let canary = pass_canary("constants/runtime_scoped_const_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-const-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("scoped-const canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("scoped-const canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the substituted consts to sum to 70, got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_u64_max_literal_exit_canary_runs() {
     // D14 fire C: u64::MAX stores full-width into a u64 target; MAX + 1 wraps to
     // exactly 0 only if every bit was set. Exit 70.
@@ -22136,6 +22162,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/shift_amount_over_width_compiles",
     "arithmetic/const_fold_overflow_compiles",
     "arithmetic/runtime_i64_min_literal_exit",
+    "constants/runtime_scoped_const_exit",
     "parser/deep_nesting_within_limit",
     "traits/boundary_trait_effects_host_call",
     "traits/dyn_trait_object_dispatch",
@@ -22744,6 +22771,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "constants/const_non_literal_initializer",
+    "constants/const_free_floating_rejected",
+    "constants/const_shadows_case",
     "data/recursive_data_infinite_size",
     "data/unknown_nested_field_read_rejected",
     "data/unknown_nested_intermediate_field_read_rejected",

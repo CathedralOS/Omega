@@ -1,0 +1,28 @@
+// const-v0 (TASKS_TIME.md D15): a type-scoped const substitutes a FRESH copy of
+// its literal initializer at every use, at symbol resolution -- downstream
+// phases never see a const. This canary proves both v0 shapes end-to-end:
+// a SCALAR const feeding guard-proven arithmetic, and a STRUCT const
+// constructed into a field and read back. 60 + 10 == 70 on both engines.
+// Expected exit: 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Limits {
+    ceiling: i32 [0..=100];
+}
+
+const Limits::CEILING: i32 = 60;
+const Limits::DEFAULTS: Limits = Limits { ceiling: 10 };
+
+data Main {
+    console: Console;
+    limits: Limits;
+    total: i32;
+}
+
+machine Main::main(&mut self) {
+    self.limits = Limits::DEFAULTS;
+    self.total = Limits::CEILING + self.limits.ceiling;
+    transition self.total == 70 { true -> good() false -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}
