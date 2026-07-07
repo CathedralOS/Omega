@@ -3824,6 +3824,76 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// RECURSIVE ACCUMULATOR through the dispatch self-loop: loop-carried args
+// stage through scratch so `acc + n` reads the pre-decrement n. -> 15 -> 1.
+#[test]
+fn runtime_recursive_accumulator_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_recursive_accumulator_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-rec-accum-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("recursive accumulator canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("recursive accumulator canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected sum(5,0) == 15 (parallel-assignment staging) to exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// 3-arg ROTATION through a recursive self-loop -- the full parallel-assignment
+// cycle (`self.rot(k-1, b, c, a)`). rot(3,1,2,3) -> a==1 -> exit 1.
+#[test]
+fn runtime_recursive_rotation_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_recursive_rotation_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-rec-rot-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("recursive rotation canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("recursive rotation canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected rot(3,1,2,3) to rotate back to a==1 and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // RECURSIVE value machine via the `self.` spelling: used to silently
 // materialize 0 natively (planned as a Nested/contained transition). Now the
 // dispatch self-loop. countdown(2) -> 7 -> exit 1.
