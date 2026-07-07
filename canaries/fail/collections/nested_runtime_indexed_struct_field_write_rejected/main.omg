@@ -1,17 +1,18 @@
-// The WRITE sibling of nested_runtime_indexed_struct_field_read_rejected: writing a
-// field ARRAY of an array-of-structs element with a RUNTIME index -- `self.rows[c]
-// .data[j] = v` -- silently NO-OPPED (the element never updated; `rows[2].data[j=1]
-// = 77` then reading [1] gave 6, not 77). The collection `rows[c].data` is
-// `Member(Indexed(rows,c), data)`, reached through an array index; the static-
-// assignment fast path drops it. The classifier `target_is_nested_runtime_indexed`
-// now walks the collection chain, refuses the fast path, and it is reported cleanly.
+// The WRITE sibling of nested_runtime_indexed_struct_field_read_rejected:
+// writing a field array through a RUNTIME element index with a RUNTIME leaf
+// (`rows[i].data[j] = v`, BOTH runtime) must stay a CLEAN ERROR ("needs
+// mutation lowering") -- the classifier refuses the static-assignment fast
+// path and the backend's one-runtime-index op cannot address it. (The
+// CONST-element face `rows[2].data[j] = v` lowers since 2026-07-07 and is
+// pinned by pass/collections/runtime_nested_const_row_struct_field_write_exit.)
 boundary trait Console { machine exit_process(return_code: i32); }
 data Row { data: [i32; 2]; }
-data Main { console: Console; rows: [Row; 3]; j: i32; }
+data Main { console: Console; rows: [Row; 3]; i: usize [0..=2]; j: usize [0..=1]; }
 machine Main::main(&mut self) {
     self.rows[0] = Row { data: [1, 2] };
     self.rows[2] = Row { data: [5, 6] };
+    self.i = 2;
     self.j = 1;
-    self.rows[2].data[self.j] = 77;
+    self.rows[self.i].data[self.j] = 77;
     self.console.exit_process(0);
 }

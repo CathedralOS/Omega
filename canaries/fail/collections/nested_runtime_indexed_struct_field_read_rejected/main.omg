@@ -1,17 +1,17 @@
-// The array-of-structs sibling of nested_runtime_indexed_read_rejected: reading a
-// field ARRAY of an array-of-structs element with a RUNTIME index -- `self.rows[c]
-// .data[j]` -- silently read 0 (rows[2].data[1] with j==1 returned 0, not 6). The
-// collection `rows[c].data` is a Member whose receiver is Indexed, so the base is
-// reached through an array index; the backend cannot compute the nested runtime
-// offset. Fenced. `self.row.data[j]` (a plain struct field, no array element) and a
-// const index (`rows[i].data[0]`) lower fine and stay valid.
+// The array-of-structs sibling of nested_runtime_indexed_read_rejected:
+// reading a field array through a RUNTIME element index with a RUNTIME leaf
+// (`rows[i].data[j]`, BOTH runtime) must stay a CLEAN ERROR -- the lowering
+// op carries one runtime index. (The CONST-element face `rows[2].data[j]`
+// lowers since 2026-07-07 and is pinned by
+// pass/collections/runtime_nested_const_row_struct_field_write_exit.)
 boundary trait Console { machine exit_process(return_code: i32); }
 data Row { data: [i32; 2]; }
-data Main { console: Console; rows: [Row; 3]; j: i32; }
+data Main { console: Console; rows: [Row; 3]; i: usize [0..=2]; j: usize [0..=1]; }
 machine Main::main(&mut self) {
     self.rows[0] = Row { data: [1, 2] };
     self.rows[2] = Row { data: [5, 6] };
+    self.i = 2;
     self.j = 1;
-    let n: i32 = self.rows[2].data[self.j];
+    let n: i32 = self.rows[self.i].data[self.j];
     self.console.exit_process(n);
 }

@@ -960,16 +960,15 @@ fn is_known_bare_name(
 }
 
 /// Reject READING an array element with a RUNTIME SCALAR index whose collection is
-/// itself reached THROUGH an array index -- `grid[c][j]` (a 2D array) and
-/// `rows[c].data[j]` (a field array of an array-of-structs element). The backend
-/// cannot compute the nested runtime offset yet: it resolves the runtime index to
-/// the collection BASE and SILENTLY READS 0 instead of the element (confirmed native:
-/// both `grid[2][j]` and `rows[2].data[j]` with the index `== 1` read 0, not 6). The
-/// sibling WRITE is already fenced (state-graph `target_is_nested_runtime_indexed`);
-/// this fences the READ to match. Lowerable shapes are untouched: a CONST index
-/// (`grid[i][0]`, a fixed offset), a single index over a non-indexed base (`arr[i]`,
-/// `self.field[j]`), and a RANGE index (`sub[1..][1..]`, a nested subslice). The real
-/// fix is lowering nested runtime-indexed access (a backend feature).
+/// itself reached THROUGH a RUNTIME array index -- `grid[i][j]` with BOTH indices
+/// runtime. The lowering op carries ONE runtime index, so a runtime index above
+/// another runtime index has no computable offset: the backend would resolve it to
+/// the collection BASE and SILENTLY READ 0 instead of the element. Lowerable shapes
+/// are untouched: any CONST index level (`grid[i][0]` -- suffix walk; `grid[1][j]`,
+/// `rows[2].data[j]` -- const levels fold into the collection resolution's fixed
+/// offset, landed 2026-07-07), a single index over a non-indexed base (`arr[i]`,
+/// `self.field[j]`), and a RANGE index (`sub[1..][1..]`, a nested subslice). The
+/// real fix for both-runtime is a two-index lowering op (backend feature).
 fn report_nested_runtime_indexed_read(
     program: &TypedTrees,
     machine: &Machine,
@@ -993,31 +992,45 @@ fn report_nested_runtime_indexed_read(
         return;
     }
     // The collection's place chain (through Member receivers and Mutable) must reach
-    // an ARRAY INDEX -- `grid[c]` (Indexed collection) or `rows[c].data` (a field of an
-    // indexed element). A base with no index in its chain (`arr`, `self.field`) is a
-    // plain place whose element offset IS computable, so it is not fenced.
-    // NOTE (2026-07-07): un-fencing the CONST-outer case (`grid[1][j]`) was tried and
-    // REVERTED -- the resolver computes the biased base, but neither the machine-target
-    // nor the frame-target consumer wires the copy, so the shape ran SILENTLY WRONG
-    // (fail canary nested_runtime_indexed_read_rejected: native 0, interp 6). Wire the
-    // consumers first (see TASKS), then relax this to runtime-indexed-chain-only.
+    // a RUNTIME array index -- `grid[c][j]` with BOTH indices runtime. A base with no
+    // index in its chain (`arr`, `self.field`) is a plain place whose element offset
+    // IS computable; a CONST-indexed base (`grid[1][j]`, `rows[2].data[j]`) folds into
+    // the machine-owned collection resolution's fixed offset and lowers (2026-07-07:
+    // walk-boundary threading in instruction selection + the root-element-index
+    // ordering fix in resolve_machine_owned_collection_in_table; value-validated
+    // differential probes). Only a runtime index ABOVE another RUNTIME index remains
+    // unlowerable -- the op carries one runtime index.
     let mut collection = indexed.collection;
-    let base_is_indexed = loop {
+    let base_is_runtime_indexed = loop {
         match program.expression_table.expression(collection) {
-            ExpressionNode::Indexed(_) => break true,
+            ExpressionNode::Indexed(inner) => {
+                let mut inner_index = inner.index;
+                while let ExpressionNode::Mutable(next) =
+                    program.expression_table.expression(inner_index)
+                {
+                    inner_index = *next;
+                }
+                if !matches!(
+                    program.expression_table.expression(inner_index),
+                    ExpressionNode::Integer(_) | ExpressionNode::Range(_)
+                ) {
+                    break true;
+                }
+                collection = inner.collection;
+            }
             ExpressionNode::Member(member) => collection = member.receiver,
             ExpressionNode::Mutable(inner) => collection = *inner,
             _ => break false,
         }
     };
-    if !base_is_indexed {
+    if !base_is_runtime_indexed {
         return;
     }
     diagnostics.push(Diagnostic::error(format!(
         "machine `{}` state `{}` reads an array element with a runtime index whose base is itself \
-         array-indexed (`grid[c][j]` or `rows[c].data[j]`, `j` a runtime value), which the backend \
-         cannot lower yet -- it silently reads 0 instead of the element. Use a constant index for \
-         the outer access, or a flat array with a computed index",
+         indexed by another RUNTIME value (`grid[i][j]`, both indices runtime), which the backend \
+         cannot lower yet -- it silently reads 0 instead of the element. Make one index a constant, \
+         or use a flat array with a computed index",
         machine.name.as_str(),
         state.name.as_str(),
     )));

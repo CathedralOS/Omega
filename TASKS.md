@@ -436,26 +436,28 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >   selection + a both-arch deref-compare encoder) OR a routed hard error.
 >   Workaround proven (let-bind then guard). Dedicated fire, not loop-sized.
 > - **Backend miscompile fences** — a cluster of `clean error` gaps to complete:
->   nested runtime-indexed READ+WRITE both FENCED 2026-07-05/06 for BOTH shapes —
->   `grid[c][j]` (direct-Indexed collection) AND `rows[c].data[j]` (Member-of-Indexed,
->   a field array of an array-of-structs element); were SILENT read-0 / write-no-op.
->   Read: `report_nested_runtime_indexed_read` (validation); write:
->   `target_is_nested_runtime_indexed` (state-graph classifier). Real fix = lower
->   nested runtime-indexed access (backend). ATTEMPTED 2026-07-07 (const-outer
->   face `grid[1][j]` / `rows[2].data[j]` only) and REVERTED as a unit: (1)
->   fences relaxed to runtime-indexed-chain-only, (2) `indexed_target_path_in_table`
->   taught to prefer the RUNTIME index level. Result:
->   `resolve_runtime_machine_indexed_target_in_table` RESOLVES the const-indexed
->   collection correctly (verified: grid@0 + row1*16), but the emitted op
->   scales/addresses the element WRONG -- rw1/gc probes diverged silently
->   (native 2/interp 1; old fail canary ran native 0/interp 6). Prime suspect:
->   `resolve_indexed_target_suffix_layout_in_table` mis-walks when suffix_root
->   spans the outer Indexed (element size taken from the OUTER array?). All three
->   pieces must land TOGETHER with value-validating differential probes (#40
->   trap: the fences are load-bearing). Probe files: scratchpad g1/ga-gd/rw1.omg
->   shapes are in the fail canaries + nested-runtime-indexed-write-gap memory.
->   Runtime-INNER faces (`grid[i][2]`, `arr[i].field`) already work — do not
->   regress them. Then array-of-structs as a binary
+>   nested runtime-indexed access: CONST-level faces LANDED 2026-07-07 —
+>   `grid[1][j]`, `rows[2].data[j]` (read AND write, machine-field and frame-let
+>   consumers) and 3D runtime-MIDDLE `cube[1][b][0]` all lower, value-validated
+>   native==interp. Three coordinated pieces: (1) `TableIndexedTargetPath.boundary`
+>   + suffix-walk early-stop (the walk's collection-unresolvable sentinel only
+>   worked when the boundary was the INNERMOST Indexed), (2) the splitter prefers
+>   the RUNTIME index level when all inner levels are const, (3) root-element-index
+>   ORDERING fix in `resolve_machine_owned_collection_in_table` (the root index was
+>   applied AFTER the suffix walk at the LEAF's scale — `rows[2].data` resolved to
+>   rows+2*4, not rows+2*8; a latent wrong-element landmine for ANY root-indexed
+>   collection with a member suffix). Read fence now rejects only BOTH-RUNTIME
+>   chains; write classifier unchanged (refuses the fast path; backend lowers or
+>   the blocker reports loudly). Canaries: pass/collections/runtime_nested_const_
+>   row_{indexed_read,struct_field_write}_exit + runtime_nested_middle_index_3d_
+>   exit (all three in differential RUN_CANARIES); both-runtime rejection
+>   re-pinned in the three rewritten fail canaries. REMAINING: (a) BOTH-RUNTIME
+>   indices (`grid[i][j]`) = clean error; needs a two-runtime-index op or an
+>   index-folding temp. (b) TWO+ const levels BELOW the runtime index
+>   (`cube[1][1][k]`) = clean error ("needs runtime storage write lowering"):
+>   `normalized_storage_name_path_in_table` carries ONE root element index per
+>   member; teach it nested const indices (or peel const Indexed nodes in the
+>   machine-indexed resolver, biasing the base) to close. Then array-of-structs as a binary
 >   operand (NARROWED 2026-07-03: the `let t = arr[i].field; use t` idiom now
 >   works. The DIRECT `self.r = arr[i].field + 22` still errors. A frontend
 >   operand-hoist of `arr[i].field` is TOO BROAD -- at the pre-resolution hoist

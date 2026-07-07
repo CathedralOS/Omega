@@ -932,6 +932,7 @@ fn bounded_byte_buffer_indexed_place(
     index: usize,
     expressions: &ExpressionTable,
     suffix_root: ExpressionHandle,
+    boundary: ExpressionHandle,
 ) -> Option<RuntimeStoragePlace> {
     let element_descriptor = bounded_byte_buffer_element_type(collection_descriptor)?;
     let element_layout = descriptor_layout(input, element_descriptor);
@@ -950,6 +951,7 @@ fn bounded_byte_buffer_indexed_place(
         &root_field,
         expressions,
         suffix_root,
+        boundary,
     )?;
     Some(RuntimeStoragePlace {
         region,
@@ -1402,6 +1404,7 @@ pub(super) fn resolve_fixed_array_length_in_table(
             NestedFieldLayoutCursor::from_root(&root_field),
             expressions,
             indexed.suffix_root,
+            indexed.boundary,
         )?;
         let (_, length) = cursor.type_descriptor().fixed_array()?;
         return Some(length);
@@ -1507,6 +1510,7 @@ pub(super) fn resolve_runtime_frame_indexed_target_in_table(
         &root_field,
         expressions,
         indexed.suffix_root,
+        indexed.boundary,
     )?;
 
     Some(RuntimeFrameIndexedTarget {
@@ -1555,6 +1559,7 @@ pub(super) fn resolve_runtime_frame_indexed_primitive_type_in_table(
         cursor,
         expressions,
         indexed.suffix_root,
+        indexed.boundary,
     )?;
     descriptor_primitive_type(cursor.type_descriptor())
 }
@@ -1598,6 +1603,7 @@ pub(super) fn resolve_runtime_frame_indexed_is_fat_slice_in_table(
             cursor,
             expressions,
             indexed.suffix_root,
+            indexed.boundary,
         )?;
         Some(descriptor_is_fat_slice(cursor.type_descriptor()))
     })()
@@ -1663,6 +1669,7 @@ pub(super) fn resolve_runtime_frame_indexed_target_near_slot_in_table(
         &root_field,
         expressions,
         indexed.suffix_root,
+        indexed.boundary,
     )?;
 
     Some(RuntimeFrameIndexedTarget {
@@ -1813,6 +1820,7 @@ pub(super) fn resolve_runtime_frame_base_indexed_target_in_table(
         &root_field,
         expressions,
         indexed.suffix_root,
+        indexed.boundary,
     )?;
 
     Some(RuntimeFrameBaseIndexedTarget {
@@ -1895,6 +1903,7 @@ pub(super) fn resolve_runtime_machine_indexed_target_in_table(
         &root_field,
         expressions,
         indexed.suffix_root,
+        indexed.boundary,
     )?;
 
     // A carrier (`[u8;N]` BoundedByteBuffer) stores its inline bytes AFTER a
@@ -2059,6 +2068,7 @@ pub(super) fn resolve_runtime_pointee_fixed_indexed_target_in_table(
         &root_field,
         expressions,
         fixed.suffix_root,
+        ExpressionHandle::invalid(),
     )?;
 
     (field_layout.size > 0).then_some(RuntimePointeeTarget {
@@ -2287,6 +2297,7 @@ fn resolve_runtime_fixed_indexed_place_in_table(
             index,
             expressions,
             fixed.suffix_root,
+            ExpressionHandle::invalid(),
         ) {
             return Some(place);
         }
@@ -2307,6 +2318,7 @@ fn resolve_runtime_fixed_indexed_place_in_table(
             &root_field,
             expressions,
             fixed.suffix_root,
+            ExpressionHandle::invalid(),
         )?;
 
         return Some(RuntimeStoragePlace {
@@ -2355,6 +2367,7 @@ fn resolve_runtime_fixed_indexed_place_in_table(
         index,
         expressions,
         fixed.suffix_root,
+        ExpressionHandle::invalid(),
     ) {
         return Some(place);
     }
@@ -2375,6 +2388,7 @@ fn resolve_runtime_fixed_indexed_place_in_table(
         &root_field,
         expressions,
         fixed.suffix_root,
+        ExpressionHandle::invalid(),
     )?;
 
     Some(RuntimeStoragePlace {
@@ -2443,6 +2457,7 @@ pub(super) fn resolve_runtime_frame_fixed_indexed_target_in_table(
         &root_field,
         expressions,
         fixed.suffix_root,
+        ExpressionHandle::invalid(),
     )?;
 
     Some(RuntimeFrameFixedIndexedTarget {
@@ -2524,6 +2539,14 @@ struct TableIndexedTargetPath {
     collection: ExpressionHandle,
     index: ExpressionHandle,
     suffix_root: ExpressionHandle,
+    /// The `Indexed` node whose `collection`+`index` the base resolution consumed.
+    /// The suffix-layout walk stops here: the root cursor already IS this node's
+    /// element, so everything at or below it must not be re-applied. Explicit
+    /// (rather than the walk's collection-unresolvable sentinel) because in a
+    /// nested split that prefers the RUNTIME level (`grid[1][j]` -> collection
+    /// `grid[1]`, index `j`) the boundary sits ABOVE const-indexed nodes the
+    /// sentinel would wrongly re-walk.
+    boundary: ExpressionHandle,
 }
 
 fn fixed_indexed_target_path_in_table(
@@ -2628,34 +2651,54 @@ fn indexed_target_path_in_table(
                 collection: path.collection,
                 index: path.index,
                 suffix_root: expression,
+                boundary: path.boundary,
             })
         }
         ExpressionNode::Indexed(indexed) => {
             if let Some(path) = indexed_target_path_in_table(table, indexed.collection) {
-                // Nested indices always keep the INNERMOST path's index.
-                // NOTE (2026-07-07): preferring the RUNTIME level instead
-                // (`grid[1][j]` -> collection `grid[1]`, index `j`) was tried
-                // and REVERTED: resolve_runtime_machine_indexed_target_in_table
-                // resolves the const-indexed collection to the right biased
-                // base, but the emitted op scales/addresses the element wrong
-                // (rw1/gc probes: native diverged from interp, silently). The
-                // nested-runtime fences upstream reject these shapes today; fix
-                // the suffix-layout walk for a suffix_root that spans the outer
-                // Indexed before re-attempting (see TASKS).
+                // Nested indices: the op carries ONE runtime index. When THIS
+                // level's index is runtime and every level below is const
+                // (`grid[1][j]`, `rows[2].data[j]`), split HERE -- the const
+                // levels fold into the collection resolution's fixed offset and
+                // this node becomes the walk boundary. Otherwise keep the
+                // INNERMOST split (`grid[i][2]`: runtime `i` is base-closest;
+                // the const `[2]` rides the suffix walk). Both-runtime never
+                // lowers: the outer runtime index is not an Integer, so the
+                // suffix walk refuses and the loud blockers/fences report it.
+                if !indexed_index_is_const(table, indexed.index)
+                    && indexed_index_is_const(table, path.index)
+                {
+                    return Some(TableIndexedTargetPath {
+                        collection: indexed.collection,
+                        index: indexed.index,
+                        suffix_root: expression,
+                        boundary: expression,
+                    });
+                }
                 return Some(TableIndexedTargetPath {
                     collection: path.collection,
                     index: path.index,
                     suffix_root: expression,
+                    boundary: path.boundary,
                 });
             }
             Some(TableIndexedTargetPath {
                 collection: indexed.collection,
                 index: indexed.index,
                 suffix_root: expression,
+                boundary: expression,
             })
         }
         _ => None,
     }
+}
+
+fn indexed_index_is_const(table: &ExpressionTable, index: ExpressionHandle) -> bool {
+    let mut index = index;
+    while let ExpressionNode::Mutable(inner) = table.expression(index) {
+        index = *inner;
+    }
+    matches!(table.expression(index), ExpressionNode::Integer(_))
 }
 
 fn resolve_indexed_target_suffix_layout_in_table(
@@ -2663,6 +2706,7 @@ fn resolve_indexed_target_suffix_layout_in_table(
     root_field: &FieldLayout,
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
+    boundary: ExpressionHandle,
 ) -> Option<(usize, TypeLayout)> {
     let cursor = NestedFieldLayoutCursor::from_root(root_field);
     let cursor = resolve_indexed_target_suffix_cursor_in_table(
@@ -2670,19 +2714,37 @@ fn resolve_indexed_target_suffix_layout_in_table(
         cursor,
         expressions,
         expression,
+        boundary,
     )?;
     Some((cursor.byte_offset(), cursor.layout()))
 }
 
+/// Walk the suffix of an indexed place (`.field` / `[const]` steps ABOVE the
+/// indexed element the root cursor represents) to the leaf's offset+layout.
+/// `boundary` is the `Indexed` node the base resolution consumed -- the walk
+/// returns the cursor unchanged there (see `TableIndexedTargetPath::boundary`).
+/// An invalid `boundary` falls back to the legacy sentinel: the first `Indexed`
+/// whose collection is unresolvable (a plain place) is treated as the boundary,
+/// which is only correct when the boundary is the INNERMOST `Indexed`.
 fn resolve_indexed_target_suffix_cursor_in_table<'layout>(
     layouts: &'layout omega_layout::LayoutPlan,
     cursor: NestedFieldLayoutCursor<'layout>,
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
+    boundary: ExpressionHandle,
 ) -> Option<NestedFieldLayoutCursor<'layout>> {
+    if boundary.is_valid() && expression == boundary {
+        return Some(cursor);
+    }
     match expressions.expression(expression) {
         ExpressionNode::Mutable(target) => {
-            resolve_indexed_target_suffix_cursor_in_table(layouts, cursor, expressions, *target)
+            resolve_indexed_target_suffix_cursor_in_table(
+                layouts,
+                cursor,
+                expressions,
+                *target,
+                boundary,
+            )
         }
         ExpressionNode::Indexed(indexed) => {
             let Some(collection_cursor) = resolve_indexed_target_suffix_cursor_in_table(
@@ -2690,6 +2752,7 @@ fn resolve_indexed_target_suffix_cursor_in_table<'layout>(
                 cursor,
                 expressions,
                 indexed.collection,
+                boundary,
             ) else {
                 return Some(cursor);
             };
@@ -2705,6 +2768,7 @@ fn resolve_indexed_target_suffix_cursor_in_table<'layout>(
                 cursor,
                 expressions,
                 member.receiver,
+                boundary,
             )?;
             resolve_nested_field_layout_step(
                 layouts,

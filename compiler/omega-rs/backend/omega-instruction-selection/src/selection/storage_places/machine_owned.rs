@@ -64,25 +64,16 @@ pub(in crate::selection) fn resolve_machine_owned_collection_in_table(
     let (machine_base_offset, root_field, suffix_start_index) =
         root_machine_field_layout_from_table_path(layouts, entry_machine, source_machine, &path)?;
     let mut cursor = NestedFieldLayoutCursor::from_root(root_field);
-    for (field_name, field_symbol, field_index, case_variant) in
-        path.suffix(suffix_start_index).iter()
-    {
-        cursor = resolve_nested_field_layout_step(
-            layouts,
-            cursor,
-            field_name,
-            field_symbol,
-            field_index,
-            case_variant,
-        )?;
-    }
 
     // The root field position in the path (at `suffix_start_index - 1`) may carry an
     // array element index (e.g. `self.vals[0]` → member 1 has index `Some(0)`).
-    // When the suffix above is empty (no nested members after the root field),
-    // `root_machine_field_layout_from_table_path` does not traverse that index and the
-    // cursor still holds the ARRAY type descriptor. Apply the element descent here so
-    // the returned descriptor is the scalar element type, not the array container.
+    // `root_machine_field_layout_from_table_path` resolves the FIELD but never
+    // traverses that index, so apply the element descent BEFORE the suffix walk:
+    // the suffix names fields of the ELEMENT (`rows[2].data` -- `data` is a field
+    // of `Row`, not of `[Row; 3]`), and the index must scale by the ELEMENT size.
+    // (It used to be applied AFTER the walk, at the leaf's scale -- correct only
+    // for an empty suffix; `rows[2].data` resolved to rows+2*4 instead of
+    // rows+2*8, a silent wrong-element write once nested lowering engaged.)
     if suffix_start_index > 0 {
         if let Some(element_index) = path.member_index(suffix_start_index - 1) {
             if let Some((element_type, length)) = cursor.type_descriptor().fixed_array() {
@@ -100,6 +91,19 @@ pub(in crate::selection) fn resolve_machine_owned_collection_in_table(
                 }
             }
         }
+    }
+
+    for (field_name, field_symbol, field_index, case_variant) in
+        path.suffix(suffix_start_index).iter()
+    {
+        cursor = resolve_nested_field_layout_step(
+            layouts,
+            cursor,
+            field_name,
+            field_symbol,
+            field_index,
+            case_variant,
+        )?;
     }
 
     Some(MachineOwnedCollectionTarget {
