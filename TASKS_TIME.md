@@ -588,12 +588,33 @@ boundary trait TimeHost {
      a non-ZII arm + an is_less_than designed-FALSE);
      `Instant::duration_since` reverted to the house nested idiom;
      `elapsed_since` UNBLOCKED.
-   REMAINING for this rung: `SystemTime` + `system_time_now()` (D7 —
-   `from_unix_seconds`, `duration_since` → SystemTimeDifference,
-   checked_add/subtract; canary `runtime_system_time_after_2026_exit`:
-   `system_time_now() > from_unix_seconds(1_767_225_600)`);
-   `Instant::checked_add/checked_subtract` + `InstantResult`;
-   `Time::sleep_for(duration)` (u32-ms chunking); `Time::elapsed_since`.
+   SLICE 2 LANDED 2026-07-08: `SystemTime` (D7) + `from_unix_seconds` +
+   `duration_since` → `SystemTimeDifference` + `Time::system_time_now()` +
+   `Time::elapsed_since`. Differential canaries
+   `time/runtime_system_time_after_2026_exit` (both directions, non-ZII
+   payload legs) + `time/runtime_time_elapsed_since_exit` (≥30ms across
+   sleep). Notes:
+   - SURFACE DEVIATION from the sketch: `SystemTimeDifference` gained a
+     payload-free `case Unmeasured;` FIRST case — the ZII zero case must be
+     payload-free (clean validation error), and Unmeasured is the honest
+     reading of an untouched result (never a fabricated Backwards(ZERO)).
+   - The i64 seconds difference computes as u64 BIT-PATTERN wrapping
+     subtraction (i64::MAX - i64::MIN == u64::MAX; two's complement +
+     dominating compare — probe-verified incl. negative operands);
+     `system_time_now`'s i64 narrowing rides a `% i64::MAX` ranged witness;
+     pre-1970 hosts clamp to UNIX_EPOCH (degraded, never faulting).
+   - `elapsed_since` ships SINGLE-LEVEL with `stopwatch_*`-prefixed lets:
+     (a) the `now().duration_since(start)` composition needs a value call on
+     a LOCAL receiver, which zeroes natively (receiver resolution reaches
+     FIELDS only — pre-existing, filed); (b) sharing let NAMES with `now()`
+     #DE-crashed via the NEW cross-callee let-name collision (Mutation
+     fallback write resolves the other callee's still-ZII local — TASKS.md
+     latent bugs + repro in
+     canaries/pending/calls/cross_callee_let_name_collision). ⚠️ AUDIT
+     class: not time-specific.
+   REMAINING for this rung: `Instant::checked_add/checked_subtract` +
+   `InstantResult`; `SystemTime::checked_add/checked_subtract`;
+   `Time::sleep_for(duration)` (u32-ms chunking).
 7. [x] **Kill `Console::sleep` (D16) — DONE 2026-07-06, killed OUTRIGHT (no
    deprecation needed).** Entry removed from `std/console.omg`; the 11 samples
    + `runtime_sleep_exit` migrated onto inline `boundary trait Clock` + a

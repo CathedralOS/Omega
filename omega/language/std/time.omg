@@ -567,6 +567,109 @@ machine Instant::duration_since(&self, earlier: Instant) -> Duration {
     state since_zero(&self) -> Duration { Duration::ZERO }
 }
 
+// A point on the WALL clock (D7): signed Unix-epoch seconds (pre-1970
+// timestamps exist -- filesystem metadata bridges here) + subsecond
+// nanoseconds. ZII zero IS the Unix epoch.
+data SystemTime [copy, zero_init] {
+    seconds_since_unix_epoch: i64;
+    subsecond_nanoseconds: u32 [0..=999_999_999];
+}
+
+const SystemTime::UNIX_EPOCH: SystemTime = SystemTime { seconds_since_unix_epoch: 0, subsecond_nanoseconds: 0 };
+
+// `duration_since`'s result: the wall clock is NOT monotonic, so "earlier is
+// actually later" is an ORDINARY outcome (NTP step, manual clock set), not an
+// error -- the Backwards case carries the amount. The ZII zero case must be
+// payload-free, and `Unmeasured` is the honest reading of an untouched
+// result: never a fake Ok, never a fabricated Backwards(ZERO) measurement.
+// (Deviation from the TASKS_TIME.md sketch, which had no zero case -- noted
+// there.) `duration_since` itself never produces Unmeasured.
+data SystemTimeDifference [copy, zero_init] {
+    case Unmeasured;
+    case Backwards(amount: Duration);
+    case Ok(duration: Duration);
+}
+
+// Bridge from filesystem `Metadata` timestamps (and any other i64 Unix
+// source): whole seconds, zero subseconds.
+machine SystemTime::from_unix_seconds(seconds: i64) -> SystemTime {
+    SystemTime { seconds_since_unix_epoch: seconds, subsecond_nanoseconds: 0 }
+}
+
+// self - earlier as a Duration, or Backwards(earlier - self) when the wall
+// clock ran backwards. The seconds difference of two i64s always fits u64
+// (i64::MAX - i64::MIN == u64::MAX), computed as a u64 BIT-PATTERN wrapping
+// subtraction -- two's complement makes it the true difference whenever the
+// dominating compare proves the sign. Same borrow idiom as
+// Duration::checked_subtract, both directions precomputed in entry lets.
+machine SystemTime::duration_since(&self, earlier: SystemTime) -> SystemTimeDifference {
+    let seconds_bigger: bool = self.seconds_since_unix_epoch > earlier.seconds_since_unix_epoch;
+    let seconds_equal: bool = self.seconds_since_unix_epoch == earlier.seconds_since_unix_epoch;
+    let nanoseconds_fit: bool = self.subsecond_nanoseconds >= earlier.subsecond_nanoseconds;
+    let back_nanoseconds_fit: bool = earlier.subsecond_nanoseconds >= self.subsecond_nanoseconds;
+    let seconds_direct: u64 in Wrapping = (self.seconds_since_unix_epoch as u64 in Wrapping)
+        - (earlier.seconds_since_unix_epoch as u64 in Wrapping);
+    let seconds_borrowed: u64 in Wrapping = (seconds_direct as u64 in Wrapping) - 1;
+    let nanoseconds_direct: u32 = ((self.subsecond_nanoseconds as u32 in Wrapping)
+        - (earlier.subsecond_nanoseconds as u32 in Wrapping)) as u32;
+    let nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
+        - (earlier.subsecond_nanoseconds as u32 in Wrapping))
+        + (self.subsecond_nanoseconds as u32 in Wrapping)) as u32;
+    let back_seconds_direct: u64 in Wrapping = (earlier.seconds_since_unix_epoch as u64 in Wrapping)
+        - (self.seconds_since_unix_epoch as u64 in Wrapping);
+    let back_seconds_borrowed: u64 in Wrapping = (back_seconds_direct as u64 in Wrapping) - 1;
+    let back_nanoseconds_direct: u32 = ((earlier.subsecond_nanoseconds as u32 in Wrapping)
+        - (self.subsecond_nanoseconds as u32 in Wrapping)) as u32;
+    let back_nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
+        - (self.subsecond_nanoseconds as u32 in Wrapping))
+        + (earlier.subsecond_nanoseconds as u32 in Wrapping)) as u32;
+    transition seconds_bigger == true {
+        true -> wall_bigger(nanoseconds_fit, seconds_direct, seconds_borrowed, nanoseconds_direct, nanoseconds_borrowed)
+        false -> wall_equal_or_less(seconds_equal, nanoseconds_fit, back_nanoseconds_fit, seconds_direct, nanoseconds_direct, back_seconds_direct, back_seconds_borrowed, back_nanoseconds_direct, back_nanoseconds_borrowed)
+    }
+    state wall_bigger(&self, nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> SystemTimeDifference {
+        transition nanoseconds_fit {
+            true -> wall_emit_ok(seconds_direct, nanoseconds_direct)
+            false -> wall_emit_ok(seconds_borrowed, nanoseconds_borrowed)
+        }
+    }
+    state wall_equal_or_less(&self, seconds_equal: bool, nanoseconds_fit: bool, back_nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32, back_seconds_direct: u64, back_seconds_borrowed: u64, back_nanoseconds_direct: u32, back_nanoseconds_borrowed: u32) -> SystemTimeDifference {
+        transition seconds_equal && nanoseconds_fit {
+            true -> wall_emit_ok(seconds_direct, nanoseconds_direct)
+            false -> wall_backwards_split(seconds_equal, back_nanoseconds_fit, back_seconds_direct, back_seconds_borrowed, back_nanoseconds_direct, back_nanoseconds_borrowed)
+        }
+    }
+    state wall_backwards_split(&self, seconds_equal: bool, back_nanoseconds_fit: bool, back_seconds_direct: u64, back_seconds_borrowed: u64, back_nanoseconds_direct: u32, back_nanoseconds_borrowed: u32) -> SystemTimeDifference {
+        // seconds equal here means self.sub < earlier.sub: no borrow needed.
+        transition seconds_equal {
+            true -> wall_emit_backwards(back_seconds_direct, back_nanoseconds_direct)
+            false -> wall_backwards_borrow(back_nanoseconds_fit, back_seconds_direct, back_seconds_borrowed, back_nanoseconds_direct, back_nanoseconds_borrowed)
+        }
+    }
+    state wall_backwards_borrow(&self, back_nanoseconds_fit: bool, back_seconds_direct: u64, back_seconds_borrowed: u64, back_nanoseconds_direct: u32, back_nanoseconds_borrowed: u32) -> SystemTimeDifference {
+        transition back_nanoseconds_fit {
+            true -> wall_emit_backwards(back_seconds_direct, back_nanoseconds_direct)
+            false -> wall_emit_backwards(back_seconds_borrowed, back_nanoseconds_borrowed)
+        }
+    }
+    state wall_emit_ok(&self, seconds_final: u64, nanoseconds_final: u32) -> SystemTimeDifference {
+        SystemTimeDifference::Ok {
+            duration: Duration {
+                seconds: seconds_final,
+                subsecond_nanoseconds: nanoseconds_final % 1000000000,
+            },
+        }
+    }
+    state wall_emit_backwards(&self, seconds_final: u64, nanoseconds_final: u32) -> SystemTimeDifference {
+        SystemTimeDifference::Backwards {
+            amount: Duration {
+                seconds: seconds_final,
+                subsecond_nanoseconds: nanoseconds_final % 1000000000,
+            },
+        }
+    }
+}
+
 // The clock-read CAPABILITY (D9): reads live here, never ambiently on the
 // value types -- Rust's `Instant::now()`/`Instant::elapsed()` intentionally
 // have no equivalent (the Cathedral no-ambient-authority stance).
@@ -601,4 +704,98 @@ machine Time::now(&mut self) -> Instant {
     // identity at runtime (the quotient is < 10^9 by math).
     let subsecond: u32 [0..=999999999] = subnanos_wide % 1000000000;
     Instant { seconds: whole_seconds, subsecond_nanoseconds: subsecond }
+}
+
+// Read the wall clock: ONE raw read (D11, no second-boundary tearing) +
+// the two per-target calibration constants, all conversion math here.
+// `unix = raw / units - offset`; the subtraction is a u64 wrapping let whose
+// value is only USED on the after-epoch arm the dominating compare proves
+// (the checked_subtract idiom); `% i64::MAX` is the ranged witness for the
+// i64 narrowing (real clocks sit ~1.7e9, the bound only tames the prover).
+// A host clock before 1970 reads as UNIX_EPOCH (degraded, never faulting).
+machine Time::system_time_now(&mut self) -> SystemTime {
+    let raw: u64 = self.host.wall_clock_raw();
+    let units_raw: u64 = self.host.wall_clock_units_per_second();
+    let offset: u64 = self.host.wall_clock_epoch_offset_seconds();
+    // The same clamp-as-calibration-guard as `now()` (D5 proof bound).
+    let units: u64 = clamp(units_raw, 1, 18446744073);
+    let platform_seconds: u64 = raw / units;
+    let remainder: u64 = raw % units;
+    let scaled_wrapped: u64 in Wrapping = (remainder as u64 in Wrapping) * 1000000000;
+    let scaled: u64 = scaled_wrapped as u64;
+    let subnanos_wide: u64 = scaled / units;
+    let subsecond: u32 [0..=999999999] = subnanos_wide % 1000000000;
+    let is_after_epoch: bool = platform_seconds >= offset;
+    let unix_wrapped: u64 in Wrapping = (platform_seconds as u64 in Wrapping)
+        - (offset as u64 in Wrapping);
+    let unix_bounded: u64 = (unix_wrapped as u64) % 9223372036854775807;
+    let unix_seconds: i64 = unix_bounded as i64;
+    transition is_after_epoch {
+        true -> wall_now_emit(unix_seconds, subsecond)
+        false -> wall_now_before_epoch()
+    }
+    state wall_now_emit(&mut self, unix_seconds: i64, subsecond: u32) -> SystemTime {
+        SystemTime {
+            seconds_since_unix_epoch: unix_seconds,
+            subsecond_nanoseconds: subsecond % 1000000000,
+        }
+    }
+    state wall_now_before_epoch(&mut self) -> SystemTime { SystemTime::UNIX_EPOCH }
+}
+
+// The stopwatch read: monotonic-now minus `start`, saturating at ZERO (a
+// start Instant from a different process/boot measures garbage; ZERO is the
+// honest total answer). `now().duration_since(start)` composition.
+// SINGLE-LEVEL body: the natural composition
+// (`self.now().duration_since(start)`) needs a value call on a LOCAL
+// receiver, which zeroes natively today (receiver resolution reaches FIELDS
+// only -- filed in TASKS.md). Until that lands, this inlines now()'s
+// normalization + the checked_duration_since borrow idiom over entry lets.
+machine Time::elapsed_since(&mut self, start: Instant) -> Duration {
+    let stopwatch_ticks: u64 = self.host.monotonic_ticks();
+    let stopwatch_frequency_raw: u64 = self.host.monotonic_ticks_per_second();
+    let stopwatch_frequency: u64 = clamp(stopwatch_frequency_raw, 1, 18446744073);
+    let now_seconds: u64 = stopwatch_ticks / stopwatch_frequency;
+    let stopwatch_remainder: u64 = stopwatch_ticks % stopwatch_frequency;
+    let stopwatch_scaled_wrapped: u64 in Wrapping = (stopwatch_remainder as u64 in Wrapping) * 1000000000;
+    let stopwatch_scaled: u64 = stopwatch_scaled_wrapped as u64;
+    let stopwatch_subnanos_wide: u64 = stopwatch_scaled / stopwatch_frequency;
+    let now_subsecond_wide: u64 = stopwatch_subnanos_wide % 1000000000;
+    let now_subsecond: u32 = now_subsecond_wide as u32;
+    let seconds_bigger: bool = now_seconds > start.seconds;
+    let seconds_equal: bool = now_seconds == start.seconds;
+    let nanoseconds_fit: bool = now_subsecond >= start.subsecond_nanoseconds;
+    let seconds_direct: u64 in Wrapping = (now_seconds as u64 in Wrapping)
+        - (start.seconds as u64 in Wrapping);
+    let seconds_borrowed: u64 in Wrapping = (seconds_direct as u64 in Wrapping) - 1;
+    let nanoseconds_direct: u32 = ((now_subsecond as u32 in Wrapping)
+        - (start.subsecond_nanoseconds as u32 in Wrapping)) as u32;
+    let nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
+        - (start.subsecond_nanoseconds as u32 in Wrapping))
+        + (now_subsecond as u32 in Wrapping)) as u32;
+    transition seconds_bigger == true {
+        true -> elapsed_bigger(nanoseconds_fit, seconds_direct, seconds_borrowed, nanoseconds_direct, nanoseconds_borrowed)
+        false -> elapsed_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct, nanoseconds_direct)
+    }
+    state elapsed_bigger(&mut self, nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> Duration {
+        transition nanoseconds_fit {
+            true -> elapsed_emit(seconds_direct, nanoseconds_direct)
+            false -> elapsed_emit(seconds_borrowed, nanoseconds_borrowed)
+        }
+    }
+    state elapsed_equal_or_less(&mut self, seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> Duration {
+        transition seconds_equal && nanoseconds_fit {
+            true -> elapsed_emit(seconds_direct, nanoseconds_direct)
+            false -> elapsed_backwards()
+        }
+    }
+    state elapsed_emit(&mut self, seconds_final: u64, nanoseconds_final: u32) -> Duration {
+        Duration {
+            seconds: seconds_final,
+            subsecond_nanoseconds: nanoseconds_final % 1000000000,
+        }
+    }
+    // A start Instant from a different process/boot can sit "ahead" of now:
+    // saturate at ZERO (total, never faulting).
+    state elapsed_backwards(&mut self) -> Duration { Duration::ZERO }
 }
