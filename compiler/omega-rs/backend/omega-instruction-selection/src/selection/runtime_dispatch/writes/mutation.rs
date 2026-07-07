@@ -364,6 +364,22 @@ fn resolve_static_inline_branching_call_expression_value(
     input: &InstructionSelectionInput<'_>,
     call: &omega_checked_trees::expression::CallExpression,
 ) -> Option<Expression> {
+    resolve_static_inline_branching_call_expression_value_with_branch(input, call)
+        .map(|(expression, _)| expression)
+}
+
+/// The selected expansion's terminal value AND its `branch_key` (the CALLEE
+/// state). Despite the historical name, the terminal can be a RUNTIME
+/// expression (a callee local like `shifted`, not just a foldable literal) --
+/// any PLACE resolution of the returned expression must run in the returned
+/// branch_key's context. Resolving it with the CALLER's source key sent the
+/// bare name through the cross-source-key fallback ladder onto ANOTHER
+/// callee's same-named local (the cross-callee let-name collision: the
+/// Mutation fallback clobbered the first call's delivered result, TASKS.md).
+fn resolve_static_inline_branching_call_expression_value_with_branch(
+    input: &InstructionSelectionInput<'_>,
+    call: &omega_checked_trees::expression::CallExpression,
+) -> Option<(Expression, StateKey)> {
     // Candidate leaf expansions are matched by the call's TARGET STATE NAME, which
     // collides when two data types implement a same-named method (`Circle::code` /
     // `Square::code`): both impls' leafs answer to `code`, and the lexically-first
@@ -412,10 +428,13 @@ fn resolve_static_inline_branching_call_expression_value(
             })
         })
         .map(|expansion| {
-            input
-                .runtime_branching_calls
-                .expressions
-                .to_tree(expansion.target_value)
+            (
+                input
+                    .runtime_branching_calls
+                    .expressions
+                    .to_tree(expansion.target_value),
+                expansion.branch_key,
+            )
         })
 }
 
@@ -1013,17 +1032,27 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         alias_expressions,
     );
     if let Expression::Call(call) = &resolved_value.expression
-        && let Some(static_value) =
-            resolve_static_inline_branching_call_expression_value(input, call)
+        && let Some((static_value, branch_key)) =
+            resolve_static_inline_branching_call_expression_value_with_branch(input, call)
     {
+        // The substituted terminal resolves in the CALLEE's context
+        // (branch_key + its machine/state names), never the caller's: a bare
+        // callee-local terminal (`shifted`) resolved with the caller's key
+        // fell through the cross-source-key name ladder onto ANOTHER callee's
+        // same-named local (the cross-callee let-name collision). Same-callee
+        // multi-site stays correct: all sites share the callee's local slots
+        // and splice contiguity keeps each site's values live at its own
+        // Mutation op.
+        let (value_machine, value_state) =
+            input.control_flow.state_names_by_key_cloned(branch_key);
         select_runtime_resolved_target_value_source_mutation_writes(
             input,
             dispatch_index,
             operation_source_key,
             target_source_key,
-            resolved_value.source_key,
-            source_machine,
-            source_state,
+            branch_key,
+            &value_machine,
+            &value_state,
             statement_index,
             resolved_target,
             &static_value,

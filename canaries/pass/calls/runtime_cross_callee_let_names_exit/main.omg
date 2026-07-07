@@ -1,0 +1,53 @@
+// Cross-callee LET-NAME collision, mutation-fallback flavor pinned FIXED:
+// two DIFFERENT callees with SAME-NAMED lets (`freq`, `shifted`) value-called
+// from ONE caller state. The Mutation fallback write substitutes the callee's
+// terminal and must resolve it in the CALLEE's context (branch_key); resolved
+// with the caller's key it landed on the OTHER callee's still-ZII local and
+// clobbered the FIRST call's delivered result.
+//
+// Both callees read monotonic_ticks_per_second (interp virtual: 1000; native
+// QPF: >= 1000) with different offsets, so the results discriminate: b must
+// be exactly a + 1 -- a cross-wired or clobbered slot breaks the equality.
+// Expected exit: 70.
+use omega::language::std::time_host;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Wrapper { host: TimeHost; }
+
+machine Wrapper::first_read(&mut self) -> u64 {
+    let freq: u64 = self.host.monotonic_ticks_per_second();
+    let shifted: u64 = freq + 1;
+    shifted
+}
+
+machine Wrapper::second_read(&mut self) -> u64 {
+    let freq: u64 = self.host.monotonic_ticks_per_second();
+    let shifted: u64 = freq + 2;
+    shifted
+}
+
+data Main {
+    console: Console;
+    wrapper: Wrapper;
+    a: u64;
+    b: u64;
+}
+
+machine Main::main(&mut self) {
+    self.a = self.wrapper.first_read();
+    self.b = self.wrapper.second_read();
+    transition self.a > 1 {
+        true -> check_b()
+        false -> fail_a_zeroed()
+    }
+    state check_b(&mut self) {
+        transition self.b == self.a + 1 {
+            true -> good()
+            false -> fail_b_mismatch()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_a_zeroed(&mut self) { self.console.exit_process(1); }
+    state fail_b_mismatch(&mut self) { self.console.exit_process(2); }
+}

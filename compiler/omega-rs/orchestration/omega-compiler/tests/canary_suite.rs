@@ -19968,6 +19968,54 @@ fn runtime_value_call_entry_field_write_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Two DIFFERENT callees with SAME-NAMED lets (`freq`, `shifted`) value-called
+// from ONE caller state: the Mutation fallback write substitutes the callee's
+// terminal and must resolve it in the CALLEE's context (branch_key). Resolved
+// with the caller's key, the bare name fell through the cross-source-key
+// ladder onto the OTHER callee's still-ZII local and clobbered the first
+// call's delivered result (exit 1 = first clobbered; 2 = second).
+#[test]
+fn runtime_cross_callee_let_names_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_cross_callee_let_names_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("cross-callee let-names canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (both callees' results delivered), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-cross-callee-lets-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("cross-callee let-names canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("cross-callee let-names canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected both same-named-let callees to deliver (exit 70), got {:?} \
+         (1 = first call clobbered by the other callee's ZII local; 2 = second)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // An inlined callee that TRANSITIONS on a nested sibling call's result must
 // read the WRITTEN result, not the pre-store ZII tag: a bare-call binding
 // whose local ALSO has storage minted a call-result slot carrying the SAME
@@ -23610,6 +23658,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_call_same_callee_sites_exit",
     "calls/runtime_two_site_struct_result_exit",
     "calls/runtime_nested_value_call_guard_exit",
+    "calls/runtime_cross_callee_let_names_exit",
     "calls/runtime_value_call_shared_payload_name_exit",
     "calls/runtime_value_call_shared_slot_straight_line_exit",
     "calls/runtime_value_call_struct_payload_cast_field_exit",
