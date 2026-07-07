@@ -1196,12 +1196,32 @@ pub(super) fn append_place_suffix(expression: &Expression, suffix: &[Identifier]
                 indexed_path.extend_from_slice(suffix);
                 Expression::Name(indexed_path)
             } else {
-                expression.clone()
+                append_member_suffix(expression, suffix)
             }
         }
         Expression::Mutable(target) => {
             Expression::Mutable(Box::new(append_place_suffix(target, suffix)))
         }
-        _ => expression.clone(),
+        // Member receivers (and anything else) get a MEMBER chain. The old
+        // catch-all returned the expression UNCHANGED -- silently DROPPING the
+        // suffix -- so a struct-literal field write built through here targeted
+        // the WHOLE receiver: `self.p = Pair8::make(..)`'s decomposed `b` write
+        // landed on `self.p` at root size and clobbered the pair with the last
+        // field's value. A member over a non-place fails resolution cleanly
+        // (None) instead of resolving to the root.
+        _ => append_member_suffix(expression, suffix),
     }
+}
+
+fn append_member_suffix(expression: &Expression, suffix: &[Identifier]) -> Expression {
+    let mut result = expression.clone();
+    for member in suffix {
+        result = Expression::Member(Box::new(omega_checked_trees::expression::MemberExpression {
+            receiver: result,
+            member_symbol: SymbolHandle::invalid(),
+            member: member.clone(),
+            case_variant: None,
+        }));
+    }
+    result
 }

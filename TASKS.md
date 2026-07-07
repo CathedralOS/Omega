@@ -136,56 +136,6 @@ decreases remaining
 }
 ^ Fix fucking failed, fuck you. this is a machine creating a cycle. No fucking cycles. Retard. Removing the `self` keyword doesn't change fuck-all, read what I wrote you sack of shit.
 
-- **[ ] Struct-literal value-machine result with an INLINE BINARY field mis-sizes
-  the write (2026-07-10 root-cause of the "16-byte value-store fence").** The
-  Duration constructors are NATIVE now (promoted to `_canary_runs`, exit 70):
-  the blocker was not the call shape but the STRUCT LITERAL's field values --
-  `Duration { seconds: milliseconds / 1000, .. }` (a BINARY field expression)
-  selects ONE WriteRuntimeStorageBinary sized to the WHOLE 16-byte struct and
-  hits the loud store fence; the construct-from-LETS shape (every field a
-  local/param/literal) delivers 16-byte results fine, so std::time now binds
-  lets (the working idiom, backtrace-verified via encode_runtime_storage_
-  binary_write). FENCED 2026-07-10: the shape is
-  worse than the fence suggested -- a <=8-byte struct result was written WRONG
-  SILENTLY (probe: `Pair8 { a: n / 100, b: 7 }` delivered b == 0 natively,
-  interp right); only >=16-byte hit the loud fence. The frontend now rejects a
-  type-scoped constructor whose result literal computes ANY field inline
-  (binary/cast/etc.), teaching the construct-from-lets shape (fail canary
-  calls/constructor_computed_field_rejected; receiver-FUL value machines
-  deliver computed-field literals correctly and stay accepted). REMAINING
-  (engineering, de-fence) -- DIAGNOSIS SHARPENED 2026-07-10 (op-level, from the
-  pre-fence backend report of `self.p = Pair8::make(3500)` with
-  `Pair8 { a: n / 100, b: 7 }`): the per-field materialization is ALREADY
-  CORRECT AND EMITTED -- frame@0 = 3500 DivideUnsigned 100 (a), frame@4 = 7
-  (b), copy frame->machine@0 bytes 8 -- but a FOURTH op follows: `write
-  integer machine@0 bytes 8 value 7`, clobbering the pair with the LAST
-  field's static value as a WHOLE-STRUCT scalar write. So this is a
-  DOUBLE-LOWERING: the plain AssignmentValue mutation path emits again after
-  the inline value-call machinery (the keystone-era suppression guard
-  `state_call_is_dispatched` / the inline-append gate does not recognize the
-  RECEIVERLESS TYPE-SCOPED call shape). ROOT CAUSE FOUND (panic-traced,
-  2026-07-10 tick 3) -- it is a PLACE-RESOLUTION FALLBACK, not an alias: the
-  emitter chain is select_runtime_storage_write_for_operation ->
-  select_runtime_storage_resolved_mutation_write_in_table_with_scratch ->
-  scalar variant -> select_runtime_resolved_target_value_source_mutation_writes
-  (x3, the struct-literal decomposition recursing per FIELD) -> the
-  static-integer emitter. The decomposition DID run; field `b`'s member
-  target (`self.p.b`, built with member_symbol INVALID into a SCRATCH
-  expression table) failed member resolution and SILENTLY FELL BACK to the
-  ROOT place at ROOT size -- `write integer machine@0 bytes 8 value 7`
-  clobbers the pair the leaf cascade just delivered. Same shape works for
-  DIRECT construction (non-scratch table keeps name-resolvable members).
-  FIX (focused): in the member-target place resolution used by the
-  with_scratch mutation path, a Member that cannot resolve its FIELD must
-  return None (or resolve by name against the receiver's data layout), never
-  the root place -- the root fallback converts every unresolved field write
-  into a whole-struct clobber. Then drop the frontend fence
-  (calls.rs report_computed_field_constructor_result). NOTE: a gate on
-  struct-literal terminals in branches/mutation.rs
-  select_runtime_static_inline_branching_call_mutation_write_in_table was
-  tried and did NOT change behavior (that path is not the emitter here);
-  left un-landed.
-
 - **[ ] Interpreter unsigned-u64 arithmetic remainder (2026-07-07).** Comparisons now
   take an UNSIGNED witness from declared types (evaluator: Frame.unsigned64_locals +
   cast/self-field classification; found via std::time's wrapped-compare idiom breaking
