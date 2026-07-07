@@ -39,7 +39,11 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     // per-OS record layout the portable decode does not answer yet) keep the
     // clean "no native lowering" diagnostic.
     ("Filesystem", "open", "msvcrt.dll", "_open"),
-    ("Filesystem", "open_create", "msvcrt.dll", "_open"),
+    // NO `open_create` row: its FLAG WORDS carry darwin values, and darwin
+    // O_CREAT (0x200) is msvcrt O_TRUNC -- `create_new`/`open_with` would
+    // silently TRUNCATE the file they must refuse to touch. Fenced to the
+    // clean "no native lowering" error until the portable-flags design
+    // (TASKS_FS #6) gives the wrapper per-OS flag values.
     ("Filesystem", "creat", "msvcrt.dll", "_creat"),
     ("Filesystem", "read", "msvcrt.dll", "_read"),
     ("Filesystem", "write", "msvcrt.dll", "_write"),
@@ -260,13 +264,9 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             [host_operation("Filesystem", "open")],
             PlatformCallData::None,
         );
-        insert_platform_lowering(
-            plan,
-            "FilesystemHost",
-            "open_create",
-            [host_operation("Filesystem", "open_create")],
-            PlatformCallData::None,
-        );
+        // NO `open_create` lowering: darwin-valued flag words mean O_TRUNC to
+        // msvcrt (silent data loss through create_new/open_with) -- fenced to
+        // the clean error until the portable-flags design (TASKS_FS #6).
         insert_platform_lowering(
             plan,
             "FilesystemHost",

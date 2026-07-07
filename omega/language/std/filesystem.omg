@@ -304,6 +304,10 @@ data Filesystem {
     create_mode: i32;
     dir_mode: i32;
     read_flags: i32;
+    // Scratch for a by-value File param's fd: a host-call arg must be a
+    // simple storage place, and a param MEMBER (`file.fd`) is not one (a let
+    // folds back to the member) -- the field capture is (try_exists' idiom).
+    file_fd: i32;
     stat_buf: [u8; 144];
     // Scratch for the two `struct timespec` (atime then mtime) that `set_times`
     // builds and hands to `futimens`.
@@ -443,7 +447,8 @@ machine Filesystem::append(&mut self, path: &[u8] in Path) -> OpenResult {
 
 // Read up to `count` bytes into `buffer`; returns the number read (0 = EOF).
 machine Filesystem::read(&mut self, file: File, buffer: &mut [u8], count: usize) -> IoResult {
-    let n: i64 = self.host.read(file.fd, buffer, count);
+    self.file_fd = file.fd;
+    let n: i64 = self.host.read(self.file_fd, buffer, count);
     transition n >= 0 { true -> ok(n) _ -> err() }
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
@@ -451,7 +456,8 @@ machine Filesystem::read(&mut self, file: File, buffer: &mut [u8], count: usize)
 
 // Write `bytes`; returns the number written.
 machine Filesystem::write(&mut self, file: File, bytes: &[u8]) -> IoResult {
-    let n: i64 = self.host.write(file.fd, bytes);
+    self.file_fd = file.fd;
+    let n: i64 = self.host.write(self.file_fd, bytes);
     transition n >= 0 { true -> ok(n) _ -> err() }
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
@@ -461,7 +467,8 @@ machine Filesystem::write(&mut self, file: File, bytes: &[u8]) -> IoResult {
 // `FileExt::read_at`) — a positioned read, so concurrent readers each track their
 // own offset. Returns the number read (0 = EOF at/after `offset`).
 machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: usize, offset: i64) -> IoResult {
-    let n: i64 = self.host.read_at(file.fd, buffer, count, offset);
+    self.file_fd = file.fd;
+    let n: i64 = self.host.read_at(self.file_fd, buffer, count, offset);
     transition n >= 0 { true -> ok(n) _ -> err() }
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
@@ -470,15 +477,23 @@ machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: usi
 // Write `bytes` at absolute `offset` WITHOUT moving the cursor (Rust
 // `FileExt::write_at`) — a positioned write; a gap past end-of-file is zero-filled.
 machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult {
-    let n: i64 = self.host.write_at(file.fd, bytes, offset);
+    self.file_fd = file.fd;
+    let n: i64 = self.host.write_at(self.file_fd, bytes, offset);
     transition n >= 0 { true -> ok(n) _ -> err() }
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
 }
 
 // Close a file handle, returning the raw rc (0 on success).
+// The host call is bound to a `let` (never a bare TERMINAL expression): a
+// host call in terminal-value position does not lower natively -- the call is
+// silently dropped and the result slot reads ZII 0, which looks like SUCCESS
+// while the fd stays open (surfaced on Windows, where unlink refuses open
+// files; POSIX unlink masked the leak). Same discipline as write_all/read_all.
 machine Filesystem::close(&mut self, file: File) -> i32 {
-    self.host.close(file.fd)
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.close(self.file_fd);
+    rc
 }
 
 // Write an entire buffer to a path in one shot (Rust `std::fs::write`): create
@@ -887,7 +902,9 @@ machine Filesystem::mkall_step(&mut self, path: &[u8] in Path, i: usize) -> i32 
         }
     }
     state mkall_mk(&mut self, path: &[u8] in Path, i: usize) -> i32 {
-        self.host.create_dir(path[0..i], self.dir_mode)
+        // let-bound, never a bare terminal host call (see Filesystem::close).
+        let rc: i32 = self.host.create_dir(path[0..i], self.dir_mode);
+        rc
     }
     state mkall_noop(&mut self) -> i32 { 0 }
 }
@@ -1397,7 +1414,8 @@ machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u
 // Set an OPEN file's permission bits (Rust `File::set_permissions`), the fd-based
 // counterpart to `set_permissions`. Uses `fchmod`, so it needs no path.
 machine Filesystem::set_file_permissions(&mut self, file: File, perms: Permissions) -> UnitResult {
-    let rc: i32 = self.host.set_file_permissions(file.fd, perms.mode);
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.set_file_permissions(self.file_fd, perms.mode);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
@@ -1424,7 +1442,8 @@ machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in
 
 // Truncate or extend an open file to `length` bytes (Rust `File::set_len`).
 machine Filesystem::set_len(&mut self, file: File, length: i64) -> UnitResult {
-    let rc: i32 = self.host.set_len(file.fd, length);
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.set_len(self.file_fd, length);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
@@ -1452,7 +1471,8 @@ machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i6
     self.times_buf[21] = (modified >> 40) as u8 in Wrapping;
     self.times_buf[22] = (modified >> 48) as u8 in Wrapping;
     self.times_buf[23] = (modified >> 56) as u8 in Wrapping;
-    let rc: i32 = self.host.set_file_times(file.fd, &mut self.times_buf);
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.set_file_times(self.file_fd, &mut self.times_buf);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
@@ -1460,7 +1480,8 @@ machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i6
 
 // Flush all buffered data + metadata to durable storage (Rust `File::sync_all`).
 machine Filesystem::sync(&mut self, file: File) -> UnitResult {
-    let rc: i32 = self.host.sync(file.fd);
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.sync(self.file_fd);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
@@ -1470,7 +1491,8 @@ machine Filesystem::sync(&mut self, file: File) -> UnitResult {
 // `sync`/`sync_all` but may skip metadata the reader doesn't need. On darwin
 // there is no `fdatasync`, so this maps to `fsync` (as Rust's own std does).
 machine Filesystem::sync_data(&mut self, file: File) -> UnitResult {
-    let rc: i32 = self.host.sync_data(file.fd);
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.sync_data(self.file_fd);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
@@ -1480,7 +1502,8 @@ machine Filesystem::sync_data(&mut self, file: File) -> UnitResult {
 // the same underlying open file (natively via `dup`, sharing the file offset). On
 // `Ok` the caller gets a second independent `File` to close separately.
 machine Filesystem::try_clone(&mut self, file: File) -> OpenResult {
-    let fd: i32 = self.host.duplicate(file.fd);
+    self.file_fd = file.fd;
+    let fd: i32 = self.host.duplicate(self.file_fd);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
     state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
@@ -1495,7 +1518,8 @@ machine Filesystem::try_clone(&mut self, file: File) -> OpenResult {
 
 // Take an EXCLUSIVE lock, blocking until it is available (Rust `File::lock`).
 machine Filesystem::lock(&mut self, file: File) -> UnitResult {
-    let rc: i32 = self.host.lock_file(file.fd, 2); // LOCK_EX
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 2); // LOCK_EX
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
@@ -1503,7 +1527,8 @@ machine Filesystem::lock(&mut self, file: File) -> UnitResult {
 
 // Take a SHARED lock, blocking until available (Rust `File::lock_shared`).
 machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
-    let rc: i32 = self.host.lock_file(file.fd, 1); // LOCK_SH
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 1); // LOCK_SH
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
@@ -1513,7 +1538,8 @@ machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
 // `WouldBlock` (errno EWOULDBLOCK) means another holder has it — distinct from a
 // real `Error`, mirroring Rust's `Ok(false)` vs `Err`.
 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
-    let rc: i32 = self.host.lock_file(file.fd, 6); // LOCK_EX | LOCK_NB
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 6); // LOCK_EX | LOCK_NB
     transition rc == 0 { true -> acquired() _ -> contended() }
     state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
     state contended(&mut self) -> TryLockResult {
@@ -1526,7 +1552,8 @@ machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
 
 // Try to take a SHARED lock WITHOUT blocking (Rust `File::try_lock_shared`).
 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
-    let rc: i32 = self.host.lock_file(file.fd, 5); // LOCK_SH | LOCK_NB
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 5); // LOCK_SH | LOCK_NB
     transition rc == 0 { true -> acquired() _ -> contended() }
     state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
     state contended(&mut self) -> TryLockResult {
@@ -1539,7 +1566,8 @@ machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
 
 // Release any lock held on this file (Rust `File::unlock`).
 machine Filesystem::unlock(&mut self, file: File) -> UnitResult {
-    let rc: i32 = self.host.lock_file(file.fd, 8); // LOCK_UN
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.lock_file(self.file_fd, 8); // LOCK_UN
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
@@ -1568,7 +1596,8 @@ machine Filesystem::set_owner_no_follow(&mut self, path: &[u8] in Path, uid: i32
 
 // Change an open file's owner/group by descriptor (Rust `fchown`).
 machine Filesystem::set_file_owner(&mut self, file: File, uid: i32, gid: i32) -> UnitResult {
-    let rc: i32 = self.host.change_file_owner(file.fd, uid, gid);
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.change_file_owner(self.file_fd, uid, gid);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
@@ -1580,7 +1609,8 @@ machine Filesystem::set_file_owner(&mut self, file: File, uid: i32, gid: i32) ->
 // `metadata_path`; an open `File` follows to a regular file, so `is_symlink` is
 // false and `is_dir` comes from `st_mode`.
 machine Filesystem::metadata(&mut self, file: File) -> MetadataResult {
-    let rc: i32 = self.host.read_file_metadata(file.fd, &mut self.stat_buf);
+    self.file_fd = file.fd;
+    let rc: i32 = self.host.read_file_metadata(self.file_fd, &mut self.stat_buf);
     transition rc == 0 { true -> decode() _ -> err() }
     state decode(&mut self) -> MetadataResult {
         let len: i64 = (self.stat_buf[96] as i64)
