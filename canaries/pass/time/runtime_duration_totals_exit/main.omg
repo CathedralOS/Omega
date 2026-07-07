@@ -1,0 +1,61 @@
+// std::time checked_as_* totals, exact values on both engines:
+// {2, 600000000} totals 2_600_000_000 ns / 2_600_000 us / 2_600 ms;
+// Duration::MAX overflows (its seconds exceed every threshold).
+// Expected exit: 70.
+use omega::language::std::time;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    a: Duration;
+    total_result: TotalResult;
+}
+
+machine Main::main(&mut self) {
+    self.a = Duration { seconds: 2, subsecond_nanoseconds: 600000000 };
+    self.total_result = self.a.checked_as_nanoseconds();
+    transition self.total_result {
+        TotalResult::Ok { total } -> check_nanoseconds(total)
+        TotalResult::Overflow -> fail_nanoseconds_overflow()
+    }
+    state check_nanoseconds(&mut self, total: u64) {
+        transition total == 2600000000 { true -> do_microseconds() false -> fail_nanoseconds_value() }
+    }
+    state do_microseconds(&mut self) {
+        self.total_result = self.a.checked_as_microseconds();
+        transition self.total_result {
+            TotalResult::Ok { total } -> check_microseconds(total)
+            TotalResult::Overflow -> fail_microseconds_overflow()
+        }
+    }
+    state check_microseconds(&mut self, total: u64) {
+        transition total == 2600000 { true -> do_milliseconds() false -> fail_microseconds_value() }
+    }
+    state do_milliseconds(&mut self) {
+        self.total_result = self.a.checked_as_milliseconds();
+        transition self.total_result {
+            TotalResult::Ok { total } -> check_milliseconds(total)
+            TotalResult::Overflow -> fail_milliseconds_overflow()
+        }
+    }
+    state check_milliseconds(&mut self, total: u64) {
+        transition total == 2600 { true -> do_overflow() false -> fail_milliseconds_value() }
+    }
+    state do_overflow(&mut self) {
+        self.a = Duration::MAX;
+        self.total_result = self.a.checked_as_nanoseconds();
+        transition self.total_result {
+            TotalResult::Overflow -> good()
+            TotalResult::Ok { total } -> fail_overflow_arm(total)
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_nanoseconds_overflow(&mut self) { self.console.exit_process(1); }
+    state fail_nanoseconds_value(&mut self) { self.console.exit_process(2); }
+    state fail_microseconds_overflow(&mut self) { self.console.exit_process(3); }
+    state fail_microseconds_value(&mut self) { self.console.exit_process(4); }
+    state fail_milliseconds_overflow(&mut self) { self.console.exit_process(5); }
+    state fail_milliseconds_value(&mut self) { self.console.exit_process(6); }
+    state fail_overflow_arm(&mut self, total: u64) { self.console.exit_process(7); }
+}

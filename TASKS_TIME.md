@@ -493,9 +493,18 @@ boundary trait TimeHost {
    machinery. Interp-only canary
    `time/runtime_duration_constructors_exit` (NOT in ACTIVE_PASS_CANARIES —
    the native compile fences); promote when the 16-byte value store lands
-   (filed in TASKS.md). REMAINING rung-3 surface: remaining `from_*`
-   (microseconds/nanoseconds — same shapes); `checked_as_*` totals;
-   `checked_multiply` / `divide`.
+   (filed in TASKS.md). FIRE G (2026-07-07): `from_microseconds` /
+   `from_nanoseconds` + `subsecond_milliseconds`/`subsecond_microseconds` +
+   `checked_as_nanoseconds`/`_microseconds`/`_milliseconds` — all
+   differential-verified FIRST TRY natively (the recipes have matured;
+   NOTE the parallel thread's construct-from-LETS rule + ranged-let witness,
+   adopted). SURFACE DEVIATION: the totals return `TotalResult { Overflow,
+   Ok(total: u64) }` — one neutral payload name instead of the sketch's
+   `NanosecondsResult { Ok(nanoseconds) }`, which cannot be unit-accurate for
+   three units. `saturating_as_*` twins wait on u64-magnitude literals in
+   TERMINAL-return position (a D14 gate position + consumer, not yet blessed).
+   REMAINING rung-3 surface: `checked_multiply` / `divide` — then rung 4
+   (TimeHost seam + virtual interp clock) is next.
 4. [ ] **`TimeHost` seam + interpreter support** (`time_host.omg`, D12):
    virtual-clock interpreter implementations for the five value ops;
    interpreter canaries asserting EXACT values (monotonicity across a virtual
