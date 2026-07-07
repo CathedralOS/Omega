@@ -1,7 +1,8 @@
 use omega_core::diagnostics::Diagnostic;
 
 use super::super::primitives::{
-    append_unsigned_immediate, encode_add_page_offset_placeholder, encode_add_x_immediate,
+    append_add_x_constant, append_unsigned_immediate, encode_add_page_offset_placeholder,
+    encode_add_x_immediate,
     encode_adrp_placeholder, encode_branch_link_placeholder, encode_cbnz_x, encode_cbz_x,
     encode_compare_w_immediate, encode_conditional_branch_equal,
     encode_conditional_branch_not_equal, encode_load_byte_w_from_x, encode_move_x_register,
@@ -64,9 +65,11 @@ fn encode_runtime_text_line_read(
         )));
     }
     let encoded_capacity = match call {
-        RuntimeTextReadCall::Import => runtime_text_line_read_import_width(byte_capacity),
+        RuntimeTextReadCall::Import => {
+            runtime_text_line_read_import_width(byte_capacity, target_offset)
+        }
         RuntimeTextReadCall::Syscall { number, .. } => {
-            runtime_text_line_read_syscall_width(byte_capacity, number)
+            runtime_text_line_read_syscall_width(byte_capacity, number, target_offset)
         }
     };
     let mut bytes = Vec::with_capacity(encoded_capacity);
@@ -117,13 +120,27 @@ fn encode_runtime_text_line_read(
     bytes.extend(encode_store_byte_w_to_x(31, 21, 0)?);
     bytes.extend(encode_adrp_placeholder(16));
     bytes.extend(encode_add_page_offset_placeholder(16));
-    bytes.extend(encode_store_x_to_x(20, 16, target_offset)?);
-    bytes.extend(encode_store_x_to_x(22, 16, target_offset + 8)?);
+    // Store the String descriptor (ptr in x20, length in x22). Both slots go DIRECT when
+    // they fit the STR scaled immediate (8-aligned, /8 <= 4095, i.e. target_offset+8 <=
+    // 32760 -- offset in the immediate = free). For a String field after a big array the
+    // offset overflows that; materialize the base into x16 ONCE (scratch x9) then store at
+    // 0/8. The width side (`line_read_descriptor_store_extra`) tracks this in lockstep; the
+    // x16 adrp above is at a fixed position, so its relocation offset is unchanged.
+    if (target_offset + 8).is_multiple_of(8) && (target_offset + 8) / 8 <= 4095 {
+        bytes.extend(encode_store_x_to_x(20, 16, target_offset)?);
+        bytes.extend(encode_store_x_to_x(22, 16, target_offset + 8)?);
+    } else {
+        append_add_x_constant(&mut bytes, 16, 16, target_offset, 9)?;
+        bytes.extend(encode_store_x_to_x(20, 16, 0)?);
+        bytes.extend(encode_store_x_to_x(22, 16, 8)?);
+    }
 
     let expected_width = match call {
-        RuntimeTextReadCall::Import => runtime_text_line_read_import_width(byte_capacity),
+        RuntimeTextReadCall::Import => {
+            runtime_text_line_read_import_width(byte_capacity, target_offset)
+        }
         RuntimeTextReadCall::Syscall { number, .. } => {
-            runtime_text_line_read_syscall_width(byte_capacity, number)
+            runtime_text_line_read_syscall_width(byte_capacity, number, target_offset)
         }
     };
     debug_assert_eq!(bytes.len(), expected_width);
