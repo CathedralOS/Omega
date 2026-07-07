@@ -615,10 +615,43 @@ pub(crate) fn place_path(program: &TypedTrees, expression: ExpressionHandle) -> 
 
 /// Record an assignment's proven interval into the environment (decision 17 S4).
 /// A place whose path cannot be formed (a complex lvalue) just is not tracked.
-pub(crate) fn record_assignment(env: &mut ValueEnv, path: Option<String>, interval: Interval) {
+/// The interval is INTERSECTED with the place's declared `[a..=b]` range before
+/// recording: an env entry SHADOWS the declared-range fallback in the operand
+/// analysis, so recording an UNBOUNDED interval (an unresolvable initializer)
+/// onto a range-declared place would WIDEN its effective range -- the same
+/// landmine as the guard-seeding one (`let __hoist: i32 [0..=9] = cells[k].v`
+/// recorded unbounded and `__hoist + 5` "may overflow").
+pub(crate) fn record_assignment(
+    env: &mut ValueEnv,
+    path: Option<String>,
+    interval: Interval,
+    declared_range: Option<Interval>,
+) {
     if let Some(path) = path {
+        let interval = match declared_range {
+            Some(declared) => interval.intersect(declared),
+            None => interval,
+        };
         env.set(path, interval);
     }
+}
+
+/// The declared `[a..=b]` range of a place's type, ONLY when that range is
+/// store-enforced (EXACT arithmetic domain; atomics wrap by hardware): the
+/// interval an env entry may soundly be intersected with. A `in Wrapping`
+/// place can legitimately hold out-of-range values (its declared range is
+/// deliberately permissive at stores), so clamping its precise env fact
+/// against the range would fabricate an in-range claim -- return None there.
+pub(crate) fn enforced_declared_range(
+    program: &TypedTrees,
+    handle: TypeReferenceHandle,
+) -> Option<Interval> {
+    if is_atomic_type(program, handle)
+        || program.arithmetic_domain_for_type_reference(handle) != ArithmeticDomain::Exact
+    {
+        return None;
+    }
+    range_constraint_interval(program, handle)
 }
 
 /// An integer value range with optional (= unbounded) ends; all arithmetic is

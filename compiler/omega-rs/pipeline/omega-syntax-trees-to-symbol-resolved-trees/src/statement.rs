@@ -363,6 +363,22 @@ fn hoist_child(
         return hoist_into_temp(lowerer, child, hoisted);
     }
 
+    // A FIELD read of a runtime-indexed ELEMENT (`cells[k].v`) is the same
+    // operand shape one field deeper: unhoisted, it reaches state-values with
+    // no operand lowering and blocks ("needs runtime value lowering"). Hoist
+    // the WHOLE member chain -- the temp's materialization resolves the
+    // element field through the machine-indexed copy (field_byte_offset), the
+    // same path a transition argument uses. VALUE positions ONLY
+    // (`hoist_builtin_calls` marks the guard path): a guard's comparison
+    // subject is hoisted ONCE and SHARED across arms by
+    // `hoist_comparison_match_subject`, and a per-arm hoist here would split
+    // the subject into distinct temps, un-pairing the `true`/`false` arms
+    // (exhaustiveness then reports a fall-through on working guards).
+    if !hoist_builtin_calls && is_member_of_runtime_indexed_read(lowerer, child) {
+        rewrite_children(lowerer, child, hoisted, hoist_builtin_calls);
+        return hoist_into_temp(lowerer, child, hoisted);
+    }
+
     // In guard position, a pure-builtin call subject (`min(self.a, self.b)`) is
     // hoisted whole into a temp so the guard compares a materialized local. The
     // builtins are effect-free, so this never changes an effectful evaluation
@@ -422,6 +438,48 @@ fn is_hoistable_builtin_guard_call(lowerer: &Lowerer, expression: ExpressionHand
 /// integer -- the RUNTIME-indexed case that needs operand hoisting. A
 /// constant-index read (`arr[0]`) lowers as a plain place path and is left
 /// alone (so existing whole-value copies / borrows are untouched).
+/// Whether `expression` is a MEMBER chain whose receiver bottoms out at a
+/// runtime-indexed read of a MACHINE-owned collection (`self.cells[k].v`).
+/// Restricted to `self.<field>` collections because the hoist temp's type is
+/// inferred from the machine's attached data (`infer_hoist_temp_type`); a
+/// LOCAL array's element field would mint an untypeable Unit temp AND break
+/// the local-array RMW write path that pattern-matches the unhoisted read.
+fn is_member_of_runtime_indexed_read(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
+    let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
+    let ExpressionNode::Member(member) = expressions.expression(expression) else {
+        return false;
+    };
+    let mut receiver = member.receiver;
+    loop {
+        match expressions.expression(receiver) {
+            ExpressionNode::Member(inner) => receiver = inner.receiver,
+            _ => break,
+        }
+    }
+    if !is_runtime_indexed_read(lowerer, receiver) {
+        return false;
+    }
+    let ExpressionNode::Indexed(indexed) = expressions.expression(receiver) else {
+        return false;
+    };
+    // The collection must be a `self.<field>` place (typeable from attached data).
+    match expressions.expression(indexed.collection) {
+        ExpressionNode::Member(collection_member) => matches!(
+            expressions.expression(collection_member.receiver),
+            ExpressionNode::Name(path)
+                if expressions
+                    .name_path_members(path.members)
+                    .first()
+                    .is_some_and(|name| name.as_str() == "self")
+        ),
+        ExpressionNode::Name(path) => {
+            let members = expressions.name_path_members(path.members);
+            members.len() == 2 && members[0].as_str() == "self"
+        }
+        _ => false,
+    }
+}
+
 fn is_runtime_indexed_read(lowerer: &Lowerer, expression: ExpressionHandle) -> bool {
     let expressions = &lowerer.symbol_resolved_trees.tables.bodies.expressions;
     let ExpressionNode::Indexed(indexed) = expressions.expression(expression) else {

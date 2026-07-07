@@ -1,0 +1,32 @@
+// An array-of-structs element FIELD as a BINARY OPERAND:
+// `self.x = self.cells[self.k].v + 5` (runtime k). Three pieces compose:
+// - the operand hoist now hoists MEMBER-over-indexed reads (`cells[k].v`)
+//   whole, and the temp is typed from the element's FIELD (range intact);
+// - the temp materializes via the machine-indexed copy (field offset);
+// - the env records the temp intersected with its ENFORCED declared range
+//   (an unresolvable initializer used to record unbounded, shadowing the
+//   range -- while a Wrapping place's true fact stays unclamped).
+// cells[2].v=9 (range [0..=9]) -> 9+5=14 into x: [0..=14] -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Cell {
+    v: i32 [0..=9];
+}
+data Main {
+    console: Console;
+    cells: [Cell; 4];
+    k: usize [0..=3];
+    x: i32 [0..=14];
+}
+machine Main::main(&mut self) {
+    self.cells[2].v = 9;
+    self.k = 2;
+    self.x = self.cells[self.k].v + 5;
+    transition self.x == 14 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

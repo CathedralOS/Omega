@@ -83,6 +83,31 @@ pub(super) fn infer_hoist_temp_type(
         return Ok(None);
     }
 
+    // A FIELD read of a runtime-indexed ELEMENT (`cells[k].v`, hoisted whole):
+    // the temp's type is the FIELD's declared type on the element's Named data
+    // type. (Single-level member only -- deeper chains keep Unit and fall back
+    // to the pre-existing behavior.)
+    if let ExpressionNode::Member(member) = expressions.expression(initial_value)
+        && let ExpressionNode::Indexed(inner) = expressions.expression(member.receiver)
+    {
+        let member_name = member.member.as_str().to_string();
+        let inner_collection = inner.collection;
+        if let Some(collection_type) =
+            collection_type_reference(lowerer, attached_data, state, inner_collection)
+            && let Some((element_type, _)) =
+                element_type_of(lowerer.source_trees, &collection_type)
+            && let TypeReference::Named { name, .. } = &element_type
+        {
+            let data_name = name.clone();
+            if let Some(field_type) =
+                attached_field_type(lowerer.source_trees, &data_name, &member_name)
+            {
+                return Ok(Some(lower_type_reference_into_table(lowerer, &field_type)?));
+            }
+        }
+        return Ok(None);
+    }
+
     let ExpressionNode::Indexed(indexed) = expressions.expression(initial_value) else {
         return Ok(None);
     };
