@@ -211,6 +211,12 @@ fn trap<T>(message: impl Into<String>) -> EvalResult<T> {
 /// shared by `&` during statement execution.
 struct Frame {
     locals: RefCell<BTreeMap<String, Cell>>,
+    /// Names of locals/params DECLARED u64-classed (`u64`/`usize`/`addr`),
+    /// recorded at binding: the static witness that a comparison touching
+    /// them is UNSIGNED at width 8 (native emits `LessUnsigned` etc. from the
+    /// same declared types; `Value::Int` alone cannot distinguish u64::MAX
+    /// from -1).
+    unsigned64_locals: RefCell<std::collections::BTreeSet<String>>,
     self_cell: Cell,
     /// The machine whose state is currently executing. Lets a call/transition that names a
     /// SIBLING state resolve it within this machine (rather than re-entering the machine's
@@ -577,6 +583,7 @@ impl<'program> Evaluator<'program> {
                     locals: RefCell::new(BTreeMap::new()),
                     self_cell: Value::Unit.cell(),
                     machine_symbol: SymbolHandle::invalid(),
+                    unsigned64_locals: RefCell::new(std::collections::BTreeSet::new()),
                     guard_call_results: RefCell::new(Vec::new()),
                 };
                 self.eval_expression(owned.initial_value, &frame)?
@@ -612,6 +619,7 @@ impl<'program> Evaluator<'program> {
                     locals: RefCell::new(BTreeMap::new()),
                     self_cell: Value::Unit.cell(),
                     machine_symbol: SymbolHandle::invalid(),
+                    unsigned64_locals: RefCell::new(std::collections::BTreeSet::new()),
                     guard_call_results: RefCell::new(Vec::new()),
                 };
                 self.eval_expression(field.initial_value, &frame)?
@@ -932,6 +940,7 @@ impl<'program> Evaluator<'program> {
         machine_symbol: SymbolHandle,
         carried: &BTreeMap<String, Cell>,
     ) -> EvalResult<Frame> {
+        let mut unsigned64_locals = std::collections::BTreeSet::new();
         let mut locals = carried.clone();
         let mut arg_index = 0;
         for parameter in self.program.state_parameters(state) {
@@ -971,6 +980,12 @@ impl<'program> Evaluator<'program> {
                 }
                 None => cell,
             };
+            if primitive_is_unsigned64(
+                self.program
+                    .primitive_type_reference(parameter.type_reference),
+            ) {
+                unsigned64_locals.insert(parameter.name.as_str().to_owned());
+            }
             locals.insert(parameter.name.as_str().to_owned(), cell);
             arg_index += 1;
         }
@@ -978,6 +993,7 @@ impl<'program> Evaluator<'program> {
             locals: RefCell::new(locals),
             self_cell,
             machine_symbol,
+            unsigned64_locals: RefCell::new(unsigned64_locals),
             guard_call_results: RefCell::new(Vec::new()),
         })
     }
@@ -1094,6 +1110,14 @@ impl<'program> Evaluator<'program> {
                 let value = self.coerce_scalar_value(value, local.type_reference)?;
                 // A `let` introduces a fresh local cell, bound through the frame's
                 // interior-mutable locals map.
+                if primitive_is_unsigned64(
+                    self.program.primitive_type_reference(local.type_reference),
+                ) {
+                    frame
+                        .unsigned64_locals
+                        .borrow_mut()
+                        .insert(local.name.as_str().to_owned());
+                }
                 frame.bind(local.name.as_str(), value.cell());
                 Ok(())
             }
@@ -3590,7 +3614,15 @@ impl<'program> Evaluator<'program> {
                         .ok_or_else(|| Halt::Trap("logical operand not boolean".to_owned()));
                 }
                 let right = self.eval_expression(binary.right, frame)?;
-                self.eval_binary(binary.operator, left, right)
+                let unsigned_compare = matches!(
+                    binary.operator,
+                    BinaryOperator::Less
+                        | BinaryOperator::LessOrEqual
+                        | BinaryOperator::Greater
+                        | BinaryOperator::GreaterOrEqual
+                ) && (self.expression_is_unsigned64(binary.left, frame)
+                    || self.expression_is_unsigned64(binary.right, frame));
+                self.eval_binary(binary.operator, left, right, unsigned_compare)
             }
             ExpressionNode::Call(call) => self.eval_call_expression(handle, &call, frame),
             ExpressionNode::Cast(cast) => {
@@ -4611,11 +4643,99 @@ impl<'program> Evaluator<'program> {
         }
     }
 
+    /// Best-effort STATIC witness that an expression is u64-classed
+    /// (`u64`/`usize`/`addr`), used to give width-8 comparisons UNSIGNED
+    /// semantics (matching the native signedness-adjusted compares). FALSE on
+    /// any doubt: a false negative keeps the signed compare (today's
+    /// behavior); only DECLARED types answer true, so signed compares can
+    /// never be corrupted.
+    fn expression_is_unsigned64(
+        &self,
+        expression: omega_checked_trees::expression::ExpressionHandle,
+        frame: &Frame,
+    ) -> bool {
+        match self.program.expression_table.expression(expression) {
+            ExpressionNode::Cast(cast) => {
+                primitive_is_unsigned64(self.cast_target_primitive(cast.target_type))
+            }
+            ExpressionNode::Mutable(inner) => self.expression_is_unsigned64(*inner, frame),
+            // Mixed signedness classes are checker-rejected, so one witness
+            // types the whole arithmetic expression.
+            ExpressionNode::Binary(binary) => {
+                self.expression_is_unsigned64(binary.left, frame)
+                    || self.expression_is_unsigned64(binary.right, frame)
+            }
+            ExpressionNode::Name(path) => {
+                let members = self.program.expression_table.name_path_members(path.members);
+                // `self.field` spelled as a two-member path.
+                if members.len() == 2 && members[0].as_str() == "self" {
+                    return self.attached_field_is_unsigned64(frame, members[1].as_str());
+                }
+                members.len() == 1
+                    && members[0].as_str() != "self"
+                    && frame
+                        .unsigned64_locals
+                        .borrow()
+                        .contains(members[0].as_str())
+            }
+            // `self.field` spelled as a Member node.
+            ExpressionNode::Member(member) => {
+                let receiver_is_self = match self.program.expression_table.expression(member.receiver)
+                {
+                    ExpressionNode::Name(path) => {
+                        let members =
+                            self.program.expression_table.name_path_members(path.members);
+                        members.len() == 1 && members[0].as_str() == "self"
+                    }
+                    _ => false,
+                };
+                if !receiver_is_self {
+                    return false;
+                }
+                self.attached_field_is_unsigned64(frame, member.member.as_str())
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether the executing machine's attached-data field is u64-classed.
+    fn attached_field_is_unsigned64(&self, frame: &Frame, field_name: &str) -> bool {
+        let Some(machine) = self
+            .program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == frame.machine_symbol)
+        else {
+            return false;
+        };
+        let Some(data_name) = machine.attached_data.as_ref() else {
+            return false;
+        };
+        let Some(data) = self.find_data_by_name(data_name.as_str()) else {
+            return false;
+        };
+        self.program
+            .data_members(data)
+            .iter()
+            .find_map(|candidate| match candidate {
+                omega_checked_trees::data::DataMember::Field(field)
+                    if field.name.as_str() == field_name =>
+                {
+                    Some(primitive_is_unsigned64(
+                        self.program.primitive_type_reference(field.type_reference),
+                    ))
+                }
+                _ => None,
+            })
+            .unwrap_or(false)
+    }
+
     fn eval_binary(
         &self,
         operator: BinaryOperator,
         left: Value,
         right: Value,
+        unsigned_compare: bool,
     ) -> EvalResult<Value> {
         use BinaryOperator::*;
 
@@ -4668,10 +4788,16 @@ impl<'program> Evaluator<'program> {
         // traps on `Enum - Enum`.
         let l = self.arithmetic_operand_int(&left)?;
         let r = self.arithmetic_operand_int(&right)?;
-        self.eval_int_binary(operator, l, r)
+        self.eval_int_binary(operator, l, r, unsigned_compare)
     }
 
-    fn eval_int_binary(&self, operator: BinaryOperator, l: i64, r: i64) -> EvalResult<Value> {
+    fn eval_int_binary(
+        &self,
+        operator: BinaryOperator,
+        l: i64,
+        r: i64,
+        unsigned_compare: bool,
+    ) -> EvalResult<Value> {
         use BinaryOperator::*;
         Ok(match operator {
             Add => Value::Int(l.wrapping_add(r)),
@@ -4694,6 +4820,10 @@ impl<'program> Evaluator<'program> {
             BitwiseAnd => Value::Int(l & r),
             BitwiseOr => Value::Int(l | r),
             BitwiseXor => Value::Int(l ^ r),
+            Less if unsigned_compare => Value::Bool((l as u64) < (r as u64)),
+            LessOrEqual if unsigned_compare => Value::Bool((l as u64) <= (r as u64)),
+            Greater if unsigned_compare => Value::Bool((l as u64) > (r as u64)),
+            GreaterOrEqual if unsigned_compare => Value::Bool((l as u64) >= (r as u64)),
             Less => Value::Bool(l < r),
             LessOrEqual => Value::Bool(l <= r),
             Greater => Value::Bool(l > r),
@@ -5088,6 +5218,13 @@ enum TransitionDecision {
 
 // `Frame::locals` needs interior mutability so `let` bindings can be added while the
 // frame is shared by `&`. Wrap the map in a RefCell.
+fn primitive_is_unsigned64(primitive: Option<PrimitiveType>) -> bool {
+    matches!(
+        primitive,
+        Some(PrimitiveType::U64 | PrimitiveType::Usize | PrimitiveType::Addr)
+    )
+}
+
 impl Frame {
     fn get(&self, name: &str) -> Option<Cell> {
         self.locals_ref().borrow().get(name).cloned()

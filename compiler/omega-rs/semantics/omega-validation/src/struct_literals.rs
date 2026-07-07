@@ -578,8 +578,9 @@ pub(crate) fn validate_array_literal_elements(
 }
 
 /// The declared type of a constructed field: a case literal's PAYLOAD field (for
-/// the named variant) or a record/common struct field.
-fn construction_field_type(
+/// the named variant) or a record/common struct field. (Also consumed by the
+/// literal-width gate in crate::literals.)
+pub(crate) fn construction_field_type(
     program: &TypedTrees,
     data_definition: &DataDefinition,
     case_name: Option<&str>,

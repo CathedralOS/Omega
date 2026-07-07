@@ -96,6 +96,12 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 
 ## Open latent bugs / fenced gaps
 
+- **[ ] Interpreter unsigned-u64 arithmetic remainder (2026-07-07).** Comparisons now
+  take an UNSIGNED witness from declared types (evaluator: Frame.unsigned64_locals +
+  cast/self-field classification; found via std::time's wrapped-compare idiom breaking
+  at u64::MAX interp-only). STILL SIGNED for msb-set u64: divide/modulo/shift-right and
+  min/max (`eval_int_binary`/`eval_min_max` — need the same witness threaded).
+
 - **[ ] Same-type receiver aliasing: VALUE-CALL flavor confirmed (2026-07-07, std::time
   authoring; repro canaries/pending/time/value_machine_receiver_field_postentry).** A
   pure-value method receiver (`self.sum.checked_subtract(...)` with several

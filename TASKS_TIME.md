@@ -472,11 +472,21 @@ boundary trait TimeHost {
    by the parallel write cascade — Exact-casts belong in entry lets);
    entry-only field reads + params-only post-entry states; operand-tagged
    Wrapping lets; inline `%`-bounded ranged stores. backend_report renders
-   convert widths in BYTES (`as i8->i8` = 8-byte identity). REMAINING:
-   `from_*` unit constructors (receiverless type-scoped value calls — verify
-   resolution); `checked_as_*` totals; `MAX` + `saturating_add` /
-   `checked_multiply` / `divide` (MAX needs the D14 struct-literal-field
-   position); the `subsecond_nanoseconds` construction FAIL canary.
+   convert widths in BYTES (`as i8->i8` = 8-byte identity).
+   FIRE E (2026-07-07): `Duration::MAX` (true u64::MAX seconds — D14 fire D
+   blessed u64-classed STRUCT-LITERAL FIELDS and bits-enabled the
+   leaf/mutation static-integer readers for terminal payload writes) +
+   `saturating_add` (clamps at MAX) + the construction FAIL canary
+   (`time/duration_subsecond_range_rejected`), all differential-verified.
+   ALSO FIXED: the interpreter compared u64 operands SIGNED (the
+   wrapped-compare idiom broke at u64::MAX, interp only) — comparisons now
+   take an UNSIGNED witness from declared types (Frame-recorded u64-classed
+   locals/params, cast targets, self-fields; positive-witness-only, so signed
+   compares cannot regress). REMAINING interp face (filed in TASKS.md):
+   unsigned div/mod/shift-right and min/max on msb-set u64. REMAINING rung-3
+   surface: `from_*` unit constructors (receiverless type-scoped value calls
+   — verify resolution); `checked_as_*` totals; `checked_multiply` /
+   `divide`.
 4. [ ] **`TimeHost` seam + interpreter support** (`time_host.omg`, D12):
    virtual-clock interpreter implementations for the five value ops;
    interpreter canaries asserting EXACT values (monotonicity across a virtual

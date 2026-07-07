@@ -13,9 +13,8 @@
 // - `checked_subtract` reports underflow through the same `Overflow` case
 //   (one result vocabulary; the direction is unambiguous from the operation).
 // - Construction is by struct literal today (`Duration { seconds: 2,
-//   subsecond_nanoseconds: 0 }`); `from_*` unit constructors and the
-//   `MAX`/saturating_add ceiling arrive with the next D14 gate position
-//   (u64-magnitude literals in struct-literal fields).
+//   subsecond_nanoseconds: 0 }`); `from_*` unit constructors are pending
+//   receiverless type-scoped value-call resolution.
 //
 // Authoring shape (the de-Trapping house recipes):
 // - Overflow/underflow DETECTION is explicit guards; the arithmetic itself
@@ -44,6 +43,9 @@ data DurationResult [copy, zero_init] {
 }
 
 const Duration::ZERO: Duration = Duration { seconds: 0, subsecond_nanoseconds: 0 };
+// u64::MAX seconds: spellable since D14 fire D blessed u64-classed
+// struct-literal fields for u64-magnitude literals.
+const Duration::MAX: Duration = Duration { seconds: 18446744073709551615, subsecond_nanoseconds: 999999999 };
 
 // Whole seconds, truncating the subsecond part (Rust `as_secs`).
 machine Duration::as_seconds(&self) -> u64 {
@@ -167,6 +169,17 @@ machine Duration::checked_subtract(&self, other: Duration) -> DurationResult {
     state subtract_underflow(&self) -> DurationResult {
         DurationResult::Overflow
     }
+}
+
+// self + other, clamping at MAX instead of reporting overflow (total).
+machine Duration::saturating_add(&self, other: Duration) -> Duration {
+    let sum: DurationResult = self.checked_add(other);
+    transition sum {
+        DurationResult::Ok { duration } -> saturate_add_value(duration)
+        DurationResult::Overflow -> saturate_add_max()
+    }
+    state saturate_add_value(&self, duration: Duration) -> Duration { duration }
+    state saturate_add_max(&self) -> Duration { Duration::MAX }
 }
 
 // self - other, clamping at ZERO instead of reporting underflow (total, the

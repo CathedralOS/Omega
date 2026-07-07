@@ -11,7 +11,11 @@
 //! - **Accepted (fire C):** the direct RHS of an assignment whose target's
 //!   declared primitive is u64-classed (`u64`/`usize`/`addr`) -- an 8-byte
 //!   slot, so the two's-complement bit pattern the write path emits is the
-//!   value. (The interval side already agrees: an oversize-positive literal's
+//!   value.
+//! - **Accepted (fire D):** a struct-literal FIELD value whose declared field
+//!   type is u64-classed (`Duration { seconds: 18446744073709551615, ... }`)
+//!   -- same 8-byte-slot argument; the construction write cascade reads
+//!   literals through the same bits-capable resolvers. (The interval side already agrees: an oversize-positive literal's
 //!   honest over-approximation `[i64::MAX, +inf)` fits only u64-classed
 //!   target ranges. The gate must stay PRECISE regardless -- a `u32 in
 //!   Wrapping` target bypasses the interval store-check entirely, and only
@@ -46,10 +50,56 @@ pub(crate) fn validate_literal_widths(program: &TypedTrees, diagnostics: &mut Ve
 }
 
 /// The u64-magnitude literals sitting in an ACCEPTED position: the direct RHS
-/// of an assignment to a u64-classed place.
+/// of an assignment to a u64-classed place, or a struct-literal field whose
+/// declared field type is u64-classed.
 fn u64_blessed_literals(program: &TypedTrees) -> Vec<ExpressionHandle> {
     // A handful of entries at most -- a Vec beats hashing arena handles.
     let mut blessed = Vec::new();
+
+    // Struct-literal fields (position-independent: wherever the literal is
+    // constructed, the field slot's declared type is what matters).
+    for (_, node) in program.expression_table.expression_entries() {
+        let ExpressionNode::StructLiteral(literal) = node else {
+            continue;
+        };
+        let Some(data_definition) = program
+            .data_definitions()
+            .iter()
+            .find(|definition| definition.name.as_str() == literal.type_name.as_str())
+        else {
+            continue;
+        };
+        for field in program.expression_table.struct_fields(literal.fields) {
+            let ExpressionNode::Integer(value) = program.expression_table.expression(field.value)
+            else {
+                continue;
+            };
+            if value.value_i64().is_some() || value.value_u64().is_none() {
+                continue;
+            }
+            let Some(field_type) = crate::struct_literals::construction_field_type(
+                program,
+                data_definition,
+                literal.case_name.as_ref().map(|name| name.as_str()),
+                field.name.as_str(),
+            ) else {
+                continue;
+            };
+            let Some(unwrapped) = crate::places::unwrapped_type_reference(program, field_type)
+            else {
+                continue;
+            };
+            let Some(primitive) = program.primitive_type_reference(unwrapped) else {
+                continue;
+            };
+            if matches!(
+                primitive,
+                PrimitiveType::U64 | PrimitiveType::Usize | PrimitiveType::Addr
+            ) {
+                blessed.push(field.value);
+            }
+        }
+    }
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {

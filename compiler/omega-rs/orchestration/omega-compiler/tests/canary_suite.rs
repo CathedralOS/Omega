@@ -23007,6 +23007,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "time/duration_subsecond_range_rejected",
     "constants/const_non_literal_initializer",
     "constants/const_free_floating_rejected",
     "constants/const_shadows_case",
