@@ -92,6 +92,28 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
      backend (may be a small checker gap to close). SMALLEST CANARY: `sqrt(16.0) ==
      4.0` (or `pow`) — disassemble (`otool -tv`: `ldr d0,…; bl _sqrt; fmov x,d0; str`)
      + RUN.
+   - **FIRE 2 (2026-07-12) — NO CHECKER GAP; pure backend.** Compiled a probe
+     `boundary trait Libm { machine square_root(value: f64) -> f64; }` +
+     `self.root = self.lib.square_root(16.0); transition self.root == 4.0 {..}`
+     (probe committed at `canaries/run/float/sqrt_probe/main.omg`). It gets PAST the
+     checker (the `root == 4.0` f64 proof obligation even passes) — the only errors
+     are lowering: (a) "host lowering: `Libm.square_root`: no native lowering for
+     target Aarch64/MachO", (b) "`self.root = square_root(16)` needs runtime storage
+     write lowering", (c) "AssignmentValue ... needs runtime value lowering". So f64
+     boundary params/returns are ACCEPTED; the whole job is the backend vertical.
+   - **TWO operand enums to extend** (both currently int/ptr only, NO float; neither
+     has a stack/float variant): shared `representations/omega-abstract-operations/
+     src/instruction/operand.rs::InstructionOperandKind` and per-arch
+     `backend/instruction_set_architectures/omega-isa-aarch64/src/operand.rs::
+     Aarch64CallOperand`. Add `RuntimeScalarFloat { region?, byte_offset, byte_count }`
+     to both + the map between them. THEN: darwin binding row for the libm symbol; the
+     host-op operand builder (route an f64 param/return to the float operand);
+     `append_call_operands` float-arg arm (load bits → GPR → `encode_float_move_from_
+     gpr` into next V-reg, `next_vreg` tracked separately); float-return store (v0 →
+     `encode_float_move_to_gpr` → store) gated on a `returns_float()` predicate;
+     `widths.rs` operand_width for the float operand. Adding an enum variant breaks all
+     exhaustive matches (x86_64 encoder/width/data_addresses) — handle each (x86_64
+     untested → a "not yet" arm is fine). Land it as ONE focused vertical, build green.
 2. **[ ] HFA struct-by-value args** — pass `NSRect` (4 doubles) / `CGSize` (2) in
    v-regs. Canary: `NSMakeRect(...)` round-trip or `[NSWindow ... initWithContentRect:
    styleMask:backing:defer:]` produces a non-nil window.

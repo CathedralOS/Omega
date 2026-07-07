@@ -1,0 +1,26 @@
+// PROBE (render fire 2) — does an f64 boundary-method param + return type-check,
+// and what is the exact BACKEND gap for a float host call? Expected: compiles past
+// the checker (f64 in a boundary trait is fine), then fails in lowering with a
+// "float host-call operand/return not supported" style error that pins the work.
+// sqrt(16.0) == 4.0 -> exit 4; else exit 1.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+boundary trait Libm {
+    machine square_root(value: f64) -> f64;
+}
+
+data Main {
+    console: Console;
+    lib: Libm;
+    root: f64;
+}
+
+machine Main::main(&mut self) {
+    self.root = self.lib.square_root(16.0);
+    transition self.root == 4.0 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(4); }
+    state bad(&mut self)  { self.console.exit_process(1); }
+}
