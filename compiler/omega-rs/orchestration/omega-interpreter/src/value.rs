@@ -40,7 +40,15 @@ pub enum Value {
     /// references (`Command::Quit`, including those used as tag-compare operands)
     /// have an empty payload. Equality between enum values compares the TAG only,
     /// matching the native backend's constant tag compare.
+    ///
+    /// `type_symbol` names the DECLARING data type so tag-ORDINAL resolution
+    /// (the value-position `match` desugar's tag arithmetic) is type-local --
+    /// same-name variants at different ordinals across enums must not
+    /// cross-resolve. INVALID when the provenance cannot name a type (the
+    /// build-time value boundary); resolution then falls back to the
+    /// name-global scan.
     Enum {
+        type_symbol: SymbolHandle,
         variant_name: String,
         payload: Vec<(String, Cell)>,
     },
@@ -114,9 +122,11 @@ impl Value {
                     .collect(),
             },
             Value::Enum {
+                type_symbol,
                 variant_name,
                 payload,
             } => Value::Enum {
+                type_symbol: *type_symbol,
                 variant_name: variant_name.clone(),
                 payload: payload
                     .iter()

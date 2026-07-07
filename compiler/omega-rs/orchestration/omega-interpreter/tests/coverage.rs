@@ -12,8 +12,9 @@
 //!   equality) interpret end-to-end; the native backend gates construction after checked
 //!   trees, so this coverage is interpreter-only until payload codegen lands. A
 //!   parenthesized construction `E::A(5)` is NOT the construction spelling (braces are);
-//!   it still parses as a call expression that resolves to nothing, and the interpreter
-//!   declines it rather than guessing a value.
+//!   it parses as a call expression that resolves to nothing, and the unresolved-
+//!   value-call gate now REJECTS it at compile (previously the interpreter declined it
+//!   at runtime).
 //! - Multi-impl `dyn Trait` dispatch DOES reach checked trees. The interpreter dispatches
 //!   by the receiver's runtime type and is AHEAD of the native backend here (the backend
 //!   only devirtualizes single-impl traits; as of this writing it emits a crashing binary
@@ -297,12 +298,15 @@ machine Main::main(&mut self) {
     );
 }
 
-/// `Token::Number(5)` against a payload-LESS case parses as a call expression and reaches
-/// checked trees, but resolves to no machine/state. The interpreter must DECLINE (skip)
-/// rather than invent a value -- skip-don't-lie.
+/// `Token::Number(5)` against a payload-LESS case parses as a call expression that
+/// resolves to no machine/state -- and since the unresolved-value-call gate landed
+/// (the silent ZII-0 binding is a COMPILE ERROR now), the frontend rejects it
+/// outright. Pinned here so the interpreter's skip-don't-lie fallback stays
+/// unreachable for this shape; if this ever compiles again, the interpreter must
+/// DECLINE rather than invent a value.
 #[test]
-fn paren_variant_construction_is_declined_not_guessed() {
-    let main_path = write_program(
+fn paren_variant_construction_is_frontend_rejected() {
+    frontend_rejects(
         "case-paren-construct",
         r#"
 boundary trait Console {
@@ -323,14 +327,6 @@ machine Main::main(&mut self) {
     self.console.exit_process(0);
 }
 "#,
-    );
-    let checked = compile_to_checked(&main_path, None)
-        .expect("paren variant construction parses (as a call)");
-    let outcome = interpret(&checked, b"");
-    assert!(
-        outcome.is_error(),
-        "expected the interpreter to decline the unresolvable variant-call, got exit {}",
-        outcome.exit_code
     );
 }
 
@@ -3975,5 +3971,63 @@ machine Main::main(&mut self) {
     assert_eq!(
         outcome.exit_code, 70,
         "try_exists (stat-based): Yes for present, No for missing, Yes for a chmod-0 (unreadable) file"
+    );
+}
+
+// ---- value-position match: type-local tag arithmetic --------------------------
+
+/// Same-name variants at DIFFERENT ordinals across two enums resolve
+/// TYPE-LOCALLY in the value-position `match` desugar's tag arithmetic: `Ok`
+/// is ordinal 0 in `Decoy` but 1 in `Verdict`, so a name-global variant scan
+/// (first declaration wins) would compute `Verdict::Ok` as 0 and dispatch the
+/// wrong arm. The desugar produces `Bad + (pick == 1) * (Ok - Bad)` whose Int
+/// result flows back into the enum-typed field and is compared against
+/// `Verdict::Ok` by ordinal (`values_equal`'s Int/Enum arm) -- both steps must
+/// resolve within the value's declaring type (`Value::Enum::type_symbol`).
+#[test]
+fn match_terminal_tag_arithmetic_resolves_type_locally() {
+    let main_path = write_program(
+        "match-tag-type-local",
+        r#"
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+// Declared FIRST so a name-global variant scan would find ITS `Ok` (ordinal 0).
+data Decoy {
+    case Ok;
+    case Trouble;
+}
+
+data Verdict {
+    case Bad;
+    case Ok;
+}
+
+data Main {
+    console: Console;
+    pick: i32;
+    verdict: Verdict;
+}
+
+machine Main::main(&mut self) {
+    self.pick = 1;
+    self.verdict = match self.pick {
+        1 -> Verdict::Ok,
+        _ -> Verdict::Bad
+    };
+    transition self.verdict { Verdict::Ok -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+"#,
+    );
+    let checked = compile_to_checked(&main_path, None)
+        .unwrap_or_else(|d| panic!("type-local tag program should reach checked trees: {d:?}"));
+    let outcome = interpret(&checked, b"");
+    assert!(!outcome.is_error(), "type-local tag: {:?}", outcome.error);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "Verdict::Ok (ordinal 1) must not resolve through Decoy::Ok (ordinal 0)"
     );
 }

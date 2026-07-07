@@ -61,6 +61,10 @@ impl BuildTimeValue {
                 }
             }
             BuildTimeValue::Case { variant, payload } => Value::Enum {
+                // The build-time boundary carries no type identity (same as
+                // the Struct arm above); tag-ordinal resolution falls back to
+                // the name-global scan for these values.
+                type_symbol: omega_core::symbols::SymbolHandle::invalid(),
                 variant_name: variant,
                 payload: payload
                     .into_iter()
@@ -97,6 +101,7 @@ impl BuildTimeValue {
             Value::Enum {
                 variant_name,
                 payload,
+                ..
             } => BuildTimeValue::Case {
                 variant: variant_name.clone(),
                 payload: payload

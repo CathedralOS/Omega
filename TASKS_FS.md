@@ -114,13 +114,15 @@ tag INT against a case by ordinal (the desugar's Int result flows back into
 enum-typed places; native compares tag constants either way). Also synced the
 differential drift guard's RUN_CANARIES with 45 accumulated canaries from
 both workstreams (incl. windows_raw_roundtrip + gui foreground_window).
-⚠️ FOLLOW-UP: `enum_variant_tag` resolves by variant NAME program-wide
-(first declaration wins) — same-name variants across enums with different
-ordinals (`Ok` = 0 in UnitResult, 1 in MetadataResult) would mis-resolve.
-Matches `values_equal`'s existing name-keyed grain, and today's desugared
-arithmetic only touches ErrorKind's unique names — but the durable fix is
-carrying `type_symbol` on `Value::Enum` (like `Value::Struct`) and resolving
-ordinals type-locally. The #38 payload-collision landmine class.
+✅ FOLLOW-UP DONE (2026-07-07, same day): `Value::Enum` now carries
+`type_symbol` (like `Value::Struct`); every interp construction site threads
+the declaring type (zero-case, bare-variant, case literal, wire verdict;
+the build-time boundary stays symbol-less by design), and `enum_variant_tag`
+resolves ordinals WITHIN the declaring type (name-global scan only as the
+symbol-less fallback). Pinned by coverage test
+`match_terminal_tag_arithmetic_resolves_type_locally` (a `Decoy` enum
+declared first with a same-name `Ok` at ordinal 0 vs `Verdict::Ok` at 1 —
+name-global resolution dispatches the wrong arm).
 
 **What works today**
 - **Interpreter:** full Rust-parity fs (all ops + the ergonomic `Filesystem`
