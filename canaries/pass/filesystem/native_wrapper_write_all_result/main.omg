@@ -1,0 +1,38 @@
+// The ergonomic wrapper's PAYLOAD-CARRYING result enum, natively — the shape the
+// value-call deep fix unblocked. `Filesystem::write_all(path, bytes) -> UnitResult`
+// returns `UnitResult::Ok` or `UnitResult::Error { kind }` via an internal
+// `transition n >= 0 { .. }` to leaf states, and the RESULT (not just the side
+// effect) is assigned to a field and matched. A write to an unwritable path (a
+// nonexistent parent directory) must be Error; a write to /tmp must be Ok.
+//
+// Before the fix this always reported Ok (the guard read the write count's ZII
+// zero and/or the field-mutation re-materialized the first leaf terminal). PASS
+// iff the bad path is Error AND the good path is Ok.
+
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: Filesystem;
+    raw: FilesystemHost;
+    res: UnitResult;
+    code: i32;
+    n: i64;
+}
+
+machine Main::main(&mut self) {
+    // Bad path: the parent directory does not exist -> create fails -> Error.
+    self.res = self.fs.write_all("/no_such_dir_xyz_999/f.txt", "hi");
+    self.code = match self.res { UnitResult::Ok -> 1, _ -> 2 };
+    transition self.code == 2 { true -> after_err() _ -> bad_err() }
+
+    state after_err(&mut self) {
+        // Good path: write succeeds -> Ok.
+        self.res = self.fs.write_all("/tmp/omega_wa_result.txt", "hello");
+        self.code = match self.res { UnitResult::Ok -> 1, _ -> 2 };
+        transition self.code == 1 { true -> good() _ -> bad_ok() }
+    }
+    state good(&mut self)    { self.n = self.raw.write(1, "PASS: write_all result Error-then-Ok correct\n"); }
+    state bad_err(&mut self) { self.n = self.raw.write(1, "FAIL: write_all to a bad path was not Error\n"); }
+    state bad_ok(&mut self)  { self.n = self.raw.write(1, "FAIL: write_all to a good path was not Ok\n"); }
+}

@@ -43,6 +43,57 @@ struct RuntimeDescriptorWindow {
     window_len_elements: Option<usize>,
 }
 
+/// A runtime-bounded subslice base the emitter can lower: an existing runtime
+/// slice descriptor (a `&[T]` param/local frame slot), or a directly-placed
+/// FIXED array (`self.arr[lo..hi]` -- a machine field or frame aggregate whose
+/// address and declared length are known). The fixed-array case synthesizes the
+/// whole-array descriptor into the TARGET slot and then shrinks it in place,
+/// reusing the descriptor-window emission unchanged.
+enum SubsliceBase {
+    Descriptor(RuntimeDescriptorWindow),
+    FixedArray {
+        place: RuntimeStoragePlace,
+        element_byte_size: usize,
+        length: usize,
+    },
+}
+
+/// Resolve a subslice base that is a directly-placed FIXED array: the collection
+/// resolves to a raw element place (machine field like `self.arr`, or a frame
+/// aggregate) with a compile-time length. A `&[T]` slice descriptor never
+/// matches (`resolve_fixed_array_length_in_table` is type-driven and returns
+/// `None` for it), so this cannot shadow the descriptor-window path.
+fn resolve_fixed_array_subslice_base(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    value_source_key: StateKey,
+    expressions: &ExpressionTable,
+    collection: ExpressionHandle,
+) -> Option<SubsliceBase> {
+    let length = resolve_fixed_array_length_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        collection,
+    )?;
+    let place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        collection,
+    )?;
+    if length == 0 || place.byte_count == 0 || place.byte_count % length != 0 {
+        return None;
+    }
+    Some(SubsliceBase::FixedArray {
+        element_byte_size: place.byte_count / length,
+        place,
+        length,
+    })
+}
+
 /// Materialize a subslice of a *runtime* slice descriptor (`entries[start..]` /
 /// `entries[start..end]` where `entries` is a `&[T]` whose length is only known
 /// at runtime) into the target descriptor `slot`. Unlike the fixed-array path,
@@ -79,16 +130,27 @@ fn emit_runtime_frame_slot_runtime_subslice_descriptor_write_in_table(
     };
 
     // The base must bottom out in a runtime slice descriptor living in a frame
-    // slot; literal-bounded subslice layers between the descriptor and this
-    // range fold into a window (bias + optional literal length).
-    let Some(window) = resolve_runtime_descriptor_window(
+    // slot (literal-bounded subslice layers fold into a window), OR be a
+    // directly-placed fixed array whose whole-array descriptor can be
+    // synthesized into the target slot before the in-place shrink.
+    let base = match resolve_runtime_descriptor_window(
         input,
         dispatch_index,
         value_source_key,
         expressions,
         indexed.collection,
-    ) else {
-        return false;
+    ) {
+        Some(window) => SubsliceBase::Descriptor(window),
+        None => match resolve_fixed_array_subslice_base(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            indexed.collection,
+        ) {
+            Some(base) => base,
+            None => return false,
+        },
     };
 
     // `start` (default 0) and optional `end`, each a literal or a frame slot.
@@ -142,6 +204,54 @@ fn emit_runtime_frame_slot_runtime_subslice_descriptor_write_in_table(
     {
         return false;
     }
+
+    let window = match base {
+        SubsliceBase::Descriptor(window) => window,
+        SubsliceBase::FixedArray {
+            place,
+            element_byte_size,
+            length,
+        } => {
+            // Seed the target slot with the WHOLE-ARRAY descriptor -- ptr = the
+            // array's address, len = its declared length (the same two writes
+            // the literal fixed-array path emits) -- then shrink IN PLACE with
+            // the runtime bounds. The shrink's ptr write dereferences
+            // target.ptr (just seeded) and its len write reads target.len only
+            // for an open end (also just seeded), and every read happens
+            // before its own overwrite -- the documented self-recursive
+            // in-place order of `emit_runtime_descriptor_subslice`.
+            let descriptor = input.runtime_abi.slice_descriptor();
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
+                    source_region: place.region,
+                    source_offset: place.byte_offset,
+                    target_offset: slot.byte_offset + descriptor.ptr_offset(),
+                },
+                source_key: value_source_key,
+                source_statement: statement_index,
+            });
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                    target_region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: slot.byte_offset + descriptor.len_offset(),
+                    byte_size: descriptor.len_size(),
+                    value: length as i64,
+                },
+                source_key: value_source_key,
+                source_statement: statement_index,
+            });
+            RuntimeDescriptorWindow {
+                place: RuntimeStoragePlace {
+                    region: RuntimeStorageRegion::RuntimeFrame,
+                    byte_offset: slot.byte_offset,
+                    byte_count: descriptor_size,
+                },
+                element_byte_size,
+                bias_elements: 0,
+                window_len_elements: Some(length),
+            }
+        }
+    };
 
     emit_runtime_descriptor_subslice(
         input,

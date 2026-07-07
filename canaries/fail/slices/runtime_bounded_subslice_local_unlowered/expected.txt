@@ -1,0 +1,1 @@
+subslice descriptor construction (ptr/len from the base descriptor) is not lowered

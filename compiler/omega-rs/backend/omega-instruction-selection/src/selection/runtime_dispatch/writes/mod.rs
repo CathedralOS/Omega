@@ -61,6 +61,38 @@ impl RuntimeStorageWriteScratch {
     }
 }
 
+/// True when this statement has a GUARDED assignment-value leaf expansion — a
+/// value-call assigned to the mutation target whose callee transitions to
+/// constant-returning leaf STATES (`self.f = self.g()` where `g` does `transition
+/// c { .. -> a() .. -> b() }`). In that case the leaf expansions already write the
+/// GUARDED result into the call-result slot AND copy it to the mutation target
+/// (`select_runtime_leaf_assignment_value_target_copy`), so the Mutation op's own
+/// storage-write is redundant AND WRONG: it re-materializes the callee's FIRST leaf
+/// terminal as a CONSTANT and copies it unconditionally, overwriting the guarded
+/// value (TASKS_FS.md deep-fix bug #2). A SINGLE-terminal value-call (`exists`,
+/// terminal-value completion) produces no guarded leaf here, so its mutation write
+/// stays — that path is correct and must not be skipped.
+fn statement_has_guarded_assignment_value_leaf(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    statement_index: usize,
+) -> bool {
+    input
+        .runtime_branching_calls
+        .leaf_expansions
+        .storage_slice()
+        .iter()
+        .any(|expansion| {
+            expansion.dispatch_index == dispatch_index
+                && super::state_key_matches_statement_source(expansion.source_key, source_key)
+                && expansion.statement_index == statement_index
+                && expansion.role == omega_state_calls::StateCallRole::AssignmentValue
+                && expansion.target_value.is_valid()
+                && expansion.guard_kind != omega_state_guards::StateGuardKind::Always
+        })
+}
+
 pub(super) fn select_runtime_storage_write_for_operation(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -73,7 +105,36 @@ pub(super) fn select_runtime_storage_write_for_operation(
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     match &operation.kind {
-        RuntimeDispatchBodyOperationKind::Mutation { .. } => {}
+        RuntimeDispatchBodyOperationKind::Mutation { .. } => {
+            // Deep-fix bug #2: a BARE value-call assigned to the target
+            // (`self.f = self.g()`) whose callee transitions to constant leaf STATES
+            // is already delivered with the correct GUARDED result by the leaf
+            // expansions' target copy. This Mutation storage-write would otherwise
+            // re-materialize the callee's FIRST leaf terminal as a constant and
+            // overwrite it (TASKS_FS.md bug #2). Skip ONLY for a bare call: when the
+            // call is a sub-expression (`self.f = self.g() + 1`, `max(x, self.g())`)
+            // the surrounding operator's binary-write path resolves the call operand
+            // to its result slot and must still run — mirrors the bare-call guard on
+            // the existing call-result copy shortcut (mutation.rs ~L1155).
+            if matches!(
+                state_mutation_for_statement(
+                    input,
+                    operation.source_key,
+                    operation.statement_index,
+                ),
+                Some(m) if matches!(
+                    input.state_storage.expressions.expression(m.value),
+                    ExpressionNode::Call(call) if call.receiver.is_valid()
+                )
+            ) && statement_has_guarded_assignment_value_leaf(
+                input,
+                dispatch_index,
+                operation.source_key,
+                operation.statement_index,
+            ) {
+                return;
+            }
+        }
         RuntimeDispatchBodyOperationKind::StateCallResult {
             role,
             call_ordinal,

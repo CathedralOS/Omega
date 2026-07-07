@@ -167,6 +167,23 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   states with a VALID return type, so a resolved-void callee and an unresolved call both
   yield None (indistinguishable), and it's self/attached-only. Distinguishing "resolved
   void" from "unresolved" is precisely what the complete value-call resolver provides.
+- **[ ] Runtime-START subslice of a fixed array (fenced; runtime-END lowered 2026-07-06).**
+  `let sub = self.arr[self.lo..self.hi]` with a MACHINE-FIELD START = clean error ("subslice
+  descriptor construction ... not lowered"; fail canary
+  slices/runtime_bounded_subslice_local_unlowered -- was a SILENT read-0 when the local was
+  elided; storage planning keeps the slot now). LOWERED 2026-07-06: fixed-array base with a
+  literal/open START + RUNTIME END (`self.arr[1..self.hi]`, `self.arr[..self.hi]`) via
+  seed-whole-array-descriptor-then-in-place-shrink (canaries
+  slices/runtime_end_fixed_array_subslice_{local,element}_exit); runtime-END ARGUMENT
+  positions already lowered (fs canaries) -- do NOT fence at the frontend. Remaining: (a)
+  machine-field START -- `WriteRuntimeFrameIndexedAddressToRuntimeFrame`'s index load is
+  frame-only; fix = region-tagged index (same region-awareness the fs thread added to
+  CopyRuntimeMachineIndexed on aarch64); (b) a frame-slot (param) START passes the backend but
+  the PROVER can't discharge fixed-array subslice bounds from param guards (`lo <= hi && hi <=
+  5` doesn't prove `lo..hi within slice length 5`; guarding vs `self.arr.len` instead hits
+  "guard runtime comparison operand did not resolve to storage" -- a loud guard-lowering gap:
+  fixed-array `.len` vs a runtime operand in a dispatch guard). Memory
+  [[slice-byteslice-native-consume]].
 
 ## Cathedral first-boot ladder — remaining language readiness
 

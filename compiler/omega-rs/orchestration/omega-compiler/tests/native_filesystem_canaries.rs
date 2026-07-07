@@ -185,6 +185,16 @@ fn native_wrapper_write_all_passes() { assert_pass("native_wrapper_write_all"); 
 // the no-transition workaround for the value-call guard-ordering bug.
 #[test]
 fn native_wrapper_exists_passes() { assert_pass("native_wrapper_exists"); }
+// The value-call transition-guard DEEP BUG, now FIXED (both halves): a callee that
+// branches on a host-call result in an internal transition, whose bool result is
+// assigned to a field. Guards the ordering fix + the field-mutation constant-fold fix.
+#[test]
+fn native_value_call_guard_passes() { assert_pass("native_value_call_guard"); }
+// The PAYLOAD-CARRYING ergonomic wrapper result natively (unblocked by the deep
+// fix): `Filesystem::write_all -> UnitResult` reports Error for a bad path and Ok
+// for a good one — the RESULT, not just the side effect, is now correct.
+#[test]
+fn native_wrapper_write_all_result_passes() { assert_pass("native_wrapper_write_all_result"); }
 
 // The `file_journal` CLI SAMPLE (samples/cli/systems/file_journal) — a real
 // end-to-end raw-seam workflow (mkdir -> create+write -> stat -> reopen+read ->
