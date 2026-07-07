@@ -3841,6 +3841,42 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// std::time receiverless type-scoped constructors deliver a 16-byte Duration
+// natively (construct-from-LETS shape). from_seconds(2)={2,0},
+// from_milliseconds(3500)={3,500000000} -> exit 70.
+#[test]
+fn runtime_duration_constructors_exit_canary_runs() {
+    let canary = pass_canary("time/runtime_duration_constructors_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-duration-ctors-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("duration constructors canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("duration constructors canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected from_seconds(2) + from_milliseconds(3500) to deliver exact fields and exit 70, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // LOOP-CARRIED accumulator through the dispatch self-loop: transition args
 // stage through scratch so `acc + n` reads the pre-decrement n. -> 15 -> 1.
 #[test]

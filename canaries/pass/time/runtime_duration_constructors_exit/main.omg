@@ -1,11 +1,10 @@
 // std::time from_* unit constructors (receiverless type-scoped value calls),
 // exact values: from_seconds(2) = {2, 0}; from_milliseconds(3500) =
 // {3, 500000000} (exercises the division/remainder conversion).
-// INTERPRETER-ONLY today: the native lowering of this call shape hits the
-// loud "X86_64 MVP encoder cannot store 16-byte runtime values yet" fence
-// (receiver-ful multi-state value machines deliver 16-byte results through
-// different, working machinery). Promote to a `_canary_runs` native test when
-// the 16-byte value store lands.
+// Native since 2026-07-10: the constructors construct from LETS (every field
+// value a local), the shape whose 16-byte result delivery works. An INLINE
+// BINARY field expression in the struct literal still mis-sizes the write to
+// the whole struct and hits the loud 16-byte fence (TASKS).
 // Expected exit: 70.
 use omega::language::std::time;
 
