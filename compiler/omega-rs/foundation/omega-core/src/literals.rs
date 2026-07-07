@@ -143,6 +143,27 @@ impl IntegerLiteral {
         }
     }
 
+    /// The value, IF it is non-negative and fits u64 — the u64-target window
+    /// (D14 fire C). Widening the language to u128 later means adding another
+    /// accessor here, never touching stored literals.
+    pub fn value_u64(&self) -> Option<u64> {
+        if self.text.starts_with('-') {
+            return None;
+        }
+        let (base, digits) = split_radix(&self.text);
+        u64::from_str_radix(digits, base).ok()
+    }
+
+    /// The literal's 8-byte two's-complement bit pattern: an i64-window value
+    /// as its bits, or a u64-magnitude value verbatim. This is what an 8-byte
+    /// store/immediate materializes; callers narrower than 8 bytes must go
+    /// through the typed windows instead.
+    pub fn bits_u64(&self) -> Option<u64> {
+        self.value_i64()
+            .map(|value| value as u64)
+            .or_else(|| self.value_u64())
+    }
+
     /// The canonical spelling (for display/diagnostics).
     pub fn text(&self) -> &str {
         &self.text
@@ -199,6 +220,20 @@ mod tests {
             .unwrap();
         assert_eq!(max.text(), "18446744073709551615");
         assert_eq!(max.value_i64(), None);
+        assert_eq!(max.value_u64(), Some(u64::MAX));
+        assert_eq!(max.bits_u64(), Some(u64::MAX));
+    }
+
+    #[test]
+    fn u64_window_rejects_negatives_and_bits_are_twos_complement() {
+        let negative = IntegerLiteral::from_value(-1);
+        assert_eq!(negative.value_u64(), None);
+        assert_eq!(negative.bits_u64(), Some(u64::MAX));
+        let beyond =
+            IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "18446744073709551616")
+                .unwrap();
+        assert_eq!(beyond.value_u64(), None);
+        assert_eq!(beyond.bits_u64(), None);
     }
 
     #[test]

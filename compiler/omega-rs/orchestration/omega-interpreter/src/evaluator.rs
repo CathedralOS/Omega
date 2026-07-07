@@ -3513,12 +3513,14 @@ impl<'program> Evaluator<'program> {
         self.tick()?;
         let node = self.program.expression_table.expression(handle).clone();
         match node {
-            ExpressionNode::Integer(value) => match value.value_i64() {
-                Some(value) => Ok(Value::Int(value)),
-                // The oversize-literal validation gate rejects these before
-                // execution; refuse rather than wrap if one ever leaks through.
+            ExpressionNode::Integer(value) => match value.bits_u64() {
+                // Value::Int carries the 8-byte two's-complement pattern; u64
+                // semantics ride the bits. The literal-width gate guarantees an
+                // oversize literal only reaches u64-classed positions, so the
+                // bit-cast is the value there -- refuse anything wider.
+                Some(bits) => Ok(Value::Int(bits as i64)),
                 None => unsupported(format!(
-                    "integer literal `{value}` exceeds the interpreter's i64 value width"
+                    "integer literal `{value}` exceeds the interpreter's 8-byte value width"
                 )),
             },
             ExpressionNode::Boolean(value) => Ok(Value::Bool(value)),

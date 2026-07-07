@@ -1,0 +1,20 @@
+// u64::MAX is directly spellable into a u64 target (D14 fire C): the literal
+// parses anonymously, the u64-typed store accepts it through the value_u64
+// window, and the backend materializes the full 8-byte pattern. The wrapping
+// round-trip proves the STORED value really is 2^64 - 1 on both engines:
+// MAX + 1 wraps to exactly 0 only if every bit was set.
+// Expected exit: 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    mask: u64 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.mask = 18446744073709551615;
+    self.mask = self.mask + 1;
+    transition self.mask == 0 { true -> good() false -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}

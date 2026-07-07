@@ -137,7 +137,10 @@ pub(super) fn resolve_runtime_static_integer_value(
     static_values: &RuntimeStaticValues,
 ) -> Option<i64> {
     match expression {
-        Expression::Integer(value) => value.value_i64(),
+        // Full 8-byte pattern: the literal-width gate guarantees an oversize
+        // literal only reaches u64-classed (8-byte) targets, where these bits
+        // ARE the value.
+        Expression::Integer(value) => value.bits_u64().map(|bits| bits as i64),
         Expression::Name(_) => enum_variant_value(&input.layouts, expression).or_else(|| {
             resolve_runtime_resolved_static_integer_value(
                 input,
@@ -192,7 +195,7 @@ pub(super) fn resolve_runtime_static_integer_value_in_table(
     static_values: &RuntimeStaticValues,
 ) -> Option<i64> {
     match expressions.expression(expression) {
-        ExpressionNode::Integer(value) => value.value_i64(),
+        ExpressionNode::Integer(value) => value.bits_u64().map(|bits| bits as i64),
         ExpressionNode::Boolean(value) => Some(i64::from(*value)),
         ExpressionNode::Name(_) => {
             enum_variant_value_in_table(&input.layouts, expressions, expression).or_else(|| {
@@ -260,7 +263,10 @@ fn resolve_runtime_resolved_static_integer_value(
 ) -> Option<i64> {
     let expression = strip_mutable_expression(expression);
     match expression {
-        Expression::Integer(value) => value.value_i64(),
+        // Full 8-byte pattern: the literal-width gate guarantees an oversize
+        // literal only reaches u64-classed (8-byte) targets, where these bits
+        // ARE the value.
+        Expression::Integer(value) => value.bits_u64().map(|bits| bits as i64),
         Expression::Boolean(value) => Some(i64::from(value)),
         Expression::Name(_) | Expression::Indexed(_) | Expression::Member(_) => {
             enum_variant_value(&input.layouts, &expression).or_else(|| {

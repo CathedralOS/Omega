@@ -1346,11 +1346,38 @@ fn runtime_i64_min_literal_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_u64_max_literal_exit_canary_runs() {
+    // D14 fire C: u64::MAX stores full-width into a u64 target; MAX + 1 wraps to
+    // exactly 0 only if every bit was set. Exit 70.
+    let canary = pass_canary("arithmetic/runtime_u64_max_literal_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-u64max-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("u64::MAX literal canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("u64::MAX literal canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the stored u64::MAX to wrap to 0 on +1 (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn u64_literal_above_i64_max_canary_is_rejected() {
-    // A u64 literal above i64::MAX PARSES since D14 (anonymous literals) but no position
-    // ACCEPTS it yet: the validation gate (omega-validation/src/literals.rs) rejects with
-    // a CLEAR "exceeds the i64 range" diagnostic, not the misleading "invalid integer
-    // literal". Rescope this test when the typed u64 lowering (next D14 rung) lands.
+    // A u64-magnitude literal PARSES (D14) and a direct u64-classed store is ACCEPTED
+    // (fire C; see runtime_u64_max_literal_exit), but every OTHER position -- here an
+    // i64 target that would reinterpret the bits as negative -- still rejects at the
+    // literal-width gate with a CLEAR "exceeds the i64 range" diagnostic that names
+    // the accepted alternative.
     let canary = fail_canary("arithmetic/u64_literal_above_i64_max");
     let diagnostics = match compile_canary_without_output(&canary) {
         Ok(report) => panic!(
