@@ -46,6 +46,11 @@ data Main {
     cls: [u8; 7];
     title: [u8; 13];
     message: [u64; 6];
+    // Declared BEFORE the 32KB of arrays so their stores use the short
+    // low-offset encodings (a post-array field rides the aarch64 large-offset
+    // materialization path instead).
+    fw: u64;
+    msg_code: u64;
     // The raw file bytes (12,342 = 54-byte header + 64*64*3 pixel array; the
     // 64-wide 24bpp row is 192 bytes, already 4-aligned, so no stride padding).
     buffer: [u8; 16384];
@@ -64,8 +69,6 @@ data Main {
     alive: u32;
     killed: u32;
     escape: u64;
-    fw: u64;
-    msg_code: u64;
     next_key: u64;
     prev_key: u64;
     next_held: u32;
