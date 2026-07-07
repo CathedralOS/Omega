@@ -2632,6 +2632,16 @@ fn indexed_target_path_in_table(
         }
         ExpressionNode::Indexed(indexed) => {
             if let Some(path) = indexed_target_path_in_table(table, indexed.collection) {
+                // Nested indices always keep the INNERMOST path's index.
+                // NOTE (2026-07-07): preferring the RUNTIME level instead
+                // (`grid[1][j]` -> collection `grid[1]`, index `j`) was tried
+                // and REVERTED: resolve_runtime_machine_indexed_target_in_table
+                // resolves the const-indexed collection to the right biased
+                // base, but the emitted op scales/addresses the element wrong
+                // (rw1/gc probes: native diverged from interp, silently). The
+                // nested-runtime fences upstream reject these shapes today; fix
+                // the suffix-layout walk for a suffix_root that spans the outer
+                // Indexed before re-attempting (see TASKS).
                 return Some(TableIndexedTargetPath {
                     collection: path.collection,
                     index: path.index,

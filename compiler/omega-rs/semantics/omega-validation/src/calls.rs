@@ -996,6 +996,11 @@ fn report_nested_runtime_indexed_read(
     // an ARRAY INDEX -- `grid[c]` (Indexed collection) or `rows[c].data` (a field of an
     // indexed element). A base with no index in its chain (`arr`, `self.field`) is a
     // plain place whose element offset IS computable, so it is not fenced.
+    // NOTE (2026-07-07): un-fencing the CONST-outer case (`grid[1][j]`) was tried and
+    // REVERTED -- the resolver computes the biased base, but neither the machine-target
+    // nor the frame-target consumer wires the copy, so the shape ran SILENTLY WRONG
+    // (fail canary nested_runtime_indexed_read_rejected: native 0, interp 6). Wire the
+    // consumers first (see TASKS), then relax this to runtime-indexed-chain-only.
     let mut collection = indexed.collection;
     let base_is_indexed = loop {
         match program.expression_table.expression(collection) {
