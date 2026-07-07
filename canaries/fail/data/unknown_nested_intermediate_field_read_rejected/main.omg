@@ -1,0 +1,31 @@
+// The INTERMEDIATE-missing face of the unknown nested-field read:
+// `self.o.bogus.value` where Outer has no field `bogus`. Used to compile and
+// silently read a ZII 0; the nested walker attributes the failure to the first
+// missing hop on its resolved container.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Inner {
+    value: i32;
+}
+
+data Outer {
+    inner: Inner;
+}
+
+data Main {
+    console: Console;
+    o: Outer;
+}
+
+machine Main::main(&mut self) {
+    let y: i32 = self.o.bogus.value;
+    transition y == 0 {
+        true -> zii()
+        false -> other()
+    }
+
+    state zii(&mut self) { self.console.exit_process(1); }
+    state other(&mut self) { self.console.exit_process(2); }
+}
