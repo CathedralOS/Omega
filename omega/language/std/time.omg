@@ -751,6 +751,12 @@ machine Time::system_time_now(&mut self) -> SystemTime {
 // receiver, which zeroes natively today (receiver resolution reaches FIELDS
 // only -- filed in TASKS.md). Until that lands, this inlines now()'s
 // normalization + the checked_duration_since borrow idiom over entry lets.
+//
+// The `stopwatch_*` let prefixes are LOAD-BEARING: sharing let names with
+// `now()` (both callable from one caller state) trips the cross-callee
+// let-name collision's INTERNAL-op flavor -- a duplicated spliced op reads
+// the other callee's ZII `frequency` and the division #DE-crashes (TASKS.md;
+// the mutation-fallback flavor is fixed, this flavor is open).
 machine Time::elapsed_since(&mut self, start: Instant) -> Duration {
     let stopwatch_ticks: u64 = self.host.monotonic_ticks();
     let stopwatch_frequency_raw: u64 = self.host.monotonic_ticks_per_second();
