@@ -441,6 +441,26 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    framebuffer through the field value-call → still exit 9 (win!=0 AND get_dc==win AND
    blit>0). MODULE OPS DONE: window_create/get_dc/blit/is_window/window_destroy (5/8).
    REMAINING: the 3 pump ops (msg_peek/translate/dispatch), then task #57 substitution.
+   ⚑ **fire 21: PUMP-OP CRASH DISCOVERED + a KEY design finding (SIGTRAP, exit 133).**
+   Attempted `msg_peek`/`translate`/`dispatch`. They compile, but `msg_peek`
+   (`nextEventMatchingMask:…`) TRAPS at runtime. Bisected exhaustively:
+   • flat window+pump in ONE machine — WORKS (`native_gui_loop`, fire 16).
+   • `nextEvent` in a value-called machine, NO window — WORKS (vcpump probe, exit 6).
+   • window + pump in ONE value-call — WORKS (varE probe, exit 7).
+   • window created in value-call A (`window_create`) + `nextEvent` in a SEPARATE
+     value-call B (`msg_peek`) — **CRASHES** (varD, exit 133), even with a self-contained
+     msg_peek that recreates all pump inputs. Cross-call FIELD state persists fine (xstate
+     probe, exit 5), so it is NOT the stored inputs.
+   → **The crash is intrinsic to: an NSWindow created in one value-call, then `nextEvent`
+     in a DIFFERENT value-call.** A deep value-call/objc interaction (task #45-adjacent).
+   **⚑ DESIGN IMPLICATION for task #57 (the substitution): the macOS Gui ops must be
+   INLINED FLAT into the caller's state machine (macro-expansion), NOT dispatched as
+   separate per-op value-calls** — `native_gui_loop` (flat) runs window+blit+pump fine,
+   but the per-op-value-call `MacosGui` cannot pump after a window. So D-gui-backend
+   shifts: keep the `MacosGui` machines as the readable SOURCE of each op's objc sequence,
+   but the substitution should INLINE each op body at the sample's call site (flat), not
+   emit a value-call. The crashing pump ops were REVERTED; the module stays at the 5
+   working non-pump ops (green, harness 74/74). Next: task #57 as INLINE expansion.
 9. **[ ] Interpreter headless stub** for `Gui`/`Input`/`Clock` — open no real window,
    succeed all calls, report "no event / alive", quit after N frames — so the samples
    stay runnable on both engines and differential/coverage stay green.
