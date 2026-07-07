@@ -29,6 +29,7 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     ("Gui", "msg_dispatch", "User32.dll", "DispatchMessageW"),
     ("Gui", "is_window", "User32.dll", "IsWindow"),
     ("Gui", "window_destroy", "User32.dll", "DestroyWindow"),
+    ("Gui", "foreground_window", "User32.dll", "GetForegroundWindow"),
     // std::fs raw seam (the windows_x64 mirror of darwin's libSystem rows):
     // msvcrt's POSIX-shaped CRT calls match the raw seam's value-returning
     // fd/count/rc surface directly (same arg shapes as the darwin libc calls),
@@ -234,6 +235,16 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             "*",
             "window_destroy",
             [host_operation("Gui", "window_destroy")],
+            PlatformCallData::None,
+        );
+        // `GetForegroundWindow()` -- lets a pump scope the GLOBAL
+        // GetAsyncKeyState to its own window (an unfocused app must not
+        // treat a desktop-wide ESC as its quit key).
+        insert_platform_lowering(
+            plan,
+            "*",
+            "foreground_window",
+            [host_operation("Gui", "foreground_window")],
             PlatformCallData::None,
         );
         // std::fs raw seam -- registered under the raw trait `FilesystemHost`

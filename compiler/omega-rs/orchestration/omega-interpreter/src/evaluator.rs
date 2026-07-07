@@ -3750,6 +3750,7 @@ impl<'program> Evaluator<'program> {
                         | "window_create"
                         | "is_window"
                         | "window_destroy"
+                        | "foreground_window"
                         | "msg_peek"
                         | "msg_translate"
                         | "msg_dispatch"
@@ -3777,6 +3778,17 @@ impl<'program> Evaluator<'program> {
                     self.virtual_window_next += 1;
                     self.virtual_live_windows.insert(self.virtual_window_next);
                     return Ok(Value::Int(self.virtual_window_next));
+                }
+                if target == "foreground_window" {
+                    // The virtual desktop has one app: the most recently
+                    // created window is foreground while it lives, 0 after.
+                    let foreground = if self.virtual_live_windows.contains(&self.virtual_window_next)
+                    {
+                        self.virtual_window_next
+                    } else {
+                        0
+                    };
+                    return Ok(Value::Int(foreground));
                 }
                 if target == "is_window" || target == "window_destroy" {
                     // Liveness mirrors native IsWindow/DestroyWindow: 1 for a
@@ -4796,6 +4808,7 @@ fn is_canonical_host_method(name: &str) -> bool {
             | "msg_dispatch"
             | "is_window"
             | "window_destroy"
+            | "foreground_window"
     )
 }
 

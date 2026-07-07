@@ -971,6 +971,8 @@ fn select_gui_operation_operands(
         HostOperation::DcCreate if arity == 1 => {
             [scalar(0), imm(0)].into_iter().collect()
         }
+        // foreground_window() -> GetForegroundWindow(): [result], no args.
+        HostOperation::ForegroundWindow if arity == 1 => [scalar(0)].into_iter().collect(),
         // get_dc(hwnd) -> GetDC(hwnd): [result, hwnd].
         HostOperation::GetDc if arity == 2 => [scalar(0), scalar(1)].into_iter().collect(),
         // is_window(hwnd) / window_destroy(hwnd): the same [result, hwnd] shape.

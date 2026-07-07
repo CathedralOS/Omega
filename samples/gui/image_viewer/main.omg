@@ -34,6 +34,7 @@ boundary trait Gui {
     machine msg_dispatch(message: [u64; 6]) -> u64;
     machine is_window(window: u64) -> u32;
     machine window_destroy(window: u64) -> u32;
+    machine foreground_window() -> u64;
 }
 
 data Main {
@@ -63,6 +64,8 @@ data Main {
     alive: u32;
     killed: u32;
     escape: u64;
+    fw: u64;
+    msg_code: u64;
     next_key: u64;
     prev_key: u64;
     next_held: u32;
@@ -119,18 +122,33 @@ machine Main::main(&mut self) {
     state load1(&mut self) {
         transition self.current == 1 { true -> open1() _ -> open2() }
     }
+    // Each image is tried at the sample dir first, then one level up -- so the
+    // exe works launched from the sample folder OR double-clicked in build\.
+    // (build.omg has no asset-copying yet; when it does, the fallback can go.)
     state open0(&mut self) {
         // 32768 = O_BINARY (msvcrt): BMP bytes must not ride text-mode CRLF
         // translation (0x0D 0x0A pairs collapse) or the ^Z end-of-file rule.
         self.fd = self.raw.open("img0.bmp", 32768);
+        transition self.fd >= 0 { true -> read_file() _ -> open0_up() }
+    }
+    state open0_up(&mut self) {
+        self.fd = self.raw.open("../img0.bmp", 32768);
         transition { _ -> read_file() }
     }
     state open1(&mut self) {
         self.fd = self.raw.open("img1.bmp", 32768);
+        transition self.fd >= 0 { true -> read_file() _ -> open1_up() }
+    }
+    state open1_up(&mut self) {
+        self.fd = self.raw.open("../img1.bmp", 32768);
         transition { _ -> read_file() }
     }
     state open2(&mut self) {
         self.fd = self.raw.open("img2.bmp", 32768);
+        transition self.fd >= 0 { true -> read_file() _ -> open2_up() }
+    }
+    state open2_up(&mut self) {
+        self.fd = self.raw.open("../img2.bmp", 32768);
         transition { _ -> read_file() }
     }
     state read_file(&mut self) {
@@ -212,13 +230,37 @@ machine Main::main(&mut self) {
     }
 
     // --- pump: drain up to 16 queued messages through DefWindowProc ---
+    // The #32770 dialog proc SWALLOWS close signals (its WM_CLOSE handling is
+    // dialog-shaped, not DestroyWindow), so the pump handles them itself
+    // before dispatching: posted WM_CLOSE (16, e.g. taskbar Close), the X
+    // button's posted WM_NCLBUTTONDOWN (161) with wParam HTCLOSE (20), and a
+    // queue-visible WM_SYSCOMMAND (274) whose wParam is SC_CLOSE (0xF060,
+    // low hit-test nibble masked).
     state pump_init(&mut self) {
         self.pumped = 0;
         transition { _ -> pump_loop() }
     }
     state pump_loop(&mut self) {
         self.have = self.gui.msg_peek(self.message);
-        transition self.have > 0 { true -> pump_handle() _ -> liveness() }
+        transition self.have > 0 { true -> pump_check_close() _ -> liveness() }
+    }
+    state pump_check_close(&mut self) {
+        self.msg_code = self.message[1] % 65536;
+        transition self.msg_code == 16 { true -> quit_self() _ -> pump_check_xdown() }
+    }
+    state pump_check_xdown(&mut self) {
+        transition self.msg_code == 161 { true -> pump_check_xhit() _ -> pump_check_syscommand() }
+    }
+    state pump_check_xhit(&mut self) {
+        // Only the close button's hit-test code quits; any other non-client
+        // press (caption drag, resize borders) dispatches normally.
+        transition self.message[2] == 20 { true -> quit_self() _ -> pump_handle() }
+    }
+    state pump_check_syscommand(&mut self) {
+        transition self.msg_code == 274 { true -> pump_check_sysclose() _ -> pump_handle() }
+    }
+    state pump_check_sysclose(&mut self) {
+        transition self.message[2] >= 61536 && self.message[2] < 61552 { true -> quit_self() _ -> pump_handle() }
     }
     state pump_handle(&mut self) {
         self.translated = self.gui.msg_translate(self.message);
@@ -233,7 +275,13 @@ machine Main::main(&mut self) {
     // --- quit paths: closed window or ESC; flip paths: RIGHT/LEFT edges ---
     state liveness(&mut self) {
         self.alive = self.gui.is_window(self.hwnd);
-        transition self.alive > 0 { true -> esc_check() _ -> closed() }
+        transition self.alive > 0 { true -> focus_check() _ -> closed() }
+    }
+    // GetAsyncKeyState is GLOBAL: without this gate, an ESC (or arrow) pressed
+    // in ANY app -- even the Ctrl+Shift+Esc chord -- would drive this window.
+    state focus_check(&mut self) {
+        self.fw = self.gui.foreground_window();
+        transition self.fw == self.hwnd { true -> esc_check() _ -> present() }
     }
     state esc_check(&mut self) {
         self.escape = self.input.key_state(27);
