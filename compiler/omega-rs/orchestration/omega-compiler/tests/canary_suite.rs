@@ -19451,6 +19451,101 @@ fn runtime_value_call_entry_field_write_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Same-callee value calls at MULTIPLE sites per state deliver per-site on the
+// dispatch path: two field stores, a discriminating three-site mix (field +
+// const-indexed elements), and LC1b (let-then-copy-to-field). These are the
+// shapes the retired shared-result-slot fence rejected or silently missed --
+// the deferral contiguity work (faces #4/#5) made each call's capture fire at
+// its own splice end, so the callee's internal `let` slot no longer smears
+// the LAST result across every site.
+#[test]
+fn runtime_value_call_same_callee_sites_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_value_call_same_callee_sites_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("same-callee-sites canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (every site holds its own call's result), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-same-callee-sites-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("same-callee-sites canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("same-callee-sites canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected every same-callee call site to hold its own result (exit 70), got {:?} \
+         (71/72 = field pair; 73-75 = three-site mix; 76/77 = LC1b let-then-copy)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The retired fence's own repro body, now a PASS: a guard-free
+// (straight-line-scheduled) state with two same-callee value calls stored
+// straight to fields. f=10 + g=12 -> sum exit 22; the historical shared-slot
+// bug gave both fields the LAST result (24).
+#[test]
+fn runtime_value_call_shared_slot_straight_line_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_value_call_shared_slot_straight_line_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("shared-slot straight-line canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 22,
+        "interpreter oracle should exit 22 (f=10 + g=12), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-shared-slot-straight-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("shared-slot straight-line canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("shared-slot straight-line canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(22),
+        "expected f=10 + g=12 (exit 22), got {:?} (24 = both fields read the \
+         LAST call's result -- the shared-slot bug is back)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Deferral face #5: a NESTED value call inside the callee's entry
 // (`self.flag = self.helper.check(1)` in Probe::make, guarded on flag,
 // through an outer value call). The nested callee splices a THIRD
@@ -22696,7 +22791,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_shared_ref_param_member_exit",
     "calls/runtime_value_call_entry_field_write_exit",
     "calls/runtime_value_call_nested_entry_call_exit",
+    "calls/runtime_value_call_same_callee_sites_exit",
     "calls/runtime_value_call_shared_payload_name_exit",
+    "calls/runtime_value_call_shared_slot_straight_line_exit",
     "calls/runtime_value_call_struct_payload_cast_field_exit",
     "filesystem/windows_raw_breadth_exit",
     "filesystem/windows_raw_roundtrip_exit",
@@ -23588,7 +23685,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "termination/subtraction_spelling_retired",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/terminal_return_type_mismatch_rejected",
-    "calls/shared_value_call_slot_rejected",
+    "calls/transition_arg_scalar_value_call_rejected",
     "collections/write_first_loop_bound_exceeds_capacity",
     "capabilities/duplicate_provider_declaration",
     "capabilities/effect_ceiling_exceeded",

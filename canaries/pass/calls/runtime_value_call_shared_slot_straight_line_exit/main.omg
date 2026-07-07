@@ -1,0 +1,18 @@
+// RUN CANARY (exit 22) -- the old shared-result-slot fail canary body, now a
+// PASS: a guard-free (straight-line-scheduled) state with TWO value calls to
+// the same computing machine, each result stored straight to a field. Each
+// field must hold ITS call's result: f=10, g=12, sum=22. The historical
+// shared-slot bug delivered the LAST result to both (f=g=12 -> exit 24).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; f: i32 in Wrapping; g: i32 in Wrapping; sum: i32 in Wrapping; }
+machine Main::dbl(&self, x: i32 in Wrapping) -> i32 in Wrapping {
+    let r: i32 in Wrapping = x * 2;
+    transition { _ -> r }
+}
+machine Main::main(&mut self) {
+    self.f = self.dbl(5);
+    self.g = self.dbl(6);
+    self.sum = self.f + self.g;
+    transition { _ -> done() }
+    state done(&mut self) { self.console.exit_process(self.sum); }
+}

@@ -53,6 +53,22 @@ FIELDS in the machine entry (`self.file_fd = file.fd`; a `let` folds back to the
 member); terminal host calls must be let-bound (compiler fences the bare shape
 with a clean diagnostic — `fail/host/terminal_host_call_value`).
 
+**Value-call dispatch-position matrix (2026-07-07 audit).** Same-callee
+value calls at MULTIPLE sites per state now deliver per-site on BOTH emission
+paths (a consequence of the deferral contiguity work below) — the historical
+shared-result-slot fence was verified obsolete by discriminating probes and
+REMOVED (`shared_value_call_slot_blockers.rs` deleted; shapes pinned by pass
+canaries `calls/runtime_value_call_same_callee_sites_exit` +
+`calls/runtime_value_call_shared_slot_straight_line_exit`). Still-broken
+positions: (a) a scalar/bool user value-call as a GUARD SUBJECT is silently
+ALWAYS-TRUE (designed-false probe re-confirmed; any sound fence forces
+corpus-wide bind-to-local rewrites incl. the dungeon — POLICY Q for Zach);
+(b) a scalar/bool user value-call as a direct TRANSITION ARGUMENT delivered 0
+(or the paired arg's result) — now a CLEAN ERROR (validator
+`reject_scalar_value_call_arguments`, scoped by `call_return_type` so
+builtins/strings/enums stay accepted — enum + string args verified
+delivering; fail canary `calls/transition_arg_scalar_value_call_rejected`).
+
 **Value-call deferral (the machinery under wrapper results)** — five ordering
 faces closed, each pinned by a canary:
 1. Callee-entry HostCall store before the inline guard (`run/value_call_entry_host_state_payload`).
