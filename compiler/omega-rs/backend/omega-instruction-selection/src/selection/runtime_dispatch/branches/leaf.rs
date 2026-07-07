@@ -152,7 +152,14 @@ pub(in crate::selection) fn leaf_expansions_defer_to_local_initializer(
         if !leaf_expansion_matches_operation(expansion, dispatch_index, operation, false) {
             continue;
         }
-        if expansion.role != StateCallRole::AssignmentValue {
+        // TransitionArgument leaves defer like AssignmentValue ones: the
+        // capture (callee result -> the call's arg slot) must run AFTER the
+        // callee's spliced body ops, or it copies the internal `let` slot's
+        // pre-body ZII (`done(self.dbl(5), 7)` delivered a=0).
+        if !matches!(
+            expansion.role,
+            StateCallRole::AssignmentValue | StateCallRole::TransitionArgument
+        ) {
             return false;
         }
         any_matched = true;
@@ -172,13 +179,24 @@ fn leaf_expansion_matches_operation(
             operation.source_key,
         )
         && expansion.statement_index == operation.statement_index
-        && (matches!(
-            operation.kind,
-            RuntimeDispatchBodyOperationKind::InlineLeafStateCall { .. }
-                | RuntimeDispatchBodyOperationKind::InlineStateCall { .. }
-                | RuntimeDispatchBodyOperationKind::StateCall { .. }
-        ) || (allow_synthetic_nested_operation
-            && matches!(operation.kind, RuntimeDispatchBodyOperationKind::Other)))
+        && match operation.kind {
+            // Pair the expansion with ITS OWN call op: a transition passing
+            // two value calls (`done(self.dbl(5), self.dbl(6))`) has two
+            // same-statement StateCall ops, and a statement-keyed match
+            // emitted EVERY expansion at EVERY call op -- both captures fired
+            // at call 1 (before call 2's body ran) and each fired twice.
+            RuntimeDispatchBodyOperationKind::InlineLeafStateCall {
+                role, call_ordinal, ..
+            }
+            | RuntimeDispatchBodyOperationKind::InlineStateCall {
+                role, call_ordinal, ..
+            }
+            | RuntimeDispatchBodyOperationKind::StateCall {
+                role, call_ordinal, ..
+            } => expansion.role == role && expansion.call_ordinal == call_ordinal,
+            RuntimeDispatchBodyOperationKind::Other => allow_synthetic_nested_operation,
+            _ => false,
+        }
 }
 
 fn order_return_value_fallbacks_first(expansions: &mut [&RuntimeLeafBranchExpansion]) {

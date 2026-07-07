@@ -1,0 +1,16 @@
+// RUN CANARY (exit 12) -- value-call transition ARGS on the guard-free
+// straight-line schedule: done(self.dbl(5), self.dbl(6)) exits with b.
+// b must hold ITS call's result (12); the historical bugs delivered
+// call 1's result (10) or ZII 0.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::dbl(&self, x: i32 in Wrapping) -> i32 in Wrapping {
+    let r: i32 in Wrapping = x * 2;
+    transition { _ -> r }
+}
+machine Main::main(&mut self) {
+    transition { _ -> done(self.dbl(5), self.dbl(6)) }
+    state done(&mut self, a: i32 in Wrapping, b: i32 in Wrapping) {
+        self.console.exit_process(b);
+    }
+}

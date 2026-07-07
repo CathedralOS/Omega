@@ -784,6 +784,11 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_value_call_nested_entry_call_exit", 70),
     ("calls/runtime_value_call_same_callee_sites_exit", 70),
     ("calls/runtime_value_call_shared_slot_straight_line_exit", 22),
+    ("calls/runtime_value_call_transition_args_exit", 70),
+    (
+        "calls/runtime_value_call_transition_args_straight_line_exit",
+        12,
+    ),
     ("calls/runtime_value_call_shared_payload_name_exit", 70),
     ("calls/runtime_value_call_struct_payload_cast_field_exit", 70),
     ("time/runtime_duration_core_exit", 70),
