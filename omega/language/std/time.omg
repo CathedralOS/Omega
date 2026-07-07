@@ -752,21 +752,19 @@ machine Time::system_time_now(&mut self) -> SystemTime {
 // only -- filed in TASKS.md). Until that lands, this inlines now()'s
 // normalization + the checked_duration_since borrow idiom over entry lets.
 //
-// The `stopwatch_*` let prefixes are LOAD-BEARING: sharing let names with
-// `now()` (both callable from one caller state) trips the cross-callee
-// let-name collision's INTERNAL-op flavor -- a duplicated spliced op reads
-// the other callee's ZII `frequency` and the division #DE-crashes (TASKS.md;
-// the mutation-fallback flavor is fixed, this flavor is open).
+// Shares let names with `now()` deliberately: two same-named-let callees
+// from one caller state pinned the cross-callee collision (both flavors now
+// FIXED -- runtime_time_elapsed_since_exit is the live std tripwire).
 machine Time::elapsed_since(&mut self, start: Instant) -> Duration {
-    let stopwatch_ticks: u64 = self.host.monotonic_ticks();
-    let stopwatch_frequency_raw: u64 = self.host.monotonic_ticks_per_second();
-    let stopwatch_frequency: u64 = clamp(stopwatch_frequency_raw, 1, 18446744073);
-    let now_seconds: u64 = stopwatch_ticks / stopwatch_frequency;
-    let stopwatch_remainder: u64 = stopwatch_ticks % stopwatch_frequency;
-    let stopwatch_scaled_wrapped: u64 in Wrapping = (stopwatch_remainder as u64 in Wrapping) * 1000000000;
-    let stopwatch_scaled: u64 = stopwatch_scaled_wrapped as u64;
-    let stopwatch_subnanos_wide: u64 = stopwatch_scaled / stopwatch_frequency;
-    let now_subsecond_wide: u64 = stopwatch_subnanos_wide % 1000000000;
+    let ticks: u64 = self.host.monotonic_ticks();
+    let frequency_raw: u64 = self.host.monotonic_ticks_per_second();
+    let frequency: u64 = clamp(frequency_raw, 1, 18446744073);
+    let now_seconds: u64 = ticks / frequency;
+    let remainder: u64 = ticks % frequency;
+    let scaled_wrapped: u64 in Wrapping = (remainder as u64 in Wrapping) * 1000000000;
+    let scaled: u64 = scaled_wrapped as u64;
+    let subnanos_wide: u64 = scaled / frequency;
+    let now_subsecond_wide: u64 = subnanos_wide % 1000000000;
     let now_subsecond: u32 = now_subsecond_wide as u32;
     let seconds_bigger: bool = now_seconds > start.seconds;
     let seconds_equal: bool = now_seconds == start.seconds;

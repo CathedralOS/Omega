@@ -30,7 +30,7 @@ use super::straight_line::{
     StraightLineBranchSelectionScratch, select_assignment_value_call_result_local_copy,
     select_runtime_straight_line_nested_branch_expansions_for_operation,
 };
-use omega_abstract_operations::SelectedInstruction;
+use omega_abstract_operations::{SelectedInstruction, SelectedInstructionKind};
 
 #[derive(Default)]
 pub(in crate::selection) struct BranchPreludeSelectionScratch {
@@ -338,11 +338,34 @@ fn select_runtime_branch_prelude_local_initializer_write(
         &static_values,
         runtime_value_operands,
     ) {
-        selected_instructions.push(SelectedInstruction {
+        // A PLAIN-scalar initializer write (integer/binary/convert) is only
+        // the PRELUDE's to emit for a GUARD-role expansion (the prelude is
+        // that chain's sole executor). For every other role the
+        // runtime-bodies splice emits the same write correctly TIMED (after
+        // the callee's host calls) and in the callee's own resolution
+        // context; the prelude duplicate ran before those host calls and
+        // resolved same-named lets ACROSS callees -- two callees sharing
+        // `freq` in one caller state read each other's still-ZII slots, and
+        // a duplicated `x / freq` div-by-zero crashed before the correct op
+        // (the cross-callee collision's internal-op flavor). Every OTHER
+        // kind stays: indexed/descriptor reads (fixed_vec's
+        // `cells[index]` through the prelude-bound descriptor) and plain
+        // copies have no splice equivalent here, and none of them trap.
+        let splice_covered_plain_write = matches!(
             kind,
-            source_key,
-            source_statement: statement_index,
-        });
+            SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
+                | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
+                | SelectedInstructionKind::WriteRuntimeStorageConvert { .. }
+        );
+        if expansion.role == omega_state_calls::StateCallRole::TransitionGuard
+            || !splice_covered_plain_write
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key,
+                source_statement: statement_index,
+            });
+        }
         return;
     }
 

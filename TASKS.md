@@ -129,31 +129,25 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   clock frequencies; interp honors the unsigned witness) — [[signedness-codegen-gap]]
   family. Fix = signedness resolution must consult the folded BINARY operand's
   declared type, not just direct storage operands.
-- **[~] Cross-callee LET-NAME collision (2026-07-08, std::time rung 6 slice 2;
-  native only). MUTATION-FALLBACK flavor FIXED 2026-07-09; INTERNAL-OP flavor
-  OPEN.** Two different callees with same-named lets value-called from ONE
-  caller state:
-  - FIXED: the Mutation op's fallback write substitutes the callee's terminal
-    and resolved it with the CALLER's source key — the bare name fell through
-    `find_runtime_frame_slot_for_path`'s cross-source-key ladder onto the OTHER
-    callee's still-ZII local, clobbering the first call's delivered result.
-    `resolve_static_inline_branching_call_expression_value` now also returns
-    the selected expansion's `branch_key`, and the substituted terminal
-    resolves in the CALLEE's context (mutation.rs; same-callee multi-site stays
-    correct via splice contiguity — all sites share the callee's local slots).
-    Pinned: calls/runtime_cross_callee_let_names_exit (differential).
-  - OPEN: callee-INTERNAL ops are RE-EMITTED (the splice/fire duplication
-    noise, 2-3x in probe op-streams) and some duplicates resolve their
-    OPERANDS across callees — e.g. `first.shifted = SECOND.freq + 1` emitted
-    before the correct write. Harmless when a later correct write wins; FATAL
-    for trapping ops: a crossed duplicate `x / frequency` executes
-    div-by-ZII-0 -> #DE (0xC0000094) before the correct op runs. Repro: revert
-    time.omg elapsed_since's `stopwatch_*` let prefixes and run
-    time/runtime_time_elapsed_since_exit natively (crashes; the prefixes are
-    LOAD-BEARING until fixed). Root work item: why spliced callee internal
-    writes are emitted multiple times, and each duplicate's operand-resolution
-    context. ⚠️ AUDIT flag stands: same-named lets across machines called from
-    one caller state; div/mod lets are the crash-severity cases.
+- **[x] Cross-callee LET-NAME collision — BOTH flavors FIXED (2026-07-09).** Two
+  different callees with same-named lets value-called from ONE caller state:
+  - Mutation-fallback flavor: the substituted callee terminal resolved with the
+    CALLER's key -> cross-source-key name ladder -> other callee's ZII local
+    clobbered the first call's result. FIXED: the substitution returns the
+    expansion's branch_key and the terminal resolves in the CALLEE's context
+    (mutation.rs). Pinned: calls/runtime_cross_callee_let_names_exit.
+  - Internal-op flavor: the NON-GUARD branch prelude re-emitted each callee's
+    scalar local-initializer writes (the stale "the splice does not cover local
+    initializers" rule) — WRONG-TIMED (before the splice's host calls) and with
+    cross-callee resolution; a duplicated `x / freq` executed div-by-ZII-0 ->
+    #DE. FIXED: `RuntimeBranchPreludeExpansion` carries the spawning call's
+    ROLE, and the prelude's local-init writer skips plain scalar write kinds
+    (integer/binary/convert) for non-guard roles — the splice is their executor;
+    descriptor/indexed/copy prelude writes remain (no splice equivalent:
+    fixed_vec's `as_mut_slice` construction + `cells[index]` reads live there).
+    Pinned: calls/runtime_cross_callee_division_exit (the #DE shape) +
+    time/runtime_time_elapsed_since_exit (std tripwire — elapsed_since shares
+    let names with now() again; the stopwatch_* dodge is REMOVED).
 - **[ ] Owner: REJECTED. NO-RECURSION directive ENFORCED 2026-07-10 (was: runtime_recursive_accumulator_exit).**
   Caused by THIS TASKS.md thread (the 2026-07-09 "recursive value machine" work -- my error:
   I read the pre-existing termination canaries' `self.countdown(..)` spelling as sanctioning

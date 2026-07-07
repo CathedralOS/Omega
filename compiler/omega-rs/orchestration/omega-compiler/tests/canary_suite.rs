@@ -20072,6 +20072,55 @@ fn runtime_value_call_entry_field_write_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The cross-callee collision's INTERNAL-op flavor: two callees sharing let
+// names, each DIVIDING by the shared-named let, one caller state. The
+// non-guard prelude used to re-emit scalar initializer writes wrong-timed
+// with cross-callee resolution -- the duplicated division executed on the
+// other callee's ZII operand and #DE-crashed. A negative exit status = the
+// crash is back; 1 = the second callee's chain miscomputed.
+#[test]
+fn runtime_cross_callee_division_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_cross_callee_division_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("cross-callee division canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (shared-named divisions deliver), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-cross-division-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("cross-callee division canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("cross-callee division canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected shared-named cross-callee divisions to deliver (exit 70), got {:?}          (negative status = the wrong-timed prelude division #DE is back)
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Two DIFFERENT callees with SAME-NAMED lets (`freq`, `shifted`) value-called
 // from ONE caller state: the Mutation fallback write substitutes the callee's
 // terminal and must resolve it in the CALLEE's context (branch_key). Resolved
@@ -23763,6 +23812,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_two_site_struct_result_exit",
     "calls/runtime_nested_value_call_guard_exit",
     "calls/runtime_cross_callee_let_names_exit",
+    "calls/runtime_cross_callee_division_exit",
     "calls/runtime_value_call_shared_payload_name_exit",
     "calls/runtime_value_call_shared_slot_straight_line_exit",
     "calls/runtime_value_call_struct_payload_cast_field_exit",
