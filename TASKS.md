@@ -143,9 +143,21 @@ decreases remaining
   (binary/cast/etc.), teaching the construct-from-lets shape (fail canary
   calls/constructor_computed_field_rejected; receiver-FUL value machines
   deliver computed-field literals correctly and stay accepted). REMAINING
-  (engineering, de-fence): lower computed struct-literal fields per-field
-  (byte_size = the FIELD at slot+offset) in the type-scoped constructor's
-  result materialization, then drop the fence.
+  (engineering, de-fence) -- DIAGNOSIS SHARPENED 2026-07-10 (op-level, from the
+  pre-fence backend report of `self.p = Pair8::make(3500)` with
+  `Pair8 { a: n / 100, b: 7 }`): the per-field materialization is ALREADY
+  CORRECT AND EMITTED -- frame@0 = 3500 DivideUnsigned 100 (a), frame@4 = 7
+  (b), copy frame->machine@0 bytes 8 -- but a FOURTH op follows: `write
+  integer machine@0 bytes 8 value 7`, clobbering the pair with the LAST
+  field's static value as a WHOLE-STRUCT scalar write. So this is a
+  DOUBLE-LOWERING: the plain AssignmentValue mutation path emits again after
+  the inline value-call machinery (the keystone-era suppression guard
+  `state_call_is_dispatched` / the inline-append gate does not recognize the
+  RECEIVERLESS TYPE-SCOPED call shape). Fix = extend the suppression to that
+  call shape (find why the substituted value static-resolves to the last
+  field's 7 -- the emitter is mutation.rs ~1767 WriteRuntimeStorageInteger,
+  target 8 bytes passes supports_scalar_integer_write); then drop the
+  frontend fence (calls.rs report_computed_field_constructor_result).
 
 - **[ ] Interpreter unsigned-u64 arithmetic remainder (2026-07-07).** Comparisons now
   take an UNSIGNED witness from declared types (evaluator: Frame.unsigned64_locals +
