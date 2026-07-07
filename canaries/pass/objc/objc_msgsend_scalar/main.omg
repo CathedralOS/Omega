@@ -1,0 +1,42 @@
+// PROVES the 3-argument objc_msgSend with a SCALAR argument + a determinate
+// integer return VALUE (render fire 8) — the exact shape the window path needs
+// (setActivationPolicy: int, activateIgnoringOtherApps: BOOL, etc.). Sends
+//   [NSObject respondsToSelector: @selector(alloc)]
+// recv (NSObject class) -> x0, sel(respondsToSelector:) -> x1, arg(SEL alloc) ->
+// x2; the BOOL result comes back in x0. NSObject's metaclass DOES respond to
+// +alloc, so the answer is exactly 1 (verified: the method returns via `mov w0,
+// #1`, zeroing the high bits). r == 1 -> exit 8; a misplaced arg or wrong result
+// register gives something else -> exit 1. Uses only NSObject (defined in
+// libobjc); Foundation/AppKit classes need their frameworks loaded (see D-objc).
+
+domain [u8]::CString when no_nul(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+boundary trait ObjectiveC {
+    machine get_class(name: &[u8] in CString) -> u64;
+    machine register_selector(name: &[u8] in CString) -> u64;
+    machine send_scalar(recv: u64, sel: u64, arg: u64) -> u64;
+}
+
+data Main {
+    console: Console;
+    objc: ObjectiveC;
+    cls: u64;
+    sel_resp: u64;
+    sel_alloc: u64;
+    r: u64;
+}
+
+machine Main::main(&mut self) {
+    self.cls = self.objc.get_class("NSObject");
+    self.sel_resp = self.objc.register_selector("respondsToSelector:");
+    self.sel_alloc = self.objc.register_selector("alloc");
+    self.r = self.objc.send_scalar(self.cls, self.sel_resp, self.sel_alloc);
+    transition self.r == 1 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(8); }
+    state bad(&mut self)  { self.console.exit_process(1); }
+}

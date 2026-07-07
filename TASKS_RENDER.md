@@ -247,9 +247,30 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
      `otool -l` shows BOTH `LC_LOAD_DYLIB` (libSystem + libobjc). Regression
      `objc_get_class_exits_7` (native harness 60/60); macho unit 2/2; canary_suite **zero
      new failures** (A/B, identical 87 baseline).
-   REMAINING for the boundary: `sel_registerName` (SEL, same string-arg shape) and
-   `objc_msgSend` (variadic `id(id, SEL, …)` — int/ptr args are the existing mechanism;
-   the NSRect variant uses the HFA v0–v3 path from item #2). Next fire.
+   **fire 8: `sel_registerName` + `objc_msgSend` DONE (2-arg, 3-arg-scalar).** Added
+   `HostOperation::RegisterSelector`(→`_sel_registerName`), `MsgSend`(2-arg) and
+   `MsgSendScalar`(3-arg, scalar 3rd) — `send`/`send_scalar` share the `_objc_msgSend`
+   symbol; op arms `[result, recv→x0, sel→x1, (arg→x2)]` reuse `scalar_argument_operand_at`
+   / `path_pointer_operand`. PROVEN: `canaries/pass/objc/objc_alloc` — `[[NSObject class]
+   alloc] != 0` exits 7 (sel_registerName + 2-arg send + non-null id); `objc_msgsend_scalar`
+   — `[NSObject respondsToSelector:@selector(alloc)] == 1` exits 8 (3-arg send, SEL arg in
+   x2, BOOL return read cleanly from x0 — `disasm: ldr x2,[…]; bl _objc_msgSend`). Native
+   harness 62/62; crate gates green; canary_suite zero new failures (identical 87).
+   ⚑ **DISCOVERY / D-objc: `objc_getClass` only sees classes from LOADED dylibs.** libobjc
+   provides the runtime + `NSObject` (root class), so NSObject works — but `objc_getClass
+   ("NSString")` returns **nil** (Foundation not loaded), which stalled the first
+   NSString-length canary (it silently took the nil path). **Framework classes
+   (Foundation `NSString`, AppKit `NSApplication`/`NSWindow`) require their frameworks
+   LOADED.** So the window path needs a THIRD/FOURTH dylib load for
+   `/System/Library/Frameworks/{Foundation,AppKit}.framework/…`. My multi-dylib machinery
+   already supports N dylibs, BUT the dylib list is built from IMPORTED SYMBOLS — a
+   framework loaded only for its class-registration side effects has no imported function.
+   Two routes (decide next fire): (a) bind the class DATA symbol `_OBJC_CLASS_$_NSWindow`
+   (forces the framework load AND yields the Class pointer directly — no `objc_getClass`),
+   or (b) force-load a fixed framework set when `Gui` is used. Route (a) is cleaner + more
+   correct; it needs a new operand path (import a DATA symbol, use its address as a value).
+   `send_string` (char* arg) was implemented then removed — it can't be run-verified with
+   libobjc alone (no NSObject method takes a char*); it returns with Foundation loaded.
 4. **[ ] Window without reverse callbacks** — `NSApplication sharedApplication` +
    `setActivationPolicy:Regular` + `activateIgnoringOtherApps:YES`; `NSWindow` with an
    `NSImageView` contentView (present via the image view, NOT a `drawRect:` subclass —

@@ -309,3 +309,33 @@ fn objc_get_class_exits_7() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(out.status.code(), Some(7), "objc_getClass(NSObject) should be non-null (2nd dylib libobjc bound)");
 }
+
+// sel_registerName + 2-arg objc_msgSend: [[NSObject class] alloc] returns a
+// non-null instance -> exit 7. recv->x0, sel->x1, id result->x0.
+#[test]
+fn objc_alloc_exits_7() {
+    let main_path = repo_root().join("canaries/pass/objc/objc_alloc/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-objcalloc-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("objc_alloc should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(7), "[[NSObject class] alloc] should be non-null (2-arg objc_msgSend)");
+}
+
+// 3-arg objc_msgSend with a SCALAR arg + determinate integer return:
+// [NSObject respondsToSelector:@selector(alloc)] == 1 -> exit 8. recv->x0,
+// sel->x1, arg(SEL)->x2, BOOL result in x0. The window path's arg shape
+// (setActivationPolicy: int, activateIgnoringOtherApps: BOOL).
+#[test]
+fn objc_msgsend_scalar_exits_8() {
+    let main_path = repo_root().join("canaries/pass/objc/objc_msgsend_scalar/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-objcscalar-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("objc_msgsend_scalar should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(8), "[NSObject respondsToSelector:@selector(alloc)] should be 1 (3-arg scalar msgSend)");
+}
