@@ -97,6 +97,17 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 ## Open latent bugs / fenced gaps
 - **[ ] CRITICAL, FROM OWNER: runtime_recursive_accumulator_exit -- this should not fucking compile. This language does NOT support recursion like this. I do not know which TASK.md file produced this, but this is 100% unacceptable. A goal of this language is a predictable stack size. There is NO FUCKING RECURSION. These tests should be FAILING canaries, or removed. There is only jumps/loops/etc via state transitions (manual looping, closer to a goto statement). Recursion means unpredictable stack. Unacceptable. If a different agent caused this, update the appropriate TASKS_{X}.md. machine calls are stack based, but state transitions are not.
 
+- **[ ] 16-byte value-store fence blocks receiverless-constructor NATIVE lowering
+  (2026-07-07, std::time).** `self.b = Duration::from_milliseconds(3500)` (a
+  receiverless type-scoped SINGLE-STATE value machine returning a 16-byte struct)
+  fails native compile LOUDLY: "X86_64 MVP encoder cannot store 16-byte runtime
+  values yet" — this call shape's result store takes a different route than
+  receiver-ful multi-state value machines (whose 16-byte results already deliver).
+  Interp resolves via the new type-qualified receiverless arm (evaluator (1b)).
+  Fix = the 16-byte runtime value store in the MVP encoder (or route this shape
+  through the working delivery); then promote
+  time/runtime_duration_constructors_exit to a native `_canary_runs` test.
+
 - **[ ] Interpreter unsigned-u64 arithmetic remainder (2026-07-07).** Comparisons now
   take an UNSIGNED witness from declared types (evaluator: Frame.unsigned64_locals +
   cast/self-field classification; found via std::time's wrapped-compare idiom breaking

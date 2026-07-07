@@ -1346,6 +1346,23 @@ fn runtime_i64_min_literal_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_duration_constructors_interpreter_oracle() {
+    // from_seconds / from_milliseconds exact values (receiverless type-scoped
+    // value calls). Interp-only: the native route hits the loud 16-byte
+    // value-store MVP fence; promote when that lands (see the canary header).
+    let canary = pass_canary("time/runtime_duration_constructors_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("duration constructors canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.error, None, "constructors should interpret cleanly");
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for the constructor chain, got {}",
+        outcome.exit_code
+    );
+}
+
+#[test]
 fn runtime_duration_core_exit_canary_runs() {
     // std::time rung 3: Duration checked/saturating arithmetic, exact values
     // (carry, borrow, clamp, ordering, underflow arms), interpreter oracle +

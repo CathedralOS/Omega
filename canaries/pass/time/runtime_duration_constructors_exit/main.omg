@@ -1,0 +1,36 @@
+// std::time from_* unit constructors (receiverless type-scoped value calls),
+// exact values: from_seconds(2) = {2, 0}; from_milliseconds(3500) =
+// {3, 500000000} (exercises the division/remainder conversion).
+// INTERPRETER-ONLY today: the native lowering of this call shape hits the
+// loud "X86_64 MVP encoder cannot store 16-byte runtime values yet" fence
+// (receiver-ful multi-state value machines deliver 16-byte results through
+// different, working machinery). Promote to a `_canary_runs` native test when
+// the 16-byte value store lands.
+// Expected exit: 70.
+use omega::language::std::time;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    a: Duration;
+    b: Duration;
+}
+
+machine Main::main(&mut self) {
+    self.a = Duration::from_seconds(2);
+    transition self.a.seconds == 2 && self.a.subsecond_nanoseconds == 0 {
+        true -> check_milliseconds()
+        false -> fail_seconds()
+    }
+    state check_milliseconds(&mut self) {
+        self.b = Duration::from_milliseconds(3500);
+        transition self.b.seconds == 3 && self.b.subsecond_nanoseconds == 500000000 {
+            true -> good()
+            false -> fail_milliseconds()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_seconds(&mut self) { self.console.exit_process(1); }
+    state fail_milliseconds(&mut self) { self.console.exit_process(2); }
+}
