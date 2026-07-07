@@ -24470,6 +24470,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/contained_same_type_receiver_rejected",
     "calls/guard_call_vs_call_rejected",
     "calls/value_call_effectful_arm_rejected",
+    "calls/value_call_param_effect_arm_rejected",
     "calls/terminal_return_type_mismatch_rejected",
     "collections/write_first_loop_bound_exceeds_capacity",
     "capabilities/duplicate_provider_declaration",

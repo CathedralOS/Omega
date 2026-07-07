@@ -1,0 +1,24 @@
+// The param-arm face: a value call whose callee's ARM states mutate a &mut
+// PARAM (ParameterOrAlias kind, not MachineOwned). One call, one selected
+// arm -> tally.count should be 1. Exit = the raw count.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Tally { count: i32 in Wrapping; }
+data Main { console: Console; tally: Tally; v: i32; }
+machine Main::pick(&self, x: i32, tally: &mut Tally) -> i32 {
+    transition x > 0 { true -> hi(tally) _ -> lo(tally) }
+    state hi(&self, tally: &mut Tally) -> i32 {
+        tally.count = tally.count + 1;
+        100
+    }
+    state lo(&self, tally: &mut Tally) -> i32 {
+        tally.count = tally.count + 10;
+        200
+    }
+}
+machine Main::main(&mut self) {
+    self.v = 5;
+    let n: i32 = self.pick(self.v, &mut self.tally);
+    transition n == 100 { true -> report() _ -> bad(99) }
+    state report(&mut self) { self.console.exit_process(self.tally.count); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
