@@ -531,6 +531,12 @@ impl ValueEnv {
 /// otherwise-untyped operand tree -- so a bare-literal computation like
 /// `let c: u8 = 200 + 100` is range-checked against `u8` (and rejected) instead
 /// of slipping through with no primitive.
+/// `target_domain` is the destination's declared arithmetic domain. When NEITHER
+/// operand of a binary carries a domain, the operation computes INTO the
+/// destination and adopts its domain -- the backend already selects the op by
+/// the target's domain, so `let v: i32 in Wrapping = t + 100` (t a plain local)
+/// is wrapping arithmetic, not an Exact obligation. `Exact` (the default) keeps
+/// the S3 proof obligation.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_arithmetic_domains(
     program: &TypedTrees,
@@ -539,6 +545,7 @@ pub(crate) fn validate_arithmetic_domains(
     expression: ExpressionHandle,
     env: &ValueEnv,
     target_primitive: Option<PrimitiveType>,
+    target_domain: ArithmeticDomain,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Interval {
@@ -549,6 +556,7 @@ pub(crate) fn validate_arithmetic_domains(
         expression,
         env,
         target_primitive,
+        target_domain,
         owner,
         diagnostics,
     )
@@ -562,6 +570,7 @@ pub(crate) fn validate_arithmetic_domains(
 /// `u32`), so the sound value range is `interval ∩ primitive_range(source)` --
 /// intersecting keeps a flow-proven tighter interval while clamping a
 /// domain-wrapped over-approximation back to the type.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_value_range(
     program: &TypedTrees,
     machine: &Machine,
@@ -569,6 +578,7 @@ pub(crate) fn validate_value_range(
     expression: ExpressionHandle,
     env: &ValueEnv,
     target_primitive: Option<PrimitiveType>,
+    target_domain: ArithmeticDomain,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> (Interval, Option<PrimitiveType>) {
@@ -582,6 +592,7 @@ pub(crate) fn validate_value_range(
         expression,
         env,
         target_primitive,
+        target_domain,
         owner,
         diagnostics,
     );
@@ -947,8 +958,17 @@ pub(crate) fn check_value_narrowing(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let mut throwaway = Vec::new();
-    let (interval, source) =
-        validate_value_range(program, machine, state, value, env, Some(target), owner, &mut throwaway);
+    let (interval, source) = validate_value_range(
+        program,
+        machine,
+        state,
+        value,
+        env,
+        Some(target),
+        ArithmeticDomain::Exact,
+        owner,
+        &mut throwaway,
+    );
     if throwaway.is_empty() {
         check_narrowing_assignment(Some(target), interval, source, owner, diagnostics);
     }
@@ -1173,6 +1193,7 @@ const NEUTRAL: Analysis = Analysis {
     primitive: None,
 };
 
+#[allow(clippy::too_many_arguments)]
 fn analyze(
     program: &TypedTrees,
     machine: &Machine,
@@ -1180,6 +1201,7 @@ fn analyze(
     expression: ExpressionHandle,
     env: &ValueEnv,
     target_primitive: Option<PrimitiveType>,
+    target_domain: ArithmeticDomain,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Analysis {
@@ -1193,6 +1215,7 @@ fn analyze(
                 binary.left,
                 env,
                 target_primitive,
+                target_domain,
                 owner,
                 diagnostics,
             );
@@ -1203,6 +1226,7 @@ fn analyze(
                 binary.right,
                 env,
                 target_primitive,
+                target_domain,
                 owner,
                 diagnostics,
             );
@@ -1322,16 +1346,32 @@ fn analyze(
                         )
                     })
                     .unwrap_or_default();
+                // A user who already declared the TARGET's domain (`let v: i32 in
+                // Wrapping = t + 100`) needs to hear the operand-driven rule, not
+                // "opt into a domain" -- they think they already did.
+                let target_hint = if target_domain != ArithmeticDomain::Exact {
+                    format!(
+                        " The target's `in {domain}` does not re-domain the value expression \
+                         (decision 17 is operand-driven): declare the domain on an operand or \
+                         intermediate (`let t: {prim} in {domain} = ...`), or re-tag the operand \
+                         inline (`x as {prim} in {domain}`).",
+                        domain = target_domain.name(),
+                        prim = primitive_name(primitive),
+                    )
+                } else {
+                    String::new()
+                };
                 diagnostics.push(Diagnostic::error(format!(
                     "exact arithmetic in {owner} may overflow `{}`: the operands are not provably \
                      in range (decision 17 -- exact arithmetic is a proof obligation). Widen with \
                      an `as` cast to a larger type, constrain the operands' range (bound a \
                      parameter with a `requires` clause, or narrow a value with a dominating \
                      guard), or opt into a defined-overflow domain \
-                     (`{} in Wrapping`/`Saturating`/`Trapping`).{}",
+                     (`{} in Wrapping`/`Saturating`/`Trapping`).{}{}",
                     primitive_name(primitive),
                     primitive_name(primitive),
                     call_hint,
+                    target_hint,
                 )));
             }
 
@@ -1343,7 +1383,17 @@ fn analyze(
         }
         ExpressionNode::Cast(cast) => {
             // A cast re-types its operand, so the outer target does not flow in.
-            let _ = analyze(program, machine, state, cast.value, env, None, owner, diagnostics);
+            let _ = analyze(
+                program,
+                machine,
+                state,
+                cast.value,
+                env,
+                None,
+                ArithmeticDomain::Exact,
+                owner,
+                diagnostics,
+            );
             let primitive = program
                 .expression_table
                 .name_path_members(cast.target_type)
@@ -1379,12 +1429,12 @@ fn analyze(
             {
                 let mut throwaway = Vec::new();
                 let left = analyze(
-                    program, machine, state, *left_arg, env, target_primitive, owner,
-                    &mut throwaway,
+                    program, machine, state, *left_arg, env, target_primitive, target_domain,
+                    owner, &mut throwaway,
                 );
                 let right = analyze(
-                    program, machine, state, *right_arg, env, target_primitive, owner,
-                    &mut throwaway,
+                    program, machine, state, *right_arg, env, target_primitive, target_domain,
+                    owner, &mut throwaway,
                 );
                 if throwaway.is_empty() {
                     let interval = if call.target.as_str() == "max" {
@@ -1723,6 +1773,7 @@ fn infer_return_interval(
             expression,
             &env,
             target_primitive,
+            ArithmeticDomain::Exact,
             "inferred return",
             &mut throwaway,
         );
@@ -1783,6 +1834,7 @@ pub(crate) fn validate_return_value_range(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let return_primitive = program.primitive_type_reference(state.return_type);
+    let return_domain = program.arithmetic_domain_for_type_reference(state.return_type);
     if range_constraint_interval(program, state.return_type).is_some() {
         // Range-constrained return: analyze (emitting any overflow obligation, as
         // before), enforce the declared `[a..=b]`, and -- on a clean value -- the
@@ -1797,6 +1849,7 @@ pub(crate) fn validate_return_value_range(
             return_expression,
             env,
             return_primitive,
+            return_domain,
             owner,
             diagnostics,
         );
@@ -1820,6 +1873,7 @@ pub(crate) fn validate_return_value_range(
         return_expression,
         env,
         return_primitive,
+        return_domain,
         owner,
         diagnostics,
     );

@@ -1,0 +1,25 @@
+// Decision 17 is OPERAND-driven: a `let v: i32 in Wrapping = <plain> + K`
+// does NOT re-domain the value expression -- the plain operands make it an
+// Exact obligation, rejected with the operand-driven HINT (this canary locks
+// the hint). The fix the hint teaches: domain an operand/intermediate
+// (`let t: i32 in Wrapping = ...`) or re-tag inline (`x as i32 in Wrapping`).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    vals: [i32; 3];
+}
+machine Main::main(&mut self) {
+    self.vals[2] = 30;
+    transition { _ -> self.pick(self.vals, 2) }
+}
+machine Main::pick(&mut self, vals: [i32; 3], k: usize [0..=2]) {
+    let v: i32 in Wrapping = vals[k] + 100;
+    transition v == 130 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}
