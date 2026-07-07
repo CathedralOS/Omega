@@ -1,0 +1,27 @@
+// The guarded element increment's STABILITY twin: a write into the SAME
+// collection (`tallies[2] = 5`) between the guard and the increment may alias
+// the guarded element (index-blind), so the fact drops and the store rejects.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    tallies: [i32 [0..=16]; 4];
+}
+machine Main::main(&mut self) {
+    transition self.tallies[1] < 16 {
+        true -> bump()
+        false -> full()
+    }
+    state bump(&mut self) {
+        self.tallies[2] = 5;
+        self.tallies[1] = self.tallies[1] + 1;
+        transition self.tallies[1] == 1 {
+            true -> matched()
+            false -> unmatched()
+        }
+    }
+    state matched(&mut self) { self.console.exit_process(1); }
+    state unmatched(&mut self) { self.console.exit_process(9); }
+    state full(&mut self) { self.console.exit_process(8); }
+}

@@ -1170,6 +1170,25 @@ fn expressions_equivalent_for_proof(
                 && left.member_symbol == right.member_symbol
                 && expressions_equivalent_for_proof(proof_plan, left.receiver, right.receiver)
         }
+        // An INDEXED place (`self.tallies[1]`, `self.tallies[self.k]`): same
+        // collection, same index. Lets a guard fact on an element (`tallies[1]
+        // < 16`) refine the element's read in the guarded state -- the
+        // accumulate-into-array keystone (`tallies[1] = tallies[1] + 1`).
+        // Sound under the stability gate: the guard's read paths include the
+        // COLLECTION (any indexed write into it aliases) and the INDEX
+        // variable (a write to `k` drops the fact).
+        (ExpressionNode::Indexed(left), ExpressionNode::Indexed(right)) => {
+            let (left, right) = (*left, *right);
+            expressions_equivalent_for_proof(proof_plan, left.collection, right.collection)
+                && expressions_equivalent_for_proof(proof_plan, left.index, right.index)
+        }
+        // LEAVES: identical guards/places from different statements hold
+        // distinct handles, so literal sub-terms (a `[1]` index, a compared
+        // constant) must compare by VALUE (same fix as the precondition twin).
+        (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => left == right,
+        (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => left == right,
+        (ExpressionNode::Float(left), ExpressionNode::Float(right)) => left == right,
+        (ExpressionNode::String(left), ExpressionNode::String(right)) => left == right,
         _ => false,
     }
 }

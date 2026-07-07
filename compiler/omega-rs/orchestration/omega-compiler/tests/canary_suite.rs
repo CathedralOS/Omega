@@ -2709,6 +2709,41 @@ fn runtime_slice_length_field_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The accumulate-into-array keystone: a dominating guard `tallies[1] < 16`
+// proves the element increment `tallies[1] = tallies[1] + 1` into the element
+// range [0..=16] -- the structural matcher now compares INDEXED places. -> 1.
+#[test]
+fn runtime_guarded_element_increment_exit_canary_runs() {
+    let canary = pass_canary("range/runtime_guarded_element_increment_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-guarded-elem-inc-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guarded element increment canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guarded element increment canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `tallies[1] = tallies[1] + 1` under the `tallies[1] < 16` guard \
+         to prove into [0..=16] and exit 1, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // ARRAY-ELEMENT RANGES: `cells: [i32 [0..=7]; 4]` -- writes (const + runtime
 // index) collect bounded obligations, ZII requires 0 in the element range, and
 // an indexed READ carries the range so `cells[i] * 2 + 1` proves into
@@ -22028,6 +22063,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "range/element_range_write_rejected",
     "range/element_range_runtime_write_rejected",
     "range/element_range_zero_excluded",
+    "range/guarded_element_increment_too_wide",
+    "range/guarded_element_increment_stale",
     "ranges/loop_increment_index_unbounded",
     "ranges/loop_body_resets_index",
     "ranges/loop_init_exceeds_capacity",

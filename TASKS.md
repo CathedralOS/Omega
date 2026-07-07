@@ -38,11 +38,20 @@ PROOF side accept only structural equivalence (validation's env join handles the
 general case; make the checker join per-guard candidate ranges if a real program
 needs it), and env facts are per-state (no interprocedural ranges).
 
-- **[ ] Re-convert the 14 partially-Wrapping samples with element ranges.** The
-  de-Trapping sweep left 14 samples honest-Wrapping on array-element dataflow
-  (cellular_automaton, grid CAs) because element ranges didn't exist. They do
-  now — declare `[T [a..=b]; N]`, drop the Wrapping, re-verify differentially.
-  A parallel-agent sweep candidate (mechanical, per-sample, canary-guarded).
+- **[ ] Element-range follow-ups — SCOPED DOWN after survey (2026-07-06).** The
+  "14 partials" list was stale: cellular_automaton et al. already converted via
+  re-guard idioms; accumulator samples (array_sum, dot_product, reverse_sum,
+  histogram tallies) legitimately KEEP Wrapping (an accumulator's bound needs
+  iteration-count reasoning no element range supplies). Remaining value:
+  (a) DE-BOILERPLATE conversions — element ranges can replace re-guard states
+  (`cells: [i32 [0..=1]; 64]` in cellular_automaton); per-sample judgment, low
+  priority. (b) RUNTIME-index guarded element increments: the CONST-index
+  keystone (`tallies[1] < 16` proving `tallies[1] += 1`) landed 2026-07-06, but
+  a RUNTIME index stays conservatively rejected — the operand HOIST renames the
+  element read (the obligation's value is `__hoist_N + 1`), so the guard cannot
+  match it structurally. Follow-up: trace a hoisted local's initializer in the
+  checker's matcher (resolve `__hoist_N` → `tallies[self.k]`); then
+  histogram-style accumulate-at-runtime-index converts.
 
 **Abort-as-effect (#65) design sketch (chat, NOT settled):** every trap-capable
 site (`in Trapping`, future assert/panic) carries an `abort` effect threaded to
