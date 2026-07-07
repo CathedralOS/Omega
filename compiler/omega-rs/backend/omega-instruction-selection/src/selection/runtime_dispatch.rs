@@ -3,7 +3,7 @@ use omega_checked_trees::data::DataMember;
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, PagedSlice};
 use omega_runtime_bodies::{RuntimeDispatchBodyOperation, RuntimeDispatchBodyOperationKind};
 use omega_state_calls::StateCallRole;
 use omega_state_values::{StateValueRole, simplify_state_expression_for_role};
@@ -537,65 +537,21 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
 
                     // Case B: fire AFTER the local initializer write so the
                     // callee's frame slot is populated before the expansion reads it.
-                    {
-                        let deferred_indices_to_fire: Vec<usize> = deferred_leaf_operations
-                            .iter()
-                            .enumerate()
-                            .filter_map(|(deferred_index, deferred)| {
-                                let target_key = state_call_target_key(deferred)?;
-                                if target_key != operation.source_key {
-                                    return None;
-                                }
-                                // Only fire if no more callee-body ops (locals,
-                                // host calls, field mutations) follow for this
-                                // same callee (target_key). The splice run ends
-                                // at the CALLER's next own op (deferred.source_key)
-                                // -- not at the first foreign key, because a
-                                // NESTED value call splices a third source_key
-                                // between the callee's own ops (face #5).
-                                let has_more = operations
-                                    .iter()
-                                        .skip(operation_index + 1)
-                                        .take_while(|later| later.source_key != deferred.source_key)
-                                        .any(|later| {
-                                        matches!(
-                                            later.kind,
-                                            RuntimeDispatchBodyOperationKind::LocalStorage {
-                                                ..
-                                            } | RuntimeDispatchBodyOperationKind::HostCall
-                                                | RuntimeDispatchBodyOperationKind::Mutation {
-                                                    ..
-                                                }
-                                        ) && later.source_key == target_key
-                                    });
-                                if has_more { None } else { Some(deferred_index) }
-                            })
-                            .collect();
-                        // Fire in reverse-index order so removal doesn't shift
-                        // earlier indices (rare: typically 0 or 1 match).
-                        for deferred_index in deferred_indices_to_fire.into_iter().rev() {
-                            let deferred = deferred_leaf_operations.remove(deferred_index);
-                            select_runtime_straight_line_branch_expansions_for_operation(
-                                input,
-                                dispatch_case.dispatch_index,
-                                &deferred,
-                                &mut straight_line_expansion_cursor,
-                                &mut straight_line_selection_scratch,
-                                operands,
-                                runtime_value_operands,
-                                selected_instructions,
-                            );
-                            select_runtime_leaf_branch_expansions_for_operation(
-                                input,
-                                dispatch_case.dispatch_index,
-                                &deferred,
-                                &mut leaf_expansion_cursor,
-                                &mut leaf_selection_scratch,
-                                runtime_value_operands,
-                                selected_instructions,
-                            );
-                        }
-                    }
+                    fire_ready_deferred_leaf_expansions(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation,
+                        operation_index,
+                        &operations,
+                        &mut deferred_leaf_operations,
+                        &mut straight_line_expansion_cursor,
+                        &mut straight_line_selection_scratch,
+                        &mut leaf_expansion_cursor,
+                        &mut leaf_selection_scratch,
+                        operands,
+                        runtime_value_operands,
+                        selected_instructions,
+                    );
 
                     continue;
                 }
@@ -623,51 +579,21 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     operation.kind,
                     RuntimeDispatchBodyOperationKind::Mutation { .. }
                 ) {
-                    let deferred_indices_to_fire: Vec<usize> = deferred_leaf_operations
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(deferred_index, deferred)| {
-                            let target_key = state_call_target_key(deferred)?;
-                            if target_key != operation.source_key {
-                                return None;
-                            }
-                            let has_more = operations
-                                .iter()
-                                    .skip(operation_index + 1)
-                                    .take_while(|later| later.source_key != deferred.source_key)
-                                    .any(|later| {
-                                    matches!(
-                                        later.kind,
-                                        RuntimeDispatchBodyOperationKind::LocalStorage { .. }
-                                            | RuntimeDispatchBodyOperationKind::HostCall
-                                            | RuntimeDispatchBodyOperationKind::Mutation { .. }
-                                    ) && later.source_key == target_key
-                                });
-                            if has_more { None } else { Some(deferred_index) }
-                        })
-                        .collect();
-                    for deferred_index in deferred_indices_to_fire.into_iter().rev() {
-                        let deferred = deferred_leaf_operations.remove(deferred_index);
-                        select_runtime_straight_line_branch_expansions_for_operation(
-                            input,
-                            dispatch_case.dispatch_index,
-                            &deferred,
-                            &mut straight_line_expansion_cursor,
-                            &mut straight_line_selection_scratch,
-                            operands,
-                            runtime_value_operands,
-                            selected_instructions,
-                        );
-                        select_runtime_leaf_branch_expansions_for_operation(
-                            input,
-                            dispatch_case.dispatch_index,
-                            &deferred,
-                            &mut leaf_expansion_cursor,
-                            &mut leaf_selection_scratch,
-                            runtime_value_operands,
-                            selected_instructions,
-                        );
-                    }
+                    fire_ready_deferred_leaf_expansions(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation,
+                        operation_index,
+                        &operations,
+                        &mut deferred_leaf_operations,
+                        &mut straight_line_expansion_cursor,
+                        &mut straight_line_selection_scratch,
+                        &mut leaf_expansion_cursor,
+                        &mut leaf_selection_scratch,
+                        operands,
+                        runtime_value_operands,
+                        selected_instructions,
+                    );
                 }
 
                 select_runtime_branch_preludes_for_operation(
@@ -822,51 +748,21 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     // HostCall test would never fire. Fire only once no further
                     // callee-body host calls / locals follow for this same callee,
                     // so the guard reads the FINAL store.
-                    let deferred_indices_to_fire: Vec<usize> = deferred_leaf_operations
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(deferred_index, deferred)| {
-                            let target_key = state_call_target_key(deferred)?;
-                            if target_key != operation.source_key {
-                                return None;
-                            }
-                            let has_more = operations
-                                .iter()
-                                    .skip(operation_index + 1)
-                                    .take_while(|later| later.source_key != deferred.source_key)
-                                    .any(|later| {
-                                    matches!(
-                                        later.kind,
-                                        RuntimeDispatchBodyOperationKind::LocalStorage { .. }
-                                            | RuntimeDispatchBodyOperationKind::HostCall
-                                            | RuntimeDispatchBodyOperationKind::Mutation { .. }
-                                    ) && later.source_key == target_key
-                                });
-                            if has_more { None } else { Some(deferred_index) }
-                        })
-                        .collect();
-                    for deferred_index in deferred_indices_to_fire.into_iter().rev() {
-                        let deferred = deferred_leaf_operations.remove(deferred_index);
-                        select_runtime_straight_line_branch_expansions_for_operation(
-                            input,
-                            dispatch_case.dispatch_index,
-                            &deferred,
-                            &mut straight_line_expansion_cursor,
-                            &mut straight_line_selection_scratch,
-                            operands,
-                            runtime_value_operands,
-                            selected_instructions,
-                        );
-                        select_runtime_leaf_branch_expansions_for_operation(
-                            input,
-                            dispatch_case.dispatch_index,
-                            &deferred,
-                            &mut leaf_expansion_cursor,
-                            &mut leaf_selection_scratch,
-                            runtime_value_operands,
-                            selected_instructions,
-                        );
-                    }
+                    fire_ready_deferred_leaf_expansions(
+                        input,
+                        dispatch_case.dispatch_index,
+                        operation,
+                        operation_index,
+                        &operations,
+                        &mut deferred_leaf_operations,
+                        &mut straight_line_expansion_cursor,
+                        &mut straight_line_selection_scratch,
+                        &mut leaf_expansion_cursor,
+                        &mut leaf_selection_scratch,
+                        operands,
+                        runtime_value_operands,
+                        selected_instructions,
+                    );
                 }
             }
         }
@@ -1136,6 +1032,82 @@ fn local_initializer_handle(
 
 /// Extract the callee `target_key` from a StateCall-family operation, or
 /// `None` if the operation is not a state call.
+/// Fires every deferred value-call leaf whose callee has NO further body ops
+/// in its contiguous spliced run -- the shared tail of the three fire sites
+/// (after a spliced LocalStorage initializer, a spliced Mutation field write,
+/// and a spliced HostCall result store). A deferred leaf belongs to the
+/// current op's callee when `state_call_target_key(deferred)` matches the
+/// op's `source_key`; the splice run ends at the CALLER's next own op
+/// (`deferred.source_key`), NOT at the first foreign key, because a NESTED
+/// value call splices a third source_key between the callee's own ops
+/// (face #5). Fires straight-line (arm locals) THEN leaf expansions, in
+/// reverse-index order so removal doesn't shift earlier indices.
+///
+/// Keep this the ONLY copy: the three sites drifted twice before extraction
+/// (faces #4 and #5 each patched four hand-copied scans in lockstep).
+#[allow(clippy::too_many_arguments)]
+fn fire_ready_deferred_leaf_expansions(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    operation: &RuntimeDispatchBodyOperation,
+    operation_index: usize,
+    operations: &PagedSlice<'_, RuntimeDispatchBodyOperation>,
+    deferred_leaf_operations: &mut Vec<RuntimeDispatchBodyOperation>,
+    straight_line_expansion_cursor: &mut usize,
+    straight_line_selection_scratch: &mut StraightLineBranchSelectionScratch,
+    leaf_expansion_cursor: &mut usize,
+    leaf_selection_scratch: &mut LeafBranchSelectionScratch,
+    operands: &mut Arena<InstructionOperand>,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let deferred_indices_to_fire: Vec<usize> = deferred_leaf_operations
+        .iter()
+        .enumerate()
+        .filter_map(|(deferred_index, deferred)| {
+            let target_key = state_call_target_key(deferred)?;
+            if target_key != operation.source_key {
+                return None;
+            }
+            let has_more = operations
+                .iter()
+                .skip(operation_index + 1)
+                .take_while(|later| later.source_key != deferred.source_key)
+                .any(|later| {
+                    matches!(
+                        later.kind,
+                        RuntimeDispatchBodyOperationKind::LocalStorage { .. }
+                            | RuntimeDispatchBodyOperationKind::HostCall
+                            | RuntimeDispatchBodyOperationKind::Mutation { .. }
+                    ) && later.source_key == target_key
+                });
+            if has_more { None } else { Some(deferred_index) }
+        })
+        .collect();
+    for deferred_index in deferred_indices_to_fire.into_iter().rev() {
+        let deferred = deferred_leaf_operations.remove(deferred_index);
+        select_runtime_straight_line_branch_expansions_for_operation(
+            input,
+            dispatch_index,
+            &deferred,
+            straight_line_expansion_cursor,
+            straight_line_selection_scratch,
+            operands,
+            runtime_value_operands,
+            selected_instructions,
+        );
+        select_runtime_leaf_branch_expansions_for_operation(
+            input,
+            dispatch_index,
+            &deferred,
+            leaf_expansion_cursor,
+            leaf_selection_scratch,
+            runtime_value_operands,
+            selected_instructions,
+        );
+    }
+}
+
 fn state_call_target_key(
     operation: &RuntimeDispatchBodyOperation,
 ) -> Option<StateKey> {
