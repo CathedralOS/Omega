@@ -1,0 +1,41 @@
+// std::time — the raw per-OS time boundary (TASKS_TIME.md rung 4, D11/D12).
+//
+// Value-returning scalars ONLY: the portable SEMANTICS are fixed here and
+// each target's binding/lowering must meet them (the fs seam discipline).
+// The wall clock is ONE raw u64 read plus two per-target CONSTANTS, so all
+// epoch/unit conversion lives in proven wrapper code (`time.omg`'s `Time`
+// capability, a later rung) — the lowering layer never does arithmetic:
+//
+//   unix_seconds          = raw / units - epoch_offset
+//   subsecond_nanoseconds = (raw % units) * 1_000_000_000 / units
+//     (fits u64 for every real clock: units <= 18_446_744_073, guarded once
+//      at calibration)
+//
+// Per-target reference (rung 5 binds windows first):
+//   windows: QueryPerformanceCounter/-Frequency (out-param),
+//            GetSystemTimePreciseAsFileTime raw=FILETIME u64,
+//            units 10_000_000, epoch offset 11_644_473_600 (1601 -> 1970)
+//   darwin:  clock_gettime_nsec_np(CLOCK_UPTIME_RAW / CLOCK_REALTIME),
+//            units 1_000_000_000, epoch offset 0
+//   INTERPRETER (D12, the deterministic VIRTUAL clock): 1 tick = 1 ms;
+//            `sleep` advances the clock by the slept milliseconds and the
+//            reads never advance it, so interpreter canaries assert EXACT
+//            values. Wall clock = 2026-01-01T00:00:00Z + elapsed, already in
+//            Unix units (epoch offset 0, units 1000).
+boundary trait TimeHost {
+    // Monotonic, never-decreasing tick counter since an unspecified epoch.
+    // Only differences are meaningful.
+    machine monotonic_ticks() -> u64;
+    // Ticks per second for monotonic_ticks. Stable for the process lifetime.
+    machine monotonic_ticks_per_second() -> u64;
+    // Wall clock: ONE non-tearing read, raw platform units since the
+    // platform epoch.
+    machine wall_clock_raw() -> u64;
+    // Units per second for wall_clock_raw (constant per target).
+    machine wall_clock_units_per_second() -> u64;
+    // Platform-epoch -> Unix-epoch shift, in seconds (constant per target).
+    machine wall_clock_epoch_offset_seconds() -> u64;
+    // Millisecond sleep (already bound natively: windows Kernel32 Sleep,
+    // darwin poll; the interpreter advances the virtual clock).
+    machine sleep(milliseconds: u32);
+}

@@ -1346,6 +1346,24 @@ fn runtime_i64_min_literal_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_time_host_virtual_interpreter_oracle() {
+    // std::time rung 4: the TimeHost seam over the VIRTUAL clock, EXACT
+    // values (D12) -- non-advancing reads, sleep(30) advances exactly 30,
+    // calibration 1000/1000/0, wall = 2026-01-01 + elapsed. Interp-only
+    // until rung 5 binds the ops natively.
+    let canary = pass_canary("time/runtime_time_host_virtual_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("time host virtual canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.error, None, "time host ops should interpret cleanly");
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for the virtual clock chain, got {}",
+        outcome.exit_code
+    );
+}
+
+#[test]
 fn runtime_duration_totals_exit_canary_runs() {
     // checked_as_nanoseconds/microseconds/milliseconds exact values + the
     // Overflow arm at Duration::MAX, interpreter oracle + native. Exit 70.

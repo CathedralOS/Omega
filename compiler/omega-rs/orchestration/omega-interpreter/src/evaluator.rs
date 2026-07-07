@@ -2304,6 +2304,15 @@ impl<'program> Evaluator<'program> {
                 }
                 Ok(Some(Value::Bool(!line.is_empty())))
             }
+            // TimeHost read ops (std::time rung 4): one shared helper for both
+            // statement- and value-position dispatch.
+            "monotonic_ticks"
+            | "monotonic_ticks_per_second"
+            | "wall_clock_raw"
+            | "wall_clock_units_per_second"
+            | "wall_clock_epoch_offset_seconds" => {
+                Ok(self.virtual_time_host_value(target))
+            }
             "sleep" => {
                 // Frame pacing: no REAL delay in the interpreter (real time has no
                 // effect on the deterministic state the differential oracle
@@ -3807,6 +3816,10 @@ impl<'program> Evaluator<'program> {
                     // (the build-time purity backstop must see them).
                     self.host_boundary_touched = true;
                 }
+                if let Some(value) = self.virtual_time_host_value(target) {
+                    self.host_boundary_touched = true;
+                    return Ok(value);
+                }
                 if target == "tick_count" {
                     self.virtual_ticks += 1;
                     return Ok(Value::Int(self.virtual_ticks));
@@ -4825,6 +4838,24 @@ impl<'program> Evaluator<'program> {
         let l = self.arithmetic_operand_int(&left)?;
         let r = self.arithmetic_operand_int(&right)?;
         self.eval_int_binary(operator, l, r, unsigned_operands)
+    }
+
+    /// The VIRTUAL TimeHost read ops (std::time rung 4, D12). The
+    /// interpreter's clock is deterministic: `sleep` advances virtual_ticks
+    /// by the slept milliseconds and these reads never advance it, so interp
+    /// canaries assert EXACT values. Calibration: 1 tick = 1 ms (frequency
+    /// 1000); wall clock = 2026-01-01T00:00:00Z + elapsed, already in Unix
+    /// units (epoch offset 0). Native rebinds these to real clocks (rung 5)
+    /// and its canaries assert inequalities instead.
+    fn virtual_time_host_value(&self, target: &str) -> Option<Value> {
+        match target {
+            "monotonic_ticks" => Some(Value::Int(self.virtual_ticks)),
+            "monotonic_ticks_per_second" => Some(Value::Int(1000)),
+            "wall_clock_raw" => Some(Value::Int(1767225600000 + self.virtual_ticks)),
+            "wall_clock_units_per_second" => Some(Value::Int(1000)),
+            "wall_clock_epoch_offset_seconds" => Some(Value::Int(0)),
+            _ => None,
+        }
     }
 
     fn eval_int_binary(
