@@ -386,9 +386,24 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    feature, and if the provider is a SEPARATE `data` type it needs the through-FIELD
    value-call fix (task #45, deferred); the same-data-type value-call already works (this
    fire). **(W2)** bespoke composite host-op lowering per Gui op in the aarch64 encoder —
-   no new feature but heavy/fragile. **Recommend W1.** Prereq: decide whether the macos_gui
-   provider is same-data (avoids #45) or a separate data type (needs #45). Next fires:
-   build the `macos_gui` Omega module + the W1 dispatch, then #9/#10.
+   no new feature but heavy/fragile. **Recommend W1.**
+   ✅ **fire 17: the provider SHAPE is DE-RISKED — a separate `data` type wrapper works
+   through a FIELD value-call, and does NOT need the #45 fix.** Studied the SHIPPED
+   `Filesystem` wrapper: it is a `data` type holding a boundary handle + scratch FIELDS,
+   value-called through a field (`self.fs.write_all(..)`, `native_wrapper_write_all` passes
+   native). #45 is about inlined LOCALS; the wrapper sidesteps it with scratch FIELDS +
+   TERMINAL-VALUE completion (no transition-guard on the raw host result). PROVEN THIS FIRE:
+   `canaries/pass/objc/gui_impl_through_field` — a separate `GuiImpl { objc; x,y,w,h; cls;
+   sel; win; }` with `window_create()` composing objc calls, value-called via
+   `self.gui.window_create()`, returns a non-null NSWindow → exit 7. **So the macOS Gui
+   backend is an ORDINARY OMEGA WRAPPER data type `MacosGui` (mirror `Filesystem`): scratch
+   FIELDS, results via terminal-value completion.** The ONE remaining compiler gap: on
+   darwin, SUBSTITUTE the sample's `boundary trait Gui` field (zero-sized) with the
+   `MacosGui` provider (allocate its storage + dispatch `self.gui.<op>()` to
+   `MacosGui::<op>()`). Next fires: (1) write the `macos_gui.omg` `MacosGui` wrapper
+   (window_create/blit/pump/is_window/window_destroy via the proven primitives, fields +
+   terminal-value); (2) implement the darwin boundary-trait→provider substitution; then
+   #9/#10. Native harness 72/72; no compiler change this fire (canary + test only).
 9. **[ ] Interpreter headless stub** for `Gui`/`Input`/`Clock` — open no real window,
    succeed all calls, report "no event / alive", quit after N frames — so the samples
    stay runnable on both engines and differential/coverage stay green.
