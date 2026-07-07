@@ -1,0 +1,35 @@
+// Machine-collection element-field RMW at a RUNTIME index:
+// `self.cells[self.k].v = self.cells[self.k].v + 1` under a dominating
+// `cells[k].v < 9` guard. The member-over-indexed hoist materializes the READ
+// into a field-typed temp ([0..=9] intact), the guard bounds it, and the
+// machine-indexed write stores `__hoist + 1` back through the element's field
+// offset. cells[2].v: 4 -> 5 -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Cell {
+    v: i32 [0..=9];
+}
+data Main {
+    console: Console;
+    cells: [Cell; 4];
+    k: usize [0..=3];
+}
+machine Main::main(&mut self) {
+    self.cells[2].v = 4;
+    self.k = 2;
+    transition self.cells[self.k].v < 9 {
+        true -> bump()
+        false -> full()
+    }
+    state bump(&mut self) {
+        self.cells[self.k].v = self.cells[self.k].v + 1;
+        transition self.cells[2].v == 5 {
+            true -> yes()
+            false -> no()
+        }
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+    state full(&mut self) { self.console.exit_process(8); }
+}
