@@ -334,6 +334,11 @@ pub enum HostOperation {
     /// taking a scalar: `respondsToSelector:` (SEL), `setActivationPolicy:` (int),
     /// `activateIgnoringOtherApps:` (BOOL). Shares `_objc_msgSend` with `send`.
     MsgSendScalar,
+    /// `ObjectiveC::send_string(recv, sel, text) -> u64` → `objc_msgSend` with one
+    /// C-string argument (`recv`→x0, `sel`→x1, `char*`→x2). For selectors like
+    /// `initWithUTF8String:` (window titles etc.). Shares `_objc_msgSend`. Only
+    /// provable once Foundation is loaded (NSString registered).
+    MsgSendString,
     Sleep,
     TickCount,
     KeyState,
@@ -415,6 +420,7 @@ impl HostOperation {
             "register_selector" => Self::RegisterSelector,
             "send" => Self::MsgSend,
             "send_scalar" => Self::MsgSendScalar,
+            "send_string" => Self::MsgSendString,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
@@ -482,6 +488,7 @@ impl HostOperation {
             Self::RegisterSelector => "register_selector",
             Self::MsgSend => "send",
             Self::MsgSendScalar => "send_scalar",
+            Self::MsgSendString => "send_string",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",

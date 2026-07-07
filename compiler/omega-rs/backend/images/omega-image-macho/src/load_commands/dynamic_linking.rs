@@ -64,6 +64,33 @@ impl MachoDylib {
         current_version: 1 << 16,
         compatibility_version: 1 << 16,
     };
+    /// Foundation — loaded for its side effect of REGISTERING its classes
+    /// (`NSString`, `NSNumber`, …) with the runtime, so `objc_getClass` can find
+    /// them. libobjc alone provides only `NSObject` + the runtime. No symbol is
+    /// imported from it; it is loaded purely for class registration. compat_version
+    /// 1.0.0 so the dyld check passes against any installed Foundation.
+    pub(crate) const FOUNDATION: MachoDylib = MachoDylib {
+        path: "/System/Library/Frameworks/Foundation.framework/Versions/C/Foundation",
+        timestamp: 2,
+        current_version: 1 << 16,
+        compatibility_version: 1 << 16,
+    };
+    /// AppKit — registers the windowing classes (`NSApplication`, `NSWindow`,
+    /// `NSImageView`, …). Transitively pulls Foundation + CoreGraphics, but we load
+    /// them explicitly too. Loaded for class registration; no symbol imported.
+    pub(crate) const APPKIT: MachoDylib = MachoDylib {
+        path: "/System/Library/Frameworks/AppKit.framework/Versions/C/AppKit",
+        timestamp: 2,
+        current_version: 1 << 16,
+        compatibility_version: 1 << 16,
+    };
+    /// CoreGraphics — the `CGImage`/`CGColorSpace`/`CGContext` C API for the blit.
+    pub(crate) const COREGRAPHICS: MachoDylib = MachoDylib {
+        path: "/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics",
+        timestamp: 2,
+        current_version: 1 << 16,
+        compatibility_version: 1 << 16,
+    };
 
     /// The `LC_LOAD_DYLIB` command size: 24-byte header + NUL-terminated install
     /// name, padded up to an 8-byte multiple. (libSystem: 24 + 27 -> 56, matching

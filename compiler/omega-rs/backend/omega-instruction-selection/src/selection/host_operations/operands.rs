@@ -315,6 +315,22 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::ObjectiveC, HostOperation::MsgSendString) => {
+            // `r = send_string(recv, sel, text) -> _objc_msgSend(recv, sel, char*)`.
+            // operand[0] result; [1] recv → x0; [2] sel → x1; [3] the NUL-terminated
+            // C-string arg pointer → x2 (materialized like an fs path).
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let recv = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let sel = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let text = path_pointer_operand(input, host_call, dispatch_index, alias_context, 3);
+            match (result, recv, sel, text) {
+                (Some(result), Some(recv), Some(sel), Some(text)) => {
+                    operands
+                        .insert_many([operand(result), operand(recv), operand(sel), operand(text)])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::Filesystem, HostOperation::Sync) => {
             // Value-returning `rc = sync(fd) -> _fsync(fd)`. Same shape as
             // `close`: operand[0]=result place, [1]=fd; either unresolvable =>

@@ -1,0 +1,43 @@
+// PROVES framework loading (render fire 9): a program that touches the Obj-C
+// runtime now auto-loads Foundation + AppKit + CoreGraphics (see D-objc-load), so
+// their classes REGISTER and objc_getClass can find them. Before this, only
+// NSObject (from libobjc) resolved; NSString/NSApplication/NSWindow returned nil.
+// Looks up three framework classes and requires all non-null:
+//   NSString      (Foundation)
+//   NSApplication (AppKit)
+//   NSWindow      (AppKit)
+// This also confirms AppKit LOADS cleanly from a bare CLI mach-o (no .app bundle)
+// without a window server connection at load time. All non-null -> exit 9; any
+// nil -> a distinct code (10=NSString, 11=NSApplication, 12=NSWindow) to pinpoint.
+
+domain [u8]::CString when no_nul(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+boundary trait ObjectiveC {
+    machine get_class(name: &[u8] in CString) -> u64;
+}
+
+data Main {
+    console: Console;
+    objc: ObjectiveC;
+    ns_string: u64;
+    ns_app: u64;
+    ns_window: u64;
+}
+
+machine Main::main(&mut self) {
+    self.ns_string = self.objc.get_class("NSString");
+    self.ns_app = self.objc.get_class("NSApplication");
+    self.ns_window = self.objc.get_class("NSWindow");
+    transition self.ns_string != 0 { true -> ck_app() _ -> e10() }
+    state ck_app(&mut self) { transition self.ns_app != 0 { true -> ck_win() _ -> e11() } }
+    state ck_win(&mut self) { transition self.ns_window != 0 { true -> good() _ -> e12() } }
+    state good(&mut self) { self.console.exit_process(9); }
+    state e10(&mut self)  { self.console.exit_process(10); }
+    state e11(&mut self)  { self.console.exit_process(11); }
+    state e12(&mut self)  { self.console.exit_process(12); }
+}
