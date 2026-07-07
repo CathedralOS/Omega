@@ -1,5 +1,14 @@
 # Tasks — GUI samples on macOS (native, no C shim)
 
+> **AUTONOMOUS LOOP (this file is the source of truth).** A `/loop` runs every ~5 min
+> re-reading this file. Cron job id **`6bdd3b5e`** — `CronDelete 6bdd3b5e` to stop
+> (when the samples run natively, or blocked only on a user-only decision). Keep
+> Current state / work items / decisions current every fire. Push to `origin/main`
+> each fire (fetch; rebase if behind; re-verify; push) — disjoint files from the
+> other omega-rs work, conflict-free. Gates stay green: Console lowering;
+> `omega-instruction-selection`/`omega-relocations`/`omega-calling-conventions` crate
+> tests; interpreter coverage.
+
 > **Goal:** run the existing gui samples natively on macOS/aarch64 —
 > `samples/gui/{window_app,window_demo,windowed_calculator}`. A real window opens,
 > the animated framebuffer blits, events pump, ESC / close quits. **No image file
@@ -56,9 +65,33 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
 
 ## Work items (native, ABI-first)
 
-1. **[ ] Float-arg support** — double host-call args in v0–v7. Canary: call a libm
-   function with a double arg/return (e.g. `pow(2.0, 10.0) == 1024`) or an
-   `objc_msgSend` to a float-arg method. Disassemble + run.
+1. **[ ] Float-arg + float-return host calls** — double args in v0–v7, double return
+   from v0. **GROUNDED (fire 1, 2026-07-12):** the hard part (instruction encodings)
+   already EXISTS — `aarch64/primitives/float.rs` has `encode_float_move_from_gpr`
+   (GPR→v `fmov`, for loading an arg's bits into a v-register) and
+   `encode_float_move_to_gpr` (v→GPR, for spilling a v0 return to store). Omega
+   already has float values + float dispatch guards (`aarch64/dispatch.rs`
+   `encode_float_compare`). So this is WIRING, not new encoding. The gap:
+   - `representations/omega-abstract-operations/src/instruction/operand.rs`
+     (`InstructionOperandKind`) has `RuntimeScalarInteger` but no float variant — add
+     `RuntimeScalarFloat { byte_offset, byte_count }` + accessor.
+   - `omega-isa-aarch64` `append_call_operands`: for a float operand, load its bits
+     into a scratch GPR then `encode_float_move_from_gpr` into the next V-register —
+     track `next_vreg` SEPARATELY from `next_register` (arm64 has independent x/v arg
+     sequences). Its `operand_width` = load(≤12) + fmov(4), so arg-offset relocation
+     accounting stays automatic (summed from `operand_width`, like the fs stack arg).
+   - Float RETURN: the result lives in v0; spill via `encode_float_move_to_gpr` then
+     the normal result store — gate it like the deref/stack-restore cases
+     (`widths.rs` + `data_addresses.rs` lockstep), keyed on a `returns_float()`
+     predicate on `HostOperationKey`.
+   - `darwin.rs` binding row for a libm symbol + the host-op operand arm + checker
+     routing an `f64` boundary param to the float operand kind.
+   - **VERIFY FIRST next fire:** does the checker/interpreter even accept an `f64`
+     param + return on a `boundary trait machine`? Write `boundary trait Libm {
+     machine sqrt(x: f64) -> f64; }` and see if it type-checks before touching the
+     backend (may be a small checker gap to close). SMALLEST CANARY: `sqrt(16.0) ==
+     4.0` (or `pow`) — disassemble (`otool -tv`: `ldr d0,…; bl _sqrt; fmov x,d0; str`)
+     + RUN.
 2. **[ ] HFA struct-by-value args** — pass `NSRect` (4 doubles) / `CGSize` (2) in
    v-regs. Canary: `NSMakeRect(...)` round-trip or `[NSWindow ... initWithContentRect:
    styleMask:backing:defer:]` produces a non-nil window.
