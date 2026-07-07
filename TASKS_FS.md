@@ -398,6 +398,28 @@ crate tests; interpreter fs coverage) and commits.
      straight-line terminal-value-write for a payload-CARRYING data terminal must copy the
      full payload (tag + fields), not just the tag; look at `select_runtime_leaf_branch_
      terminal_value_write` and how it sizes/copies a constructed data value.
+     - **PINPOINTED (2026-07-11) — it is an ENUM-transition-leaf DELIVERY bug, not a
+       payload-only copy-size bug; even the TAG is wrong.** Minimal repro (parked):
+       `canaries/run/filesystem/struct_payload_repro/main.omg` — `data PairResult { Err;
+       Ok(pair: Pair) }`, a value-call `Probe::make` that `transition`s (even on a FIELD
+       guard, so NOT the deep-fix ordering bug) to `mk_err -> Err` / `mk_ok -> Ok{pair}`, then
+       `self.res = self.probe.make()` matched in Main. The wrong arm's value reaches
+       `self.res` ("result tag not Ok" for the arm that should be Ok). ISOLATION: (a) a
+       value-call TERMINAL returning `Ok{pair}` delivers the payload correctly (a==42 PASS);
+       (b) a bool-returning transition works (`native_value_call_guard`). So the break is
+       specific to a value-call whose callee TRANSITIONS to ENUM leaves. INSTRUCTION DUMP (via
+       `SelectedInstructionSink::push` trace): the 2-arm transition emits TWO
+       `CopyRuntimeStorage frame[0] -> Machine[self.res] (24 bytes)` — one BEFORE the selected
+       arm's `WriteRuntimeStorageInteger`s (so it copies the ZII frame) and one AFTER — and
+       the NULLARY `Err` arm writes its tag to `Machine[0]` (the machine's own/self base), NOT
+       the call-result frame slot. So the arm selection + the two full-width copies + the
+       nullary-arm target are all tangled for an enum leaf. Fix is in the leaf branch
+       expansion (`branches/leaf.rs` `select_runtime_leaf_branch_expansion` +
+       `_terminal_value_write` + `_assignment_value_target_copy`): a payload-carrying enum
+       leaf must (i) write its terminal INTO the call-result frame slot (not Machine[0]) and
+       (ii) copy that slot to the target ONCE, AFTER the arm's writes, under the arm's guard —
+       exactly the discipline the scalar path already follows. Focused multi-step effort like
+       the deep fix; do NOT blind-edit the hot leaf path.
   2. **`Error{kind}` uses a nested `last_error()` value-call** (errno→ErrorKind); its kind may
      be ZII by the same nesting the try_exists rewrite sidestepped. The Yes/No/Error TAG is
      right; the kind PAYLOAD is the open item. Could inline the errno→kind `match` on the
