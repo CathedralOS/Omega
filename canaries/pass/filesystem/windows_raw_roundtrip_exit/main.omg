@@ -1,0 +1,74 @@
+// RUN CANARY (exit 70) -- the FIRST windows_x64-native fs raw-seam roundtrip:
+// create -> write -> close -> open -> read -> close -> verify bytes -> remove
+// -> ENOENT+errno probe. The seam lowers through msvcrt (_creat/_write/_close/
+// _open/_read/_unlink/_errno) via the general Win64 import call; `errno`
+// exercises the deref-result path (`_errno()` returns `&errno`, darwin's
+// `___error()` twin). The interpreter's virtual fs is the differential oracle.
+// exit 70 = full roundtrip; 71 = create failed; 72 = write short; 73 = open
+// failed; 74 = read short; 75 = byte mismatch; 76 = remove failed; 77 =
+// removed file still opens; 78 = errno != ENOENT.
+
+use omega::language::std::filesystem_host;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    raw: FilesystemHost;
+    buffer: [u8; 32];
+    fd: i32;
+    n: i64;
+    rc: i32;
+}
+
+machine Main::main(&mut self) {
+    self.fd = self.raw.create("omega_fswin_probe.txt", 438);
+    transition self.fd >= 0 { true -> write_it() _ -> bad(71) }
+
+    state write_it(&mut self) {
+        self.n = self.raw.write(self.fd, "hello");
+        self.rc = self.raw.close(self.fd);
+        transition self.n == 5 { true -> reopen() _ -> bad(72) }
+    }
+
+    state reopen(&mut self) {
+        // 32768 = O_BINARY (msvcrt); harmless extra bit for the interpreter's
+        // virtual fs (darwin numerology ignores it) -- O_RDONLY otherwise.
+        self.fd = self.raw.open("omega_fswin_probe.txt", 32768);
+        transition self.fd >= 0 { true -> read_it() _ -> bad(73) }
+    }
+
+    state read_it(&mut self) {
+        self.n = self.raw.read(self.fd, &mut self.buffer, 32);
+        self.rc = self.raw.close(self.fd);
+        transition self.n == 5 { true -> check() _ -> bad(74) }
+    }
+
+    state check(&mut self) {
+        transition self.buffer[0] == 104 { true -> check_tail() _ -> bad(75) }
+    }
+
+    state check_tail(&mut self) {
+        transition self.buffer[4] == 111 { true -> cleanup() _ -> bad(75) }
+    }
+
+    state cleanup(&mut self) {
+        self.rc = self.raw.remove("omega_fswin_probe.txt");
+        transition self.rc == 0 { true -> probe_missing() _ -> bad(76) }
+    }
+
+    state probe_missing(&mut self) {
+        // The removed file must now be ENOENT: fd < 0 and errno == 2 (the
+        // deref-result `_errno()` path -- darwin's `___error()` twin).
+        self.fd = self.raw.open("omega_fswin_probe.txt", 0);
+        transition self.fd < 0 { true -> check_errno() _ -> bad(77) }
+    }
+
+    state check_errno(&mut self) {
+        self.rc = self.raw.errno();
+        transition self.rc == 2 { true -> good() _ -> bad(78) }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

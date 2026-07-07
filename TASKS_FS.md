@@ -22,9 +22,9 @@
 > `wiki/language_guide/*` before adding language features; prefer ZII / arena /
 > `Handle` / `HandleSpan`; check Rust source for `std::fs` parity; full human-word
 > names (`create`/`open`/`read`/`write`/`close`/`remove`/`metadata`), C symbols only
-> in the per-target binding table; only macOS/aarch64 must be TESTED; keep
-> x86_64/linux/windows structurally ready; build canaries that RUN and verify
-> behavior. Gates that must stay green: Console lowering; `omega-instruction-
+> in the per-target binding table; macOS/aarch64 AND (since Zach's 2026-07-06
+> redirect) windows/x86_64 are TESTED targets; keep linux structurally ready;
+> build canaries that RUN and verify behavior. Gates that must stay green: Console lowering; `omega-instruction-
 > selection`/`omega-relocations`/`omega-calling-conventions` crate tests; the
 > interpreter fs coverage in `canary_suite`; the native fs harness. Verify
 > canary_suite regressions by an **A/B failure-set diff** (the 85 failures are
@@ -56,6 +56,32 @@ coverage; the native fs canary harness) and commits.
 interpreter-differential-unsupported cases from the other omega-rs workstream —
 NOT ours; verify no NEW failures by A/B failure-set diff, never by raw count).
 Native fs harness **55/55** (`omega-compiler --test native_filesystem_canaries`).
+(On WINDOWS hosts the suite is a different set — 621+ pass / 0 fail as of
+2026-07-06; the 85-failure framing is the macOS run.)
+
+**WINDOWS IS NOW A TESTED TARGET (Zach's redirect, 2026-07-06).** The raw seam
+runs natively on windows_x64 through msvcrt bindings (open/open_create/creat/
+read/write/close/unlink/lseek(_lseeki64)/mkdir/rmdir/rename/dup/fsync(_commit)/
+chmod/read_errno(_errno, deref)) riding the general Win64 import-call encoder,
+which gained data-address (string-literal path) + byte-length argument
+marshalling and a deref-result flag. Differential canary:
+`canaries/pass/filesystem/windows_raw_roundtrip_exit` (create/write/read/verify/
+remove + ENOENT errno). Ops with NO clean msvcrt equivalent (pread/pwrite, *at,
+link/symlink/readlink, read_dir, flock, chown, futimens, realpath) and the STAT
+FAMILY (per-OS record layout — the portable-Metadata decode question) keep the
+clean "no native lowering" error on windows; they are the remaining windows-seam
+work and likely want Win32 calls rather than msvcrt.
+**Flag portability note:** the raw seam passes flag WORDS through, so flag
+VALUES are per-OS at the call site (windows O_BINARY=0x8000 is REQUIRED for
+binary reads — msvcrt defaults to text mode; the interpreter's virtual fs uses
+darwin numerology and ignores unknown bits, so O_BINARY is differential-safe).
+**Showcase:** `samples/gui/image_viewer` — BMPs loaded from disk (msvcrt seam),
+decoded in pure Omega (24bpp bottom-up BGR → top-down 32bpp, running-counter
+walk, no computed indices), StretchDIBits-stretched into a real window;
+RIGHT/LEFT reload+flip between three committed .bmp assets, ESC/X quits.
+Verified live: window visible, three distinct renders screenshot-compared,
+ESC exit 0. Compiled-not-run by the harness (no exit annotation, like
+window_app).
 
 **What works today**
 - **Interpreter:** full Rust-parity fs (all ops + the ergonomic `Filesystem`
@@ -201,8 +227,17 @@ Regression canary `canaries/pass/filesystem/native_value_call_guard`.
    (needs a Mac): run `wrapper_metadata_repro` (expect PASS + len 5), then wire
    result-asserting canaries into `native_filesystem_canaries` (`metadata_path`
    len, `open` file usability, faithful `try_exists` Error).
-5. [ ] **x86_64 / linux / windows seams** — binding TABLES only (structural
-   readiness); macOS is the only tested target. See the cross-target reference.
+5. [x] **windows_x64 seam LIVE (2026-07-06, Zach's Windows-first redirect)** —
+   msvcrt bindings for the core op set, TESTED natively (roundtrip canary +
+   the image_viewer sample). Remaining windows-seam work: the stat family
+   (needs the portable-Metadata design — the wrapper's byte-decode hardcodes
+   darwin offsets), and the ops without msvcrt equivalents (likely Win32
+   calls). linux tables remain structural only.
+6. [ ] **Portable Metadata decode** — the `Filesystem` wrapper's stat_buf
+   byte-assembly assumes darwin `struct stat` offsets; windows `_stat64` (and
+   linux `statx`) differ. Needs a per-OS decode seam or a host-normalized
+   record before `read_metadata`/`metadata_path` can go windows-native. Design
+   conversation with Zach before building.
 
 ## Observations (not fs, flagged for the user)
 
@@ -229,10 +264,13 @@ Regression canary `canaries/pass/filesystem/native_value_call_guard`.
 ## Reference — cross-target seam
 
 Each raw op has a per-target binding row (C symbol) + `insert_platform_lowering`.
-macOS/aarch64 is wired + tested. x86_64/linux/windows need their binding tables
-filled (symbol names differ, e.g. linux `open`/`openat` direct syscalls) but the
-Omega surface + interpreter are target-agnostic, so adding a target is table work,
-not surface work.
+macOS/aarch64 is wired + tested; windows/x86_64 is wired + tested for the core
+set (msvcrt rows in `WINDOWS_IMPORT_ROWS`, `FilesystemHost` lowerings x86_64-
+gated in `windows.rs`, all riding the general Win64 import-call encoder —
+which now marshals data-address and byte-length args and honors
+`dereferences_result`). linux needs its table filled (`open`/`openat` direct
+syscalls) but the Omega surface + interpreter are target-agnostic, so adding a
+target is table work, not surface work.
 
 ## Coordination
 

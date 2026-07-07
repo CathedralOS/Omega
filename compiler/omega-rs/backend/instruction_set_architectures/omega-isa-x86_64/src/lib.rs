@@ -790,13 +790,21 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
         // (byte-identical to the original bespoke tick_count sequence for an
         // 8-byte result, and width-correct for a 4-byte one).
         (HostCapability::Clock, HostOperation::TickCount) => {
-            encode_win64_import_call(operands, true)
+            encode_win64_import_call(operands, true, false)
         }
         (HostCapability::Input, HostOperation::KeyState) => encode_key_state_call(operands),
         // Every Gui import is value-returning and encodes through the GENERAL
         // import call: operands[0] = result place, then the full ABI argument
         // list (selection interleaves the hard-wired immediates).
-        (HostCapability::Gui, _) => encode_win64_import_call(operands, true),
+        (HostCapability::Gui, _) => encode_win64_import_call(operands, true, false),
+        // Every Filesystem raw-seam op is value-returning (fd/count/rc) and
+        // rides the same general import call (msvcrt's POSIX-shaped CRT calls
+        // marshal like any Win64 import). `read_errno` (`_errno()` returns
+        // `&errno`) derefs the returned pointer before the store, exactly the
+        // darwin `___error()` shape.
+        (HostCapability::Filesystem, _) => {
+            encode_win64_import_call(operands, true, operation_key.dereferences_result())
+        }
         _ => Err(Diagnostic::error(format!(
             "X86_64 host operation {}.{} is not implemented",
             operation_key.capability_name(),
@@ -1086,6 +1094,19 @@ const WIN64_ARG_LEA_OPCODES: [&[u8]; 4] = [
     &[0x4d, 0x8d, 0x8f], // lea r9,  [r15+d]
 ];
 
+/// `mov <reg64>, imm64` opcode bytes for the Win64 integer argument registers
+/// rcx/rdx/r8/r9 -- a DATA-ADDRESS argument (a string-literal path, e.g.
+/// `_open("...")`) marshals as the data symbol's absolute address, imm64=0
+/// relocated Absolute64 at the opcode's +2 (the same imm64 position as the
+/// staged `mov r15, imm64` forms, so the relocation-site walker treats all
+/// three identically).
+const WIN64_ARG_MOV_IMM64_OPCODES: [&[u8]; 4] = [
+    &[0x48, 0xb9], // mov rcx, imm64
+    &[0x48, 0xba], // mov rdx, imm64
+    &[0x49, 0xb8], // mov r8,  imm64
+    &[0x49, 0xb9], // mov r9,  imm64
+];
+
 /// The outgoing stack-argument area starts right above the 32-byte shadow space.
 const WIN64_STACK_ARG_HOME: usize = 32;
 
@@ -1149,29 +1170,46 @@ fn append_call_register(bytes: &mut Vec<u8>, reg: u8) {
 /// rather than as a constant immediate.
 fn win64_import_arg_is_staged<T: InstructionOperandLike>(operand: Option<&T>) -> bool {
     operand.is_some_and(|operand| {
-        operand.runtime_scalar_integer().is_some() || operand.runtime_storage_address().is_some()
+        operand.runtime_scalar_integer().is_some()
+            || operand.runtime_storage_address().is_some()
+            || operand.data_address().is_some()
     })
+}
+
+/// Whether a general-import argument is a data-object address (`mov <reg>,
+/// imm64` relocated to the symbol, no r15 staging) -- narrower than
+/// `win64_import_arg_is_staged`, which also covers the r15-staged forms; both
+/// place their relocated imm64 at the argument's start + 2.
+fn win64_import_arg_is_data_address<T: InstructionOperandLike>(operand: Option<&T>) -> bool {
+    operand.is_some_and(|operand| operand.data_address().is_some())
 }
 
 /// Marshalling width of general-import argument `index` (0-based ABI order,
 /// stored at `operands[arg_start + index]`). Register args mirror
 /// `win64_scalar_arg_width` (an address lea is the same width as a scalar
-/// load); stack args stage through r15/rax (10 + 7 + a 5-byte
-/// `mov [rsp+disp8], rax`), or store a constant directly (9-byte
+/// load); a data-object address is one `mov <reg64>, imm64` (10); stack args
+/// stage through r15/rax (10 + 7 + a 5-byte `mov [rsp+disp8], rax`; a data
+/// address is 10 + 5), or store a constant directly (9-byte
 /// `mov qword [rsp+disp8], imm32`).
 fn win64_import_arg_width<T: InstructionOperandLike>(
     operands: &[T],
     arg_start: usize,
     index: usize,
 ) -> usize {
-    let staged = win64_import_arg_is_staged(operands.get(arg_start + index));
+    let operand = operands.get(arg_start + index);
+    let data_address = win64_import_arg_is_data_address(operand);
+    let staged = win64_import_arg_is_staged(operand);
     if index < 4 {
         let (imm_opcode, load_opcode) = WIN64_ARG_REGISTERS[index];
-        if staged {
+        if data_address {
+            10
+        } else if staged {
             10 + load_opcode.len() + 4
         } else {
             imm_opcode.len() + 4
         }
+    } else if data_address {
+        10 + 5
     } else if staged {
         10 + 7 + 5
     } else {
@@ -1184,6 +1222,7 @@ fn win64_import_arg_width<T: InstructionOperandLike>(
 fn win64_import_call_width<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
+    dereferences_result: bool,
 ) -> usize {
     let arg_start = usize::from(returns_value);
     let arg_count = operands.len().saturating_sub(arg_start);
@@ -1191,6 +1230,9 @@ fn win64_import_call_width<T: InstructionOperandLike>(
     let mut width = 2 * rsp_adjust_width(reserve) + 5;
     for index in 0..arg_count {
         width += win64_import_arg_width(operands, arg_start, index);
+    }
+    if dereferences_result {
+        width += 2; // mov eax, [rax]
     }
     if returns_value {
         width += 17; // mov r15, imm64 (10) + mov [r15+disp32], eax/rax (7)
@@ -1258,6 +1300,21 @@ fn append_win64_call_arguments<T: InstructionOperandLike>(
                 append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
                 bytes.extend_from_slice(WIN64_ARG_LEA_OPCODES[index]);
                 bytes.extend(disp32(byte_offset)?.to_le_bytes());
+            } else if operand.data_address().is_some() {
+                // A data-object address (string-literal path): the imm64 is
+                // relocated Absolute64 to the symbol's address.
+                bytes.extend_from_slice(WIN64_ARG_MOV_IMM64_OPCODES[index]);
+                bytes.extend(0u64.to_le_bytes());
+            } else if let Some(length) = operand.byte_length() {
+                // A literal payload's byte length rides as a plain integer.
+                bytes.extend_from_slice(imm_opcode);
+                bytes.extend(
+                    i32::try_from(length)
+                        .map_err(|_| {
+                            Diagnostic::error("X86_64 call byte-length argument exceeds i32")
+                        })?
+                        .to_le_bytes(),
+                );
             } else {
                 let argument = immediate_imm32(operands, arg_start + index, "call argument")?;
                 bytes.extend_from_slice(imm_opcode);
@@ -1279,6 +1336,19 @@ fn append_win64_call_arguments<T: InstructionOperandLike>(
                 bytes.extend([0x49, 0x8d, 0x87]); // lea rax, [r15+disp32]
                 bytes.extend(disp32(byte_offset)?.to_le_bytes());
                 bytes.extend([0x48, 0x89, 0x44, 0x24, stack_disp8]); // mov [rsp+o], rax
+            } else if operand.data_address().is_some() {
+                bytes.extend([0x48, 0xb8]); // mov rax, imm64 (relocated Absolute64)
+                bytes.extend(0u64.to_le_bytes());
+                bytes.extend([0x48, 0x89, 0x44, 0x24, stack_disp8]); // mov [rsp+o], rax
+            } else if let Some(length) = operand.byte_length() {
+                bytes.extend([0x48, 0xc7, 0x44, 0x24, stack_disp8]); // mov qword [rsp+o], imm32
+                bytes.extend(
+                    i32::try_from(length)
+                        .map_err(|_| {
+                            Diagnostic::error("X86_64 call byte-length argument exceeds i32")
+                        })?
+                        .to_le_bytes(),
+                );
             } else {
                 let argument = immediate_imm32(operands, arg_start + index, "call argument")?;
                 bytes.extend([0x48, 0xc7, 0x44, 0x24, stack_disp8]); // mov qword [rsp+o], imm32
@@ -1292,6 +1362,7 @@ fn append_win64_call_arguments<T: InstructionOperandLike>(
 fn encode_win64_import_call<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
+    dereferences_result: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     if returns_value && operands.is_empty() {
         return Err(Diagnostic::error(
@@ -1302,11 +1373,20 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
     let arg_start = usize::from(returns_value);
     let arg_count = operands.len() - arg_start;
     let reserve = win64_import_reserve(arg_count);
-    let mut bytes = Vec::with_capacity(win64_import_call_width(operands, returns_value));
+    let mut bytes = Vec::with_capacity(win64_import_call_width(
+        operands,
+        returns_value,
+        dereferences_result,
+    ));
     append_sub_rsp(&mut bytes, reserve);
     append_win64_call_arguments(&mut bytes, operands, arg_start)?;
     bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 (relocated)
     append_add_rsp(&mut bytes, reserve);
+    if dereferences_result {
+        // The callee returned a POINTER to the real result (`_errno()` returns
+        // `&errno`); deref once so the store tail writes the integer.
+        bytes.extend([0x8b, 0x00]); // mov eax, [rax]
+    }
     if returns_value {
         let Some((_, byte_offset, byte_count)) = operands[0].runtime_scalar_integer() else {
             return Err(Diagnostic::error(
@@ -1328,7 +1408,7 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
     }
     debug_assert_eq!(
         bytes.len(),
-        win64_import_call_width(operands, returns_value)
+        win64_import_call_width(operands, returns_value, dereferences_result)
     );
     Ok(bytes)
 }
@@ -1340,6 +1420,7 @@ fn encode_win64_import_call<T: InstructionOperandLike>(
 fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
     operands: &[T],
     returns_value: bool,
+    dereferences_result: bool,
 ) -> Vec<X86_64RelocationSite> {
     let arg_start = usize::from(returns_value);
     let arg_count = operands.len().saturating_sub(arg_start);
@@ -1350,7 +1431,7 @@ fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
         if win64_import_arg_is_staged(operands.get(arg_start + index)) {
             sites.push(X86_64RelocationSite {
                 operand_index: Some(arg_start + index),
-                byte_offset: cursor + 2, // inside mov r15, imm64
+                byte_offset: cursor + 2, // inside mov r15/argreg, imm64
                 byte_width: 8,
                 kind: X86_64RelocationSiteKind::Absolute64,
             });
@@ -1364,6 +1445,9 @@ fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
         kind: X86_64RelocationSiteKind::Relative32,
     });
     cursor += 5 + rsp_adjust_width(reserve);
+    if dereferences_result {
+        cursor += 2; // mov eax, [rax]
+    }
     if returns_value
         && operands
             .first()
@@ -1517,11 +1601,16 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
             // 0-arg value-returning call through the general import-call layout
             // (call at 4+1; result-region base at 13+2 -- identical to the
             // original bespoke site list).
-            win64_import_call_relocation_sites(operands, true)
+            win64_import_call_relocation_sites(operands, true, false)
         }
         (HostCapability::Gui, _) => {
             // Value-returning general import calls (mirrors the encode arm).
-            win64_import_call_relocation_sites(operands, true)
+            win64_import_call_relocation_sites(operands, true, false)
+        }
+        (HostCapability::Filesystem, _) => {
+            // Value-returning general import calls; read_errno's deref shifts
+            // the result-store site by 2 (mirrors the encode arm).
+            win64_import_call_relocation_sites(operands, true, operation_key.dereferences_result())
         }
         (
             HostCapability::Stdout | HostCapability::Stderr,

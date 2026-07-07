@@ -18354,6 +18354,57 @@ fn contained_loop_command_branch_carrier_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The FIRST windows_x64-native fs raw-seam roundtrip (msvcrt bindings through
+// the general Win64 import call): create/write/close/open/read/close/verify/
+// remove, then an ENOENT + errno probe (the deref-result `_errno()` path).
+// Interpreter-first: the virtual fs is the differential oracle. Windows-gated:
+// the macOS fs coverage lives in native_filesystem_canaries.
+#[cfg(windows)]
+#[test]
+fn windows_fs_raw_roundtrip_exit_canary_runs() {
+    let canary = pass_canary("filesystem/windows_raw_roundtrip_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("windows fs roundtrip canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (virtual-fs roundtrip + ENOENT errno), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fs-win-roundtrip-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("windows fs roundtrip canary should compile");
+
+    // Run from the temp build dir so the probe file lands there, not the repo.
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("windows fs roundtrip canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the full native fs roundtrip incl. errno==ENOENT (exit 70), got {:?} \
+         (71-76 = create/write/open/read/verify/remove failed; 77 = removed file still \
+         opens; 78 = errno wrong)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A big multi-field StructLiteral payload through a value-call result slot with
 // one CAST-valued field (`mode: mode as u32` -- the fs metadata_path shape,
 // TASKS_FS.md blocker #2A). The leaf-path scalar write cascade had no convert
@@ -21495,6 +21546,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_same_type_contained_direct_fields_exit",
     "calls/runtime_shared_ref_param_member_exit",
     "calls/runtime_value_call_struct_payload_cast_field_exit",
+    "filesystem/windows_raw_roundtrip_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",
