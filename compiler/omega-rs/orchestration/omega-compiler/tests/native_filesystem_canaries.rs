@@ -735,6 +735,61 @@ fn sample_window_app_renders_natively() {
     // Still running after 2s => rendering the infinite loop fine; killed above.
 }
 
+// aarch64 SATURATING signed divide/modulo (task #62): normal cases plus the TYPE_MIN
+// / -1 corner. Unlike x86 idiv, aarch64 sdiv does not trap there (it wraps to
+// TYPE_MIN); Saturating must instead clamp `i32::MIN / -1` up to `i32::MAX` and give
+// `i32::MIN % -1 == 0`. The canary checks 23/5=4, 23%5=3, i32::MIN/-1=i32::MAX,
+// i32::MIN%-1=0, 10/-1=-10 -> exit 7.
+#[test]
+fn saturating_divide_native_exits_7() {
+    let main_path = repo_root().join("canaries/pass/arithmetic/saturating_divide_native/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-satdiv-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("saturating_divide_native should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(7), "saturating signed div/mod (incl. i32::MIN/-1 -> i32::MAX) should exit 7");
+}
+
+// The UNTOUCHED samples/gui/windowed_calculator runs natively: a persistent calculator
+// window combining Gui + Input (ESC / keys) + Clock + Saturating i32 arithmetic
+// (add/sub/mul AND divide/modulo). It needs the Gui + Input substitutions, Clock.sleep,
+// the large-offset scalar loads, AND aarch64 saturating divide/modulo (task #62). Like
+// window_app it stays open until closed, so we confirm it STARTS + RENDERS without
+// crashing for 2s, then kill it.
+#[test]
+fn sample_windowed_calculator_renders_natively() {
+    let main_path = repo_root().join("samples/gui/windowed_calculator/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-calc-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("the untouched samples/gui/windowed_calculator should compile to a native mach-o:\n{d:#?}"));
+    let mut child = Command::new(build_dir.join("omega-program"))
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .spawn()
+        .expect("spawn");
+    let watch_until = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    let early = loop {
+        if let Some(status) = child.try_wait().expect("try_wait") {
+            break Some(status);
+        }
+        if std::time::Instant::now() > watch_until {
+            break None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    };
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = std::fs::remove_dir_all(&build_dir);
+    if let Some(status) = early {
+        assert_eq!(status.code(), Some(0), "windowed_calculator exited early with a non-zero code (crash) instead of rendering");
+    }
+}
+
+
+
 
 
 

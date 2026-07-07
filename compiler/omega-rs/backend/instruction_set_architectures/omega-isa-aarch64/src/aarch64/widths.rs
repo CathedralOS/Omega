@@ -344,6 +344,11 @@ pub fn runtime_storage_binary_write_width(
             ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
         );
 
+    let saturating_signed_divide_modulo = domain == ArithmeticDomain::Saturating
+        && matches!(
+            operator,
+            StateGuardOperator::Divide | StateGuardOperator::Modulo
+        );
     let operation_width = if is_float {
         runtime_float_binary_operation_width()
     } else if saturating_or_trapping
@@ -353,6 +358,11 @@ pub fn runtime_storage_binary_write_width(
         )
     {
         saturating_trapping_arithmetic_width(byte_size, target_signed)
+    } else if saturating_signed_divide_modulo {
+        saturating_signed_divide_modulo_width(
+            byte_size,
+            matches!(operator, StateGuardOperator::Modulo),
+        )
     } else {
         runtime_binary_operation_width(operator)
     };
@@ -380,6 +390,26 @@ fn saturating_trapping_arithmetic_width(byte_size: usize, target_signed: bool) -
     // + (MOV clamp OR BRK trap) (4) = 28 bytes.
     let clamp_or_trap = 2 * 28;
     sign_extend + wide_op + clamp_or_trap
+}
+
+/// Byte count of [`super::runtime_storage::append_saturating_signed_divide_modulo`]
+/// — sign-extends (8) + `x9 = -1` (16) + CMP (4) + b.ne (4) + the special block + the
+/// unconditional branch (4) + the normal block. MUST stay in lockstep.
+fn saturating_signed_divide_modulo_width(byte_size: usize, want_remainder: bool) -> usize {
+    if !matches!(byte_size, 1 | 2 | 4) {
+        // 8-byte errors during emission; a placeholder for the pre-error capacity.
+        return 4;
+    }
+    // Prologue: two sign-extends (8) + MOVZ+MOVK*3 for -1 (16) + CMP (4) + b.ne (4).
+    let prologue = 8 + 16 + 4 + 4;
+    // Special block (divisor == -1): modulo = MOVZ 0 (4); divide = MUL (4) + MOVZ+
+    // MOVK*3 MAX (16) + CMP (4) + b.le (4) + MOV clamp (4) = 32.
+    let special = if want_remainder { 4 } else { 32 };
+    // Unconditional branch past the normal block.
+    let branch_over = 4;
+    // Normal block: divide = SDIV (4); modulo = SDIV (4) + MSUB (4) = 8.
+    let normal = if want_remainder { 8 } else { 4 };
+    prologue + special + branch_over + normal
 }
 
 /// Width of the float binary-operation sequence: two `FMOV` from GPR (4 bytes

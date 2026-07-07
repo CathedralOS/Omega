@@ -1,0 +1,42 @@
+// Proves aarch64 SATURATING signed divide/modulo: normal cases + the TYPE_MIN/-1
+// corner (i32::MIN / -1 saturates to i32::MAX; i32::MIN % -1 == 0).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    a: i32 in Saturating;
+    b: i32 in Saturating;
+    q: i32 in Saturating;
+    r: i32 in Saturating;
+    imin: i32 in Saturating;
+}
+machine Main::main(&mut self) {
+    // normal divide/modulo: 23/5 = 4, 23%5 = 3
+    self.a = 23;
+    self.b = 5;
+    self.q = self.a / self.b;
+    self.r = self.a % self.b;
+    transition self.q == 4 { true -> ck_r() _ -> bad() }
+    state ck_r(&mut self) { transition self.r == 3 { true -> min_setup() _ -> bad() } }
+    // build i32::MIN = -2147483648 without an out-of-range literal
+    state min_setup(&mut self) {
+        self.imin = 0 - 2147483647;
+        self.imin = self.imin - 1;
+        self.b = 0 - 1;
+        transition { _ -> min_div() }
+    }
+    // i32::MIN / -1 saturates to i32::MAX (2147483647)
+    state min_div(&mut self) {
+        self.q = self.imin / self.b;
+        self.r = self.imin % self.b;
+        transition self.q == 2147483647 { true -> ck_minr() _ -> bad() }
+    }
+    state ck_minr(&mut self) { transition self.r == 0 { true -> neg_div() _ -> bad() } }
+    // 10 / -1 = -10 (non-MIN divide by -1, no clamp)
+    state neg_div(&mut self) {
+        self.a = 10;
+        self.q = self.a / self.b;
+        transition self.q == (0 - 10) { true -> good() _ -> bad() }
+    }
+    state good(&mut self) { self.console.exit_process(7); }
+    state bad(&mut self)  { self.console.exit_process(1); }
+}
