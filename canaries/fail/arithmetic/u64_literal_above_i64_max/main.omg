@@ -1,19 +1,18 @@
-// FAIL canary: a u64 literal above i64::MAX is rejected with a CLEAR diagnostic that names
-// the real limitation, not the misleading "invalid integer literal". Since D14 (anonymous
-// literals, TASKS_TIME.md) the literal PARSES -- it is an uninterpreted payload with no
-// magnitude ceiling -- and the rejection moved from the parser to the validation gate
-// (omega-validation/src/literals.rs): no position ACCEPTS a u64-magnitude value yet,
-// because every consumer reads literals through the i64 value window. (Rescope this canary
-// when the typed u64 lowering lands -- the next D14 rung -- to pin whatever positions still
-// must reject. u64 ARITHMETIC already works; only literal ACCEPTANCE is the gap.)
+// FAIL canary: a u64-magnitude literal into a NON-u64-classed place is rejected
+// with a CLEAR diagnostic. Since D14 (anonymous literals) the literal PARSES and
+// a direct store into a u64/usize/addr place is ACCEPTED (see
+// canaries/pass/arithmetic/runtime_u64_max_literal_exit); every other position
+// -- here an i64 target, whose 8-byte slot would silently reinterpret the bit
+// pattern as negative -- must still reject at the literal-width gate
+// (omega-validation/src/literals.rs), naming the accepted alternative.
 boundary trait Console { machine exit_process(return_code: i32); }
 
 data Main {
     console: Console;
-    mask: u64 in Wrapping;
+    count: i64 in Wrapping;
 }
 
 machine Main::main(&mut self) {
-    self.mask = 18446744073709551615; // u64::MAX -- above i64::MAX, rejected
+    self.count = 18446744073709551615; // u64::MAX into an i64 slot -- rejected
     self.console.exit_process(0);
 }

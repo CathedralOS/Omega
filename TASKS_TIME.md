@@ -337,7 +337,7 @@ boundary trait TimeHost {
 | `wall_clock_raw` | `GetSystemTimePreciseAsFileTime` (out-param `FILETIME` = one LE `u64` → item 1) | `clock_gettime_nsec_np(CLOCK_REALTIME)` (direct `u64`) | ABSENT — clean `UnsupportedHostCall` until an arithmetic-capable shape exists |
 | `wall_clock_units_per_second` | constant `10_000_000` (item 2) | constant `1_000_000_000` | — |
 | `wall_clock_epoch_offset_seconds` | constant `11_644_473_600` (1601→1970) | constant `0` | — |
-| `sleep` | `Kernel32 Sleep` — **already bound** | `usleep(ms * 1000)` — **render workstream item 7, theirs** | `nanosleep` syscall |
+| `sleep` | `Kernel32 Sleep` — **already bound** | **DONE (render fire 23):** `poll(NULL, 0, ms)` | `nanosleep` syscall |
 
 **Conversion math (ALL in the wrapper, per D11):**
 
@@ -416,10 +416,26 @@ boundary trait TimeHost {
    u64::MAX parses and gates (`u64_literal_above_i64_max` rescoped). VERIFIED:
    canary_suite 627/1 (the 1 = pre-existing build_machine_wrong_arity
    missing-files), samples_compile = the 4 documented knowns only, all crate
-   gates green. REMAINING (fire C+): typed u64 ACCEPTANCE — `value_for(target
-   range)` at binding boundaries, codegen u64 bit-pattern immediates,
-   `IntegerRange` widening, interpreter u64 values, per-position gate
-   relaxation (`Duration::MAX` needs this); then fold-behind-typing (the
+   gates green.
+   **FIRE C LANDED 2026-07-07: u64-magnitude literals ACCEPTED at u64-classed
+   direct stores.** `value_u64()` + `bits_u64()` (the 8-byte truth) on
+   `IntegerLiteral`; the gate became position-aware (u64_blessed_literals —
+   direct assignment RHS into `u64`/`usize`/`addr` places, resolved through
+   `declared_place_type_raw` + unwrapped primitive; everything else still one
+   clear error naming the accepted alternative). The write-path constant
+   resolvers (writes/static_values.rs) and the interpreter literal arm
+   materialize `bits_u64()` — sound ONLY because the gate is precise (a
+   `u32 in Wrapping` slot bypasses the interval store-check; the gate is what
+   stands between it and silent truncation — grow acceptance and its consumer
+   in the SAME change, per the module header). PROVEN:
+   `runtime_u64_max_literal_exit` — `self.mask = 18446744073709551615` then
+   `+ 1 == 0` wrapping round-trip, native exit 70, interp via
+   ACTIVE_PASS_CANARIES; fail canary rescoped to the i64-target face.
+   REMAINING (fire D+): more accepted positions as std needs them (typed
+   `let`, struct-literal fields — `Duration::MAX`'s const initializer will
+   need the CONST path once D15 lands), `IntegerRange` i128 widening for
+   u64-range PROOF facts (today an oversize literal carries no facts — fine
+   for Wrapping, rejects Exact arithmetic), then fold-behind-typing (the
    const-fold sign class merge).
 2. [ ] **const-v0 (D15).** Declaration + literal-only eval + use-site
    materialization; canaries per engineering item 6.

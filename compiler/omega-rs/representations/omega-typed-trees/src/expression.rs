@@ -1159,6 +1159,10 @@ impl ExpressionTable {
         self.expressions.iter().map(|(_, node)| node)
     }
 
+    pub fn expression_entries(&self) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
+        self.expressions.iter()
+    }
+
     pub fn copy_capacity(&self) -> ExpressionTableCapacity {
         ExpressionTableCapacity {
             expressions: self.expression_count(),
