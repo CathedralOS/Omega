@@ -61,7 +61,10 @@ pub(in crate::selection) fn static_integer_value(
     expression: &Expression,
 ) -> Option<i64> {
     match expression {
-        Expression::Integer(value) => value.value_i64(),
+        // Full 8-byte pattern: the literal-width gate guarantees an oversize
+        // literal only reaches u64-classed (8-byte) slots, where these bits
+        // ARE the value (same contract as the writes/static_values resolvers).
+        Expression::Integer(value) => value.bits_u64().map(|bits| bits as i64),
         Expression::Boolean(value) => Some(i64::from(*value)),
         // A `mut` wrapper around a value operand is transparent: an inlined
         // branching argument binds as `mut <expr>` even for a by-value parameter
@@ -77,7 +80,7 @@ pub(in crate::selection) fn static_integer_value_in_table(
     expression: ExpressionHandle,
 ) -> Option<i64> {
     match expressions.expression(expression) {
-        ExpressionNode::Integer(value) => value.value_i64(),
+        ExpressionNode::Integer(value) => value.bits_u64().map(|bits| bits as i64),
         ExpressionNode::Boolean(value) => Some(i64::from(*value)),
         ExpressionNode::Mutable(inner) => {
             static_integer_value_in_table(layouts, expressions, *inner)

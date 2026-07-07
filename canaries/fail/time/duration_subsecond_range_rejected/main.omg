@@ -1,0 +1,17 @@
+// FAIL canary (std::time rung 3): Duration's normalization invariant is the
+// FIELD RANGE — a literal construction with subsecond_nanoseconds beyond
+// 999_999_999 must reject at the range-checked store, never normalize
+// silently.
+use omega::language::std::time;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    bad: Duration;
+}
+
+machine Main::main(&mut self) {
+    self.bad = Duration { seconds: 0, subsecond_nanoseconds: 1500000000 };
+    self.console.exit_process(0);
+}

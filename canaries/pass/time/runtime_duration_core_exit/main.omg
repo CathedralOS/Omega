@@ -18,6 +18,7 @@ data Main {
     difference: Duration;
     clamped: Duration;
     a_less_than_b: bool;
+    mask: u64 in Wrapping;
 }
 
 machine Main::main(&mut self) {
@@ -79,10 +80,32 @@ machine Main::main(&mut self) {
         }
     }
     state check_underflow(&mut self) {
+        self.a = Duration { seconds: 2, subsecond_nanoseconds: 600000000 };
         self.difference_result = self.a.checked_subtract(self.b);
         transition self.difference_result {
-            DurationResult::Overflow -> good()
+            DurationResult::Overflow -> check_max()
             DurationResult::Ok { duration } -> fail_underflow(duration)
+        }
+    }
+    state check_max(&mut self) {
+        // Duration::MAX round-trips full-width: u64::MAX + 1 wraps to exactly
+        // 0 only if every bit was set (const -> struct-literal field -> store).
+        self.a = Duration::MAX;
+        self.mask = self.a.seconds;
+        self.mask = self.mask + 1;
+        transition self.mask == 0 && self.a.subsecond_nanoseconds == 999999999 {
+            true -> check_saturating_add()
+            false -> fail_max()
+        }
+    }
+    state check_saturating_add(&mut self) {
+        // MAX + anything clamps at MAX (checked_add's Overflow arm).
+        self.clamped = self.a.saturating_add(self.b);
+        self.mask = self.clamped.seconds;
+        self.mask = self.mask + 1;
+        transition self.mask == 0 && self.clamped.subsecond_nanoseconds == 999999999 {
+            true -> good()
+            false -> fail_saturating_add()
         }
     }
 
@@ -105,4 +128,6 @@ machine Main::main(&mut self) {
     state fail_saturate(&mut self) { self.console.exit_process(5); }
     state fail_compare(&mut self) { self.console.exit_process(6); }
     state fail_underflow(&mut self, duration: Duration) { self.console.exit_process(7); }
+    state fail_max(&mut self) { self.console.exit_process(9); }
+    state fail_saturating_add(&mut self) { self.console.exit_process(10); }
 }
