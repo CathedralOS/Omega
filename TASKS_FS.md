@@ -376,6 +376,33 @@ crate tests; interpreter fs coverage) and commits.
     transition form that FAILS on the same shape to bisect. Full `otool -tv` trace + repro
     steps are in the git history of the deleted `wrapper_exists_absent` canary.
 
+- **✅ PAYLOAD-CARRYING WRAPPER RESULTS — native coverage + TWO deeper follow-ups mapped
+  (2026-07-11).** With the deep fix landed, added result-asserting native canaries and probed
+  the whole payload-carrying wrapper surface. What now works natively (TAG-level results):
+  - `write_all -> UnitResult` Ok/Error (`native_wrapper_write_all_result`, prior fire).
+  - `open -> OpenResult` Ok/Error tag (present→Ok, missing→Error) — confirmed via probe.
+  - `try_exists -> ExistsResult` Yes/No (`native_wrapper_try_exists`) — REQUIRED a wrapper
+    rewrite: the faithful 3-way did `state absent { let code = self.host.errno(); transition
+    code == 2 }` — a NESTED host-call-in-guard one level below the outer value-call, which
+    the deep fix does not reach. FIX: capture errno into a FIELD in the ENTRY (`self.stat_rc
+    = read_metadata(..); self.stat_errno = errno();`) before any branch, then the No-vs-Error
+    split guards on the stored field. Native Yes-then-No PASS; **canary_suite 518/85** (85 =
+    baseline, zero new failures; passed rose as the deep fix made differential canaries match).
+  TWO deeper follow-ups found (both beyond the deep fix; neither blocks the above tag-level
+  results, and the interpreter is fully correct for all of it):
+  1. **STRUCT / LARGE PAYLOAD on an `Ok{payload}` arm is delivered as ZII.** `metadata_path
+     -> MetadataResult::Ok{meta}` gives the right TAG but `meta` is all-zeros (`meta.len == 0`
+     for a 5-byte file) — the leaf terminal-value-write copies the enum tag but not the large
+     `Metadata` payload through the value-call result slot. Same class likely affects
+     `open`'s `Ok{file}` (fd not yet checked) and any `Ok{struct}` arm. NEXT: the leaf/
+     straight-line terminal-value-write for a payload-CARRYING data terminal must copy the
+     full payload (tag + fields), not just the tag; look at `select_runtime_leaf_branch_
+     terminal_value_write` and how it sizes/copies a constructed data value.
+  2. **`Error{kind}` uses a nested `last_error()` value-call** (errno→ErrorKind); its kind may
+     be ZII by the same nesting the try_exists rewrite sidestepped. The Yes/No/Error TAG is
+     right; the kind PAYLOAD is the open item. Could inline the errno→kind `match` on the
+     already-captured `self.stat_errno` (a scalar payload, simpler than a struct).
+
 - **🎉🎉 DEEP FIX — LANDED (2026-07-10). Both bugs fixed; ZERO canary_suite regressions.**
   The value-call transition-guard deep bug — the sole blocker for the native ergonomic
   wrapper's payload-carrying result enums — is FIXED. Two coordinated changes:
