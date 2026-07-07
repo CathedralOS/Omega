@@ -61,6 +61,9 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // adds a second float arg (v0, v1) alongside the float return.
         darwin_import("Math", "square_root", "_sqrt", &policy),
         darwin_import("Math", "hypotenuse", "_hypot", &policy),
+        // Three f64 args (v0, v1, v2) → libm `fma`: proves the v-register sequence
+        // reaches v2, i.e. an HFA of ≤4 doubles (NSRect) marshals into v0–v3.
+        darwin_import("Math", "fused_multiply_add", "_fma", &policy),
     ]);
 
     insert_platform_lowering(
@@ -403,6 +406,16 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "Math",
         "hypotenuse",
         [host_operation("Math", "hypotenuse")],
+        PlatformCallData::None,
+    );
+
+    // `Math::fused_multiply_add(x, y, z) -> f64` → `_fma`: three f64 args (v0, v1,
+    // v2) + a float return — proves the v-register sequence extends to v2 (HFA).
+    insert_platform_lowering(
+        plan,
+        "Math",
+        "fused_multiply_add",
+        [host_operation("Math", "fused_multiply_add")],
         PlatformCallData::None,
     );
 }

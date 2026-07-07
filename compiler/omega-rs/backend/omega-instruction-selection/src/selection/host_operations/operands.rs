@@ -253,6 +253,22 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Math, HostOperation::FusedMultiplyAdd) => {
+            // Value-returning `r = fused_multiply_add(x, y, z) -> _fma(x, y, z)`.
+            // operand[0] the f64 result place; operand[1]/[2]/[3] the three f64 args
+            // in v0, v1, v2 (consecutive `RuntimeScalarFloat` operands sequenced by
+            // the vreg counter). Any unresolvable => no operands (encoder errors).
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let x = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let y = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let z = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            match (result, x, y, z) {
+                (Some(result), Some(x), Some(y), Some(z)) => {
+                    operands.insert_many([operand(result), operand(x), operand(y), operand(z)])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::Filesystem, HostOperation::Sync) => {
             // Value-returning `rc = sync(fd) -> _fsync(fd)`. Same shape as
             // `close`: operand[0]=result place, [1]=fd; either unresolvable =>
