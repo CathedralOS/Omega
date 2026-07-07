@@ -479,7 +479,31 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    fns (adrp positions shift) — broad, silent-misrelocation-risky, so DEFERRED to task #59.
    The canary SIDESTEPS it by declaring `i`/guards BEFORE `pixels` (orthogonal to what it
    proves). **This encoder fix is a hard requirement for the untouched window_demo to compile
-   natively** (alongside the #57 substitution and a `Clock.sleep`→`usleep` native lowering).
+   natively** (alongside the #57 substitution and the `Clock.sleep` native lowering).
+   ⚑ **fire 23 SHIPPED: `Clock.sleep` native lowering (one of window_demo's 3 remaining
+   native-compile blockers) → `poll(NULL, 0, ms)`.** window_demo won't compile without a darwin
+   lowering for `self.clock.sleep(ms)`. Chose `poll` (with zero fds its timeout IS a millisecond
+   sleep — correct units, no scale, no `usleep` <1s cap) via a DISTINCT `HostOperation::SleepPoll`
+   op so its operand arm places `[NULL, 0, ms]` in x0/x1/x2 without a per-target branch in the
+   shared `Sleep` arm (which marshals a single arg into x0 for Win32 `Sleep`). Wiring:
+   lib.rs enum+from_name/name; darwin.rs binding (`Clock/sleep_poll`→`_poll`, libSystem) + a
+   `"*"/"sleep"` lowering; operands.rs arm (two synthesized `ImmediateInteger(0)` + the `ms` arg).
+   PROVEN `canaries/pass/objc/clock_sleep`: 3×150ms through the UNCHANGED `Clock` boundary →
+   disasm shows `mov x0,#0; mov x1,#0; mov x2,#0x96; bl _poll`, and the regression TIMES the run
+   (~450ms, asserted in [250ms, 5s]) to prove millisecond units. Native harness 75/75.
+   ⚑ **fire 23 SUBSTITUTION (#57) DESIGN NAILED DOWN.** Investigated the front-end. Findings:
+   (a) the existing `HostProvider` item (`boundary_trait` + `mappings`) maps boundary methods to
+   **C bindings** only (Syscall/DllImport/VtableSlot) — NOT to an Omega data-type provider, so
+   "boundary→Omega-machine value-call dispatch" is genuinely new. (b) The clean plan is an
+   **AST-rewrite on darwin, reusing the value-call machinery**: (1) a compiler darwin registry
+   `Gui→(omega::language::std::macos_gui, MacosGui)` [+ Clock/Input later]; (2) inject the
+   macos_gui import in `frontend.rs::discover_imports` when a darwin target declares `boundary
+   trait Gui`; (3) rewrite the `gui: Gui` field's type ref → `MacosGui` (syntax-tree rename of the
+   `TypeReferenceNode::Named` identifier, post-parse/pre-resolve, or a hook in the resolver's
+   `type_reference.rs`) so the field gains MacosGui's storage and `self.gui.op(..)` resolves as a
+   MacosGui value-call (proven to work, fire 22). Left the orphaned `boundary trait Gui` decl in
+   place (harmless). This is the last gating feature; it's large/invasive (front-end + resolver)
+   and deserves a dedicated fire — task #57.
 9. **[ ] Interpreter headless stub** for `Gui`/`Input`/`Clock` — open no real window,
    succeed all calls, report "no event / alive", quit after N frames — so the samples
    stay runnable on both engines and differential/coverage stay green.
@@ -507,7 +531,7 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
 | `is_window(window) -> u32` | `[window isVisible]` (poll, no delegate) |
 | `window_destroy(window) -> u32` | `[window close]` |
 | `Input.key_state(vk) -> u64` | tracked NSEvent state (map VK 27 → keycode 53; ESC first) |
-| `Clock.sleep(ms)` | `usleep(ms*1000)` |
+| `Clock.sleep(ms)` | ✅ DONE (fire 23) — `poll(NULL, 0, ms)` (poll's timeout IS ms; correct units, no scale/cap — chosen over `usleep`'s microseconds) |
 
 ## Gotchas / decisions to record
 

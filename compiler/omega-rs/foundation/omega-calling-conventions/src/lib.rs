@@ -400,6 +400,13 @@ pub enum HostOperation {
     /// `CGImageRef` (a `size_t` in x0). Used to run-verify the blit path.
     ImageWidth,
     Sleep,
+    /// `Clock::sleep(milliseconds)` on darwin → `poll(NULL, 0, milliseconds)`:
+    /// with zero fds `poll` is a portable millisecond sleep whose timeout is ALREADY
+    /// in milliseconds (unlike `usleep`, which is microseconds and rejects ≥1s), so
+    /// no unit scaling is needed. A DISTINCT op (not `Sleep`) so its operand arm can
+    /// place `[NULL, 0, ms]` in x0/x1/x2 without a per-target branch in the shared
+    /// `Sleep` arm (which marshals a single arg into x0 for Win32 `Sleep(ms)`).
+    SleepPoll,
     TickCount,
     KeyState,
     /// `CreateCompatibleDC(0)` -- a memory device context (the CI-safe,
@@ -491,6 +498,7 @@ impl HostOperation {
             "bitmap_context_image" => Self::BitmapContextImage,
             "image_width" => Self::ImageWidth,
             "sleep" => Self::Sleep,
+            "sleep_poll" => Self::SleepPoll,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
             "dc_create" => Self::DcCreate,
@@ -568,6 +576,7 @@ impl HostOperation {
             Self::BitmapContextImage => "bitmap_context_image",
             Self::ImageWidth => "image_width",
             Self::Sleep => "sleep",
+            Self::SleepPoll => "sleep_poll",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",
             Self::DcCreate => "dc_create",
