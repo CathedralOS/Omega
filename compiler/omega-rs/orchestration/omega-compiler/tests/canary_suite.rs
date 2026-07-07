@@ -4078,6 +4078,41 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A range-typed LET carrying a computed index (`let m = k + 1; arr[m]`) on
+// every face: read, write target, guard subject, backward offset, bare-copy.
+#[test]
+fn runtime_let_bound_computed_index_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_let_bound_computed_index_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-let-computed-index-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("let-bound computed index canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("let-bound computed index canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `let m = k + 1; arr[m]` faces (read/write/guard/backward/copy) to hit the right elements and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Array-of-structs element field in every binary-operand position (left/right
 // operand, both-indexed, guard-dominated RMW, guard subject, indexed target).
 #[test]

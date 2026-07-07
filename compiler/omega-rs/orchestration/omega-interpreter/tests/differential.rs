@@ -810,6 +810,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_nested_const_row_struct_field_write_exit", 1),
     ("collections/runtime_nested_middle_index_3d_exit", 1),
     ("collections/runtime_nested_deep_const_prefix_exit", 1),
+    ("collections/runtime_let_bound_computed_index_exit", 1),
     ("collections/runtime_struct_field_operand_matrix_exit", 1),
     ("collections/runtime_struct_field_operand_param_exit", 1),
     ("collections/runtime_dual_frame_index_copy_exit", 1),

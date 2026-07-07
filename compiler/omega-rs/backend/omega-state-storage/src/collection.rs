@@ -387,6 +387,29 @@ fn local_data_requires_storage(
         return true;
     }
 
+    // A local consumed as a RUNTIME INDEX (`let m = self.k + 1; self.arr[m]`)
+    // keeps its slot when its initializer is a COMPUTED value: eliding it folds
+    // the initializer back into the index position, re-creating a computed
+    // index (`arr[k+1]`), which has no lowering (the backend blocker refuses
+    // the statement loudly). The checker proves bounds from the local's RANGE
+    // TYPE, so the slotted plain-place index is sound AND lowerable. Foldable
+    // initializers (a bare-Name copy, a constant, a member place) stay
+    // elidable -- they fold to a plain place or a const index, which lowers.
+    // No currently-passing program changes: every computed-index shape was
+    // refused before this carve-out.
+    if initializer_is_computed_value(expressions, initial_value)
+        && local_or_bare_copy_used_as_runtime_index(
+            expressions,
+            statement_table,
+            statements,
+            local_statement_index,
+            local_symbol,
+            local_name,
+        )
+    {
+        return true;
+    }
+
     // `statement_references_local` (the final check below) inspects Expression /
     // Assignment / Call / Transition statements but NOT a LocalData (`let`) VALUE.
     // So an AGGREGATE local (array/struct literal -- which has no immediate form to
@@ -583,6 +606,245 @@ fn local_or_bare_copy_used_as_arithmetic_operand(
                 statement_uses_symbol_as_arithmetic_operand(expressions, statement, *symbol, name)
             })
         })
+}
+
+/// A COMPUTED initializer (arithmetic, unary, cast, call -- peeling `Mutable`):
+/// a VALUE with no place to fold back to. Bare names, constants, member reads,
+/// and indexed reads are NOT "computed" here -- they fold into an index
+/// position as a plain place or constant (or carry their own carve-outs).
+fn initializer_is_computed_value(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(inner) => initializer_is_computed_value(expressions, *inner),
+        ExpressionNode::Binary(_)
+        | ExpressionNode::Unary(_)
+        | ExpressionNode::Cast(_)
+        | ExpressionNode::Call(_) => true,
+        _ => false,
+    }
+}
+
+/// Whether the local (or a transitive bare-Name copy of it) is read as the
+/// INDEX of an `Indexed` expression in any later statement -- the combination
+/// that must keep its slot when the initializer is a computed value (see the
+/// runtime-index carve-out). Mirrors
+/// `local_or_bare_copy_used_as_arithmetic_operand`'s alias handling.
+fn local_or_bare_copy_used_as_runtime_index(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement_table: &StatementTable,
+    statements: &[StatementNode],
+    local_statement_index: usize,
+    local_symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    let mut aliases: Vec<(SymbolHandle, Identifier)> =
+        vec![(local_symbol, local_name.clone())];
+    for statement in statements.iter().skip(local_statement_index + 1) {
+        if let StatementNode::LocalData(local_data) = statement
+            && local_data.initial_value.is_valid()
+            && let Some(source_name) =
+                bare_name_initializer(expressions, local_data.initial_value)
+            && aliases.iter().any(|(_, name)| *name == source_name)
+        {
+            aliases.push((local_data.symbol, local_data.name.clone()));
+        }
+    }
+
+    statements
+        .iter()
+        .skip(local_statement_index + 1)
+        .any(|statement| {
+            aliases.iter().any(|(symbol, name)| {
+                statement_uses_symbol_as_index(
+                    expressions,
+                    statement_table,
+                    statement,
+                    *symbol,
+                    name,
+                )
+            })
+        })
+}
+
+fn statement_uses_symbol_as_index(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement_table: &StatementTable,
+    statement: &StatementNode,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    match statement {
+        StatementNode::LocalData(local_data) => expression_uses_symbol_as_index(
+            expressions,
+            local_data.initial_value,
+            symbol,
+            local_name,
+        ),
+        StatementNode::Assignment(assignment) => {
+            expression_uses_symbol_as_index(expressions, assignment.value, symbol, local_name)
+                || expression_uses_symbol_as_index(
+                    expressions,
+                    assignment.target,
+                    symbol,
+                    local_name,
+                )
+        }
+        StatementNode::Expression(expression) => {
+            expression_uses_symbol_as_index(expressions, *expression, symbol, local_name)
+        }
+        StatementNode::Call(call) => expressions
+            .expression_handles(call.arguments)
+            .iter()
+            .copied()
+            .any(|argument| {
+                expression_uses_symbol_as_index(expressions, argument, symbol, local_name)
+            }),
+        StatementNode::Transition(transition) => {
+            (match transition.guard {
+                TransitionGuardNode::Always => false,
+                TransitionGuardNode::When(expression) => {
+                    expression_uses_symbol_as_index(expressions, expression, symbol, local_name)
+                }
+            }) || transition_target_uses_symbol_as_index(
+                expressions,
+                statement_table,
+                transition.target,
+                symbol,
+                local_name,
+            ) || transition_target_uses_symbol_as_index(
+                expressions,
+                statement_table,
+                transition.continuation,
+                symbol,
+                local_name,
+            )
+        }
+    }
+}
+
+fn transition_target_uses_symbol_as_index(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement_table: &StatementTable,
+    target: omega_checked_trees::statement::TransitionTargetHandle,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    if !target.is_valid() {
+        return false;
+    }
+
+    match statement_table.transition_target(target) {
+        TransitionTargetNode::Named { arguments, .. } => statement_table
+            .expression_handles(*arguments)
+            .iter()
+            .copied()
+            .any(|expression| {
+                expression_uses_symbol_as_index(expressions, expression, symbol, local_name)
+            }),
+        TransitionTargetNode::Value(expression) => {
+            expression_uses_symbol_as_index(expressions, *expression, symbol, local_name)
+        }
+        TransitionTargetNode::SelfTarget | TransitionTargetNode::Terminal => false,
+    }
+}
+
+/// Whether `symbol`/`local_name` appears as the INDEX of an `Indexed` node
+/// anywhere inside the expression (the index peeled of `Mutable`).
+fn expression_uses_symbol_as_index(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    if !expression.is_valid() {
+        return false;
+    }
+    match expressions.expression(expression) {
+        ExpressionNode::Indexed(indexed) => {
+            expression_is_bare_symbol(expressions, indexed.index, symbol, local_name)
+                || expression_uses_symbol_as_index(
+                    expressions,
+                    indexed.collection,
+                    symbol,
+                    local_name,
+                )
+                || expression_uses_symbol_as_index(expressions, indexed.index, symbol, local_name)
+        }
+        ExpressionNode::Mutable(inner) => {
+            expression_uses_symbol_as_index(expressions, *inner, symbol, local_name)
+        }
+        ExpressionNode::Member(member) => {
+            expression_uses_symbol_as_index(expressions, member.receiver, symbol, local_name)
+        }
+        ExpressionNode::Binary(binary) => {
+            expression_uses_symbol_as_index(expressions, binary.left, symbol, local_name)
+                || expression_uses_symbol_as_index(expressions, binary.right, symbol, local_name)
+        }
+        ExpressionNode::Unary(unary) => {
+            expression_uses_symbol_as_index(expressions, unary.operand, symbol, local_name)
+        }
+        ExpressionNode::Cast(cast) => {
+            expression_uses_symbol_as_index(expressions, cast.value, symbol, local_name)
+        }
+        ExpressionNode::Call(call) => {
+            (call.receiver.is_valid()
+                && expression_uses_symbol_as_index(
+                    expressions,
+                    call.receiver,
+                    symbol,
+                    local_name,
+                ))
+                || expressions
+                    .expression_handles(call.arguments)
+                    .iter()
+                    .copied()
+                    .any(|argument| {
+                        expression_uses_symbol_as_index(expressions, argument, symbol, local_name)
+                    })
+        }
+        ExpressionNode::Range(range) => {
+            expression_uses_symbol_as_index(expressions, range.start, symbol, local_name)
+                || expression_uses_symbol_as_index(expressions, range.end, symbol, local_name)
+        }
+        ExpressionNode::ArrayLiteral(elements) => expressions
+            .expression_handles(*elements)
+            .iter()
+            .copied()
+            .any(|element| {
+                expression_uses_symbol_as_index(expressions, element, symbol, local_name)
+            }),
+        ExpressionNode::StructLiteral(struct_literal) => expressions
+            .struct_fields(struct_literal.fields)
+            .iter()
+            .any(|field| {
+                expression_uses_symbol_as_index(expressions, field.value, symbol, local_name)
+            }),
+        _ => false,
+    }
+}
+
+/// A bare single-member `Name` matching the local (by symbol or name), peeling
+/// `Mutable`.
+fn expression_is_bare_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            expression_is_bare_symbol(expressions, *inner, symbol, local_name)
+        }
+        ExpressionNode::Name(path) => {
+            let members = expressions.name_path_members(path.members);
+            members.len() == 1
+                && ((symbol.is_valid() && path.head_symbol == symbol)
+                    || members[0] == *local_name)
+        }
+        _ => false,
+    }
 }
 
 /// The NAME a bare-Name initializer reads (`let c = t;` -> `t`), peeling
