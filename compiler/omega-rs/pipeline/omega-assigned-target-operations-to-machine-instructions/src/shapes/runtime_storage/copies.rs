@@ -135,6 +135,9 @@ pub(super) fn selected_runtime_storage_copy_kind(
             *target_offset,
             *byte_count,
         )),
+        SelectedInstructionKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame { .. } => {
+            Some(MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameBaseIndexed)
+        }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
             source_offset,
             base_byte_offset,

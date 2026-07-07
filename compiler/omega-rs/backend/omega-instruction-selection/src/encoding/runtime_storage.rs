@@ -1026,6 +1026,33 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     }
 }
 
+pub fn encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame(
+    architecture: Architecture,
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "aarch64 encoder does not yet support reading a frame-resident inline \
+             array element at a runtime index",
+        )),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame(
+                base_byte_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            )
+        }
+    }
+}
+
 pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
     architecture: Architecture,
     source_region: omega_target_operations::RuntimeStorageRegion,

@@ -419,6 +419,36 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         );
     }
 
+    // A FRAME-resident inline array's runtime-indexed READ (`arr[k]` where
+    // `arr` is a by-value param or local, no descriptor) into a frame slot.
+    // Every value position funnels here through the operand hoist
+    // (`let __hoist_N = arr[k]`), so this one arm covers bare reads, binary
+    // operands, and transition arguments -- all of which used to fall through
+    // and silently read 0 while the interpreter was right. The write-side
+    // resolver already computes {base, index, elem, field}; the copy op is the
+    // LOAD counterpart of the address computation in
+    // `WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame`.
+    if let Some(frame_source) = resolve_runtime_frame_base_indexed_target_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    ) && frame_source.byte_count == slot.byte_size
+        && frame_source.byte_count > 0
+    {
+        return Some(
+            SelectedInstructionKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame {
+                base_byte_offset: frame_source.base_byte_offset,
+                index_offset: frame_source.index_offset,
+                element_byte_size: frame_source.element_byte_size,
+                field_byte_offset: frame_source.field_byte_offset,
+                target_offset: slot.byte_offset,
+                byte_count: slot.byte_size,
+            },
+        );
+    }
+
     if let Some(kind) = super::select_runtime_frame_slot_convert_write_in_table(
         input,
         dispatch_index,

@@ -1,0 +1,23 @@
+// 1-byte elements (i8) of a by-value param array at a runtime index --
+// byte_count 1 through the frame-base-indexed copy. small[3]=9, k=3 -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    small: [i8; 4];
+}
+machine Main::main(&mut self) {
+    self.small[0] = 4;
+    self.small[3] = 9;
+    transition { _ -> self.pick(self.small, 3) }
+}
+machine Main::pick(&mut self, small: [i8; 4], k: usize [0..=3]) {
+    let v: i8 = small[k];
+    transition v == 9 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

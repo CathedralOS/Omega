@@ -1,0 +1,27 @@
+// A FRAME-resident (by-value param) inline array read at a RUNTIME index
+// (`let v = arr[k]`): used to fall through every value-write strategy and
+// silently read 0 (interp right). Now lowered via
+// CopyRuntimeFrameBaseIndexedToRuntimeFrame -- the LOAD counterpart of the
+// frame-base-indexed address computation. arr=[10,20,30], k=1 -> 20 -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    arr: [i32; 3];
+}
+machine Main::main(&mut self) {
+    self.arr[0] = 10;
+    self.arr[1] = 20;
+    self.arr[2] = 30;
+    transition { _ -> self.pick(self.arr, 1) }
+}
+machine Main::pick(&mut self, arr: [i32; 3], k: usize [0..=2]) {
+    let v: i32 = arr[k];
+    transition v == 20 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

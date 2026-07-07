@@ -717,6 +717,22 @@ pub enum AbstractOperationKind {
         target_offset: usize,
         byte_count: usize,
     },
+    /// Read `collection[index]` from a FRAME-resident inline array (a by-value
+    /// param or local `[T; N]` living at `frame[base_byte_offset]`, no
+    /// descriptor) at a runtime index (`frame[index_offset]`) and copy the
+    /// element (or its `field_byte_offset` member) into another frame slot.
+    /// The frame-base sibling of `CopyRuntimeMachineIndexedToRuntimeStorage`
+    /// and the LOAD counterpart of the address computation in
+    /// `WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame` -- `let v = arr[k]`
+    /// where `arr` is frame-resident.
+    CopyRuntimeFrameBaseIndexedToRuntimeFrame {
+        base_byte_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+        byte_count: usize,
+    },
     /// Write-side mirror of `CopyRuntimeMachineIndexedToRuntimeStorage`:
     /// `self.nums[self.j] = self.b` -- a runtime-indexed write into a
     /// machine-owned inline array, sourced from a runtime storage place.

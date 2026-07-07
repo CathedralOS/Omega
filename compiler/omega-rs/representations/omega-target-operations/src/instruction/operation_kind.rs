@@ -594,6 +594,18 @@ pub enum TargetOperationKind {
         target_offset: usize,
         byte_count: usize,
     },
+    /// Read a FRAME-resident inline array element (or its field) at a runtime
+    /// index and copy it into another frame slot -- the frame-base sibling of
+    /// `CopyRuntimeMachineIndexedToRuntimeStorage` (`let v = arr[k]` where
+    /// `arr` is a by-value param/local, no descriptor).
+    CopyRuntimeFrameBaseIndexedToRuntimeFrame {
+        base_byte_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        target_offset: usize,
+        byte_count: usize,
+    },
     /// Write-side mirror of `CopyRuntimeMachineIndexedToRuntimeStorage`:
     /// `self.nums[self.j] = self.b` -- a runtime-indexed write into a
     /// machine-owned inline array, sourced from a runtime storage place.

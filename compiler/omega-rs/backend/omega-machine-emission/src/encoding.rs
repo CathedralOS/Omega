@@ -877,6 +877,22 @@ pub(super) fn encode_machine_instruction_bytes(
             *target_offset,
             *byte_count,
         ),
+        SelectedInstructionKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+        } => runtime_storage::encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame(
+            input,
+            *base_byte_offset,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *target_offset,
+            *byte_count,
+        ),
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
             source_region,
             source_offset,

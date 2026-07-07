@@ -3246,6 +3246,220 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A FRAME-resident (by-value param) inline array read at a RUNTIME index
+// (`let v = arr[k]`): used to silently read 0 (interp right). Lowered via
+// CopyRuntimeFrameBaseIndexedToRuntimeFrame. arr=[10,20,30], k=1 -> exit 1.
+#[test]
+fn runtime_frame_indexed_param_read_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_frame_indexed_param_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-frame-idx-param-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("frame indexed param read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("frame indexed param read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `let v = arr[k]` (arr=[10,20,30], k=1) to read 20 and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The param-array runtime-indexed read as a BINARY OPERAND (`vals[k] + 100`)
+// and as a transition ARGUMENT (`self.report(vals[k])`), with ELEMENT RANGES
+// on the param type discharging the exact-arithmetic obligation. -> exit 1.
+#[test]
+fn runtime_frame_indexed_param_operand_arg_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_frame_indexed_param_operand_arg_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-frame-idx-param-opa-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("frame indexed param operand/arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("frame indexed param operand/arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `vals[k] + 100` == 130 then `self.report(vals[k])` == 30 to exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// Element-FIELD read of a by-value struct-array param at a runtime index
+// (`points[k].y` -- field_byte_offset in the frame-base-indexed copy). -> 1.
+#[test]
+fn runtime_frame_indexed_param_field_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_frame_indexed_param_field_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-frame-idx-param-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("frame indexed param field canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("frame indexed param field canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `points[k].y` (points[1].y=42, k=1) to read 42 and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// Inline LOCAL array read at a runtime (param) index with 8-byte elements
+// (`let a: [i64; 3] = [...]; a[k]`). a=[11,22,33], k=2 -> exit 1.
+#[test]
+fn runtime_frame_indexed_local_read_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_frame_indexed_local_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-frame-idx-local-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("frame indexed local read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("frame indexed local read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `a[k]` (a=[11,22,33] i64, k=2) to read 33 and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// 1-byte elements (i8) of a by-value param array at a runtime index --
+// byte_count 1 through the frame-base-indexed copy. small[3]=9, k=3 -> 1.
+#[test]
+fn runtime_frame_indexed_byte_param_read_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_frame_indexed_byte_param_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-frame-idx-byte-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("frame indexed byte param read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("frame indexed byte param read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `small[k]` (i8, small[3]=9, k=3) to read 9 and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// A VALUE-machine reading a MEMBER array of its by-value struct param at a
+// runtime index (`worker.find(bx, 1)` reading `container.items[k].id`) --
+// the dungeon lookup / task #15 shape; the member-of-slot branch walks
+// `container -> items` to the array field's prefix offset. -> exit 1.
+#[test]
+fn runtime_value_machine_param_array_index_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_value_machine_param_array_index_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-vm-param-arr-idx-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value machine param array index canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value machine param array index canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `container.items[k].id` (items[1].id=42, k=1) through the value          machine to read 42 and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A runtime slice `.len` read into a LOCAL binding in a VALUE position (`let n =
 // s.len`), NOT as an operand or guard subject. The native side used to leave the
 // local slot unwritten (the descriptor length was never materialized), so a later
