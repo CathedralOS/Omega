@@ -333,6 +333,14 @@ fn normalized_guard_expression(
         source_machine,
         &source_expressions.to_tree(source_guard),
     );
+    // A machine-field FIXED array's `.len` (`hi <= self.arr.len`) is a
+    // compile-time constant, not storage -- unresolved, the comparison would
+    // classify as a runtime compare with no right storage and die at emission
+    // ("operand did not resolve to storage"). Fold it to its literal here so
+    // the guard classifies as a plain CompareStaticValue, exactly like the
+    // instruction-selection folds of `arr.len` in subject/operand positions.
+    let simplified_guard =
+        fold_fixed_array_len_operands(program, source_machine, simplified_guard);
     // The guard lowering supports a full DNF (a top-level disjunction of
     // conjunction-of-comparison clauses), but `simplify_expression` leaves an
     // `And` CONTAINING an `Or` un-lowerable: `boolean_and` distributes
@@ -343,6 +351,127 @@ fn normalized_guard_expression(
     // unchanged.
     let dnf_guard = distribute_guard_to_dnf(simplified_guard);
     normalize_guard_expression_into_table(dnf_guard, normalized_expressions)
+}
+
+/// Rewrite `self.<field>.len` -- where `<field>`'s DECLARED type on the
+/// machine's attached data is a fixed array `[T; N]` -- into the literal `N`,
+/// recursing through the boolean/comparison structure of a guard. Deliberately
+/// narrow: the receiver must be an EXPLICIT `self.<field>` path (no implicit
+/// self, so a shadowing local can never be mis-folded), the field must resolve
+/// on the attached data, and its length must be a literal (a const-parameter
+/// length stays unfolded and errs loudly downstream rather than folding wrong).
+/// Slice fields/locals never match (their declared type is `&[T]`, not
+/// `[T; N]`), so descriptor-backed `.len` storage reads are untouched.
+fn fold_fixed_array_len_operands(
+    program: &CheckedTrees,
+    source_machine: &Machine,
+    expression: Expression,
+) -> Expression {
+    match expression {
+        Expression::Binary(binary) => {
+            let BinaryExpression {
+                left,
+                operator,
+                right,
+            } = *binary;
+            Expression::Binary(Box::new(BinaryExpression {
+                left: fold_fixed_array_len_operands(program, source_machine, left),
+                operator,
+                right: fold_fixed_array_len_operands(program, source_machine, right),
+            }))
+        }
+        Expression::Member(ref member) if member.member.as_str() == "len" => {
+            match self_field_fixed_array_len(program, source_machine, &member.receiver) {
+                Some(length) => Expression::Integer(length),
+                None => expression,
+            }
+        }
+        Expression::Name(ref path)
+            if path.members().last().map(|member| member.as_str()) == Some("len")
+                && path.len() == 3
+                && path.members()[0].as_str() == "self" =>
+        {
+            match machine_field_fixed_array_len(
+                program,
+                source_machine,
+                path.members()[1].as_str(),
+            ) {
+                Some(length) => Expression::Integer(length),
+                None => expression,
+            }
+        }
+        other => other,
+    }
+}
+
+/// The receiver of a `.len` member read, when it is an explicit `self.<field>`
+/// path naming a fixed-array field: `Some(N)`. Handles both spellings the
+/// simplifier produces: a nested member (`Member(Name(["self"]), "arr")`) and a
+/// flat two-member name path (`Name(["self", "arr"])`).
+fn self_field_fixed_array_len(
+    program: &CheckedTrees,
+    source_machine: &Machine,
+    receiver: &Expression,
+) -> Option<i64> {
+    match receiver {
+        Expression::Member(member) => {
+            let Expression::Name(path) = &member.receiver else {
+                return None;
+            };
+            let [head] = path.members() else {
+                return None;
+            };
+            if head.as_str() != "self" {
+                return None;
+            }
+            machine_field_fixed_array_len(program, source_machine, member.member.as_str())
+        }
+        Expression::Name(path) => {
+            let [head, field] = path.members() else {
+                return None;
+            };
+            if head.as_str() != "self" {
+                return None;
+            }
+            machine_field_fixed_array_len(program, source_machine, field.as_str())
+        }
+        _ => None,
+    }
+}
+
+/// The literal length of `<field_name>` on the machine's attached data when its
+/// declared type is `[T; N]` with a literal `N`.
+fn machine_field_fixed_array_len(
+    program: &CheckedTrees,
+    source_machine: &Machine,
+    field_name: &str,
+) -> Option<i64> {
+    let attached_data = source_machine.attached_data.as_ref()?;
+    let data_definition = program
+        .data_definitions()
+        .iter()
+        .find(|data_definition| data_definition.name == *attached_data)?;
+    program
+        .data_members(data_definition)
+        .iter()
+        .find_map(|member| {
+            let omega_checked_trees::data::DataMember::Field(field) = member else {
+                return None;
+            };
+            if field.name.as_str() != field_name {
+                return None;
+            }
+            let omega_checked_trees::types::TypeReferenceNode::FixedArray { length, .. } = program
+                .type_reference_table
+                .type_reference(field.type_reference)
+            else {
+                return None;
+            };
+            let omega_checked_trees::types::FixedArrayLength::Literal(length) = length else {
+                return None;
+            };
+            i64::try_from(*length).ok()
+        })
 }
 
 /// Push `And`s inside `Or`s so a boolean guard tree becomes a flat DNF (a

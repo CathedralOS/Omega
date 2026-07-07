@@ -2931,6 +2931,80 @@ fn runtime_end_fixed_array_subslice_element_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A machine-field FIXED array's `.len` as a dispatch-guard comparison OPERAND
+// against a runtime value (`hi <= self.arr.len`): the guard-normalization fold
+// rewrites the constant length to its literal -> CompareStaticValue. Previously
+// it classified as a runtime compare with no right storage and died at emission.
+// hi=4 vs len 5 -> true arm -> exit 7.
+#[test]
+fn guard_fixed_array_len_operand_exit_canary_runs() {
+    let canary = pass_canary("slices/guard_fixed_array_len_operand_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-guard-arr-len-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guard fixed-array len operand canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guard fixed-array len operand canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(7),
+        "expected `hi <= self.arr.len` (hi=4, len 5) to fold the length and take \
+         the true arm -> exit 7, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The FULL runtime-bounded fixed-array subslice arc: both bounds runtime params,
+// the dominating guard `lo <= hi && hi <= self.arr.len` lowers (fixed-array
+// `.len` operand fold) AND discharges the prover's subslice obligations, and the
+// true arm passes `self.arr[lo..hi]` as a slice argument through the
+// seeded-then-shrunk descriptor. len 3 -> exit 3.
+#[test]
+fn runtime_bounded_fixed_array_subslice_arg_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_bounded_fixed_array_subslice_arg_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-rt-bounded-subslice-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime-bounded fixed-array subslice arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime-bounded fixed-array subslice arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "expected the guarded `self.arr[lo..hi]` (1..4) slice argument to carry \
+         window length 3 -> exit 3, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 owned `[u8; N] in Utf8` carrier builder/concat, native: `self.text =
 // "Room " + self.label` materializes into the target carrier's inline storage --
 // the first literal initializes it, then the source carrier's content is appended

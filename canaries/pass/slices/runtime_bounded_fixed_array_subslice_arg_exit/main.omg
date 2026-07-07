@@ -1,0 +1,36 @@
+// The FULL runtime-bounded fixed-array subslice arc: BOTH bounds are runtime
+// params, the dominating guard `lo <= hi && hi <= self.arr.len` (a) lowers
+// natively (the fixed-array `.len` guard-operand fold -> CompareStaticValue)
+// and (b) discharges the prover's subslice bound obligations; the true arm
+// passes `self.arr[lo..hi]` as a slice ARGUMENT (frame-slot START + END feed
+// the seeded-then-shrunk descriptor). consume sees len 3 -> exit 3.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 5];
+}
+
+machine Main::main(&mut self) {
+    transition { _ -> self.view(1, 4) }
+}
+
+machine Main::view(&mut self, lo: usize, hi: usize) {
+    transition lo <= hi && hi <= self.arr.len {
+        true -> self.consume(self.arr[lo..hi])
+        false -> bad()
+    }
+    state bad(&mut self) { self.console.exit_process(8); }
+}
+
+machine Main::consume(&mut self, sub: &[i32]) {
+    let n: usize = sub.len;
+    transition n == 3 {
+        true -> matched()
+        false -> unmatched()
+    }
+    state matched(&mut self) { self.console.exit_process(3); }
+    state unmatched(&mut self) { self.console.exit_process(0); }
+}
