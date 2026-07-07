@@ -307,6 +307,22 @@ fn bundled_omega_root() -> PathBuf {
         .unwrap_or_else(|_| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../../omega"))
 }
 
+/// Read a bundled std module's source text (`omega/language/std/<module>.omg`).
+/// Used by target-specific provider substitution (task #57), which injects a
+/// bundled provider module (`macos_gui`) that the sample never `use`s itself.
+pub(crate) fn read_bundled_std_source(module: &str) -> Result<String, Vec<Diagnostic>> {
+    let mut path = bundled_omega_root();
+    path.push("language");
+    path.push("std");
+    path.push(format!("{module}.omg"));
+    std::fs::read_to_string(&path).map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "failed to read bundled std module {}: {error}",
+            path.display()
+        ))]
+    })
+}
+
 fn normalize_path(path: &Path) -> Result<PathBuf, Vec<Diagnostic>> {
     path.canonicalize().map_err(|error| {
         vec![Diagnostic::error(format!(

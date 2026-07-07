@@ -504,6 +504,24 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    MacosGui value-call (proven to work, fire 22). Left the orphaned `boundary trait Gui` decl in
    place (harmless). This is the last gating feature; it's large/invasive (front-end + resolver)
    and deserves a dedicated fire — task #57.
+   ⚑ **fire 24 SHIPPED — task #57 SUBSTITUTION WORKS. The last gating FEATURE is done.**
+   Implemented exactly the fire-23 plan as a frontend desugar (`stages.rs::substitute_native_gui_provider`,
+   modeled on `inject_build_prelude` + the plan-laid `replace_type_reference` desugar):
+   on darwin/Mach-O, when a program declares `boundary trait Gui`, the compiler (1) injects the
+   bundled self-contained `macos_gui` provider source (via `read_bundled_std_source` +
+   `load_injected_source`), then (2) rewrites every `gui: Gui` FIELD's `TypeReferenceNode::Named`
+   → `MacosGui`. `self.gui.op(..)` then resolves as an ordinary MacosGui value-call. NATIVE-ONLY:
+   split `source_files_to_syntax_trees` into a `_for_engine(native)` variant — full `compile`
+   passes native=true, the interpreter's `compile_to_checked` passes native=false (keeps `gui: Gui`
+   for its own headless stub, item #9). PROVEN: `canaries/pass/objc/gui_provider_substitution` —
+   declares the UNCHANGED `boundary trait Gui` + a `gui: Gui` field with NO `use`, compiles+runs
+   on darwin via the injected MacosGui → exit 7. Native harness 76/76.
+   ⚑ **fire 24: the UNTOUCHED `samples/gui/window_demo` now compiles PAST the substitution AND
+   Clock.sleep — it fails ONLY on task #59** ("cannot load u32 guard at offset 16752", the
+   large-offset scalar load, because it declares `copied`/`alive`/`i` after `pixels:[i32;4096]`).
+   **So #59 is now the SINGLE remaining blocker between the untouched window_demo and running
+   natively.** (Then Input.key_state for windowed_calculator; the interpreter headless stub is a
+   separate differential concern, item #9.)
 9. **[ ] Interpreter headless stub** for `Gui`/`Input`/`Clock` — open no real window,
    succeed all calls, report "no event / alive", quit after N frames — so the samples
    stay runnable on both engines and differential/coverage stay green.
