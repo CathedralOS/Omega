@@ -427,6 +427,20 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    `get_dc(win) == win` → exit 9. The module is inert unless imported (no fs-corpus impact).
    Native harness 74/74. REMAINING in the module: `blit` (framebuffer→setImage:) +
    `msg_peek`/`msg_translate`/`msg_dispatch` (pump). Then task #57 substitution.
+   ✅ **fire 20: `blit` ADDED to the module (window + framebuffer works).**
+   `MacosGui::blit(device, dw, dh, sw, sh, pixels: [i32;4096], info: [i32;11]) -> u32` —
+   `CGBitmapContextCreate(&pixels)` → snapshot → `NSImage initWithCGImage:size:` →
+   `[imageView setImage:]`; the colorspace is created once in `window_create` + reused.
+   Two Omega gotchas found + recorded: **(a)** a by-value array PARAM cannot be borrowed
+   `&mut` ("not writable in this state") — but the framebuffer is only SNAPSHOTTED, so
+   `bitmap_context` takes an immutable `&[i32]` and blit passes `&pixels` (the ABI passes a
+   plain pointer either way); **(b)** a host-call arg must be a storage PLACE or literal,
+   NOT a live cast expression — so `source_width as i64`/`as f64` are STAGED into fields
+   (`fbw`/`fbh`/`stride`/`fbwf`/`fbhf`) first (`stride = width << 2`, shift is
+   obligation-free). PROVEN: `canaries/pass/objc/macos_gui_module` now also blits a 64×64
+   framebuffer through the field value-call → still exit 9 (win!=0 AND get_dc==win AND
+   blit>0). MODULE OPS DONE: window_create/get_dc/blit/is_window/window_destroy (5/8).
+   REMAINING: the 3 pump ops (msg_peek/translate/dispatch), then task #57 substitution.
 9. **[ ] Interpreter headless stub** for `Gui`/`Input`/`Clock` — open no real window,
    succeed all calls, report "no event / alive", quit after N frames — so the samples
    stay runnable on both engines and differential/coverage stay green.
