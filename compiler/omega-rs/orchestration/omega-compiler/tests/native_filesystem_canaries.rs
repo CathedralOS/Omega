@@ -464,3 +464,20 @@ fn event_pump_exits_6() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(code, Some(6), "event_pump should complete 3 non-blocking pumps and exit 6");
 }
+
+// The macOS Gui-backend building block: an Omega machine that composes the objc
+// window primitives (getClass/alloc/initWithContentRect:), reached through a
+// same-data-type VALUE-CALL, returns a non-null NSWindow -> exit 7. This is the
+// shape the macOS Gui backend uses (one trait-op-sized machine per Gui op); the
+// remaining integration gap is provider wiring (boundary Gui trait -> this).
+#[test]
+fn gui_backend_valuecall_exits_7() {
+    let main_path = repo_root().join("canaries/pass/objc/gui_backend_valuecall/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-vcgui-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("gui_backend_valuecall should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(7), "a value-called Omega machine should compose objc into a non-null NSWindow");
+}
