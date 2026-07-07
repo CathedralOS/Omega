@@ -1,9 +1,12 @@
-# `compiler/beta/` — the assembler, written in alpha
+# `compiler/beta/` — the assembler (an Alpha tool)
 
-Beta is the first rung above the seed: an assembler that turns `.alpha` text into a tape
-the alpha seed runs. It is **written in alpha**, so its source is `.alpha`. It reads human
-mnemonics directly (opcode names, `rN` registers, decimal immediates, labels, commas as
-whitespace) — **no Rust and no numeric-opcode step** anywhere in normal use.
+This folder holds the **assembler**: it turns `.alpha` assembly text into a tape the alpha
+seed runs. It is **written in Alpha** (`assembler.alpha`), so it belongs to the Alpha tier —
+the folder is named `beta/`, and the gates label its step `beta`, for historical reasons.
+(The **Beta language** — the first structured language, one tier up — lives in
+`../beta-lang/` and is compiled by `bc`.) The assembler reads human mnemonics directly
+(opcode names, `rN` registers, decimal immediates, labels, commas as whitespace), with no
+Rust and no numeric-opcode step in normal use.
 
 - `beta_x64_windows.exe` — beta itself: the alpha seed with the assembler tape stamped
   into its hole. This is the working compiler.
