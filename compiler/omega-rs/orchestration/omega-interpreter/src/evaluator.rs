@@ -4644,13 +4644,14 @@ impl<'program> Evaluator<'program> {
             return self.eval_float_binary(operator, l, r);
         }
 
-        // Integer arithmetic / comparison.
-        let l = left
-            .as_int()
-            .ok_or_else(|| Halt::Trap("non-integer operand".to_owned()))?;
-        let r = right
-            .as_int()
-            .ok_or_else(|| Halt::Trap("non-integer operand".to_owned()))?;
+        // Integer arithmetic / comparison. A payload-free CASE operand
+        // contributes its TAG ordinal: the value-position `match` desugar
+        // (parser primary.rs) produces `default + (s == p) * (variant -
+        // default)`, which natively IS tag arithmetic -- the oracle must
+        // compute the same integers or every errno->ErrorKind classification
+        // traps on `Enum - Enum`.
+        let l = self.arithmetic_operand_int(&left)?;
+        let r = self.arithmetic_operand_int(&right)?;
         self.eval_int_binary(operator, l, r)
     }
 
@@ -4750,6 +4751,15 @@ impl<'program> Evaluator<'program> {
                     variant_name: b, ..
                 },
             ) => a == b,
+            // A tag INT beside a case value: the value-position `match` desugar
+            // computes its result as TAG ARITHMETIC (an Int), which then flows
+            // into enum-typed places -- natively both sides are the same tag
+            // constant, so the oracle compares the Int against the case's tag
+            // ordinal.
+            (Value::Int(tag), Value::Enum { variant_name, .. })
+            | (Value::Enum { variant_name, .. }, Value::Int(tag)) => {
+                self.enum_variant_tag(variant_name) == Some(*tag)
+            }
             (Value::Str(a), Value::Str(b)) => *a.borrow() == *b.borrow(),
             (Value::Bool(a), Value::Bool(b)) => a == b,
             _ => {
@@ -4760,6 +4770,53 @@ impl<'program> Evaluator<'program> {
                 }
             }
         })
+    }
+
+    /// An integer ARITHMETIC operand: a scalar's value, or a payload-free case
+    /// value's TAG ordinal (the value-position `match` desugar does tag
+    /// arithmetic over bare cases -- natively a case IS its tag constant).
+    fn arithmetic_operand_int(&self, value: &Value) -> EvalResult<i64> {
+        if let Some(int) = value.as_int() {
+            return Ok(int);
+        }
+        if let Value::Enum {
+            variant_name,
+            payload,
+        } = value
+            && payload.is_empty()
+            && let Some(tag) = self.enum_variant_tag(variant_name)
+        {
+            return Ok(tag);
+        }
+        Err(Halt::Trap("non-integer operand".to_owned()))
+    }
+
+    /// The tag ORDINAL of a case, resolved by variant NAME across the
+    /// program's data definitions -- the same name-keyed grain `values_equal`
+    /// uses for enum equality (first declaration wins; tag 0 = the first
+    /// variant, matching the ZII zero case and native tag layout).
+    ///
+    /// ⚠️ Name-global resolution mis-ranks SAME-NAME variants that sit at
+    /// DIFFERENT ordinals in different enums (`Ok` = 0 in `UnitResult` but 1
+    /// in `MetadataResult`). Today's only tag-arithmetic producer is the
+    /// value-position `match` desugar, whose operands are one enum's variants
+    /// (ErrorKind's names are program-unique), so this cannot misfire yet --
+    /// the durable fix is carrying `type_symbol` on `Value::Enum` (like
+    /// `Value::Struct`) and resolving type-locally (TASKS_FS.md follow-up;
+    /// the #38 payload-collision landmine class).
+    fn enum_variant_tag(&self, variant_name: &str) -> Option<i64> {
+        for data in self.program.data_definitions() {
+            let mut ordinal: i64 = 0;
+            for member in self.program.data_members(data) {
+                if let DataMember::Variant(variant) = member {
+                    if variant.name.as_str() == variant_name {
+                        return Some(ordinal);
+                    }
+                    ordinal += 1;
+                }
+            }
+        }
+        None
     }
 
     // ---- lookups ------------------------------------------------------------
