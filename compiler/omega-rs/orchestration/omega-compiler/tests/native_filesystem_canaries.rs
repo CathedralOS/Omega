@@ -292,3 +292,20 @@ fn native_float_three_args_exits_10() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(out.status.code(), Some(10), "fma(2,3,4) round-tripped should be 10 (args in v0,v1,v2)");
 }
+
+// Multi-dylib linking: the first call into a SECOND dylib. objc_getClass lives in
+// /usr/lib/libobjc.A.dylib (not libSystem), so the Mach-O must emit a 2nd
+// LC_LOAD_DYLIB and bind the symbol at dylib ordinal 2. objc_getClass("NSObject")
+// returns a non-null Class pointer -> exit 7. A broken second-dylib bind either
+// yields cls==0 (exit 1) or aborts at dyld load (non-7 exit) — both caught here.
+#[test]
+fn objc_get_class_exits_7() {
+    let main_path = repo_root().join("canaries/pass/objc/objc_get_class/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-objcclass-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("objc_get_class should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(7), "objc_getClass(NSObject) should be non-null (2nd dylib libobjc bound)");
+}

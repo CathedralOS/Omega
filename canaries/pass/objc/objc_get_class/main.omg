@@ -1,0 +1,33 @@
+// PROVES multi-dylib linking (render fire 7): the FIRST call into a second dylib.
+// `objc_getClass` lives in /usr/lib/libobjc.A.dylib, NOT libSystem — so the
+// Mach-O must emit a 2nd LC_LOAD_DYLIB and bind this symbol at dylib ordinal 2.
+// `objc_getClass("NSObject")` returns the NSObject Class pointer (always present
+// in libobjc's runtime); a non-null result means dyld resolved the second-dylib
+// import correctly. cls != 0 -> exit 7; a broken bind (or wrong ordinal) leaves
+// cls == 0 -> exit 1 (or dyld aborts at load, which the test also catches).
+
+// An Objective-C class name: NUL-free bytes (a C string, like a path but its own
+// domain — `objc_getClass` takes `const char *`). `no_nul` is compiler-recognized.
+domain [u8]::ClassName when no_nul(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+boundary trait ObjectiveC {
+    machine get_class(name: &[u8] in ClassName) -> u64;
+}
+
+data Main {
+    console: Console;
+    objc: ObjectiveC;
+    cls: u64;
+}
+
+machine Main::main(&mut self) {
+    self.cls = self.objc.get_class("NSObject");
+    transition self.cls != 0 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(7); }
+    state bad(&mut self)  { self.console.exit_process(1); }
+}
