@@ -25,11 +25,27 @@ machine Main::main(&mut self) {
     state check_milliseconds(&mut self) {
         self.b = Duration::from_milliseconds(3500);
         transition self.b.seconds == 3 && self.b.subsecond_nanoseconds == 500000000 {
-            true -> good()
+            true -> check_microseconds()
             false -> fail_milliseconds()
+        }
+    }
+    state check_microseconds(&mut self) {
+        self.b = Duration::from_microseconds(2500001);
+        transition self.b.seconds == 2 && self.b.subsecond_nanoseconds == 500001000 {
+            true -> check_nanoseconds()
+            false -> fail_microseconds()
+        }
+    }
+    state check_nanoseconds(&mut self) {
+        self.b = Duration::from_nanoseconds(1999999999);
+        transition self.b.seconds == 1 && self.b.subsecond_nanoseconds == 999999999 {
+            true -> good()
+            false -> fail_nanoseconds()
         }
     }
     state good(&mut self) { self.console.exit_process(70); }
     state fail_seconds(&mut self) { self.console.exit_process(1); }
     state fail_milliseconds(&mut self) { self.console.exit_process(2); }
+    state fail_microseconds(&mut self) { self.console.exit_process(3); }
+    state fail_nanoseconds(&mut self) { self.console.exit_process(4); }
 }

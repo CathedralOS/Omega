@@ -42,6 +42,15 @@ data DurationResult [copy, zero_init] {
     case Ok(duration: Duration);
 }
 
+// Whole-duration totals (`checked_as_*`): one result vocabulary for all three
+// units. (The scoping sketch spelled this `NanosecondsResult { Ok(nanoseconds) }`;
+// one payload field cannot be unit-accurate for nanoseconds AND milliseconds,
+// so the field is the neutral `total` -- noted in TASKS_TIME.md.)
+data TotalResult [copy, zero_init] {
+    case Overflow;
+    case Ok(total: u64);
+}
+
 const Duration::ZERO: Duration = Duration { seconds: 0, subsecond_nanoseconds: 0 };
 // u64::MAX seconds: spellable since D14 fire D blessed u64-classed
 // struct-literal fields for u64-magnitude literals.
@@ -69,9 +78,124 @@ machine Duration::from_milliseconds(milliseconds: u64) -> Duration {
     }
 }
 
+machine Duration::from_microseconds(microseconds: u64) -> Duration {
+    // Same construct-from-lets + ranged-let discipline as from_milliseconds.
+    let scaled_wide: u64 = (microseconds % 1000000) * 1000;
+    let scaled: u32 = scaled_wide as u32;
+    let whole_seconds: u64 = microseconds / 1000000;
+    let sub: u32 [0..=999999999] = scaled % 1000000000;
+    Duration {
+        seconds: whole_seconds,
+        subsecond_nanoseconds: sub,
+    }
+}
+
+machine Duration::from_nanoseconds(nanoseconds: u64) -> Duration {
+    let remainder_wide: u64 = nanoseconds % 1000000000;
+    let remainder: u32 = remainder_wide as u32;
+    let whole_seconds: u64 = nanoseconds / 1000000000;
+    let sub: u32 [0..=999999999] = remainder % 1000000000;
+    Duration {
+        seconds: whole_seconds,
+        subsecond_nanoseconds: sub,
+    }
+}
+
 // Whole seconds, truncating the subsecond part (Rust `as_secs`).
 machine Duration::as_seconds(&self) -> u64 {
     self.seconds
+}
+
+machine Duration::subsecond_milliseconds(&self) -> u32 {
+    self.subsecond_nanoseconds / 1000000
+}
+
+machine Duration::subsecond_microseconds(&self) -> u32 {
+    self.subsecond_nanoseconds / 1000
+}
+
+// The whole duration as a nanosecond count. u64 nanoseconds cap at
+// ~584 years: seconds above 18_446_744_073 (u64::MAX / 1e9) overflow, and at
+// exactly that threshold only subseconds up to 709_551_615 still fit
+// (18_446_744_073 * 1e9 + 709_551_615 == u64::MAX).
+machine Duration::checked_as_nanoseconds(&self) -> TotalResult {
+    let seconds_small: bool = self.seconds < 18446744073;
+    let seconds_edge: bool = self.seconds == 18446744073;
+    let subsecond_fits: bool = self.subsecond_nanoseconds <= 709551615;
+    let total: u64 in Wrapping = ((self.seconds as u64 in Wrapping) * 1000000000)
+        + (self.subsecond_nanoseconds as u64 in Wrapping);
+    transition seconds_small {
+        true -> total_ok(total)
+        false -> total_edge(seconds_edge, subsecond_fits, total)
+    }
+    state total_ok(&self, total: u64) -> TotalResult {
+        TotalResult::Ok { total: total }
+    }
+    state total_edge(&self, seconds_edge: bool, subsecond_fits: bool, total: u64) -> TotalResult {
+        transition seconds_edge && subsecond_fits {
+            true -> total_ok(total)
+            false -> total_overflow()
+        }
+    }
+    state total_overflow(&self) -> TotalResult {
+        TotalResult::Overflow
+    }
+}
+
+// The whole duration as a microsecond count (subseconds truncate to the
+// microsecond). Threshold 18_446_744_073_709 = u64::MAX / 1e6; at the edge
+// only microsecond parts up to 551_615 still fit.
+machine Duration::checked_as_microseconds(&self) -> TotalResult {
+    let seconds_small: bool = self.seconds < 18446744073709;
+    let seconds_edge: bool = self.seconds == 18446744073709;
+    let subsecond_part: u32 = self.subsecond_nanoseconds / 1000;
+    let subsecond_fits: bool = subsecond_part <= 551615;
+    let total: u64 in Wrapping = ((self.seconds as u64 in Wrapping) * 1000000)
+        + (subsecond_part as u64 in Wrapping);
+    transition seconds_small {
+        true -> total_ok(total)
+        false -> total_edge(seconds_edge, subsecond_fits, total)
+    }
+    state total_ok(&self, total: u64) -> TotalResult {
+        TotalResult::Ok { total: total }
+    }
+    state total_edge(&self, seconds_edge: bool, subsecond_fits: bool, total: u64) -> TotalResult {
+        transition seconds_edge && subsecond_fits {
+            true -> total_ok(total)
+            false -> total_overflow()
+        }
+    }
+    state total_overflow(&self) -> TotalResult {
+        TotalResult::Overflow
+    }
+}
+
+// The whole duration as a millisecond count (subseconds truncate to the
+// millisecond). Threshold 18_446_744_073_709_551 = u64::MAX / 1e3; at the
+// edge only millisecond parts up to 615 still fit.
+machine Duration::checked_as_milliseconds(&self) -> TotalResult {
+    let seconds_small: bool = self.seconds < 18446744073709551;
+    let seconds_edge: bool = self.seconds == 18446744073709551;
+    let subsecond_part: u32 = self.subsecond_nanoseconds / 1000000;
+    let subsecond_fits: bool = subsecond_part <= 615;
+    let total: u64 in Wrapping = ((self.seconds as u64 in Wrapping) * 1000)
+        + (subsecond_part as u64 in Wrapping);
+    transition seconds_small {
+        true -> total_ok(total)
+        false -> total_edge(seconds_edge, subsecond_fits, total)
+    }
+    state total_ok(&self, total: u64) -> TotalResult {
+        TotalResult::Ok { total: total }
+    }
+    state total_edge(&self, seconds_edge: bool, subsecond_fits: bool, total: u64) -> TotalResult {
+        transition seconds_edge && subsecond_fits {
+            true -> total_ok(total)
+            false -> total_overflow()
+        }
+    }
+    state total_overflow(&self) -> TotalResult {
+        TotalResult::Overflow
+    }
 }
 
 machine Duration::is_zero(&self) -> bool {

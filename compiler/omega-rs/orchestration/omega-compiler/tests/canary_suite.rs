@@ -1346,6 +1346,41 @@ fn runtime_i64_min_literal_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_duration_totals_exit_canary_runs() {
+    // checked_as_nanoseconds/microseconds/milliseconds exact values + the
+    // Overflow arm at Duration::MAX, interpreter oracle + native. Exit 70.
+    let canary = pass_canary("time/runtime_duration_totals_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("duration totals canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.error, None, "totals should interpret cleanly");
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for the totals chain, got {}",
+        outcome.exit_code
+    );
+    let build_dir = std::env::temp_dir().join(format!("omega-totals-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("duration totals canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("duration totals canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the totals chain to run natively (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_duration_constructors_interpreter_oracle() {
     // from_seconds / from_milliseconds exact values (receiverless type-scoped
     // value calls). Interp-only: the native route hits the loud 16-byte
@@ -22517,6 +22552,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_i64_min_literal_exit",
     "constants/runtime_scoped_const_exit",
     "time/runtime_duration_core_exit",
+    "time/runtime_duration_totals_exit",
     "parser/deep_nesting_within_limit",
     "traits/boundary_trait_effects_host_call",
     "traits/dyn_trait_object_dispatch",
