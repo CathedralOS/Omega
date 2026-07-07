@@ -603,6 +603,9 @@ pub enum AbstractOperationKind {
     WriteRuntimeFrameIndexedAddressToRuntimeFrame {
         descriptor_offset: usize,
         index_offset: usize,
+        /// The region the runtime START index reads from -- a frame slot
+        /// (param/local) or a machine field (`self.arr[self.lo..]`).
+        index_region: RuntimeStorageRegion,
         element_byte_size: usize,
         field_byte_offset: usize,
         target_offset: usize,

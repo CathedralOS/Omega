@@ -162,9 +162,9 @@ fn emit_runtime_frame_slot_runtime_subslice_descriptor_write_in_table(
             expressions,
             range.start,
             // The START lowers through `WriteRuntimeFrameIndexedAddressToRuntimeFrame`,
-            // whose index has no region field (implicitly the frame), so a machine
-            // field start is not lowerable -- frame-only.
-            false,
+            // whose index is region-tagged since 2026-07-10 -- a machine field
+            // start (`self.arr[self.lo..]`) reads off the machine base.
+            true,
         ) {
             Some(start) => start,
             None => return false,
@@ -457,6 +457,7 @@ fn emit_runtime_descriptor_subslice(
                 kind: SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
                     descriptor_offset: source.byte_offset + ptr_offset,
                     index_offset: start_place.byte_offset,
+                    index_region: start_place.region,
                     element_byte_size,
                     field_byte_offset: bias * element_byte_size,
                     target_offset: slot.byte_offset + ptr_offset,

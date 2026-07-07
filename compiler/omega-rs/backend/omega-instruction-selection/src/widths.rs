@@ -1215,6 +1215,7 @@ pub fn runtime_pointee_address_to_runtime_frame_write_width(
 
 pub fn runtime_frame_indexed_address_to_runtime_frame_write_width(
     architecture: Architecture,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -1227,7 +1228,26 @@ pub fn runtime_frame_indexed_address_to_runtime_frame_write_width(
                 target_offset,
             )
         }
-        Architecture::X86_64 => 0,
+        // Was `=> 0`: the runtime-START subslice ptr write silently DROPPED on
+        // x86_64 and the descriptor kept the whole-array base.
+        Architecture::X86_64 => {
+            x86_64::runtime_frame_indexed_deref_address_to_runtime_frame_write_width(index_region)
+        }
+    }
+}
+
+/// Relocation offset of the TARGET frame-base `mov` in the descriptor-deref
+/// indexed address write (pre-`+2`); the machine-index variant also relocates
+/// the machine base at +10.
+pub fn runtime_frame_indexed_deref_address_target_frame_offset(
+    architecture: Architecture,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+) -> Option<usize> {
+    match architecture {
+        Architecture::Aarch64 => None,
+        Architecture::X86_64 => Some(
+            x86_64::runtime_frame_indexed_deref_address_target_frame_offset(index_region),
+        ),
     }
 }
 

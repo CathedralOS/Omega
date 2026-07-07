@@ -41,8 +41,35 @@ pub(super) fn collect_runtime_storage_address_relocations(
             }
             true
         }
+        SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
+            index_region, ..
+        } => {
+            // Source frame base at the start; x86_64 reloads the frame base for
+            // the target store, and a MACHINE-resident index loads the machine
+            // base at +10 (its own relocation).
+            context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
+            if context.input.target.architecture == omega_target::Architecture::X86_64 {
+                if *index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+                    context.insert_data_address_at_relative_offset(
+                        10,
+                        context.machine_storage_symbol_handle(),
+                    );
+                }
+                if let Some(offset) =
+                    omega_instruction_selection::runtime_frame_indexed_deref_address_target_frame_offset(
+                        context.input.target.architecture,
+                        *index_region,
+                    )
+                {
+                    context.insert_data_address_at_relative_offset(
+                        offset,
+                        context.runtime_frame_symbol_handle(),
+                    );
+                }
+            }
+            true
+        }
         SelectedInstructionKind::WriteRuntimePointeeAddressToRuntimeFrame { .. }
-        | SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame { .. }
         | SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame { .. } => {
             context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
             true

@@ -673,6 +673,7 @@ pub(super) fn encode_machine_instruction_bytes(
         SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
             descriptor_offset,
             index_offset,
+            index_region,
             element_byte_size,
             field_byte_offset,
             target_offset,
@@ -680,6 +681,7 @@ pub(super) fn encode_machine_instruction_bytes(
             input,
             *descriptor_offset,
             *index_offset,
+            *index_region,
             *element_byte_size,
             *field_byte_offset,
             *target_offset,

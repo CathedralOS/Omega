@@ -840,11 +840,12 @@ fn selected_instruction_name(
         SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
             descriptor_offset,
             index_offset,
+            index_region,
             element_byte_size,
             field_byte_offset,
             target_offset,
         } => format!(
-            "write runtime-frame pointer @{target_offset} = &(runtime_frame@{descriptor_offset}[runtime_frame@{index_offset} * {element_byte_size}]) +{field_byte_offset}"
+            "write runtime-frame pointer @{target_offset} = &(*runtime_frame@{descriptor_offset})[{index_region:?}@{index_offset} * {element_byte_size}] +{field_byte_offset}"
         ),
         SelectedInstructionKind::WriteRuntimeFrameFixedIndexedAddressToRuntimeFrame {
             descriptor_offset,

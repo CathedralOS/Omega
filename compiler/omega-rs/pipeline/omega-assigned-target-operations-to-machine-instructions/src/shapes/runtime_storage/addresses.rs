@@ -26,6 +26,7 @@ pub(super) fn selected_runtime_storage_address_kind(
         SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
             descriptor_offset,
             index_offset,
+            index_region: _,
             element_byte_size,
             field_byte_offset,
             target_offset,
