@@ -1,0 +1,52 @@
+// Integer width/sign CASTS -- a classic codegen bug source (sign-extend vs
+// zero-extend vs truncate). Locks all four behaviors:
+//   - i8(-5)  as i32  -> -5      (SIGN-extend: negative preserved)
+//   - u8(200) as i32  -> 200     (ZERO-extend: no spurious sign)
+//   - i32(300) as u8  -> 44      (NARROW: truncate to low 8 bits)
+//   - i32(-7) as i64  -> -7      (WIDEN signed)
+//   - i16(-1) as u16 as u32 -> 65535  (reinterpret with the sign bit set, then widen)
+// Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let a8: i8 = -5;
+    let aw: i32 in Trapping = a8 as i32;
+    let b8: u8 = 200;
+    let bw: i32 in Trapping = b8 as i32;
+    let c32: i32 in Wrapping = 300;
+    let cn: u8 = c32 as u8;
+    let d32: i32 in Trapping = -7;
+    let dw: i64 in Trapping = d32 as i64;
+    let e16: i16 = -1;
+    let eu: u16 = e16 as u16;
+    let ew: u32 in Trapping = eu as u32;
+
+    transition aw == -5 { true -> ck2(bw, cn, dw, ew) _ -> bad() }
+
+    state ck2(&mut self, bw: i32 in Trapping, cn: u8, dw: i64 in Trapping, ew: u32 in Trapping) {
+        transition bw == 200 { true -> ck3(cn, dw, ew) _ -> bad() }
+    }
+    state ck3(&mut self, cn: u8, dw: i64 in Trapping, ew: u32 in Trapping) {
+        transition cn == 44 { true -> ck4(dw, ew) _ -> bad() }
+    }
+    state ck4(&mut self, dw: i64 in Trapping, ew: u32 in Trapping) {
+        transition dw == -7 { true -> ck5(ew) _ -> bad() }
+    }
+    state ck5(&mut self, ew: u32 in Trapping) {
+        transition ew == 65535 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

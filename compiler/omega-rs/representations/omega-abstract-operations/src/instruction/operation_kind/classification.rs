@@ -41,6 +41,8 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::AtomicCompareExchange { .. }
             | Self::WriteRuntimeMachineInteger { .. }
             | Self::WriteRuntimeStorageInteger { .. }
+            | Self::WriteEntryArgumentRegister { .. }
+            | Self::WriteEntryArgumentsSliceDescriptor { .. }
             | Self::WriteRuntimePointeeInteger { .. }
             | Self::WriteRuntimeStorageBinary { .. }
             | Self::WriteRuntimeStorageConvert { .. }
@@ -50,6 +52,7 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::WriteRuntimeMachineIndexedInteger { .. }
             | Self::WriteRuntimeFrameIndexedBinary { .. }
             | Self::WriteRuntimeFrameBaseIndexedBinary { .. }
+            | Self::WriteRuntimeMachineIndexedBinary { .. }
             | Self::WriteRuntimeMachineString { .. }
             | Self::WriteRuntimeMachineBoundedBuffer { .. }
             | Self::AppendRuntimeMachineBoundedBufferSource { .. }
@@ -86,6 +89,8 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::CopyRuntimeFrameFixedIndexedToRuntimePointee { .. }
             | Self::CopyRuntimeFrameIndexedToRuntimePointee { .. }
             | Self::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
+            | Self::CopyRuntimeStorageToRuntimeMachineIndexed { .. }
+            | Self::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. }
             | Self::CopyRuntimeStorageToRuntimePointee { .. }
             | Self::CopyRuntimePointeeToRuntimeFrame { .. } => AbstractOperationDomain::RuntimeCopy,
 

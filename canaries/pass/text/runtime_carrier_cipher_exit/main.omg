@@ -1,0 +1,70 @@
+// A Caesar-cipher loop over a carrier: read `text[i]` in an expression, shift it
+// (Wrapping byte add), and write the result into `out[i]` -- a runtime-indexed
+// carrier READ-in-expression and a runtime-indexed carrier WRITE, both at the same
+// index, every iteration. Shifting "HELLO" by 3 gives "KHOOR"; the transformed
+// bytes are read back (out[0]=='K'(75), out[4]=='R'(82)) to confirm. Exits 70.
+
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+domain [u8; 5]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    text: [u8; 5] in Utf8;
+    out: [u8; 5] in Utf8;
+    i: i32 in Trapping;
+    ch: u8 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.text = "HELLO";
+    self.out = ".....";
+    self.i = 0;
+
+    transition {
+        _ -> step()
+    }
+
+    state step(&mut self) {
+        transition self.i < 5 {
+            true -> shift()
+            _ -> check_first()
+        }
+    }
+
+    state shift(&mut self) {
+        self.ch = self.text[self.i] as u8 in Wrapping + 3;
+        self.out[self.i] = self.ch;
+        self.i = self.i + 1;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state check_first(&mut self) {
+        transition self.out[0] == 75 {
+            true -> check_last()
+            _ -> bad()
+        }
+    }
+
+    state check_last(&mut self) {
+        transition self.out[4] == 82 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

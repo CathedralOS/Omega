@@ -1,0 +1,37 @@
+// FNV-1a (32-bit) hash of the bytes [72, 105, 33] ("Hi!") -- a real, recognizable hashing algorithm:
+// start from the offset basis, then for each byte `hash = (hash XOR byte) * prime` in wrapping u32.
+// This exercises the systems-programming core: a `[u32]` array read at a loop-counter index, a
+// bitwise XOR, and a WRAPPING multiply by the large FNV prime (16777619), all folded in a loop. The
+// result is checked against the reference value computed independently (Python): 844955649. So this
+// is not merely native==interp -- it proves Omega's u32 wrapping XOR+multiply computes the CORRECT
+// hash. Differential (native must also match the interpreter). Match -> exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    bytes: [u32 in Wrapping; 3];
+    i: i32 in Wrapping;
+    hash: u32 in Wrapping;
+    prime: u32 in Wrapping;
+    b: u32 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.bytes[0] = 72; self.bytes[1] = 105; self.bytes[2] = 33;
+    self.hash = 2166136261;
+    self.prime = 16777619;
+    self.i = 0;
+    transition { _ -> loop() }
+    state loop(&mut self) {
+        transition self.i < 3 { true -> step() _ -> check() }
+    }
+    state step(&mut self) {
+        self.b = self.bytes[self.i];
+        self.hash = (self.hash ^ self.b) * self.prime;
+        self.i = self.i + 1;
+        transition { _ -> loop() }
+    }
+    state check(&mut self) {
+        transition self.hash == 844955649 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

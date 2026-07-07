@@ -1,0 +1,27 @@
+// A COMPUTED value written straight into a runtime-indexed machine array element
+// (`self.arr[self.j] = self.j * 10`) -- no field temp needed. `marker` sits right after the
+// index field `self.j`, set to a non-zero value: this is the regression guard for the index
+// load, which must be 32-bit zero-extending (a 64-bit load would pull `marker` into the index's
+// high dword and store out of bounds). Fills [0,10,20,30,40] -> sum 100, and marker must survive
+// unchanged (997). Differential: native == interp.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; arr: [i32 in Wrapping; 5]; j: i32 in Wrapping; marker: i32 in Wrapping; sum: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.marker = 997;
+    self.j = 0;
+    transition { _ -> fill() }
+    state fill(&mut self) {
+        self.arr[self.j] = self.j * 10;
+        self.j = self.j + 1;
+        transition self.j < 5 { true -> fill() _ -> tally() }
+    }
+    state tally(&mut self) {
+        self.sum = self.arr[0] + self.arr[1] + self.arr[2] + self.arr[3] + self.arr[4];
+        transition self.sum == 100 { true -> check_marker() _ -> bad() }
+    }
+    state check_marker(&mut self) {
+        transition self.marker == 997 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

@@ -1,0 +1,62 @@
+// NEGATED boolean nesting in a guard subject: `!(a && b)` and `!(a || b)` (De
+// Morgan). The simplifier pushes the negation through (`!(a && b)` -> `!a || !b`,
+// `!(a || b)` -> `!a && !b`) and inverts each comparison, then the guard build's
+// distribute-to-DNF + the disjunction/conjunction lowering take it. Complements
+// runtime_and_of_or_guard_exit (positive nesting) with the negated forms. Values are
+// built at runtime; the canary DISCRIMINATES both arms. Differential native==interp.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    i: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.a = 0;
+    self.b = 0;
+    self.i = 0;
+    transition { _ -> build() }
+
+    state build(&mut self) {
+        transition self.i < 5 { true -> step() _ -> not_and_true() }
+    }
+    state step(&mut self) {
+        self.a = self.a + 1; // -> 5
+        self.i = self.i + 1;
+        transition { _ -> build() }
+    }
+
+    // a=5, b=0 at runtime from here.
+    state not_and_true(&mut self) {
+        // !(a>0 && b>0): a>0 true, b>0 FALSE -> !(true && false) == !false == true.
+        transition !(self.a > 0 && self.b > 0) { true -> not_and_false() _ -> bad() }
+    }
+    state not_and_false(&mut self) {
+        // Make b>0 true so the inner conjunction is true -> !(true && true) == false
+        // -> the FALSE arm is correct.
+        self.b = 3;
+        transition !(self.a > 0 && self.b > 0) { true -> bad() _ -> not_or_false() }
+    }
+    state not_or_false(&mut self) {
+        // !(a>0 || b>0): a>0 true (a=5) -> !(true || ..) == false -> FALSE arm.
+        transition !(self.a > 0 || self.b > 0) { true -> bad() _ -> not_or_true() }
+    }
+    state not_or_true(&mut self) {
+        // Make both disjuncts false (a=-1, b=-1) -> !(false || false) == true.
+        self.a = 0 - 1;
+        self.b = 0 - 1;
+        transition !(self.a > 0 || self.b > 0) { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

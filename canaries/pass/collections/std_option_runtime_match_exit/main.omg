@@ -1,0 +1,33 @@
+// The std `Option<T>` type-checks AND works at runtime for presence/absence matching: construct
+// Option::Some and Option::None, then discriminate them in a transition. (The existing
+// std_option_surface canary only type-checks an empty machine; this exercises construction + match
+// at runtime.) `a` is Some -> go check `b`; `b` is None -> exit 70. A mis-matched variant -> 71.
+//
+// NOTE: Option::Some currently carries NO payload (the variant cannot hold a value). A useful
+// Option<T>::Some(value: T) is blocked on generic monomorphization at the layout stage
+// (omega-layout/builder.rs raises "unknown layout-bearing type `T`"); see memory.
+use omega::language::std::option;
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    a: Option<i32>;
+    b: Option<i32>;
+}
+
+machine Main::main(&mut self) {
+    self.a = Option::Some;
+    self.b = Option::None;
+    transition self.a {
+        Option::Some -> check_b()
+        Option::None -> bad()
+    }
+    state check_b(&mut self) {
+        transition self.b {
+            Option::Some -> bad()
+            Option::None -> ok()
+        }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

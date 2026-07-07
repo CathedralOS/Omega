@@ -116,6 +116,9 @@ impl Lowerer<'_> {
             roots,
             tables,
             symbols,
+            plan_laid_layouts: _,
+            wire_placements: _,
+            wire_schema_plans: _,
         } = self.typed_trees;
 
         Ok(TypedTrees::with_roots(roots, tables, symbols))

@@ -1,0 +1,29 @@
+// FAIL canary: decision-17 narrowing at the CALL-ARGUMENT boundary. `self.big`
+// is an i64 holding 300; passing it to a state parameter `amount: i8` is a
+// narrowing store that is not provably in range -- previously a SILENT MISCOMPILE
+// (compiled + ran, truncating 300 to i8 = 44), now rejected exactly as the
+// analogous assignment (`let z: i8 = self.big`) is. The check runs at the
+// statement-call and transition-target argument positions (this canary uses the
+// transition-target position), honoring dominating guards via the flow-sensitive
+// value environment, so a proven-in-range argument is NOT flagged. Same-class
+// same-width and explicit `as` casts stay fine.
+
+boundary trait Console {
+    machine exit_process(code: i32)
+    effects
+        process_exit;
+}
+
+data Main {
+    console: Console;
+    big: i64 in Wrapping;
+}
+
+machine Main::main(&mut self) -> i32 {
+    self.big = 300;
+    transition { _ -> handle(self.big) } // i64 -> i8 param: narrowing, not provably in range
+
+    state handle(&mut self, amount: i8) {
+        self.console.exit_process(amount as i32);
+    }
+}

@@ -161,6 +161,9 @@ fn build_machine_state_storage_plan(
             match statement {
                 StatementNode::LocalData(local_data) => {
                     if !local_data_requires_storage(
+                        program,
+                        machine.boundary,
+                        state,
                         &program.expression_table,
                         &program.statement_table,
                         statements,
@@ -302,6 +305,9 @@ fn state_has_initialized_locals_before(
 }
 
 fn local_data_requires_storage(
+    program: &CheckedTrees,
+    machine_is_boundary: bool,
+    state: &omega_checked_trees::state::State,
     expressions: &omega_checked_trees::expression::ExpressionTable,
     statement_table: &StatementTable,
     statements: &[StatementNode],
@@ -312,6 +318,33 @@ fn local_data_requires_storage(
     uses_runtime_flow: bool,
 ) -> bool {
     if !initial_value.is_valid() {
+        return true;
+    }
+
+    // A local whose initializer reads a member THROUGH A SHARED-REFERENCE
+    // param (`let h = table.con_out` with `table: &EfiSystemTable`) exists to
+    // MATERIALIZE the dereference -- folding it back re-creates the flat
+    // frame-garbage read the let was minted to avoid (the entry-ref-param
+    // face; the guard/assignment hoists synthesize exactly this shape). Keep
+    // the slot whenever the local is referenced afterwards, in ANY position
+    // (including assignment values, which the liveness scan otherwise skips).
+    if machine_is_boundary
+        && initializer_is_reference_param_member(program, state, expressions, initial_value)
+        && statements
+            .iter()
+            .skip(local_statement_index + 1)
+            .any(|statement| {
+                statement_references_local(
+                    expressions,
+                    statement_table,
+                    statement,
+                    local_symbol,
+                    local_name,
+                    uses_runtime_flow,
+                ) || local_data_value_references_symbol(expressions, statement, local_symbol, local_name)
+                    || assignment_value_references_symbol(expressions, statement, local_symbol, local_name)
+            })
+    {
         return true;
     }
 
@@ -328,21 +361,48 @@ fn local_data_requires_storage(
         return true;
     }
 
-    // A VALUE-call-result local (`let bounded = min(self.seed, 60)`) whose result
-    // cannot be folded/substituted is correctly elided when consumed in positions
-    // the substitution covers (call arguments, slice ops -- see the `chance` /
+    // A VALUE-call-result local (`let bounded = min(self.seed, 60)`) OR a
+    // RUNTIME-INDEXED-READ local (`let h = self.nums[self.i]`, synthesized by
+    // the operand-hoisting normalization) whose value cannot be
+    // folded/substituted is correctly elided when consumed in positions the
+    // substitution covers (call arguments, slice ops -- see the `chance` /
     // subslice-chain canaries, which MUST stay slot-less). But as an
-    // ARITHMETIC-BINARY operand (`let s = bounded + 70`) the substitution does
-    // not fire, so the dependent binary write silently drops its unresolved
-    // operand. Keep the slot for exactly that combination -- narrow enough that
-    // call-arg / slice-op uses are untouched, and no slot-offset shift can
-    // regress a currently-passing program (none exercises this broken pattern).
-    if expression_contains_call(expressions, initial_value)
+    // ARITHMETIC-BINARY or CAST operand (`let s = bounded + 70`,
+    // `self.big = h as i64`) the substitution does not fire (the indexed read
+    // is deliberately NOT folded back -- it has no operand-position lowering),
+    // so the dependent binary/cast write silently drops its unresolved operand.
+    // Keep the slot for exactly that combination -- narrow enough that call-arg
+    // / slice-op uses are untouched, and no slot-offset shift can regress a
+    // currently-passing program (none exercises this broken pattern).
+    if (expression_contains_call(expressions, initial_value)
+        || initializer_is_runtime_indexed_read(expressions, initial_value))
+        && local_or_bare_copy_used_as_arithmetic_operand(
+            expressions,
+            statements,
+            local_statement_index,
+            local_symbol,
+            local_name,
+        )
+    {
+        return true;
+    }
+
+    // `statement_references_local` (the final check below) inspects Expression /
+    // Assignment / Call / Transition statements but NOT a LocalData (`let`) VALUE.
+    // So an AGGREGATE local (array/struct literal -- which has no immediate form to
+    // fold into a later use) read only by a subsequent `let` -- e.g.
+    // `let arr = [..]; let e = arr[1]` -- is invisible to the liveness scan and its
+    // slot is elided; the indexed/field read then resolves against a missing slot and
+    // silently drops to 0 (a native miscompile; the interpreter, which keeps the
+    // value, is right). Keep the slot for exactly that combination. Gated on an
+    // aggregate-literal initializer so foldable scalars (correct without a slot) are
+    // untouched -- no slot-offset shift can regress them.
+    if initializer_is_array_literal(expressions, initial_value)
         && statements
             .iter()
             .skip(local_statement_index + 1)
             .any(|statement| {
-                statement_uses_symbol_as_arithmetic_operand(
+                local_data_value_references_symbol(
                     expressions,
                     statement,
                     local_symbol,
@@ -353,7 +413,54 @@ fn local_data_requires_storage(
         return true;
     }
 
-    statements
+    // A local CAPTURING a field read (`let t = self.v`) keeps its slot when the
+    // SOURCE FIELD is reassigned later and the local is still used AFTER that
+    // write. Slot-less, the use alias-folds back to `self.v` and reads the NEW
+    // value -- verified silently wrong (`self.v = 99; let t = self.v;
+    // self.v = 0; nums[i] = t` wrote 0, not 99; the stale-fold family).
+    // Deliberately narrow: a use BEFORE the reassignment folds correctly and
+    // stays slot-less, so no slot-offset shift touches passing programs.
+    if let Some(reassignment_index) = initializer_field_reassignment_index(
+        expressions,
+        statements,
+        local_statement_index,
+        initial_value,
+    ) && statements
+        .iter()
+        .skip(reassignment_index + 1)
+        .any(|statement| {
+            statement_references_local(
+                expressions,
+                statement_table,
+                statement,
+                local_symbol,
+                local_name,
+                uses_runtime_flow,
+            ) || local_data_value_references_symbol(expressions, statement, local_symbol, local_name)
+                || assignment_value_references_symbol(expressions, statement, local_symbol, local_name)
+        })
+    {
+        return true;
+    }
+
+    // A BOUNDARY-call-result local whose value is NOT seen by the final liveness
+    // scan below (which inspects Expression/Assignment/Call/Transition statements,
+    // but NOT LocalData `let` VALUES, nor a truly-unused result) still needs its
+    // slot. A boundary/host-call RESULT must be MATERIALIZED into a slot -- there
+    // is no value-call substitution for it, unlike a state value-call -- but the
+    // ergonomic std::fs wrapper consumes those results only through later `let`s or
+    // not at all:
+    //   let fd = self.host.create(path, mode);   // used ONLY in later `let`s
+    //   let n  = self.host.write(fd, bytes);      // (write, close) -> invisible
+    //   let rc = self.host.close(fd);             // UNUSED (discarded) result
+    // With the slot elided, the dependent call's `fd` argument AND each call's own
+    // result operand resolve against a missing slot -> "no result storage operand".
+    // GATED ON A BOUNDARY CALL specifically (not any call): a STATE value-call
+    // result the normal scan would elide MUST stay slot-less (its substitution
+    // covers the elided positions -- broadening this to all calls regresses the
+    // canary_suite by 6 via slot-offset shifts). canary_suite stash-diff confirms
+    // the boundary-gated form is exact zero-regression.
+    let referenced_by_final_scan = statements
         .iter()
         .skip(local_statement_index + 1)
         .any(|statement| {
@@ -365,7 +472,278 @@ fn local_data_requires_storage(
                 local_name,
                 uses_runtime_flow,
             )
+        });
+    if !referenced_by_final_scan
+        && initializer_is_boundary_call(program, expressions, initial_value)
+    {
+        return true;
+    }
+    referenced_by_final_scan
+}
+
+/// Whether `initial_value` is (directly, or under a `Cast`/`Mutable` wrapper) a
+/// call into a BOUNDARY trait method (`self.host.create(..)`). Mirrors
+/// `omega-platform-interface`'s `expression_platform_receiver_type`: the call's
+/// resolved `target_symbol` is one of a boundary trait's machine signatures. Used
+/// to keep the result slot for a boundary-call `let` the liveness scan would elide
+/// (a host-call result must be materialized; a state value-call result may not).
+fn initializer_is_boundary_call(
+    program: &CheckedTrees,
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    let target_symbol = match expressions.expression(expression) {
+        ExpressionNode::Call(call) => call.target_symbol,
+        ExpressionNode::Cast(cast) => {
+            return initializer_is_boundary_call(program, expressions, cast.value);
+        }
+        ExpressionNode::Mutable(inner) => {
+            return initializer_is_boundary_call(program, expressions, *inner);
+        }
+        _ => return false,
+    };
+    if !target_symbol.is_valid() {
+        return false;
+    }
+    program
+        .traits()
+        .iter()
+        .filter(|trait_definition| trait_definition.is_boundary)
+        .any(|trait_definition| {
+            program
+                .trait_machine_signatures(trait_definition)
+                .iter()
+                .any(|machine| machine.symbol == target_symbol)
         })
+}
+
+/// Whether the local -- or any BARE-COPY of it (`let c = t;`, transitively) --
+/// is used as an arithmetic/comparison/bitwise/cast operand after its
+/// declaration. The direct scan alone misses the copy chain: `let t = arr[i];
+/// let c = t; let b = c > 5` folded c -> t -> arr[i] into the fenced direct
+/// form and silently read false. Bare-Name copies are matched by NAME (a bare
+/// local use carries no valid symbol at this stage).
+fn local_or_bare_copy_used_as_arithmetic_operand(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statements: &[StatementNode],
+    local_statement_index: usize,
+    local_symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    // One forward pass builds the transitive bare-copy set: statements are in
+    // order, so a copy of a copy is seen after its source joined the set.
+    let mut aliases: Vec<(SymbolHandle, Identifier)> =
+        vec![(local_symbol, local_name.clone())];
+    for statement in statements.iter().skip(local_statement_index + 1) {
+        if let StatementNode::LocalData(local_data) = statement
+            && local_data.initial_value.is_valid()
+            && let Some(source_name) =
+                bare_name_initializer(expressions, local_data.initial_value)
+            && aliases.iter().any(|(_, name)| *name == source_name)
+        {
+            aliases.push((local_data.symbol, local_data.name.clone()));
+        }
+    }
+
+    statements
+        .iter()
+        .skip(local_statement_index + 1)
+        .any(|statement| {
+            aliases.iter().any(|(symbol, name)| {
+                statement_uses_symbol_as_arithmetic_operand(expressions, statement, *symbol, name)
+            })
+        })
+}
+
+/// The NAME a bare-Name initializer reads (`let c = t;` -> `t`), peeling
+/// `Mutable`. Anything else (binary, indexed, member, literal) is None.
+fn bare_name_initializer(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<Identifier> {
+    match expressions.expression(expression) {
+        ExpressionNode::Name(path) => expressions
+            .name_path_members(path.members)
+            .first()
+            .cloned()
+            .filter(|_| expressions.name_path_members(path.members).len() == 1),
+        ExpressionNode::Mutable(inner) => bare_name_initializer(expressions, *inner),
+        _ => None,
+    }
+}
+
+/// Whether an initializer is a member read through a SHARED reference-to-named
+/// parameter of `state` (`table.con_out` with `table: &EfiSystemTable`) --
+/// peeling `Mutable`. Such a local materializes a POINTEE dereference and must
+/// never be folded back to the member.
+fn initializer_is_reference_param_member(
+    program: &CheckedTrees,
+    state: &omega_checked_trees::state::State,
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            initializer_is_reference_param_member(program, state, expressions, *inner)
+        }
+        ExpressionNode::Member(member) => {
+            let ExpressionNode::Name(path) = expressions.expression(member.receiver) else {
+                return false;
+            };
+            let members = expressions.name_path_members(path.members);
+            let [only] = members else {
+                return false;
+            };
+            program.state_parameters(state).iter().any(|parameter| {
+                parameter.name.as_str() == only.as_str()
+                    && parameter_is_shared_named_reference(program, parameter.type_reference)
+            })
+        }
+        _ => false,
+    }
+}
+
+/// `&Named` (shared, non-slice) -- the pointer-slot param shape.
+fn parameter_is_shared_named_reference(
+    program: &CheckedTrees,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    let TypeReferenceNode::Reference {
+        is_mutable: false,
+        referee,
+        ..
+    } = program.type_reference_table.type_reference(type_reference)
+    else {
+        return false;
+    };
+    matches!(
+        program.type_reference_table.type_reference(*referee),
+        TypeReferenceNode::Named { .. }
+    )
+}
+
+/// The index of the first statement after the local's declaration that ASSIGNS
+/// a member field the initializer READS (`let t = self.v; ...; self.v = 0;`).
+/// Matched by FIELD NAME (conservative: a same-named field on another struct
+/// only costs an extra slot, never a fold).
+fn initializer_field_reassignment_index(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statements: &[StatementNode],
+    local_statement_index: usize,
+    initial_value: ExpressionHandle,
+) -> Option<usize> {
+    let mut read_fields = Vec::new();
+    collect_member_field_names(expressions, initial_value, &mut read_fields);
+    if read_fields.is_empty() {
+        return None;
+    }
+    statements
+        .iter()
+        .enumerate()
+        .skip(local_statement_index + 1)
+        .find_map(|(index, statement)| {
+            let StatementNode::Assignment(assignment) = statement else {
+                return None;
+            };
+            let target_field = assignment_member_field_name(expressions, assignment.target)?;
+            read_fields
+                .iter()
+                .any(|field| *field == target_field)
+                .then_some(index)
+        })
+}
+
+/// Collects the member FIELD NAMES an expression reads (`self.v` -> `v`,
+/// including nested receivers and operands).
+fn collect_member_field_names(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+    out: &mut Vec<Identifier>,
+) {
+    match expressions.expression(expression) {
+        ExpressionNode::Member(member) => {
+            out.push(member.member.clone());
+            collect_member_field_names(expressions, member.receiver, out);
+        }
+        ExpressionNode::Mutable(inner) => collect_member_field_names(expressions, *inner, out),
+        ExpressionNode::Binary(binary) => {
+            collect_member_field_names(expressions, binary.left, out);
+            collect_member_field_names(expressions, binary.right, out);
+        }
+        ExpressionNode::Cast(cast) => collect_member_field_names(expressions, cast.value, out),
+        ExpressionNode::Indexed(indexed) => {
+            collect_member_field_names(expressions, indexed.collection, out);
+            collect_member_field_names(expressions, indexed.index, out);
+        }
+        ExpressionNode::Unary(unary) => collect_member_field_names(expressions, unary.operand, out),
+        _ => {}
+    }
+}
+
+/// Whether an ASSIGNMENT statement's VALUE references the symbol -- the one use
+/// position `statement_references_local` deliberately omits (a slot-less local
+/// used as an assignment value is normally covered by the alias fold; the
+/// stale-capture clause above must count it because it exists precisely to
+/// BLOCK that fold).
+fn assignment_value_references_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement: &StatementNode,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    let StatementNode::Assignment(assignment) = statement else {
+        return false;
+    };
+    expression_references_symbol(expressions, assignment.value, symbol, local_name)
+}
+
+/// The member FIELD NAME an assignment target writes (`self.v = ..` -> `v`),
+/// peeling `Mutable`/`Indexed` wrappers. A plain-Name target (a local) is None.
+fn assignment_member_field_name(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    target: ExpressionHandle,
+) -> Option<Identifier> {
+    match expressions.expression(target) {
+        ExpressionNode::Member(member) => Some(member.member.clone()),
+        ExpressionNode::Mutable(inner) => assignment_member_field_name(expressions, *inner),
+        ExpressionNode::Indexed(indexed) => {
+            assignment_member_field_name(expressions, indexed.collection)
+        }
+        _ => None,
+    }
+}
+
+/// Whether an initializer is an ARRAY literal (possibly wrapped in `Mutable`). An
+/// array element read (`arr[i]`) has no immediate form and is not folded back, so a
+/// later use needs the array's slot. Deliberately NOT struct literals: a
+/// borrow-carrying struct (`Msg { body: &cell }`) must stay FOLDED so the borrow
+/// substitutes into `msg.body` -- slotting it would store a stale pointer
+/// (regressed `borrow_carrying_data_field`). Value-struct field reads fold to the
+/// literal field and do not need a slot.
+fn initializer_is_array_literal(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::ArrayLiteral(_) => true,
+        ExpressionNode::Mutable(inner) => initializer_is_array_literal(expressions, *inner),
+        _ => false,
+    }
+}
+
+/// Whether a LocalData (`let`) statement's initializer VALUE references the
+/// symbol/name -- the position `statement_references_local` does not inspect.
+fn local_data_value_references_symbol(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    statement: &StatementNode,
+    symbol: SymbolHandle,
+    local_name: &Identifier,
+) -> bool {
+    let StatementNode::LocalData(local) = statement else {
+        return false;
+    };
+    local.initial_value.is_valid()
+        && expression_references_symbol(expressions, local.initial_value, symbol, local_name)
 }
 
 /// Whether an initializer contains ANY call (a call result cannot be folded into
@@ -411,6 +789,35 @@ fn expression_contains_call(
     }
 }
 
+/// Whether an initializer is a RUNTIME-indexed read (`arr[i]` with a
+/// non-constant index), possibly wrapped in `Mutable`. Such a local is
+/// materialized into its own slot by the whole-value copy path; reading it as a
+/// binary/cast operand needs the slot (the indexed read is never folded back,
+/// so substitution cannot supply the operand). A CONSTANT-index read folds to a
+/// plain place and does not need this carve-out.
+fn initializer_is_runtime_indexed_read(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Indexed(indexed) => !matches!(
+            expressions.expression(indexed.index),
+            ExpressionNode::Integer(_)
+        ),
+        ExpressionNode::Mutable(inner) => {
+            initializer_is_runtime_indexed_read(expressions, *inner)
+        }
+        // A field read off a runtime-indexed element (`arr[i].field`) is the same
+        // unresolvable-without-a-slot value as the bare read: it is not folded back
+        // into an operand position either, so a local initialized from it and used
+        // as an arithmetic/comparison/bitwise operand must keep its slot.
+        ExpressionNode::Member(member) => {
+            initializer_is_runtime_indexed_read(expressions, member.receiver)
+        }
+        _ => false,
+    }
+}
+
 fn is_arithmetic_operator(operator: BinaryOperator) -> bool {
     matches!(
         operator,
@@ -421,6 +828,40 @@ fn is_arithmetic_operator(operator: BinaryOperator) -> bool {
             | BinaryOperator::Modulo
             | BinaryOperator::ShiftLeft
             | BinaryOperator::ShiftRight
+    )
+}
+
+/// A COMPARISON reads its operands as runtime values (`local > 5`), the same
+/// unresolvable-without-a-slot position as an arithmetic-binary operand: a
+/// slot-less local (e.g. one initialized from a runtime-indexed read, which is
+/// deliberately NOT folded back) is not substituted into the compare, so a
+/// dependent `let b = local > 5` silently drops it and reads a default. So a
+/// local used as a compare operand must keep its slot, exactly like an
+/// arithmetic operand. (The DIRECT `let b = arr[i] > 5` is already a clean
+/// error; this closes the intermediate-local escape `let t = arr[i]; let b = t
+/// > 5`, which folded to the broken direct form and miscompiled silently.)
+fn is_comparison_operator(operator: BinaryOperator) -> bool {
+    matches!(
+        operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+    )
+}
+
+/// A BITWISE-logical op (`local & 3`, `local | 1`, `local ^ mask`) reads its
+/// operands as runtime values, the same unresolvable-without-a-slot position as
+/// an arithmetic operand (shifts are already in `is_arithmetic_operator`). A
+/// slot-less indexed-read local is not substituted into it, so `let m = t & 6`
+/// silently drops it and reads 0 -- so a local used as a bitwise operand must
+/// keep its slot too.
+fn is_bitwise_operator(operator: BinaryOperator) -> bool {
+    matches!(
+        operator,
+        BinaryOperator::BitwiseAnd | BinaryOperator::BitwiseOr | BinaryOperator::BitwiseXor
     )
 }
 
@@ -460,14 +901,23 @@ fn expression_uses_symbol_as_arithmetic_operand(
     };
     match expressions.expression(expression) {
         ExpressionNode::Binary(binary) => {
-            (is_arithmetic_operator(binary.operator)
+            ((is_arithmetic_operator(binary.operator)
+                || is_comparison_operator(binary.operator)
+                || is_bitwise_operator(binary.operator))
                 && (expression_is_symbol(expressions, binary.left, symbol, local_name)
                     || expression_is_symbol(expressions, binary.right, symbol, local_name)))
                 || recurse(binary.left)
                 || recurse(binary.right)
         }
         ExpressionNode::Unary(unary) => recurse(unary.operand),
-        ExpressionNode::Cast(cast) => recurse(cast.value),
+        // A CAST reads its operand as a runtime value (`local as i64`), the same
+        // unresolvable-without-a-slot position as an arithmetic-binary operand:
+        // a slot-less local is not substituted into the cast, so the cast write
+        // would drop it. Treat the cast OF the symbol as such a use.
+        ExpressionNode::Cast(cast) => {
+            expression_is_symbol(expressions, cast.value, symbol, local_name)
+                || recurse(cast.value)
+        }
         ExpressionNode::Mutable(inner) => recurse(*inner),
         ExpressionNode::Member(member) => recurse(member.receiver),
         ExpressionNode::Indexed(indexed) => recurse(indexed.collection) || recurse(indexed.index),

@@ -1,4 +1,4 @@
-// Wire stage 2b: decode_wire only accepts the schema's CURRENT era
+// Wire stage 2b: decode only accepts the schema's CURRENT era
 // (historical eras await the stage 3 `Versioned<T>` container). The buffer
 // is hand-built with era byte 5 where the schema's current era is 0, so the
 // decoder must report failure (`ok` = false). The failure flag is STICKY:
@@ -19,7 +19,7 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data CounterMessage {
+data CounterMessage {
     0: counter: u32;
     1: delta: i32;
     2: flag: bool;
@@ -31,10 +31,17 @@ data CounterSample {
     flag: bool;
 }
 
+// The decode verdict: a dispatchable enum, not a forgettable flag. Invalid
+// is the ZII zero case, so an untouched verdict reads as failure.
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
 data Main {
     console: Console;
     read: usize;
-    ok: bool;
+    verdict: WireVerdict;
 }
 
 machine Main::main(&mut self) {
@@ -46,11 +53,11 @@ machine Main::main(&mut self) {
         flag: false
     };
 
-    CounterMessage::decode_wire(&mut decoded, &buffer, &mut self.read, &mut self.ok);
+    CounterMessage::decode(&mut decoded, &buffer, &mut self.read, &mut self.verdict);
 
-    transition self.ok {
-        true -> bad()
-        false -> good()
+    transition self.verdict {
+        WireVerdict::Sound -> bad()
+        WireVerdict::Invalid -> good()
     }
 
     state good(&mut self) {

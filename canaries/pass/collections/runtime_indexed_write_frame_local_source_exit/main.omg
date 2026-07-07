@@ -1,0 +1,36 @@
+// `nums[i] = t` where `t` is a genuine FRAME-slot local (it captures `self.v`
+// BEFORE v is overwritten, so no layer may fold it back to the field). Two
+// fixes land together here: (1) CAPTURE soundness -- the state-values local
+// binding, the storage decision, and the operation alias all skip the fold
+// when the initializer's field is reassigned after the declaration (this
+// silently wrote the POST-overwrite v before); (2) the FRAME-SOURCE write half
+// -- CopyRuntimeStorageToRuntimeMachineIndexed accepts a RuntimeFrame source
+// (load rax off the frame base, re-load r15 with the machine base, index +
+// store; second relocation at +17). nums[2] must land the CAPTURED 99, not the
+// overwritten 0 -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    nums: [i32; 4];
+    i: i32 [0..=3];
+    v: i32;
+}
+machine Main::main(&mut self) {
+    self.nums[0] = 10;
+    self.nums[1] = 20;
+    self.nums[2] = 30;
+    self.nums[3] = 40;
+    self.v = 99;
+    self.i = 2;
+    let t: i32 = self.v;
+    self.v = 0;
+    self.nums[self.i] = t;
+    transition self.nums[2] == 99 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

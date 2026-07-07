@@ -70,7 +70,7 @@ NO suspension keyword, NO await. The model:
 - Waitable surface: futex-shaped and SINGULAR (wait on word / wake N);
   everything else is library; ISRs/IO post to words. No second wait
   mechanism, ever.
-- Termination note from the same discussion: const-eval/comptime needs no
+- Termination note from the same discussion: const-eval/build-time evaluation needs no
   new termination rule either — general recursion does not exist in the
   language (self-calls are tail self-loops; loops carry
   decreases/measures), so existing discipline covers it (register M3).

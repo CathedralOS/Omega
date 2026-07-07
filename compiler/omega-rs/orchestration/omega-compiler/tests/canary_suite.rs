@@ -18,10 +18,10 @@ use std::process::Stdio;
 #[cfg(windows)]
 #[test]
 fn windows_x64_cli_mvp_emits_runnable_pe() {
-    let sample = repo_root().join("samples").join("cli_mvp");
+    let sample = sample_project("cli/basics/cli_mvp");
     let main_path = sample.join("main.omg");
     // Build into the in-repo `build/` so the committed/runnable artifact always
-    // matches HEAD: a passing suite leaves a fresh exe at samples/cli_mvp/build/.
+    // matches HEAD: a passing suite leaves a fresh exe at samples/cli/basics/cli_mvp/build/.
     // (Regenerated clean each run; NOT deleted afterward, unlike the temp-dir
     // canaries.) Prevents the "run the exe in the folder and see stale garbage"
     // trap.
@@ -46,7 +46,127 @@ fn windows_x64_cli_mvp_emits_runnable_pe() {
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(String::from_utf8_lossy(&output.stdout), "Hello, Omega.\n");
+    // The greeting plus the hold-the-window closer (every sample ends with a
+    // read_line pause so a double-clicked exe doesn't vanish; a piped stdin
+    // hits EOF and returns immediately, which is why this test still runs).
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        "Hello, Omega.\n[press Enter to close]\n"
+    );
+}
+
+// A Windows PE that bakes absolute VAs must ship a `.reloc` section and set
+// DYNAMICBASE, so the loader can place it at any base (Windows ASLR, UEFI's
+// arbitrary base). Asserted on the emitted header: the base-relocation
+// directory (index 5) is non-empty and DllCharacteristics carries 0x0040.
+// (The RUN tests already prove the .reloc DATA correct -- they execute under
+// ASLR, so a wrong entry would crash them.)
+#[cfg(windows)]
+#[test]
+fn windows_pe_ships_base_relocations_and_dynamicbase() {
+    let sample = sample_project("cli/basics/cli_mvp");
+    let build_dir = std::env::temp_dir().join(format!("omega-reloc-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: sample.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("windows_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("cli_mvp should compile to a PE");
+
+    let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
+    let lfanew = u32::from_le_bytes([bytes[0x3c], bytes[0x3d], bytes[0x3e], bytes[0x3f]]) as usize;
+    let optional = lfanew + 4 + 20;
+    let dll_characteristics = u16::from_le_bytes([bytes[optional + 70], bytes[optional + 71]]);
+    assert_ne!(
+        dll_characteristics & 0x0040,
+        0,
+        "DYNAMICBASE must be set for a relocatable PE"
+    );
+    let dir5 = optional + 112 + 5 * 8;
+    let reloc_rva = u32::from_le_bytes([bytes[dir5], bytes[dir5 + 1], bytes[dir5 + 2], bytes[dir5 + 3]]);
+    let reloc_size = u32::from_le_bytes([
+        bytes[dir5 + 4],
+        bytes[dir5 + 5],
+        bytes[dir5 + 6],
+        bytes[dir5 + 7],
+    ]);
+    assert!(
+        reloc_rva != 0 && reloc_size != 0,
+        "the base-relocation directory must be populated (rva {reloc_rva:#x}, size {reloc_size})"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The `subsystem` word in a target block reaches the PE optional header:
+// `subsystem gui` -> 2, no declaration -> console 3. Asserted on the emitted
+// bytes (the Subsystem u16 sits at e_lfanew + 4 (sig) + 20 (COFF) + 68).
+#[cfg(windows)]
+#[test]
+fn build_omg_subsystem_reaches_the_pe_header() {
+    // The settled build model: image facts come from build.omg's augmenting
+    // `build(b: &mut Build)` machine (interpreted at build time), never an
+    // in-source config word. Pins: Gui -> PE Subsystem 2; NO build.omg -> the
+    // ZII default (Console, 3).
+    let read_subsystem = |bytes: &[u8]| -> u16 {
+        let lfanew =
+            u32::from_le_bytes([bytes[0x3c], bytes[0x3d], bytes[0x3e], bytes[0x3f]]) as usize;
+        let at = lfanew + 4 + 20 + 68;
+        u16::from_le_bytes([bytes[at], bytes[at + 1]])
+    };
+    const MAIN: &str = r#"
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+}
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}
+"#;
+    // The Build/Subsystem vocabulary is TOOLCHAIN-INJECTED (a virtual
+    // prelude source) -- build.omg authors only the machine.
+    const BUILD_GUI: &str = r#"
+machine build(b: &mut Build) {
+    b.subsystem = Subsystem::Gui;
+}
+"#;
+
+    for (build_omg, expected) in [(Some(BUILD_GUI), 2u16), (None, 3u16)] {
+        let dir = std::env::temp_dir().join(format!(
+            "omega-buildomg-{}-{}",
+            expected,
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("create build.omg canary dir");
+        fs::write(dir.join("main.omg"), MAIN).expect("write main.omg");
+        if let Some(build_source) = build_omg {
+            fs::write(dir.join("build.omg"), build_source).expect("write build.omg");
+        }
+
+        compile(CompileOptions {
+            root_path: dir.join("main.omg"),
+            build_dir: Some(dir.join("build")),
+            target_name: None,
+            write_output: true,
+        })
+        .expect("build.omg canary should compile");
+
+        let bytes =
+            fs::read(dir.join("build").join("omega-program.exe")).expect("read emitted PE");
+        assert_eq!(
+            read_subsystem(&bytes),
+            expected,
+            "PE Subsystem with build.omg present={}",
+            build_omg.is_some()
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
 }
 
 // Cross-compile cli_mvp to a linux_x64 ELF and verify its structure + syscall
@@ -56,7 +176,7 @@ fn windows_x64_cli_mvp_emits_runnable_pe() {
 // linux-syscall host calls).
 #[test]
 fn linux_x64_cli_mvp_emits_elf_with_syscalls() {
-    let sample = repo_root().join("samples").join("cli_mvp");
+    let sample = sample_project("cli/basics/cli_mvp");
     let main_path = sample.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-linux-x64-cli-mvp-{}", std::process::id()));
@@ -100,7 +220,7 @@ fn linux_x64_cli_mvp_emits_elf_with_syscalls() {
 // real LSE atomic instructions: LDADDAL (fetch_add) and CASAL (compare_exchange).
 #[test]
 fn atomics_cross_platform_emits_real_atomics() {
-    let sample = repo_root().join("samples").join("atomics_cross");
+    let sample = sample_project("cli/systems/atomics_cross");
     let main_path = sample.join("main.omg");
 
     // --- windows_x64: compile + run ---
@@ -164,7 +284,7 @@ fn atomics_cross_platform_emits_real_atomics() {
 // presence of the runtime-storage load sequence (`mov r15, imm64` then a load).
 #[test]
 fn linux_x64_dungeon_crawler_emits_elf_with_runtime_storage_syscalls() {
-    let sample = repo_root().join("samples").join("dungeon_crawler_cli");
+    let sample = sample_project("cli/games/dungeon_crawler_cli");
     let main_path = sample.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-linux-x64-dungeon-{}", std::process::id()));
@@ -220,11 +340,11 @@ fn linux_x64_dungeon_crawler_emits_elf_with_runtime_storage_syscalls() {
 #[cfg(windows)]
 #[test]
 fn windows_x64_dungeon_crawler_emits_runnable_pe() {
-    let sample = repo_root().join("samples").join("dungeon_crawler_cli");
+    let sample = sample_project("cli/games/dungeon_crawler_cli");
     let main_path = sample.join("main.omg");
     // Build into the in-repo `build/` so the runnable artifact always matches HEAD
     // (regenerated clean each run, NOT deleted afterward). This is the durable fix
-    // for the stale-artifact trap: `samples/dungeon_crawler_cli/build/omega-program.exe`
+    // for the stale-artifact trap: `samples/cli/games/dungeon_crawler_cli/build/omega-program.exe`
     // is rewritten by every green suite run.
     let build_dir = sample.join("build");
     let _ = fs::remove_dir_all(&build_dir);
@@ -302,7 +422,7 @@ fn windows_x64_dungeon_crawler_emits_runnable_pe() {
         "the `fight` command should resolve combat in an enemy room\nstdout:\n{stdout}"
     );
     // Intentionally NOT removing build_dir: leave the fresh, verified artifact in
-    // samples/dungeon_crawler_cli/build/ so running the in-repo exe matches HEAD.
+    // samples/cli/games/dungeon_crawler_cli/build/ so running the in-repo exe matches HEAD.
 }
 
 #[test]
@@ -654,6 +774,827 @@ fn unapproved_host_call_canary_is_rejected() {
         combined.contains("unapproved host call"),
         "expected unapproved host call diagnostic, got:\n{combined}"
     );
+}
+
+#[test]
+fn value_call_as_host_arg_rejected_canary_is_rejected() {
+    // A value-call result (or any non-trivial computed value) used directly as a host-call
+    // argument is not yet encodable; the selector rejects it cleanly rather than silently
+    // miscompiling (#40). Workaround: bind to a field first. Guards the value-call positions
+    // that ARE cleanly rejected against the value-call-in-guard silent-miscompile failure mode.
+    let canary = fail_canary("calls/value_call_as_host_arg_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected value-call-as-host-arg canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("encodable"),
+        "expected a 'no encodable call selection' rejection diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn computed_host_arg_rejected_canary_is_rejected() {
+    // A computed expression (arithmetic) used directly as a host-call argument is not yet
+    // encodable; the selector rejects it cleanly (#40) rather than silently exiting 0. The
+    // message is actionable (names the rule + the let-bind fix). Workaround: bind to a local
+    // first. Sibling of value_call_as_host_arg_rejected (a value-call arg). Remove when host-arg
+    // expression materialization lands (memory host-arg-expression-materialization).
+    let canary = fail_canary("calls/computed_host_arg_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected computed-host-arg canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("encodable") && combined.contains("simple value"),
+        "expected an actionable 'no encodable call / must be a simple value' rejection, got:\n{combined}"
+    );
+}
+
+#[test]
+fn exact_overflow_value_call_hint_canary_is_rejected() {
+    // Exact arithmetic over a value-machine call with an unconstrained return is a
+    // decision-17 overflow; the diagnostic must NAME the call and point at annotating
+    // the callee's return (not just the generic "constrain the operands' range").
+    let canary = fail_canary("arithmetic/exact_overflow_value_call_hint");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected exact-overflow-over-value-call canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("value-machine call") && combined.contains("annotate its return"),
+        "expected the overflow diagnostic to name the value-call operand and point at the \
+         callee's return annotation, got:\n{combined}"
+    );
+    // The generic overflow message also names the constraining mechanisms.
+    assert!(
+        combined.contains("requires` clause") && combined.contains("dominating guard"),
+        "expected the overflow diagnostic to name the `requires`-clause / dominating-guard \
+         constraining mechanisms, got:\n{combined}"
+    );
+}
+
+#[test]
+fn unknown_field_write_rejected_canary_is_rejected() {
+    // A direct `self.<field>` write to a nonexistent field (a typo) is rejected at
+    // type-check with a clear "data X has no field Y", not the misleading "not
+    // mutable" or an opaque backend lowering error.
+    let canary = fail_canary("arithmetic/unknown_field_write_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected unknown-field write canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("has no field `cont`"),
+        "expected a clear unknown-field diagnostic naming the missing field, got:\n{combined}"
+    );
+}
+
+#[test]
+fn literal_class_mismatch_rejected_canary_is_rejected() {
+    // A cross-class literal assignment (`self.i32 = true`) is rejected at
+    // type-check. This was a SILENT MISCOMPILE -- the backend stored the bool
+    // literal as an integer with no error at any phase.
+    let canary = fail_canary("arithmetic/literal_class_mismatch_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected literal-class-mismatch canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("stores a boolean into a `i32` place"),
+        "expected a clear cross-class literal diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn member_class_mismatch_rejected_canary_is_rejected() {
+    // A cross-class assignment through a PLACE (`self.i32 = self.bool_field`) is
+    // rejected. Like the literal case this was a SILENT MISCOMPILE -- the bool
+    // field was stored into the integer field with no error at any phase.
+    let canary = fail_canary("arithmetic/member_class_mismatch_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected member-class-mismatch canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("stores a boolean into a `i32` place"),
+        "expected a clear cross-class place diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn arg_class_mismatch_rejected_canary_is_rejected() {
+    // A cross-class call ARGUMENT (`exit_process(self.bool_field)` for an i32
+    // parameter) is rejected. Like the assignment cases this was a SILENT
+    // MISCOMPILE -- the bool arg reached the host encoder as a raw byte.
+    let canary = fail_canary("arithmetic/arg_class_mismatch_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected arg-class-mismatch canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("stores a boolean into a `i32` parameter"),
+        "expected a clear cross-class argument diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn value_call_arg_class_mismatch_rejected_canary_is_rejected() {
+    // A cross-class argument at a VALUE-position call site
+    // (`let v: i32 = self.take(self.bool_field)`) is rejected. This was the 4th
+    // silent miscompile in the cross-class family -- the value-position path
+    // validated only type-parameter bounds, not argument classes.
+    let canary = fail_canary("arithmetic/value_call_arg_class_mismatch_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected value-call-arg-class-mismatch canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("stores a boolean into a `i32` parameter"),
+        "expected a clear cross-class value-position argument diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn narrowing_call_arg_rejected_canary_is_rejected() {
+    // Decision-17 narrowing enforced at the call-argument boundary: passing an
+    // i64 (300) to an i8 state parameter was a SILENT MISCOMPILE (truncated to
+    // 44); now rejected like the analogous assignment.
+    let canary = fail_canary("arithmetic/narrowing_call_arg_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected narrowing-call-arg canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("narrowing store") && combined.contains("argument `amount`"),
+        "expected a narrowing diagnostic naming the argument, got:\n{combined}"
+    );
+}
+
+#[test]
+fn narrowing_value_call_arg_rejected_canary_is_rejected() {
+    // Decision-17 narrowing enforced at the VALUE-position call-argument boundary
+    // (`let v: i32 = self.take_i8(self.big)`, i64 -> i8): the last silent
+    // miscompile in the call-argument narrowing family, now rejected.
+    let canary = fail_canary("arithmetic/narrowing_value_call_arg_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected narrowing value-call-arg canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("narrowing store") && combined.contains("argument `x`"),
+        "expected a narrowing diagnostic naming the argument, got:\n{combined}"
+    );
+}
+
+#[test]
+fn transition_value_overflow_rejected_canary_is_rejected() {
+    // Decision-17 exact-arithmetic overflow at the transition-value return
+    // boundary (`transition { _ -> (x + y) }`): this boundary used to SKIP the
+    // overflow proof obligation the other boundaries enforce, so the sum wrapped
+    // silently. Now checked uniformly.
+    let canary = fail_canary("arithmetic/transition_value_overflow_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected transition-value-overflow canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("exact arithmetic") && combined.contains("return value"),
+        "expected an exact-arithmetic overflow diagnostic at the return boundary, got:\n{combined}"
+    );
+}
+
+#[test]
+fn struct_literal_class_mismatch_rejected_canary_is_rejected() {
+    // A cross-class struct-literal field value (`Point { x: true }`, bool -> i32
+    // field) is rejected. This was a SILENT MISCOMPILE at construction, the
+    // sibling of the assignment / call-arg cross-class holes.
+    let canary = fail_canary("arithmetic/struct_literal_class_mismatch_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected struct-literal-class-mismatch canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("stores a boolean into a `i32` field"),
+        "expected a clear cross-class construction diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn struct_literal_narrowing_rejected_canary_is_rejected() {
+    // Decision-17 narrowing at the struct-literal construction boundary
+    // (`Small { v: self.i64_field }` into an i8 field): a SILENT truncation, now
+    // rejected. The construction check enforces the field's type width for every
+    // primitive field, not only `[a..=b]`-refined ones.
+    let canary = fail_canary("arithmetic/struct_literal_narrowing_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected struct-literal-narrowing canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("narrowing store") && combined.contains("construction of `Small` field `v`"),
+        "expected a narrowing diagnostic at the construction boundary, got:\n{combined}"
+    );
+}
+
+#[test]
+fn array_literal_element_narrowing_rejected_canary_is_rejected() {
+    // Decision-17 narrowing at the array-literal element boundary (`[300, 0, 0]`
+    // into a `[i8; 3]`): a SILENT truncation (300 -> 44), now rejected. Each
+    // element is checked against the array's element type.
+    let canary = fail_canary("arithmetic/array_literal_element_narrowing_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected array-literal-element-narrowing canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("narrowing store") && combined.contains("array literal element"),
+        "expected a narrowing diagnostic at the array-literal element boundary, got:\n{combined}"
+    );
+}
+
+#[test]
+fn array_literal_let_init_narrowing_rejected_canary_is_rejected() {
+    // Array-literal element narrowing at the LET-INITIALIZER position -- a distinct
+    // wiring of the shared array-element check from the assignment one.
+    let canary = fail_canary("arithmetic/array_literal_let_init_narrowing_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected array-literal let-init narrowing canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("narrowing store") && combined.contains("array literal element"),
+        "expected a narrowing diagnostic at the array-literal let-init boundary, got:\n{combined}"
+    );
+}
+
+#[test]
+fn let_init_class_mismatch_rejected_canary_is_rejected() {
+    // A cross-class let-initializer (`let x: i32 = true`) is rejected. This was a
+    // SILENT MISCOMPILE (the LocalData path had the narrowing check but not the
+    // class check); now every scalar value-binding position class-checks.
+    let canary = fail_canary("arithmetic/let_init_class_mismatch_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected let-init class-mismatch canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("stores a boolean into a `i32` local"),
+        "expected a clear cross-class let-init diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn return_value_class_mismatch_rejected_canary_is_rejected() {
+    // A cross-class transition-value return (`_ -> (true)` from an -> i32 machine)
+    // is rejected. This was a SILENT MISCOMPILE -- the terminal `{ true }` form was
+    // shape-gated, but the transition-value form was not class-checked.
+    let canary = fail_canary("arithmetic/return_value_class_mismatch_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected return-value class-mismatch canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("stores a boolean into a `i32` return value"),
+        "expected a clear cross-class return-value diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn terminal_return_class_mismatch_rejected_canary_is_rejected() {
+    // A cross-class TERMINAL return of a PLACE (`machine -> i32 { self.bool_field }`)
+    // is rejected. The shape gate rejects a cross-class literal but blanket-accepts
+    // place values, so this was a SILENT MISCOMPILE; the terminal-return path now
+    // class-checks place values (gated to avoid double-reporting a literal).
+    let canary = fail_canary("arithmetic/terminal_return_class_mismatch_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected terminal-return class-mismatch canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("stores a boolean into a `i32` return value"),
+        "expected a clear cross-class terminal-return diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn wrong_struct_type_argument_rejected_canary_is_rejected() {
+    // NOMINAL type confusion at a call argument (`take_foo(&self.bar)` for a `&Foo`
+    // parameter) is rejected. This was a SILENT MISCOMPILE -- the shape gate
+    // blanket-accepts a place against any Named parameter, comparing only shape not
+    // the type name. The user-type complement of the cross-class scalar family.
+    let canary = fail_canary("arithmetic/wrong_struct_type_argument_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected wrong-struct-type-argument canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("expects the `Foo` data type but got `Bar`"),
+        "expected a clear nominal-type-mismatch diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn wrong_struct_type_assignment_rejected_canary_is_rejected() {
+    // NOMINAL type confusion at an assignment (`self.foo = self.bar`, Bar into a
+    // Foo place) is rejected -- a distinct position from the call-argument canary,
+    // sharing report_data_type_conflict.
+    let canary = fail_canary("arithmetic/wrong_struct_type_assignment_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected wrong-struct-type-assignment canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("expects the `Foo` data type but got `Bar`"),
+        "expected a clear nominal-type-mismatch diagnostic at the assignment, got:\n{combined}"
+    );
+}
+
+#[test]
+fn wrong_struct_type_array_element_rejected_canary_is_rejected() {
+    // NOMINAL type confusion at an array-literal element (`[self.bar, ..]` into a
+    // `[Foo; 2]`) is rejected -- the array element check now runs the nominal guard
+    // for data element types, not only the scalar class/width check.
+    let canary = fail_canary("arithmetic/wrong_struct_type_array_element_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected wrong-struct-type-array-element canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("expects the `Foo` data type but got `Bar`"),
+        "expected a clear nominal-type-mismatch diagnostic at the array element, got:\n{combined}"
+    );
+}
+
+#[test]
+fn unknown_field_read_rejected_canary_is_rejected() {
+    // A READ of a nonexistent field (a typo) in an expression is rejected at
+    // type-check ("reads `self.cont`, but data X has no field `cont`"), not silently
+    // passed.
+    let canary = fail_canary("arithmetic/unknown_field_read_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected unknown-field read canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("has no field `cont`"),
+        "expected a clear unknown-field diagnostic for the read, got:\n{combined}"
+    );
+}
+
+#[test]
+fn u64_literal_above_i64_max_canary_is_rejected() {
+    // A u64 literal above i64::MAX (the literal value is carried as i64 through the IR) is
+    // rejected with a CLEAR "exceeds the i64 range" diagnostic that names the real
+    // limitation, not the misleading "invalid integer literal". Remove this test when
+    // full-width u64 literals land (the i128 literal-widening fix).
+    let canary = fail_canary("arithmetic/u64_literal_above_i64_max");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected u64-literal-too-large canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("exceeds the i64 range"),
+        "expected a clear i64-range-overflow diagnostic (not 'invalid integer literal'), got:\n{combined}"
+    );
+}
+
+#[test]
+fn computed_index_operand_canary_is_rejected() {
+    // `arr[k + 1]` as a value operand silently read 0 (computed index not lowerable);
+    // even with `k + 1`'s bound explicitly guarded it must be refused, not miscompiled.
+    let canary = fail_canary("collections/computed_index_operand_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected computed-index canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("is a computed expression"),
+        "expected computed-index diagnostic, got:\n{combined}"
+    );
+}
+
+#[test]
+fn runtime_dual_indexed_copy_exit_canary_runs() {
+    // `nums[i] = nums[j]` (both indices runtime) now LOWERS for real (task #38,
+    // CopyRuntimeMachineIndexedToRuntimeMachineIndexed) instead of being fenced.
+    // nums=[10,20,30,40,50], i=0, j=4 -> nums[0]=50, exited as the code. Exit 10
+    // = the historic base-copy/no-op bug returned.
+    let canary = pass_canary("collections/runtime_dual_indexed_copy_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-dual-copy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dual-indexed copy canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dual-indexed copy canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(50),
+        "expected nums[i]=nums[j] (i=0, j=4) to copy element j -> nums[0]=50 (the exit \
+         code); exit 10 = the base-copy/no-op bug. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn nested_runtime_indexed_write_rejected_canary_is_rejected() {
+    // A nested runtime-COLUMN indexed write `grid[row][col] = v` (a runtime column index applied to
+    // an already-indexed place) cannot be lowered by the static-assignment fast path -- it would
+    // silently NO-OP. The classifier guard (target_is_nested_runtime_indexed) keeps it out of the
+    // AlreadyLowered fast path so it is recorded as a mutation and rejected cleanly here. A const
+    // column (`grid[i][0]`) and a single index (`arr[i]`) still lower and are not rejected.
+    let canary = fail_canary("collections/nested_runtime_indexed_write_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected nested-runtime-indexed-write canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("needs mutation lowering")
+            || combined.contains("needs runtime storage write lowering"),
+        "expected a mutation-lowering rejection for the nested runtime-indexed write, got:\n{combined}"
+    );
+}
+
+#[test]
+fn runtime_inplace_reverse_local_temp_exit_canary_runs() {
+    // In-place reverse with a LOCAL temp (capture + dual copy + frame-source
+    // write composed in a loop): [1,2,3,4,5] -> [5,4,3,2,1] -> exit 70.
+    let canary = pass_canary("collections/runtime_inplace_reverse_local_temp_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-reverse-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("in-place reverse canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("in-place reverse canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the local-temp reverse to produce [5,4,3,2,1] (exit 70); exit 71 = a          swap leg regressed (capture fold, dual copy, or frame-source write). got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_local_copy_chain_exit_canary_runs() {
+    // Transitive copy chain t=arr[i]; c=t; d=c; b=d>5: the slot scan follows
+    // bare copies, so b is true (exit 70); the old fold read false (exit 71).
+    let canary = pass_canary("collections/runtime_indexed_local_copy_chain_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-copychain-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("copy-chain canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("copy-chain canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the copy chain to read arr[1]=8 > 5 as TRUE (exit 70); exit 71 = the          transitive fold returned. got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_write_frame_local_source_exit_canary_runs() {
+    // `nums[i] = t` with t a FRAME-slot capture: nums[2] must land the captured
+    // 99 (exit 70); the old stale fold wrote the post-overwrite 0.
+    let canary = pass_canary("collections/runtime_indexed_write_frame_local_source_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-frame-src-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("frame-local-source indexed write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("frame-local-source indexed write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected nums[i]=t to write the CAPTURED value 99 (exit 70); exit 71 = the stale          fold or an uninitialized slot returned. got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_captured_local_swap_exit_canary_runs() {
+    // Euclid swap: let r = a % b; a = b; b = r. The capture-aware binding skip
+    // keeps r in its slot -> gcd(48,36) = 12 (exit 70); the old fold gave 36.
+    let canary = pass_canary("control_flow/runtime_captured_local_swap_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gcd-swap-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("captured-local swap canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("captured-local swap canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the slot-captured swap to compute gcd(48,36)=12 (exit 70); exit 71 = the          fold re-read the reassigned field. got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_dual_indexed_copy_in_loop_exit_canary_runs() {
+    // `a[i] = b[i]` element-wise in a loop (task #38's cross-array + loop face)
+    // now lowers through CopyRuntimeMachineIndexedToRuntimeMachineIndexed. The
+    // classifier still routes it off the static-assignment fast path (which
+    // would no-op); the recorded write then selects the dual copy. b=[10,20,40]
+    // copies into a; sum(a)=70. Exit 0 = the historic silent no-op returned.
+    let canary = pass_canary("collections/runtime_dual_indexed_copy_in_loop_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-dual-loop-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("in-loop dual-indexed copy canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("in-loop dual-indexed copy canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the element-wise a[i]=b[i] loop to copy [10,20,40] (sum 70, the exit \
+         code); exit 0 = the historic silent no-op returned. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]
@@ -1138,10 +2079,567 @@ fn runtime_bounded_carrier_byte_index_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+#[test]
+fn runtime_carrier_indexed_read_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_carrier_indexed_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-carrier-indexed-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier indexed read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("carrier indexed read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `self.text[self.i]` (runtime index on a [u8;N] carrier) to read 'a'/'c' past the len prefix and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_number_to_decimal_exit_canary_runs() {
+    // Numeric output (itoa): build n=12345 at runtime, render it to the decimal text
+    // "12345" via divide/modulo + computed carrier byte writes, and assert the
+    // carrier equals it. A round-trip proving printable numbers, a serious-app need.
+    let canary = pass_canary("text/runtime_number_to_decimal_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-number-to-decimal-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("number-to-decimal canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("number-to-decimal canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected integer->decimal-text round-trip to produce \"12345\" and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_decimal_to_number_exit_canary_runs() {
+    // Numeric input (atoi): parse the decimal text "12345" into the integer 12345 via
+    // carrier byte reads + accumulation, and assert it. The read-side complement of
+    // the itoa canary -- carrier reads used as arithmetic operands.
+    let canary = pass_canary("text/runtime_decimal_to_number_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-decimal-to-number-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("decimal-to-number canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("decimal-to-number canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected decimal-text->integer parse of \"12345\" to yield 12345 and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_carrier_indexed_write_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_carrier_indexed_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-carrier-indexed-write-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier indexed write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("carrier indexed write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `self.out[self.i] = self.ch` (runtime index on a [u8;N] carrier, runtime value) to write bytes past the len prefix and read 2 back at index 2 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_carrier_indexed_read_operand_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_carrier_indexed_read_operand_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-carrier-read-operand-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier indexed-read-operand canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("carrier indexed-read-operand canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a carrier indexed read in operand position (`sum + self.text[self.i] as u32`, temp typed `u8` not `u8 in Utf8`) to sum 'ABCD' to 266 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_carrier_cipher_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_carrier_cipher_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-carrier-cipher-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier cipher canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("carrier cipher canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a Caesar-cipher loop (read `text[i]` in an expression, Wrapping-shift, write `out[i]`) to map \"HELLO\" to \"KHOOR\" and read it back (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_carrier_indexed_const_write_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_carrier_indexed_const_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-carrier-const-write-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier const-write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("carrier const-write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a CONSTANT byte written into a carrier at a RUNTIME index (`self.out[self.i] = 88`) to respect the index at both ends (out[0] and out[3]) (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_carrier_len_guard_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_carrier_len_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-carrier-len-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier len guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("carrier len guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a carrier `.len` guard to actually evaluate (len==3 true, len==9 false; exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_carrier_fnv_loop_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_carrier_fnv_loop_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-carrier-fnv-loop-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier fnv loop canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("carrier fnv loop canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected FNV-1a over a carrier string (`.len`-bounded loop + byte reads) to hash 'abc' to 11 and self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_mandelbrot_render_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_mandelbrot_render_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-mandelbrot-render-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("mandelbrot render canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("mandelbrot render canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the 40x18 Mandelbrot renderer (f64 escape-time over a 1D carrier framebuffer) to produce 140 in-set pixels and self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_crc32_exit_canary_runs() {
+    // CRC-32 (the ZIP/PNG/Ethernet checksum): polynomial division over GF(2), bit by bit
+    // with shifts + XOR (reflected poly 0xEDB88320, init/final 0xFFFFFFFF). CRC-32("abc")
+    // is 891568578, verified against zlib -> exit 70.
+    let canary = pass_canary("text/runtime_crc32_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-crc32-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("crc32 canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("crc32 canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected CRC-32(\"abc\") == 891568578 (exit 70); got {:?} -- a shift/XOR or u32 regression\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_base64_encode_exit_canary_runs() {
+    // Base64 encoding: three input bytes regrouped into four 6-bit values (shifts + masks +
+    // OR), each indexing the 64-char alphabet. "Man" -> "TWFu", all four bytes checked ->
+    // exit 70.
+    let canary = pass_canary("text/runtime_base64_encode_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-base64-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("base64 encode canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("base64 encode canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected base64(\"Man\") == \"TWFu\" (exit 70); got {:?} -- a bit-op regression\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_run_length_encode_exit_canary_runs() {
+    // Run-length encoding (compression): scan counting consecutive equal bytes, emit
+    // byte+count at each run boundary and at the end (shared emit dispatched by a mode
+    // field). "aaabbbbcc" -> "a3b4c2", six output bytes checked -> exit 70.
+    let canary = pass_canary("text/runtime_run_length_encode_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-rle-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("run-length encode canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("run-length encode canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected RLE of \"aaabbbbcc\" to be \"a3b4c2\" (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_binary_format_exit_canary_runs() {
+    // Format a number as an 8-bit binary string: `(n >> (7-i)) & 1` per bit (runtime shift
+    // amount + bitwise AND in value position), written to a carrier. 42 -> "00101010",
+    // all eight bytes checked -> exit 70.
+    let canary = pass_canary("text/runtime_binary_format_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-binary-format-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("binary format canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("binary format canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected 42 to format as binary \"00101010\" (exit 70); got {:?} -- a shift/bitwise regression\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_substring_search_exit_canary_runs() {
+    // Naive substring search (find a needle in a haystack): nested loop, carrier byte
+    // comparison, the index guarded against `.len` directly. "world" in "hello world"
+    // rejects i=0..5 and matches at i=6 -> exit 70.
+    let canary = pass_canary("text/runtime_substring_search_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-substring-search-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("substring search canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("substring search canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected substring search to find \"world\" at position 6 (exit 70); got {:?} (a non-70 code is the wrong position)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_string_palindrome_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_string_palindrome_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-string-palindrome-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("string palindrome canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("string palindrome canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a two-pointer string palindrome check -- text[i] proved via the relational chain (i <= j < len), bytes compared through local temps -- to detect 'ABCBA' (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_carrier_itoa_exit_canary_runs() {
+    let canary = pass_canary("text/runtime_carrier_itoa_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-carrier-itoa-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier itoa canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("carrier itoa canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `itoa` (computed digit chars written into a carrier) to render 150 as \"150\" and self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // #66 owned `[u8; N] in Utf8` carrier byte WRITE `self.buffer[i] = <byte>`: the byte
 // stores inline at `base + pointer_size + i`. Both a byte literal (`buffer[0] = 67`
 // = 'C') and a u8 field (`buffer[1] = self.ch` = 'D') work; from "AB" the writes
 // yield "CD" -> `==` exits 70.
+#[test]
+fn runtime_carrier_byte_write_width_coercion_canary_runs() {
+    // A carrier byte WRITE of a COMPUTED value coerces to the u8 byte width
+    // (`buffer[0] = a+b` with a+b=300 stores the low byte 44), matching native.
+    // The carrier (Value::Str) path is separate from the array element_cell path.
+    // exit 71 = the byte was not the low-byte 44.
+    let canary = pass_canary("text/runtime_carrier_byte_write_width_coercion");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("carrier byte-write coercion canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (carrier byte write coerces to u8), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-carrier-coerce-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("carrier byte-write coercion canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("carrier byte-write coercion canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected carrier byte write to coerce to u8 low byte (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn runtime_bounded_carrier_byte_write_exit_canary_runs() {
     let canary = pass_canary("text/runtime_bounded_carrier_byte_write_exit");
@@ -1204,6 +2702,155 @@ fn runtime_slice_length_field_exit_canary_runs() {
         Some(5),
         "expected `self.count = s.len` to store the slice param's length (5) into \
          the i32 field, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// A runtime slice `.len` read into a LOCAL binding in a VALUE position (`let n =
+// s.len`), NOT as an operand or guard subject. The native side used to leave the
+// local slot unwritten (the descriptor length was never materialized), so a later
+// `n == 5` guard read the zeroed slot and took the false arm -- a silent read-0
+// miscompile the interpreter never had. `s` views a fixed `[i32; 5]` through
+// `.as_slice()`, so the length folds to 5 and the guard matches -> exit 5.
+#[test]
+fn runtime_slice_length_local_binding_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_slice_length_local_binding_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-slice-len-local-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("slice length local binding canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("slice length local binding canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(5),
+        "expected `let n = s.len` (as_slice-local) to materialize the length so \
+         `n == 5` matches -> exit 5, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// A runtime slice PARAM `.len` read into a LOCAL `usize` binding (`let n = s.len`).
+// The `.len` place resolver reports the descriptor's low 4-byte len word, so a
+// wider 8-byte `usize` slot failed the exact-size copy and the write was dropped
+// (the local read 0). The descriptor holds the full 8-byte len, now read at the
+// target's width. `s` views a fixed `[i32; 6]`, so `n == 6` matches -> exit 6.
+#[test]
+fn runtime_slice_length_local_param_binding_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_slice_length_local_param_binding_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-slice-len-param-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("slice length local param binding canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("slice length local param binding canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(6),
+        "expected `let n: usize = s.len` (slice param) to read the descriptor's \
+         full 8-byte length so `n == 6` matches -> exit 6, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// A literal-bounded SUBSLICE `.len` read into a LOCAL binding in a value position
+// (`let sub = self.arr[1..4]; let n = sub.len`). The subslice binding folds to the
+// inline `(self.arr[1..4]).len` (no runtime descriptor slot), which the value-write
+// resolver used to drop -> the local read 0. The window length `4 - 1 = 3` is a
+// compile-time constant, now folded in the value-write path. `n == 3` matches -> 3.
+#[test]
+fn runtime_subslice_length_local_binding_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_subslice_length_local_binding_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-subslice-len-local-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("subslice length local binding canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("subslice length local binding canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "expected `let n = sub.len` (sub = a literal `arr[1..4]` subslice) to fold to \
+         the window length 3 so `n == 3` matches -> exit 3, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The INLINE subslice `.len` (no `let sub` binding): `let n = (self.arr[1..4]).len`.
+// Native folds the window length 3; the interpreter used to reject it ("range
+// expression outside index position") because a member on a non-place receiver
+// resolved as a place and hit the raw range -- it now evaluates the receiver as a
+// value and reads `.len` off it. Both engines agree -> `n == 3` matches -> exit 3.
+#[test]
+fn runtime_inline_subslice_length_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_inline_subslice_length_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-inline-subslice-len-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("inline subslice length canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("inline subslice length canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "expected `let n = (self.arr[1..4]).len` to fold to the window length 3 so \
+         `n == 3` matches -> exit 3, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -1399,6 +3046,129 @@ fn runtime_value_call_slice_view_element_arg_exit_canary_runs() {
 // initializer and re-evaluate it AFTER the field was overwritten, so a deeper
 // substate's guard saw the wrong value and branched into the wrong arm. The fix
 // keeps the captured slot. Exits 70 (both pushes land: stack[0]=3, stack[1]=4).
+#[test]
+fn runtime_linear_search_early_exit_canary_runs() {
+    // Linear search with EARLY loop exit: scan for `target`, leave the loop the instant it's found
+    // (each element read into a field first, then compared). arr=[3,7,12,18,5], target=12 -> index 2.
+    let canary = pass_canary("control_flow/runtime_linear_search_early_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-linear-search-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("linear search early exit canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("linear search early exit canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected linear search to find target 12 at index 2 and stop (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_entry_return_field_exit_canary_runs() {
+    // An entry `main -> i32` returns its exit code via its terminal value (no
+    // exit_process): a PLACE/field terminal routes to the exit correctly. Locks
+    // the field-bind workaround for returning a computed value from main
+    // (a raw computed terminal `_ -> (a+100)` miscompiles at the entry today).
+    let canary = pass_canary("control_flow/runtime_entry_return_field_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-entry-return-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("entry return field canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("entry return field canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(200),
+        "expected main to return field r=200 as the exit code; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_loop_patterns_exit_canary_runs() {
+    // Loop patterns via self-transition: a LARGE counting loop (1..10000) stays
+    // iterative (no stack growth) and nested loops re-initialize the inner counter.
+    // Guards the state-recursion lowering that serious apps lean on.
+    let canary = pass_canary("control_flow/runtime_loop_patterns_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-loop-patterns-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("loop-patterns canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("loop-patterns canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a 10000-iteration counting loop + nested loops to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_composite_initializer_local_arg_exit_canary_runs() {
+    // A let-local whose initializer is a composite (binary / unary / cast) reading a
+    // prior local or field, forwarded as a transition argument. The dispatch-arg fold
+    // must recurse into the composite to resolve the inner local; missing Cast/Binary/
+    // Unary arms re-materialized it in the target frame (no slot) and read 0.
+    let canary = pass_canary("control_flow/runtime_composite_initializer_local_arg_exit");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-composite-initializer-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("composite-initializer-local-arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("composite-initializer-local-arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected binary/unary/field-read composite initializers forwarded as args to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn runtime_captured_local_remutated_field_exit_canary_runs() {
     let canary = pass_canary("control_flow/runtime_captured_local_remutated_field_exit");
@@ -1646,6 +3416,130 @@ fn runtime_shift_operators_exit_canary_runs() {
         output.status.code(),
         Some(70),
         "expected `<<` and arithmetic `>>` (incl. negative) to evaluate correctly (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_bitwise_operators_exit_canary_runs() {
+    let canary = pass_canary("operators/runtime_bitwise_operators_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-bitwise-operators-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bitwise operators canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bitwise operators canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `&`, `|`, `^` to evaluate correctly (12&10==8, 12|10==14, 12^10==6; exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_popcount_loop_exit_canary_runs() {
+    let canary = pass_canary("operators/runtime_popcount_loop_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-popcount-loop-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("popcount loop canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("popcount loop canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the shift-and-mask popcount loop to count 24 bits and self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_xorshift_prng_exit_canary_runs() {
+    let canary = pass_canary("operators/runtime_xorshift_prng_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-xorshift-prng-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("xorshift prng canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("xorshift prng canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected xorshift32 (XOR + shifts composed) to draw 99 and self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_bitwise_guard_exit_canary_runs() {
+    let canary = pass_canary("operators/runtime_bitwise_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-bitwise-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bitwise guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bitwise guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected bitwise guard SUBJECTS (`flags & 2 == 0`, `& 4 == 4`, `| 2 == 7`, `^ 5 == 0`; exit 70), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -2018,6 +3912,106 @@ fn runtime_numeric_cast_exit_canary_runs() {
         output.status.code(),
         Some(70),
         "expected numeric casts (float->int, int->float, signed widen) to evaluate correctly and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_widened_comparison_exit_canary_runs() {
+    // The `as`-widen is the sanctioned way to compare different-width integers
+    // (fail canary mismatched_width_comparison_rejected). Lock that the widened
+    // compare does NOT truncate the wider operand: `44 as i32 == 300` is FALSE
+    // (a truncating compare would read `44 == (300 & 0xFF == 44)` -> TRUE), while
+    // `44 as i32 == 44` stays TRUE. Both correct -> exit 70.
+    let canary = pass_canary("expressions/runtime_widened_comparison_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-widened-cmp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("widened comparison canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("widened comparison canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the widened compare to avoid truncation (44 as i32 != 300, 44 as i32 == 44) and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_widened_bitwise_exit_canary_runs() {
+    // Bitwise companion to runtime_widened_comparison_exit: `self.big | self.small
+    // as u32` (u32 256 | widened u8 1) must be 257, not 1. A truncation to u8 width
+    // (the rejected mismatched_width_bitwise bug) would drop the 256. -> exit 70.
+    let canary = pass_canary("expressions/runtime_widened_bitwise_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-widened-bitor-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("widened bitwise canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("widened bitwise canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the widened bitwise OR to avoid truncation (256 | 1 == 257) and exit 70, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_16bit_cast_exit_canary_runs() {
+    let canary = pass_canary("expressions/runtime_16bit_cast_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-16bit-cast-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("16-bit cast canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("16-bit cast canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected i16/u16 casts (truncate, sign/zero-extend, reinterpret) in every direction to evaluate correctly and exit 70, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -2801,7 +4795,7 @@ fn runtime_shrinking_slice_recursion_exit_canary_runs() {
 
 #[test]
 fn runtime_wire_encode_primitive_exit_canary_runs() {
-    // Wire stage 2a: `CounterMessage::encode_wire(&msg, &mut self.buffer,
+    // Wire stage 2a: `CounterMessage::encode(&msg, &mut self.buffer,
     // &mut self.written)` frames the schema's CURRENT era in compact_binary
     // v0 -- era varint, then per field in field-number order a tag varint and
     // a value varint (LEB128; signed values zigzag; bool 0/1). The canary
@@ -2874,7 +4868,7 @@ fn runtime_wire_encode_era_discriminator_exit_canary_runs() {
 fn runtime_wire_roundtrip_primitive_exit_canary_runs() {
     // Wire stage 2b: encode { counter: 300, delta: -2, flag: true } into
     // [0x00, 0x00, 0xAC, 0x02, 0x01, 0x03, 0x02, 0x01] (hand-computed in the
-    // canary header), then `decode_wire(&mut decoded, &buffer, &mut read,
+    // canary header), then `decode(&mut decoded, &buffer, &mut read,
     // &mut ok)` reads the same 8 bytes back: ok = true, read = 8, and every
     // decoded field equals the original (zigzag round-trips -2). Exits 70 on
     // a full match.
@@ -3086,7 +5080,7 @@ fn runtime_wire_decode_rejects_wrong_era_exit_canary_runs() {
     assert_eq!(
         output.status.code(),
         Some(70),
-        "expected decode_wire to reject a non-current era discriminator (exit 70 on the failure path), got {:?}\nstderr:\n{}",
+        "expected decode to reject a non-current era discriminator (exit 70 on the failure path), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -3133,7 +5127,7 @@ fn runtime_wire_encode_string_exit_canary_runs() {
 fn runtime_wire_encode_byte_slice_exit_canary_runs() {
     // Wire stage 2 (#43), borrowed `&[u8]` fields: a fat-slice bytes field
     // constructed from a fixed-array subslice (`{ bytes: self.source[0..2] }`)
-    // materializes a `{ptr, len}` descriptor, and `encode_wire` frames it as RAW
+    // materializes a `{ptr, len}` descriptor, and `encode` frames it as RAW
     // bytes (length varint + the bytes) through the same text-bytes append a
     // String uses. The canary checks the five expected bytes + the written count
     // in-language; exits 70 when byte-exact.
@@ -3168,7 +5162,7 @@ fn runtime_wire_encode_byte_slice_exit_canary_runs() {
 
 #[test]
 fn runtime_wire_decode_byte_slice_exit_canary_runs() {
-    // Wire stage 2 (#43), borrowed `&[u8]` ZERO-COPY decode: `decode_wire` reads
+    // Wire stage 2 (#43), borrowed `&[u8]` ZERO-COPY decode: `decode` reads
     // a byte-length varint and stores a fat `{ptr, len}` descriptor viewing the
     // buffer in place (the `ReadWireByteSlice` op). The canary round-trips and
     // RE-ENCODES the decoded value to prove the view is content-correct (ptr +
@@ -3697,6 +5691,1119 @@ fn runtime_fixed_vec_round_trip_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_float_negative_ops_exit_canary_runs() {
+    // Float operations with negatives -- comparisons (the ucomisd unsigned-flags case),
+    // a negative float->int cast (truncation toward zero), and a negative multiply.
+    // Exits 70.
+    let canary = pass_canary("arithmetic/runtime_float_negative_ops_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float-negative-ops-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float negative ops canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float negative ops canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected float compares/cast/multiply with negatives to be correct (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_float32_array_conversion_exit_canary_runs() {
+    // f32 ARRAY (the separate f32 codegen path: mulss/addss/ucomiss) plus an int<->f64 round-trip
+    // cast. f32 sum 1.5+2.5+2.25 = 6.25, then 7 as f64 * 2.0 truncated to i32 = 14. Exits 70.
+    let canary = pass_canary("arithmetic/runtime_float32_array_conversion_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float32-array-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f32 array + conversion canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f32 array + conversion canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected f32-array sum 6.25 + int<->f64 round-trip == 14 (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_value_call_let_combine_exit_canary_runs() {
+    // The SAFE side of the shared-result-slot boundary: a computing value-machine called twice in
+    // one state whose results are bound to locals and combined in one expression is materialized
+    // eagerly and correct (dbl(3)=6, dbl(4)=8 -> 6*100+8 == 608 -> exit 70). Guards against
+    // re-broadening the shared-value-call-slot fence into a false positive on this valid pattern.
+    let canary = pass_canary("calls/runtime_value_call_let_combine_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-vc-letcombine-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call let-combine canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call let-combine canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected two value-calls bound to locals and combined in one expression to keep distinct \
+         results (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_float_nan_comparison_exit_canary_runs() {
+    // NaN comparison honors IEEE in native codegen: `!=` is true, the other five operators
+    // are false. Guards on `ucomis*` must test the parity flag (a `jp` branch) or 4 of 6 take
+    // the wrong arm. The canary checks all six against a NaN operand and exits 70 iff correct.
+    let canary = pass_canary("arithmetic/runtime_float_nan_comparison_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-float-nan-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float NaN comparison canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float NaN comparison canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected NaN comparisons to follow IEEE (only != true; exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_saturating_domain_exit_canary_runs() {
+    // Saturating arithmetic clamps at the type bounds (the core arithmetic-safety domain): u8
+    // add/sub/mul over- and under-flow -> 255/0/255, i8 signed positive overflow -> 127, i8 signed
+    // negative underflow -> -128 (checked as +128 == 0). All self-checked -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_saturating_domain_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-saturating-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating domain canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating domain canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Saturating arithmetic to clamp at type bounds in all four directions (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_i64_signed_arithmetic_exit_canary_runs() {
+    // i64 signed arithmetic beyond i32: multiply past 2^32, signed div/mod with a negative dividend
+    // (sign follows dividend), and a 64-bit shift (1<<40). All chained -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_i64_signed_arithmetic_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-i64-signed-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("i64 signed arithmetic canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("i64 signed arithmetic canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected i64 multiply/div/mod/shift at scale to be correct (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_cast_sign_zero_extension_exit_canary_runs() {
+    // Width conversions pick the right extension (movsx vs movzx): -1 as i8 as i32 == -1
+    // (sign-extend), -1 as u8 as i32 == 255 (zero-extend), 200 as i8 as i32 == -56 (truncate +
+    // sign-extend). All chained -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_cast_sign_zero_extension_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-cast-sign-zero-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("cast sign/zero extension canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("cast sign/zero extension canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected sign/zero extension + truncation casts correct (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_bitwise_high_ops_exit_canary_runs() {
+    // Bitwise ops on u32 above i32::MAX: a=0xF0F0F0F0, b=0x0F0F0F0F. XOR/AND/OR, a shift+mask
+    // nibble extract, and NOT-via-XOR all chained -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_bitwise_high_ops_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-bitwise-high-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bitwise high ops canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bitwise high ops canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected u32 bitwise ops at high values to be correct (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_unsigned_high_comparison_exit_canary_runs() {
+    // Unsigned comparison above i32::MAX (a = u32::MAX, b = 1): a signed setcc would invert every
+    // ordered result. All six operators chained give the unsigned answer -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_unsigned_high_comparison_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-unsigned-high-cmp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("unsigned high comparison canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("unsigned high comparison canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected unsigned comparisons of u32::MAX vs 1 to be correct (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_signed_modulo_shift_edges_exit_canary_runs() {
+    // Sign-sensitive integer codegen: truncated signed modulo with negatives (-7%3==-1, 7%-3==1),
+    // arithmetic vs logical right shift (-16>>2==-4 SAR, 16u32>>2==4 SHR), and a runtime shift
+    // amount (1<<5==32). Exits 70.
+    let canary = pass_canary("arithmetic/runtime_signed_modulo_shift_edges_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-signed-mod-shift-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("signed modulo/shift edges canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("signed modulo/shift edges canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected signed modulo + arithmetic/logical/runtime shifts correct (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_newton_sqrt_exit_canary_runs() {
+    // Newton's method for a square root (an iterative numerical algorithm): x <- (x + S/x)/2
+    // over f64, six iterations from 1.0 on S=2.0 -> sqrt(2) ~= 1.41421; checks
+    // 1.414 < x < 1.415 -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_newton_sqrt_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-newton-sqrt-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("newton sqrt canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("newton sqrt canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Newton's method to converge to sqrt(2) in (1.414, 1.415) (exit 70); got {:?} -- a float div/compare regression\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_monte_carlo_pi_exit_canary_runs() {
+    // Monte Carlo pi estimation driven by the xorshift32 PRNG: 64 random points, count
+    // those inside the quarter circle (px*px+py*py < 100*100). Deterministic from seed 1:
+    // 53 inside, scaled estimate 400*53/64 = 331 (pi ~= 3.31) -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_monte_carlo_pi_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-monte-carlo-pi-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("monte carlo pi canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("monte carlo pi canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Monte Carlo pi (seed 1, 64 points) to count 53 inside / estimate 331 (exit 70); got {:?} -- the count on regression\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_gcd_euclid_exit_canary_runs() {
+    // The iterative Euclidean GCD: `(a,b) = (b, a%b)` until b==0. gcd(1071,462)=21.
+    // A two-variable loop with a runtime modulo; self-checks the result -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_gcd_euclid_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gcd-euclid-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("gcd euclid canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("gcd euclid canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the Euclidean GCD to reduce 1071,462 to 21 (exit 70); got {:?} (a non-70 code is the wrong gcd)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_rpn_evaluator_exit_canary_runs() {
+    // A reverse-Polish stack evaluator (a stack VM): push numbers, pop-pop-op-push for
+    // operators, over a token array. Evaluates `3 4 + 5 *` to 35 -> exit 70.
+    let canary = pass_canary("collections/runtime_rpn_evaluator_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-rpn-eval-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("rpn evaluator canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("rpn evaluator canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the RPN stack VM to evaluate 3 4 + 5 * to 35 (exit 70); got {:?} (a non-70 code is the wrong result)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_activity_selection_greedy_exit_canary_runs() {
+    // Greedy activity selection: given activities sorted by finish, take each that starts
+    // no earlier than the last chosen finish. Six activities yield 3 non-overlapping ->
+    // exit 70.
+    let canary = pass_canary("collections/runtime_activity_selection_greedy_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-activity-greedy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("activity selection canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("activity selection canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected greedy activity selection to pick 3 non-overlapping (exit 70); got {:?} (the count on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_maze_pathfind_exit_canary_runs() {
+    // Shortest-path BFS on a 5x5 grid maze (implicit grid neighbours + walls, distinct from
+    // the adjacency-matrix BFS). The shortest distance from cell 0 to cell 24 through the
+    // snaking corridor is 16 -> exit 70.
+    let canary = pass_canary("collections/runtime_maze_pathfind_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-maze-pathfind-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("maze pathfind canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("maze pathfind canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected grid-BFS shortest distance 0->24 to be 16 (exit 70); got {:?} (the distance on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// IGNORED: this canary previously failed to COMPILE (the CopyRuntimeMachineIndexed
+// ToRuntimeStorage width mismatch, now fixed). With that instruction fixed it
+// compiles + runs but HANGS (infinite backtracking) -- a SEPARATE pre-existing
+// latent bug in some non-indexed-read instruction/pattern it exercises, masked
+// until now. The runtime-indexed READ itself is verified correct across elem 1/4/8,
+// Machine + RuntimeFrame index, single + loop (see native_read_dir_iter + probes).
+// Ignored so the suite does not hang; the exposed hang is tracked separately.
+#[ignore = "exposes a separate latent codegen bug (hang); runtime-indexed read itself is fixed + verified"]
+#[test]
+fn runtime_nqueens_backtracking_exit_canary_runs() {
+    // N-queens count by backtracking (try/prune/undo): cols[r] is the column tried for row
+    // r and doubles as the state stack; conflicts are column or diagonal. N=4 has exactly 2
+    // solutions -> exit 70 (a discriminating count).
+    let canary = pass_canary("collections/runtime_nqueens_backtracking_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-nqueens-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nqueens backtracking canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nqueens backtracking canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected N=4 queens to have exactly 2 solutions (exit 70); got {:?} (the count on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_coin_change_dp_exit_canary_runs() {
+    // Coin-change minimisation by dynamic programming: dp[a] = fewest coins for amount a,
+    // relaxing dp[a] toward 1 + dp[a-c] over a computed subproblem index. Coins {1,3,4},
+    // amount 6 -> 2 coins (3+3) -> exit 70.
+    let canary = pass_canary("collections/runtime_coin_change_dp_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-coin-change-dp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("coin change dp canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("coin change dp canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected DP min coins for 6 with {{1,3,4}} to be 2 (exit 70); got {:?} (dp[6] on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_bfs_traversal_exit_canary_runs() {
+    // Breadth-first search over a 4-node graph (adjacency matrix + FIFO queue + visited
+    // set): from node 0 the frontier expands level by level, visit order 0,1,2,3, all four
+    // reached -> exit 70.
+    let canary = pass_canary("collections/runtime_bfs_traversal_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-bfs-traversal-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bfs traversal canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bfs traversal canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected BFS to visit 0,1,2,3 in order and reach all 4 nodes (exit 70); got {:?} (the visit count on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_hash_table_exit_canary_runs() {
+    // An open-addressing hash table with linear probing (the associative map): parallel
+    // keys/vals/used arrays, hash k%8, probe forward with wrap past occupied slots, look
+    // back up. Keys 6,14,7,15 collide and force a wrap; their values sum to 246 -> exit 70.
+    let canary = pass_canary("collections/runtime_hash_table_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-hash-table-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("hash table canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("hash table canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the hash table (probe + wrap) to sum looked-up values to 246 (exit 70); got {:?} (the sum on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_matrix_multiply_exit_canary_runs() {
+    // 2x2 matrix multiply (row-major flat storage, triple i/j/k loop, inner-product
+    // accumulation with computed flat indices). [[1,2],[3,4]] * [[5,6],[7,8]] =
+    // [[19,22],[43,50]] -> exit 70.
+    let canary = pass_canary("collections/runtime_matrix_multiply_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-matrix-mul-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("matrix multiply canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("matrix multiply canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected 2x2 matmul to yield [[19,22],[43,50]] (exit 70); got {:?} (a non-70 code is the wrong C[0])\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_ring_buffer_queue_exit_canary_runs() {
+    // A FIFO ring-buffer queue: a fixed [i32;4] with head/tail advancing modulo the
+    // capacity (explicit wrap) and a count guard. Interleaved enqueue/dequeue forces both
+    // pointers to wrap; each dequeue is checked against a running counter so FIFO order is
+    // pinned. All of 1..6 dequeued in order -> exit 70.
+    let canary = pass_canary("collections/runtime_ring_buffer_queue_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-ring-buffer-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("ring buffer queue canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("ring buffer queue canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the ring buffer to preserve FIFO order 1..6 (exit 70); got {:?} (a non-70 code is where order broke)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_bubble_sort_exit_canary_runs() {
+    // Bubble sort with nested loops, the adjacent index `j+1` via a field, a field-bound
+    // compare, and a value-swap. Sorts [5,2,8,1,9,3] and self-checks four cells -> 70.
+    let canary = pass_canary("collections/runtime_bubble_sort_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-bubble-sort-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bubble sort canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bubble sort canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected bubble sort to order the array (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_2d_transpose_exit_canary_runs() {
+    // A 2D matrix transpose over a flat array via the linear-counter sidestep: the
+    // (row,col) and transposed output index are computed into fields, then used as plain
+    // indices. Self-checks four transposed cells -> exit 70. Proves 2D/matrix data.
+    let canary = pass_canary("collections/runtime_2d_transpose_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-2d-transpose-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("2d transpose canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("2d transpose canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the 2D transpose to place cells correctly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_through_guard_chain_exit_canary_runs() {
+    // An index bound carried across a CHAIN of convergent-arm guards (`d<0 {true->t
+    // _->t}`) that neither name nor rewrite x. Before convergent arms were treated as
+    // a single unconditional predecessor, each guard split dropped the bound. Compiling
+    // + reading arr[3]=70 -> exit 70 confirms the bound survives the chain.
+    let canary = pass_canary("collections/runtime_indexed_through_guard_chain_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-guard-chain-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed-through-guard-chain canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed-through-guard-chain canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the index bound to survive the convergent-guard chain (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_binary_search_exit_canary_runs() {
+    // Binary search for 50 in a sorted 7-element array narrows in BOTH directions
+    // (lo=mid+1 then hi=mid-1) and must find it at exactly index 4. Locks the computed
+    // midpoint, the indexed read into a field, and both pointer updates. Exits 70.
+    let canary = pass_canary("collections/runtime_binary_search_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-binary-search-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("binary search canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("binary search canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected binary search to find 50 at index 4 (exit 70); got {:?} (71=wrong index, 72=not found)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_two_pointer_palindrome_exit_canary_runs() {
+    // A two-pointer palindrome check whose DECREASING pointer `j` stays >= 0 only
+    // because j > i >= 0 -- proven by chaining the loop ordering `i < j` with `i`'s
+    // non-negativity (non_negative_is_proven_via_ordering). Compiling + exiting 70
+    // confirms the decreasing-counter lower bound is derived and the walk is correct.
+    let canary = pass_canary("collections/runtime_two_pointer_palindrome_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-two-pointer-palindrome-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("two-pointer palindrome canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("two-pointer palindrome canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the two-pointer palindrome walk to confirm [3,7,9,7,3] (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_nested_struct_array_field_exit_canary_runs() {
+    // Nested data: a struct field that is an array of structs (`self.g.pts[k].x`), const-indexed,
+    // sub-fields read as binary operands. Sum = 20+30+18+2 = 70.
+    let canary = pass_canary("collections/runtime_nested_struct_array_field_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-struct-array-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested struct-array field canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested struct-array field canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected struct->array-of-structs->field sum 20+30+18+2 == 70; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_enum_grid_scan_exit_canary_runs() {
+    // Scan an array of enums (tile grid) by runtime index via the bind-to-local workaround: read
+    // grid[i] into self.c, then match. grid=[Wall,Door,Floor,Door,Wall] -> 2 Doors -> exit 70.
+    let canary = pass_canary("collections/runtime_enum_grid_scan_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-enum-grid-scan-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("enum grid scan canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("enum grid scan canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected enum-grid scan to count 2 Doors (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_two_indexed_reads_binary_exit_canary_runs() {
+    // Two runtime-indexed reads at DISTINCT indices as operands of one binary: s = nums[i] + nums[j].
+    // nums=[30,99,40], i=0, j=2 -> 30+40 = 70 (the 99 decoy catches a dropped index).
+    let canary = pass_canary("collections/runtime_two_indexed_reads_binary_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-two-indexed-reads-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("two-indexed-reads binary canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("two-indexed-reads binary canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected nums[0]+nums[2] = 30+40 = 70; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_struct_field_temp_arith_exit_canary_runs() {
+    // The sound workaround for arithmetic on a runtime-indexed array-of-structs field: read the
+    // field into a scalar `self.t` first, then compute. arr[1]={30,40}; t1+t2 = 70. (A direct
+    // `arr[i].x + 5` is refused -- no machine-indexed struct-field value operand yet.)
+    let canary = pass_canary("collections/runtime_struct_field_temp_arith_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-struct-field-temp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct-field-temp arithmetic canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("struct-field-temp arithmetic canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected field-temp read of arr[1].x + arr[1].y == 70; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_struct_write_loop_exit_canary_runs() {
+    // A whole-struct write to a runtime-indexed array-of-structs element in a loop (entity-array
+    // population): `self.arr[self.i] = Pt{..}`. Fill 3 elements, sum 10+15+10 = 35 -> exit 70.
+    let canary = pass_canary("collections/runtime_indexed_struct_write_loop_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-indexed-struct-write-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed struct-write loop canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed struct-write loop canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected runtime-indexed whole-struct writes summing to 35 (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn std_option_runtime_match_exit_canary_runs() {
+    // The std `Option<T>` works at runtime for presence/absence: construct Some + None and
+    // discriminate them. a=Some -> check b; b=None -> exit 70. (Some carries no payload yet --
+    // a useful Option<T>::Some(value) is blocked on generic monomorphization at the layout stage.)
+    let canary = pass_canary("collections/std_option_runtime_match_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-std-option-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("std option runtime match canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("std option runtime match canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected std Option Some/None construct + match to exit 70; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_read_then_guard_exit_canary_runs() {
+    // The sound pattern for guarding a runtime-indexed array element: read it into a place first,
+    // then compare that place (a direct `transition nums[i] > 5` silently takes the first arm).
+    // nums[2]=9 -> v=9 -> 9>5 true -> exit 70; a dropped index would read nums[0]=1 -> 71.
+    let canary = pass_canary("collections/runtime_indexed_read_then_guard_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-indexed-read-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed-read-then-guard canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed-read-then-guard canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected runtime-indexed read into a place then guard (nums[2]=9>5) to exit 70; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_row_const_column_write_exit_canary_runs() {
+    // The working side of the 2D-write boundary: a runtime ROW index with a CONST column
+    // (`grid[r][0]`, `grid[r][1]`) lowers correctly. Fill both columns of both rows by runtime row,
+    // sum 10+15+20+25 = 70. (The runtime-COLUMN case is rejected; see the fail canary.)
+    let canary = pass_canary("collections/runtime_row_const_column_write_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-row-const-col-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime-row const-column write canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime-row const-column write canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected runtime-row const-column 2D writes to sum 10+15+20+25 == 70 (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_nested_array_const_index_exit_canary_runs() {
+    // A 2D array [[i32;2];2]: const-indexed reads and writes work. Fill all four cells, sum =
+    // 1+2+3+4 = 10 -> exit 70. (Runtime-column 2D indexing is a separate known gap.)
+    let canary = pass_canary("collections/runtime_nested_array_const_index_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-array-const-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested array const-index canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested array const-index canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected 2D-array const-index sum 1+2+3+4 == 10 (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_whole_array_value_copy_exit_canary_runs() {
+    // Whole-array value copy: `self.b = self.a` copies contents, so mutating self.b[0] leaves
+    // self.a untouched. Discriminates both ways: a keeps (5,6,7), b becomes (99,6,7) -> exit 70.
+    let canary = pass_canary("collections/runtime_whole_array_value_copy_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-whole-array-copy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("whole-array value copy canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("whole-array value copy canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected whole-array copy to be independent (a unchanged, exit 70); got {:?} (aliased source value on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_whole_struct_value_copy_exit_canary_runs() {
+    // Whole-STRUCT value copy: `self.p1 = self.p2` copies every field, so mutating
+    // self.p2.x after the copy leaves self.p1 untouched (value, not alias). The
+    // record complement of runtime_whole_array_value_copy_exit: p1 stays {30, 40}
+    // even after p2.x = 99 -> exit 70.
+    let canary = pass_canary("collections/runtime_whole_struct_value_copy_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-whole-struct-copy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("whole-struct value copy canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("whole-struct value copy canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected whole-struct copy to be independent (p1 unchanged, exit 70); got {:?} (aliased source on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_rule90_automaton_exit_canary_runs() {
+    // A self-checking Rule 90 cellular automaton (the engine behind
+    // samples/cellular_automaton): a sliding 3-cell window, the value-position rule
+    // shift `(90 >> window) & 1`, plain-index array reads/writes, and a field-temp
+    // double buffer. The live-cell counts of the first four generations (1,2,2,4) sum
+    // to 9, so it exits 70 only when the computation is exactly right.
+    let canary = pass_canary("collections/runtime_rule90_automaton_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-rule90-automaton-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("rule90 automaton canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("rule90 automaton canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the Rule 90 automaton's first-four-generation live-cell sum to be 9 (exit 70); got {:?} (a non-70 code is the actual sum)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_fixed_array_field_guard_exit_canary_runs() {
     // Reading `self.cells[i].value` (fixed-array element field, constant index) in a
     // GUARD must apply the index: the guard-operand layout consumed the root field
@@ -4131,6 +7238,64 @@ fn runtime_guard_divide_modulo_signedness_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_nested_loop_grid_sum_exit_canary_runs() {
+    // A nested loop (outer over i, inner over j, each its own self-transition state) summing
+    // i*3+j over a 3x3 grid -> 36. Exercises nested control flow + per-outer inner-counter reset.
+    // Exit 70 iff sum == 36.
+    let canary = pass_canary("control_flow/runtime_nested_loop_grid_sum_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-loop-grid-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested loop grid canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested loop grid canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected nested 3x3 grid sum (i*3+j) == 36 (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_multi_field_payload_arith_exit_canary_runs() {
+    // A two-field sum-case payload `case Rect(w, h)`: both fields bind in the match arm and drive
+    // a computed transition arg (w * h + 58), discriminating arm selection AND both field binds
+    // (Circle computes r * 7). Rect{3,4} -> 70.
+    let canary = pass_canary("control_flow/runtime_multi_field_payload_arith_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-multi-field-payload-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("multi-field payload canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("multi-field payload canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Rect{{3,4}} -> 3*4+58 = 70 (both payload fields bound); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn case_payload_shared_field_name_exit_canary_runs() {
     // Regression: destructuring `Tx::Transfer { to, amount }` must read Transfer's
     // `amount` (40), not a same-named field in an earlier variant (would read to=3).
@@ -4155,6 +7320,90 @@ fn case_payload_shared_field_name_exit_canary_runs() {
         "expected destructured Transfer.amount==40 to exit 70 (93 = read `to`=3), got {:?}
 stderr:
 {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn sum_field_storage_roundtrip_canary_runs() {
+    // A sum value stored in a field, then read + dispatched across a machine call,
+    // carries its TAG and PAYLOAD intact through the storage round-trip: the Pong
+    // arm fires (not Ping) and both payload fields read back. Distinct from the
+    // construct-and-dispatch sum canaries. exit 71 = wrong variant; 72 = payload
+    // field read wrong.
+    let canary = pass_canary("control_flow/sum_field_storage_roundtrip");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("sum field-storage canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (sum tag+payload survive field round-trip), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sum-field-roundtrip-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sum field-storage canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sum field-storage canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected sum tag+payload to survive a field store round-trip (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn sum_mixed_width_payload_layout_canary_runs() {
+    // Sum-type payload LAYOUT across mixed widths: variant B packs (i16, i16,
+    // i64). Each destructured field must be read at the correct byte offset AND
+    // width -- the i64 sits after two i16s. Complements the shared-field-NAME
+    // collision canary with an offset/width axis. exit 72 = a field read the
+    // wrong offset/width; 71 = wrong variant dispatched.
+    let canary = pass_canary("control_flow/sum_mixed_width_payload_layout");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("sum mixed-width payload canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for mixed-width payload reads, got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sum-mixed-width-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sum mixed-width payload canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sum mixed-width payload canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected (i16,i16,i64) payload fields read at correct offset/width (exit 70), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -4314,6 +7563,67 @@ fn runtime_transition_arg_guard_narrowing_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// Decision 17 + S4 requires-seeding precision: a ONE-sided `requires x < 100`
+/// bounds only x's high end, yet `x + 1` proves Exact because the operand's env
+/// interval is intersected with its declared type range (`[None, 99] ∩ i32 =
+/// [i32::MIN, 99]`). Before that intersection the low end stayed unbounded and
+/// this over-rejected. inc(41) = 42.
+#[test]
+fn runtime_requires_one_sided_bound_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_requires_one_sided_bound_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-requires-one-sided-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("one-sided requires x<100 should prove x+1 Exact (env interval ∩ type range)");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("requires one-sided bound canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "expected requires x<100 to prove x+1 Exact and run to 42; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+/// Decision 17 transition-VALUE return + dominating-guard narrowing: `n > 0`
+/// narrows `n` so the value return `(n - 1)` proves Exact. Mirrors the
+/// transition-arg canary for the return-value boundary (which previously used the
+/// un-narrowed env and over-rejected). dec(43) = 42.
+#[test]
+fn runtime_transition_value_guard_narrowing_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_transition_value_guard_narrowing_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-transition-value-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guarded transition-value decrement should compile (guard narrows n-1 to Exact)");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("transition-value guard narrowing canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "expected guarded (n-1) return to prove Exact and run to 42; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 /// Decision 17 transition-arg narrowing on the FALSE arm: the arm fires when
 /// `n >= 70` is FALSE (negate `>=` -> `<`), so `n + 1` proves Exact. Runs to 70.
 #[test]
@@ -4395,6 +7705,591 @@ fn runtime_cast_element_accumulator_exit_canary_runs() {
         output.status.code(),
         Some(70),
         "expected cast-of-element accumulator to sum to 70 (not 0); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_domain_boundaries_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_domain_boundaries_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-domain-boundaries-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("domain-boundaries canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("domain-boundaries canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Saturating/Wrapping at i32 & u8 boundaries to clamp/wrap correctly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_comparison_signedness_exit_canary_runs() {
+    // Comparison-operator signedness across widths: a signed compare used for
+    // unsigned operands (or vice versa) flips the branch past the signed/unsigned
+    // boundary. The canary self-checks u32/u8/u16 unsigned cases and i32/i64 signed
+    // cases; the wrong arm exits 71.
+    let canary = pass_canary("arithmetic/runtime_comparison_signedness_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-comparison-signedness-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("comparison-signedness canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("comparison-signedness canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected signed/unsigned compares to pick the right branch at each width's boundary (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_shift_signedness_exit_canary_runs() {
+    // Shift signedness: a signed right shift must be arithmetic (sar), an unsigned
+    // one logical (shr). The canary builds the shift value at runtime (a loop) and
+    // self-checks a negative arithmetic >>, a high-bit unsigned >>, and a <<.
+    let canary = pass_canary("arithmetic/runtime_shift_signedness_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-shift-signedness-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("shift-signedness canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("shift-signedness canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected signed (arithmetic) vs unsigned (logical) shifts to compute correctly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_shift_in_guard_exit_canary_runs() {
+    // Shifts used DIRECTLY in a guard subject (`self.x >> n == k`). `<<` is
+    // signedness-agnostic; `>>` threads the shifted value's signedness (arithmetic
+    // sar for signed, logical shr for unsigned). Values are built at runtime so the
+    // shifts run in codegen. Was rejected by the dispatch-guard blocker until the
+    // guard value-operand path learned to thread shift signedness.
+    let canary = pass_canary("arithmetic/runtime_shift_in_guard_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-shift-in-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("shift-in-guard canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("shift-in-guard canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected signed/unsigned/left shifts in guard subjects to compute correctly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_cast_in_guard_exit_canary_runs() {
+    // A numeric `as` cast used directly in a guard subject (`self.x as u8 == c`).
+    // The guard value-operand path wraps it in a Convert and the compare derives the
+    // cast target's width. Covers narrowing (300 as u8), widening signed (-4 as i64,
+    // sign-extended), and widening unsigned (200u8 as i32, zero-extended). Values are
+    // built at runtime so the casts run in codegen. Was rejected by the dispatch-guard
+    // blocker until the guard resolver learned to resolve a Cast operand.
+    let canary = pass_canary("arithmetic/runtime_cast_in_guard_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-cast-in-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("cast-in-guard canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("cast-in-guard canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected narrowing/widening casts in guard subjects to compute correctly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_parenthesized_guard_subjects_exit_canary_runs() {
+    // Parenthesized guard subjects: `(a as i8) > 0`, `(a + b) > 6`, and a DNF
+    // `(a > 0 && b > 0) || c > 100`. The parser now routes a leading-`(` subject
+    // with no top-level comma through the general expression parser. Values built
+    // at runtime; all guards must hold -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_parenthesized_guard_subjects_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-paren-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("parenthesized-guard-subjects canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("parenthesized-guard-subjects canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected parenthesized cast/arith/DNF guard subjects to evaluate correctly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_and_of_or_guard_exit_canary_runs() {
+    // And-of-Or in a guard subject (`a && (b || c)`) now lowers: the guard build
+    // distributes it to DNF without re-factoring, and the disjunction lowering
+    // (which already handles a full DNF) takes it. The canary discriminates true
+    // and false arms via different operands; all must be correct -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_and_of_or_guard_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-and-of-or-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("and-of-or-guard canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("and-of-or-guard canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected And-of-Or guard subjects to evaluate + discriminate correctly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_negated_boolean_nesting_guard_exit_canary_runs() {
+    // `!(a && b)` and `!(a || b)` (De Morgan) in a guard subject: the negation is
+    // pushed through and each comparison inverted, then distributed to DNF and
+    // lowered. Complements the positive And-of-Or canary. Values built at runtime;
+    // discriminates both arms -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_negated_boolean_nesting_guard_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-neg-bool-nest-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("negated-boolean-nesting canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("negated-boolean-nesting canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `!(a && b)` / `!(a || b)` guards to evaluate + discriminate correctly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_guard_feature_composition_exit_canary_runs() {
+    // Shift + cast comparisons composed INSIDE boolean nesting (&&, ||, and an Or
+    // nested in an And) -- the guard value-operand path and distribute-to-DNF
+    // together. Locks the integration of the guard-subject features (each canaried
+    // alone). Values built at runtime; discriminates -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_guard_feature_composition_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-guard-compose-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guard-feature-composition canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guard-feature-composition canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected composed shift/cast + boolean-nested guards to evaluate + discriminate (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_saturating_narrow_add_sub_exit_canary_runs() {
+    // Runtime narrow SATURATING add/sub at type boundaries (i8/u8/i16, field
+    // operands so it exercises the backend clamp not the fold): add overflow clamps
+    // to max, sub underflow clamps to min, unsigned underflow clamps to 0, in-range
+    // stays exact. Differential-checked native==interp.
+    let canary = pass_canary("arithmetic/runtime_saturating_narrow_add_sub_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sat-narrow-as-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating narrow add/sub canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating narrow add/sub canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected narrow saturating add/sub boundary clamps to be correct (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_unsigned_high_bit_u32_ops_exit_canary_runs() {
+    // Runtime unsigned divide/modulo/shift/compare on a high-bit u32 field (> 2^31,
+    // negative as i32). The field path must pick the unsigned form of each op; the
+    // compare is the sharpest check (signed `3e9 > 2e9` would be false). Differential
+    // native==interp.
+    let canary = pass_canary("arithmetic/runtime_unsigned_high_bit_u32_ops_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-u32-highbit-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("unsigned high-bit u32 ops canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("unsigned high-bit u32 ops canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected runtime unsigned divide/modulo/shift/compare on a high-bit u32 to be correct (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_narrow_signed_wrap_boundaries_exit_canary_runs() {
+    // Signed two's-complement wrap-around at narrow boundaries (i8: 127->-128, -128->127;
+    // i16 analogues), both ends, in-Wrapping. Complements the saturating narrow canaries.
+    // All four corners must hold -> exit 70.
+    let canary = pass_canary("arithmetic/runtime_narrow_signed_wrap_boundaries_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-narrow-wrap-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("narrow signed wrap canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("narrow signed wrap canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected i8/i16 signed Wrapping wrap-around at both boundaries (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_narrow_signed_guard_ops_exit_canary_runs() {
+    // Narrow (i8) signed compare/sub/mul with negative values as guard subjects -- the
+    // working siblings of the narrow-signed-divide-guard fix; guards the area.
+    let canary = pass_canary("arithmetic/runtime_narrow_signed_guard_ops_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-narrow-signed-guard-ops-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("narrow-signed-guard-ops canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("narrow-signed-guard-ops canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected i8 signed compare/sub/mul with negatives in guards to self-check (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_narrow_signed_divide_guard_exit_canary_runs() {
+    // Narrow (i8/i16) signed div/mod evaluated as a GUARD SUBJECT with a negative
+    // result. Guard-subject operands arrive zero-extended, so the 32-bit idiv divided
+    // i8 -20 as 236 -- the divide core now sign-extends narrow signed operands.
+    let canary = pass_canary("arithmetic/runtime_narrow_signed_divide_guard_exit");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-narrow-signed-divide-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("narrow-signed-divide-guard canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("narrow-signed-divide-guard canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected i8/i16 signed div/mod in a guard with a negative result to self-check (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_saturating_narrow_divide_exit_canary_runs() {
+    // i8/i16 saturating signed divide (previously a hard "not implemented" error):
+    // normal divide, and the TYPE_MIN/-1 overflow clamped to TYPE_MAX (i8 127, i16
+    // 32767). The narrow path clamps -a > TYPE_MAX instead of using neg's overflow flag.
+    let canary = pass_canary("arithmetic/runtime_saturating_narrow_divide_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-saturating-narrow-divide-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating-narrow-divide canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating-narrow-divide canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected i8/i16 saturating divide (normal + TYPE_MIN/-1 -> TYPE_MAX) to self-check (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_mixed_width_sign_exit_canary_runs() {
+    // Mixed-width / mixed-sign arithmetic auto-promotes and extends the narrower
+    // operand correctly: sign-extension (i32(-5)+i64), zero-extension (u8+i32),
+    // narrower-signed (i16(-3)+i32), and a mixed-sign add (i32+u32).
+    let canary = pass_canary("arithmetic/runtime_mixed_width_sign_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-mixed-width-sign-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("mixed-width-sign canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("mixed-width-sign canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected mixed-width/sign arithmetic with correct sign/zero extension to self-check (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_integer_casts_exit_canary_runs() {
+    // Integer width/sign casts (sign-extend / zero-extend / truncate / reinterpret),
+    // with each cast result threaded through a transition PARAM. This last part also
+    // guards the fix for the dispatch-arg fold missing Cast/Binary arms: a let-local
+    // whose initializer is a cast (or binary) reading a prior local was re-materialized
+    // in the target state -- where the source local has no slot -- and read 0.
+    let canary = pass_canary("arithmetic/runtime_integer_casts_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-integer-casts-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("integer-casts canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("integer-casts canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected integer width/sign casts threaded through params to self-check (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_i64_divide_modulo_exit_canary_runs() {
+    // i64 signed divide/modulo with both operands immediate (constant/constant): the
+    // byte-size resolver must fall back to the i64 target width, not 4, or the encoder
+    // emits a 32-bit idiv (width mismatch + a truncated 64-bit dividend).
+    let canary = pass_canary("arithmetic/runtime_i64_divide_modulo_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-i64-divmod-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("i64 divide/modulo canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("i64 divide/modulo canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected i64 constant divide/modulo to run 64-bit and self-check (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_float_compare_cast_exit_canary_runs() {
+    // Float breadth: comparisons with negatives (the ucomisd unsigned-flag case),
+    // f64/f32 arithmetic, int<->float and f32<->f64 casts, and nested-field float
+    // arithmetic (a dot product). Self-checks to exit 70.
+    let canary = pass_canary("arithmetic/runtime_float_compare_cast_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float-breadth-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float compare/cast canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float compare/cast canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected float comparisons/arith/casts/nested-field to self-check (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_float_operations_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_float_operations_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float-ops-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float-arithmetic canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float-arithmetic canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected f64/f32 arithmetic, casts, local & nested-field float arith to be correct (exit 70); got {:?}\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -4579,6 +8474,34 @@ fn runtime_exclusive_range_constraint_exit_canary_runs() {
 /// narrowing both clamps are unbounded and `+ 70` is a decision-17 overflow
 /// error — so the program only COMPILES because the narrowing proves the bound
 /// (and runs because the value-call-result materialization bug is fixed).
+#[test]
+fn runtime_fnv1a_hash_exit_canary_runs() {
+    // FNV-1a-32 hash of [72,105,33] folded in a loop (hash = (hash ^ byte) * prime, wrapping u32),
+    // checked against the independently computed reference 844955649 -> exit 70. Proves Omega's u32
+    // wrapping XOR+multiply computes the correct hash of a real algorithm.
+    let canary = pass_canary("arithmetic/runtime_fnv1a_hash_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-fnv1a-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("FNV-1a hash canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("FNV-1a hash canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected FNV-1a to hash to the reference value (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn runtime_min_max_clamp_narrowing_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_min_max_clamp_narrowing_exit");
@@ -4876,6 +8799,47 @@ fn arithmetic_domain_trapping_overflow_aborts() {
     assert!(
         !output.status.success(),
         "expected u8 in Trapping overflow to terminate abnormally, but it exited successfully"
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn arithmetic_domain_trapping_let_overflow_aborts() {
+    // Decision 17: a Trapping overflow in a `let` LOCAL const-fold ABORTS, like the
+    // field path. `let b: i32 in Trapping = a + a` (a+a overflows i32) traps (ud2)
+    // and never reaches exit(70). REGRESSION for the fix: the frame-slot (`let`)
+    // store path used to write the folded constant RAW, silently running past the
+    // overflow. (No `_canary_runs` suffix -- a trap aborts, not a clean exit, so
+    // the differential drift guard must not treat it as a run canary.)
+    let canary = pass_canary("expressions/arithmetic_domain_trapping_let_overflow");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-trapping-let-of-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("arithmetic_domain_trapping_let_overflow canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("arithmetic_domain_trapping_let_overflow canary should run");
+
+    assert_ne!(
+        output.status.code(),
+        Some(70),
+        "expected a Trapping `let` overflow (2e9 + 2e9) to trap before exit(70), but it exited 70 \
+         as if no overflow occurred (frame-slot store wrote the constant raw)\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !output.status.success(),
+        "expected a Trapping `let` overflow to terminate abnormally, but it exited successfully"
     );
 
     let _ = fs::remove_dir_all(&build_dir);
@@ -5309,6 +9273,67 @@ fn runtime_match_value_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_flat_boolean_logic_exit_canary_runs() {
+    // Flat boolean logic in guards + value position: a && b, a || b, !b, a && c && !b,
+    // and `let r = a && !b`. (The nested mix (a||b)&&c is a documented separate gap.)
+    let canary = pass_canary("expressions/runtime_flat_boolean_logic_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-flat-boolean-logic-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("flat-boolean-logic canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("flat-boolean-logic canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected flat boolean logic (&&, ||, !, three-term, value-position) to self-check (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_enum_match_breadth_exit_canary_runs() {
+    // Enum matching breadth + the SOUND pattern for a runtime-indexed enum element
+    // (bind to a local first). grid[2]=Goal (non-first variant) and a field-name
+    // collision (Potion.power vs Weapon.power) self-check to exit 70.
+    let canary = pass_canary("expressions/runtime_enum_match_breadth_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-enum-match-breadth-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("enum match breadth canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("enum match breadth canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected indexed-via-local enum match + payload extraction to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_conformance_item_exit_canary_runs() {
     let canary = pass_canary("traits/runtime_conformance_item_exit");
     let main_path = canary.join("main.omg");
@@ -5564,6 +9589,60 @@ fn equatable_string_equality_guard_exit_canary_runs() {
         String::from_utf8_lossy(&output.stderr)
     );
 
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_deep_nested_field_exit_canary_runs() {
+    // A 5-level nested field chain (self.l1.l2.l3.l4.v) written and read back; offsets must compose
+    // through every level. v + w = 30 + 40 = 70 (a sibling `tag` decoy discriminates the offsets).
+    let canary = pass_canary("data/runtime_deep_nested_field_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-deep-nested-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("deep nested field canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("deep nested field canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected 5-level nested field access to resolve correctly (30+40 == 70, exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_struct_value_copy_exit_canary_runs() {
+    // Struct assignment is a value copy, not an alias: copy a->b, mutate a, b stays unchanged;
+    // same between array-of-structs elements. Both sums stay 14 -> exit 70.
+    let canary = pass_canary("data/runtime_struct_value_copy_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-struct-value-copy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct value copy canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("struct value copy canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected struct + array-element value copies to stay unchanged after mutating the source (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
     let _ = fs::remove_dir_all(&build_dir);
 }
 
@@ -5866,6 +9945,129 @@ fn runtime_unsigned_modulo_cast_operand_exit_canary_runs() {
 }
 
 #[test]
+fn saturating_multiply_overflow_both_signs_canary_runs() {
+    // Saturating i32 multiply overflow clamps to the SIGN-CORRECT bound: positive
+    // overflow -> INT_MAX, negative overflow -> INT_MIN (clamping negative to
+    // INT_MAX is the classic bug). exit 72 = positive wrong; 73 = negative bound.
+    let canary = pass_canary("arithmetic/saturating_multiply_overflow_both_signs");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("saturating multiply canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (+overflow->INT_MAX, -overflow->INT_MIN), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sat-mul-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating multiply canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating multiply canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected sign-correct saturating multiply clamp (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn saturating_signed_divide_min_by_neg_one_canary_runs() {
+    // Saturating signed divide/modulo of TYPE_MIN by -1: the same idiv #DE corner
+    // as the Wrapping case, but CLAMPED (INT_MIN / -1 -> INT_MAX, % -> 0).
+    // Verifies append_saturating_signed_divide_modulo's -1 guard. exit 72 = divide
+    // did not clamp; 73 = modulo not 0.
+    let canary = pass_canary("arithmetic/saturating_signed_divide_min_by_neg_one");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("saturating INT_MIN/-1 canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (INT_MIN/-1 clamps to INT_MAX, %0), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sat-div-min-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating INT_MIN/-1 canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating INT_MIN/-1 canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected INT_MIN/-1 to clamp to INT_MAX (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn wrapping_signed_divide_min_by_neg_one_canary_runs() {
+    // Wrapping signed divide/modulo of TYPE_MIN by -1: x86 `idiv` raises #DE
+    // (integer-overflow) for this corner, so the Wrapping domain guards it and
+    // produces the wrapped result (INT_MIN / -1 -> INT_MIN, INT_MIN % -1 -> 0).
+    // Before the guard the native binary crashed with STATUS_INTEGER_OVERFLOW.
+    // exit 72 = divide did not wrap; 73 = modulo not 0.
+    let canary = pass_canary("arithmetic/wrapping_signed_divide_min_by_neg_one");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("wrapping INT_MIN/-1 canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (INT_MIN/-1 wraps to INT_MIN, %0), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-wrap-div-min-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wrapping INT_MIN/-1 canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("wrapping INT_MIN/-1 canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected INT_MIN/-1 to wrap (exit 70), got {:?} (a crash would be a large negative code = idiv #DE)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_signed_division_exit_canary_runs() {
     let canary = pass_canary("arithmetic/runtime_signed_division_exit");
     let main_path = canary.join("main.omg");
@@ -5889,6 +10091,308 @@ fn runtime_signed_division_exit_canary_runs() {
         output.status.code(),
         Some(70),
         "expected signed division/remainder of a negative dividend (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_shift_right_signedness_canary_runs() {
+    // Right-shift is signedness-sensitive: a signed operand must lower to `sar`
+    // (arithmetic), an unsigned operand to `shr` (logical). `-8 >> 1 == -4` AND
+    // `0xFFFFFFFE >> 1 == 0x7FFFFFFF` both hold only when the two shifts pick
+    // different instructions. exit 71 = a `sar` misfire on the unsigned value
+    // (0xFFFFFFFF instead of 0x7FFFFFFF). Values are field-held so they are
+    // genuine runtime operands (instruction selection resolves the field's
+    // signedness); the const-folded high-bit case is a separate documented gap.
+    let canary = pass_canary("arithmetic/runtime_shift_right_signedness");
+    let main_path = canary.join("main.omg");
+
+    // Interpreter oracle first: it must agree the exit is 70.
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("shift-right signedness canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (sar for signed, shr for unsigned), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-shift-right-signedness-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("shift-right signedness canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("shift-right signedness canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected signed `sar` AND unsigned `shr` right shifts (exit 70), got {:?} \
+         (71 = unsigned >> emitted `sar`)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn struct_literal_field_coercion_canary_runs() {
+    // A struct-literal field init coerces the field value to the field's declared
+    // width/domain (interpreter eval_struct_literal): `Point { x: a+b }` with
+    // `a+b`=300 into a u8 field reads 44. The field is read DIRECTLY (`p.x`), so
+    // the coercion must happen at construction. exit 71 = field carried raw 300.
+    let canary = pass_canary("arithmetic/struct_literal_field_coercion");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("struct-literal coercion canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (struct field truncates to u8 width), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-struct-lit-coerce-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct-literal coercion canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("struct-literal coercion canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected struct field init to truncate to u8 width (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn array_element_write_width_domain_canary_runs() {
+    // An array-element write coerces the stored value to the element WIDTH and the
+    // ARRAY's arithmetic DOMAIN (interpreter assignment_target_coercion): a u8
+    // element given `a+b`=300 truncates to 44; a `[u8;N] in Saturating` element
+    // clamps to 255. exit 72 = wrap element wrong; 73 = saturating did not clamp.
+    let canary = pass_canary("arithmetic/array_element_write_width_domain");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("array-element coercion canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (element width truncation + array Saturating clamp), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-array-elem-coerce-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("array-element coercion canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("array-element coercion canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected element width truncation + array Saturating clamp (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn int_transition_arg_width_wrap_canary_runs() {
+    // An integer argument is wrapped to the param's declared width at the binding
+    // (interpreter bind_frame apply_arithmetic_domain), matching native's
+    // truncating store at the call boundary: `a+b`=300 into a u8 param reads 44.
+    // exit 71 = the interpreter carried the un-wrapped 300 into the u8 param.
+    let canary = pass_canary("arithmetic/int_transition_arg_width_wrap");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("int transition-arg width canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (int arg wraps to u8 param width), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-int-transition-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("int transition-arg width canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("int transition-arg width canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected int arg to wrap to the u8 param width (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn f32_transition_arg_rounding_canary_runs() {
+    // An f32 passed through a transition ARGUMENT rounds to f32 at the param
+    // binding (interpreter bind_frame), not just at stores: accumulating via
+    // inline `+ 1.0` args past 2^24 plateaus at 16777216, matching native.
+    // exit 71 = the interpreter carried f64 through params to 16777218.
+    let canary = pass_canary("arithmetic/f32_transition_arg_rounding");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("f32 transition-arg canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (f32 rounds at param binding), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-f32-transition-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f32 transition-arg canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f32 transition-arg canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected f32 transition-arg to round at param binding (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn f32_field_store_rounding_canary_runs() {
+    // An f32 field/local rounds each stored result to f32 (interpreter store
+    // rounding, matching native SSE): stepping past 2^24 by `+ 1.0` plateaus at
+    // 16777216. Regression lock for the interpreter Value::Float store-rounding
+    // fix; exit 71 = the interpreter kept f64 and over-accumulated to 16777218.
+    let canary = pass_canary("arithmetic/f32_field_store_rounding");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("f32 field store canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (f32 store rounds, plateaus at 16777216), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-f32-field-store-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("f32 field store canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("f32 field store canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected f32 field store to round to f32 and plateau (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn const_fold_cast_signedness_canary_runs() {
+    // Const-folded integer casts stay correct across truncation + sign
+    // reinterpret, including a wrapping-produced high-bit value cast to a signed
+    // type (`(0u32-1) as i8 == -1`). Positive contrast to the const-fold
+    // arithmetic miscompile class: a cast node carries its target type, so
+    // folding never drops width/signedness. Guards against a future arithmetic-
+    // folder fix breaking cast folding. exit 71 = a fold dropped width/sign.
+    let canary = pass_canary("arithmetic/const_fold_cast_signedness");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("const-fold cast canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for const-folded casts, got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-const-fold-cast-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("const-fold cast canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("const-fold cast canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected const-folded casts (truncate + sign reinterpret) to exit 70, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -7768,6 +12272,2128 @@ fn runtime_dispatch_mutable_slice_element_write_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_array_indexed_read_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_array_indexed_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-array-indexed-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime array indexed read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime array indexed read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `self.nums[self.i]` (runtime index) to read 20 and 40 and self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_struct_field_write_exit_canary_runs() {
+    // A runtime-indexed STRUCT-FIELD write `arr[i].field = v` (array of structs)
+    // must invalidate the whole array's folded constants so a later const read
+    // `arr[2].field` sees live storage. Regression for the stale-fold that the
+    // earlier `arr[i] = v` fix missed (the `Member(Indexed(..))` target shape).
+    let canary = pass_canary("slices/runtime_indexed_struct_field_write_exit");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-indexed-struct-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime indexed struct-field write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime indexed struct-field write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `entities[i].field = v` then const read-backs to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_particle_system_exit_canary_runs() {
+    // A 2D particle system over an array of structs: runtime-indexed struct-field reads
+    // and writes, integrating pos += vel each step. Self-checks three cells -> exit 70.
+    let canary = pass_canary("structs/runtime_particle_system_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-particle-system-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("particle system canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("particle system canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the particle system to integrate pos += vel correctly (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_nested_struct_construction_exit_canary_runs() {
+    // Nested struct construction `Rect { top_left: Point { .. }, .. }` PANICKED the
+    // compiler (an arena span-contiguity assert: the field-value copy appended the
+    // inner struct's fields mid-loop, interleaving the outer span). Fixed with
+    // reserve-then-set. This canary self-checks the constructed nested fields.
+    let canary = pass_canary("structs/runtime_nested_struct_construction_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-struct-construct-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested struct construction canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested struct construction canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected nested struct construction (Rect of two Points) to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_cross_machine_substate_name_exit_canary_runs() {
+    // Two machines each have a `try1` sub-state (Picker::pick, Main::read_at). A named transition
+    // target must resolve to a SIBLING state of the CURRENT machine, not collide on the shared
+    // name and run the other machine's body. read_at(4) must return table[4]=60 even after
+    // pick(2) (whose try1 yields a literal) runs -> exit 70. (Was an interp miscompile.)
+    let canary = pass_canary("calls/runtime_cross_machine_substate_name_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-cross-machine-substate-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("cross-machine substate-name canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("cross-machine substate-name canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected read_at(4)=60 despite pick's shared `try1` (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_value_call_to_array_element_exit_canary_runs() {
+    // A single value-call result materializes correctly when written to a const-indexed array
+    // element: triple(14)=42 lands at arr[2] with neighbours untouched -> exit 70. The working
+    // write-side contrast to the value-call dispatch-position drop and the multi-call shared slot.
+    let canary = pass_canary("calls/runtime_value_call_to_array_element_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-vc-array-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call to array element canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call to array element canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected triple(14)=42 written to arr[2] with neighbours 0 (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_computed_transition_args_exit_canary_runs() {
+    // Computed values (an addition, a subtraction, a cast) passed directly as transition
+    // arguments materialize correctly. chk(7+3, 7-3, 300 as u8) sees sum=10, diff=4, byte=44
+    // -> exit 70. The working contrast to the value-call-as-transition-arg silent drop.
+    let canary = pass_canary("calls/runtime_computed_transition_args_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-computed-args-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("computed transition args canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("computed transition args canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected computed transition args (sum 10, diff 4, byte 44) to materialize (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_struct_by_value_param_exit_canary_runs() {
+    // Passing a struct BY VALUE into a value-machine and reading all its fields in distinct
+    // positional weights. decode(Coeffs{1,2,3}) = 1*100 + 2*10 + 3 = 123 -> exit 70. Pins
+    // the working envelope around task #15 (scalar fields of a by-value struct param resolve).
+    let canary = pass_canary("calls/runtime_struct_by_value_param_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-struct-by-value-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct by-value param canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("struct by-value param canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected by-value struct param decode to yield 123 (exit 70); got {:?} (the decoded value on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_value_call_composition_exit_canary_runs() {
+    // Function composition: chaining value-machine calls so each result feeds the next.
+    // add_ten(5)=15, double(15)=30, minus_five(30)=25 -> exit 70. (Sequential binding; the
+    // nested form f(g(x)) is a clean error today, documented in the canary.)
+    let canary = pass_canary("calls/runtime_value_call_composition_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-value-call-composition-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value call composition canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value call composition canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected three-stage value-call pipeline to yield 25 (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_struct_value_call_exit_canary_runs() {
+    // A value-machine that computes and RETURNS a struct (product type), completing the
+    // value-call return-type map alongside scalars and sum-type returns. stats(7,3) returns
+    // a record whose two independently-computed fields are 10 and 4 -> exit 70.
+    let canary = pass_canary("calls/runtime_struct_value_call_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-struct-value-call-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct value call canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("struct value call canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected value-call to return a record with sum 10 and diff 4 (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_option_value_call_exit_canary_runs() {
+    // A value-machine that RETURNS an Option (Some/None), called in a loop with each result
+    // matched -- the idiomatic functional shape for find/lookup/parse. classify(x) over
+    // [5,-3,7] yields two present values and one absent; the present values sum to 12 and
+    // one absent is counted -> exit 70.
+    let canary = pass_canary("calls/runtime_option_value_call_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-option-value-call-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("option value call canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("option value call canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Option-returning value-call to sum Somes=12 and count 1 None (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_result_match_exit_canary_runs() {
+    // Result-style error handling at runtime: a two-case enum (Ok/Err) produced
+    // conditionally, then matched and handled in a loop. Safe-dividing 10/2, 7/0, 20/4
+    // sums the Ok values to 10 and counts 1 Err -> exit 70.
+    let canary = pass_canary("errors/runtime_result_match_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-result-match-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("result match canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("result match canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Ok/Err handling to sum Oks=10 and count 1 Err (exit 70); got {:?} (the sum on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_entity_component_exit_canary_runs() {
+    // An array of entities each holding a nested component struct (the entity-component
+    // pattern): runtime-indexed access through a member path (`self.ents[i].pos.x`) read in
+    // a loop and temp-RMW written back. Three entities pos.x = 1,2,3: sum 6, doubled to
+    // 2,4,6 -> exit 70.
+    let canary = pass_canary("structs/runtime_entity_component_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-entity-component-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("entity component canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("entity component canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the entity-component array (sum 6, doubled nested fields) to self-check (exit 70); got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_nested_struct_state_machine_exit_canary_runs() {
+    // A state machine whose state lives in nested structs: a nested-vs-nested guard
+    // subject, nested-field RMW, a cross-struct write, and a two-way nested verify. The
+    // runtime-indexed-ARRAY guard bug does NOT extend to member paths -- these resolve the
+    // correct field. Sums 1..5 = 15 -> exit 70.
+    let canary = pass_canary("structs/runtime_nested_struct_state_machine_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-struct-sm-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested struct state machine canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested struct state machine canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the nested-struct state machine to sum 1..5 = 15 (exit 70); got {:?} (a non-70 code is the bad sum)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_array_element_struct_copy_exit_canary_runs() {
+    // Value semantics through an array-element struct copy: `self.f = self.arr[1]` produces an
+    // independent copy, so mutating f leaves arr[1] untouched. Discriminates both ways: arr[1]
+    // keeps (5,6), f holds the mutated (50,60) -> exit 70.
+    let canary = pass_canary("structs/runtime_array_element_struct_copy_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-arr-elem-copy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("array-element struct copy canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("array-element struct copy canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected array-element struct copy to be independent (arr[1] unchanged, exit 70); got {:?} (the aliased value on regression)\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_nested_struct_value_semantics_exit_canary_runs() {
+    // Deep nesting + whole-struct value semantics: a 3-level nested field read AND
+    // write, a whole-struct copy by assignment, and copy independence (overwriting the
+    // source leaves the copy intact). The data backbone of serious apps.
+    let canary = pass_canary("structs/runtime_nested_struct_value_semantics_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-struct-value-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested struct value-semantics canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested struct value-semantics canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected 3-level nesting + whole-struct copy + copy independence to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_struct_array_literal_exit_canary_runs() {
+    // Composite literal nesting: a struct literal with an array-literal field AND an
+    // array-of-struct-literals field. Guards the expression-handle + struct-field copy
+    // paths near the nested-struct panic fix. Self-checks the constructed values.
+    let canary = pass_canary("structs/runtime_struct_array_literal_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-struct-array-literal-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct-array literal canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("struct-array literal canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a struct literal with array + struct-array fields to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_enum_struct_payload_exit_canary_runs() {
+    // An enum variant with a STRUCT-typed payload `Event::Click(at: Point, ..)`. The
+    // payload field's named type symbol was never resolved (the resolution pass
+    // skipped variant payload fields), so the layout builder errored. Now construct +
+    // match + read the struct payload's fields.
+    let canary = pass_canary("structs/runtime_enum_struct_payload_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-enum-struct-payload-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("enum struct-payload canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("enum struct-payload canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected enum variant with a struct payload to construct/match/extract (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_enum_classify_dispatch_exit_canary_runs() {
+    // A value-machine returns an enum computed through nested runtime guards (a sign classifier),
+    // dispatched by a multi-arm match. All three classifications (Pos/Neg/Zero) are checked, so a
+    // wrong classify arm or a wrong dispatch arm takes the false path. Value-call enum return +
+    // multi-arm enum dispatch, in one program -> exit 70.
+    let canary = pass_canary("structs/runtime_enum_classify_dispatch_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-enum-classify-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("enum classify-dispatch canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("enum classify-dispatch canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected value-call enum classification + multi-arm dispatch to route all three signs (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_nested_field_accumulate_loop_exit_canary_runs() {
+    // Two-level nested struct fields (`self.body.pos.x`) mutated in place across a
+    // state-machine loop -- the physics/entity-update pattern (position += velocity).
+    // Two sibling nested fields must track independently (pos.x -> 70, pos.y -> 30),
+    // chained-guard self-checked. Guards against nested-place read/write cross-talk.
+    let canary = pass_canary("structs/runtime_nested_field_accumulate_loop_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nested-accum-loop-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested-field accumulate-loop canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested-field accumulate-loop canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected nested struct fields to accumulate independently across a loop (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_write_const_read_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_indexed_write_const_read_exit");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-indexed-write-const-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed-write/const-read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed-write/const-read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a runtime-indexed write to invalidate whole-array constants so const-indexed reads see live storage (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_rmw_temp_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_indexed_rmw_temp_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-indexed-rmw-temp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed-rmw-temp canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed-rmw-temp canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the temp-field RMW idiom over a runtime-indexed array to accumulate (the copy write must invalidate the array's folded constants) (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_write_adjacent_field_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_indexed_write_adjacent_field_exit");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-indexed-write-adjacent-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed-write-adjacent-field canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed-write-adjacent-field canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a runtime-indexed write to load the index 32-bit (not pull in the adjacent field as the high dword -> OOB) (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_join_meet_bound_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_join_meet_bound_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-join-meet-bound-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("join-meet-bound canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("join-meet-bound canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the predecessor meet to carry an index bound to a multi-predecessor join (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_dual_indexed_comparison_guard_exit_canary_runs() {
+    // Two runtime-indexed array elements compared in one transition guard
+    // (`transition self.arr[self.lo] < self.arr[self.hi]`): the operand-hoist lifts EACH into its
+    // own temp. arr[4]=20 < arr[2]=70 is true -> exit 70. A regression to the element-0 read would
+    // flip the arm and diverge from the interpreter.
+    let canary = pass_canary("collections/runtime_dual_indexed_comparison_guard_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-dual-idx-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dual-indexed comparison guard canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dual-indexed comparison guard canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a guard comparing two runtime-indexed elements to read the right ones (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_array_min_max_builtin_exit_canary_runs() {
+    // The min/max builtins used in a reduction over an array: `self.mx = max(self.mx, self.v)` /
+    // `self.mn = min(self.mn, self.v)`, folding each element read from a runtime index. arr =
+    // [30,50,70,20,60,10] -> mx 70, mn 10, both self-checked -> exit 70.
+    let canary = pass_canary("collections/runtime_array_min_max_builtin_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-minmax-red-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("min/max reduction canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("min/max reduction canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected min/max reduction over an array to compute both extremes (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_guard_subject_exit_canary_runs() {
+    // A DIRECT runtime-indexed read as a transition guard subject (`transition self.arr[self.i] > 5`,
+    // no local bind) -- the form that used to silently read element 0. Fixed by the frontend
+    // operand-hoist now covering comparison guards. arr = [3,8,1,9,4,6]; 3 exceed 5 -> exit 70.
+    let canary = pass_canary("collections/runtime_indexed_guard_subject_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-guard-subj-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime-indexed guard-subject canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime-indexed guard-subject canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a direct runtime-indexed guard subject to compare the right element (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_tick_paced_marquee_exit_canary_runs() {
+    // A tick-paced render loop: 24 frames of carrier writes + write_line + sleep(15), then the
+    // REAL elapsed time asserted via tick_count (>= 100ms) -> exit 0.
+    let canary = pass_canary("host/runtime_tick_paced_marquee_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-marquee-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("tick marquee canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("tick marquee canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "expected the tick-paced marquee to render and satisfy the elapsed-time check (exit 0), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_user32_key_state_exit_canary_runs() {
+    // Multi-DLL proof: KERNEL32 + User32 in one PE; key_state(32) completes and stores -> exit 70.
+    let canary = pass_canary("host/runtime_user32_key_state_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-keystate-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("key_state canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("key_state canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the user32 import to resolve and the call to complete (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_tick_count_monotonic_exit_canary_runs() {
+    // The first value-returning host import: t1 = tick_count(); sleep(30); t2 = tick_count();
+    // t2 >= t1 -> exit 70 (monotonicity -- tick values are nondeterministic).
+    let canary = pass_canary("host/runtime_tick_count_monotonic_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-tick-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("tick_count canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("tick_count canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected tick_count monotonicity across a sleep (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_gui_memory_dc_blit_exit_canary_runs() {
+    // The first windowed-tier pixel proof: CreateCompatibleDC(0) + StretchDIBits of an 8x8
+    // 32bpp DIB (13 args -- the general import call's stack-arg + address-operand shape).
+    // Blit reports the copied scanline count == height -> exit 70. CI-safe (nothing visible).
+    let canary = pass_canary("host/runtime_gui_memory_dc_blit_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gui-blit-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("gui memory-dc blit canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("gui memory-dc blit canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a full-height memory-DC blit (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_nested_payload_range_narrowing_exit_canary_runs() {
+    // The field-stored payload's [0..=15] range narrows through the nested place
+    // `self.m.dx`, discharging the decision-17 obligation for `dx * 10` -- and the
+    // scaled arg discriminates at runtime (dx=7 -> 70). Exit 70.
+    let canary = pass_canary("arithmetic/runtime_nested_payload_range_narrowing_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-npr-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested payload range narrowing canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested payload range narrowing canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the destructured nested payload to scale to 70, got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_trapping_overflow_traps_canary_runs() {
+    // Trapping must TRAP: i32::MAX + 1 under `in Trapping` executes ud2, so the
+    // process dies with a crash status and never reaches exit_process(70). If a
+    // regression made Trapping silently wrap, this would exit 70 and fail.
+    let canary = pass_canary("arithmetic/runtime_trapping_overflow_traps");
+    let build_dir = std::env::temp_dir().join(format!("omega-trap-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("trapping overflow canary should compile (the partiality is declared)");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("trapping overflow canary should start");
+    let code = output.status.code();
+    assert_ne!(
+        code,
+        Some(70),
+        "Trapping overflow must abort before the clean exit -- exit 70 means it silently wrapped"
+    );
+    assert!(
+        code.is_some_and(|code| code < 0),
+        "expected a crash status (ud2 -> STATUS_ILLEGAL_INSTRUCTION), got {code:?}"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_guard_proven_counter_exit_canary_runs() {
+    // The de-Trapping keystone: a state entered through `count < 5` proves
+    // `count = count + 1` into [0..=100] -- Exact, no domain. Exit 70.
+    let canary = pass_canary("arithmetic/runtime_guard_proven_counter_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gpc-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guard-proven counter canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guard-proven counter canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the guard-proven counter to reach 5 (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_guard_narrowed_transition_arg_exit_canary_runs() {
+    // The co-located face: the arm guard narrows `count + 1` into the ranged
+    // parameter. Exit 70.
+    let canary = pass_canary("arithmetic/runtime_guard_narrowed_transition_arg_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gnta-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("guard-narrowed transition arg canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("guard-narrowed transition arg canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the narrowed argument to store 1 (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_gui_window_lifecycle_exit_canary_runs() {
+    // Message pump + lifecycle: create an invisible window, drain PeekMessageW (bounded),
+    // IsWindow > 0, DestroyWindow > 0, IsWindow == 0. Exit 70. CI-safe.
+    let canary = pass_canary("host/runtime_gui_window_lifecycle_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gui-life-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("gui window lifecycle canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("gui window lifecycle canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected pump-drain + live/destroyed liveness transitions (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_gui_window_blit_exit_canary_runs() {
+    // The windowed integration proof: CreateWindowExA("STATIC", style 0 -- INVISIBLE, CI-safe)
+    // -> GetDC -> StretchDIBits into the window DC. Real HWND end-to-end. Exit 70.
+    let canary = pass_canary("host/runtime_gui_window_blit_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gui-wnd-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("gui window blit canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("gui window blit canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected window-create + get_dc + full-height blit (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_generic_param_position_inference_exit_canary_runs() {
+    // Param-position monomorphization: `weigh<T [copy]>(x: &T) -> i32` infers T := Light from the
+    // argument place (concrete return, so no return-position inference). Exit 70.
+    let canary = pass_canary("generics/runtime_generic_param_position_inference_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gen-pp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("param-position inference canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("param-position inference canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected param-position monomorphization to materialize the call (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_generic_value_call_agreeing_exit_canary_runs() {
+    // Two value calls to one generic machine with AGREEING instantiations (both T := i32 in
+    // Wrapping): the conflict detector must not fire and both results materialize. 30+40 -> 70.
+    let canary = pass_canary("generics/runtime_generic_value_call_agreeing_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gen-agree-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("agreeing generic value calls canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("agreeing generic value calls canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected two agreeing generic value calls to both materialize (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_generic_value_call_exit_canary_runs() {
+    // A monomorphized generic VALUE call: `let v: i32 in Wrapping = self.id(70)` with
+    // `id<T>(x: T) -> T`. Used to silently return 0 natively; the monomorphization pass now infers
+    // T from the annotated let and the result materializes. Exit 70.
+    let canary = pass_canary("generics/runtime_generic_value_call_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gen-vcall-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("generic value call canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("generic value call canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a monomorphized generic value call to materialize its result (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_generic_enum_payload_exit_canary_runs() {
+    // A monomorphized generic ENUM with a T-typed payload (`Maybe<i32 in Wrapping>`), constructed,
+    // matched, and destructured natively -- the Option<T> shape. Exit 70 via the payload.
+    let canary = pass_canary("generics/runtime_generic_enum_payload_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gen-enum-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("generic enum payload canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("generic enum payload canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a monomorphized generic enum payload to destructure natively (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_generic_record_instance_exit_canary_runs() {
+    // A monomorphized generic data instance (`Box<i32 in Wrapping>`) with native field access to
+    // both the T-typed field and a concrete sibling: tag=30 + val=40 -> exit 70. Locks stage-1
+    // generics monomorphization (recorded instance layout keyed by the definition symbol).
+    let canary = pass_canary("generics/runtime_generic_record_instance_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gen-inst-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("generic record instance canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("generic record instance canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected native field access on a monomorphized generic instance (exit 70), got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_generic_two_instantiations_exit_canary_runs() {
+    // Phase 1: TWO distinct instantiations of `Box<T>` (`Box<i32>` + `Box<bool>`)
+    // coexist in one program with native field access on both -- the
+    // per-instance monomorphization (pre-resolution desugar to distinct concrete
+    // records) that replaces the layout builder's one-slot poison. exit 30.
+    let canary = pass_canary("generics/runtime_generic_two_instantiations_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gen-two-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("two-instantiation generic canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("two-instantiation generic canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(30),
+        "expected two coexisting generic instances with native access (exit 30), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_min_max_guard_subject_hoist_exit_canary_runs() {
+    // #26: a pure builtin (`min`/`max`) used directly as a guard SUBJECT is
+    // hoisted into a temp automatically, so the guard compares a materialized
+    // local. Builtins are effect-free, so the effectful-single-eval constraint
+    // that reverted the general value-call hoist is satisfied by construction.
+    // Discriminating (min=7, max=8 both match -> good, exit 70; wrong builtin
+    // or vacuous guard -> bad, exit 71).
+    let canary = pass_canary("calls/runtime_min_max_guard_subject_hoist_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-minguard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("min/max guard-subject hoist canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("min/max guard-subject hoist canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a hoisted pure-builtin guard subject to discriminate (exit 70), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_guard_true_false_pair_exit_canary_runs() {
+    // #41 indexed half: `transition arr[i] > 5 { true -> false -> }` -- the
+    // natural array-element branch. hoist_comparison_match_subject shares one
+    // subject temp across arms (hoisting the read inside it), so the pair pairs
+    // for exhaustiveness. Discriminating: arr[1]=20 > 5 true -> ok (70).
+    let canary = pass_canary("collections/runtime_indexed_guard_true_false_pair_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-idxpair-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed guard true/false pair canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed guard true/false pair canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a shared-subject indexed guard pair to discriminate (exit 70), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_field_local_operand_exit_canary_runs() {
+    // A local from a field read off a runtime-indexed element (`let a =
+    // self.ps[self.i].x`) used as an arithmetic operand was rejected -- the local
+    // alias-folded back to `arr[i].field`, which has no operand lowering. It now
+    // keeps its slot (local_data_requires_storage recognizes a Member-off-a-
+    // runtime-index initializer). Discriminating: ps[1].x=20 + ps[0].x=10 + 12 =
+    // 42 -> 70; a dropped operand (read 0) would mismatch.
+    let canary = pass_canary("collections/runtime_indexed_field_local_operand_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-idxfield-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed-field-local-operand canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed-field-local-operand canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected an indexed-field local used as an operand to keep its slot (exit 70), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_local_bitwise_exit_canary_runs() {
+    // Silent miscompile fixed (sibling of the compare case): `let t = arr[i]; let
+    // m = t & 6` read m as 0 -- a bitwise operand didn't force the indexed-read
+    // local's slot, so it alias-folded and dropped. is_bitwise_operator now counts
+    // it. Discriminating: (20&6)+(20|1)+(20^4)+29 = 4+21+16+29 = 70; the miscompile
+    // (operands read 0) would give 29 -> 71.
+    let canary = pass_canary("collections/runtime_indexed_local_bitwise_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-idxbit-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed-local-bitwise canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed-local-bitwise canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected an indexed-read local used as a bitwise operand to read its slot (exit 70), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_local_compare_exit_canary_runs() {
+    // Silent miscompile fixed: `let hi = arr[i]; let over: bool = hi > 5` read
+    // `over` as a folded default (always false) -- the alias-fold substituted the
+    // indexed-read local into the fenced `arr[i] > 5` form and silently produced
+    // false. A comparison operand now keeps its slot (local_data_requires_storage
+    // counts comparison operators), so the compare reads the slot. Discriminating
+    // (over=true vs low_over=false -> exit 70; the miscompile made over=false -> 71).
+    let canary = pass_canary("collections/runtime_indexed_local_compare_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-idxcmp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed-local-compare canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed-local-compare canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected an indexed-read local used as a compare operand to read its slot (exit 70), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_min_guard_true_false_pair_exit_canary_runs() {
+    // #41: a pure-builtin guard subject with a `{ true -> false -> }` PAIR. Each
+    // arm re-lowers the subject to its own temp, so the pair stopped pairing for
+    // exhaustiveness; hoist_comparison_match_subject shares one subject temp
+    // across arms (keyed on the syntax subject handle). Discriminating: min=7
+    // matches -> good (70); a wrong min or a failed pair would exit 71.
+    let canary = pass_canary("calls/runtime_min_guard_true_false_pair_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-minpair-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("min guard true/false pair canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("min guard true/false pair canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a shared-subject builtin guard pair to discriminate (exit 70), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_nested_generic_instantiations_exit_canary_runs() {
+    // Phase 3: NESTED generic data. Pair<T> contains a Box<T> field, so Pair<i32>
+    // needs Box<i32> synthesized too (and Pair<bool> -> Box<bool>). The desugar
+    // runs to a fixpoint: synthesizing Pair<i32> emits a fresh Box<i32> spelling
+    // the next round monomorphizes; generic template bodies are skipped so the
+    // param-arg Box<T> is never mistaken for a concrete instance. exit 30.
+    let canary = pass_canary("generics/runtime_nested_generic_instantiations_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gennest-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested generic instantiations canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested generic instantiations canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(30),
+        "expected nested generic instances (Pair<i32>/Pair<bool> over Box<T>) to coexist (exit 30), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_generic_let_local_instantiations_exit_canary_runs() {
+    // Phase-1 type-position polish: two distinct instantiations of Box<T> as
+    // LET-LOCALS (Box<i32> + Box<bool>), not fields. The desugar now scans
+    // machine-body type positions (let-locals, params, returns), not just data
+    // fields, so the 2nd instantiation no longer poisons the layout. exit 30.
+    let canary = pass_canary("generics/runtime_generic_let_local_instantiations_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-genlet-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("generic let-local instantiations canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("generic let-local instantiations canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(30),
+        "expected two coexisting generic let-local instances (exit 30), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_generic_domain_instantiations_exit_canary_runs() {
+    // Phase 1 domain-arg extension: two DOMAIN-CARRYING instantiations of
+    // `Box<T>` (`Box<i32 in Wrapping>` + `Box<u8 in Wrapping>`) coexist. Each
+    // argument carries an arithmetic domain, so before the slug extension both
+    // were skipped (non-plain-Named) and fell to the one-slot poison path. Now
+    // each slugs distinctly into its own synthetic record with the domain riding
+    // the substituted field. exit 42.
+    let canary = pass_canary("generics/runtime_generic_domain_instantiations_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-gen-domain-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("domain-arg generic canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("domain-arg generic canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "expected two coexisting domain-carrying generic instances (exit 42), got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_array_max_and_sum_exit_canary_runs() {
+    // Find the max and the sum of an array in one pass: an indexed read bound to a local, a
+    // reduction (`total += v`), and an element comparison via the sound local-bind pattern
+    // (`transition v > self.mx`). arr = [30,50,70,20,60,10] -> max 70, sum 240, both checked -> 70.
+    let canary = pass_canary("collections/runtime_array_max_and_sum_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-max-sum-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("array max-and-sum canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("array max-and-sum canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a one-pass max+sum reduction to compute correctly (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_reduction_loop_exit_canary_runs() {
+    // Array reduction with a runtime index (`self.sum = self.sum + self.arr[self.i]`) in a loop --
+    // an indexed read as an accumulation operand, the sum/reduce primitive. Sums [5,10,15,20,8,12]
+    // = 70. The index bound is proven by the loop guard.
+    let canary = pass_canary("collections/runtime_indexed_reduction_loop_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-indexed-reduce-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed reduction loop canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed reduction loop canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected an array reduction over a runtime index to sum correctly (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_rmw_loop_exit_canary_runs() {
+    // Read-modify-write at a runtime index (`self.arr[self.i] = self.arr[self.i] + 10`) in a loop
+    // -- the count/accumulate primitive, enabled by the machine-indexed binary write accepting an
+    // indexed read as its value operand. Fills [0..4], increments each by 10 -> sum 60; a non-zero
+    // `marker` after the index field guards the 32-bit index load and must survive -> exit 70.
+    let canary = pass_canary("collections/runtime_indexed_rmw_loop_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-indexed-rmw-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed RMW loop canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed RMW loop canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected read-modify-write at a runtime index to increment each element correctly (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_computed_indexed_write_exit_canary_runs() {
+    // A computed value written straight into a runtime-indexed machine array element
+    // (`self.arr[self.j] = self.j * 10`, no field temp). A non-zero `marker` field sits right
+    // after the index field, guarding the 32-bit zero-extending index load (a 64-bit load would
+    // pull `marker` into the index's high dword and store out of bounds). Fills [0..40] -> sum
+    // 100 and marker survives -> exit 70.
+    let canary = pass_canary("collections/runtime_computed_indexed_write_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-computed-indexed-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("computed indexed-write canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("computed indexed-write canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a computed value stored straight into a runtime-indexed element to fill correctly and not corrupt the neighbouring field (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_computed_array_fill_via_temp_exit_canary_runs() {
+    // The sound pattern for filling an array with computed values in a write-first loop: a computed
+    // value goes to a field, then the field (a machine-resident source) is copied to the runtime-
+    // indexed element -- native emission cannot yet store a computed expression straight into an
+    // indexed element. Fills [0,10,20,30,40], sums to 100, self-checks -> exit 70.
+    let canary = pass_canary("collections/runtime_computed_array_fill_via_temp_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-computed-fill-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("computed array-fill canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("computed array-fill canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a computed value written via a field temp then indexed-copied to fill correctly (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_nested_loop_fill_exit_canary_runs() {
+    // Nested loops: an outer loop drives an inner write-first loop that fills a row (counter
+    // reset each outer pass). Exercises the loop-invariant machinery in a nested context -- the
+    // inner head sits inside the outer loop's natural loop yet its own back-edge guard still
+    // proves the write. Sum self-checks to 3 -> exit 70.
+    let canary = pass_canary("collections/runtime_nested_loop_fill_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-nested-loop-fill-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested-loop fill canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested-loop fill canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected an inner write-first loop nested in an outer loop to prove its bound and fill correctly (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_loop_counter_init_hoisted_exit_canary_runs() {
+    // The loop counter is initialized one state BEFORE the loop head (a `setup` state that does
+    // not touch the counter sits between). The loop-invariant pass walks back through the
+    // counter-untouched state to find the constant init, so the fill loop's index bound proves.
+    // Fills [0..4], sums to 10, self-checks -> exit 70.
+    let canary = pass_canary("collections/runtime_loop_counter_init_hoisted_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-init-hoisted-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("init-hoisted loop canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("init-hoisted loop canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a loop counter initialized a state before the head to still prove its bound (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_write_first_loop_index_exit_canary_runs() {
+    // Write-first loop `arr[i]=..; i=i+1; transition i<N { true -> loop }`: the bound guard is on
+    // the back edge, so the head is a join with no dominating guard. The loop-invariant pass now
+    // carries `i < N` (from the back-edge guard) at the head's entry for a monotone-increasing
+    // counter, so the write proves. Fills [0..4], sums to 10, self-checks -> exit 70.
+    let canary = pass_canary("collections/runtime_write_first_loop_index_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-write-first-loop-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("write-first loop canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("write-first loop canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a write-first increasing loop to prove its index bound and fill correctly (exit 70), got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_array_indexed_loop_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_array_indexed_loop_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-array-indexed-loop-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime array indexed loop canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime array indexed loop canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a runtime-indexed loop to sum the array to 100 and self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_decreasing_index_exit_canary_runs() {
+    // A DECREASING runtime counter indexing an inline array: the bound
+    // `self.i < 4` that the body's `self.nums[self.i]` needs is a loop
+    // INVARIANT (entry `i = 3`, each `i = i - 1` decrement preserves `i < 4`),
+    // not the loop guard (`self.i >= 0`). The loop head is multi-predecessor, so
+    // single-predecessor incoming-guard seeding can't reach it; the inductive
+    // loop-invariant fact discharges the index obligation. Sums [1,2,3,4]
+    // backwards to 10 and self-checks (exit 70).
+    let canary = pass_canary("slices/runtime_decreasing_index_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-decreasing-index-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime decreasing index canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime decreasing index canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a decreasing-counter loop (loop-invariant bound) to sum [1,2,3,4] \
+         backwards to 10 and self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_slice_indexed_read_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_slice_indexed_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-slice-indexed-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime slice indexed read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime slice indexed read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `s[self.i]` (runtime index on a &[T] slice) to read 20 and 40 and self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_array_adjacent_index_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_array_adjacent_index_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-adjacent-index-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime adjacent-index canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime adjacent-index canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the DERIVED index `nums[j + 1]` (bound carried across `jp = j + 1`) to walk adjacent pairs and confirm the array is sorted (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_nested_decreasing_index_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_nested_decreasing_index_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-nested-decreasing-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime nested-decreasing-index canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime nested-decreasing-index canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected NESTED decreasing loops -- the inner counter's invariant proven via dominance-based back edges, the outer invariant held through the inner loop -- to sum to 54 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_narrow_widen_cast_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_narrow_widen_cast_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-narrow-widen-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime narrow-widen-cast canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime narrow-widen-cast canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected an inline narrow widening cast to extend by signedness -- u8>127 zero-extends (sum 806), i8<0 sign-extends (-5) (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_signed_index_guarded_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_signed_index_guarded_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-signed-index-guarded-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime signed-index-guarded canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime signed-index-guarded canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a SIGNED i32 index proven non-negative by its `>= 0` guard to be accepted and sum nums[3..0] to 10 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_two_pointer_sum_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_two_pointer_sum_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-two-pointer-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime two-pointer-sum canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime two-pointer-sum canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the two-pointer traversal to prove nums[i] via the relational chain (i <= j < len) and sum converging pairs to 210 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_two_pointer_reverse_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_two_pointer_reverse_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-two-pointer-reverse-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime two-pointer-reverse canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime two-pointer-reverse canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected two-pointer in-place reverse (indexed WRITE targets proved via the relational chain) to reverse [1..5] to [5..1] (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_branched_index_bound_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_branched_index_bound_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-branched-bound-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime branched-index-bound canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime branched-index-bound canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a loop bound to carry TRANSITIVELY across a conditional branch so the indexed read in the branch target proves, re-reading 99 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_array_write_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_indexed_array_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-runtime-indexed-write-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime indexed-array-write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime indexed-array-write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a runtime-indexed array WRITE of a field value (`nums[self.i] = self.v`) to fill nums[i]=i+100 and read 103 back at index 3 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn recursive_subslice_element_accumulator_exit_canary_runs() {
     // `sum(s[1..], acc + s[0])`: the element read s[0] must happen before the
     // s descriptor is retargeted to s[1..]. Was an off-by-one (descriptor
@@ -7898,6 +14524,41 @@ fn runtime_slice_index_read_exit_canary_runs() {
         output.status.code(),
         Some(41),
         "expected runtime slice index read canary to preserve dynamic slice reads and exit 41, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_indexed_read_operand_exit_canary_runs() {
+    // A runtime-indexed read `self.nums[self.i]` used as a SUB-EXPRESSION OPERAND
+    // (a child of `+` and of an `as i64` cast), hoisted into synthetic
+    // `let __hoist_N = self.nums[self.i];` temps. Exits 70 when acc == 20 and
+    // big == 20.
+    let canary = pass_canary("slices/runtime_indexed_read_operand_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-indexed-operand-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime indexed read operand canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime indexed read operand canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected hoisted runtime-indexed operand reads (binary + cast) to lower and exit 70, got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -8448,6 +15109,75 @@ fn runtime_subslice_range_pointer_exit_canary_runs() {
         output.status.code(),
         Some(205),
         "expected runtime subslice range pointer canary to offset the descriptor pointer and exit 205, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_local_aggregate_into_let_exit_canary_runs() {
+    // A local ARRAY literal read by a subsequent `let` (`let arr = [..]; let e = arr[1]`)
+    // silently yielded 0: the liveness scan never inspected LocalData (`let`) values, so
+    // the read-only array was elided (no slot) and the indexed read resolved against a
+    // missing slot. Fixed by keeping the slot for an array-literal local referenced in a
+    // later let value (array-only -- borrow-carrying structs must stay folded).
+    let canary = pass_canary("slices/runtime_local_aggregate_into_let_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-local-aggregate-into-let-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("local-aggregate-into-let canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("local-aggregate-into-let canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a local array element read into a subsequent let (and used as a value) to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_field_array_element_value_operand_exit_canary_runs() {
+    // A field array's indexed element as a VALUE OPERAND: passed to a value-call, and
+    // read into a let then forwarded as a transition arg. Works for FIELD arrays; the
+    // local-array form (`let arr = [..]; let e = arr[i]`) silently yields 0 -- a
+    // machine-indexed-value-operand gap tracked separately.
+    let canary = pass_canary("slices/runtime_field_array_element_value_operand_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-field-array-value-operand-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("field-array value-operand canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("field-array value-operand canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a field-array element used as a value-call arg / let-then-transition-arg to self-check (exit 70), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -9230,6 +15960,176 @@ fn runtime_assignment_call_post_mutation_value_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_value_call_return_types_exit_canary_runs() {
+    // Value-returning calls across return types (i32 / struct / enum / bool) + the
+    // un-nested nested-call pattern. Locks the working value-call core. (A value-call
+    // written directly as an arg to another VALUE-call miscompiles -- tracked
+    // separately; the sound form is to bind the inner call to a local first.)
+    let canary = pass_canary("calls/runtime_value_call_return_types_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-value-call-return-types-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call return-types canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call return-types canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected value-calls returning i32/struct/enum/bool to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_value_call_struct_result_to_target_exit_canary_runs() {
+    // Delivering a value-call STRUCT result: dispatch scalar -> field, bare-body struct
+    // -> field, and dispatch struct -> local -> field all work. (A dispatch-body value-
+    // call returning a struct assigned DIRECTLY to a field silently stores 0 -- tracked
+    // separately; bind to a local first.)
+    let canary = pass_canary("calls/runtime_value_call_struct_result_to_target_exit");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-value-call-struct-result-target-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call struct-result-to-target canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call struct-result-to-target canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected value-call struct-result delivery (working cases + the local workaround) to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_value_call_self_field_enum_match_exit_canary_runs() {
+    // A value-call dispatching on an ENUM FIELD of self (`transition self.s { .. }`),
+    // called twice with different field values to prove real dispatch. (A method on the
+    // enum TYPE matching bare `self`, called `self.s.sides()`, mis-dispatches -- tracked
+    // separately; dispatching on a self field or a param both work.)
+    let canary = pass_canary("calls/runtime_value_call_self_field_enum_match_exit");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-value-call-self-field-enum-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call self-field-enum-match canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call self-field-enum-match canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a value-call dispatching on a self enum field to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_value_call_struct_literal_arms_exit_canary_runs() {
+    // A value-call whose transition arms return STRUCT / enum-CASE literals
+    // (`transition d { Dir::E -> Vec2 { dx: 1, dy: 0 } ... }`). This was a parse error
+    // (a struct-literal arm value is name-like, so the target parser read only the
+    // leading path and left the `{`); fixed by re-parsing a path-followed-by-`{` arm
+    // value as an expression. The natural "dispatch on an enum, return a struct" shape.
+    let canary = pass_canary("calls/runtime_value_call_struct_literal_arms_exit");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-value-call-struct-lit-arms-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-call struct-literal-arms canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-call struct-literal-arms canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a value-call returning struct/case literals from its arms to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_contained_machine_exit_canary_runs() {
+    // A contained machine (component with state): single-instance method calls --
+    // statement-call mutation, arg, and a value-call return -- all work. (Multiple
+    // contained machines of the SAME type alias to the first; tracked separately.)
+    let canary = pass_canary("calls/runtime_contained_machine_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-contained-machine-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("contained-machine canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("contained-machine canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected contained-machine method calls (increment/add_to/get) to self-check (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_call_result_after_splice_mutation_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_call_result_after_splice_mutation_exit");
     let main_path = canary.join("main.omg");
@@ -9410,6 +16310,71 @@ fn runtime_value_call_slice_len_guard_exit_canary_runs() {
          ELIDED caller local aliasing a fixed [i32; 5]) to fold the length to the static \
          element count and take the matching arm (n == 99, exit 70); a dropped arm leaves \
          n == 0 and exits 71. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_sleep_exit_canary_runs() {
+    // Clock.sleep -- a kernel32 `Sleep(ms)` native call, the first host op beyond the
+    // original four. Reaching exit_process(70) after the call proves the Win64 ABI
+    // (shadow space, ecx arg, clean non-terminal return) is correct.
+    let canary = pass_canary("host/runtime_sleep_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-runtime-sleep-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sleep canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sleep canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `sleep(2)` and `sleep(self.delay)` to return cleanly and the program to reach exit_process(70); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_write_no_newline_exit_canary_runs() {
+    // `write` (Stdout, no trailing newline) vs `write_line`. The differential oracle
+    // checks the exact stdout ("ABC\n"); this run-test just confirms it exits 70.
+    let canary = pass_canary("host/runtime_write_no_newline_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-write-no-newline-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("write-no-newline canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("write-no-newline canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `write`+`write_line` to print 'ABC\\n' and exit 70; got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -9631,6 +16596,38 @@ fn runtime_u16_field_arith_exit_canary_runs() {
         "expected u16 fields to store/add/compare as 2-byte UNSIGNED values \
          (40000+30000 wraps to 4464; 40000>30000 needs an unsigned 16-bit compare), \
          got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_addr_field_exit_canary_runs() {
+    // `addr` is a pointer-width ADDRESS type (distinct from usize/counts). Store
+    // two distinct addresses in struct fields (the UEFI EfiHandle/ConsolePtr
+    // shape), read one back via `.raw`, cast to i32: exit 88.
+    let canary = pass_canary("types/runtime_addr_field_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-addr-field-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("addr field canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("addr field canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(88),
+        "expected addr field round-trip (ConsolePtr.raw = 88, exit 88), got {:?}\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -12083,7 +19080,7 @@ fn runtime_nested_value_call_caller_local_guard_exit_canary_runs() {
 #[cfg(not(windows))]
 #[test]
 fn native_dungeon_crawler_runs_stable_scripted_loop() {
-    let sample = repo_root().join("samples").join("dungeon_crawler_cli");
+    let sample = sample_project("cli/games/dungeon_crawler_cli");
     let main_path = sample.join("main.omg");
     let build_dir =
         std::env::temp_dir().join(format!("omega-native-dungeon-{}", std::process::id()));
@@ -12165,7 +19162,7 @@ fn native_dungeon_crawler_runs_stable_scripted_loop() {
 #[cfg(not(windows))]
 #[test]
 fn native_dungeon_direct_movement_dispatch_runs() {
-    let source = repo_root().join("samples").join("dungeon_crawler_cli");
+    let source = sample_project("cli/games/dungeon_crawler_cli");
     let package_dir = std::env::temp_dir().join(format!(
         "omega-dungeon-direct-movement-{}",
         std::process::id()
@@ -12312,6 +19309,413 @@ fn pass_canaries_compile() {
 }
 
 #[test]
+fn efi_freestanding_skeleton_emits_importless_subsystem_10_pe() {
+    // The first-boot milestone-1 skeleton (BOOTED under QEMU/OVMF 2026-07-03:
+    // "Image Return Status = Success"; returning 5 printed "Warning Stale
+    // Data"). `subsystem efi_application` = FREESTANDING: empty host ABI plan,
+    // so the emitted PE32+ must have subsystem 10 and NO import directory/IAT
+    // (services arrive via the entry's parameters, never imports). This pins
+    // the emitted HEADER FACTS so a regression that re-populates host bindings
+    // for the EFI target (or loses the empty-import path) fails here, without
+    // needing QEMU in CI.
+    let canary = pass_canary("targets/efi_freestanding_skeleton");
+    let build_dir = std::env::temp_dir().join(format!("omega-efi-skeleton-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("EFI freestanding skeleton should compile");
+
+    let image = fs::read(build_dir.join(executable_name())).expect("emitted image should exist");
+    let e_lfanew = u32::from_le_bytes(image[0x3c..0x40].try_into().unwrap()) as usize;
+    let optional_header = e_lfanew + 4 + 20;
+    let magic = u16::from_le_bytes(image[optional_header..optional_header + 2].try_into().unwrap());
+    assert_eq!(magic, 0x20b, "expected a PE32+ optional header");
+    let subsystem = u16::from_le_bytes(
+        image[optional_header + 68..optional_header + 70]
+            .try_into()
+            .unwrap(),
+    );
+    assert_eq!(subsystem, 10, "expected subsystem EFI_APPLICATION (10)");
+    // Data directories: import = index 1, IAT = index 12 (each 8 bytes at
+    // optional_header + 112 + index*8 for PE32+).
+    let directory = |index: usize| -> (u32, u32) {
+        let offset = optional_header + 112 + index * 8;
+        (
+            u32::from_le_bytes(image[offset..offset + 4].try_into().unwrap()),
+            u32::from_le_bytes(image[offset + 4..offset + 8].try_into().unwrap()),
+        )
+    };
+    assert_eq!(directory(1), (0, 0), "expected NO import directory");
+    assert_eq!(directory(12), (0, 0), "expected NO import address table");
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn efi_entry_arguments_prologue_unmarshals_rcx_rdx() {
+    // The entry prologue's argument unmarshal (BOOT-VERIFIED under QEMU/OVMF:
+    // the same program returns 4 without the stub and 5 with it -- firmware's
+    // ImageHandle arrives through RCX). Pin the emitted OPCODE SKELETON at the
+    // very start of .text so CI needs no QEMU: for each of the two declared
+    // parameters, `mov r15, imm64` (49 BF <8-byte frame base, relocated>) then
+    // `mov [r15+disp32], rcx/rdx` (49 89 8F / 49 89 97 + disp32 0 / 8).
+    let canary = pass_canary("targets/efi_entry_arguments");
+    let build_dir = std::env::temp_dir().join(format!("omega-efi-args-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("EFI entry-arguments canary should compile");
+
+    let image = fs::read(build_dir.join(executable_name())).expect("emitted image should exist");
+    // Locate .text's raw offset from the section table.
+    let e_lfanew = u32::from_le_bytes(image[0x3c..0x40].try_into().unwrap()) as usize;
+    let optional_size =
+        u16::from_le_bytes(image[e_lfanew + 20..e_lfanew + 22].try_into().unwrap()) as usize;
+    let section_count = u16::from_le_bytes(image[e_lfanew + 6..e_lfanew + 8].try_into().unwrap());
+    let sections = e_lfanew + 4 + 20 + optional_size;
+    let text_raw = (0..section_count as usize)
+        .map(|index| sections + index * 40)
+        .find(|offset| &image[*offset..*offset + 6] == b".text\0")
+        .map(|offset| {
+            u32::from_le_bytes(image[offset + 20..offset + 24].try_into().unwrap()) as usize
+        })
+        .expect(".text section should exist");
+
+    let entry = &image[text_raw..text_raw + 34];
+    // Store 0: mov r15, imm64 ; mov [r15+0], rcx
+    assert_eq!(&entry[0..2], &[0x49, 0xbf], "store 0: mov r15, imm64");
+    assert_eq!(
+        &entry[10..13],
+        &[0x49, 0x89, 0x8f],
+        "store 0: mov [r15+disp32], rcx"
+    );
+    assert_eq!(&entry[13..17], &0u32.to_le_bytes(), "param 0 frame offset 0");
+    // Store 1: mov r15, imm64 ; mov [r15+8], rdx
+    assert_eq!(&entry[17..19], &[0x49, 0xbf], "store 1: mov r15, imm64");
+    assert_eq!(
+        &entry[27..30],
+        &[0x49, 0x89, 0x97],
+        "store 1: mov [r15+disp32], rdx"
+    );
+    assert_eq!(&entry[30..34], &8u32.to_le_bytes(), "param 1 frame offset 8");
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn entry_run_args_bytes_canary_runs() {
+    // The canonical entry `Main::run(&self, args: &[u8])`: the prologue binds
+    // `args` as a 32-byte view over the spilled argument registers, so
+    // `args.len == 32` holds deterministically (exit 5) regardless of what the
+    // OS passed in the registers. NATIVE-ONLY (the interpreter has no entry-
+    // argument notion yet, so this is not a differential canary). The
+    // efi_application twin of this program was boot-verified under QEMU/OVMF
+    // ("Warning Stale Data" = the same 5).
+    let canary = pass_canary("targets/entry_run_args_bytes");
+    let build_dir = std::env::temp_dir().join(format!("omega-run-args-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("entry run-args canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("entry run-args canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(5),
+        "expected args.len == 32 (the bytes handoff bound, exit 5); got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_utf16_literal_exit_canary_runs() {
+    // `utf16"Hello from Omega"` (CR LF NUL escaped) desugars at parse to the integer array
+    // literal of its UTF-16 code units: 'H'=72 at [0], newline=10 at [17], NUL at
+    // [18] (exit 70). Native must match the interpreter (both see plain
+    // integers -- the sugar is gone before resolution).
+    let canary = pass_canary("text/runtime_utf16_literal_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-utf16-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("utf16 literal canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("utf16 literal canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the utf16 greeting's code units to verify (exit 70); got {:?}
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_case_array_element_write_exit_canary_runs() {
+    // Array-of-CASE element writes (const + runtime index) with payload
+    // read-back -- the case-vocabulary Plan's foundation shape. At{8,4}+At{16,8}
+    // matched back = 12 + 24 = exit 36; native must match the interpreter (the
+    // interpreter is the L0 build-time engine).
+    let canary = pass_canary("collections/runtime_case_array_element_write_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-case-array-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("case-array element write canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("case-array element write canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(36),
+        "expected both case payloads to read back (exit 36); got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_wire_policy_authored_plan_exit_canary_runs() {
+    // RUNG 2b: an inline `CompactBinary::plan` grammar policy AUTHORS the wire
+    // plan (L0-evaluated against materialized schema facts incl. FieldKind);
+    // the codec's tag bytes come from it, and the hand-computed roundtrip
+    // bytes still hold exactly (exit 70). The fail twin proves divergence is
+    // a compile error.
+    let canary = pass_canary("wire/runtime_wire_policy_authored_plan_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-wire-policy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("policy-authored wire plan canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("policy-authored wire plan canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the policy-authored roundtrip to hold byte-for-byte (exit 70); got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_wire_policy_authored_nested_exit_canary_runs() {
+    // RUNG 2c: nested CHILD tags come from the child schema's own authored
+    // plan -- the byte-pinned nested roundtrip holds exactly with the inline
+    // `CompactBinary::plan` policy evaluated for both parent and child.
+    let canary = pass_canary("wire/runtime_wire_policy_authored_nested_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-wire-policy-nested-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("policy-authored nested wire plan canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("policy-authored nested wire plan canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the policy-authored NESTED roundtrip to hold byte-for-byte (exit 70); got {:?}: {}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[cfg(windows)]
+#[test]
+fn efi_struct_handoff_prologue_spreads_registers() {
+    // Ladder step 3: the boundary entry's sole struct parameter receives the
+    // argument registers spread across its 8-byte chunks. Pins the prologue:
+    // store #0 = mov r15,imm64 + mov [r15+0],rcx (49 89 8F disp 0); store #1 =
+    // mov r15,imm64 + mov [r15+8],rdx (49 89 97 disp 8).
+    let canary = pass_canary("targets/efi_struct_handoff");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-struct-handoff-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("struct-handoff canary should compile");
+    let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
+    let lfanew =
+        u32::from_le_bytes([bytes[0x3c], bytes[0x3d], bytes[0x3e], bytes[0x3f]]) as usize;
+    let opt = lfanew + 4 + 20;
+    let opt_size = u16::from_le_bytes([bytes[lfanew + 4 + 16], bytes[lfanew + 4 + 17]]) as usize;
+    let section_count = u16::from_le_bytes([bytes[lfanew + 6], bytes[lfanew + 7]]) as usize;
+    let mut text_raw = None;
+    for section in 0..section_count {
+        let header = opt + opt_size + section * 40;
+        if &bytes[header..header + 5] == b".text" {
+            text_raw = Some(u32::from_le_bytes([
+                bytes[header + 20],
+                bytes[header + 21],
+                bytes[header + 22],
+                bytes[header + 23],
+            ]) as usize);
+        }
+    }
+    let text = text_raw.expect(".text section");
+    // store #0: [10-byte mov r15,imm64] 49 89 8F <disp32 0>
+    assert_eq!(&bytes[text..text + 2], &[0x49, 0xbf], "frame-base mov #0");
+    assert_eq!(
+        &bytes[text + 10..text + 17],
+        &[0x49, 0x89, 0x8f, 0, 0, 0, 0],
+        "rcx -> handoff.handle @ +0"
+    );
+    // store #1 immediately follows: 49 BF ... 49 89 97 08 00 00 00
+    let second = text + 17;
+    assert_eq!(&bytes[second..second + 2], &[0x49, 0xbf], "frame-base mov #1");
+    assert_eq!(
+        &bytes[second + 10..second + 17],
+        &[0x49, 0x89, 0x97, 8, 0, 0, 0],
+        "rdx -> handoff.table @ +8"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[cfg(windows)]
+#[test]
+fn efi_vtable_call_emits_indirect_dispatch() {
+    // The provides-sourced VtableSlot(1) call lowers to `mov rax, [rcx+8];
+    // call rax` -- read OutputString from the con_out protocol struct and
+    // dispatch. Pins those bytes in .text (the whole selection->encode chain;
+    // the live boot awaits the reference-param projection routing fix).
+    let canary = pass_canary("targets/efi_vtable_call");
+    let build_dir = std::env::temp_dir().join(format!("omega-vtable-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("vtable-call canary should compile");
+    let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
+    let needle = [0x48u8, 0x8b, 0x81, 0x08, 0x00, 0x00, 0x00, 0xff, 0xd0];
+    assert!(
+        bytes.windows(needle.len()).any(|window| window == needle),
+        "expected `mov rax, [rcx+8]; call rax` (VtableSlot(1) dispatch) in .text"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn efi_ref_param_direct_faces_deref_not_flat() {
+    // Task #37: the DIRECT guard-subject and machine-target reads through an
+    // entry ref-param must DEREFERENCE the pointer slot (pointee copies in the
+    // report), never fold flat (`frame_storage@72` = slot 8 + con_out 64).
+    let canary = pass_canary("targets/efi_ref_param_direct_faces");
+    let build_dir = std::env::temp_dir().join(format!("omega-refparam-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("ref-param direct-faces canary should compile");
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("backend report should be written");
+    assert!(
+        report.contains("copy runtime pointee runtime_frame@8 +64"),
+        "expected the con_out DEREF (pointee frame@8 +64) in the report"
+    );
+    assert!(
+        report.contains("copy runtime pointee runtime_frame@8 +32"),
+        "expected the firmware_revision DEREF (pointee frame@8 +32) in the report"
+    );
+    assert!(
+        report.contains("copy runtime pointee runtime_frame@8 +48"),
+        "expected the con_in DEREF (pointee frame@8 +48) feeding the transition arg"
+    );
+    assert!(
+        !report.contains("frame_storage@72"),
+        "flat slot+field read (frame_storage@72 = con_out) regressed -- an          entry-ref-param member folded flat instead of dereferencing"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn efi_ref_param_call_arg_derefs_and_dispatches() {
+    // The direct host-call arg `output_string(table.con_out, ..)` must deref
+    // (pointee frame@8 +64), never fold flat (frame_storage@72 fed firmware
+    // poison into the vtable dispatch), and the `mov rax,[rcx+8]; call rax`
+    // dispatch bytes must survive the hoist.
+    let canary = pass_canary("targets/efi_ref_param_call_arg");
+    let build_dir = std::env::temp_dir().join(format!("omega-refarg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("ref-param call-arg canary should compile");
+    let report = fs::read_to_string(build_dir.join("backend_report.txt"))
+        .expect("backend report should be written");
+    assert!(
+        report.contains("copy runtime pointee runtime_frame@8 +64"),
+        "expected the con_out DEREF (pointee frame@8 +64) feeding the call arg"
+    );
+    assert!(
+        !report.contains("frame_storage@72"),
+        "flat slot+field read (frame_storage@72) regressed for the call-arg face"
+    );
+    let bytes = fs::read(build_dir.join("omega-program.exe")).expect("read emitted PE");
+    let needle = [0x48u8, 0x8b, 0x81, 0x08, 0x00, 0x00, 0x00, 0xff, 0xd0];
+    assert!(
+        bytes.windows(needle.len()).any(|window| window == needle),
+        "expected `mov rax, [rcx+8]; call rax` (VtableSlot(1) dispatch) in .text"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
     for canary_name in ACTIVE_FAIL_CANARIES {
         let canary = fail_canary(canary_name);
@@ -12345,6 +19749,635 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
             combined
         );
     }
+}
+
+#[test]
+fn runtime_float_min_max_abs_clamp_exit_canary_runs() {
+    // Float min/max on SSE (maxsd/minsd), plus abs/clamp over floats which
+    // desugar to them: max(3,7)+min(3,7)+abs(-12)+clamp(300,0,200) = 222.
+    let canary = pass_canary("arithmetic/runtime_float_min_max_abs_clamp_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float-minmax-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float min/max/abs/clamp canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float min/max/abs/clamp canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected float max/min/abs/clamp to sum to 222 (exit 70); exit 71 = maxsd/minsd \
+         disagreed with the interpreter. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_shared_ref_param_member_exit_canary_runs() {
+    // Shared &Struct param (non-boundary): content-spill convention; the callee
+    // reads a=7 and b=35 through the ref -> got=42 (the exit). A pointee
+    // misresolution dereferences the spilled content and crashes (0xC0000005).
+    let canary = pass_canary("calls/runtime_shared_ref_param_member_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-sharedref-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("shared-ref param canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("shared-ref param canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(42),
+        "expected a+b=42 through the shared &Struct param (exit 42); a crash/garbage =          the pointee resolver treated the content spill as a pointer. got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_same_type_contained_direct_fields_exit_canary_runs() {
+    // The SOUND pattern for two same-type contained machines: DIRECT field access
+    // (not method calls, which alias to the first field of the type). a -> 13,
+    // b -> 21 independently -> exit 70.
+    let canary = pass_canary("calls/runtime_same_type_contained_direct_fields_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-sametype-direct-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("same-type contained direct-fields canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("same-type contained direct-fields canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected two same-type contained machines to be INDEPENDENT via direct field \
+         access (a=13, b=21 -> exit 70); exit 71 = they aliased. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_sum_field_store_payload_exit_canary_runs() {
+    // Regression for the sum-type field-store payload-offset miscompile: storing
+    // Tx::Transfer{to:3, amount:40} into a field then matching must read to=3,
+    // amount=40 -> exit 70 (before the fix: to=40, amount=0).
+    let canary = pass_canary("control_flow/runtime_sum_field_store_payload_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-sumfield-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sum-field-store payload canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sum-field-store payload canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected field-stored Tx::Transfer to read to=3, amount=40 (exit 70); exit 71 = the \
+         payload offset shifted (write not variant-tagged). got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_argmax_index_exit_canary_runs() {
+    // argmax over [4,15,8,42,16,23]: the maximum 42 is at index 3 -> exit 70;
+    // a wrong index-capture -> exit 71.
+    let canary = pass_canary("collections/runtime_argmax_index_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-argmax-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("argmax canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("argmax canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected argmax of [4,15,8,42,16,23] to be index 3 (exit 70); exit 71 = wrong \
+         index capture. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_bracket_matcher_stack_exit_canary_runs() {
+    // Stack-based bracket matcher over "([)]" (mis-nested). Correct verdict is
+    // UNBALANCED -> exit 70; a count-only or broken matcher -> exit 71.
+    let canary = pass_canary("collections/runtime_bracket_matcher_stack_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-bracket-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bracket matcher canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bracket matcher canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the stack matcher to detect mis-nesting in \"([)]\" (exit 70); exit 71 = \
+         it accepted the mismatch. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_palindrome_two_pointer_exit_canary_runs() {
+    // Two-pointer palindrome over [1,2,3,4,1] (NOT a palindrome): must detect the
+    // arr[1]=2 vs arr[3]=4 mismatch -> exit 70; missing it -> exit 71.
+    let canary = pass_canary("collections/runtime_palindrome_two_pointer_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-palindrome-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("palindrome two-pointer canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("palindrome two-pointer canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the two-pointer scan to DETECT arr[1]=2 != arr[3]=4 (exit 70); exit 71 = \
+         it missed the mismatch. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_cross_array_indexed_guard_compare_exit_canary_runs() {
+    // PROBE: `a[i] < b[j]` (two different arrays, both runtime indices) in a
+    // guard. a[1]=20 < b[3]=4 is FALSE; reverse TRUE -> exit 70.
+    let canary = pass_canary("collections/runtime_cross_array_indexed_guard_compare_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-cross-idx-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("cross-array indexed guard-compare canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("cross-array indexed guard-compare canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected a[1]=20 < b[3]=4 FALSE and reverse TRUE (exit 70); exit 71 = base/index \
+         confusion across the two arrays. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_dual_indexed_guard_equality_exit_canary_runs() {
+    // PROBE: `arr[i] == arr[j]` (equality op, both runtime indices) in a guard.
+    // arr[0]=10 == arr[3]=10 TRUE; arr[0]=10 == arr[1]=20 FALSE -> exit 70.
+    let canary = pass_canary("collections/runtime_dual_indexed_guard_equality_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-dual-idx-eq-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dual-indexed guard-equality canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dual-indexed guard-equality canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected arr[0]==arr[3] TRUE and arr[0]==arr[1] FALSE (exit 70); exit 71 = the \
+         equality compared the wrong elements. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_dual_indexed_guard_compare_exit_canary_runs() {
+    // PROBE: `arr[i] < arr[j]` (both runtime indices) in a guard. arr[1]=20 <
+    // arr[3]=40 is TRUE -> exit 70. Exit 71 = silent miscompile.
+    let canary = pass_canary("collections/runtime_dual_indexed_guard_compare_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-dual-idx-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dual-indexed guard-compare canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dual-indexed guard-compare canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected arr[1]=20 < arr[3]=40 to be TRUE (exit 70); exit 71 = the guard \
+         compared the wrong elements (silent miscompile). got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_float_running_min_max_fold_exit_canary_runs() {
+    // A RUNNING float min/max fold across state edges: `self.lo = min(self.lo,
+    // self.cur)` reads an accumulator field, feeds minsd/maxsd, and writes it
+    // back each iteration (the constant-operand canary never reaches this
+    // field-read-then-write-back path). Over [5, 2, 8, 3]: lo->2, hi->8, sum 10.
+    let canary = pass_canary("arithmetic/runtime_float_running_min_max_fold_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-float-minmax-fold-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("float running min/max fold canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("float running min/max fold canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected running float min/max fold over [5,2,8,3] to give lo=2,hi=8,sum=10 \
+         (exit 70); exit 71 = the field-accumulator min/max fold disagreed. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_clamp_desugar_exit_canary_runs() {
+    // `clamp(x, lo, hi)` = `min(max(x, lo), hi)`: 300->255, -5->0, 128->128.
+    let canary = pass_canary("arithmetic/runtime_clamp_desugar_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-clamp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("clamp desugar canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("clamp desugar canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected clamp above/below/within to give 255/0/128 (exit 70); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_clamp_narrowing_exit_canary_runs() {
+    // clamp's [0,100] result interval flows to the decision-17 narrowing check,
+    // so `self.i8 = clamp(self.i32, 0, 100)` compiles AND the backend stores the
+    // clamped value: clamp(300,0,100)=100 lands in i8, read back = exit 100.
+    let canary = pass_canary("arithmetic/runtime_clamp_narrowing_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-clamp-narrow-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("clamp narrowing canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("clamp narrowing canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(100),
+        "expected clamp(300,0,100)=100 stored in i8 (exit 100); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_negative_float_to_int_exit_canary_runs() {
+    // Negative f64 -> i32 truncates toward zero: -3.7 -> -3, -100.0 -> -100.
+    // Guards on the results and exits 70 (a positive code) so the assertion is
+    // robust to shells that mangle negative process exit codes.
+    let canary = pass_canary("arithmetic/runtime_negative_float_to_int_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-negfloat-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("negative float->int canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("negative float->int canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected -3.7->-3 and -100.0->-100 (exit 70); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_sqrt_builtin_exit_canary_runs() {
+    // `sqrt(x)` unary float builtin: f64 sqrt(64)=8, f32 sqrt(9)=3, via the
+    // native sqrtsd/sqrtss path (both operands = x on the binary SSE lane).
+    let canary = pass_canary("arithmetic/runtime_sqrt_builtin_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-sqrt-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sqrt builtin canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sqrt builtin canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected sqrt(64.0)=8.0 and sqrt(9.0f32)=3.0 (exit 70); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_abs_desugar_exit_canary_runs() {
+    // `abs(x)` desugars to `max(x, 0 - x)` (frontend-only; min/max are binary
+    // builtins). abs(-70)=70 and abs(12)=12; exit 70 confirms both.
+    let canary = pass_canary("arithmetic/runtime_abs_desugar_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-abs-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("abs desugar canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("abs desugar canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected abs(-70)=70 and abs(12)=12 (exit 70); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_float_self_compare_nan_exit_canary_runs() {
+    // The canonical isNaN idiom `f != f` (and its `f == f` complement) on a
+    // NaN operand: TRUE/FALSE per IEEE. Was silently folded to constants by
+    // the untyped reflexive fold; the fold is TYPE-GATED now and float
+    // self-compares lower to the real ucomis* runtime compare.
+    let canary = pass_canary("arithmetic/runtime_float_self_compare_nan_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-nan-self-compare-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("NaN self-compare canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("NaN self-compare canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `f != f` TRUE and `f == f` FALSE for NaN (exit 70); exit 71 = a reflexive \
+         fold collapsed the float self-compare to a constant. got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn plan_laid_value_field_exit_canary_runs() {
+    // PLAN-LAID VALUE TYPES (layouts L4): `gdt: Spread16<Gdtish>` places every
+    // field on its own 16-byte slot -- deliberately NOT the native packing --
+    // and the program writes, whole-value-copies, and reads back through those
+    // baked plan offsets. Exit 71 = some consumer recomputed native offsets
+    // independently (a read landed in a padding gap).
+    let canary = pass_canary("layouts/runtime_plan_laid_value_field_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-plan-laid-value-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("plan-laid value canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("plan-laid value canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the spread-placed fields (7/20/3/40) to survive the copy and read back \
+         intact (exit 70); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn plan_laid_value_by_value_param_exit_canary_runs() {
+    // PLAN-LAID VALUE TYPES across a BY-VALUE parameter (layouts L4): the same
+    // `Spread16<Gdtish>` spread placement must survive being handed to a state
+    // by value and threaded across further edges. Exit 71 = a callee copy
+    // recomputed native packing (a read landed in a padding gap).
+    let canary = pass_canary("layouts/runtime_plan_laid_value_by_value_param_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-plan-laid-byval-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("plan-laid by-value-param canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("plan-laid by-value-param canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected spread-placed fields (7/20/3/40) to survive a by-value param pass \
+         (exit 70); got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]
@@ -12645,6 +20678,10 @@ fn repo_root() -> PathBuf {
         .to_path_buf()
 }
 
+fn sample_project(path: &str) -> PathBuf {
+    repo_root().join("samples").join(path)
+}
+
 fn pass_canary(path: &str) -> PathBuf {
     repo_root().join("canaries/pass").join(path)
 }
@@ -12661,6 +20698,9 @@ fn run_canary(path: &str) -> PathBuf {
     repo_root().join("canaries/run").join(path)
 }
 
+// Only the `#[cfg(not(windows))]` native-dungeon repro test copies a sample
+// tree; gate the helper the same way so Windows builds don't warn it unused.
+#[cfg(not(windows))]
 fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {
     fs::create_dir_all(to)?;
     for entry in fs::read_dir(from)? {
@@ -12687,12 +20727,52 @@ fn executable_name() -> &'static str {
 }
 
 const ACTIVE_PASS_CANARIES: &[&str] = &[
+    "arithmetic/bare_name_scopes",
+    "arithmetic/shift_amount_over_width_compiles",
+    "arithmetic/const_fold_overflow_compiles",
+    "parser/deep_nesting_within_limit",
     "traits/boundary_trait_effects_host_call",
     "traits/dyn_trait_object_dispatch",
     "capabilities/uses_caller_folder",
     "capabilities/acquires_filesystem_authority",
     "capabilities/stores_capability",
+    "capabilities/host_provides_binding_forms",
+    "targets/efi_freestanding_skeleton",
+    "targets/efi_entry_arguments",
+    "targets/entry_run_args_bytes",
+    "targets/efi_struct_handoff",
+    "targets/efi_vtable_call",
+    "targets/efi_conout_projection",
+    "targets/efi_ref_param_direct_faces",
+    "targets/efi_ref_param_call_arg",
+    "arithmetic/narrowing_flow_and_widen_permitted",
     "comptime/runtime_const_array_length_exit",
+    "layouts/runtime_plan_laid_value_field_exit",
+    "layouts/runtime_plan_laid_value_by_value_param_exit",
+    "control_flow/runtime_compare_pair_dispatch_exit",
+    "arithmetic/runtime_float_self_compare_nan_exit",
+    "arithmetic/runtime_abs_desugar_exit",
+    "arithmetic/runtime_sqrt_builtin_exit",
+    "arithmetic/runtime_clamp_desugar_exit",
+    "arithmetic/runtime_clamp_narrowing_exit",
+    "arithmetic/runtime_negative_float_to_int_exit",
+    "arithmetic/runtime_float_min_max_abs_clamp_exit",
+    "arithmetic/runtime_float_running_min_max_fold_exit",
+    "collections/runtime_dual_indexed_guard_compare_exit",
+    "collections/runtime_cross_array_indexed_guard_compare_exit",
+    "collections/runtime_dual_indexed_guard_equality_exit",
+    "collections/runtime_dual_indexed_copy_exit",
+    "collections/runtime_dual_indexed_copy_in_loop_exit",
+    "collections/runtime_indexed_write_frame_local_source_exit",
+    "collections/runtime_indexed_local_copy_chain_exit",
+    "collections/runtime_inplace_reverse_local_temp_exit",
+    "control_flow/runtime_captured_local_swap_exit",
+    "calls/runtime_same_type_contained_direct_fields_exit",
+    "calls/runtime_shared_ref_param_member_exit",
+    "collections/runtime_palindrome_two_pointer_exit",
+    "collections/runtime_bracket_matcher_stack_exit",
+    "collections/runtime_argmax_index_exit",
+    "control_flow/runtime_sum_field_store_payload_exit",
     "concurrency/runtime_spawn_interleaved_join_exit",
     "concurrency/runtime_spawn_join_moved_arg_exit",
     "concurrency/runtime_spawn_struct_result_exit",
@@ -12741,6 +20821,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/composite_range_guard_dispatch",
     "control_flow/no_payload_case_variant_after_payload_dispatch_exit",
     "control_flow/case_payload_shared_field_name_exit",
+    "control_flow/sum_mixed_width_payload_layout",
+    "control_flow/sum_field_storage_roundtrip",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
     "control_flow/runtime_straight_line_terminal_local_exit",
@@ -12875,10 +20957,30 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_nested_branch_value",
     "slices/runtime_dispatch_mutable_slice_element_write_compile",
     "slices/runtime_dispatch_mutable_slice_element_write_exit",
+    "slices/runtime_array_indexed_read_exit",
+    "slices/runtime_array_indexed_loop_exit",
+    "slices/runtime_decreasing_index_exit",
+    "slices/runtime_slice_indexed_read_exit",
+    "slices/runtime_array_adjacent_index_exit",
+    "slices/runtime_nested_decreasing_index_exit",
+    "slices/runtime_narrow_widen_cast_exit",
+    "slices/runtime_signed_index_guarded_exit",
+    "slices/runtime_two_pointer_sum_exit",
+    "slices/runtime_two_pointer_reverse_exit",
+    "slices/runtime_branched_index_bound_exit",
+    "slices/runtime_indexed_array_write_exit",
     "arithmetic/runtime_modulo_value",
     "arithmetic/runtime_modulo_div_narrowing_exit",
+    "arithmetic/runtime_nested_payload_range_narrowing_exit",
+    "arithmetic/runtime_guard_proven_counter_exit",
+    "arithmetic/runtime_guard_narrowed_transition_arg_exit",
+    "arithmetic/runtime_trapping_overflow_traps",
+    "arithmetic/runtime_saturating_domain_exit",
+    "arithmetic/runtime_fnv1a_hash_exit",
     "arithmetic/runtime_min_max_clamp_narrowing_exit",
     "arithmetic/runtime_transition_arg_guard_narrowing_exit",
+    "arithmetic/runtime_transition_value_guard_narrowing_exit",
+    "arithmetic/runtime_requires_one_sided_bound_exit",
     "arithmetic/runtime_transition_arg_false_arm_narrowing_exit",
     "arithmetic/runtime_transition_arg_saturating_exit",
     "arithmetic/runtime_cast_element_accumulator_exit",
@@ -12947,6 +21049,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "slices/runtime_slice_index_copy_exit",
     "slices/runtime_slice_index_read_dispatch_exit",
     "slices/runtime_slice_index_read_exit",
+    "slices/runtime_indexed_read_operand_exit",
     "slices/runtime_subslice_len_exit",
     "slices/runtime_machine_field_subslice_arg_index_exit",
     "slices/recursive_subslice_element_accumulator_exit",
@@ -12972,6 +21075,17 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/std_option_storage_write",
     "collections/std_option_surface",
     "collections/runtime_fixed_vec_round_trip_exit",
+    "collections/runtime_write_first_loop_index_exit",
+    "collections/runtime_loop_counter_init_hoisted_exit",
+    "collections/runtime_nested_loop_fill_exit",
+    "collections/runtime_computed_array_fill_via_temp_exit",
+    "collections/runtime_computed_indexed_write_exit",
+    "collections/runtime_indexed_rmw_loop_exit",
+    "collections/runtime_indexed_reduction_loop_exit",
+    "collections/runtime_array_max_and_sum_exit",
+    "collections/runtime_indexed_guard_subject_exit",
+    "collections/runtime_array_min_max_builtin_exit",
+    "collections/runtime_dual_indexed_comparison_guard_exit",
     "core/array_core_surface",
     "core/fixed_vec_core_surface",
     "core/region_core_surface",
@@ -13018,7 +21132,17 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_i64_full_width_exit",
     "arithmetic/runtime_chained_field_mutation_exit",
     "arithmetic/runtime_copy_then_read_exit",
+    "arithmetic/const_fold_cast_signedness",
+    "arithmetic/wrapping_signed_divide_min_by_neg_one",
+    "arithmetic/saturating_signed_divide_min_by_neg_one",
+    "arithmetic/saturating_multiply_overflow_both_signs",
+    "arithmetic/f32_field_store_rounding",
+    "arithmetic/f32_transition_arg_rounding",
+    "arithmetic/int_transition_arg_width_wrap",
+    "arithmetic/array_element_write_width_domain",
+    "arithmetic/struct_literal_field_coercion",
     "arithmetic/runtime_signed_division_exit",
+    "arithmetic/runtime_shift_right_signedness",
     "arithmetic/runtime_unsigned_division_exit",
     "arithmetic/runtime_min_max_signedness_exit",
     "arithmetic/runtime_comparison_value_signedness_exit",
@@ -13032,12 +21156,19 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/runtime_float_place_comparison_exit",
     "expressions/runtime_numeric_cast_exit",
     "calls/runtime_value_position_branching_call_exit",
+    "calls/runtime_value_call_let_combine_exit",
+    "structs/runtime_nested_field_accumulate_loop_exit",
+    "structs/runtime_enum_classify_dispatch_exit",
     "calls/runtime_value_transition_unsigned_guard_exit",
     "calls/runtime_exit_code_exit",
     "calls/value_call_sequential_result_slots_exit",
     "calls/value_call_sequential_self_capture_exit",
     "operators/integer_literal_suffix_exit",
     "operators/runtime_shift_operators_exit",
+    "operators/runtime_bitwise_operators_exit",
+    "operators/runtime_bitwise_guard_exit",
+    "operators/runtime_xorshift_prng_exit",
+    "operators/runtime_popcount_loop_exit",
     "calls/free_standing_machine_helper_compile",
     "calls/typed_return_from_local_call_compile",
     "capabilities/boundary_trait_multiple_effects",
@@ -13096,6 +21227,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/arithmetic_domain_saturating_signed_exit",
     "expressions/arithmetic_domain_trapping_exit",
     "expressions/arithmetic_domain_trapping_overflow",
+    "expressions/arithmetic_domain_trapping_let_overflow",
     "expressions/arithmetic_domain_cast_exit",
     "expressions/arithmetic_domain_range_proven_exact_exit",
     "expressions/arithmetic_domain_requires_proven_exact_exit",
@@ -13116,10 +21248,20 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "generics/generic_trait_type_param",
     "generics/generic_type_param_in_state",
     "generics/machine_bound_satisfied_at_call",
-    "generics/machine_bound_satisfied_at_value_call",
     "generics/property_bound_type_parameter",
+    "generics/runtime_generic_record_instance_exit",
+    "generics/runtime_generic_two_instantiations_exit",
+    "generics/runtime_generic_enum_payload_exit",
+    "generics/runtime_generic_value_call_exit",
+    "generics/runtime_generic_value_call_agreeing_exit",
+    "generics/runtime_generic_param_position_inference_exit",
+    "host/runtime_tick_count_monotonic_exit",
+    "host/runtime_user32_key_state_exit",
+    "host/runtime_tick_paced_marquee_exit",
+    "host/runtime_gui_memory_dc_blit_exit",
+    "host/runtime_gui_window_blit_exit",
+    "host/runtime_gui_window_lifecycle_exit",
     "inline_asm/asm_block_jmp_state",
-    "memory/abi_calling_convention_machine",
     "memory/repr_native_stable_layout",
     "modules/use_imports_sibling_data",
     "modules/use_imports_sibling_trait",
@@ -13193,14 +21335,96 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 ];
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
+    "data/recursive_data_infinite_size",
+    "data/fixed_array_too_large",
+    "data/struct_literal_duplicate_field_rejected",
+    "data/struct_literal_primitive_type_rejected",
+    "data/struct_literal_unknown_type_rejected",
+    "data/struct_literal_wrong_data_type_rejected",
+    "data/nested_array_literal_inner_length_rejected",
+    "data/array_scalar_shape_mismatch_rejected",
+    "data/array_return_shape_mismatch_rejected",
+    "data/construction_field_shape_mismatch_rejected",
+    "expressions/match_duplicate_pattern_rejected",
+    "expressions/primitive_member_access_rejected",
+    "expressions/cross_class_binary_operands_rejected",
+    "expressions/float_bitwise_rejected",
+    "expressions/logical_not_non_bool_rejected",
+    "expressions/number_to_bool_cast_rejected",
+    "expressions/text_arithmetic_operator_rejected",
+    "expressions/text_ordering_operator_rejected",
+    "expressions/text_string_index_rejected",
+    "expressions/text_string_index_write_rejected",
+    "expressions/cast_text_to_number_rejected",
+    "expressions/cast_struct_to_number_rejected",
+    "expressions/cast_array_to_number_rejected",
+    "expressions/cross_type_equality_rejected",
+    "expressions/array_equality_rejected",
+    "expressions/scalar_into_data_field_rejected",
+    "expressions/out_of_range_comparison_literal_rejected",
+    "expressions/cross_enum_case_comparison_rejected",
+    "expressions/cross_enum_case_membership_rejected",
+    "expressions/mismatched_width_comparison_rejected",
+    "expressions/mismatched_width_bitwise_rejected",
+    "expressions/bool_numeric_operand_mixing_rejected",
+    "expressions/non_bool_logical_operand_rejected",
+    "expressions/array_operator_rejected",
+    "expressions/struct_operator_undeclared_rejected",
+    "calls/value_call_wrong_argument_count_rejected",
+    "expressions/cast_to_non_scalar_type_rejected",
+    "constraints/inverted_range_rejected",
+    "parser/nesting_exceeds_max_depth",
+    "arithmetic/divide_by_zero_rejected",
+    "arithmetic/modulo_by_zero_rejected",
+    "arithmetic/bool_arithmetic_into_bool_rejected",
+    "arithmetic/bitwise_numeric_into_bool_rejected",
+    "arithmetic/undeclared_bare_name_rejected",
+    "arithmetic/indexed_element_class_rejected",
+    "arithmetic/indexed_element_narrowing_rejected",
+    "arithmetic/array_literal_too_few_rejected",
+    "arithmetic/array_literal_too_many_rejected",
+    "arithmetic/field_default_class_rejected",
+    "arithmetic/field_default_narrowing_rejected",
+    "text/bounded_carrier_construction_over_capacity_rejected",
+    "collections/nested_runtime_indexed_read_rejected",
+    "collections/nested_runtime_indexed_struct_field_read_rejected",
+    "collections/nested_runtime_indexed_struct_field_write_rejected",
+    "collections/deep_nested_runtime_indexed_write_rejected",
+    "layouts/plan_laid_dynamic_plan",
+    "layouts/plan_laid_policy_without_plan_machine",
+    "control_flow/if_statement_retired",
+    "control_flow/transition_fall_through_bool",
+    "control_flow/transition_fall_through_value_match",
+    "calls/abs_call_argument_rejected",
+    "build/build_machine_wrong_arity",
+    "boundary/entry_typed_params_unmarked",
+    "boundary/boundary_entry_too_many_params",
+    "wire/decode_into_ranged_field",
+    "wire/encode_wire_spelling_renamed",
+    "wire/decode_verdict_must_be_enum",
+    "wire/layout_domain_on_stored_bytes",
+    "wire/layout_domain_grammar_not_implemented",
+    "wire/layout_domain_unnumbered_schema",
+    "wire/layout_domain_on_non_bytes",
+    "wire/wire_data_form_retired",
+    "wire/reserved_spelling_retired",
+    "wire/unnumbered_field_in_numbered_data",
     "expressions/arithmetic_domain_mixed",
     "expressions/nested_i32_mul_overflow",
     "arithmetic/removed_range_constraint_syntax",
     "arithmetic/construction_payload_out_of_range",
     "arithmetic/unconstrained_payload_arithmetic",
     "arithmetic/bounded_assignment_unproven",
+    "arithmetic/nested_field_exact_overflow_rejected",
+    "arithmetic/zii_range_excludes_zero_rejected",
+    "arithmetic/guard_invalidated_by_prior_write_rejected",
     "arithmetic/struct_field_arithmetic_unproven",
     "arithmetic/transition_arg_unguarded_overflow",
+    "arithmetic/narrowing_literal_wider_than_target",
+    "arithmetic/narrowing_wide_local_unproven",
+    "arithmetic/narrowing_signedness_rejected",
+    "capabilities/host_provides_unknown_binding",
+    "wire/wire_policy_plan_disagrees",
     "domains/type_constraint_unknown_domain",
     "domains/domain_carrier_mismatch",
     "domains/domain_param_requires_membership",
@@ -13249,6 +21473,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/property_unknown",
     "data/property_zero_init_nonzero_default",
     "generics/colon_bound_rejected",
+    "generics/machine_bound_satisfied_value_call_fenced",
     "generics/machine_bound_value_call_unchecked",
     "generics/machine_bound_violated_at_call",
     "generics/property_bound_missing_on_field",
@@ -13316,6 +21541,13 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "slices/invalid_fixed_array_literal_index_unchecked",
     "slices/known_length_dynamic_index_unproven",
     "slices/machine_field_index_reassigned_unproven",
+    "ranges/loop_increment_index_unbounded",
+    "ranges/loop_body_resets_index",
+    "ranges/loop_init_exceeds_capacity",
+    "ranges/index_join_unbounded_arm",
+    "ranges/index_read_after_increment_oob",
+    "ranges/index_read_after_decrement_negative",
+    "ranges/index_signed_guard_below_zero",
     "slices/invalid_slice_folded_index_unchecked",
     "slices/invalid_slice_local_index_unchecked",
     "slices/invalid_subslice_folded_bounds_unchecked",
@@ -13367,6 +21599,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "operators/app_package_provider_rejected",
     "operators/unregistered_provider_binding",
     "calls/runtime_helper_ordering_return",
+    "traits/runtime_dyn_varying_field_rejected",
     "traits/equatable_missing_conformance_suggested",
     "traits/equatable_field_not_equatable",
     "traits/equatable_recursive_type",
@@ -13384,6 +21617,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "termination/subtraction_spelling_retired",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/terminal_return_type_mismatch_rejected",
+    "calls/shared_value_call_slot_rejected",
+    "collections/write_first_loop_bound_exceeds_capacity",
     "capabilities/duplicate_provider_declaration",
     "capabilities/effect_ceiling_exceeded",
     "capabilities/effect_outside_trait_requirement",

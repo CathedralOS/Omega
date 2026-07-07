@@ -43,6 +43,7 @@ fn operation_kinds_expose_runtime_storage_domains() {
         target_region: RuntimeStorageRegion::RuntimeFrame,
         target_offset: 0,
         byte_capacity: 64,
+        is_bounded_buffer: false,
     };
 
     assert_eq!(

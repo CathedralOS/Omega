@@ -1,0 +1,132 @@
+// Shortest-path pathfinding on a GRID maze by BFS -- the basis of game navigation and
+// route-finding, and distinct from runtime_bfs_traversal_exit (which used an explicit
+// adjacency matrix): here the graph is IMPLICIT, the four grid neighbours of each open
+// cell. A 5x5 maze (1 = wall) with a snaking corridor; BFS from the top-left cell records
+// the shortest distance to every reachable cell. Each cell's row/col come from the flat
+// index (c/5, c%5); the four moves are offset pairs in dr/dc looped over, the neighbour's
+// flat index is formed into a field, and its wall/dist values are read into fields before
+// being guard subjects (the documented computed-index / indexed-read workarounds). The
+// shortest distance from cell 0 to cell 24 is exactly 16 (verified against a reference
+// BFS). Exits 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    wall: [i32; 25] in Wrapping;  // 5x5, 1 = wall
+    dist: [i32; 25] in Wrapping;  // BFS distance, -1 = unvisited
+    queue: [i32; 32] in Wrapping;
+    dr: [i32; 4] in Wrapping;     // row offsets: up, down, left, right
+    dc: [i32; 4] in Wrapping;     // col offsets
+    head: i32 in Wrapping;
+    tail: i32 in Wrapping;
+    count: i32 in Wrapping;
+    c: i32 in Wrapping;           // dequeued cell
+    row: i32 in Wrapping;
+    col: i32 in Wrapping;
+    d: i32 in Wrapping;           // direction index
+    ddr: i32 in Wrapping;
+    ddc: i32 in Wrapping;
+    nr: i32 in Wrapping;          // neighbour row
+    nc: i32 in Wrapping;          // neighbour col
+    ncell: i32 in Wrapping;       // neighbour flat index
+    w: i32 in Wrapping;           // wall[ncell]
+    dn: i32 in Wrapping;          // dist[ncell]
+    cd: i32 in Wrapping;          // dist[c]
+    nd: i32 in Wrapping;          // cd + 1
+    r24: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.wall = [0, 0, 0, 0, 0,  1, 1, 1, 1, 0,  0, 0, 0, 0, 0,  0, 1, 1, 1, 1,  0, 0, 0, 0, 0];
+    self.dist = [0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,
+                 0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,  0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1,
+                 0 - 1, 0 - 1, 0 - 1, 0 - 1, 0 - 1];
+    self.queue = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    self.dr = [0 - 1, 1, 0, 0];
+    self.dc = [0, 0, 0 - 1, 1];
+    self.dist[0] = 0;
+    self.queue[0] = 0;
+    self.head = 0;
+    self.tail = 1;
+    self.count = 1;
+    transition { _ -> bfs_loop() }
+
+    state bfs_loop(&mut self) {
+        transition self.count > 0 { true -> deq() _ -> verify() }
+    }
+    state deq(&mut self) {
+        transition self.head >= 0 && self.head < 32 { true -> deq_read() _ -> bad() }
+    }
+    state deq_read(&mut self) {
+        self.c = self.queue[self.head];
+        self.head = self.head + 1;
+        self.count = self.count - 1;
+        self.row = self.c / 5;
+        self.col = self.c % 5;
+        self.d = 0;
+        transition { _ -> dir_loop() }
+    }
+    // try each of the four grid neighbours
+    state dir_loop(&mut self) {
+        transition self.d >= 0 && self.d < 4 { true -> dir_read() _ -> bfs_loop() }
+    }
+    state dir_read(&mut self) {
+        self.ddr = self.dr[self.d];
+        self.ddc = self.dc[self.d];
+        self.nr = self.row + self.ddr;
+        self.nc = self.col + self.ddc;
+        transition self.nr >= 0 && self.nr < 5 && self.nc >= 0 && self.nc < 5 {
+            true -> nbr_cell()
+            _ -> next_d()
+        }
+    }
+    state nbr_cell(&mut self) {
+        self.ncell = self.nr * 5 + self.nc;
+        transition self.ncell >= 0 && self.ncell < 25 { true -> nbr_wall() _ -> bad() }
+    }
+    state nbr_wall(&mut self) {
+        self.w = self.wall[self.ncell];
+        transition self.w == 0 { true -> nbr_vis() _ -> next_d() }
+    }
+    state nbr_vis(&mut self) {
+        self.dn = self.dist[self.ncell];
+        transition self.dn < 0 { true -> visit_guard() _ -> next_d() }
+    }
+    state visit_guard(&mut self) {
+        transition self.c >= 0 && self.c < 25 && self.ncell >= 0 && self.ncell < 25
+            && self.tail >= 0 && self.tail < 32 {
+            true -> do_visit()
+            _ -> bad()
+        }
+    }
+    state do_visit(&mut self) {
+        self.cd = self.dist[self.c];
+        self.nd = self.cd + 1;
+        self.dist[self.ncell] = self.nd;
+        self.queue[self.tail] = self.ncell;
+        self.tail = self.tail + 1;
+        self.count = self.count + 1;
+        transition { _ -> next_d() }
+    }
+    state next_d(&mut self) {
+        self.d = self.d + 1;
+        transition { _ -> dir_loop() }
+    }
+
+    state verify(&mut self) {
+        self.r24 = self.dist[24];
+        transition self.r24 == 16 { true -> good() _ -> wrong() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(self.r24); // surface the wrong distance
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

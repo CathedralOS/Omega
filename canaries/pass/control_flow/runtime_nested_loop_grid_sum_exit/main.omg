@@ -1,0 +1,70 @@
+// A genuine NESTED loop: an outer self-transition loop over `i` (0..3) and an inner one over `j`
+// (0..3), each modeled as its own state, accumulating `i*3 + j` into a running sum. Over the 3x3
+// grid that sums 0+1+2+...+8 = 36. Exercises nested control flow (outer -> inner_init -> inner ->
+// body -> back to inner -> next_i -> back to outer), the inner counter reset per outer iteration,
+// and field arithmetic accumulation. Discriminating: a miscounted loop or a dropped reset changes
+// the sum. Exit 70 iff sum == 36.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    i: i32 in Wrapping;
+    j: i32 in Wrapping;
+    k: i32 in Wrapping;
+    sum: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.i = 0;
+    self.sum = 0;
+    transition {
+        _ -> outer()
+    }
+    state outer(&mut self) {
+        transition self.i < 3 {
+            true -> inner_init()
+            _ -> done()
+        }
+    }
+    state inner_init(&mut self) {
+        self.j = 0;
+        transition {
+            _ -> inner()
+        }
+    }
+    state inner(&mut self) {
+        transition self.j < 3 {
+            true -> body()
+            _ -> next_i()
+        }
+    }
+    state body(&mut self) {
+        self.k = self.i * 3;
+        self.k = self.k + self.j;
+        self.sum = self.sum + self.k;
+        self.j = self.j + 1;
+        transition {
+            _ -> inner()
+        }
+    }
+    state next_i(&mut self) {
+        self.i = self.i + 1;
+        transition {
+            _ -> outer()
+        }
+    }
+    state done(&mut self) {
+        transition self.sum == 36 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(self.sum);
+    }
+}

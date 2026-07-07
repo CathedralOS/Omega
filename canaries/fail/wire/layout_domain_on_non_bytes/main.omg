@@ -1,0 +1,18 @@
+// LAYOUTS L5: an OmegaLayout refinement lives on an owned byte carrier;
+// refining a scalar with a wire-format domain is a category error.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data CounterMessage {
+    0: counter: u32;
+}
+
+data Main {
+    console: Console;
+    slot: i64 in OmegaLayout<CounterMessage>;
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

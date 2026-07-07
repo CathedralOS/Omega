@@ -1,0 +1,44 @@
+// The DUAL runtime-indexed copy IN A LOOP -- `a[i] = b[i]` element-wise (task
+// #38, the cross-array + loop face). Previously the classifier fenced it (the
+// static-assignment fast path used to resolve `b[i]` to the array base and
+// silently NO-OP); the copy now lowers through
+// CopyRuntimeMachineIndexedToRuntimeMachineIndexed. b=[10,20,40] copies into
+// a=[0,0,0]; the sum of a afterwards is 70 (a no-op loop exits 0).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: [i32; 3] in Wrapping;
+    b: [i32; 3] in Wrapping;
+    i: i32 in Wrapping;
+    s: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.b = [10, 20, 40];
+    self.a = [0, 0, 0];
+    self.i = 0;
+    transition {
+        _ -> step()
+    }
+    state step(&mut self) {
+        transition self.i < 3 {
+            true -> copy()
+            _ -> done()
+        }
+    }
+    state copy(&mut self) {
+        self.a[self.i] = self.b[self.i];
+        self.i = self.i + 1;
+        transition {
+            _ -> step()
+        }
+    }
+    state done(&mut self) {
+        self.s = self.a[0] + self.a[1];
+        self.s = self.s + self.a[2];
+        self.console.exit_process(self.s);
+    }
+}

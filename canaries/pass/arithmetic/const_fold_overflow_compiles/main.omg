@@ -1,0 +1,14 @@
+// Const-folding arithmetic that overflows i64 (`9e18 + 9e18` add, `4e9 * 4e9`
+// multiply, `(1 << 63) / -1` division) used to PANIC the compiler ("attempt to
+// add/multiply/divide with overflow", omega-state-values folder). The folder now uses
+// wrapping arithmetic so it computes a value instead of crashing (overflow into an
+// EXACT domain is caught earlier by decision-17). Exits a fixed 0, robust to the
+// wrapped values.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: i64 in Wrapping; b: i64 in Wrapping; c: i64 in Wrapping; }
+machine Main::main(&mut self) {
+    self.a = 9000000000000000000 + 9000000000000000000; // add overflow
+    self.b = 4000000000 * 4000000000;                   // multiply overflow
+    self.c = (1 << 63) / -1;                             // i64::MIN / -1 division overflow
+    self.console.exit_process(0);
+}

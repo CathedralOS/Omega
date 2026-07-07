@@ -1,0 +1,23 @@
+// THE STRUCT-SHAPED HANDOFF (ladder step 3, BOOT-VERIFIED 2026-07-04): a
+// BOUNDARY entry whose sole parameter is a multi-word struct receives the
+// platform's argument registers SPREAD across its 8-byte chunks -- the
+// boundary declaration IS the shape over the arrival bytes (RCX ->
+// handoff.handle @ +0, RDX -> handoff.table @ +8; per the settled
+// exported-callable model, NOT general MS-x64 aggregate passing). Under
+// QEMU/OVMF this program returned 5 ("Warning Stale Data"): firmware's
+// nonzero ImageHandle arrived through the struct field. The suite test pins
+// the spread prologue's bytes; the image facts come from build.omg.
+data EfiHandoff {
+    handle: addr;
+    table: addr;
+}
+data Main { h: addr; }
+boundary machine Main::run(&self, handoff: EfiHandoff) -> i32 {
+    self.h = handoff.handle;
+    transition self.h == 0 {
+        true -> was_zero()
+        false -> was_set()
+    }
+    state was_zero(&self) -> i32 { transition { _ -> (4) } }
+    state was_set(&self) -> i32 { transition { _ -> (5) } }
+}

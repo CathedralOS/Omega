@@ -1,0 +1,13 @@
+// Comparing an integer value against a literal outside its type's range silently
+// TRUNCATED the literal to the operand width: `self.b == 300` for a `u8` compiled
+// to `b == (300 & 0xFF) == 44` and ran the TRUE arm for b == 44 -- a confirmed
+// miscompile. Rejected at check now (decision-17 narrowing sibling for comparison
+// operands). In-range comparisons (`b == 200`, `n == 300` for i32) stay valid.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; b: u8; }
+machine Main::main(&mut self) {
+    self.b = 44;
+    transition self.b == 300 { true -> hit() _ -> miss() }
+    state hit(&mut self) { self.console.exit_process(1); }
+    state miss(&mut self) { self.console.exit_process(2); }
+}

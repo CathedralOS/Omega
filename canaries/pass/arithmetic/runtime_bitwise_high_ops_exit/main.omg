@@ -1,0 +1,36 @@
+// Bitwise operations on u32 at HIGH values (above i32::MAX) -- the building blocks of hashing,
+// flags, and bit-field extraction, where the full 32-bit width and the high bit must be handled.
+// a = 0xF0F0F0F0 (4042322160), b = 0x0F0F0F0F (252645135):
+//   a ^ b == 0xFFFFFFFF,  a & b == 0,  a | b == 0xFFFFFFFF,
+//   (a >> 28) & 0xF == 0xF (top-nibble extract),  a ^ 0xFFFFFFFF == 0x0F0F0F0F (bitwise NOT via XOR).
+// Each is chained; exits 70 iff all hold.
+//
+// NOTE: `~` (unary bitwise NOT) is not a recognized operator ("unsupported punctuation"); the XOR
+// with an all-ones mask shown here is the equivalent and is what this canary uses.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: u32 in Wrapping;
+    b: u32 in Wrapping;
+    x: u32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.a = 4042322160;
+    self.b = 252645135;
+    self.x = self.a ^ self.b;
+    transition self.x == 4294967295 { true -> b_and() _ -> bad() }
+    state b_and(&mut self) { self.x = self.a & self.b; transition self.x == 0 { true -> b_or() _ -> bad() } }
+    state b_or(&mut self) { self.x = self.a | self.b; transition self.x == 4294967295 { true -> b_ext() _ -> bad() } }
+    state b_ext(&mut self) {
+        self.x = self.a >> 28;
+        self.x = self.x & 15;
+        transition self.x == 15 { true -> b_not() _ -> bad() }
+    }
+    state b_not(&mut self) { self.x = self.a ^ 4294967295; transition self.x == 252645135 { true -> ok() _ -> bad() } }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

@@ -39,7 +39,8 @@ use crate::state_signatures::{
     StateSignatureOwner, validate_callable_state_signatures, validate_machine_contracts,
     validate_machine_effects,
 };
-use crate::symbols::{MachineSymbols, TopLevelSymbols};
+use crate::symbols::MachineSymbols;
+pub use crate::symbols::TopLevelSymbols;
 use crate::traits::{
     validate_data_conformances, validate_machine_trait_conformances, validate_trait_requirements,
 };
@@ -49,6 +50,12 @@ pub use effects::validate_effect_plan;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
+/// The declared type of a simple place argument (bare name / `self.field`,
+/// through the `&mut` marker), WITH its Constrained shells -- exposed for the
+/// typed-trees machine-monomorphization pass's param-position inference.
+pub use places::declared_place_type_raw;
+pub use places::unwrapped_type_reference;
+pub use properties::{declared_property_names, type_satisfies_declared_property};
 
 pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
@@ -61,6 +68,7 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     validate_trait_requirements(program, &mut diagnostics);
     validate_data_conformances(program, &symbols, &mut diagnostics);
     validate_data_field_types(program, &symbols, &mut diagnostics);
+    data::validate_zero_reachable_field_ranges(program, &mut diagnostics);
     properties::validate_data_properties(program, &symbols, &mut diagnostics);
     // Bare-payload-case `==` (decision 11) is checked on the RESOLVED trees,
     // before membership lowering synthesizes its internal tag compares; see
@@ -109,6 +117,25 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 arithmetic_domains::ValueEnv::new()
             };
             for statement in program.statement_table.statements(state.statement_nodes) {
+                // VALUE-position calls inside this statement's expression trees
+                // (LocalData initializers, transition arguments, guard subjects,
+                // etc.) are not reached by `validate_state_statement_node`; run
+                // their bound + argument checks here, BEFORE the statement records
+                // its own effects, so the flow-sensitive `value_env` reflects the
+                // state in which the arguments are actually evaluated (a narrowing
+                // arg like `self.take_i8(self.big)` is judged against `big`'s
+                // pre-statement interval).
+                validate_value_position_calls(
+                    program,
+                    machine,
+                    state,
+                    statement,
+                    &machine_symbols,
+                    &symbols,
+                    &writable_roots,
+                    &value_env,
+                    &mut diagnostics,
+                );
                 validate_state_statement_node(
                     program,
                     machine,
@@ -121,20 +148,6 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     &mut diagnostics,
                 );
             }
-
-            // VALUE-position calls inside expression trees (LocalData
-            // initializers, transition arguments, guard subjects, etc.)
-            // are not reached by `validate_state_statement_node`; run the
-            // bound check for them separately.
-            validate_value_position_calls(
-                program,
-                machine,
-                state,
-                &machine_symbols,
-                &symbols,
-                &writable_roots,
-                &mut diagnostics,
-            );
         }
     }
 
@@ -164,26 +177,137 @@ fn validate_state_statement_node(
                 assignment.target,
                 writable_roots,
                 diagnostics,
-                machine.name.as_str(),
+                machine,
                 state_name,
             );
-            let assignment_target_primitive = places::declared_place_type(
+            // Indexing the `String` carrier as an assignment TARGET (`s[i] = x`) is
+            // the write complement of the read rejection in `scan_expression_calls`:
+            // an indexed `String` resolves to no element type, so every store check
+            // below skips it and the write silently no-ops / corrupts. Same shared
+            // helper, `is_write = true`.
+            expression_types::report_string_index_access(
+                program,
+                machine,
+                machine_symbols.state(state_name),
+                assignment.target,
+                true,
+                diagnostics,
+            );
+            let assignment_target_type = places::declared_place_type(
                 program,
                 machine,
                 machine_symbols.state(state_name),
                 assignment.target,
             )
-            .and_then(|handle| program.primitive_type_reference(handle));
-            let interval = arithmetic_domains::validate_arithmetic_domains(
+            // An indexed target (`self.xs[i] = ..`) has no member path, so
+            // `declared_place_type` returns None -- fall back to the array/slice
+            // ELEMENT type so the store checks below see the real slot type.
+            .or_else(|| {
+                places::declared_indexed_element_type(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    assignment.target,
+                )
+            });
+            let assignment_target_primitive =
+                assignment_target_type.and_then(|handle| program.primitive_type_reference(handle));
+            // An array-literal RHS into a `[T; N]` target: check each element's
+            // class + narrowing against T. The scalar guards below skip a non-
+            // primitive (array) target, so this is the element-level complement.
+            if let Some(current_state) = machine_symbols.state(state_name)
+                && let Some(target_type) = assignment_target_type
+            {
+                struct_literals::validate_array_literal_elements(
+                    program,
+                    machine,
+                    current_state,
+                    assignment.value,
+                    target_type,
+                    diagnostics,
+                );
+            }
+            let owner = format!("machine `{}` state `{state_name}` assignment", machine.name);
+            // Cross-class scalar guard: `self.i32 = true` (a bool into a numeric
+            // field) is a soundness hole -- the backend silently stores `1` --
+            // whether the bool arrives as a literal or through a `self.bool_field`
+            // place. Reject the unambiguous cross-class cases before value-range
+            // analysis (which assumes a class-compatible RHS).
+            if let Some(target_primitive) = assignment_target_primitive {
+                expression_types::report_cross_class_store(
+                    program,
+                    Some(machine),
+                    machine_symbols.state(state_name),
+                    assignment.value,
+                    target_primitive,
+                    &owner,
+                    "place",
+                    diagnostics,
+                );
+            }
+            // Nominal guard: `self.foo = self.bar` (a `Bar` value into a `Foo` place)
+            // is silently accepted -- the wrong-data-type complement of the scalar
+            // guard above.
+            if let Some(target_type) = assignment_target_type {
+                expression_types::report_data_type_conflict(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    assignment.value,
+                    target_type,
+                    &owner,
+                    "place",
+                    diagnostics,
+                );
+                // Shape guard: `self.scalar = self.xs` (array into a scalar place) --
+                // caught by the backend today (a crude `NeedsMachineOwnedWrite`); this
+                // gives a clear frontend message and covers the mirror.
+                expression_types::report_array_scalar_shape_mismatch(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    assignment.value,
+                    target_type,
+                    &owner,
+                    "place",
+                    diagnostics,
+                );
+                // Scalar-vs-data shape guard: `self.struct_field = 5` / `self.scalar
+                // = self.struct` (a scalar into a struct slot or the mirror), between
+                // the scalar-class and nominal gates.
+                expression_types::report_scalar_data_shape_mismatch(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    assignment.value,
+                    target_type,
+                    &owner,
+                    "place",
+                    diagnostics,
+                );
+            }
+            let before = diagnostics.len();
+            let (interval, source_primitive) = arithmetic_domains::validate_value_range(
                 program,
                 machine,
                 machine_symbols.state(state_name),
                 assignment.value,
                 value_env,
                 assignment_target_primitive,
-                &format!("machine `{}` state `{state_name}` assignment", machine.name),
+                &owner,
                 diagnostics,
             );
+            // Only a CLEANLY-analyzed RHS reaches the narrowing check -- an RHS that
+            // already erred (its own overflow, a type error) is not re-flagged.
+            if diagnostics.len() == before {
+                arithmetic_domains::check_narrowing_assignment(
+                    assignment_target_primitive,
+                    interval,
+                    source_primitive,
+                    &owner,
+                    diagnostics,
+                );
+            }
             arithmetic_domains::record_assignment(
                 value_env,
                 arithmetic_domains::place_path(program, assignment.target),
@@ -199,6 +323,7 @@ fn validate_state_statement_node(
                 machine_symbols,
                 symbols,
                 writable_roots,
+                value_env,
                 diagnostics,
             );
             // A call may mutate fields through `&mut`, so the linear value
@@ -219,6 +344,7 @@ fn validate_state_statement_node(
                 return;
             }
 
+            let shape_before = diagnostics.len();
             validate_expression_type_handle(
                 program,
                 *expression,
@@ -233,16 +359,81 @@ fn validate_state_statement_node(
                 "machine `{}` state `{state_name}` terminal expression",
                 machine.name
             );
-            let return_interval = arithmetic_domains::validate_arithmetic_domains(
+            let return_primitive = program.primitive_type_reference(state.return_type);
+            // The shape gate above rejects a cross-class LITERAL terminal return
+            // (`-> i32 { true }`) but blanket-accepts place/name values, so a bool
+            // FIELD returned from an `-> i32` machine slips. Add the class check for
+            // those -- only when the shape gate did not already error, so a literal
+            // is not double-reported.
+            if diagnostics.len() == shape_before {
+                let slot_context = format!("machine `{}` state `{state_name}`", machine.name);
+                if let Some(target_primitive) = return_primitive {
+                    expression_types::report_cross_class_store(
+                        program,
+                        Some(machine),
+                        Some(state),
+                        *expression,
+                        target_primitive,
+                        &slot_context,
+                        "return value",
+                        diagnostics,
+                    );
+                }
+                // Nominal guard: `-> Foo { self.bar }` returns a `Bar` as a `Foo`.
+                expression_types::report_data_type_conflict(
+                    program,
+                    machine,
+                    Some(state),
+                    *expression,
+                    state.return_type,
+                    &slot_context,
+                    "return value",
+                    diagnostics,
+                );
+                // Shape guard: `-> i32 { self.xs }` returns an array as a scalar.
+                expression_types::report_array_scalar_shape_mismatch(
+                    program,
+                    machine,
+                    Some(state),
+                    *expression,
+                    state.return_type,
+                    &slot_context,
+                    "return value",
+                    diagnostics,
+                );
+                expression_types::report_scalar_data_shape_mismatch(
+                    program,
+                    machine,
+                    Some(state),
+                    *expression,
+                    state.return_type,
+                    &slot_context,
+                    "return value",
+                    diagnostics,
+                );
+            }
+            let before = diagnostics.len();
+            let (return_interval, source_primitive) = arithmetic_domains::validate_value_range(
                 program,
                 machine,
                 Some(state),
                 *expression,
                 value_env,
-                program.primitive_type_reference(state.return_type),
+                return_primitive,
                 &owner,
                 diagnostics,
             );
+            // A cleanly-analyzed return value that cannot fit the declared return
+            // type is a silent narrowing (`-> i8 { 300 }`), same as a store.
+            if diagnostics.len() == before {
+                arithmetic_domains::check_narrowing_assignment(
+                    return_primitive,
+                    return_interval,
+                    source_primitive,
+                    &owner,
+                    diagnostics,
+                );
+            }
             // S4: enforce a declared return `[a..=b]` so call-site narrowing
             // that trusts it stays sound (the interval is already computed above).
             arithmetic_domains::enforce_declared_return_range(
@@ -266,20 +457,103 @@ fn validate_state_statement_node(
                     generic_depth: 0,
                 },
             );
-            let interval = arithmetic_domains::validate_arithmetic_domains(
+            let local_target_primitive =
+                program.primitive_type_reference(local_data.type_reference);
+            // An array-literal initializer (`let a: [T; N] = [300, ..]`) is checked
+            // element-wise against T.
+            if let Some(current_state) = machine_symbols.state(state_name) {
+                struct_literals::validate_array_literal_elements(
+                    program,
+                    machine,
+                    current_state,
+                    local_data.initial_value,
+                    local_data.type_reference,
+                    diagnostics,
+                );
+            }
+            let owner = format!(
+                "machine `{}` state `{state_name}` local `{}`",
+                machine.name,
+                local_data.name.as_str()
+            );
+            // Cross-class guard: `let x: i32 = true` stores a bool into a numeric
+            // local -- a silent miscompile, same as the assignment / arg / field
+            // positions. Only an INITIALIZED `let` has a value to class-check (a
+            // bare `let x: bool;` filled later by an `&mut` out-param has an invalid
+            // initializer). (Narrowing on the initializer is checked below.)
+            if local_data.initial_value.is_valid()
+                && let Some(target_primitive) = local_target_primitive
+            {
+                expression_types::report_cross_class_store(
+                    program,
+                    Some(machine),
+                    machine_symbols.state(state_name),
+                    local_data.initial_value,
+                    target_primitive,
+                    &owner,
+                    "local",
+                    diagnostics,
+                );
+            }
+            // Nominal guard: `let f: Foo = self.bar` binds a `Bar` value to a `Foo`
+            // local -- wrong data type. Only an initialized `let` has a value.
+            if local_data.initial_value.is_valid() {
+                expression_types::report_data_type_conflict(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    local_data.initial_value,
+                    local_data.type_reference,
+                    &owner,
+                    "local",
+                    diagnostics,
+                );
+                // Shape guard: `let y: i32 = self.xs` (array -> scalar) or
+                // `let xs: [i32; 3] = 5` (scalar -> array) otherwise bind a
+                // wrong-shaped value silently (the array case read a ZII 0).
+                expression_types::report_array_scalar_shape_mismatch(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    local_data.initial_value,
+                    local_data.type_reference,
+                    &owner,
+                    "local",
+                    diagnostics,
+                );
+                expression_types::report_scalar_data_shape_mismatch(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    local_data.initial_value,
+                    local_data.type_reference,
+                    &owner,
+                    "local",
+                    diagnostics,
+                );
+            }
+            let before = diagnostics.len();
+            let (interval, source_primitive) = arithmetic_domains::validate_value_range(
                 program,
                 machine,
                 machine_symbols.state(state_name),
                 local_data.initial_value,
                 value_env,
-                program.primitive_type_reference(local_data.type_reference),
-                &format!(
-                    "machine `{}` state `{state_name}` local `{}`",
-                    machine.name,
-                    local_data.name.as_str()
-                ),
+                local_target_primitive,
+                &owner,
                 diagnostics,
             );
+            // A cleanly-analyzed initializer whose value cannot fit the declared
+            // local type is a silent narrowing (`let x: i8 = 300`).
+            if local_data.initial_value.is_valid() && diagnostics.len() == before {
+                arithmetic_domains::check_narrowing_assignment(
+                    local_target_primitive,
+                    interval,
+                    source_primitive,
+                    &owner,
+                    diagnostics,
+                );
+            }
             if local_data.initial_value.is_valid() {
                 arithmetic_domains::record_assignment(
                     value_env,
@@ -291,6 +565,9 @@ fn validate_state_statement_node(
         StatementNode::Transition(transition) => {
             validate_transition_target_node(
                 program,
+                machine,
+                machine_symbols.state(state_name),
+                value_env,
                 transition.target,
                 machine_symbols,
                 symbols,
@@ -301,6 +578,9 @@ fn validate_state_statement_node(
             if transition.continuation.is_valid() {
                 validate_transition_target_node(
                     program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    value_env,
                     transition.continuation,
                     machine_symbols,
                     symbols,
@@ -309,10 +589,25 @@ fn validate_state_statement_node(
                 );
             }
 
-            // S4: a transition VALUE target (`_ -> (expr)`) is a return value. When
-            // the state's return type declares a `[a..=b]`, enforce the value
-            // is provably within it (so call-site narrowing that trusts the range
-            // is sound). Gated on the range constraint inside
+            // Decision 17 completeness: an arm fires only when its guard holds, so
+            // BOTH a value return (`n > 0 { true -> (n - 1) }`) and a call argument
+            // (`count_down(n - 1)`) may assume the guard's bound. Narrow the env by
+            // the arm's guard once, up front, for both. `guard_narrowed_env`
+            // intersects each bounded place with its type range (so a one-sided
+            // `n > 0` keeps the type's other end) and negates for the `false` arm,
+            // so an unguarded (or wrong-arm) decrement is still correctly rejected.
+            let narrowed = arithmetic_domains::guard_narrowed_env(
+                program,
+                machine,
+                machine_symbols.state(state_name),
+                &transition.guard,
+                value_env,
+            );
+
+            // A transition VALUE target (`_ -> (expr)`) is a return value. When the
+            // state's return type declares a `[a..=b]`, enforce the value is provably
+            // within it (so call-site narrowing that trusts the range is sound); the
+            // exact-overflow + narrowing obligations apply too. Gated inside
             // `validate_return_value_range`, so plain returns are unaffected.
             if let Some(state) = machine_symbols.state(state_name)
                 && state.return_type.is_valid()
@@ -324,12 +619,64 @@ fn validate_state_statement_node(
                     if let TransitionTargetNode::Value(return_expression) =
                         program.statement_table.transition_target(target)
                     {
+                        // Cross-class guard: `_ -> (true)` returning a bool from an
+                        // i32-returning machine is a silent miscompile. The terminal
+                        // `{ true }` return form is caught by the general shape gate;
+                        // the transition-VALUE form was not. Class complement of the
+                        // range/overflow/narrowing check below.
+                        if let Some(return_primitive) =
+                            program.primitive_type_reference(state.return_type)
+                        {
+                            expression_types::report_cross_class_store(
+                                program,
+                                Some(machine),
+                                Some(state),
+                                *return_expression,
+                                return_primitive,
+                                &format!("machine `{}` state `{state_name}`", machine.name),
+                                "return value",
+                                diagnostics,
+                            );
+                        }
+                        // Nominal guard: `-> Foo { transition { _ -> (self.bar) } }`
+                        // returns a `Bar` as a `Foo`.
+                        expression_types::report_data_type_conflict(
+                            program,
+                            machine,
+                            Some(state),
+                            *return_expression,
+                            state.return_type,
+                            &format!("machine `{}` state `{state_name}`", machine.name),
+                            "return value",
+                            diagnostics,
+                        );
+                        // Shape guard: an array returned as a scalar (or vice versa).
+                        expression_types::report_array_scalar_shape_mismatch(
+                            program,
+                            machine,
+                            Some(state),
+                            *return_expression,
+                            state.return_type,
+                            &format!("machine `{}` state `{state_name}`", machine.name),
+                            "return value",
+                            diagnostics,
+                        );
+                        expression_types::report_scalar_data_shape_mismatch(
+                            program,
+                            machine,
+                            Some(state),
+                            *return_expression,
+                            state.return_type,
+                            &format!("machine `{}` state `{state_name}`", machine.name),
+                            "return value",
+                            diagnostics,
+                        );
                         arithmetic_domains::validate_return_value_range(
                             program,
                             machine,
                             state,
                             *return_expression,
-                            value_env,
+                            &narrowed,
                             &format!(
                                 "machine `{}` state `{state_name}` return value",
                                 machine.name
@@ -340,18 +687,6 @@ fn validate_state_statement_node(
                 }
             }
 
-            // Decision 17 completeness: a transition-arm CALL ARGUMENT carries the
-            // exact-arith proof obligation too (`count_down(n - 1)`). The arm fires
-            // only when its guard holds, so the env is narrowed by the guard first
-            // -- `n > 0` proves `n - 1` in range, while an unguarded decrement is
-            // (correctly) rejected and must opt into a domain or a range.
-            let narrowed = arithmetic_domains::guard_narrowed_env(
-                program,
-                machine,
-                machine_symbols.state(state_name),
-                &transition.guard,
-                value_env,
-            );
             for target in [transition.target, transition.continuation] {
                 if !target.is_valid() {
                     continue;

@@ -1,0 +1,61 @@
+// NATIVE fs O_RDWR round-trip — the access mode `OpenOptions{read,write}` yields
+// (O_RDWR = 2). Proves read AND write work on a single fd opened read-write:
+// create "abcXYZ", close; reopen with flags=2; read 3 ("abc"); seek to 0;
+// overwrite with "ZZZ"; close; reopen read-only; read back "ZZZXYZ". Prints PASS.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    rdwr: i32;
+    rdonly: i32;
+    zero: i64;
+    seek_set: i32;
+    cap: usize;
+    fd: i32;
+    n: i64;
+    off: i64;
+    first: u8;
+    buffer: [u8; 16];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.rdwr = 2;
+    self.rdonly = 0;
+    self.zero = 0;
+    self.seek_set = 0;
+    self.cap = 16;
+    self.fd = self.fs.create("/tmp/omega_rdwr.txt", self.mode);
+    transition self.fd >= 0 { true -> seeded() _ -> fail() }
+    state seeded(&mut self) {
+        self.n = self.fs.write(self.fd, "abcXYZ");
+        self.n = self.fs.close(self.fd);
+        self.fd = self.fs.open("/tmp/omega_rdwr.txt", self.rdwr);
+        transition self.fd >= 0 { true -> reading() _ -> fail() }
+    }
+    state reading(&mut self) {
+        // read 3 bytes ("abc") off the read-write fd
+        self.n = self.fs.read(self.fd, &mut self.buffer, 3);
+        transition self.n == 3 { true -> overwrite() _ -> fail() }
+    }
+    state overwrite(&mut self) {
+        // rewind and overwrite the first 3 bytes on the SAME fd (write via O_RDWR)
+        self.off = self.fs.seek(self.fd, self.zero, self.seek_set);
+        self.n = self.fs.write(self.fd, "ZZZ");
+        self.n = self.fs.close(self.fd);
+        self.fd = self.fs.open("/tmp/omega_rdwr.txt", self.rdonly);
+        transition self.fd >= 0 { true -> verify() _ -> fail() }
+    }
+    state verify(&mut self) {
+        self.n = self.fs.read(self.fd, &mut self.buffer, self.cap);
+        self.n = self.fs.close(self.fd);
+        self.n = self.fs.remove("/tmp/omega_rdwr.txt");
+        self.first = self.buffer[0];
+        // first byte must now be 'Z' (0x5A = 90): the O_RDWR write took effect
+        transition self.first == 90 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: O_RDWR read+write on one fd\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: O_RDWR\n"); }
+}

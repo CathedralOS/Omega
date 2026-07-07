@@ -1,0 +1,22 @@
+// PURE-BUILTIN GUARD SUBJECT with a { true -> false -> } PAIR (#26 completion via
+// #41's shared-subject hoist). `transition min(self.a, self.b) == 7 { true false }`
+// is the NATURAL way to write a builtin guard, but each arm re-lowers the subject
+// to its own temp, so the true/false pair stopped pairing for exhaustiveness.
+// hoist_comparison_match_subject now hoists the SHARED subject once (keyed on the
+// syntax subject handle the parser reuses across arms) into `let __b: bool =
+// min(self.a, self.b) == 7`, so both arms test one local. DISCRIMINATING: with
+// a=8,b=7 -> min=7 -> true arm -> good (exit 70). A wrong min, or a subject that
+// failed to pair (vacuous guard), would exit 71. Native must match the interp.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: i32; b: i32; }
+machine Main::main(&mut self) {
+    self.a = 8;
+    self.b = 7;
+    transition min(self.a, self.b) == 7 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+// Expected exit: 70

@@ -1,0 +1,75 @@
+// COMPOSITION of the guard-subject features landed this session: a shift comparison
+// (`x >> 2 == 1`) and a cast comparison (`(x as i8) < 0`) used as leaves INSIDE
+// boolean nesting (`&&`, `||`, and a disjunction nested in a conjunction). This
+// exercises the guard value-operand path (shifts/casts) and the distribute-to-DNF
+// boolean lowering TOGETHER -- the features were each canaried alone, this locks
+// their integration. Values are built at runtime; the canary discriminates. The
+// differential oracle also checks native==interpreter.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    x: i32 in Wrapping;
+    y: i32 in Wrapping;
+    i: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.x = 0;
+    self.y = 0;
+    self.i = 0;
+    transition { _ -> build() }
+
+    state build(&mut self) {
+        transition self.i < 4 { true -> step() _ -> shift_and() }
+    }
+    state step(&mut self) {
+        self.x = self.x + 1; // -> 4
+        self.i = self.i + 1;
+        transition { _ -> build() }
+    }
+
+    // x=4, y=0 at runtime from here.
+    state shift_and(&mut self) {
+        // shift comparison AND a comparison: (4 >> 2 == 1) && (y > 0). y=0 -> false arm.
+        transition self.x >> 2 == 1 && self.y > 0 { true -> bad() _ -> shift_and_true() }
+    }
+    state shift_and_true(&mut self) {
+        // Make y > 0 true: (4 >> 2 == 1) && (5 > 0) == true.
+        self.y = 5;
+        transition self.x >> 2 == 1 && self.y > 0 { true -> cast_or() _ -> bad() }
+    }
+    state cast_or(&mut self) {
+        // cast comparison OR a comparison: ((x as i8) < 0) || (y > 0). x=4 -> as i8
+        // is 4 (>= 0), y=5 > 0 true -> true via the right leaf.
+        transition (self.x as i8) < 0 || self.y > 0 { true -> cast_or_high() _ -> bad() }
+    }
+    state cast_or_high(&mut self) {
+        // Make the high bit set so the cast leaf itself is true: x=200 -> (200 as i8)
+        // == -56 < 0 true -> ((x as i8) < 0) || (y > 0) true via the LEFT leaf.
+        self.x = 200;
+        self.y = 0 - 1;
+        transition (self.x as i8) < 0 || self.y > 0 { true -> nested() _ -> bad() }
+    }
+    state nested(&mut self) {
+        // a shift comparison nested in an Or inside an And:
+        // (y > 0) && ((y >> 1 == 2) || (y > 100)). y=4 -> 4>0 && (4>>1==2 || false) == true.
+        self.y = 4;
+        transition self.y > 0 && (self.y >> 1 == 2 || self.y > 100) { true -> nested_false() _ -> bad() }
+    }
+    state nested_false(&mut self) {
+        // y=3 -> 3>0 && (3>>1==2? 1==2 no || 3>100 no) == 3>0 && false == false -> false arm.
+        self.y = 3;
+        transition self.y > 0 && (self.y >> 1 == 2 || self.y > 100) { true -> bad() _ -> good() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

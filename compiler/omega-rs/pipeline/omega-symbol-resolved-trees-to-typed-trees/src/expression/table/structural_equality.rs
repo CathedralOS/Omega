@@ -60,15 +60,63 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         if self.classifier_reference_operand(binary.left)
             || self.classifier_reference_operand(binary.right)
         {
+            // A classifier reference `Enum::Case` compared against a value lowers to
+            // an ordinary TAG compare. If the value is a DIFFERENT enum type, that
+            // compares tags across unrelated types (`color == Direction::North` --
+            // both tag 0 -> spuriously equal), a silent miscompile. Resolve each
+            // side's data type (a classifier's first path segment, or a value's
+            // declared type) and reject when both are data definitions that differ.
+            // A same-type match-arm desugar (`subject == Player::Alive` for a
+            // `Player`) has equal names and is untouched; domain classifiers (not
+            // data definitions) are skipped.
+            let left_type = self
+                .classifier_reference_type(binary.left)
+                .or_else(|| self.operand_data_type_name(binary.left));
+            let right_type = self
+                .classifier_reference_type(binary.right)
+                .or_else(|| self.operand_data_type_name(binary.right));
+            if let (Some(left_name), Some(right_name)) = (&left_type, &right_type)
+                && left_name != right_name
+                && data_definition_by_name(program, left_name).is_some()
+                && data_definition_by_name(program, right_name).is_some()
+            {
+                return Err(Diagnostic::error(format!(
+                    "cannot compare `{left_name}` and `{right_name}` with `==`/`!=`: the operands \
+                     are different data types (a case belongs to its own type only)"
+                )));
+            }
             return Ok(None);
         }
 
-        let type_name = match self.operand_data_type_name(binary.left) {
+        // Reject a compare between two DIFFERENT data types BEFORE expansion.
+        // Equality is synthesized by pairing the operands' fields by POSITION using
+        // ONE resolved type name, so `P == Q` would silently read `q`'s bytes as if
+        // they were a `P` (`p.x == q.<first field> && ..`) and run to a garbage bool.
+        // Both operands must name the same type; when only one (or neither) types,
+        // fall through to the existing single-name behavior. Case literals resolve to
+        // their BASE type name (`Event::Score { .. }` -> `Event`), so a value-vs-case
+        // compare of the same sum stays same-named and is not flagged.
+        let left_type = self.operand_data_type_name(binary.left);
+        let right_type = self.operand_data_type_name(binary.right);
+        // Both names must be actual DATA definitions -- `operand_data_type_name` also
+        // resolves primitive names (`i32`, `String`), and a primitive-vs-primitive or
+        // primitive-vs-text mismatch (`n == s`) is owned by the validation-phase
+        // cross-class / text-operator checks with their own diagnostics. This gate
+        // fires only on the data-type positional-expansion hole (`P == Q`, `Color ==
+        // Direction`).
+        if let (Some(left_name), Some(right_name)) = (&left_type, &right_type)
+            && left_name != right_name
+            && data_definition_by_name(program, left_name).is_some()
+            && data_definition_by_name(program, right_name).is_some()
+        {
+            return Err(Diagnostic::error(format!(
+                "cannot compare `{left_name}` and `{right_name}` with `==`/`!=`: the operands are \
+                 different data types (equality requires both operands to be the same type)"
+            )));
+        }
+        let type_name = match left_type.or(right_type) {
             Some(name) => name,
-            None => match self.operand_data_type_name(binary.right) {
-                Some(name) => name,
-                None => return Ok(None),
-            },
+            None => return Ok(None),
         };
         let Some(data) = data_definition_by_name(program, &type_name) else {
             return Ok(None);
@@ -146,6 +194,64 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
                 self.classifier_reference_operand(*inner)
             }
             _ => false,
+        }
+    }
+
+    /// Reject `value in Type::Case` when the value's data type differs from `Type`.
+    /// `color in Direction::North` (for `color: Color`) lowers to a tag test against a
+    /// case of a DIFFERENT enum -- both `Color::Red` and `Direction::North` are tag 0,
+    /// so it spuriously reads TRUE -- the membership sibling of the cross-enum `==`
+    /// check in `try_lower_structural_equality`. Fires only when both `Type` and the
+    /// value's type are data definitions that DIFFER; a same-type case membership
+    /// (`c in Color::Red`, including the transition match-arm desugar) has equal names
+    /// and is untouched, and a declared-domain membership never reaches here.
+    pub(super) fn reject_cross_type_case_membership(
+        &self,
+        value: resolved::expression::ExpressionHandle,
+        domain: omega_core::arena::HandleSpan<resolved::name::DiagnosticName>,
+    ) -> Result<(), Diagnostic> {
+        let Some(program) = self.program else {
+            return Ok(());
+        };
+        let [type_name, case_name] = self.source.name_path_members(domain) else {
+            return Ok(());
+        };
+        let type_name = type_name.as_str();
+        let Some(value_type) = self.operand_data_type_name(value) else {
+            return Ok(());
+        };
+        if value_type != type_name
+            && data_definition_by_name(program, type_name).is_some()
+            && data_definition_by_name(program, &value_type).is_some()
+        {
+            return Err(Diagnostic::error(format!(
+                "cannot test whether a `{value_type}` value is `{type_name}::{}`: the case belongs \
+                 to `{type_name}`, not `{value_type}` (the operands are different data types)",
+                case_name.as_str()
+            )));
+        }
+        Ok(())
+    }
+
+    /// The declared TYPE name of a classifier reference (`Direction::North` ->
+    /// `Direction`): the FIRST segment of a multi-member, non-self name path. `None`
+    /// for a value place, a bare local, or any non-classifier operand.
+    fn classifier_reference_type(
+        &self,
+        operand: resolved::expression::ExpressionHandle,
+    ) -> Option<String> {
+        if !operand.is_valid() {
+            return None;
+        }
+        match self.source.expression(operand) {
+            resolved::expression::ExpressionNode::Name(path) if !path.is_self_value => {
+                let members = self.source.name_path_members(path.members);
+                (members.len() >= 2).then(|| members[0].as_str().to_owned())
+            }
+            resolved::expression::ExpressionNode::Mutable(inner) => {
+                self.classifier_reference_type(*inner)
+            }
+            _ => None,
         }
     }
 

@@ -1,0 +1,47 @@
+// The sound pattern for arithmetic on a runtime-indexed array-of-structs FIELD: read the field
+// into a scalar place (a `self.t` field) FIRST, then do the arithmetic. A direct
+// `self.r = self.arr[self.i].x + 5` is refused -- there is no machine-indexed struct-field value
+// operand yet (see memory array-of-structs-indexing); reading into a field provides a plain scalar
+// operand. This is the entity/particle field-math workaround.
+//
+// arr[1] = Pt{30, 40} (with decoy Pt{99,99} at 0 and 2). Read arr[i].x and arr[i].y via field
+// temps and sum: 30 + 40 = 70. A wrong runtime index would read the decoy (99+99) -> discriminates.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Pt {
+    x: i32 in Wrapping;
+    y: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    arr: [Pt; 3];
+    i: u32 in Wrapping;
+    t1: i32 in Wrapping;
+    t2: i32 in Wrapping;
+    r: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.arr[0] = Pt { x: 99, y: 99 };
+    self.arr[1] = Pt { x: 30, y: 40 };
+    self.arr[2] = Pt { x: 99, y: 99 };
+    self.i = 1;
+    transition self.i < 3 {
+        true -> read()
+        _ -> bad()
+    }
+    state read(&mut self) {
+        self.t1 = self.arr[self.i].x;
+        self.t2 = self.arr[self.i].y;
+        self.r = self.t1 + self.t2;
+        transition self.r == 70 {
+            true -> ok()
+            _ -> bad()
+        }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(self.r); }
+}

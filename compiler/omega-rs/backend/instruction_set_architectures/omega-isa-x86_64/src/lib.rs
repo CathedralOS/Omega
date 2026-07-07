@@ -47,6 +47,73 @@ pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width() -> usiz
     51
 }
 
+pub fn entry_argument_register_write_width() -> usize {
+    // mov r15,imm64(frame base, relocated at +2) (10) + mov [r15+disp32],reg (7).
+    17
+}
+
+/// The ENTRY PROLOGUE's inbound unmarshal: store an incoming MS-x64 argument
+/// register (0=RCX 1=RDX 2=R8 3=R9 -- the order firmware/OS passes the entry's
+/// arguments) into the entry parameter's runtime-frame slot. Runs BEFORE
+/// anything else at the entry (the argument registers are volatile); this is
+/// how a UEFI `main(image_handle, system_table)` receives RCX/RDX
+/// (calling_plans.md, the entry stub = the calling plan's inbound direction).
+pub fn encode_entry_argument_register_write_bytes(
+    argument_index: u8,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(entry_argument_register_write_width());
+    append_mov_r15_imm64(&mut bytes, 0); // relocated to the runtime-frame region base
+    // mov [r15 + disp32], reg -- REX.W + REX.B (base r15), ModRM mod=10 rm=111,
+    // reg = the argument register (r8/r9 add REX.R).
+    let (rex, modrm) = match argument_index {
+        0 => (0x49, 0x8f), // mov [r15+disp32], rcx
+        1 => (0x49, 0x97), // mov [r15+disp32], rdx
+        2 => (0x4d, 0x87), // mov [r15+disp32], r8
+        3 => (0x4d, 0x8f), // mov [r15+disp32], r9
+        other => {
+            return Err(Diagnostic::error(format!(
+                "X86_64 entry prologue supports at most 4 register arguments \
+                 (argument index {other}); stack-passed entry arguments are not \
+                 implemented"
+            )));
+        }
+    };
+    bytes.extend([rex, 0x89, modrm]);
+    bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    debug_assert_eq!(bytes.len(), entry_argument_register_write_width());
+    Ok(bytes)
+}
+
+pub fn entry_arguments_slice_descriptor_write_width() -> usize {
+    // mov r15,imm64(frame base, relocated at +2) (10) + lea rax,[r15+spill] (7)
+    // + mov [r15+desc],rax (7) + mov qword [r15+desc+8],imm32(len) (11).
+    35
+}
+
+/// The bytes-handoff half of the entry prologue: bind `args: &[u8]` as a view
+/// over the entry-argument spill -- write the slice descriptor
+/// {ptr @ desc+0 = frame+spill_offset, len @ desc+8 = byte_length}.
+pub fn encode_entry_arguments_slice_descriptor_write_bytes(
+    descriptor_offset: usize,
+    spill_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(entry_arguments_slice_descriptor_write_width());
+    append_mov_r15_imm64(&mut bytes, 0); // relocated to the runtime-frame region base
+    bytes.extend([0x49, 0x8d, 0x87]); // lea rax, [r15 + disp32]
+    bytes.extend(disp32(spill_offset)?.to_le_bytes());
+    bytes.extend([0x49, 0x89, 0x87]); // mov [r15 + disp32], rax
+    bytes.extend(disp32(descriptor_offset)?.to_le_bytes());
+    bytes.extend([0x49, 0xc7, 0x87]); // mov qword [r15 + disp32], imm32
+    bytes.extend(disp32(descriptor_offset + 8)?.to_le_bytes());
+    let length = i32::try_from(byte_length)
+        .map_err(|_| Diagnostic::error("entry-argument slice length exceeds an imm32"))?;
+    bytes.extend(length.to_le_bytes());
+    debug_assert_eq!(bytes.len(), entry_arguments_slice_descriptor_write_width());
+    Ok(bytes)
+}
+
 /// Relocation imm offset (pre-`+2`) of the frame base loaded for the target slot
 /// store in `encode_runtime_frame_base_indexed_address_to_runtime_frame_write`.
 pub const FRAME_BASE_INDEXED_ADDRESS_TARGET_FRAME_IMM_OFFSET: usize = 34;
@@ -426,7 +493,9 @@ pub fn dispatch_guard_compare_static_width(is_float: bool, byte_size: usize) -> 
     // compare is `cmp r10,r11` (3; 4 with the 0x66 prefix); float is
     // movq/movd + movq/movd + ucomisd/ucomiss.
     let load_width = if !is_float && byte_size == 2 { 8 } else { 7 };
-    10 + load_width + 10 + runtime_float_or_integer_compare_width(is_float, byte_size) + 6
+    // Floats prepend a 6-byte `jp` parity branch before the failure jcc (NaN routing).
+    let float_parity_branch = if is_float { 6 } else { 0 };
+    10 + load_width + 10 + runtime_float_or_integer_compare_width(is_float, byte_size) + 6 + float_parity_branch
 }
 
 fn runtime_float_or_integer_compare_width(is_float: bool, byte_size: usize) -> usize {
@@ -505,7 +574,7 @@ pub fn encode_dispatch_guard_compare_static_bytes(
     // (`current.offset + byte_width - 4`, now architecture-aware in the branch-
     // distance helper). The jcc rel is measured from the field's end, 4 bytes
     // later, so the relative target is `skip_byte_distance - 4`.
-    append_failure_branch(&mut bytes, operator, skip_byte_distance - 4)?;
+    append_failure_branch(&mut bytes, operator, skip_byte_distance - 4, is_float)?;
     debug_assert_eq!(bytes.len(), dispatch_guard_compare_static_width(is_float, byte_size));
     Ok(bytes)
 }
@@ -715,13 +784,69 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
         (HostCapability::Stdin, HostOperation::ReadFile) => {
             encode_file_operation(operation_key, operands)
         }
-        (HostCapability::Process, HostOperation::ExitProcess) => encode_exit_process(operands),
+        (HostCapability::Process, HostOperation::ExitProcess)
+        | (HostCapability::Clock, HostOperation::Sleep) => encode_scalar_arg_call(operands),
+        // A 0-arg value-returning import through the GENERAL import-call encoder
+        // (byte-identical to the original bespoke tick_count sequence for an
+        // 8-byte result, and width-correct for a 4-byte one).
+        (HostCapability::Clock, HostOperation::TickCount) => {
+            encode_win64_import_call(operands, true)
+        }
+        (HostCapability::Input, HostOperation::KeyState) => encode_key_state_call(operands),
+        // Every Gui import is value-returning and encodes through the GENERAL
+        // import call: operands[0] = result place, then the full ABI argument
+        // list (selection interleaves the hard-wired immediates).
+        (HostCapability::Gui, _) => encode_win64_import_call(operands, true),
         _ => Err(Diagnostic::error(format!(
             "X86_64 host operation {}.{} is not implemented",
             operation_key.capability_name(),
             operation_key.operation_name()
         ))),
     }
+}
+
+/// `GetAsyncKeyState(vk)` -- a value-returning USER32 import (the multi-DLL
+/// proof): shadow space, the vk marshalled into ecx from operands[1] (constant
+/// or runtime scalar), the relocated `call rel32`, the shadow restore, then
+/// `movzx eax, ax` (the return is a SHORT; zero the undefined upper bits) and
+/// the store-rax tail into the result place (operands[0]).
+fn encode_key_state_call<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
+    let Some((_, result_offset, _)) = operands
+        .first()
+        .and_then(|operand| operand.runtime_scalar_integer())
+    else {
+        return Err(Diagnostic::error(
+            "cannot encode X86_64 key_state: the result storage place did not lower to a              runtime scalar operand",
+        ));
+    };
+    let mut bytes = Vec::with_capacity(4 + 17 + 5 + 4 + 3 + 17);
+    bytes.extend([0x48, 0x83, 0xec, 0x28]); // sub rsp, 40
+    match operands.get(1) {
+        Some(operand) if operand.runtime_scalar_integer().is_some() => {
+            let (_, byte_offset, _) = operand.runtime_scalar_integer().unwrap();
+            append_mov_r15_imm64(&mut bytes, 0); // relocated to the vk region base
+            bytes.extend([0x49, 0x8b, 0x8f]); // mov rcx, [r15 + disp32]
+            let displacement: i32 = byte_offset
+                .try_into()
+                .map_err(|_| Diagnostic::error("key_state vk offset exceeds i32"))?;
+            bytes.extend(displacement.to_le_bytes());
+        }
+        _ => {
+            let vk = immediate_i32(operands, 1, "key_state virtual-key argument")?;
+            bytes.push(0xb9); // mov ecx, imm32
+            bytes.extend(vk.to_le_bytes());
+        }
+    }
+    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 (relocated)
+    bytes.extend([0x48, 0x83, 0xc4, 0x28]); // add rsp, 40
+    bytes.extend([0x0f, 0xb7, 0xc0]); // movzx eax, ax (zero the upper bits)
+    append_mov_r15_imm64(&mut bytes, 0); // relocated to the result region base
+    bytes.extend([0x49, 0x89, 0x87]); // mov [r15 + disp32], rax
+    let displacement: i32 = result_offset
+        .try_into()
+        .map_err(|_| Diagnostic::error("key_state result offset exceeds i32"))?;
+    bytes.extend(displacement.to_le_bytes());
+    Ok(bytes)
 }
 
 fn encode_get_std_handle<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
@@ -835,41 +960,505 @@ fn append_file_length_operand<T: InstructionOperandLike>(
     }
 }
 
-/// Marshalling width of the exit-code argument: a constant is `mov ecx, imm32` (5 bytes),
-/// a runtime-storage scalar is `mov r15, imm64=0` (10, relocated to the region base) +
-/// `mov rcx, [r15+disp32]` (7).
-fn exit_process_exit_code_width<T: InstructionOperandLike>(operands: &[T]) -> usize {
+/// The Win64 integer argument registers, in call order, as
+/// (mov-imm32 opcode bytes, load-from-[r15+disp32] opcode bytes) pairs:
+/// rcx, rdx, r8, r9. Immediates use the 32-bit `mov r32, imm32` forms (the
+/// kernel32 surface is u32-shaped today); loads are 64-bit `mov r64,
+/// [r15+disp32]` (callees read the low 32 bits).
+const WIN64_ARG_REGISTERS: [(&[u8], &[u8]); 4] = [
+    (&[0xb9], &[0x49, 0x8b, 0x8f]),       // mov ecx, imm32 / mov rcx, [r15+d]
+    (&[0xba], &[0x49, 0x8b, 0x97]),       // mov edx, imm32 / mov rdx, [r15+d]
+    (&[0x41, 0xb8], &[0x4d, 0x8b, 0x87]), // mov r8d, imm32 / mov r8,  [r15+d]
+    (&[0x41, 0xb9], &[0x4d, 0x8b, 0x8f]), // mov r9d, imm32 / mov r9,  [r15+d]
+];
+
+/// Marshalling width of Win64 scalar argument `index` (0..=3): a constant is a
+/// `mov r32, imm32` (5 bytes; 6 with the REX prefix for r8d/r9d), a
+/// runtime-storage scalar is `mov r15, imm64=0` (10, relocated to the region
+/// base) + `mov r64, [r15+disp32]` (7).
+fn win64_scalar_arg_width<T: InstructionOperandLike>(operands: &[T], index: usize) -> usize {
+    let (imm_opcode, load_opcode) = WIN64_ARG_REGISTERS[index];
     if operands
-        .first()
+        .get(index)
         .is_some_and(|operand| operand.runtime_scalar_integer().is_some())
     {
-        17
+        10 + load_opcode.len() + 4
     } else {
-        5
+        imm_opcode.len() + 4
     }
 }
 
-fn encode_exit_process<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
-    let mut bytes = Vec::with_capacity(13 + exit_process_exit_code_width(operands));
+/// Total marshalling width of the first `count` Win64 scalar arguments.
+fn win64_scalar_args_width<T: InstructionOperandLike>(operands: &[T], count: usize) -> usize {
+    (0..count)
+        .map(|index| win64_scalar_arg_width(operands, index))
+        .sum()
+}
+
+/// The GENERAL Win64 scalar-argument call: shadow space, the first `count`
+/// operands marshalled into rcx/rdx/r8/r9 (each a constant immediate or a
+/// runtime-storage scalar load through a relocated r15 region base), the
+/// relocated `call rel32`, then the shadow restore. This is extern-ladder rung
+/// 1: every new import mapping with scalar arguments encodes through here, and
+/// the pre-existing single-arg kernel32 ops (ExitProcess, Sleep) delegate to it
+/// byte-identically.
+fn encode_win64_scalar_args_call<T: InstructionOperandLike>(
+    operands: &[T],
+    count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(13 + win64_scalar_args_width(operands, count));
     bytes.extend([0x48, 0x83, 0xec, 0x28]); // sub rsp, 40
-    match operands.first() {
-        Some(operand) if operand.runtime_scalar_integer().is_some() => {
-            let (_, byte_offset, _) = operand.runtime_scalar_integer().unwrap();
-            // mov r15, imm64=0 (relocated to the exit code's storage-region base), then
-            // mov rcx, [r15 + byte_offset]. ExitProcess reads ecx (the low 32 bits).
-            append_mov_r15_imm64(&mut bytes, 0);
-            append_load_rcx_from_r15(&mut bytes, byte_offset)?;
-        }
-        _ => {
-            let exit_code = immediate_i32(operands, 0, "ExitProcess exit code")?;
-            bytes.push(0xb9); // mov ecx, imm32
-            bytes.extend(exit_code.to_le_bytes());
+    for index in 0..count {
+        let (imm_opcode, load_opcode) = WIN64_ARG_REGISTERS[index];
+        match operands.get(index) {
+            Some(operand) if operand.runtime_scalar_integer().is_some() => {
+                let (_, byte_offset, _) = operand.runtime_scalar_integer().unwrap();
+                // mov r15, imm64=0 (relocated to the argument's storage-region
+                // base), then mov <reg64>, [r15 + byte_offset].
+                append_mov_r15_imm64(&mut bytes, 0);
+                bytes.extend_from_slice(load_opcode);
+                let displacement: i32 = byte_offset.try_into().map_err(|_| {
+                    Diagnostic::error("host call scalar argument offset exceeds i32")
+                })?;
+                bytes.extend(displacement.to_le_bytes());
+            }
+            _ => {
+                let argument = immediate_i32(operands, index, "host call u32 argument")?;
+                bytes.extend_from_slice(imm_opcode);
+                bytes.extend(argument.to_le_bytes());
+            }
         }
     }
     bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32
     bytes.extend([0x48, 0x83, 0xc4, 0x28]); // add rsp, 40
-    debug_assert_eq!(bytes.len(), 13 + exit_process_exit_code_width(operands));
+    debug_assert_eq!(bytes.len(), 13 + win64_scalar_args_width(operands, count));
     Ok(bytes)
+}
+
+/// Relocation sites for a `encode_win64_scalar_args_call` sequence: one
+/// Absolute64 region-base site per runtime-scalar argument (inside its
+/// `mov r15, imm64`) plus the Relative32 `call rel32` site after all
+/// marshalling.
+fn win64_scalar_args_relocation_sites<T: InstructionOperandLike>(
+    operands: &[T],
+    count: usize,
+) -> Vec<X86_64RelocationSite> {
+    let mut sites = Vec::new();
+    let mut cursor = 4usize; // past sub rsp, 40
+    for index in 0..count {
+        if operands
+            .get(index)
+            .is_some_and(|operand| operand.runtime_scalar_integer().is_some())
+        {
+            sites.push(X86_64RelocationSite {
+                operand_index: Some(index),
+                byte_offset: cursor + 2, // inside mov r15, imm64
+                byte_width: 8,
+                kind: X86_64RelocationSiteKind::Absolute64,
+            });
+        }
+        cursor += win64_scalar_arg_width(operands, index);
+    }
+    sites.push(X86_64RelocationSite {
+        operand_index: None,
+        byte_offset: cursor + 1, // past the call opcode
+        byte_width: 4,
+        kind: X86_64RelocationSiteKind::Relative32,
+    });
+    sites
+}
+
+/// A kernel32 call taking a single u32 first argument in ecx and no return:
+/// `ExitProcess(code)` and `Sleep(ms)` are the same shape. Shadow space, the arg
+/// marshalled from a constant or a runtime-storage scalar, the relocated call, then
+/// the shadow restore (no-op for ExitProcess, which never returns).
+fn encode_scalar_arg_call<T: InstructionOperandLike>(operands: &[T]) -> Result<Vec<u8>, Diagnostic> {
+    encode_win64_scalar_args_call(operands, 1)
+}
+
+/// `lea <reg64>, [r15+disp32]` opcode bytes for the Win64 integer argument
+/// registers rcx/rdx/r8/r9 -- `WIN64_ARG_REGISTERS`' load opcodes with the mov
+/// (8B) swapped for lea (8D), byte-for-byte the same width.
+const WIN64_ARG_LEA_OPCODES: [&[u8]; 4] = [
+    &[0x49, 0x8d, 0x8f], // lea rcx, [r15+d]
+    &[0x49, 0x8d, 0x97], // lea rdx, [r15+d]
+    &[0x4d, 0x8d, 0x87], // lea r8,  [r15+d]
+    &[0x4d, 0x8d, 0x8f], // lea r9,  [r15+d]
+];
+
+/// The outgoing stack-argument area starts right above the 32-byte shadow space.
+const WIN64_STACK_ARG_HOME: usize = 32;
+
+/// The stack reservation for a general Win64 import call with `arg_count`
+/// arguments: the 32-byte shadow space plus one 8-byte outgoing slot per
+/// argument past the 4 register args, padded so rsp stays 16-byte aligned at
+/// the `call` (the emitted code runs with rsp ≡ 8 mod 16 -- the invariant the
+/// existing 40-byte no-stack-arg reservation encodes).
+fn win64_import_reserve(arg_count: usize) -> usize {
+    let stack_slots = arg_count.saturating_sub(4);
+    let mut reserve = WIN64_STACK_ARG_HOME + 8 * stack_slots;
+    if reserve % 16 == 0 {
+        reserve += 8;
+    }
+    reserve
+}
+
+/// `sub/add rsp, imm` width: the imm8 form (4 bytes) up to 127, else imm32 (7).
+fn rsp_adjust_width(reserve: usize) -> usize {
+    if reserve <= 127 { 4 } else { 7 }
+}
+
+fn append_sub_rsp(bytes: &mut Vec<u8>, reserve: usize) {
+    if reserve <= 127 {
+        bytes.extend([0x48, 0x83, 0xec, reserve as u8]); // sub rsp, imm8
+    } else {
+        bytes.extend([0x48, 0x81, 0xec]); // sub rsp, imm32
+        bytes.extend((reserve as u32).to_le_bytes());
+    }
+}
+
+fn append_add_rsp(bytes: &mut Vec<u8>, reserve: usize) {
+    if reserve <= 127 {
+        bytes.extend([0x48, 0x83, 0xc4, reserve as u8]); // add rsp, imm8
+    } else {
+        bytes.extend([0x48, 0x81, 0xc4]); // add rsp, imm32
+        bytes.extend((reserve as u32).to_le_bytes());
+    }
+}
+
+/// Register-indirect near call -- `call r/m64` in the `FF /2` register-DIRECT
+/// form: optional `REX.B` (0x41) for r8-r15, `FF`, then ModRM `11 010 rrr`
+/// (`0xD0 | (reg & 7)`; mod=11 register-direct, reg=`/2`=010, rm=the register).
+/// The target is a POINTER VALUE already in `reg`, NOT an import relocation --
+/// this is the runtime-pointer call the first-boot path needs (UEFI
+/// `SystemTable -> ConOut -> OutputString` is three pointer hops) and the same
+/// emission a `VtableSlot` dispatch will use (extern brief §12.4). `reg` is the
+/// x86_64 register number 0..=15 (0=rax..7=rdi, 8=r8..15=r15).
+///
+fn append_call_register(bytes: &mut Vec<u8>, reg: u8) {
+    debug_assert!(reg < 16, "x86_64 register number out of range");
+    if reg >= 8 {
+        bytes.push(0x41); // REX.B extends ModRM.rm into r8-r15
+    }
+    bytes.push(0xff);
+    bytes.push(0xd0 | (reg & 0x7)); // ModRM: mod=11 reg=/2(010) rm=reg
+}
+
+/// Whether a general-import argument operand marshals through the relocated r15
+/// region base (a runtime-storage scalar LOAD or a runtime-storage ADDRESS lea)
+/// rather than as a constant immediate.
+fn win64_import_arg_is_staged<T: InstructionOperandLike>(operand: Option<&T>) -> bool {
+    operand.is_some_and(|operand| {
+        operand.runtime_scalar_integer().is_some() || operand.runtime_storage_address().is_some()
+    })
+}
+
+/// Marshalling width of general-import argument `index` (0-based ABI order,
+/// stored at `operands[arg_start + index]`). Register args mirror
+/// `win64_scalar_arg_width` (an address lea is the same width as a scalar
+/// load); stack args stage through r15/rax (10 + 7 + a 5-byte
+/// `mov [rsp+disp8], rax`), or store a constant directly (9-byte
+/// `mov qword [rsp+disp8], imm32`).
+fn win64_import_arg_width<T: InstructionOperandLike>(
+    operands: &[T],
+    arg_start: usize,
+    index: usize,
+) -> usize {
+    let staged = win64_import_arg_is_staged(operands.get(arg_start + index));
+    if index < 4 {
+        let (imm_opcode, load_opcode) = WIN64_ARG_REGISTERS[index];
+        if staged {
+            10 + load_opcode.len() + 4
+        } else {
+            imm_opcode.len() + 4
+        }
+    } else if staged {
+        10 + 7 + 5
+    } else {
+        9
+    }
+}
+
+/// Total width of a `encode_win64_import_call` sequence -- must mirror the
+/// encoder byte for byte (the relocation cursor math depends on it).
+fn win64_import_call_width<T: InstructionOperandLike>(
+    operands: &[T],
+    returns_value: bool,
+) -> usize {
+    let arg_start = usize::from(returns_value);
+    let arg_count = operands.len().saturating_sub(arg_start);
+    let reserve = win64_import_reserve(arg_count);
+    let mut width = 2 * rsp_adjust_width(reserve) + 5;
+    for index in 0..arg_count {
+        width += win64_import_arg_width(operands, arg_start, index);
+    }
+    if returns_value {
+        width += 17; // mov r15, imm64 (10) + mov [r15+disp32], eax/rax (7)
+    }
+    width
+}
+
+/// A host-call immediate encoded into a 32-bit field: accepts the i32 range AND
+/// the u32 range (DWORD flag words like `WS_POPUP|WS_VISIBLE` = 0x9000_0000),
+/// encoding the low 32 bits. Register args use `mov r32, imm32` (zero-extends);
+/// stack slots use `mov qword, imm32` (SIGN-extends -- correct for ints and for
+/// DWORD-consuming callees, so keep pointer-sized big constants out of stack
+/// slots).
+fn immediate_imm32<T: InstructionOperandLike>(
+    operands: &[T],
+    index: usize,
+    label: &str,
+) -> Result<i32, Diagnostic> {
+    let Some(value) = operands.get(index).and_then(|operand| operand.immediate_integer()) else {
+        return Err(Diagnostic::error(format!(
+            "cannot encode X86_64 host call: {label} did not lower to a marshallable operand"
+        )));
+    };
+    if value < i64::from(i32::MIN) || value > i64::from(u32::MAX) {
+        return Err(Diagnostic::error(format!(
+            "cannot encode X86_64 host call: {label} value {value} does not fit a 32-bit immediate"
+        )));
+    }
+    Ok(value as u32 as i32)
+}
+
+/// The GENERAL Win64 import call -- the full extern-ABI shape. Marshals the
+/// argument operands into rcx/rdx/r8/r9 then the outgoing stack slots
+/// `[rsp + 32 + 8k]`, emits the relocated `call rel32`, restores the stack
+/// reservation, and (for a value-returning import) stores rax into the result
+/// place at the result's declared width (4-byte results store eax -- an int
+/// return's upper 32 bits are undefined under Win64).
+///
+/// Operand roles: when `returns_value`, `operands[0]` is the RESULT place (a
+/// runtime scalar; its byte_count picks the store width) and the arguments
+/// follow; otherwise every operand is an argument. Each argument is a constant
+/// immediate, a runtime-storage scalar (loaded through the relocated r15 region
+/// base), or a runtime-storage ADDRESS (`lea` through the same base -- the
+/// pointer-argument shape: buffers, OS structs, C strings).
+/// Marshal MS-x64 call arguments `operands[arg_start..]` into RCX/RDX/R8/R9
+/// (staged runtime loads/leas through the relocated r15 region base, or plain
+/// immediates) and the shadow-space stack home for args past the fourth.
+/// Shared by the import call and the vtable call (their only difference is how
+/// the callee address is obtained: a relocated `call rel32` vs `call rax`).
+fn append_win64_call_arguments<T: InstructionOperandLike>(
+    bytes: &mut Vec<u8>,
+    operands: &[T],
+    arg_start: usize,
+) -> Result<(), Diagnostic> {
+    let arg_count = operands.len() - arg_start;
+    for index in 0..arg_count {
+        let operand = &operands[arg_start + index];
+        if index < 4 {
+            let (imm_opcode, load_opcode) = WIN64_ARG_REGISTERS[index];
+            if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
+                append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
+                bytes.extend_from_slice(load_opcode);
+                bytes.extend(disp32(byte_offset)?.to_le_bytes());
+            } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
+                append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
+                bytes.extend_from_slice(WIN64_ARG_LEA_OPCODES[index]);
+                bytes.extend(disp32(byte_offset)?.to_le_bytes());
+            } else {
+                let argument = immediate_imm32(operands, arg_start + index, "call argument")?;
+                bytes.extend_from_slice(imm_opcode);
+                bytes.extend(argument.to_le_bytes());
+            }
+        } else {
+            let stack_offset = WIN64_STACK_ARG_HOME + 8 * (index - 4);
+            let stack_disp8 = u8::try_from(stack_offset)
+                .ok()
+                .filter(|_| stack_offset <= 127)
+                .ok_or_else(|| Diagnostic::error("X86_64 call supports at most 16 arguments"))?;
+            if let Some((_, byte_offset, _)) = operand.runtime_scalar_integer() {
+                append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
+                bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15+disp32]
+                bytes.extend(disp32(byte_offset)?.to_le_bytes());
+                bytes.extend([0x48, 0x89, 0x44, 0x24, stack_disp8]); // mov [rsp+o], rax
+            } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
+                append_mov_r15_imm64(bytes, 0); // relocated to the argument's region base
+                bytes.extend([0x49, 0x8d, 0x87]); // lea rax, [r15+disp32]
+                bytes.extend(disp32(byte_offset)?.to_le_bytes());
+                bytes.extend([0x48, 0x89, 0x44, 0x24, stack_disp8]); // mov [rsp+o], rax
+            } else {
+                let argument = immediate_imm32(operands, arg_start + index, "call argument")?;
+                bytes.extend([0x48, 0xc7, 0x44, 0x24, stack_disp8]); // mov qword [rsp+o], imm32
+                bytes.extend(argument.to_le_bytes());
+            }
+        }
+    }
+    Ok(())
+}
+
+fn encode_win64_import_call<T: InstructionOperandLike>(
+    operands: &[T],
+    returns_value: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    if returns_value && operands.is_empty() {
+        return Err(Diagnostic::error(
+            "cannot encode X86_64 import call: the result storage place did not lower to a \
+             runtime scalar operand",
+        ));
+    }
+    let arg_start = usize::from(returns_value);
+    let arg_count = operands.len() - arg_start;
+    let reserve = win64_import_reserve(arg_count);
+    let mut bytes = Vec::with_capacity(win64_import_call_width(operands, returns_value));
+    append_sub_rsp(&mut bytes, reserve);
+    append_win64_call_arguments(&mut bytes, operands, arg_start)?;
+    bytes.extend([0xe8, 0, 0, 0, 0]); // call rel32 (relocated)
+    append_add_rsp(&mut bytes, reserve);
+    if returns_value {
+        let Some((_, byte_offset, byte_count)) = operands[0].runtime_scalar_integer() else {
+            return Err(Diagnostic::error(
+                "cannot encode X86_64 import call: the result storage place did not lower to a \
+                 runtime scalar operand",
+            ));
+        };
+        append_mov_r15_imm64(&mut bytes, 0); // relocated to the result region base
+        match byte_count {
+            4 => bytes.extend([0x41, 0x89, 0x87]), // mov [r15+disp32], eax
+            8 => bytes.extend([0x49, 0x89, 0x87]), // mov [r15+disp32], rax
+            other => {
+                return Err(Diagnostic::error(format!(
+                    "X86_64 import call cannot store a {other}-byte result (expected 4 or 8)"
+                )));
+            }
+        }
+        bytes.extend(disp32(byte_offset)?.to_le_bytes());
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        win64_import_call_width(operands, returns_value)
+    );
+    Ok(bytes)
+}
+
+/// Relocation sites for a `encode_win64_import_call` sequence: one Absolute64
+/// region-base site per staged argument (inside its `mov r15, imm64`), the
+/// Relative32 `call rel32` after all marshalling, and (value-returning) the
+/// result region base inside the store tail's `mov r15, imm64`.
+fn win64_import_call_relocation_sites<T: InstructionOperandLike>(
+    operands: &[T],
+    returns_value: bool,
+) -> Vec<X86_64RelocationSite> {
+    let arg_start = usize::from(returns_value);
+    let arg_count = operands.len().saturating_sub(arg_start);
+    let reserve = win64_import_reserve(arg_count);
+    let mut sites = Vec::new();
+    let mut cursor = rsp_adjust_width(reserve);
+    for index in 0..arg_count {
+        if win64_import_arg_is_staged(operands.get(arg_start + index)) {
+            sites.push(X86_64RelocationSite {
+                operand_index: Some(arg_start + index),
+                byte_offset: cursor + 2, // inside mov r15, imm64
+                byte_width: 8,
+                kind: X86_64RelocationSiteKind::Absolute64,
+            });
+        }
+        cursor += win64_import_arg_width(operands, arg_start, index);
+    }
+    sites.push(X86_64RelocationSite {
+        operand_index: None,
+        byte_offset: cursor + 1, // past the call opcode
+        byte_width: 4,
+        kind: X86_64RelocationSiteKind::Relative32,
+    });
+    cursor += 5 + rsp_adjust_width(reserve);
+    if returns_value
+        && operands
+            .first()
+            .is_some_and(|operand| operand.runtime_scalar_integer().is_some())
+    {
+        sites.push(X86_64RelocationSite {
+            operand_index: Some(0),
+            byte_offset: cursor + 2, // inside the result mov r15, imm64
+            byte_width: 8,
+            kind: X86_64RelocationSiteKind::Absolute64,
+        });
+    }
+    sites
+}
+
+/// A VtableSlot call (extern brief §12.1): marshal the declared args MS-x64
+/// (this -> RCX, then RDX/R8/R9), then read the callee from the RECEIVER --
+/// `mov rax, [rcx + index*8]; call rax`. The protocol struct IS the vtable
+/// (UEFI SimpleTextOutput: OutputString at slot 1 = +8). No result store
+/// (void), no import thunk, no call relocation (the target is a runtime
+/// pointer). The receiver (arg 0) must already sit in RCX -- so it is a plain
+/// register arg like any other; the `mov rax, [rcx..]` reads it back.
+pub fn encode_win64_vtable_call<T: InstructionOperandLike>(
+    operands: &[T],
+    index: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    if operands.is_empty() {
+        return Err(Diagnostic::error(
+            "cannot encode X86_64 vtable call: the receiver (arg 0) did not lower to an operand",
+        ));
+    }
+    let arg_count = operands.len();
+    let reserve = win64_import_reserve(arg_count);
+    let mut bytes = Vec::with_capacity(win64_vtable_call_width(operands, index));
+    append_sub_rsp(&mut bytes, reserve);
+    append_win64_call_arguments(&mut bytes, operands, 0)?;
+    // Read the callee from the receiver (still in RCX) and call it.
+    let slot_disp = i32::try_from(index.checked_mul(8).ok_or_else(|| {
+        Diagnostic::error("vtable slot index overflows a byte offset")
+    })?)
+    .map_err(|_| Diagnostic::error("vtable slot offset exceeds an imm32"))?;
+    bytes.extend([0x48, 0x8b, 0x81]); // mov rax, [rcx + disp32]
+    bytes.extend(slot_disp.to_le_bytes());
+    append_call_register(&mut bytes, 0); // call rax
+    append_add_rsp(&mut bytes, reserve);
+    debug_assert_eq!(bytes.len(), win64_vtable_call_width(operands, index));
+    Ok(bytes)
+}
+
+pub fn win64_vtable_call_width<T: InstructionOperandLike>(operands: &[T], _index: i64) -> usize {
+    let arg_count = operands.len();
+    let reserve = win64_import_reserve(arg_count);
+    let mut width = rsp_adjust_width(reserve);
+    for index in 0..arg_count {
+        width += win64_import_arg_width(operands, 0, index);
+    }
+    width += 7; // mov rax, [rcx + disp32]
+    width += 2; // call rax (no REX.B for rax)
+    width += rsp_adjust_width(reserve);
+    width
+}
+
+/// The region-base fixup byte offset for vtable-call argument `operand_index`
+/// (the `mov r15, imm64` imm), matching `encode_win64_vtable_call`'s layout.
+pub fn vtable_call_data_relocation_byte_offset<T: InstructionOperandLike>(
+    operands: &[T],
+    operand_index: usize,
+) -> usize {
+    win64_vtable_call_relocation_sites(operands)
+        .into_iter()
+        .find(|site| site.operand_index == Some(operand_index))
+        .map(|site| site.byte_offset)
+        .unwrap_or(0)
+}
+
+/// Relocation sites for a vtable call: the staged-argument region bases only
+/// (no call relocation -- the callee is a runtime pointer read from RCX).
+pub fn win64_vtable_call_relocation_sites<T: InstructionOperandLike>(
+    operands: &[T],
+) -> Vec<X86_64RelocationSite> {
+    let reserve = win64_import_reserve(operands.len());
+    let mut sites = Vec::new();
+    let mut cursor = rsp_adjust_width(reserve);
+    for index in 0..operands.len() {
+        if win64_import_arg_is_staged(operands.get(index)) {
+            sites.push(X86_64RelocationSite {
+                operand_index: Some(index),
+                byte_offset: cursor + 2, // inside mov r15, imm64
+                byte_width: 8,
+                kind: X86_64RelocationSiteKind::Absolute64,
+            });
+        }
+        cursor += win64_import_arg_width(operands, 0, index);
+    }
+    sites
 }
 
 fn host_call_relocation_sites<T: InstructionOperandLike>(
@@ -888,32 +1477,51 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
                 kind: X86_64RelocationSiteKind::Relative32,
             }]
         }
-        (HostCapability::Process, HostOperation::ExitProcess) => {
-            // Layout: sub rsp,40 (4) + exit-code marshalling + call rel32.
-            let exit_code_width = exit_process_exit_code_width(operands);
+        (HostCapability::Process, HostOperation::ExitProcess)
+        | (HostCapability::Clock, HostOperation::Sleep) => {
+            // Single-u32-arg kernel32 call (ExitProcess/Sleep), re-expressed
+            // through the general Win64 scalar-args helper (extern rung 1).
+            win64_scalar_args_relocation_sites(operands, 1)
+        }
+        (HostCapability::Input, HostOperation::KeyState) => {
+            // Layout: sub(4) + vk marshalling (17 runtime / 5 const) + call(5)
+            // + add(4) + movzx(3) + mov r15,imm64(10) + store(7).
+            let vk_is_runtime = operands
+                .get(1)
+                .is_some_and(|operand| operand.runtime_scalar_integer().is_some());
+            let vk_width = if vk_is_runtime { 17 } else { 5 };
             let mut sites = Vec::new();
-            if operands
-                .first()
-                .is_some_and(|operand| operand.runtime_scalar_integer().is_some())
-            {
-                // The relocated region-base imm64 sits inside `mov r15, imm64` at
-                // (sub rsp = 4) + 2.
+            if vk_is_runtime {
                 sites.push(X86_64RelocationSite {
-                    operand_index: Some(0),
-                    byte_offset: 4 + 2,
+                    operand_index: Some(1),
+                    byte_offset: 4 + 2, // inside the vk mov r15, imm64
                     byte_width: 8,
                     kind: X86_64RelocationSiteKind::Absolute64,
                 });
             }
-            // `call rel32`: skip sub rsp (4), the exit-code marshalling, and the call
-            // opcode (1).
             sites.push(X86_64RelocationSite {
                 operand_index: None,
-                byte_offset: 4 + exit_code_width + 1,
+                byte_offset: 4 + vk_width + 1, // past the call opcode
                 byte_width: 4,
                 kind: X86_64RelocationSiteKind::Relative32,
             });
+            sites.push(X86_64RelocationSite {
+                operand_index: Some(0),
+                byte_offset: 4 + vk_width + 5 + 4 + 3 + 2, // inside the result mov r15, imm64
+                byte_width: 8,
+                kind: X86_64RelocationSiteKind::Absolute64,
+            });
             sites
+        }
+        (HostCapability::Clock, HostOperation::TickCount) => {
+            // 0-arg value-returning call through the general import-call layout
+            // (call at 4+1; result-region base at 13+2 -- identical to the
+            // original bespoke site list).
+            win64_import_call_relocation_sites(operands, true)
+        }
+        (HostCapability::Gui, _) => {
+            // Value-returning general import calls (mirrors the encode arm).
+            win64_import_call_relocation_sites(operands, true)
         }
         (
             HostCapability::Stdout | HostCapability::Stderr,
@@ -1570,7 +2178,7 @@ pub fn encode_runtime_value_compare(
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
     append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R11, right)?;
     append_cmp_r10_r11(&mut bytes, byte_size)?;
-    append_failure_branch(&mut bytes, operator, failure_branch_distance - 4)?;
+    append_failure_branch(&mut bytes, operator, failure_branch_distance - 4, false)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_value_compare_width(runtime_value_operands, byte_size, left, right)
@@ -1589,11 +2197,14 @@ pub fn runtime_storage_compare_width(
     // 4 with the 0x66 prefix for 2-byte operands, whose loads are also 8 not 7);
     // float = movq/movd+movq/movd+ucomisd/ucomiss.
     let load_width = if !is_float && byte_size == 2 { 8 } else { 7 };
+    // Floats prepend a 6-byte `jp` parity branch before the failure jcc (NaN routing).
+    let float_parity_branch = if is_float { 6 } else { 0 };
     10 + load_width
         + 10
         + load_width
         + runtime_float_or_integer_compare_width(is_float, byte_size)
         + 6
+        + float_parity_branch
 }
 
 pub fn encode_runtime_storage_compare_bytes(
@@ -1619,7 +2230,7 @@ pub fn encode_runtime_storage_compare_bytes(
     } else {
         append_cmp_r10_r11(&mut bytes, byte_size)?;
     }
-    append_failure_branch(&mut bytes, operator, failure_branch_distance - 4)?;
+    append_failure_branch(&mut bytes, operator, failure_branch_distance - 4, is_float)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_storage_compare_width(left_offset, right_offset, byte_size, is_float)
@@ -1650,7 +2261,7 @@ pub fn encode_runtime_storage_value_compare_bytes(
     append_load_reg_from_r15(&mut bytes, Reg64::R10, byte_offset, byte_size)?;
     append_mov_reg_imm64(&mut bytes, Reg64::R11, expected_value as u64);
     append_cmp_r10_r11(&mut bytes, byte_size)?;
-    append_failure_branch(&mut bytes, operator, failure_branch_distance - 4)?;
+    append_failure_branch(&mut bytes, operator, failure_branch_distance - 4, false)?;
     debug_assert_eq!(
         bytes.len(),
         runtime_storage_value_compare_width(byte_offset, byte_size)
@@ -1729,10 +2340,10 @@ pub fn encode_runtime_machine_indexed_integer_write(
         omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
             // r10 = runtime-frame base (imm64 at +12 relocated to the frame symbol).
             append_mov_r10_imm64(&mut bytes, 0);
-            append_load_rax_from_r10(&mut bytes, index_offset)?;
+            append_load_index_eax_from_r10(&mut bytes, index_offset)?;
         }
         omega_target_operations::RuntimeStorageRegion::Machine => {
-            append_load_rax_from_r15(&mut bytes, index_offset)?;
+            append_load_index_eax_from_r15(&mut bytes, index_offset)?;
         }
     }
     // rax = index * element_byte_size; r15 = machine base + scaled index.
@@ -1744,6 +2355,255 @@ pub fn encode_runtime_machine_indexed_integer_write(
     debug_assert_eq!(
         bytes.len(),
         runtime_machine_indexed_integer_write_width(index_region, element_byte_size, byte_size)
+    );
+    Ok(bytes)
+}
+
+/// Width of [`encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`]
+/// for the machine-resident-index case. MUST equal the emitter exactly. The
+/// two relocations are the machine source base (@+2, the instruction start) and
+/// the target base (@+36); there is NO runtime-frame load, so a program without
+/// any frame storage relocates cleanly.
+pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width() -> usize {
+    // mov r15,imm64 (10) + mov eax,[r15+idx] (7) + imul rax,rax,imm32 (7)
+    // + add r15,rax (3) + mov rax,[r15+disp] (7) + mov r15,imm64 (10)
+    // + store [r15+disp] (7).
+    51
+}
+
+/// Read `collection[index]` (an element of a machine-resident inline array,
+/// indexed by a runtime field) and copy it into a runtime-storage target -- the
+/// mirror of [`encode_runtime_machine_indexed_integer_write`] in the read
+/// direction. Only a machine-resident index is implemented; a frame-resident
+/// index (`let i = ..; self.arr[i]`) is a clean error for now.
+pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_count, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot read {byte_count}-byte machine indexed values yet"
+        )));
+    }
+    if index_region != omega_target_operations::RuntimeStorageRegion::Machine {
+        return Err(Diagnostic::error(
+            "X86_64 MVP encoder cannot read a machine indexed value with a frame-resident index yet",
+        ));
+    }
+    let element_scale = i32::try_from(element_byte_size).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot scale machine index by element size `{element_byte_size}`"
+        ))
+    })?;
+    let index_displacement = disp32(index_offset)?;
+    let mut bytes = Vec::with_capacity(
+        runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(),
+    );
+    // r15 = machine source base (imm64 at +2 relocated to the machine symbol).
+    append_mov_r15_imm64(&mut bytes, 0);
+    // eax = index, loaded 32-bit (zero-extended, so a nonzero adjacent slot can't
+    // splice into it) from the machine storage base.
+    bytes.extend([0x41, 0x8b, 0x87]); // mov eax, [r15+disp32]
+    bytes.extend(index_displacement.to_le_bytes());
+    // rax = index * element_byte_size; r15 = source base + scaled index.
+    append_imul_rax_imm32(&mut bytes, element_scale);
+    append_add_r15_rax(&mut bytes);
+    // rax = the source element at [r15 + base + field].
+    append_load_rax_from_r15(&mut bytes, base_byte_offset + field_byte_offset)?;
+    // r15 = target base (imm64 at +36 relocated to the target region symbol);
+    // store the low byte_count bytes of rax there.
+    append_mov_r15_imm64(&mut bytes, 0);
+    append_store_rax_to_r15(&mut bytes, target_offset, byte_count)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width()
+    );
+    Ok(bytes)
+}
+
+pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    match source_region {
+        // mov r15,imm64 (10) + load rax,[r15+src] (7) + SECOND mov r15,imm64
+        // (10, the machine base) + mov r10d,[r15+idx] (7) + imul (7) + add (3)
+        // + store (7): the source rides the FRAME base first.
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => 51,
+        // mov r15,imm64 (10) + mov rax,[r15+src] (7) + mov r10d,[r15+idx] (7)
+        // + imul r10,r10,imm32 (7) + add r15,r10 (3) + store [r15+disp] (7).
+        _ => 41,
+    }
+}
+
+/// Start of the SECOND `mov r15,imm64` (the machine base) inside the
+/// frame-source variant of the write half -- the machine relocation; the
+/// relocation planner adds the +2 immediate offset itself.
+pub fn runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset() -> usize {
+    17
+}
+
+/// Write a runtime-storage value into `collection[index]` (an element of a
+/// machine-resident inline array, indexed by a runtime field) -- the mirror of
+/// [`encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`]
+/// in the write direction (`self.nums[self.j] = self.b`). Only a machine-resident
+/// source AND a machine-resident index are implemented (the common case where
+/// every field shares the machine base); a frame-resident source or index is a
+/// clean error for now.
+pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    source_offset: usize,
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_count, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot write {byte_count}-byte machine indexed values yet"
+        )));
+    }
+    if index_region != omega_target_operations::RuntimeStorageRegion::Machine {
+        return Err(Diagnostic::error(
+            "X86_64 MVP encoder cannot write a machine indexed value with a frame-resident index yet",
+        ));
+    }
+    let element_scale = i32::try_from(element_byte_size).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot scale machine index by element size `{element_byte_size}`"
+        ))
+    })?;
+    let index_displacement = disp32(index_offset)?;
+    let mut bytes = Vec::with_capacity(
+        runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(source_region),
+    );
+    // r15 = the SOURCE base (imm64 at +2, relocated to the source region's
+    // symbol -- the machine for a field source, the runtime frame for a
+    // slot-backed local); rax = the source value off that clean base.
+    append_mov_r15_imm64(&mut bytes, 0);
+    append_load_rax_from_r15(&mut bytes, source_offset)?;
+    if source_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        // Frame-resident source: re-load r15 with the MACHINE base (imm64 at
+        // +17+2, the second relocation) for the index read + element store.
+        append_mov_r15_imm64(&mut bytes, 0);
+    }
+    // r10d = index, loaded 32-bit (zero-extended) from the machine base.
+    bytes.extend([0x45, 0x8b, 0x97]); // mov r10d, [r15+disp32]
+    bytes.extend(index_displacement.to_le_bytes());
+    // r10 = index * element_byte_size.
+    bytes.extend([0x4d, 0x69, 0xd2]); // imul r10, r10, imm32
+    bytes.extend(element_scale.to_le_bytes());
+    // r15 = machine base + scaled index = target element base.
+    bytes.extend([0x4d, 0x01, 0xd7]); // add r15, r10
+    // store the low byte_count bytes of rax at [r15 + base + field].
+    append_store_rax_to_r15(&mut bytes, base_byte_offset + field_byte_offset, byte_count)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(source_region)
+    );
+    Ok(bytes)
+}
+
+pub fn runtime_storage_copy_machine_indexed_to_machine_indexed_width() -> usize {
+    // Read part: mov r15,imm64 (10) + mov eax,[r15+idx] (7) + imul rax,imm32 (7)
+    // + add r15,rax (3) + load rax,[r15+disp] (7) = 34.
+    // Write part: mov r15,imm64 (10) + mov r10d,[r15+idx] (7) + imul r10,imm32
+    // (7) + add r15,r10 (3) + store [r15+disp] (7) = 34.
+    68
+}
+
+/// The relative offset of the WRITE part's `mov r15, imm64` immediate inside
+/// [`encode_runtime_storage_copy_machine_indexed_to_machine_indexed`] -- the
+/// second machine-base relocation (the first sits at instruction start +2).
+pub fn runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset() -> usize {
+    34 + 2
+}
+
+/// The DUAL-indexed copy `arr[i] = arr[j]` (task #38): read a machine-owned
+/// runtime-indexed SOURCE element, store it into a machine-owned runtime-indexed
+/// TARGET element. Byte-for-byte composition of the two proven halves -- the
+/// read front of
+/// [`encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`]
+/// (eax = source index, scale, add, load rax) and the write tail of
+/// [`encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage`]
+/// (r10d = target index, scale, add, store rax). The value rides in rax across
+/// the re-load of the machine base into r15, and the two index computations use
+/// distinct registers (rax before the load vs r10), so nothing clobbers. Both
+/// indices must be machine-resident (the same gate as the halves).
+pub fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+    source_base_byte_offset: usize,
+    source_index_offset: usize,
+    source_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_element_byte_size: usize,
+    source_field_byte_offset: usize,
+    target_base_byte_offset: usize,
+    target_index_offset: usize,
+    target_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_element_byte_size: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_count, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot copy {byte_count}-byte machine indexed values yet"
+        )));
+    }
+    if source_index_region != omega_target_operations::RuntimeStorageRegion::Machine
+        || target_index_region != omega_target_operations::RuntimeStorageRegion::Machine
+    {
+        return Err(Diagnostic::error(
+            "X86_64 MVP encoder cannot copy machine indexed values with a frame-resident index yet",
+        ));
+    }
+    let source_scale = i32::try_from(source_element_byte_size).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot scale machine index by element size `{source_element_byte_size}`"
+        ))
+    })?;
+    let target_scale = i32::try_from(target_element_byte_size).map_err(|_| {
+        Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot scale machine index by element size `{target_element_byte_size}`"
+        ))
+    })?;
+    let source_index_displacement = disp32(source_index_offset)?;
+    let target_index_displacement = disp32(target_index_offset)?;
+    let mut bytes =
+        Vec::with_capacity(runtime_storage_copy_machine_indexed_to_machine_indexed_width());
+    // READ PART. r15 = machine base (imm64 at +2 relocated to the machine
+    // symbol); eax = source index (32-bit, zero-extended); scale; walk r15 to
+    // the source element; rax = the element.
+    append_mov_r15_imm64(&mut bytes, 0);
+    bytes.extend([0x41, 0x8b, 0x87]); // mov eax, [r15+disp32]
+    bytes.extend(source_index_displacement.to_le_bytes());
+    append_imul_rax_imm32(&mut bytes, source_scale);
+    append_add_r15_rax(&mut bytes);
+    append_load_rax_from_r15(
+        &mut bytes,
+        source_base_byte_offset + source_field_byte_offset,
+    )?;
+    // WRITE PART. r15 = machine base again (imm64 at +36, the second machine
+    // relocation); r10d = target index; scale; walk r15 to the target element;
+    // store the low byte_count bytes of rax.
+    append_mov_r15_imm64(&mut bytes, 0);
+    bytes.extend([0x45, 0x8b, 0x97]); // mov r10d, [r15+disp32]
+    bytes.extend(target_index_displacement.to_le_bytes());
+    bytes.extend([0x4d, 0x69, 0xd2]); // imul r10, r10, imm32
+    bytes.extend(target_scale.to_le_bytes());
+    bytes.extend([0x4d, 0x01, 0xd7]); // add r15, r10
+    append_store_rax_to_r15(
+        &mut bytes,
+        target_base_byte_offset + target_field_byte_offset,
+        byte_count,
+    )?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_copy_machine_indexed_to_machine_indexed_width()
     );
     Ok(bytes)
 }
@@ -3798,9 +4658,20 @@ pub fn runtime_storage_binary_write_width(
         // Saturating SIGNED divide/modulo wraps the normal idiv in a TYPE_MIN/-1
         // guard (see append_saturating_signed_divide_modulo).
         saturating_signed_divide_modulo_width(byte_size, operator == StateGuardOperator::Modulo)
+    } else if domain == ArithmeticDomain::Wrapping
+        && matches!(
+            operator,
+            StateGuardOperator::Divide | StateGuardOperator::Modulo
+        )
+    {
+        // Wrapping SIGNED divide/modulo guards TYPE_MIN/-1 so idiv does not #DE
+        // (see append_wrapping_signed_divide_modulo). Unsigned uses the *Unsigned
+        // operators and cannot overflow, so it falls through.
+        wrapping_signed_divide_modulo_width(byte_size, operator == StateGuardOperator::Modulo)
     } else {
-        // Trapping div/mod (and all Exact/Wrapping ops, plus unsigned saturating
-        // div/mod which cannot overflow) use the normal op width.
+        // Trapping div/mod (idiv traps == Trapping semantics), Exact (proven
+        // non-overflowing), and unsigned div/mod (cannot overflow) use the normal
+        // op width.
         runtime_binary_operation_or_float_width(operator, byte_size, is_float)
     };
     // 10 (mov r14,imm64) + left + push r10 (2) + right + mov r11,r10 (3)
@@ -3820,11 +4691,30 @@ pub fn runtime_storage_binary_write_width(
 fn saturating_signed_divide_modulo_width(byte_size: usize, want_remainder: bool) -> usize {
     let fixup = if want_remainder {
         3 // xor r10d, r10d
+    } else if byte_size <= 2 {
+        16 // neg r10d (3) + mov r9d,imm32 (6) + cmp r10d,r9d (3) + cmovg r10d,r9d (4)
     } else if byte_size <= 4 {
         13 // neg r10d (3) + mov r9d,imm32 (6) + cmovo r10d,r9d (4)
     } else {
         17 // neg r10 (3) + mov r9,imm64 (10) + cmovo r10,r9 (4)
     };
+    let normal = runtime_binary_operation_width(
+        if want_remainder {
+            StateGuardOperator::Modulo
+        } else {
+            StateGuardOperator::Divide
+        },
+        byte_size,
+    );
+    4 + 2 + fixup + 2 + normal
+}
+
+/// Bytes of [`append_wrapping_signed_divide_modulo`], for the relocation layout.
+/// MUST equal the emitter exactly. cmp r11,-1 (4) + jne (2) + the divisor==-1
+/// fixup (always 3: `neg r10` for divide, `xor r10d,r10d` for modulo) + jmp (2) +
+/// the normal idiv core.
+fn wrapping_signed_divide_modulo_width(byte_size: usize, want_remainder: bool) -> usize {
+    let fixup = 3; // neg r10/r10d, or xor r10d,r10d
     let normal = runtime_binary_operation_width(
         if want_remainder {
             StateGuardOperator::Modulo
@@ -3926,6 +4816,21 @@ pub fn encode_runtime_storage_binary_write(
         // normal path below. (Trapping div/mod also falls through, where `idiv`
         // traps on overflow and divide-by-zero -- exactly Trapping semantics.)
         append_saturating_signed_divide_modulo(
+            &mut bytes,
+            byte_size,
+            operator == StateGuardOperator::Modulo,
+        )?;
+    } else if domain == ArithmeticDomain::Wrapping
+        && matches!(
+            operator,
+            StateGuardOperator::Divide | StateGuardOperator::Modulo
+        )
+    {
+        // Wrapping SIGNED divide/modulo: guard TYPE_MIN / -1 so the bare `idiv`
+        // does not raise #DE -- produce the WRAPPED result (TYPE_MIN / 0) instead.
+        // Unsigned div/mod uses the *Unsigned operators (cannot overflow) and
+        // falls through to the normal path below.
+        append_wrapping_signed_divide_modulo(
             &mut bytes,
             byte_size,
             operator == StateGuardOperator::Modulo,
@@ -4206,10 +5111,18 @@ fn runtime_convert_operation_width(
             }
         }
         (false, false) => {
-            // Sign-extend a narrow signed source when widening; otherwise the
-            // load already zero-extended and the store truncates.
-            if target_byte_size > source_byte_size && source_signed && source_byte_size == 4 {
-                3 // movsxd r10, r10d
+            // Widen a narrow integer source into r10. A 1/2-byte source was loaded
+            // with movb/movw, which leave the upper bits GARBAGE, so it MUST be
+            // movzx/movsx-extended (zero for unsigned, sign for signed). A 4-byte
+            // source was loaded with movl (already zero-extended), so only a SIGNED
+            // 4-byte source needs movsxd; an unsigned 4-byte source is already
+            // correct. Narrowing/equal widths need nothing (the store truncates).
+            if target_byte_size > source_byte_size {
+                match source_byte_size {
+                    1 | 2 => 4, // movzx/movsx r10, r10b / r10w
+                    4 if source_signed => 3, // movsxd r10, r10d
+                    _ => 0,
+                }
             } else {
                 0
             }
@@ -4270,8 +5183,18 @@ fn append_runtime_convert_operation(
             }
         }
         (false, false) => {
-            if target_byte_size > source_byte_size && source_signed && source_byte_size == 4 {
-                bytes.extend([0x4d, 0x63, 0xd2]); // movsxd r10, r10d
+            if target_byte_size > source_byte_size {
+                match (source_byte_size, source_signed) {
+                    // movb/movw left the upper bits garbage: extend r10b/r10w -> r10.
+                    (1, true) => bytes.extend([0x4d, 0x0f, 0xbe, 0xd2]), // movsx r10, r10b
+                    (1, false) => bytes.extend([0x4d, 0x0f, 0xb6, 0xd2]), // movzx r10, r10b
+                    (2, true) => bytes.extend([0x4d, 0x0f, 0xbf, 0xd2]), // movsx r10, r10w
+                    (2, false) => bytes.extend([0x4d, 0x0f, 0xb7, 0xd2]), // movzx r10, r10w
+                    (4, true) => bytes.extend([0x4d, 0x63, 0xd2]),       // movsxd r10, r10d
+                    // 4-byte unsigned (and 8-byte) sources were already zero-extended
+                    // by the movl/movq load.
+                    _ => {}
+                }
             }
         }
     }
@@ -4540,6 +5463,90 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     // evaluation, which freely clobbers r15/r10/r11 but never r14).
     append_mov_r14_imm64(&mut bytes, 0); // imm64 at +2 relocated to the frame symbol
     append_load_r15_from_r14(&mut bytes, index_offset)?;
+    append_imul_r15_imm32(&mut bytes, element_scale(element_byte_size)?);
+    append_add_r14_r15(&mut bytes);
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_frame_base_indexed_binary_left_operand_offset()
+    );
+    // Stash the left result across the right operand's evaluation (both accumulate
+    // in r10). r14 (target address) survives push/pop and operand evaluation.
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
+    append_push_r10(&mut bytes);
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
+    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
+    append_pop_r10(&mut bytes); // restore left -> r10
+    append_runtime_binary_operation(
+        &mut bytes,
+        operator,
+        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+    )?;
+    append_store_r10_to_r14(&mut bytes, store_displacement, byte_size)?;
+    Ok(bytes)
+}
+
+pub fn runtime_machine_indexed_binary_write_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    _index_region: omega_target_operations::RuntimeStorageRegion,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    // Byte layout is identical to the frame-base binary write; only the base
+    // relocation targets the machine symbol (handled by the relocations crate).
+    // The frame-resident-index case errors in the encoder before width matters,
+    // so a single width keeps the function total.
+    runtime_frame_base_indexed_binary_write_width(
+        runtime_value_operands,
+        byte_size,
+        left,
+        operator,
+        right,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_indexed_binary_write(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let store_displacement = base_byte_offset + field_byte_offset;
+    let mut bytes = Vec::with_capacity(runtime_machine_indexed_binary_write_width(
+        runtime_value_operands,
+        index_region,
+        byte_size,
+        left,
+        operator,
+        right,
+    ));
+    // r14 = machine storage base + index*element (target address held across
+    // operand evaluation, which freely clobbers r15/r10/r11 but never r14). The
+    // imm64 at +2 is relocated to the MACHINE symbol (relocations crate), unlike
+    // the frame-base sibling that relocates to the frame symbol.
+    append_mov_r14_imm64(&mut bytes, 0);
+    // Load the index. Only a machine-resident index is implemented (the index is
+    // read from the machine base already in r14, matching the frame-base sibling
+    // which reads the frame-resident index from the frame base in r14). A
+    // frame-resident index (`let i = ..; self.arr[i]`) is a clean error for now.
+    match index_region {
+        omega_target_operations::RuntimeStorageRegion::Machine => {
+            append_load_index_r15d_from_r14(&mut bytes, index_offset)?;
+        }
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => {
+            return Err(Diagnostic::error(
+                "X86_64 MVP encoder cannot write a machine-indexed binary with a frame-resident index yet".to_string(),
+            ));
+        }
+    }
     append_imul_r15_imm32(&mut bytes, element_scale(element_byte_size)?);
     append_add_r14_r15(&mut bytes);
     debug_assert_eq!(
@@ -5505,6 +6512,9 @@ fn runtime_binary_operation_byte_size(
             | StateGuardOperator::Modulo
             | StateGuardOperator::DivideUnsigned
             | StateGuardOperator::ModuloUnsigned
+            | StateGuardOperator::ShiftLeft
+            | StateGuardOperator::ShiftRight
+            | StateGuardOperator::ShiftRightLogical
     ) {
         // Division/modulo are NOT modular: a 64-bit idiv/div on a zero-extended
         // negative i32 dividend yields a wrong quotient. Run at the OPERAND width (an
@@ -5512,7 +6522,23 @@ fn runtime_binary_operation_byte_size(
         // op handles the i32 dividend correctly -- signed via cdq, unsigned via the
         // resolver mapping Divide->DivideUnsigned. Add/sub/mul are modular and keep
         // the default 64-bit form. See [[guard-negative-i32-arithmetic]].
-        runtime_binary_compare_byte_size(operands, left, right)
+        //
+        // SHIFTS join this branch for the same reason: a 64-bit `sar` on a
+        // zero-extended negative i32 reads the high bit wrong (`-320 >> 2` would
+        // become 0x3FFFFFB0, not -80), so run the shift at the shifted VALUE's width
+        // (its left operand). A 32-bit `sar`/`shr`/`shl` honors the i32 sign/high bit,
+        // and `<<` at the operand width also drops i32 overflow (wrapping semantics)
+        // instead of leaking into the upper 32 bits. Both width encodings are the same
+        // length, so relocation offsets are unaffected.
+        //
+        // When BOTH operands are immediates (a constant/constant divide that did not
+        // fold) neither has a storage width, so fall back to the TARGET (declared)
+        // width -- NOT 4. An i64 constant divide must run 64-bit; a 32-bit core would
+        // truncate the dividend (e.g. -9_000_000_000) and the planned/emitted widths
+        // would disagree (`runtime_storage_binary_write_width` uses the target size).
+        runtime_value_operand_value_byte_size(operands, left)
+            .or_else(|| runtime_value_operand_value_byte_size(operands, right))
+            .unwrap_or(target_byte_size)
     } else {
         target_byte_size
     }
@@ -5530,6 +6556,18 @@ fn append_integer_divide_modulo_core(
     signed: bool,
 ) {
     if byte_size <= 4 {
+        // Narrow SIGNED operands may arrive ZERO-extended (e.g. the guard-subject
+        // load path; see append_saturating_trapping_multiply), so a 32-bit idiv would
+        // divide i8 -20 as 236. Sign-extend both to 32 bits first. Idempotent when
+        // they are already sign-extended (the storage-write path); unsigned div is
+        // correct zero-extended and skips this.
+        if signed && byte_size == 1 {
+            bytes.extend([0x4d, 0x0f, 0xbe, 0xd2]); // movsx r10, r10b
+            bytes.extend([0x4d, 0x0f, 0xbe, 0xdb]); // movsx r11, r11b
+        } else if signed && byte_size == 2 {
+            bytes.extend([0x4d, 0x0f, 0xbf, 0xd2]); // movsx r10, r10w
+            bytes.extend([0x4d, 0x0f, 0xbf, 0xdb]); // movsx r11, r11w
+        }
         bytes.extend([0x41, 0x8b, 0xc2]); // mov eax, r10d
         if signed {
             bytes.push(0x99); // cdq (sign-extend eax -> edx)
@@ -5572,15 +6610,6 @@ fn append_saturating_signed_divide_modulo(
     byte_size: usize,
     want_remainder: bool,
 ) -> Result<(), Diagnostic> {
-    if !want_remainder && byte_size != 4 && byte_size != 8 {
-        // The TYPE_MIN -> TYPE_MAX saturation reads `neg`'s overflow flag, which
-        // only reflects the 32/64-bit register width; an i8/i16 dividend rides
-        // sign-extended in a 32-bit register, so `neg` never overflows for its
-        // (narrower) TYPE_MIN. Modulo is width-independent (a % -1 == 0).
-        return Err(Diagnostic::error(
-            "saturating signed i8/i16 divide is not implemented yet (i32/i64 only)".to_owned(),
-        ));
-    }
     // cmp r11, -1 (sized): the only divisor needing the saturating fixup.
     if byte_size <= 4 {
         bytes.extend([0x41, 0x83, 0xfb, 0xff]); // cmp r11d, -1
@@ -5591,6 +6620,19 @@ fn append_saturating_signed_divide_modulo(
     let mut special: Vec<u8> = Vec::new();
     if want_remainder {
         special.extend([0x45, 0x31, 0xd2]); // xor r10d, r10d  (a % -1 == 0)
+    } else if byte_size <= 2 {
+        // i8/i16: the dividend rides sign-extended in a 32-bit register, so `neg`
+        // does NOT wrap at the narrow width -- a == TYPE_MIN yields -TYPE_MIN ==
+        // TYPE_MAX + 1 (e.g. 128 for i8), the only overflow. The i32/i64 path below
+        // detects TYPE_MIN via `neg`'s overflow flag, which a narrow TYPE_MIN cannot
+        // set; here instead clamp any result above TYPE_MAX down to TYPE_MAX.
+        let imax = ((1i128 << (8 * byte_size - 1)) - 1) as u32;
+        special.extend([0x41, 0xf7, 0xda]); // neg r10d  (-a; a==TYPE_MIN -> TYPE_MAX+1)
+        special.push(0x41);
+        special.push(0xb9);
+        special.extend(imax.to_le_bytes()); // mov r9d, TYPE_MAX
+        special.extend([0x45, 0x39, 0xca]); // cmp r10d, r9d
+        special.extend([0x45, 0x0f, 0x4f, 0xd1]); // cmovg r10d, r9d  (> TYPE_MAX -> TYPE_MAX)
     } else if byte_size <= 4 {
         let imax = ((1i128 << (8 * byte_size - 1)) - 1) as u32;
         special.extend([0x41, 0xf7, 0xda]); // neg r10d  (sets OF iff r10d == TYPE_MIN)
@@ -5620,6 +6662,48 @@ fn append_saturating_signed_divide_modulo(
     Ok(())
 }
 
+/// WRAPPING signed divide/modulo. x86 `idiv` raises #DE (integer-overflow trap)
+/// for TYPE_MIN / -1; the Wrapping domain must instead produce the WRAPPED result
+/// (TYPE_MIN for divide -- the true quotient TYPE_MAX+1 wraps to TYPE_MIN -- and 0
+/// for modulo). Guard the single overflowing divisor (-1) and avoid idiv for it:
+/// `a / -1 == -a` via `neg r10` (and `neg` of TYPE_MIN naturally wraps to
+/// TYPE_MIN, so no clamp is needed, unlike the saturating variant); `a % -1 == 0`.
+/// Narrow widths (i8/i16) let the store truncate the negated 32-bit value back to
+/// the correct wrapped byte. Divide-by-zero still reaches `idiv` and traps,
+/// matching the interpreter. (aarch64 `sdiv` does not trap on overflow, so this
+/// guard is x86_64-only.)
+fn append_wrapping_signed_divide_modulo(
+    bytes: &mut Vec<u8>,
+    byte_size: usize,
+    want_remainder: bool,
+) -> Result<(), Diagnostic> {
+    // cmp r11, -1 (sized): the only divisor that would overflow idiv.
+    if byte_size <= 4 {
+        bytes.extend([0x41, 0x83, 0xfb, 0xff]); // cmp r11d, -1
+    } else {
+        bytes.extend([0x49, 0x83, 0xfb, 0xff]); // cmp r11, -1
+    }
+    // The divisor == -1 fixup block (always 3 bytes).
+    let mut special: Vec<u8> = Vec::new();
+    if want_remainder {
+        special.extend([0x45, 0x31, 0xd2]); // xor r10d, r10d  (a % -1 == 0)
+    } else if byte_size <= 4 {
+        special.extend([0x41, 0xf7, 0xda]); // neg r10d  (-a; TYPE_MIN wraps to TYPE_MIN)
+    } else {
+        special.extend([0x49, 0xf7, 0xda]); // neg r10
+    }
+    // The normal idiv (every divisor except -1).
+    let mut normal: Vec<u8> = Vec::new();
+    append_integer_divide_modulo_core(&mut normal, byte_size, want_remainder, true);
+    bytes.push(0x75);
+    bytes.push((special.len() + 2) as u8); // jne -> normal
+    bytes.extend(special);
+    bytes.push(0xeb);
+    bytes.push(normal.len() as u8); // jmp -> done
+    bytes.extend(normal);
+    Ok(())
+}
+
 fn append_runtime_binary_operation(
     bytes: &mut Vec<u8>,
     operator: StateGuardOperator,
@@ -5629,6 +6713,9 @@ fn append_runtime_binary_operation(
         StateGuardOperator::Add => bytes.extend([0x4d, 0x01, 0xda]), // add r10, r11
         StateGuardOperator::And => bytes.extend([0x4d, 0x21, 0xda]), // and r10, r11
         StateGuardOperator::Or => bytes.extend([0x4d, 0x09, 0xda]),  // or r10, r11
+        StateGuardOperator::BitwiseAnd => bytes.extend([0x4d, 0x21, 0xda]), // and r10, r11
+        StateGuardOperator::BitwiseOr => bytes.extend([0x4d, 0x09, 0xda]),  // or r10, r11
+        StateGuardOperator::BitwiseXor => bytes.extend([0x4d, 0x31, 0xda]), // xor r10, r11
         StateGuardOperator::Subtract => bytes.extend([0x4d, 0x29, 0xda]), // sub r10, r11
         StateGuardOperator::Multiply => bytes.extend([0x4d, 0x0f, 0xaf, 0xd3]), // imul r10, r11
         StateGuardOperator::Max
@@ -5768,6 +6855,16 @@ fn append_runtime_float_binary_operation(
         StateGuardOperator::Subtract => 0x5c, // subsd/subss
         StateGuardOperator::Multiply => 0x59, // mulsd/mulss
         StateGuardOperator::Divide => 0x5e,   // divsd/divss
+        // `maxsd a, b` / `minsd a, b` return b on unordered (NaN) or equal, so
+        // they realize `if a > b { a } else { b }` (and the min mirror) --
+        // which the interpreter's float min/max matches exactly. This is what
+        // makes float min/max, and hence abs/clamp over floats, lower.
+        StateGuardOperator::Max => 0x5f, // maxsd/maxss
+        StateGuardOperator::Min => 0x5d, // minsd/minss
+        // sqrt is UNARY, carried with both operands = x: `sqrtsd xmm0, xmm1`
+        // computes sqrt(xmm1) = sqrt(x) into xmm0, so the shared final line
+        // below (op on xmm0, xmm1) already produces the right result.
+        StateGuardOperator::Sqrt => 0x51, // sqrtsd/sqrtss
         _ => {
             return Err(Diagnostic::error(format!(
                 "X86_64 runtime float binary operator `{operator:?}` is not implemented yet"
@@ -5794,6 +6891,9 @@ fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize
         StateGuardOperator::Add
         | StateGuardOperator::And
         | StateGuardOperator::Or
+        | StateGuardOperator::BitwiseAnd
+        | StateGuardOperator::BitwiseOr
+        | StateGuardOperator::BitwiseXor
         | StateGuardOperator::Subtract => 3,
         StateGuardOperator::Multiply => 4,
         // cmp (3) + cmov (4), same at 32-bit or 64-bit.
@@ -5802,8 +6902,11 @@ fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize
         | StateGuardOperator::MaxUnsigned
         | StateGuardOperator::MinUnsigned => 7,
         // signed 32-bit: mov(3)+cdq(1)+idiv(3)+mov(3)=10; signed 64-bit: cqo(2)=11.
+        // Narrow signed (i8/i16) prepends two movsx (8) to sign-extend the operands
+        // to the 32-bit op width; see append_integer_divide_modulo_core.
         StateGuardOperator::Divide | StateGuardOperator::Modulo => {
-            if byte_size <= 4 { 10 } else { 11 }
+            let sign_extend = if byte_size <= 2 { 8 } else { 0 };
+            sign_extend + if byte_size <= 4 { 10 } else { 11 }
         }
         // unsigned: mov(3)+xor edx,edx(2)+div(3)+mov(3)=11 at either size.
         StateGuardOperator::DivideUnsigned | StateGuardOperator::ModuloUnsigned => 11,
@@ -5848,6 +6951,7 @@ fn append_failure_branch(
     bytes: &mut Vec<u8>,
     operator: StateGuardOperator,
     failure_branch_distance: isize,
+    is_float: bool,
 ) -> Result<(), Diagnostic> {
     // The guard jumps to the failure branch when the comparison is FALSE, so each
     // operator maps to its negation. Ordering uses signed (jl/jg/...) or unsigned
@@ -5869,6 +6973,23 @@ fn append_failure_branch(
             )));
         }
     };
+    // IEEE semantics for a NaN operand: every comparison is FALSE except `!=` (true).
+    // `ucomis*` reports an unordered/NaN operand by setting PF=1 (alongside ZF=CF=1),
+    // which the ZF/CF-only failure jcc above misreads as "equal". Prepend a parity
+    // branch so NaN is routed correctly. This 6-byte `jp` sits BEFORE the main jcc, so
+    // the main jcc's own rel32 is unchanged (both it and its target shift down by 6);
+    // the float width functions account for the extra 6 bytes.
+    if is_float {
+        if matches!(operator, StateGuardOperator::NotEqual) {
+            // `!=` on NaN is TRUE (guard succeeds): jump PAST the 6-byte `je` so NaN
+            // falls through to the success arm instead of taking the equal-failure jump.
+            append_jcc_rel32(bytes, 0x8a, 6)?; // jp over the je
+        } else {
+            // Every other operator is FALSE on NaN (guard fails): jump to the same
+            // failure arm as the main jcc, which now sits 6 bytes further along.
+            append_jcc_rel32(bytes, 0x8a, failure_branch_distance + 6)?; // jp to failure
+        }
+    }
     append_jcc_rel32(bytes, opcode, failure_branch_distance)
 }
 
@@ -6151,16 +7272,41 @@ fn append_load_r8_from_r10(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<()
     Ok(())
 }
 
-fn append_load_rax_from_r10(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+fn append_load_rax_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
-    bytes.extend([0x49, 0x8b, 0x82]); // mov rax, [r10 + disp32]
+    bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15 + disp32]
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }
 
-fn append_load_rax_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+/// 32-bit zero-extending load of an array INDEX. A 64-bit `mov rax` reads 8 bytes,
+/// which for a 4-byte index field (i32/u32) pulls in the ADJACENT field's bytes as
+/// the high dword -> a garbage index and an OOB store (segfault). Every valid array
+/// index fits in 32 bits, so load `eax` (which zero-extends into rax); matches the
+/// machine-indexed COPY encoder.
+fn append_load_index_eax_from_r10(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
     let displacement = disp32(byte_offset)?;
-    bytes.extend([0x49, 0x8b, 0x87]); // mov rax, [r15 + disp32]
+    bytes.extend([0x41, 0x8b, 0x82]); // mov eax, [r10 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+/// See [`append_load_index_eax_from_r10`].
+fn append_load_index_eax_from_r15(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x41, 0x8b, 0x87]); // mov eax, [r15 + disp32]
+    bytes.extend(displacement.to_le_bytes());
+    Ok(())
+}
+
+/// Load a 4-byte runtime index into r15, ZERO-EXTENDING into the upper 32 bits (`mov r15d`).
+/// A 64-bit load here would pull the 4 bytes ADJACENT to a 4-byte index field into the high
+/// dword, producing a garbage index and an out-of-bounds store when that neighbour is non-zero
+/// (the same class of bug fixed for the integer indexed write). Byte-count-identical to the
+/// 64-bit `append_load_r15_from_r14`, so instruction widths are unchanged.
+fn append_load_index_r15d_from_r14(bytes: &mut Vec<u8>, byte_offset: usize) -> Result<(), Diagnostic> {
+    let displacement = disp32(byte_offset)?;
+    bytes.extend([0x45, 0x8b, 0xbe]); // mov r15d, [r14 + disp32] (32-bit, zero-extends into r15)
     bytes.extend(displacement.to_le_bytes());
     Ok(())
 }
@@ -6341,27 +7487,6 @@ fn append_store_rax_to_r15(
         2 => bytes.extend([0x66, 0x41, 0x89, 0x87]),
         4 => bytes.extend([0x41, 0x89, 0x87]),
         8 => bytes.extend([0x49, 0x89, 0x87]),
-        _ => {
-            return Err(Diagnostic::error(format!(
-                "X86_64 MVP encoder cannot store {byte_size}-byte runtime values yet"
-            )));
-        }
-    }
-    bytes.extend(displacement.to_le_bytes());
-    Ok(())
-}
-
-fn append_store_r10_to_r15(
-    bytes: &mut Vec<u8>,
-    byte_offset: usize,
-    byte_size: usize,
-) -> Result<(), Diagnostic> {
-    let displacement = disp32(byte_offset)?;
-    match byte_size {
-        1 => bytes.extend([0x45, 0x88, 0x97]),
-        2 => bytes.extend([0x66, 0x45, 0x89, 0x97]),
-        4 => bytes.extend([0x45, 0x89, 0x97]),
-        8 => bytes.extend([0x4d, 0x89, 0x97]),
         _ => {
             return Err(Diagnostic::error(format!(
                 "X86_64 MVP encoder cannot store {byte_size}-byte runtime values yet"
@@ -6612,6 +7737,112 @@ fn append_lock_cmpxchg_r10_to_r14(
 /// Same layout as `lock_xadd_r10_to_r14_width` (only the opcode byte differs).
 fn lock_cmpxchg_r10_to_r14_width(byte_size: usize) -> usize {
     lock_xadd_r10_to_r14_width(byte_size)
+}
+
+#[cfg(test)]
+mod call_encoding_tests {
+    use super::append_call_register;
+
+    #[test]
+    fn low_registers_emit_ff_d0_through_ff_d7_without_rex() {
+        // `FF /2` register-direct: ModRM = 0xD0 | rm, no REX for rax..rdi.
+        // rax=D0 rcx=D1 rdx=D2 rbx=D3 rsp=D4 rbp=D5 rsi=D6 rdi=D7.
+        for reg in 0u8..8 {
+            let mut bytes = Vec::new();
+            append_call_register(&mut bytes, reg);
+            assert_eq!(
+                bytes,
+                vec![0xff, 0xd0 + reg],
+                "call r{reg} must be FF {:02X} with no REX",
+                0xd0 + reg
+            );
+        }
+    }
+
+    #[test]
+    fn extended_registers_take_a_rex_b_prefix() {
+        // r8..r15 need REX.B (0x41); ModRM low 3 bits wrap (r8 -> D0, r11 -> D3).
+        for reg in 8u8..16 {
+            let mut bytes = Vec::new();
+            append_call_register(&mut bytes, reg);
+            assert_eq!(
+                bytes,
+                vec![0x41, 0xff, 0xd0 | (reg & 0x7)],
+                "call r{reg} must be 41 FF {:02X}",
+                0xd0 | (reg & 0x7)
+            );
+        }
+    }
+
+    #[test]
+    fn canonical_targets_are_exact() {
+        // Spot-check the registers the first-boot path actually uses.
+        let mut rax = Vec::new();
+        append_call_register(&mut rax, 0);
+        assert_eq!(rax, vec![0xff, 0xd0], "call rax");
+
+        let mut r11 = Vec::new();
+        append_call_register(&mut r11, 11);
+        assert_eq!(r11, vec![0x41, 0xff, 0xd3], "call r11");
+    }
+}
+
+#[cfg(test)]
+mod vtable_call_encoding_tests {
+    use super::{encode_win64_vtable_call, win64_vtable_call_width};
+    use omega_target_operations::{InstructionOperandLike, RuntimeStorageRegion};
+
+    /// A minimal operand: either a runtime scalar (RCX = this from a field) or
+    /// a runtime storage address (RDX = &text field). Everything else None.
+    enum Op {
+        Scalar { region: RuntimeStorageRegion, offset: usize, size: usize },
+        Address { region: RuntimeStorageRegion, offset: usize },
+    }
+    impl InstructionOperandLike for Op {
+        fn data_address(&self) -> Option<omega_target_operations::TargetDataObjectHandle> { None }
+        fn runtime_string_pointer(&self) -> Option<(RuntimeStorageRegion, usize)> { None }
+        fn runtime_string_length(&self) -> Option<(RuntimeStorageRegion, usize)> { None }
+        fn runtime_string_is_bounded_buffer(&self) -> bool { false }
+        fn runtime_pointee_string_pointer(&self) -> Option<(RuntimeStorageRegion, usize)> { None }
+        fn runtime_pointee_string_length(&self) -> Option<(RuntimeStorageRegion, usize)> { None }
+        fn runtime_scalar_integer(&self) -> Option<(RuntimeStorageRegion, usize, usize)> {
+            match self {
+                Op::Scalar { region, offset, size } => Some((*region, *offset, *size)),
+                _ => None,
+            }
+        }
+        fn runtime_storage_address(&self) -> Option<(RuntimeStorageRegion, usize)> {
+            match self {
+                Op::Address { region, offset } => Some((*region, *offset)),
+                _ => None,
+            }
+        }
+        fn immediate_integer(&self) -> Option<i64> { None }
+        fn byte_length(&self) -> Option<usize> { None }
+    }
+
+    #[test]
+    fn output_string_marshals_this_and_text_then_calls_through_slot_1() {
+        // output_string(this: addr@machine+0, text: &field@machine+8) -> VtableSlot(1).
+        let operands = vec![
+            Op::Scalar { region: RuntimeStorageRegion::Machine, offset: 0, size: 8 },
+            Op::Address { region: RuntimeStorageRegion::Machine, offset: 8 },
+        ];
+        let bytes = encode_win64_vtable_call(&operands, 1).expect("encode");
+        assert_eq!(bytes.len(), win64_vtable_call_width(&operands, 1), "width matches");
+
+        // 2 register args -> reserve = 32 (padded to 40); sub rsp, 40 (imm8).
+        assert_eq!(&bytes[0..4], &[0x48, 0x83, 0xec, 40], "sub rsp, 40");
+        // arg 0 (this -> RCX): mov r15,imm64 (10) then mov rcx,[r15+0] (49 8b 8f + disp32 0).
+        assert_eq!(bytes[4], 0x49, "mov r15,imm64 opcode #0");
+        assert_eq!(&bytes[14..21], &[0x49, 0x8b, 0x8f, 0, 0, 0, 0], "rcx = [r15+0]");
+        // arg 1 (text -> RDX lea): mov r15,imm64 (10) then lea rdx,[r15+8] (49 8d 97 + disp32 8).
+        assert_eq!(&bytes[31..38], &[0x49, 0x8d, 0x97, 8, 0, 0, 0], "lea rdx, [r15+8]");
+        // the vtable read + indirect call, then restore.
+        assert_eq!(&bytes[38..45], &[0x48, 0x8b, 0x81, 8, 0, 0, 0], "mov rax, [rcx+8] (slot 1)");
+        assert_eq!(&bytes[45..47], &[0xff, 0xd0], "call rax");
+        assert_eq!(&bytes[47..51], &[0x48, 0x83, 0xc4, 40], "add rsp, 40");
+    }
 }
 
 #[cfg(test)]

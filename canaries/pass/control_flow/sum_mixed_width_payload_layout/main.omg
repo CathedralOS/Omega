@@ -1,0 +1,50 @@
+// RUN CANARY (exit 70) + interpreter differential. Sum-type payload LAYOUT across
+// MIXED WIDTHS: variant B packs (i16, i16, i64). Destructuring must read each
+// payload field at the correct byte OFFSET and WIDTH -- the i64 sits after two
+// i16s, so a naive uniform-slot layout would misread it. Existing sum canaries
+// cover the shared-field-NAME collision (case_payload_shared_field_name_exit);
+// this covers offset/width across widths. Values are moderate (no high-bit) to
+// isolate LAYOUT from the const-fold sign bug. exit 72 = a field read the wrong
+// offset/width; 71 = wrong variant dispatched.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Rec {
+    case A(x: i32);
+    case B(a: i16, b: i16, c: i64);
+    case C(f: u8, g: u32);
+}
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+    self.check(Rec::B { a: 1000, b: 2000, c: 9000000000 });
+}
+
+machine Main::check(&mut self, r: Rec) {
+    transition r {
+        Rec::B { a, b, c } -> vb(a, b, c)
+        _ -> bad()
+    }
+    state vb(&mut self, a: i16, b: i16, c: i64) {
+        transition a == 1000 {
+            true -> vb2(b, c)
+            _ -> wrong()
+        }
+    }
+    state vb2(&mut self, b: i16, c: i64) {
+        transition b == 2000 {
+            true -> vb3(c)
+            _ -> wrong()
+        }
+    }
+    state vb3(&mut self, c: i64) {
+        transition c == 9000000000 {
+            true -> good()
+            _ -> wrong()
+        }
+    }
+    state good(&mut self)  { self.console.exit_process(70); }
+    state wrong(&mut self) { self.console.exit_process(72); }
+    state bad(&mut self)   { self.console.exit_process(71); }
+}

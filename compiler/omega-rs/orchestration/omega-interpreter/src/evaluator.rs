@@ -28,6 +28,37 @@ const CONST_EVAL_STEP_BUDGET: u64 = 100_000;
 /// unsupported), never crash the differential harness.
 const CALL_DEPTH_BUDGET: u32 = 512;
 
+/// The modeled `st_mtime` (seconds since the Unix epoch) the hermetic virtual
+/// filesystem reports for every entry — it has no real clock. A recognizable
+/// round value (2001-09-09T01:46:40Z). Native `stat` returns the real time.
+/// The accessed/created times are offset to DISTINCT modeled values so a test
+/// can confirm each `st_*time` field is decoded from its own stat offset:
+/// created (birthtime) <= modified <= accessed, as is realistic.
+const VIRTUAL_MTIME_SECS: i64 = 1_000_000_000;
+const VIRTUAL_ATIME_SECS: i64 = 1_000_000_100;
+const VIRTUAL_BIRTHTIME_SECS: i64 = 999_999_900;
+/// Change time (`st_ctime`): metadata-change time, distinct from the others so a
+/// decode-offset bug is caught. Realistically birthtime <= ctime ~ mtime.
+const VIRTUAL_CTIME_SECS: i64 = 1_000_000_050;
+/// Device id (`st_dev`): fixed non-zero modeled value. Native returns the real
+/// device; tests assert this constant in the interpreter and only that two files
+/// on the same FS share a device natively.
+const VIRTUAL_DEV: u64 = 16_777_220;
+/// Allocation fields (`st_blocks` = 512-byte block count, `st_blksize` = preferred
+/// I/O block size): the hermetic FS reports fixed modeled values. Native `stat`
+/// returns the real allocation; tests assert these constants in the interpreter and
+/// only `blksize > 0` natively (it is filesystem-dependent).
+const VIRTUAL_BLOCKS: u64 = 8;
+const VIRTUAL_BLKSIZE: u64 = 4096;
+/// The hermetic FS reports FIXED identity/ownership fields (`st_ino`/`st_uid`/
+/// `st_gid`): it has no real inodes or process identity. Native `stat` returns the
+/// real values; tests assert these exact constants in the interpreter and only the
+/// deterministic relationships (two hard links share an inode; two files share an
+/// owner) natively.
+const VIRTUAL_INO: u64 = 1_000_000;
+const VIRTUAL_UID: u32 = 501;
+const VIRTUAL_GID: u32 = 20;
+
 pub(crate) fn run(checked: &TypedTrees, stdin: &[u8]) -> InterpretOutcome {
     // Run on a worker thread with a generous stack: the tree-walker recurses with the
     // program's call/expression nesting, which can exceed the default test-thread stack on
@@ -45,7 +76,7 @@ pub(crate) fn run(checked: &TypedTrees, stdin: &[u8]) -> InterpretOutcome {
     })
 }
 
-/// CONST EVALUATION (comptime stage 1): run a zero-argument, effect-free
+/// BUILD-TIME EVALUATION (stage 1): run a zero-argument, effect-free
 /// machine to its terminal value and return that value as an `i64`, width-
 /// adjusted to the machine's declared integer return type (the same
 /// `wrap_to_width` the interpreter applies on writes, so the result is
@@ -81,6 +112,66 @@ fn run_const_machine_on_current_thread(
     }
 }
 
+/// STRUCTURED build-time evaluation (the R2 layouts enabler): run an
+/// effect-free machine with compiler-built ARGUMENTS and read back its
+/// terminal value as a structured tree. Same ownership split as
+/// `run_const_machine`: the caller owns the purity gate (decision 12's
+/// transitive effect surface), this entry owns evaluation + the fuel cap.
+pub(crate) fn run_build_time_machine(
+    program: &TypedTrees,
+    machine_name: &str,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+) -> Result<crate::build_time::BuildTimeValue, String> {
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(256 * 1024 * 1024)
+            .spawn_scoped(scope, || {
+                let mut evaluator = Evaluator::new(program, &[]);
+                evaluator.step_budget = CONST_EVAL_STEP_BUDGET;
+                match evaluator.run_build_time_machine(machine_name, arguments) {
+                    Ok(value) => Ok(value),
+                    Err(Halt::Exit(code)) => Err(format!(
+                        "the machine attempted to exit the process (code {code}) instead of returning a value"
+                    )),
+                    Err(Halt::Unsupported(message)) | Err(Halt::Trap(message)) => Err(message),
+                }
+            })
+            .expect("spawn build-time evaluation worker thread")
+            .join()
+            .unwrap_or_else(|_| Err("build-time evaluator thread panicked".to_owned()))
+    })
+}
+
+/// The AUGMENTING-MACHINE build-time entry (build_and_package_model.md):
+/// evaluate `machine_name` with the given arguments and read back the FINAL
+/// argument values -- the `machine build(b: &mut Build)` shape, where the
+/// machine augments a passed-in value and returns nothing. The terminal value
+/// (if any) is discarded; a unit machine is fine.
+pub(crate) fn run_build_time_machine_arguments(
+    program: &TypedTrees,
+    machine_name: &str,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+) -> Result<Vec<crate::build_time::BuildTimeValue>, String> {
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(256 * 1024 * 1024)
+            .spawn_scoped(scope, || {
+                let mut evaluator = Evaluator::new(program, &[]);
+                evaluator.step_budget = CONST_EVAL_STEP_BUDGET;
+                match evaluator.run_build_time_machine_arguments(machine_name, arguments) {
+                    Ok(values) => Ok(values),
+                    Err(Halt::Exit(code)) => Err(format!(
+                        "the machine attempted to exit the process (code {code}) instead of returning"
+                    )),
+                    Err(Halt::Unsupported(message)) | Err(Halt::Trap(message)) => Err(message),
+                }
+            })
+            .expect("spawn build-time evaluation worker thread")
+            .join()
+            .unwrap_or_else(|_| Err("build-time evaluator thread panicked".to_owned()))
+    })
+}
+
 fn run_on_current_thread(checked: &TypedTrees, stdin: &[u8]) -> InterpretOutcome {
     let mut evaluator = Evaluator::new(checked, stdin);
     match evaluator.run_entry() {
@@ -114,6 +205,7 @@ fn trap<T>(message: impl Into<String>) -> EvalResult<T> {
     Err(Halt::Trap(message.into()))
 }
 
+
 /// A lexical scope: parameter / local bindings by name, plus the receiver (`self`) cell.
 /// `locals` is behind a `RefCell` so `let` bindings can be added while the frame is
 /// shared by `&` during statement execution.
@@ -135,12 +227,81 @@ struct Frame {
     guard_call_results: RefCell<Vec<(ExpressionHandle, Value)>>,
 }
 
+/// One open descriptor in the interpreter's virtual filesystem: which path it
+/// refers to, the read/write cursor, and whether it was opened writable.
+struct VirtualFd {
+    path: Vec<u8>,
+    cursor: usize,
+    writable: bool,
+    /// A descriptor over a DIRECTORY (opened read-only for `read_dir`); a normal
+    /// `read`/`write` on it is EISDIR.
+    is_dir: bool,
+}
+
 struct Evaluator<'program> {
     program: &'program TypedTrees,
     stdout: Vec<u8>,
     stderr: Vec<u8>,
     stdin: &'program [u8],
     stdin_cursor: usize,
+    /// Virtual monotonic tick counter for `Clock.tick_count` (advances on every
+    /// read and every `sleep`); deterministic, so tick-based programs must
+    /// assert monotonicity rather than concrete values.
+    virtual_ticks: i64,
+    /// The virtual window system: `window_create` mints opaque non-zero handle
+    /// tokens; `is_window` reports membership; `window_destroy` removes.
+    /// Deterministic, so programs must branch on liveness (handle != 0,
+    /// is_window > 0), never on concrete handle values.
+    virtual_live_windows: std::collections::HashSet<i64>,
+    virtual_window_next: i64,
+    /// A deterministic in-memory filesystem for `std::fs` programs: no real
+    /// disk, so the differential oracle stays reproducible (mirrors the other
+    /// `virtual_*` subsystems). `virtual_files` maps a path's bytes to its
+    /// content bytes; `virtual_fds` maps an open descriptor to its cursor +
+    /// writability. Descriptors start at 3 — 0/1/2 are the standard streams and
+    /// are never minted as `File` handles.
+    virtual_files: BTreeMap<Vec<u8>, Vec<u8>>,
+    virtual_fds: BTreeMap<i32, VirtualFd>,
+    virtual_next_fd: i32,
+    /// Directories in the virtual filesystem (create_dir/remove_dir).
+    virtual_dirs: std::collections::BTreeSet<Vec<u8>>,
+    /// Explicitly-set permission bits per path (`set_permissions`/chmod). A path
+    /// absent from this map is treated as writable (the default); only a path
+    /// chmod'd to drop the owner-write bit (mode & 0o200 == 0) makes a write-open
+    /// fail with EACCES — enough to model `set_permissions` without tracking a
+    /// mode for every created file.
+    virtual_perms: BTreeMap<Vec<u8>, u32>,
+    /// Symbolic links: link path -> target bytes (`symlink`/`read_link`). The
+    /// hermetic model stores and returns targets but does NOT resolve them on
+    /// open/stat (see TASKS_FS.md); native symlinks resolve for real.
+    virtual_symlinks: BTreeMap<Vec<u8>, Vec<u8>>,
+    /// Explicitly-set modification times: path -> mtime seconds (`set_file_times`
+    /// / `File::set_times`). `stat`/`fstat` report this when present, else the fixed
+    /// modeled epoch. The hermetic model round-trips MODIFIED time (whole seconds);
+    /// access time is set natively but the model reports the fixed modeled atime.
+    virtual_times: BTreeMap<Vec<u8>, i64>,
+    /// Advisory whole-file locks (`flock` / Rust `File::lock`/`unlock`): path ->
+    /// the fd that holds an EXCLUSIVE lock. A non-blocking acquire on a path
+    /// another fd already holds returns EWOULDBLOCK; a lock is released by
+    /// LOCK_UN or by closing the owning fd. Shared-lock coexistence and real
+    /// blocking are documented approximations (a single-threaded run can't
+    /// exercise them); exclusive contention is what the model tracks.
+    virtual_flocks: BTreeMap<Vec<u8>, i32>,
+    /// Character-special device files (`/dev/null` etc.): paths that `stat` reports
+    /// with an `S_IFCHR` mode instead of a regular file, so `FileType`/
+    /// `FileTypeExt::is_char_device()` resolves the same on both engines. The
+    /// hermetic FS has no real device nodes; this seeds the common ones so a
+    /// differential test can `metadata("/dev/null")` without special-casing.
+    virtual_char_devices: std::collections::BTreeSet<Vec<u8>>,
+    /// The thread-local `errno` model: set to a POSIX code when a virtual fs op
+    /// fails (ENOENT=2, EACCES=13, EEXIST=17, EBADF=9), read back by
+    /// `read_errno` (darwin `___error()`). Mirrors the native seam so the typed
+    /// error model (`io::ErrorKind`) resolves identically on both engines.
+    virtual_errno: i32,
+    /// Set whenever a host-boundary call is driven (statement position or the
+    /// value-call fallback). The build-time evaluation entry rejects runs that
+    /// touched the host: a dynamic backstop behind decision 12's static gate.
+    host_boundary_touched: bool,
     steps: u64,
     /// Total step allowance for this run. Full-program interpretation uses
     /// `STEP_BUDGET`; const evaluation uses the much smaller
@@ -161,6 +322,22 @@ impl<'program> Evaluator<'program> {
             stderr: Vec::new(),
             stdin,
             stdin_cursor: 0,
+            virtual_ticks: 0,
+            virtual_live_windows: std::collections::HashSet::new(),
+            virtual_window_next: 0,
+            virtual_files: BTreeMap::new(),
+            virtual_fds: BTreeMap::new(),
+            virtual_next_fd: 3,
+            virtual_dirs: std::collections::BTreeSet::new(),
+            virtual_perms: BTreeMap::new(),
+            virtual_symlinks: BTreeMap::new(),
+            virtual_times: BTreeMap::new(),
+            virtual_flocks: BTreeMap::new(),
+            virtual_char_devices: [b"/dev/null".to_vec(), b"/dev/zero".to_vec()]
+                .into_iter()
+                .collect(),
+            virtual_errno: 0,
+            host_boundary_touched: false,
             steps: 0,
             step_budget: STEP_BUDGET,
             call_depth: 0,
@@ -261,6 +438,125 @@ impl<'program> Evaluator<'program> {
         Ok(wrap_to_width(raw, return_primitive))
     }
 
+    /// STRUCTURED build-time evaluation: bind compiler-built arguments to the
+    /// machine's entry-state parameters positionally, run to the terminal
+    /// value, and deep-read it back out. Argument-count mismatch is a clear
+    /// error here (the position's diagnostic names the machine); the caller
+    /// owns the purity gate.
+    fn run_build_time_machine(
+        &mut self,
+        machine_name: &str,
+        arguments: Vec<crate::build_time::BuildTimeValue>,
+    ) -> EvalResult<crate::build_time::BuildTimeValue> {
+        let machine = self
+            .find_machine_by_name(machine_name)
+            .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?
+            .clone();
+        let entry_state_name = self.machine_entry_state_name(&machine).ok_or_else(|| {
+            Halt::Trap(format!(
+                "machine `{machine_name}` has no states to evaluate"
+            ))
+        })?;
+        // The `&self` receiver is bound from the machine instance, not the
+        // argument list -- exclude it from the positional count.
+        let parameter_count = self
+            .find_state(&machine, &entry_state_name)
+            .map(|state| {
+                self.program
+                    .state_parameters(state)
+                    .iter()
+                    .filter(|parameter| parameter.name.as_str() != "self")
+                    .count()
+            })
+            .unwrap_or(0);
+        if parameter_count != arguments.len() {
+            return Err(Halt::Trap(format!(
+                "machine `{machine_name}` takes {parameter_count} argument(s); the build-time \
+                 position supplied {}",
+                arguments.len()
+            )));
+        }
+
+        let instance = self.instantiate_machine(&machine)?;
+        let argument_cells = arguments
+            .into_iter()
+            .map(|argument| argument.into_value().cell())
+            .collect();
+        let returned =
+            self.run_state_collect(&machine, &entry_state_name, instance, argument_cells)?;
+        let value = returned.ok_or_else(|| {
+            Halt::Trap(format!(
+                "machine `{machine_name}` terminated without producing a value"
+            ))
+        })?;
+        // The dynamic purity backstop: the static effect surface does not yet
+        // fold host-authority audit facts (boundary-trait calls), so any run
+        // that actually touched the host is rejected here.
+        if self.host_boundary_touched {
+            return Err(Halt::Trap(format!(
+                "machine `{machine_name}` is not effect-free: it drove a host-boundary call \
+                 during build-time evaluation"
+            )));
+        }
+        Ok(crate::build_time::BuildTimeValue::from_value(&value))
+    }
+
+    /// The augmenting-machine variant: run and read back the FINAL argument
+    /// values (a `&mut` parameter aliases its argument cell, so mutations land
+    /// there). A unit terminal is accepted -- the machine's OUTPUT is its
+    /// arguments.
+    fn run_build_time_machine_arguments(
+        &mut self,
+        machine_name: &str,
+        arguments: Vec<crate::build_time::BuildTimeValue>,
+    ) -> EvalResult<Vec<crate::build_time::BuildTimeValue>> {
+        let machine = self
+            .find_machine_by_name(machine_name)
+            .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?
+            .clone();
+        let entry_state_name = self.machine_entry_state_name(&machine).ok_or_else(|| {
+            Halt::Trap(format!(
+                "machine `{machine_name}` has no states to evaluate"
+            ))
+        })?;
+        let parameter_count = self
+            .find_state(&machine, &entry_state_name)
+            .map(|state| {
+                self.program
+                    .state_parameters(state)
+                    .iter()
+                    .filter(|parameter| parameter.name.as_str() != "self")
+                    .count()
+            })
+            .unwrap_or(0);
+        if parameter_count != arguments.len() {
+            return Err(Halt::Trap(format!(
+                "machine `{machine_name}` takes {parameter_count} argument(s); the build-time position supplied {}",
+                arguments.len()
+            )));
+        }
+
+        let instance = self.instantiate_machine(&machine)?;
+        let argument_cells: Vec<Cell> = arguments
+            .into_iter()
+            .map(|argument| argument.into_value().cell())
+            .collect();
+        // Keep the cells: a `&mut` parameter aliases its cell, so the run's
+        // mutations are visible here afterward.
+        let kept: Vec<Cell> = argument_cells.clone();
+        let _terminal =
+            self.run_state_collect(&machine, &entry_state_name, instance, argument_cells)?;
+        if self.host_boundary_touched {
+            return Err(Halt::Trap(format!(
+                "machine `{machine_name}` is not effect-free: it drove a host-boundary call during build-time evaluation"
+            )));
+        }
+        Ok(kept
+            .iter()
+            .map(|cell| crate::build_time::BuildTimeValue::from_value(&cell.borrow()))
+            .collect())
+    }
+
     // ---- machine / data instantiation --------------------------------------
 
     /// Build a machine instance as a `Struct` whose fields are the attached data's
@@ -335,6 +631,20 @@ impl<'program> Evaluator<'program> {
         type_reference: omega_typed_trees::types::TypeReferenceHandle,
     ) -> EvalResult<Value> {
         if type_reference.is_valid() {
+            // See THROUGH a domain constraint (`[i32; N] in Wrapping`, `i32 in Saturating`):
+            // the default of a constrained type is the default of its base type (zero in every
+            // arithmetic domain). Without this, a domain-constrained ARRAY field falls past the
+            // FixedArray case below and defaults to `Unit`, so a later `self.arr[i]` raised
+            // "cannot index Unit" and the whole canary was SKIPPED by the differential oracle.
+            if let omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } = self
+                .program
+                .type_reference_table
+                .type_reference(type_reference)
+            {
+                let base_type = *base_type;
+                return self.default_value_for_type(base_type);
+            }
+
             // Fixed array `[T; N]` -> N default-initialized element cells.
             if let omega_typed_trees::types::TypeReferenceNode::FixedArray {
                 element_type,
@@ -625,6 +935,35 @@ impl<'program> Evaluator<'program> {
                 .get(arg_index)
                 .cloned()
                 .unwrap_or_else(|| Value::Unit.cell());
+            // Coerce a by-value ARGUMENT to the param's declared width/domain at
+            // the binding, matching the native truncating/clamping/trapping store
+            // at the call boundary. Mirrors the Assignment/LocalData store wraps:
+            //   * f32 param: round a `Float` to f32 (an inline `+1.0` arg is f64;
+            //     native passes it in an f32 register).
+            //   * integer param: wrap/clamp/trap an `Int` to the param's width +
+            //     arithmetic domain (a u8 param given `a+b`=300 must read 44).
+            // A `&mut` arg carries a `Ref`/place (not a `Float`/`Int`), so it is
+            // left untouched and its aliasing preserved (keep the original cell);
+            // a by-value scalar is a copy anyway, so a fresh coerced cell is
+            // correct. Funnels through `coerce_scalar_with` like every other seam.
+            let cell = match self.program.primitive_type_reference(parameter.type_reference) {
+                Some(primitive) => {
+                    let scalar = match &*cell.borrow() {
+                        v @ (Value::Int(_) | Value::Float(_)) => Some(v.clone()),
+                        _ => None,
+                    };
+                    match scalar {
+                        Some(value) => {
+                            let domain = self
+                                .program
+                                .arithmetic_domain_for_type_reference(parameter.type_reference);
+                            self.coerce_scalar_with(value, primitive, domain)?.cell()
+                        }
+                        None => cell,
+                    }
+                }
+                None => cell,
+            };
             locals.insert(parameter.name.as_str().to_owned(), cell);
             arg_index += 1;
         }
@@ -642,31 +981,79 @@ impl<'program> Evaluator<'program> {
         self.tick()?;
         match statement {
             StatementNode::Assignment(assignment) => {
+                // A STRUCT, or a whole owned ARRAY, assignment is a VALUE copy: deep-clone so
+                // mutating the destination later does not alias the source (`self.f =
+                // self.arr[1]; self.f.x = 50` must not touch arr[1]; `self.b = self.a;
+                // self.b[0] = 9` must not touch a). A `Value::Array` is deep-cloned ONLY when the
+                // TARGET's declared type is an owned `[T; N]` (FixedArray) -- a slice `&[T]`
+                // target is a shared view whose writes MUST alias the backing array, so it stays
+                // shared. `Ref` is likewise left shared for `&mut` write-through.
                 let value = self.eval_expression(assignment.value, frame)?;
+                let copy_array = matches!(value, Value::Array(_))
+                    && self
+                        .assignment_target_type_reference(assignment.target, frame)
+                        .map(|target| self.declared_type_is_fixed_array(target))
+                        .unwrap_or(false);
+                let value = if matches!(value, Value::Struct { .. }) || copy_array {
+                    value.deep_clone()
+                } else {
+                    value
+                };
                 // Apply the target field's declared width AND arithmetic domain
                 // (decision 17), matching the native store: Exact/Wrapping truncate
                 // to the field's low bytes (a u16 field assigned 70000 reads back
                 // 4464), Saturating clamps to the type range (a u8 Saturating field
                 // assigned a folded 10000 reads back 255, not the wrapped 16), and
                 // Trapping halts on overflow. Mirrors the LocalData store below.
-                let value = if let Value::Int(raw) = value {
-                    match self.assignment_target_type_reference(assignment.target, frame) {
-                        Some(type_reference) => {
-                            match self.program.primitive_type_reference(type_reference) {
-                                Some(primitive) => {
-                                    let domain = self
-                                        .program
-                                        .arithmetic_domain_for_type_reference(type_reference);
-                                    Value::Int(apply_arithmetic_domain(raw, primitive, domain)?)
+                // Coerce the stored SCALAR to the target's declared width +
+                // arithmetic domain, matching the native store -- for a FIELD from
+                // its type, for an ARRAY ELEMENT `arr[i]` from the element width +
+                // the array's domain (`[u8;N]` given `a+b`=300 reads 44,
+                // `[u8;N] in Saturating` clamps to 255). Integers truncate/clamp/
+                // trap (decision 17); an f32 target rounds to f32 (native keeps f32
+                // in the slot). Mirrors the LocalData store below.
+                let value = match self.assignment_target_coercion(assignment.target, frame) {
+                    Some((primitive, domain)) => {
+                        self.coerce_scalar_with(value, primitive, domain)?
+                    }
+                    None => value,
+                };
+                // Carrier byte WRITE: `out[i] = ch` where `out` is text (`Value::Str`, packed
+                // BYTES). The byte has no per-element cell, so write it straight into the vec
+                // rather than resolving an element place (element_cell only handles Array). The
+                // value is the byte (an Int); a range index is not a scalar write.
+                if let ExpressionNode::Indexed(indexed) = self
+                    .program
+                    .expression_table
+                    .expression(assignment.target)
+                    .clone()
+                    && !matches!(
+                        self.program.expression_table.expression(indexed.index),
+                        ExpressionNode::Range(_)
+                    )
+                    && let Ok(collection_cell) = self.resolve_place(indexed.collection, frame)
+                {
+                    let collection_cell = self.deref_cell(collection_cell);
+                    if matches!(&*collection_cell.borrow(), Value::Str(_)) {
+                        let index = self.eval_index(indexed.index, frame)?;
+                        let byte = value.as_int().ok_or_else(|| {
+                            Halt::Trap("carrier byte write value is not an integer".to_owned())
+                        })? as u8;
+                        if let Value::Str(text) = &*collection_cell.borrow() {
+                            let mut bytes = text.borrow_mut();
+                            match bytes.get_mut(index) {
+                                Some(slot) => *slot = byte,
+                                None => {
+                                    return Err(Halt::Trap(format!(
+                                        "carrier byte write index {index} out of bounds (len {})",
+                                        bytes.len()
+                                    )));
                                 }
-                                None => value,
                             }
                         }
-                        None => value,
+                        return Ok(());
                     }
-                } else {
-                    value
-                };
+                }
                 let target = self.resolve_place(assignment.target, frame)?;
                 // Assigning to a `&mut` place writes THROUGH the reference into the aliased
                 // cell (so `out_line = ...` on an `out_line: &mut String` param mutates the
@@ -676,27 +1063,28 @@ impl<'program> Evaluator<'program> {
                 Ok(())
             }
             StatementNode::LocalData(local) => {
+                // A `let v = <struct>` or `let v = <owned array>` is a VALUE copy: deep-clone so
+                // a later mutation of `v` does not alias the initializer's source. A
+                // `Value::Array` is deep-cloned ONLY when the local's declared type is an owned
+                // `[T; N]` (FixedArray); a slice `let s = arr[1..3]` (a `&[T]` local) is a shared
+                // view and must keep sharing the array's cells. A `Ref` keeps aliasing the
+                // referent.
                 let value = if local.initial_value.is_valid() {
-                    self.eval_expression(local.initial_value, frame)?
+                    let value = self.eval_expression(local.initial_value, frame)?;
+                    let copy_array = matches!(value, Value::Array(_))
+                        && self.declared_type_is_fixed_array(local.type_reference);
+                    if matches!(value, Value::Struct { .. }) || copy_array {
+                        value.deep_clone()
+                    } else {
+                        value
+                    }
                 } else {
                     self.default_value_for_type(local.type_reference)?
                 };
-                // Apply the local's declared width AND arithmetic domain (decision
-                // 17): Wrapping/Exact truncate like the native truncating store,
-                // Saturating clamps, Trapping halts on overflow -- matching the
-                // native clamp/trap emission.
-                let value = match (
-                    &value,
-                    self.program.primitive_type_reference(local.type_reference),
-                ) {
-                    (Value::Int(raw), Some(primitive)) => {
-                        let domain = self
-                            .program
-                            .arithmetic_domain_for_type_reference(local.type_reference);
-                        Value::Int(apply_arithmetic_domain(*raw, primitive, domain)?)
-                    }
-                    _ => value,
-                };
+                // Coerce to the local's declared width + arithmetic domain
+                // (decision 17): Wrapping/Exact truncate like the native store,
+                // Saturating clamps, Trapping traps, an f32 local rounds to f32.
+                let value = self.coerce_scalar_value(value, local.type_reference)?;
                 // A `let` introduces a fresh local cell, bound through the frame's
                 // interior-mutable locals map.
                 frame.bind(local.name.as_str(), value.cell());
@@ -820,6 +1208,16 @@ impl<'program> Evaluator<'program> {
     /// its sub-states all live in the same machine group; a named transition stays within
     /// the current machine.
     fn machine_of_state_named(&self, state_name: &str, frame: &Frame) -> Option<Machine> {
+        // A named transition target is a SIBLING state of the machine currently executing, so
+        // resolve within the CURRENT machine FIRST. Otherwise a state name shared across machines
+        // -- e.g. `Picker::pick` and `Main::read_at` BOTH having a `try1` sub-state -- collides on
+        // the type/global fallbacks below and runs the WRONG machine's body (the read_at `try1`
+        // transition would run pick's `try1`, returning pick's value).
+        if let Some(machine) = self.current_machine(frame) {
+            if self.find_state(machine, state_name).is_some() {
+                return Some(machine.clone());
+            }
+        }
         let type_symbol = match &*frame.self_cell.borrow() {
             Value::Struct { type_symbol, .. } => *type_symbol,
             _ => SymbolHandle::invalid(),
@@ -1119,7 +1517,7 @@ impl<'program> Evaluator<'program> {
         }
     }
 
-    /// `Schema::encode_wire(&value, &mut out, &mut written)` -- the
+    /// `Schema::encode(&value, &mut out, &mut written)` -- the
     /// compact_binary v0 encoder the compiler synthesizes for a wire schema
     /// (chapter 20, wire stage 2a). The interpreter implements the IDENTICAL
     /// framing the native backends emit: the CURRENT era discriminator
@@ -1190,7 +1588,7 @@ impl<'program> Evaluator<'program> {
                 .and_then(WireFieldEncoding::for_primitive)
                 .ok_or_else(|| {
                     Halt::Unsupported(format!(
-                        "wire data `{schema_name}` field `{}` is not a stage 2a scalar or String",
+                        "data `{schema_name}` field `{}` is not a stage 2a scalar or String",
                         field.name
                     ))
                 })?;
@@ -1214,7 +1612,7 @@ impl<'program> Evaluator<'program> {
             .expression_handles(call.arguments);
         let [value_argument, out_argument, written_argument] = arguments else {
             return Err(Halt::Trap(format!(
-                "`{schema_name}::encode_wire` expects 3 arguments, got {}",
+                "`{schema_name}::encode` expects 3 arguments, got {}",
                 arguments.len()
             )));
         };
@@ -1238,12 +1636,12 @@ impl<'program> Evaluator<'program> {
                     .map(|cell| self.deref_cell(Rc::clone(cell)))
                     .ok_or_else(|| {
                         Halt::Trap(format!(
-                            "`{schema_name}::encode_wire` value has no field `{field_name}`"
+                            "`{schema_name}::encode` value has no field `{field_name}`"
                         ))
                     })?,
                 _ => {
                     return Err(Halt::Trap(format!(
-                        "`{schema_name}::encode_wire` value argument is not a data value"
+                        "`{schema_name}::encode` value argument is not a data value"
                     )));
                 }
             };
@@ -1254,7 +1652,7 @@ impl<'program> Evaluator<'program> {
                         .as_int()
                         .ok_or_else(|| {
                             Halt::Trap(format!(
-                                "`{schema_name}::encode_wire` field `{field_name}` is not a scalar value"
+                                "`{schema_name}::encode` field `{field_name}` is not a scalar value"
                             ))
                         })?;
                     bytes.extend(wire_varint_bytes(wire_scalar_varint_value(raw, *scalar)?));
@@ -1273,18 +1671,18 @@ impl<'program> Evaluator<'program> {
                                 .map(|cell| self.deref_cell(Rc::clone(cell)))
                                 .ok_or_else(|| {
                                     Halt::Trap(format!(
-                                        "`{schema_name}::encode_wire` nested field `{field_name}` has no member `{child_name}`"
+                                        "`{schema_name}::encode` nested field `{field_name}` has no member `{child_name}`"
                                     ))
                                 })?,
                             _ => {
                                 return Err(Halt::Trap(format!(
-                                    "`{schema_name}::encode_wire` nested field `{field_name}` is not a data value"
+                                    "`{schema_name}::encode` nested field `{field_name}` is not a data value"
                                 )));
                             }
                         };
                         let child_raw = child_raw.borrow().as_int().ok_or_else(|| {
                             Halt::Trap(format!(
-                                "`{schema_name}::encode_wire` nested field `{field_name}.{child_name}` is not a scalar value"
+                                "`{schema_name}::encode` nested field `{field_name}.{child_name}` is not a scalar value"
                             ))
                         })?;
                         body.extend(wire_varint_bytes(wire_scalar_varint_value(
@@ -1308,18 +1706,18 @@ impl<'program> Evaluator<'program> {
                             .map(|cell| self.deref_cell(Rc::clone(cell)))
                             .ok_or_else(|| {
                                 Halt::Trap(format!(
-                                    "`{schema_name}::encode_wire` value has no field `{count_name}`"
+                                    "`{schema_name}::encode` value has no field `{count_name}`"
                                 ))
                             })?,
                         _ => {
                             return Err(Halt::Trap(format!(
-                                "`{schema_name}::encode_wire` value argument is not a data value"
+                                "`{schema_name}::encode` value argument is not a data value"
                             )));
                         }
                     };
                     let count = count_cell.borrow().as_int().ok_or_else(|| {
                         Halt::Trap(format!(
-                            "`{schema_name}::encode_wire` field `{count_name}` is not a scalar value"
+                            "`{schema_name}::encode` field `{count_name}` is not a scalar value"
                         ))
                     })? as u64;
                     let live = count.min(repeated.max_count as u64) as usize;
@@ -1331,7 +1729,7 @@ impl<'program> Evaluator<'program> {
                                     self.deref_cell(Rc::clone(element)).borrow().as_int().ok_or_else(
                                         || {
                                             Halt::Trap(format!(
-                                                "`{schema_name}::encode_wire` repeated field `{field_name}` element is not a scalar value"
+                                                "`{schema_name}::encode` repeated field `{field_name}` element is not a scalar value"
                                             ))
                                         },
                                     )?;
@@ -1343,7 +1741,7 @@ impl<'program> Evaluator<'program> {
                         }
                         _ => {
                             return Err(Halt::Trap(format!(
-                                "`{schema_name}::encode_wire` repeated field `{field_name}` is not a fixed array value"
+                                "`{schema_name}::encode` repeated field `{field_name}` is not a fixed array value"
                             )));
                         }
                     }
@@ -1357,37 +1755,48 @@ impl<'program> Evaluator<'program> {
                         Value::Str(text) => text.borrow().clone(),
                         _ => {
                             return Err(Halt::Trap(format!(
-                                "`{schema_name}::encode_wire` field `{field_name}` is not a String value"
+                                "`{schema_name}::encode` field `{field_name}` is not a String value"
                             )));
                         }
                     };
                     bytes.extend(wire_varint_bytes(text.len() as u64));
-                    bytes.extend(text.as_bytes());
+                    bytes.extend_from_slice(&text);
                 }
                 WireInterpField::ByteSlice => {
-                    // Length varint (byte count) then the raw bytes, read from
-                    // the field's element array -- the same framing as Text.
-                    let elements = match &*raw.borrow() {
-                        Value::Array(elements) => elements.clone(),
-                        _ => {
-                            return Err(Halt::Trap(format!(
-                                "`{schema_name}::encode_wire` field `{field_name}` is not a byte-slice value"
-                            )));
-                        }
+                    // Length varint (byte count) then the raw bytes, framed like Text. A `&[u8]`
+                    // field is text BYTES (`Value::Str`, after the text=bytes model) OR a fixed
+                    // array of byte cells; both yield the raw content.
+                    let str_bytes = if let Value::Str(text) = &*raw.borrow() {
+                        Some(text.borrow().clone())
+                    } else {
+                        None
                     };
-                    let mut content = Vec::with_capacity(elements.len());
-                    for element in &elements {
-                        let byte = self
-                            .deref_cell(Rc::clone(element))
-                            .borrow()
-                            .as_int()
-                            .ok_or_else(|| {
-                                Halt::Trap(format!(
-                                    "`{schema_name}::encode_wire` byte-slice field `{field_name}` element is not a byte"
-                                ))
-                            })?;
-                        content.push(byte as u8);
-                    }
+                    let content: Vec<u8> = if let Some(content) = str_bytes {
+                        content
+                    } else {
+                        let elements = match &*raw.borrow() {
+                            Value::Array(elements) => elements.clone(),
+                            _ => {
+                                return Err(Halt::Trap(format!(
+                                    "`{schema_name}::encode` field `{field_name}` is not a byte-slice value"
+                                )));
+                            }
+                        };
+                        let mut content = Vec::with_capacity(elements.len());
+                        for element in &elements {
+                            let byte = self
+                                .deref_cell(Rc::clone(element))
+                                .borrow()
+                                .as_int()
+                                .ok_or_else(|| {
+                                    Halt::Trap(format!(
+                                        "`{schema_name}::encode` byte-slice field `{field_name}` element is not a byte"
+                                    ))
+                                })?;
+                            content.push(byte as u8);
+                        }
+                        content
+                    };
                     bytes.extend(wire_varint_bytes(content.len() as u64));
                     bytes.extend(content);
                 }
@@ -1401,7 +1810,7 @@ impl<'program> Evaluator<'program> {
                     // covers every byte, so an overflow here is a compiler
                     // bug, not a program state -- trap loudly.
                     return Err(Halt::Trap(format!(
-                        "`{schema_name}::encode_wire` produced {} bytes into a {}-byte buffer",
+                        "`{schema_name}::encode` produced {} bytes into a {}-byte buffer",
                         bytes.len(),
                         elements.len()
                     )));
@@ -1415,7 +1824,7 @@ impl<'program> Evaluator<'program> {
             }
             _ => {
                 return Err(Halt::Trap(format!(
-                    "`{schema_name}::encode_wire` out argument is not a fixed byte array"
+                    "`{schema_name}::encode` out argument is not a fixed byte array"
                 )));
             }
         }
@@ -1428,7 +1837,7 @@ impl<'program> Evaluator<'program> {
         Ok(Some(Value::Unit))
     }
 
-    /// `Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)` -- the
+    /// `Schema::decode(&mut value, &buffer, &mut read, &mut verdict)` -- the
     /// compact_binary v0 decoder the compiler synthesizes for a wire schema
     /// (chapter 20, wire stage 2b). The interpreter simulates the IDENTICAL
     /// operation sequence the native backends emit -- expected framing bytes
@@ -1492,7 +1901,7 @@ impl<'program> Evaluator<'program> {
                 .and_then(WireScalarEncoding::for_primitive)
                 .ok_or_else(|| {
                     Halt::Unsupported(format!(
-                        "wire data `{schema_name}` field `{}` is not a stage 2 scalar",
+                        "data `{schema_name}` field `{}` is not a stage 2 scalar",
                         field.name
                     ))
                 })?;
@@ -1510,7 +1919,7 @@ impl<'program> Evaluator<'program> {
             .expression_handles(call.arguments);
         let [value_argument, buffer_argument, read_argument, ok_argument] = arguments else {
             return Err(Halt::Trap(format!(
-                "`{schema_name}::decode_wire` expects 4 arguments, got {}",
+                "`{schema_name}::decode` expects 4 arguments, got {}",
                 arguments.len()
             )));
         };
@@ -1541,14 +1950,14 @@ impl<'program> Evaluator<'program> {
                         .map(|byte| byte as u8)
                         .ok_or_else(|| {
                             Halt::Trap(format!(
-                                "`{schema_name}::decode_wire` buffer element is not a byte"
+                                "`{schema_name}::decode` buffer element is not a byte"
                             ))
                         })
                 })
                 .collect::<Result<_, _>>()?,
             _ => {
                 return Err(Halt::Trap(format!(
-                    "`{schema_name}::decode_wire` buffer argument is not a fixed byte array"
+                    "`{schema_name}::decode` buffer argument is not a fixed byte array"
                 )));
             }
         };
@@ -1608,13 +2017,13 @@ impl<'program> Evaluator<'program> {
                 Value::Struct { fields, .. } => {
                     fields.get(field_name).map(Rc::clone).ok_or_else(|| {
                         Halt::Trap(format!(
-                            "`{schema_name}::decode_wire` value has no field `{field_name}`"
+                            "`{schema_name}::decode` value has no field `{field_name}`"
                         ))
                     })?
                 }
                 _ => {
                     return Err(Halt::Trap(format!(
-                        "`{schema_name}::decode_wire` value argument is not a data value"
+                        "`{schema_name}::decode` value argument is not a data value"
                     )));
                 }
             };
@@ -1671,13 +2080,13 @@ impl<'program> Evaluator<'program> {
                             Value::Struct { fields, .. } => {
                                 fields.get(child_name).map(Rc::clone).ok_or_else(|| {
                                     Halt::Trap(format!(
-                                        "`{schema_name}::decode_wire` nested field `{field_name}` has no member `{child_name}`"
+                                        "`{schema_name}::decode` nested field `{field_name}` has no member `{child_name}`"
                                     ))
                                 })?
                             }
                             _ => {
                                 return Err(Halt::Trap(format!(
-                                    "`{schema_name}::decode_wire` nested field `{field_name}` is not a data value"
+                                    "`{schema_name}::decode` nested field `{field_name}` is not a data value"
                                 )));
                             }
                         };
@@ -1715,12 +2124,12 @@ impl<'program> Evaluator<'program> {
                             .map(|cell| self.deref_cell(Rc::clone(cell)))
                             .ok_or_else(|| {
                                 Halt::Trap(format!(
-                                    "`{schema_name}::decode_wire` value has no field `{count_name}`"
+                                    "`{schema_name}::decode` value has no field `{count_name}`"
                                 ))
                             })?,
                         _ => {
                             return Err(Halt::Trap(format!(
-                                "`{schema_name}::decode_wire` value argument is not a data value"
+                                "`{schema_name}::decode` value argument is not a data value"
                             )));
                         }
                     };
@@ -1736,13 +2145,13 @@ impl<'program> Evaluator<'program> {
                             Value::Array(elements) => {
                                 elements.get(index).map(Rc::clone).ok_or_else(|| {
                                     Halt::Trap(format!(
-                                        "`{schema_name}::decode_wire` repeated field `{field_name}` has no element {index}"
+                                        "`{schema_name}::decode` repeated field `{field_name}` has no element {index}"
                                     ))
                                 })?
                             }
                             _ => {
                                 return Err(Halt::Trap(format!(
-                                    "`{schema_name}::decode_wire` repeated field `{field_name}` is not a fixed array value"
+                                    "`{schema_name}::decode` repeated field `{field_name}` is not a fixed array value"
                                 )));
                             }
                         };
@@ -1759,7 +2168,13 @@ impl<'program> Evaluator<'program> {
         }
 
         *read_cell.borrow_mut() = Value::Int(cursor as i64);
-        *ok_cell.borrow_mut() = Value::Bool(ok);
+        // The verdict enum (`WireVerdict`): Sound on a clean decode, Invalid
+        // on the first violation -- mirrors the native tag write (Invalid = 0
+        // = the ZII zero case, Sound = 1).
+        *ok_cell.borrow_mut() = Value::Enum {
+            variant_name: if ok { "Sound" } else { "Invalid" }.to_owned(),
+            payload: Vec::new(),
+        };
 
         Ok(Some(Value::Unit))
     }
@@ -1768,7 +2183,31 @@ impl<'program> Evaluator<'program> {
         if !self.is_boundary_call(call, frame) {
             return Ok(None);
         }
+        // Any driven host-boundary call marks the run: the build-time
+        // evaluation entry uses this as a DYNAMIC purity backstop (the static
+        // effect surface does not fold host-authority audit facts in yet).
+        self.host_boundary_touched = true;
         let target = call.target.as_str();
+
+        // Host dispatch is keyed on the boundary TRAIT, not the bare method
+        // name: a `Filesystem` call routes to the fs handler so `File::write`
+        // is not mistaken for `Console::write` (they share the leaf name).
+        let receiver_trait = self.receiver_boundary_type_name(call, frame);
+        if receiver_trait
+            .as_deref()
+            .is_some_and(|name| name.contains("Filesystem"))
+        {
+            let args = self
+                .program
+                .statement_table
+                .expression_handles(call.arguments)
+                .to_vec();
+            if let Some(value) = self.try_filesystem_call(target, &args, frame)? {
+                return Ok(Some(value));
+            }
+            return unsupported(format!("filesystem host call `{target}` not yet supported"));
+        }
+
         let arguments = self
             .program
             .statement_table
@@ -1790,7 +2229,7 @@ impl<'program> Evaluator<'program> {
                 let bytes = if let Some(first) = arguments.first() {
                     let value = self.eval_expression(*first, frame)?;
                     match value {
-                        Value::Str(text) => text.borrow().as_bytes().to_vec(),
+                        Value::Str(text) => text.borrow().clone(),
                         other => {
                             return unsupported(format!(
                                 "host write of non-string value {other:?}"
@@ -1820,7 +2259,7 @@ impl<'program> Evaluator<'program> {
                     if let Ok(cell) = self.resolve_place(*first, frame) {
                         let cell = self.deref_cell(cell);
                         if let Value::Str(text) = &*cell.borrow() {
-                            *text.borrow_mut() = line.clone();
+                            *text.borrow_mut() = line.clone().into_bytes();
                         } else {
                             *cell.borrow_mut() = Value::str(line.clone());
                         }
@@ -1828,8 +2267,1152 @@ impl<'program> Evaluator<'program> {
                 }
                 Ok(Some(Value::Bool(!line.is_empty())))
             }
+            "sleep" => {
+                // Frame pacing: no REAL delay in the interpreter (real time has no
+                // effect on the deterministic state the differential oracle
+                // compares), but the VIRTUAL clock advances by the slept
+                // milliseconds -- so tick-paced programs observe the same elapsed
+                // arithmetic natively (where GetTickCount64 advances across a real
+                // Sleep) and virtually.
+                let slept = arguments
+                    .first()
+                    .and_then(|argument| self.eval_expression(*argument, frame).ok())
+                    .and_then(|value| match value {
+                        Value::Int(ms) => Some(ms.max(1)),
+                        _ => None,
+                    })
+                    .unwrap_or(1);
+                self.virtual_ticks += slept;
+                Ok(Some(Value::Unit))
+            }
+            "tick_count" => {
+                // A VIRTUAL monotonic millisecond counter: deterministic (the
+                // differential oracle compares exit codes, and tick-based
+                // programs must assert MONOTONICITY, not values), advancing on
+                // every read and every sleep.
+                self.virtual_ticks += 1;
+                Ok(Some(Value::Int(self.virtual_ticks)))
+            }
             other => unsupported(format!("host boundary call `{other}` not yet supported")),
         }
+    }
+
+    /// Drive one `std::fs` boundary call against the interpreter's virtual
+    /// filesystem (create/open_read/read/write/close/remove). Every op writes a
+    /// ZII outcome enum into its `&mut out` argument; `File` handles carry their
+    /// fd directly as the `Opened` payload. Deterministic and hermetic — no real
+    /// disk touches, so the differential oracle stays reproducible.
+    /// Drive a value-returning `FilesystemHost` op against the in-memory FS.
+    /// `arguments` are pre-resolved by the caller (from the statement or the
+    /// expression table, whichever the call site lives in). Returns `Ok(None)`
+    /// if `method` is not a filesystem op, so a caller can fall through.
+    fn try_filesystem_call(
+        &mut self,
+        method: &str,
+        arguments: &[ExpressionHandle],
+        frame: &Frame,
+    ) -> EvalResult<Option<Value>> {
+        // Value-returning raw `FilesystemHost` ops, matching the native seam:
+        // each returns its "syscall" result (fd / byte count / rc; negative on
+        // error) against the deterministic in-memory filesystem.
+        let result: i64 = match method {
+            "create" => {
+                // O_WRONLY|O_CREAT|O_TRUNC: create/truncate, writable.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                self.virtual_open(path, true, true) as i64
+            }
+            "open" => {
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                self.virtual_open_flags(path, flags) as i64
+            }
+            "open_create" => {
+                // `open(path, flags, mode)` with O_CREAT (Rust `File::create_new`,
+                // `OpenOptions.create`/`.create_new`). darwin flags: O_CREAT=0x200
+                // (512), O_EXCL=0x800(2048). This adds the O_EXCL/EEXIST atomic
+                // create-new guard + create-mode recording; every other flag bit
+                // (O_TRUNC/O_APPEND/access/EACCES/ENOENT) is handled by the shared
+                // `virtual_open_flags`, so `open_create` cleanly SUBSUMES `open`.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let flags = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let mode = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as u32;
+                let exists = self.virtual_files.contains_key(&path)
+                    || self.virtual_dirs.contains(&path)
+                    || self.virtual_char_devices.contains(&path);
+                if (flags & 512) != 0 && (flags & 2048) != 0 && exists {
+                    self.virtual_errno = 17; // EEXIST (O_CREAT|O_EXCL, path present)
+                    -1
+                } else {
+                    // Whether this call actually creates the file (records the mode
+                    // AFTER the open so the create's own access is not gated by it).
+                    let created = (flags & 512) != 0 && !exists;
+                    let fd = self.virtual_open_flags(path.clone(), flags);
+                    if fd >= 0 && created {
+                        self.virtual_perms.insert(path, mode & 0o777);
+                    }
+                    fd as i64
+                }
+            }
+            "read" => {
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                match self.virtual_read_n(fd, count) {
+                    Some(bytes) => {
+                        let n = bytes.len() as i64;
+                        self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                        n
+                    }
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                }
+            }
+            "write" => {
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let bytes = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                match self.virtual_write(fd, &bytes) {
+                    Some(count) => count as i64,
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                }
+            }
+            "read_at" => {
+                // `pread(fd, buf, count, offset)`: read at an absolute offset
+                // WITHOUT moving the cursor (Rust `FileExt::read_at`).
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let offset = self.eval_fs_scalar(arguments.get(3).copied(), frame)?;
+                match self.virtual_read_at(fd, offset, count) {
+                    Some(bytes) => {
+                        let n = bytes.len() as i64;
+                        self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                        n
+                    }
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                }
+            }
+            "write_at" => {
+                // `pwrite(fd, buf, count, offset)`: write at an absolute offset
+                // WITHOUT moving the cursor (Rust `FileExt::write_at`).
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let bytes = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                let offset = self.eval_fs_scalar(arguments.get(2).copied(), frame)?;
+                match self.virtual_write_at(fd, offset, &bytes) {
+                    Some(count) => count as i64,
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                }
+            }
+            "close" => {
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                if self.virtual_fds.remove(&fd).is_some() {
+                    // Closing the owning fd releases any advisory lock it held.
+                    self.virtual_flocks.retain(|_, owner| *owner != fd);
+                    0
+                } else {
+                    self.virtual_errno = 9; // EBADF
+                    -1
+                }
+            }
+            "duplicate" => {
+                // `dup(fd)`: mint a fresh descriptor over the same open file (Rust
+                // `File::try_clone`). Native dup SHARES the underlying file offset;
+                // the hermetic model gives the clone its OWN cursor snapshotted from
+                // the source (independent thereafter) -- faithful for the common
+                // clone-then-use pattern, where the clone's offset starts where the
+                // source's was. EBADF for an unknown fd.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let clone = self.virtual_fds.get(&fd).map(|descriptor| VirtualFd {
+                    path: descriptor.path.clone(),
+                    cursor: descriptor.cursor,
+                    writable: descriptor.writable,
+                    is_dir: descriptor.is_dir,
+                });
+                match clone {
+                    Some(clone) => {
+                        let new_fd = self.virtual_next_fd;
+                        self.virtual_next_fd += 1;
+                        self.virtual_fds.insert(new_fd, clone);
+                        new_fd as i64
+                    }
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                }
+            }
+            "lock_file" => {
+                // `flock(fd, operation)`: advisory whole-file lock (Rust
+                // `File::lock`/`lock_shared`/`try_lock`/`unlock`). operation
+                // bitmask: LOCK_SH=1, LOCK_EX=2, LOCK_NB=4, LOCK_UN=8. The
+                // hermetic model tracks EXCLUSIVE ownership per path; a
+                // non-blocking acquire on a path another fd holds is EWOULDBLOCK.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let operation = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let path = self
+                    .virtual_fds
+                    .get(&fd)
+                    .map(|descriptor| descriptor.path.clone());
+                match path {
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                    Some(path) if operation & 8 != 0 => {
+                        // LOCK_UN: release this fd's lock (a no-op if it held none).
+                        if self.virtual_flocks.get(&path) == Some(&fd) {
+                            self.virtual_flocks.remove(&path);
+                        }
+                        0
+                    }
+                    Some(path) => {
+                        let held_by_other = matches!(
+                            self.virtual_flocks.get(&path),
+                            Some(owner) if *owner != fd
+                        );
+                        if held_by_other && operation & 4 != 0 {
+                            self.virtual_errno = 35; // EWOULDBLOCK (== EAGAIN)
+                            -1
+                        } else {
+                            self.virtual_flocks.insert(path, fd);
+                            0
+                        }
+                    }
+                }
+            }
+            "remove" => {
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                if self.virtual_files.remove(&path).is_some() {
+                    0
+                } else {
+                    self.virtual_errno = 2; // ENOENT
+                    -1
+                }
+            }
+            "seek" => {
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let offset = self.eval_fs_scalar(arguments.get(1).copied(), frame)?;
+                let whence = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
+                match self.virtual_seek(fd, offset, whence) {
+                    Some(position) => position,
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                }
+            }
+            "set_len" => {
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let length = self.eval_fs_scalar(arguments.get(1).copied(), frame)?;
+                let rc = self.virtual_set_len(fd, length);
+                if rc < 0 {
+                    self.virtual_errno = 9; // EBADF
+                }
+                rc
+            }
+            "set_file_permissions" => {
+                // `fchmod(fd, mode)`: record the mode against the fd's path so a
+                // subsequent write-open sees it (mirrors path-based chmod). EBADF
+                // if the descriptor is unknown.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let mode = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as u32;
+                match self.virtual_fds.get(&fd) {
+                    Some(descriptor) => {
+                        let path = descriptor.path.clone();
+                        self.virtual_perms.insert(path, mode);
+                        0
+                    }
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                }
+            }
+            "set_file_times" => {
+                // `futimens(fd, times)`: `times` is two packed `struct timespec`
+                // (atime then mtime, {tv_sec i64, tv_nsec i64} each). Read the
+                // modification seconds -- times[1].tv_sec at byte offset 16 -- and
+                // record it against the fd's path so stat/fstat report it. EBADF if
+                // the descriptor is unknown.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let times = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                match self.virtual_fds.get(&fd) {
+                    Some(descriptor) => {
+                        let path = descriptor.path.clone();
+                        let mtime = times
+                            .get(16..24)
+                            .and_then(|s| <[u8; 8]>::try_from(s).ok())
+                            .map(i64::from_le_bytes)
+                            .unwrap_or(0);
+                        self.virtual_times.insert(path, mtime);
+                        0
+                    }
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                }
+            }
+            "sync" | "sync_data" => {
+                // `fsync(fd)`: flush to durable storage (`sync_data` aliases it --
+                // macOS has no `fdatasync`). In the hermetic in-memory FS the bytes
+                // are already "durable", so this is a no-op that only validates the
+                // descriptor: 0 for a live fd, -1 (EBADF) otherwise -- matching the
+                // native seam's contract.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                i64::from(self.virtual_fds.contains_key(&fd)) - 1
+            }
+            "errno" => {
+                // `read_errno()` (darwin `___error()` deref): the thread-local
+                // errno set by the most recent failing op. Not cleared on
+                // success (POSIX), so it is only meaningful right after a -1.
+                i64::from(self.virtual_errno)
+            }
+            "create_dir" => {
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                // -1 (EEXIST) if the dir already exists.
+                if self.virtual_dirs.insert(path) {
+                    0
+                } else {
+                    self.virtual_errno = 17; // EEXIST
+                    -1
+                }
+            }
+            "remove_dir" => {
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                if self.virtual_dirs.remove(&path) {
+                    0
+                } else {
+                    self.virtual_errno = 2; // ENOENT
+                    -1
+                }
+            }
+            "open_at" => {
+                // `openat(dirfd, name, flags)`: open `name` relative to the open
+                // directory `dirfd`. The full path (dirfd's path + "/" + name) is
+                // joined HERE (the OS does it natively), so no Omega path build.
+                let dirfd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let name = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                let flags = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
+                match self.virtual_at_path(dirfd, &name) {
+                    Some(full) => self.virtual_open_flags(full, flags) as i64,
+                    None => {
+                        self.virtual_errno = 9; // EBADF (dirfd not an open directory)
+                        -1
+                    }
+                }
+            }
+            "unlink_at" => {
+                // `unlinkat(dirfd, name, flags)`: remove `name` relative to `dirfd`.
+                // flags & AT_REMOVEDIR(0x80) removes an empty directory, else a file.
+                let dirfd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let name = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                let flags = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
+                match self.virtual_at_path(dirfd, &name) {
+                    None => {
+                        self.virtual_errno = 9; // EBADF
+                        -1
+                    }
+                    Some(full) => {
+                        let removed = if (flags & 128) != 0 {
+                            self.virtual_dirs.remove(&full)
+                        } else {
+                            self.virtual_files.remove(&full).is_some()
+                        };
+                        if removed {
+                            0
+                        } else {
+                            self.virtual_errno = 2; // ENOENT
+                            -1
+                        }
+                    }
+                }
+            }
+            "set_permissions" => {
+                // `chmod(path, mode)`: record the mode. ENOENT if the path names
+                // neither a file nor a directory. `mode` is the second arg.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let mode = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as u32;
+                if self.virtual_files.contains_key(&path) || self.virtual_dirs.contains(&path) {
+                    self.virtual_perms.insert(path, mode);
+                    0
+                } else {
+                    self.virtual_errno = 2; // ENOENT
+                    -1
+                }
+            }
+            "change_owner" | "change_owner_no_follow" => {
+                // `chown`/`lchown(path, uid, gid)`: change owner/group. ENOENT if
+                // the path is absent. The hermetic model's process identity is
+                // VIRTUAL_UID/GID (a normal, non-root user), so only a NO-OP change
+                // is permitted: a uid/gid of -1 leaves that component alone, and
+                // setting the CURRENT owner succeeds; any OTHER owner is EPERM --
+                // exactly what native `chown` does when run as a normal user.
+                // (`lchown` differs from `chown` only on symlinks, which the
+                // hermetic FS never follows on ownership ops, so they behave
+                // identically here.)
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let uid = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let gid = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
+                let exists = self.virtual_files.contains_key(&path)
+                    || self.virtual_dirs.contains(&path)
+                    || self.virtual_symlinks.contains_key(&path);
+                if !exists {
+                    self.virtual_errno = 2; // ENOENT
+                    -1
+                } else {
+                    self.virtual_chown_result(uid, gid)
+                }
+            }
+            "change_file_owner" => {
+                // `fchown(fd, uid, gid)`: like `chown` by descriptor. EBADF for an
+                // unknown fd; otherwise the same non-root ownership rule.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let uid = self.eval_fs_scalar(arguments.get(1).copied(), frame)? as i32;
+                let gid = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as i32;
+                if self.virtual_fds.contains_key(&fd) {
+                    self.virtual_chown_result(uid, gid)
+                } else {
+                    self.virtual_errno = 9; // EBADF
+                    -1
+                }
+            }
+            "rename" => {
+                let from = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let to = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                match self.virtual_files.remove(&from) {
+                    Some(content) => {
+                        self.virtual_files.insert(to, content);
+                        0
+                    }
+                    None => {
+                        self.virtual_errno = 2; // ENOENT
+                        -1
+                    }
+                }
+            }
+            "hard_link" => {
+                // `link(original, link)`: a second name for the same inode.
+                // ENOENT if the original is absent; EEXIST if the link name is
+                // taken. The hermetic FS has no inodes, so this COPIES the bytes
+                // (approximate: a later write to one name won't show in the
+                // other — see TASKS_FS.md). Enough to model create+readback.
+                let original = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let link = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                if self.virtual_files.contains_key(&link) || self.virtual_dirs.contains(&link) {
+                    self.virtual_errno = 17; // EEXIST
+                    -1
+                } else if let Some(content) = self.virtual_files.get(&original).cloned() {
+                    self.virtual_files.insert(link, content);
+                    0
+                } else {
+                    self.virtual_errno = 2; // ENOENT
+                    -1
+                }
+            }
+            "symlink" => {
+                // `symlink(target, linkpath)`: record the link -> target mapping.
+                // EEXIST if the link name already names a file/dir/symlink.
+                let target = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let link = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                if self.virtual_files.contains_key(&link)
+                    || self.virtual_dirs.contains(&link)
+                    || self.virtual_symlinks.contains_key(&link)
+                {
+                    self.virtual_errno = 17; // EEXIST
+                    -1
+                } else {
+                    self.virtual_symlinks.insert(link, target);
+                    0
+                }
+            }
+            "read_link" => {
+                // `readlink(path, buf, count)`: write the target bytes into the
+                // buffer (up to `count`), returning the number written. ENOENT if
+                // `path` is not a symlink in the hermetic model.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                match self.virtual_symlinks.get(&path).cloned() {
+                    Some(target) => {
+                        let n = target.len().min(count);
+                        self.write_fs_buffer(arguments.get(1).copied(), frame, &target[..n]);
+                        n as i64
+                    }
+                    None => {
+                        self.virtual_errno = 2; // ENOENT
+                        -1
+                    }
+                }
+            }
+            "canonicalize" => {
+                // `realpath(path, buf)`: resolve `path` to its canonical absolute
+                // form and write it NUL-terminated into the buffer. The hermetic FS
+                // is already absolute and does not resolve `.`/`..`; it follows one
+                // symlink level (matching `read_link`). Returns a non-zero success
+                // flag (native returns the resolved-buffer pointer) or 0 (NULL) +
+                // ENOENT when the target does not exist.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let resolved = self.virtual_symlinks.get(&path).cloned().unwrap_or(path);
+                let exists = self.virtual_files.contains_key(&resolved)
+                    || self.virtual_dirs.contains(&resolved);
+                if exists {
+                    let mut bytes = resolved;
+                    bytes.push(0); // NUL-terminate like realpath's C string
+                    self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                    1
+                } else {
+                    self.virtual_errno = 2; // ENOENT
+                    0
+                }
+            }
+            "read_dir" => {
+                // `read_dir(fd, buf, count, &position)`: on the first call
+                // (position == 0) pack the directory's entries as darwin `dirent`
+                // records (`.`, `..`, then each immediate child) into the buffer
+                // and set `position`; a later call returns 0 (end). The record
+                // layout matches native `___getdirentries64` so a parser is
+                // identical on both engines.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let dir_path = self
+                    .virtual_fds
+                    .get(&fd)
+                    .filter(|descriptor| descriptor.is_dir)
+                    .map(|descriptor| descriptor.path.clone());
+                match dir_path {
+                    None => {
+                        // Unknown fd -> EBADF; a live non-dir fd -> ENOTDIR.
+                        self.virtual_errno = if self.virtual_fds.contains_key(&fd) {
+                            20 // ENOTDIR
+                        } else {
+                            9 // EBADF
+                        };
+                        -1
+                    }
+                    Some(path) => {
+                        let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                        let position = self.read_fs_position(arguments.get(3).copied(), frame);
+                        if position != 0 {
+                            0
+                        } else {
+                            let records = self.build_dirent_records(&path);
+                            let n = records.len().min(count);
+                            self.write_fs_buffer(arguments.get(1).copied(), frame, &records[..n]);
+                            // Any non-zero marker so the next call reports end.
+                            self.write_fs_position(arguments.get(3).copied(), frame, n.max(1) as i64);
+                            n as i64
+                        }
+                    }
+                }
+            }
+            "read_metadata" => {
+                // `stat(path, buf)`: fill the buffer's st_mode (off 4, u16) and
+                // st_size (off 96, i64) as the darwin kernel would. A regular
+                // file is S_IFREG(0o100000)|0o644 with size = content length; a
+                // directory is S_IFDIR(0o040000)|0o755 size 0. ENOENT otherwise.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                // st_mode = format bits (S_IFREG/S_IFDIR) | permission bits, so
+                // a prior `set_permissions` (chmod) shows through `readonly()`.
+                let chmod_perm = self
+                    .virtual_perms
+                    .get(&path)
+                    .map(|mode| (*mode as u16) & 0o7777);
+                let meta = if self.virtual_char_devices.contains(&path) {
+                    // A character-special device (`/dev/null`): S_IFCHR|0o666, size 0.
+                    Some((0o020_000u16 | chmod_perm.unwrap_or(0o666), 0i64))
+                } else if let Some(content) = self.virtual_files.get(&path) {
+                    let size = content.len() as i64;
+                    Some((0o100_000u16 | chmod_perm.unwrap_or(0o644), size))
+                } else if self.virtual_dirs.contains(&path) {
+                    Some((0o040_000u16 | chmod_perm.unwrap_or(0o755), 0i64))
+                } else {
+                    None
+                };
+                match meta {
+                    Some((mode, size)) => {
+                        // A `set_file_times` mtime shows through; otherwise the
+                        // hermetic FS has no clock, so it reports a fixed modeled
+                        // mtime (native `stat` returns the real time -- tests assert
+                        // exact == in the interpreter and a lower bound natively).
+                        let mtime = self
+                            .virtual_times
+                            .get(&path)
+                            .copied()
+                            .unwrap_or(VIRTUAL_MTIME_SECS);
+                        self.write_fs_stat(arguments.get(1).copied(), frame, mode, size, mtime);
+                        0
+                    }
+                    None => {
+                        self.virtual_errno = 2; // ENOENT
+                        -1
+                    }
+                }
+            }
+            "read_file_metadata" => {
+                // `fstat(fd, buf)`: like `stat` but keyed by an OPEN descriptor. Map
+                // the fd to its path, then fill the same stat record (a held `File`
+                // is always a regular file here). EBADF for an unknown fd. Never
+                // touches the cursor.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let path = self.virtual_fds.get(&fd).map(|descriptor| descriptor.path.clone());
+                let meta = path.and_then(|path| {
+                    // A `set_file_times` mtime shows through; else the modeled epoch.
+                    let mtime = self
+                        .virtual_times
+                        .get(&path)
+                        .copied()
+                        .unwrap_or(VIRTUAL_MTIME_SECS);
+                    let chmod_perm = self
+                        .virtual_perms
+                        .get(&path)
+                        .map(|mode| (*mode as u16) & 0o7777);
+                    if let Some(content) = self.virtual_files.get(&path) {
+                        Some((0o100_000u16 | chmod_perm.unwrap_or(0o644), content.len() as i64, mtime))
+                    } else if self.virtual_dirs.contains(&path) {
+                        Some((0o040_000u16 | chmod_perm.unwrap_or(0o755), 0i64, mtime))
+                    } else {
+                        None
+                    }
+                });
+                match meta {
+                    Some((mode, size, mtime)) => {
+                        self.write_fs_stat(arguments.get(1).copied(), frame, mode, size, mtime);
+                        0
+                    }
+                    None => {
+                        self.virtual_errno = 9; // EBADF (unknown descriptor)
+                        -1
+                    }
+                }
+            }
+            "read_symlink_metadata" => {
+                // `lstat(path, buf)`: like `stat`, but does NOT follow a final
+                // symlink. A symlink reports S_IFLNK(0o120000)|0o777 with size =
+                // the target path length (POSIX: a symlink's size is its target's
+                // byte length); everything else is identical to `stat`.
+                let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
+                let meta = if let Some(target) = self.virtual_symlinks.get(&path) {
+                    Some((0o120_000u16 | 0o777, target.len() as i64))
+                } else {
+                    let chmod_perm = self
+                        .virtual_perms
+                        .get(&path)
+                        .map(|mode| (*mode as u16) & 0o7777);
+                    if let Some(content) = self.virtual_files.get(&path) {
+                        Some((0o100_000u16 | chmod_perm.unwrap_or(0o644), content.len() as i64))
+                    } else if self.virtual_dirs.contains(&path) {
+                        Some((0o040_000u16 | chmod_perm.unwrap_or(0o755), 0i64))
+                    } else {
+                        None
+                    }
+                };
+                match meta {
+                    Some((mode, size)) => {
+                        self.write_fs_stat(
+                            arguments.get(1).copied(),
+                            frame,
+                            mode,
+                            size,
+                            VIRTUAL_MTIME_SECS,
+                        );
+                        0
+                    }
+                    None => {
+                        self.virtual_errno = 2; // ENOENT
+                        -1
+                    }
+                }
+            }
+            _ => return Ok(None),
+        };
+        Ok(Some(Value::Int(result)))
+    }
+
+    /// Evaluate an argument to an integer scalar (fd / flags / offset / count).
+    fn eval_fs_scalar(
+        &mut self,
+        argument: Option<ExpressionHandle>,
+        frame: &Frame,
+    ) -> EvalResult<i64> {
+        let Some(argument) = argument else {
+            return Ok(0);
+        };
+        Ok(self.eval_expression(argument, frame)?.as_int().unwrap_or(0))
+    }
+
+    /// Evaluate an argument expected to be byte data (a path or a write payload).
+    fn eval_fs_bytes(
+        &mut self,
+        argument: Option<ExpressionHandle>,
+        frame: &Frame,
+    ) -> EvalResult<Vec<u8>> {
+        let Some(argument) = argument else {
+            return Ok(Vec::new());
+        };
+        match self.eval_expression(argument, frame)? {
+            Value::Str(text) => Ok(text.borrow().clone()),
+            // A byte array or a subslice view of one (`buffer` / `buffer[0..n]`):
+            // each element cell holds a byte as an `Int`. This is the write-side
+            // mirror of `write_fs_buffer`'s `Array` arm, and lets a caller write
+            // a bounded prefix of a buffer (Rust `fs::copy`, `write` of a slice).
+            Value::Array(cells) => {
+                let mut bytes = Vec::with_capacity(cells.len());
+                for cell in &cells {
+                    bytes.push(cell.borrow().as_int().unwrap_or(0) as u8);
+                }
+                Ok(bytes)
+            }
+            // `&mut buffer` / `&buffer`: a reference to a caller field/local (e.g. a
+            // `set_file_times` timespec buffer built in place). Deref to the array.
+            Value::Ref(target) => {
+                if let Value::Array(cells) = &*target.borrow() {
+                    let mut bytes = Vec::with_capacity(cells.len());
+                    for cell in cells {
+                        bytes.push(cell.borrow().as_int().unwrap_or(0) as u8);
+                    }
+                    Ok(bytes)
+                } else {
+                    unsupported("filesystem call expected byte data behind a reference".to_owned())
+                }
+            }
+            other => unsupported(format!("filesystem call expected byte data, got {other:?}")),
+        }
+    }
+
+    /// Evaluate a `File` handle argument to its raw descriptor. The interpreter
+    /// carries the fd directly (see the `Opened` construction), but a wrapping
+    /// single-field struct is accepted defensively.
+    fn eval_fs_fd(
+        &mut self,
+        argument: Option<ExpressionHandle>,
+        frame: &Frame,
+    ) -> EvalResult<i32> {
+        let Some(argument) = argument else {
+            return trap("filesystem call missing file handle");
+        };
+        let value = self.eval_expression(argument, frame)?;
+        let fd = match &value {
+            Value::Struct { fields, .. } => {
+                fields.get("fd").and_then(|cell| cell.borrow().as_int())
+            }
+            other => other.as_int(),
+        };
+        fd.map(|fd| fd as i32)
+            .ok_or_else(|| Halt::Trap("filesystem call file handle is not an fd".to_owned()))
+    }
+
+    /// Copy read bytes into a caller `&mut [u8]` buffer (a text carrier or a byte
+    /// array), truncated to the buffer's length. Best-effort: the outcome's
+    /// `count` is authoritative; an unrecognized buffer shape is left untouched.
+    fn write_fs_buffer(&mut self, argument: Option<ExpressionHandle>, frame: &Frame, bytes: &[u8]) {
+        let Some(argument) = argument else {
+            return;
+        };
+        let Ok(cell) = self.resolve_place(argument, frame) else {
+            return;
+        };
+        let cell = self.deref_cell(cell);
+        let shape = cell.borrow().clone();
+        match shape {
+            Value::Str(text) => {
+                *text.borrow_mut() = bytes.to_vec();
+            }
+            Value::Array(cells) => {
+                let count = bytes.len().min(cells.len());
+                for (slot, byte) in cells.iter().zip(bytes.iter()).take(count) {
+                    *slot.borrow_mut() = Value::Int(*byte as i64);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Read the current value of a `&mut i64` argument (the in/out `position`
+    /// cursor of `read_dir`), 0 if unresolvable.
+    fn read_fs_position(&mut self, argument: Option<ExpressionHandle>, frame: &Frame) -> i64 {
+        let Some(argument) = argument else {
+            return 0;
+        };
+        let Ok(cell) = self.resolve_place(argument, frame) else {
+            return 0;
+        };
+        let value = self.deref_cell(cell).borrow().as_int().unwrap_or(0);
+        value
+    }
+
+    /// Write back a `&mut i64` argument (the in/out `position` cursor).
+    fn write_fs_position(&mut self, argument: Option<ExpressionHandle>, frame: &Frame, value: i64) {
+        let Some(argument) = argument else {
+            return;
+        };
+        let Ok(cell) = self.resolve_place(argument, frame) else {
+            return;
+        };
+        *self.deref_cell(cell).borrow_mut() = Value::Int(value);
+    }
+
+    /// Build the packed darwin `dirent` records for a directory: `.` and `..`
+    /// then each IMMEDIATE child (files in `virtual_files`, subdirs in
+    /// `virtual_dirs` directly under `dir_path/`). Each record is
+    /// `[d_ino(8) d_seekoff(8) d_reclen@16(u16) d_namlen@18(u16) d_type@20(u8)
+    /// d_name@21(namlen) NUL pad]`, `d_reclen = round_up_8(25 + namlen)` — the
+    /// exact layout `___getdirentries64` produces, so byte counts and a parser
+    /// agree with native.
+    /// Resolve `name` RELATIVE to the open directory `dirfd` to a full virtual
+    /// path (`dirfd`'s path + "/" + name). Returns None if `dirfd` is not an open
+    /// directory descriptor. The `*at` ops do their path-joining here -- in Rust,
+    /// the way the OS does natively -- so the Omega layer never builds a path.
+    fn virtual_at_path(&self, dirfd: i32, name: &[u8]) -> Option<Vec<u8>> {
+        let dir = self
+            .virtual_fds
+            .get(&dirfd)
+            .filter(|descriptor| descriptor.is_dir)
+            .map(|descriptor| descriptor.path.clone())?;
+        let mut full = dir;
+        full.push(b'/');
+        full.extend_from_slice(name);
+        Some(full)
+    }
+
+    fn build_dirent_records(&self, dir_path: &[u8]) -> Vec<u8> {
+        let mut entries: Vec<(Vec<u8>, u8)> = vec![(b".".to_vec(), 4), (b"..".to_vec(), 4)];
+        let mut prefix = dir_path.to_vec();
+        prefix.push(b'/');
+        let immediate_child = |path: &[u8]| -> Option<Vec<u8>> {
+            let rest = path.strip_prefix(prefix.as_slice())?;
+            if rest.is_empty() || rest.contains(&b'/') {
+                None
+            } else {
+                Some(rest.to_vec())
+            }
+        };
+        for path in self.virtual_files.keys() {
+            if let Some(name) = immediate_child(path) {
+                entries.push((name, 8)); // DT_REG
+            }
+        }
+        for path in &self.virtual_dirs {
+            if let Some(name) = immediate_child(path) {
+                entries.push((name, 4)); // DT_DIR
+            }
+        }
+        let mut buffer = Vec::new();
+        for (name, d_type) in entries {
+            let namlen = name.len();
+            let reclen = (25 + namlen).div_ceil(8) * 8;
+            let start = buffer.len();
+            buffer.resize(start + reclen, 0);
+            buffer[start + 16..start + 18].copy_from_slice(&(reclen as u16).to_le_bytes());
+            buffer[start + 18..start + 20].copy_from_slice(&(namlen as u16).to_le_bytes());
+            buffer[start + 20] = d_type;
+            buffer[start + 21..start + 21 + namlen].copy_from_slice(&name);
+        }
+        buffer
+    }
+
+    /// Fill a caller stat buffer (`&mut [u8]` of at least 144 bytes) the way the
+    /// darwin kernel writes `struct stat`: `st_mode` (u16) at byte offset 4 and
+    /// `st_size` (i64) at byte offset 96, both little-endian. The Omega layer
+    /// reads those fields back with byte-assembly. Other fields are left zero.
+    fn write_fs_stat(
+        &mut self,
+        argument: Option<ExpressionHandle>,
+        frame: &Frame,
+        mode: u16,
+        size: i64,
+        mtime_secs: i64,
+    ) {
+        let Some(argument) = argument else {
+            return;
+        };
+        let Ok(cell) = self.resolve_place(argument, frame) else {
+            return;
+        };
+        let cell = self.deref_cell(cell);
+        if let Value::Array(cells) = &*cell.borrow() {
+            let put = |offset: usize, byte: u8| {
+                if let Some(slot) = cells.get(offset) {
+                    *slot.borrow_mut() = Value::Int(i64::from(byte));
+                }
+            };
+            put(4, (mode & 0xff) as u8);
+            put(5, (mode >> 8) as u8);
+            // st_nlink (u16 @6): the hermetic FS models a fixed link count of 1 --
+            // it does not track hard-link groups (its `hard_link` copies bytes), so
+            // every path reports 1. Native `stat` returns the real count (2 after a
+            // `hard_link`); that case is asserted only in the native canary.
+            put(6, 1);
+            put(7, 0);
+            for i in 0..8 {
+                put(8 + i, (VIRTUAL_INO >> (8 * i)) as u8); // st_ino (u64)
+                put(32 + i, (VIRTUAL_ATIME_SECS >> (8 * i)) as u8); // st_atimespec.tv_sec
+                put(48 + i, (mtime_secs >> (8 * i)) as u8); // st_mtimespec.tv_sec
+                put(64 + i, (VIRTUAL_CTIME_SECS >> (8 * i)) as u8); // st_ctimespec.tv_sec
+                put(80 + i, (VIRTUAL_BIRTHTIME_SECS >> (8 * i)) as u8); // st_birthtimespec.tv_sec
+                put(96 + i, (size >> (8 * i)) as u8); // st_size
+                put(104 + i, (VIRTUAL_BLOCKS >> (8 * i)) as u8); // st_blocks (i64)
+            }
+            for i in 0..4 {
+                put(i, (VIRTUAL_DEV >> (8 * i)) as u8); // st_dev (i32 @0)
+                put(16 + i, (VIRTUAL_UID >> (8 * i)) as u8); // st_uid (u32)
+                put(20 + i, (VIRTUAL_GID >> (8 * i)) as u8); // st_gid (u32)
+                put(112 + i, (VIRTUAL_BLKSIZE >> (8 * i)) as u8); // st_blksize (i32)
+            }
+        }
+    }
+
+    /// Mint a fresh descriptor over `path`; `create` truncates (or creates) the
+    /// file first.
+    fn virtual_open(&mut self, path: Vec<u8>, writable: bool, create: bool) -> i32 {
+        if create {
+            self.virtual_files.insert(path.clone(), Vec::new());
+        }
+        let fd = self.virtual_next_fd;
+        self.virtual_next_fd += 1;
+        self.virtual_fds.insert(
+            fd,
+            VirtualFd {
+                path,
+                cursor: 0,
+                writable,
+                is_dir: false,
+            },
+        );
+        fd
+    }
+
+    /// Write `bytes` at the descriptor's cursor (extending the file as needed),
+    /// advancing the cursor. `None` if the fd is unknown or not writable.
+    fn virtual_write(&mut self, fd: i32, bytes: &[u8]) -> Option<usize> {
+        let descriptor = self.virtual_fds.get(&fd)?;
+        if !descriptor.writable {
+            return None;
+        }
+        let path = descriptor.path.clone();
+        let cursor = descriptor.cursor;
+        let content = self.virtual_files.get_mut(&path)?;
+        let end = cursor + bytes.len();
+        if content.len() < end {
+            content.resize(end, 0);
+        }
+        content[cursor..end].copy_from_slice(bytes);
+        if let Some(descriptor) = self.virtual_fds.get_mut(&fd) {
+            descriptor.cursor = end;
+        }
+        Some(bytes.len())
+    }
+
+    /// Read up to `count` bytes from the descriptor's cursor, advancing it.
+    /// `None` if the fd is unknown.
+    fn virtual_read_n(&mut self, fd: i32, count: usize) -> Option<Vec<u8>> {
+        let descriptor = self.virtual_fds.get(&fd)?;
+        let path = descriptor.path.clone();
+        let cursor = descriptor.cursor;
+        let content = self.virtual_files.get(&path)?;
+        let available = content.get(cursor..).unwrap_or(&[]);
+        let take = available.len().min(count);
+        let bytes = available[..take].to_vec();
+        if let Some(descriptor) = self.virtual_fds.get_mut(&fd) {
+            descriptor.cursor = cursor + take;
+        }
+        Some(bytes)
+    }
+
+    /// Read up to `count` bytes starting at absolute `offset` WITHOUT moving the
+    /// cursor (Rust `FileExt::read_at` / `pread`). `None` if the fd is unknown or
+    /// the offset is negative. A read past end-of-file yields fewer (or zero) bytes.
+    fn virtual_read_at(&mut self, fd: i32, offset: i64, count: usize) -> Option<Vec<u8>> {
+        if offset < 0 {
+            return None;
+        }
+        let descriptor = self.virtual_fds.get(&fd)?;
+        let path = descriptor.path.clone();
+        let content = self.virtual_files.get(&path)?;
+        let available = content.get(offset as usize..).unwrap_or(&[]);
+        let take = available.len().min(count);
+        Some(available[..take].to_vec())
+    }
+
+    /// Write `bytes` at absolute `offset` (extending + zero-filling any gap) WITHOUT
+    /// moving the cursor (Rust `FileExt::write_at` / `pwrite`). `None` if the fd is
+    /// unknown, not writable, or the offset is negative.
+    fn virtual_write_at(&mut self, fd: i32, offset: i64, bytes: &[u8]) -> Option<usize> {
+        if offset < 0 {
+            return None;
+        }
+        let descriptor = self.virtual_fds.get(&fd)?;
+        if !descriptor.writable {
+            return None;
+        }
+        let path = descriptor.path.clone();
+        let start = offset as usize;
+        let content = self.virtual_files.get_mut(&path)?;
+        let end = start + bytes.len();
+        if content.len() < end {
+            content.resize(end, 0);
+        }
+        content[start..end].copy_from_slice(bytes);
+        Some(bytes.len())
+    }
+
+    /// `open(path, flags)`: model the O_CREAT/O_TRUNC/O_APPEND/access bits.
+    /// Returns a fresh fd, or -1 if the path is absent and O_CREAT is not set.
+    fn virtual_open_flags(&mut self, path: Vec<u8>, flags: i32) -> i32 {
+        let exists = self.virtual_files.contains_key(&path);
+        let o_creat = flags & 0x200 != 0;
+        let o_trunc = flags & 0x400 != 0;
+        let o_append = flags & 0x8 != 0;
+        let writable = flags & 0x3 != 0; // O_WRONLY | O_RDWR
+        // Opening a directory for writing is EISDIR (Rust `ErrorKind::IsADirectory`).
+        // Checked before the ENOENT test so a dir path (never in `virtual_files`)
+        // reports the more specific kind.
+        if self.virtual_dirs.contains(&path) && writable {
+            self.virtual_errno = 21; // EISDIR
+            return -1;
+        }
+        // Permission enforcement: opening a chmod'd path fails with EACCES when
+        // the needed bit is clear — the owner-write bit (0o200) for a write-open,
+        // or the owner-read bit (0o400) for a read-open (Rust
+        // `ErrorKind::PermissionDenied`).
+        let needed_bit = if writable { 0o200 } else { 0o400 };
+        if self
+            .virtual_perms
+            .get(&path)
+            .is_some_and(|mode| mode & needed_bit == 0)
+        {
+            self.virtual_errno = 13; // EACCES
+            return -1;
+        }
+        // Read-open of a DIRECTORY: POSIX allows opening a dir read-only (the
+        // basis for `read_dir`). Mint a dir descriptor. Checked before the ENOENT
+        // test since a dir path is never in `virtual_files`. (This also aligns
+        // `exists`/`try_exists` on a dir with native, where opening a dir works.)
+        if !writable && self.virtual_dirs.contains(&path) {
+            let fd = self.virtual_next_fd;
+            self.virtual_next_fd += 1;
+            self.virtual_fds.insert(
+                fd,
+                VirtualFd {
+                    path,
+                    cursor: 0,
+                    writable: false,
+                    is_dir: true,
+                },
+            );
+            return fd;
+        }
+        if !exists && !o_creat {
+            self.virtual_errno = 2; // ENOENT
+            return -1;
+        }
+        if !exists || o_trunc {
+            self.virtual_files.insert(path.clone(), Vec::new());
+        }
+        let cursor = if o_append {
+            self.virtual_files.get(&path).map_or(0, Vec::len)
+        } else {
+            0
+        };
+        let fd = self.virtual_next_fd;
+        self.virtual_next_fd += 1;
+        self.virtual_fds.insert(
+            fd,
+            VirtualFd {
+                path,
+                cursor,
+                writable,
+                is_dir: false,
+            },
+        );
+        fd
+    }
+
+    /// `lseek(fd, offset, whence)`: reposition the cursor, returning the new
+    /// absolute offset. `None` on unknown fd, bad whence, or a negative result.
+    fn virtual_seek(&mut self, fd: i32, offset: i64, whence: i32) -> Option<i64> {
+        let descriptor = self.virtual_fds.get(&fd)?;
+        let path = descriptor.path.clone();
+        let cursor = descriptor.cursor as i64;
+        let len = self.virtual_files.get(&path).map_or(0, Vec::len) as i64;
+        let new_pos = match whence {
+            0 => offset,          // SEEK_SET
+            1 => cursor + offset, // SEEK_CUR
+            2 => len + offset,    // SEEK_END
+            _ => return None,
+        };
+        if new_pos < 0 {
+            return None;
+        }
+        if let Some(descriptor) = self.virtual_fds.get_mut(&fd) {
+            descriptor.cursor = new_pos as usize;
+        }
+        Some(new_pos)
+    }
+
+    /// `ftruncate(fd, length)`: resize the file backing `fd` (truncate or
+    /// zero-extend). Returns 0 on success, -1 on an unknown fd/path.
+    fn virtual_set_len(&mut self, fd: i32, length: i64) -> i64 {
+        let Some(descriptor) = self.virtual_fds.get(&fd) else {
+            return -1;
+        };
+        let path = descriptor.path.clone();
+        let Some(content) = self.virtual_files.get_mut(&path) else {
+            return -1;
+        };
+        content.resize(length.max(0) as usize, 0);
+        0
+    }
+
+    /// The non-root `chown`/`fchown`/`lchown` rule shared by the ownership
+    /// handlers: a change to the CURRENT owner -- or a uid/gid of -1, meaning
+    /// "leave that component unchanged" -- is a permitted no-op (returns 0); any
+    /// OTHER owner is EPERM (sets errno 1, returns -1). Mirrors what the native
+    /// syscalls do for a normal (non-root) user, keeping the two engines'
+    /// differential consistent.
+    fn virtual_chown_result(&mut self, uid: i32, gid: i32) -> i64 {
+        let effective_uid = if uid == -1 { VIRTUAL_UID as i32 } else { uid };
+        let effective_gid = if gid == -1 { VIRTUAL_GID as i32 } else { gid };
+        if effective_uid == VIRTUAL_UID as i32 && effective_gid == VIRTUAL_GID as i32 {
+            0
+        } else {
+            self.virtual_errno = 1; // EPERM
+            -1
+        }
+    }
+
+    /// The boundary-trait type name of a call's receiver field (e.g. `console`
+    /// -> `Console`, `fs` -> `Filesystem`), used to key host dispatch on the
+    /// trait rather than the bare method name. `None` when the receiver is not a
+    /// `self` field of a boundary-trait type.
+    fn receiver_boundary_type_name(&self, call: &TableCall, frame: &Frame) -> Option<String> {
+        let leaf = self
+            .program
+            .statement_table
+            .name_path_members(call.receiver)
+            .last()
+            .map(|name| name.as_str().to_owned())?;
+        let self_type = match &*frame.self_cell.borrow() {
+            Value::Struct { type_name, .. } => type_name.clone(),
+            _ => return None,
+        };
+        let machine = self.find_machine_by_name(&self_type)?;
+        let data_name = machine.attached_data.as_ref()?;
+        let data = self.find_data_by_name(data_name.as_str())?;
+        for member in self.program.data_members(data) {
+            if let DataMember::Field(field) = member
+                && field.name.as_str() == leaf
+            {
+                return Some(self.program.display_type_reference(field.type_reference));
+            }
+        }
+        None
     }
 
     /// Consume the next line from the remaining stdin (without the line terminator). CRLF
@@ -1935,10 +3518,24 @@ impl<'program> Evaluator<'program> {
             ExpressionNode::Float(value) => Ok(Value::Float(value.value())),
             ExpressionNode::String(value) => Ok(Value::str(value.to_string())),
             ExpressionNode::Name(path) => self.eval_name(&path, frame),
-            ExpressionNode::Member(_) => {
-                let cell = self.resolve_place(handle, frame)?;
-                let value = cell.borrow().clone();
-                Ok(value)
+            ExpressionNode::Member(member) => {
+                // A member on a PLACE receiver reads through its storage cell,
+                // preserving aliasing. An inline NON-place receiver -- e.g. `.len`
+                // on a subslice literal `(arr[a..b]).len`, whose receiver is a VIEW,
+                // not a storage location -- has no place; evaluate the receiver to a
+                // value and read the field off it. (A subslice BOUND to a local is a
+                // place and takes the fast path.) Without this fallback the
+                // receiver's range index reached the `Range` arm below and tripped
+                // "range expression outside index position", diverging from the
+                // native fold of `(arr[a..b]).len`.
+                match self.resolve_place(handle, frame) {
+                    Ok(cell) => Ok(cell.borrow().clone()),
+                    Err(_) => {
+                        let receiver = self.eval_expression(member.receiver, frame)?;
+                        let field = self.field_cell(&receiver.cell(), member.member.as_str())?;
+                        Ok(self.deref_cell(field).borrow().clone())
+                    }
+                }
             }
             ExpressionNode::Mutable(inner) => {
                 let cell = self.resolve_place(inner, frame)?;
@@ -1990,6 +3587,28 @@ impl<'program> Evaluator<'program> {
                 {
                     return self.eval_subslice(indexed.collection, &range, frame);
                 }
+                // A scalar index into a string VIEW (`Value::Str`) reads the i-th BYTE as an Int
+                // -- this is how the oracle cross-checks byte-string canaries (hashing,
+                // comparison, byte walks) instead of skipping them as "cannot index Str". A
+                // carrier `[u8; N]` is a `Value::Array` and takes the element path below. READ
+                // ONLY: a write `s[i] = x` still traps via element_cell (string views are
+                // immutable), so there is no silent no-op.
+                if let Ok(collection_cell) = self.resolve_place(indexed.collection, frame) {
+                    let collection_cell = self.deref_cell(collection_cell);
+                    let indexes_str = matches!(&*collection_cell.borrow(), Value::Str(_));
+                    if indexes_str {
+                        let index = self.eval_index(indexed.index, frame)?;
+                        if let Value::Str(text) = &*collection_cell.borrow() {
+                            return text
+                                .borrow()
+                                .get(index)
+                                .map(|byte| Value::Int(i64::from(*byte)))
+                                .ok_or_else(|| {
+                                    Halt::Trap(format!("string index {index} out of bounds"))
+                                });
+                        }
+                    }
+                }
                 let cell = self.resolve_place(handle, frame)?;
                 let value = self.deref_cell(cell).borrow().clone();
                 Ok(value)
@@ -2028,6 +3647,23 @@ impl<'program> Evaluator<'program> {
                 let left = self.eval_expression(args[0], frame)?;
                 let right = self.eval_expression(args[1], frame)?;
                 return self.eval_min_max(target, left, right);
+            }
+        }
+        // Builtin: sqrt over a single float operand (the reference for the
+        // native sqrtsd/sqrtss lowering).
+        if target == "sqrt" && call.receiver == ExpressionHandle::invalid() {
+            let args = self
+                .program
+                .expression_table
+                .expression_handles(call.arguments)
+                .to_vec();
+            if args.len() == 1 {
+                return match self.eval_expression(args[0], frame)? {
+                    Value::Float(value) => Ok(Value::Float(value.sqrt())),
+                    other => Err(Halt::Trap(format!(
+                        "sqrt expects a float argument, got {other:?}"
+                    ))),
+                };
             }
         }
 
@@ -2072,8 +3708,119 @@ impl<'program> Evaluator<'program> {
         // Resolve the value-call. A bare-self receiver naming a SIBLING state of the
         // current machine runs that state; a receiver expression resolving to a contained
         // sub-machine instance runs on that instance; otherwise a free helper machine.
-        let (machine, entry_state, instance) =
-            self.resolve_value_call_target(call, target, frame)?;
+        let (machine, entry_state, instance) = match self
+            .resolve_value_call_target(call, target, frame)
+        {
+            Ok(resolution) => resolution,
+            Err(halt) => {
+                // A host-boundary VALUE call (`self.clock.tick_count()`,
+                // `self.fs.create(..)`): driven directly, like the
+                // statement-position host calls in try_host_call. User machines
+                // take precedence -- the host fallback only fires when nothing
+                // else resolves, mirroring the native collection (which keys on
+                // boundary-trait signature symbols).
+
+                // Value-returning FilesystemHost ops (assignment-position calls
+                // like `self.fd = self.fs.create(path, mode)`).
+                let fs_args = self
+                    .program
+                    .expression_table
+                    .expression_handles(call.arguments)
+                    .to_vec();
+                if let Some(value) = self.try_filesystem_call(target, &fs_args, frame)? {
+                    self.host_boundary_touched = true;
+                    return Ok(value);
+                }
+
+                if matches!(
+                    target,
+                    "tick_count"
+                        | "key_state"
+                        | "dc_create"
+                        | "get_dc"
+                        | "window_create"
+                        | "is_window"
+                        | "window_destroy"
+                        | "msg_peek"
+                        | "msg_translate"
+                        | "msg_dispatch"
+                ) {
+                    // Value-position host fallbacks are host-boundary calls too
+                    // (the build-time purity backstop must see them).
+                    self.host_boundary_touched = true;
+                }
+                if target == "tick_count" {
+                    self.virtual_ticks += 1;
+                    return Ok(Value::Int(self.virtual_ticks));
+                }
+                if target == "key_state" {
+                    // The virtual host has no keyboard: no key is ever down.
+                    return Ok(Value::Int(0));
+                }
+                if target == "dc_create" || target == "get_dc" {
+                    // Virtual device contexts are the opaque non-zero token 1
+                    // (programs must branch on handle != 0, never on a concrete
+                    // handle value -- native handles are real pointers).
+                    return Ok(Value::Int(1));
+                }
+                if target == "window_create" {
+                    // Mint a live virtual window handle token.
+                    self.virtual_window_next += 1;
+                    self.virtual_live_windows.insert(self.virtual_window_next);
+                    return Ok(Value::Int(self.virtual_window_next));
+                }
+                if target == "is_window" || target == "window_destroy" {
+                    // Liveness mirrors native IsWindow/DestroyWindow: 1 for a
+                    // live handle, 0 otherwise; destroy removes it.
+                    let Some(handle_argument) = self
+                        .program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .first()
+                        .copied()
+                    else {
+                        return Err(halt);
+                    };
+                    let handle = match &*self
+                        .eval_call_expression_argument(handle_argument, frame)?
+                        .borrow()
+                    {
+                        Value::Int(handle) => *handle,
+                        _ => return Ok(Value::Int(0)),
+                    };
+                    let live = if target == "window_destroy" {
+                        self.virtual_live_windows.remove(&handle)
+                    } else {
+                        self.virtual_live_windows.contains(&handle)
+                    };
+                    return Ok(Value::Int(i64::from(live)));
+                }
+                if target == "msg_peek" || target == "msg_translate" || target == "msg_dispatch" {
+                    // The virtual host posts no messages: the queue is always
+                    // empty (peek = 0) and translate/dispatch have nothing to do.
+                    return Ok(Value::Int(0));
+                }
+                if target == "blit" {
+                    // Virtual GDI blit(hdc, dest_w, dest_h, src_w, src_h, pixels,
+                    // info): StretchDIBits reports the copied SOURCE scanline
+                    // count (probed natively: the source height even when
+                    // stretching, even into the memory DC's default 1x1 bitmap).
+                    let Some(height) = self
+                        .program
+                        .expression_table
+                        .expression_handles(call.arguments)
+                        .get(4)
+                        .copied()
+                    else {
+                        return Err(halt);
+                    };
+                    return self
+                        .eval_call_expression_argument(height, frame)
+                        .map(|value| value.borrow().clone());
+                }
+                return Err(halt);
+            }
+        };
         let mut args = Vec::new();
         for argument in self
             .program
@@ -2107,6 +3854,24 @@ impl<'program> Evaluator<'program> {
         target: &str,
         frame: &Frame,
     ) -> EvalResult<(Machine, String, Cell)> {
+        // Whether this call is on `self` (or receiverless). A NON-self receiver
+        // (`self.host.create(..)`) must resolve on the RECEIVER's type, never on
+        // a same-named sibling state of the current machine -- else a wrapper
+        // machine `Filesystem::create` calling `self.host.create` would recurse
+        // into itself. Mirrors the validator's receiver-typed resolution fix.
+        let receiver_is_self = if !call.receiver.is_valid() {
+            true
+        } else {
+            match self.program.expression_table.expression(call.receiver) {
+                omega_typed_trees::expression::ExpressionNode::Name(path) => {
+                    let members = self.program.expression_table.name_path_members(path.members);
+                    members.is_empty()
+                        || (members.len() == 1 && members[0].as_str() == "self")
+                }
+                _ => false,
+            }
+        };
+
         // (1) Receiver expression resolving to a contained sub-machine / data instance
         // (e.g. `s.code()` where `s: &mut Circle`): run on that instance's machine.
         if call.receiver.is_valid() {
@@ -2121,20 +3886,25 @@ impl<'program> Evaluator<'program> {
             }
         }
 
-        // (2) Sibling state of the current machine.
-        if let Some(machine) = self.current_machine(frame) {
-            if self.find_state(machine, target).is_some() {
-                return Ok((
-                    machine.clone(),
-                    target.to_owned(),
-                    Rc::clone(&frame.self_cell),
-                ));
+        // (2) Sibling state of the current machine -- ONLY for self/receiverless
+        // calls (a non-self receiver was handled by (1) or falls to the host
+        // fallback below).
+        if receiver_is_self {
+            if let Some(machine) = self.current_machine(frame) {
+                if self.find_state(machine, target).is_some() {
+                    return Ok((
+                        machine.clone(),
+                        target.to_owned(),
+                        Rc::clone(&frame.self_cell),
+                    ));
+                }
             }
         }
 
-        // (3) A free helper machine.
+        // (3) A free helper machine (self/receiverless calls only).
         let machine = self
             .find_machine_for_call(target, frame)
+            .filter(|_| receiver_is_self)
             .ok_or_else(|| Halt::Unsupported(format!("unknown value-call target `{target}`")))?;
         let entry_state = self
             .machine_entry_state_name(&machine)
@@ -2265,6 +4035,125 @@ impl<'program> Evaluator<'program> {
             cell = self.field_cell(&cell, member)?;
         }
         Ok(cell)
+    }
+
+    /// True when a declared type is an owned fixed array `[T; N]` -- seeing THROUGH a domain
+    /// `Constrained` wrapper (`[i32; N] in Wrapping`) -- as opposed to a slice `&[T]`. Drives
+    /// the value-copy gate: a whole-array assignment/`let` into a FixedArray place is a deep
+    /// copy, while a slice is a shared view that must NOT be deep-cloned.
+    fn declared_type_is_fixed_array(
+        &self,
+        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    ) -> bool {
+        if !type_reference.is_valid() {
+            return false;
+        }
+        match self
+            .program
+            .type_reference_table
+            .type_reference(type_reference)
+        {
+            omega_typed_trees::types::TypeReferenceNode::FixedArray { .. } => true,
+            omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                self.declared_type_is_fixed_array(*base_type)
+            }
+            _ => false,
+        }
+    }
+
+    /// The ELEMENT type of an owned fixed array `[T; N]` -- seeing THROUGH a
+    /// domain `Constrained` wrapper (`[u8; N] in Wrapping`). `None` for a slice,
+    /// scalar, or invalid reference. Used to wrap an array-element store to the
+    /// element's width/domain (the field-store truncation, for `arr[i] = v`).
+    fn fixed_array_element_type(
+        &self,
+        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    ) -> Option<omega_typed_trees::types::TypeReferenceHandle> {
+        if !type_reference.is_valid() {
+            return None;
+        }
+        match self
+            .program
+            .type_reference_table
+            .type_reference(type_reference)
+        {
+            omega_typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. } => {
+                Some(*element_type)
+            }
+            omega_typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                self.fixed_array_element_type(*base_type)
+            }
+            _ => None,
+        }
+    }
+
+    /// The (primitive, arithmetic-domain) an assignment target coerces its stored
+    /// SCALAR to -- the decision-17 truncation/clamp/trap the interpreter applies
+    /// on a write to match the native store. For a FIELD/local place it is the
+    /// declared type's own primitive + domain. For an ARRAY ELEMENT `arr[i]` it
+    /// is the element's PRIMITIVE with the ARRAY's DOMAIN (`[u8;N] in Saturating`
+    /// clamps its elements). `None` for a non-scalar / unresolved target, which
+    /// is then left un-coerced.
+    fn assignment_target_coercion(
+        &mut self,
+        handle: ExpressionHandle,
+        frame: &Frame,
+    ) -> Option<(omega_typed_trees::types::PrimitiveType, ArithmeticDomain)> {
+        if let ExpressionNode::Indexed(indexed) =
+            self.program.expression_table.expression(handle).clone()
+        {
+            let array_type = self.assignment_target_type_reference(indexed.collection, frame)?;
+            let element_type = self.fixed_array_element_type(array_type)?;
+            let primitive = self.program.primitive_type_reference(element_type)?;
+            // The arithmetic domain lives on the ARRAY (`[T;N] in D`), not the
+            // bare element type, so read it from the array reference.
+            let domain = self.program.arithmetic_domain_for_type_reference(array_type);
+            return Some((primitive, domain));
+        }
+        let type_reference = self.assignment_target_type_reference(handle, frame)?;
+        let primitive = self.program.primitive_type_reference(type_reference)?;
+        let domain = self.program.arithmetic_domain_for_type_reference(type_reference);
+        Some((primitive, domain))
+    }
+
+    /// The CORE value-landing coercion: coerce a stored SCALAR to an already-
+    /// resolved (primitive, arithmetic-domain), matching the native store into
+    /// that typed slot -- the decision-17 truncate/clamp/trap for an integer, f32
+    /// rounding for a float. A non-scalar value (Struct, Array, Ref, ...) passes
+    /// through unchanged. Every interpreter value-landing seam funnels here.
+    fn coerce_scalar_with(
+        &self,
+        value: Value,
+        primitive: omega_typed_trees::types::PrimitiveType,
+        domain: ArithmeticDomain,
+    ) -> EvalResult<Value> {
+        match &value {
+            Value::Int(raw) => Ok(Value::Int(apply_arithmetic_domain(*raw, primitive, domain)?)),
+            Value::Float(f) if primitive == PrimitiveType::F32 => {
+                Ok(Value::Float(*f as f32 as f64))
+            }
+            _ => Ok(value),
+        }
+    }
+
+    /// Coerce a stored SCALAR to a declared TYPE reference (resolves its primitive
+    /// + domain, then [`coerce_scalar_with`]). A non-primitive type passes through.
+    /// Used where a value lands in a typed slot with the type in hand: struct/case
+    /// literal FIELD init + the LocalData store (the type carries its own domain).
+    fn coerce_scalar_value(
+        &self,
+        value: Value,
+        type_reference: omega_typed_trees::types::TypeReferenceHandle,
+    ) -> EvalResult<Value> {
+        match self.program.primitive_type_reference(type_reference) {
+            Some(primitive) => {
+                let domain = self
+                    .program
+                    .arithmetic_domain_for_type_reference(type_reference);
+                self.coerce_scalar_with(value, primitive, domain)
+            }
+            None => Ok(value),
+        }
     }
 
     /// Declared integer primitive of an assignment target, when it is a FIELD whose
@@ -2448,6 +4337,17 @@ impl<'program> Evaluator<'program> {
                 let collection_cell = self.resolve_place(collection, frame)?;
                 match &*self.deref_cell(collection_cell).borrow() {
                     Value::Array(elements) => elements.clone(),
+                    // A Str-backed slice (a `&[u8] in Path` bound to a string
+                    // literal) subslices into a byte view: expose each byte as an
+                    // Int cell so the shared range logic + the `Array` host-arg arm
+                    // (eval_fs_bytes) handle `path[a..b]` uniformly.
+                    Value::Str(text) => text
+                        .borrow()
+                        .iter()
+                        .map(|byte| {
+                            std::rc::Rc::new(std::cell::RefCell::new(Value::Int(i64::from(*byte))))
+                        })
+                        .collect(),
                     other => return trap(format!("cannot subslice {other:?}")),
                 }
             }
@@ -2494,6 +4394,14 @@ impl<'program> Evaluator<'program> {
         };
         for field in self.program.expression_table.struct_fields(literal.fields) {
             let value = self.eval_expression(field.value, frame)?;
+            // Coerce the field value to the field's declared width/domain, matching
+            // the native store into the field slot (`Point { x: a+b }` with `a+b`
+            // = 300 into a u8 field reads 44). The field type carries its own
+            // domain, so resolve it directly.
+            let value = match self.field_type_reference(type_symbol, field.name.as_str()) {
+                Some(type_reference) => self.coerce_scalar_value(value, type_reference)?,
+                None => value,
+            };
             fields.insert(field.name.as_str().to_owned(), value.cell());
         }
         Ok(Value::Struct {
@@ -2601,9 +4509,7 @@ impl<'program> Evaluator<'program> {
             // Utf8` parameter (the encoding-domain text model, #66): the literal's
             // `&[u8]` view length is its UTF-8 BYTE count, which is exactly the
             // Rust `String::len`. Matches the native fold of `<literal>.len`.
-            Value::Str(text) if field == "len" => {
-                Ok(Value::Int(text.borrow().len() as i64).cell())
-            }
+            Value::Str(text) if field == "len" => Ok(Value::Int(text.borrow().len() as i64).cell()),
             other => trap(format!("cannot read field `{field}` of {other:?}")),
         }
     }
@@ -2701,8 +4607,8 @@ impl<'program> Evaluator<'program> {
         if let (Value::Str(a), Value::Str(b)) = (&left, &right) {
             if operator == Add {
                 let mut joined = a.borrow().clone();
-                joined.push_str(&b.borrow());
-                return Ok(Value::str(joined));
+                joined.extend_from_slice(&b.borrow());
+                return Ok(Value::bytes(joined));
             }
         }
 
@@ -2747,6 +4653,9 @@ impl<'program> Evaluator<'program> {
             }
             ShiftLeft => Value::Int(l.wrapping_shl(r as u32)),
             ShiftRight => Value::Int(l.wrapping_shr(r as u32)),
+            BitwiseAnd => Value::Int(l & r),
+            BitwiseOr => Value::Int(l | r),
+            BitwiseXor => Value::Int(l ^ r),
             Less => Value::Bool(l < r),
             LessOrEqual => Value::Bool(l <= r),
             Greater => Value::Bool(l > r),
@@ -2766,8 +4675,8 @@ impl<'program> Evaluator<'program> {
             LessOrEqual => Value::Bool(l <= r),
             Greater => Value::Bool(l > r),
             GreaterOrEqual => Value::Bool(l >= r),
-            Modulo | ShiftLeft | ShiftRight => {
-                return unsupported("float modulo/shift not supported");
+            Modulo | ShiftLeft | ShiftRight | BitwiseAnd | BitwiseOr | BitwiseXor => {
+                return unsupported("float modulo/shift/bitwise not supported");
             }
             Equal | NotEqual | And | Or => unreachable!("handled earlier"),
         })
@@ -2781,10 +4690,18 @@ impl<'program> Evaluator<'program> {
             let r = right
                 .as_float()
                 .ok_or_else(|| Halt::Trap("min/max float".to_owned()))?;
+            // Match the native SSE semantics exactly: `maxsd a, b` returns b
+            // when the values are unordered (any NaN) or equal, and the larger
+            // otherwise -- i.e. `if a > b { a } else { b }` (partial `>` is
+            // false for NaN). `minsd` is the mirror. Rust's `f64::max`/`min`
+            // differ (they return the non-NaN operand), which would diverge
+            // from the backend on a NaN second operand.
             return Ok(Value::Float(if name == "max" {
-                l.max(r)
+                if l > r { l } else { r }
+            } else if l < r {
+                l
             } else {
-                l.min(r)
+                r
             }));
         }
         let l = left
@@ -2852,7 +4769,24 @@ impl<'program> Evaluator<'program> {
 fn is_canonical_host_method(name: &str) -> bool {
     matches!(
         name,
-        "write" | "write_line" | "write_error" | "write_error_line" | "read_line" | "exit_process"
+        "write"
+            | "write_line"
+            | "write_error"
+            | "write_error_line"
+            | "read_line"
+            | "exit_process"
+            | "sleep"
+            | "tick_count"
+            | "key_state"
+            | "dc_create"
+            | "get_dc"
+            | "window_create"
+            | "blit"
+            | "msg_peek"
+            | "msg_translate"
+            | "msg_dispatch"
+            | "is_window"
+            | "window_destroy"
     )
 }
 
@@ -2905,7 +4839,7 @@ fn wire_nested_scalar_fields(
             .and_then(WireScalarEncoding::for_primitive)
             .ok_or_else(|| {
                 Halt::Unsupported(format!(
-                    "wire data `{}` nested field `{}` is not a stage 2 scalar",
+                    "data `{}` nested field `{}` is not a stage 2 scalar",
                     child.name, field.name
                 ))
             })?;
@@ -2986,7 +4920,11 @@ fn integer_bounds(ty: PrimitiveType) -> Option<(i64, i64)> {
 /// mirroring the native backend so the differential oracle agrees:
 /// Exact/Wrapping truncate to width; Saturating clamps to [min, max]; Trapping
 /// halts (overflow trap) when the value is out of range.
-fn apply_arithmetic_domain(raw: i64, ty: PrimitiveType, domain: ArithmeticDomain) -> EvalResult<i64> {
+fn apply_arithmetic_domain(
+    raw: i64,
+    ty: PrimitiveType,
+    domain: ArithmeticDomain,
+) -> EvalResult<i64> {
     match domain {
         ArithmeticDomain::Exact | ArithmeticDomain::Wrapping => Ok(wrap_to_width(raw, ty)),
         ArithmeticDomain::Saturating => match integer_bounds(ty) {
@@ -3012,9 +4950,11 @@ fn wrap_to_width(raw: i64, ty: PrimitiveType) -> i64 {
         PrimitiveType::U32 => raw as u32 as i64,
         // 64-bit and pointer-width types keep the full value (unsigned reinterpretation of a
         // u64 is still represented by the same bit pattern in i64).
-        PrimitiveType::I64 | PrimitiveType::U64 | PrimitiveType::Isize | PrimitiveType::Usize => {
-            raw
-        }
+        PrimitiveType::I64
+        | PrimitiveType::U64
+        | PrimitiveType::Isize
+        | PrimitiveType::Usize
+        | PrimitiveType::Addr => raw,
         // Non-integer primitives do not reach this path.
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
             raw

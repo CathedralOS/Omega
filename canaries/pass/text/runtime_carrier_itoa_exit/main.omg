@@ -1,0 +1,71 @@
+// Building a string from a NUMBER (`itoa`) by overwriting a carrier's bytes with
+// computed digit chars (constant-index carrier writes of computed values), then
+// reading the bytes back to self-check. Converts 150 to the three chars
+// '1'(49) '5'(53) '0'(48) and verifies each. This is the write half of
+// number<->text round-tripping (the read half is parse_int). Exits 70.
+
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+domain [u8; 4]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    out: [u8; 4] in Utf8;
+    n: i32 in Trapping;
+    digit: i32 in Trapping;
+    ch: u8;
+}
+
+machine Main::main(&mut self) {
+    self.n = 150;
+    self.out = "000";
+
+    self.digit = self.n / 100;
+    self.digit = self.digit + 48;
+    self.ch = self.digit as u8;
+    self.out[0] = self.ch;
+
+    self.digit = self.n / 10;
+    self.digit = self.digit % 10;
+    self.digit = self.digit + 48;
+    self.ch = self.digit as u8;
+    self.out[1] = self.ch;
+
+    self.digit = self.n % 10;
+    self.digit = self.digit + 48;
+    self.ch = self.digit as u8;
+    self.out[2] = self.ch;
+
+    // Read the digits back and confirm "150".
+    transition self.out[0] == 49 {
+        true -> check_tens()
+        _ -> bad()
+    }
+
+    state check_tens(&mut self) {
+        transition self.out[1] == 53 {
+            true -> check_ones()
+            _ -> bad()
+        }
+    }
+
+    state check_ones(&mut self) {
+        transition self.out[2] == 48 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

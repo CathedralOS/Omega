@@ -1,0 +1,40 @@
+// RUN CANARY (exit 70) + interpreter differential. An ARRAY-ELEMENT write coerces
+// the stored value to the element's WIDTH and the ARRAY's arithmetic DOMAIN,
+// matching the native truncating/clamping store:
+//   [u8; N]              element: `a+b`=300 truncates to 44 (300 & 0xFF)
+//   [u8; N] in Saturating element: `a+b`=300 CLAMPS to 255
+// Regression lock for the interpreter assignment_target_coercion (element width +
+// array domain via fixed_array_element_type). exit 72 = the wrap element read the
+// wrong value; 73 = the saturating element did not clamp.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    wrap: [u8; 2];
+    sat: [u8; 2] in Saturating;
+    a: u8 in Wrapping;
+    b: u8 in Wrapping;
+    sa: u8 in Saturating;
+    sb: u8 in Saturating;
+}
+machine Main::main(&mut self) {
+    self.a = 200;
+    self.b = 100;
+    self.wrap[0] = self.a + self.b;    // 300 -> 44 (element width truncation)
+    self.sa = 200;
+    self.sb = 100;
+    self.sat[0] = self.sa + self.sb;   // 300 -> 255 (array Saturating domain)
+    transition self.wrap[0] == 44 {
+        true  -> check_sat()
+        false -> wrap_wrong()
+    }
+    state check_sat(&mut self) {
+        transition self.sat[0] == 255 {
+            true  -> good()
+            false -> sat_wrong()
+        }
+    }
+    state good(&mut self)      { self.console.exit_process(70); }
+    state wrap_wrong(&mut self) { self.console.exit_process(72); }
+    state sat_wrong(&mut self)  { self.console.exit_process(73); }
+}

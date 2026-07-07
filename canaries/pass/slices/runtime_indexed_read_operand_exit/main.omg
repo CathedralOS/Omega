@@ -1,0 +1,56 @@
+// A runtime-indexed read `self.nums[self.i]` used as a SUB-EXPRESSION OPERAND
+// (a child of a binary `+` and of an `as` cast), not just a whole-value copy.
+// The operand-hoisting normalization rewrites
+//
+//     self.acc = self.acc + self.nums[self.i];
+//     self.big = self.nums[self.i] as i64;
+//
+// into synthetic `let __hoist_N = self.nums[self.i];` temps placed before each
+// statement, then the parent reads the temp. Before that normalization both
+// forms errored "needs runtime value lowering" / "needs runtime storage write
+// lowering" (only a root-level whole-value indexed read lowered). The elements
+// and accumulator are `i32 in Trapping` so the `acc + element` arithmetic
+// satisfies decision 17 (a plain `i32` would be rejected by the exact-arithmetic
+// proof obligation, independent of the indexed read). Over [10, 20, 30] with
+// i = 1: acc = 0 + 20 = 20 and big = 20. Expected exit: 70.
+
+use platform::console;
+
+data Main {
+    console: Console;
+    nums: [i32; 3] in Trapping;
+    i: i32 in Trapping;
+    acc: i32 in Trapping;
+    big: i64;
+}
+
+machine Main::main(&mut self) {
+    self.nums[0] = 10;
+    self.nums[1] = 20;
+    self.nums[2] = 30;
+    self.i = 1;
+    self.acc = 0;
+
+    self.acc = self.acc + self.nums[self.i];
+    self.big = self.nums[self.i] as i64;
+
+    transition self.acc == 20 {
+        true -> check_big()
+        _ -> bad()
+    }
+
+    state check_big(&mut self) {
+        transition self.big == 20 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

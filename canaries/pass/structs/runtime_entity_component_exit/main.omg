@@ -1,0 +1,80 @@
+// An array of ENTITIES each holding a nested COMPONENT struct -- the entity-component
+// pattern a game/simulation is built from, and a combination not covered elsewhere
+// (runtime_particle_system_exit is an array of structs with FLAT fields; the nested-struct
+// canaries are not arrays). Exercises runtime-indexed access THROUGH a member path:
+// `self.ents[i].pos.x` read in a loop (accumulate) and temp-RMW written back (double each).
+// Three entities with pos.x = 1,2,3: the sum is 6, and after doubling pos.x = 2,4,6.
+// All checked -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Vec2 {
+    x: i32 in Wrapping;
+    y: i32 in Wrapping;
+}
+
+data Entity {
+    pos: Vec2;
+    id: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    ents: [Entity; 3] in Wrapping;
+    i: i32 in Wrapping;
+    t: i32 in Wrapping;
+    sum: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.ents[0].pos.x = 1; self.ents[0].pos.y = 10; self.ents[0].id = 0;
+    self.ents[1].pos.x = 2; self.ents[1].pos.y = 20; self.ents[1].id = 1;
+    self.ents[2].pos.x = 3; self.ents[2].pos.y = 30; self.ents[2].id = 2;
+    self.i = 0;
+    self.sum = 0;
+    transition { _ -> acc_loop() }
+
+    // phase 1: sum every entity's nested pos.x (runtime-indexed nested read)
+    state acc_loop(&mut self) {
+        transition self.i >= 0 && self.i < 3 { true -> acc() _ -> dbl_init() }
+    }
+    state acc(&mut self) {
+        self.t = self.ents[self.i].pos.x;
+        self.sum = self.sum + self.t;
+        self.i = self.i + 1;
+        transition { _ -> acc_loop() }
+    }
+
+    // phase 2: double each entity's nested pos.x (read into temp, *2, write back)
+    state dbl_init(&mut self) {
+        self.i = 0;
+        transition { _ -> dbl_loop() }
+    }
+    state dbl_loop(&mut self) {
+        transition self.i >= 0 && self.i < 3 { true -> dbl() _ -> verify() }
+    }
+    state dbl(&mut self) {
+        self.t = self.ents[self.i].pos.x;
+        self.t = self.t * 2;
+        self.ents[self.i].pos.x = self.t;
+        self.i = self.i + 1;
+        transition { _ -> dbl_loop() }
+    }
+
+    state verify(&mut self) {
+        transition self.sum == 6
+            && self.ents[0].pos.x == 2
+            && self.ents[1].pos.x == 4
+            && self.ents[2].pos.x == 6 {
+            true -> good()
+            _ -> wrong()
+        }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(self.sum); // surface the sum on regression
+    }
+}

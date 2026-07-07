@@ -1,0 +1,69 @@
+// Arithmetic-domain behaviour at the TYPE BOUNDARIES, computed at runtime (the
+// operands are field reads, not const-folded into the comparison), and checked
+// against the boundary constants. Locks the Decision-17 domains' overflow
+// semantics as a regression guard (native + interpreter must agree):
+//   * i32 Saturating  MAX + 1 -> MAX   (clamp, no wrap)
+//   * i32 Wrapping    MAX + 1 -> MIN   (two's-complement wrap)
+//   * u8  Saturating  255 + 1 -> 255   (clamp at the unsigned ceiling)
+//   * u8  Wrapping    0   - 1 -> 255   (unsigned underflow wraps)
+// All four correct -> exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    i32sat: i32 in Saturating;
+    i32wrap: i32 in Wrapping;
+    u8sat: u8 in Saturating;
+    u8wrap: u8 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.i32sat = 2147483647;
+    self.i32sat = self.i32sat + 1;          // saturates to i32::MAX
+
+    self.i32wrap = 2147483647;
+    self.i32wrap = self.i32wrap + 1;        // wraps to i32::MIN
+
+    self.u8sat = 255;
+    self.u8sat = self.u8sat + 1;            // saturates to 255
+
+    self.u8wrap = 0;
+    self.u8wrap = self.u8wrap - 1;          // wraps to 255
+
+    transition self.i32sat == 2147483647 {
+        true -> check_wrap()
+        _ -> bad()
+    }
+
+    state check_wrap(&mut self) {
+        transition self.i32wrap == 0 - 2147483648 {
+            true -> check_u8sat()
+            _ -> bad()
+        }
+    }
+
+    state check_u8sat(&mut self) {
+        transition self.u8sat == 255 {
+            true -> check_u8wrap()
+            _ -> bad()
+        }
+    }
+
+    state check_u8wrap(&mut self) {
+        transition self.u8wrap == 255 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

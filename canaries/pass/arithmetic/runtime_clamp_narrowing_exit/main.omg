@@ -1,0 +1,14 @@
+// clamp enables SOUND NARROWING: `clamp(x, 0, 100)` proves its result is in
+// [0, 100], which fits `i8`, so storing it into an i8 is NOT a narrowing-store
+// violation (decision 17) even though the source `x` is a wider i32. This locks
+// the composition of the S4 min/max interval tracking with the narrowing check
+// AND that the backend actually stores the clamped value (300 -> 100) in the
+// narrower slot. Native must match the interpreter.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; x: i32; s: i8; }
+machine Main::main(&mut self) {
+    self.x = 300;
+    self.s = clamp(self.x, 0, 100);
+    let out: i32 = self.s as i32;
+    self.console.exit_process(out);
+}

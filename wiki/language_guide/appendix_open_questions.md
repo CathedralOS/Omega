@@ -22,6 +22,21 @@ This page tracks design pressure that is not fully nailed down yet.
   type-scoped invariant parameters such as `&[T, [non_empty]]`; indexing is
   valid when the current facts prove the index is inside the slice bounds.
 - Old bracketed refinement syntax is dead. Range-heavy proof vocabulary lives directly in contracts, using Rust-style ranges like `1..=100` and `min..=max`. The inclusive/exclusive forms are now resolved: `a..b` is exclusive and `a..=b` is inclusive, with `a..=b` normalizing to `a..(b+1)`. Against a length `len`, an exclusive end requires `b <= len` and an inclusive end requires `b < len` (so inclusive-end validity equals index validity); a non-empty inclusive range establishes a `non_empty` fact. These are the same `..` / `..=` forms used for subslicing.
+- Index, count, and address types are settled (see
+  [`design_briefs/index_count_and_address_model.md`](../design_briefs/index_count_and_address_model.md)).
+  `usize` is retired into two honest axes — a **count** (`len`, sizes) and an
+  **address** (`addr`, first-class for drivers, *not* quarantined) — with
+  `width(count) <= width(addr)` so the model survives CHERI-class ISAs.
+  **Indexing is untyped:** `arr[i]` carries the single obligation `0 <= i < len`
+  and accepts any integer that discharges it (an unsigned index proves `0 <= i`
+  by type, a signed one must prove it); the proof is erased at codegen, and
+  arithmetic stays on a plain integer (no `Fin` value, no modular wrap). Machine
+  width is a lowering detail (narrowest-fits, `u64` default); a narrowing
+  conversion is legal only when the fit is *proven* (the Decision-17 `Exact`
+  case), never "unless we can prove it overflows." Named index types fall out of
+  domains as nominal tags (the bound stays the obligation). Governing rule: a
+  sound fact is *derived from a positive proof*, never *assumed from the absence
+  of a disproof* — the same principle that makes domain membership closed-world.
 - Text is not a type (decided; see ch8 "Domains On Strings And Encodings").
   "A string" is `[u8] in Utf8`: a byte container (`&[u8]` view, `Vec<u8>` owned,
   or `[u8; N]` fixed) carrying an encoding *domain* (`Slice<u8>::Utf8`,
@@ -86,8 +101,8 @@ This page tracks design pressure that is not fully nailed down yet.
   -- fields only is a record, cases only is a sum, both is MIXED (sum-only
   shipped first; mixed is live -- see chapter 1 for the layout,
   zero-unless-named construction, and access rules). Case-bearing data gets the
-  full `data` machinery: versions and `wire data` cover the case part, zero
-  rules apply uniformly (first case is the zero case). Today's `enum`
+  full `data` machinery: versions and wire identity numbers (chapter 20) cover
+  the case part, zero rules apply uniformly (first case is the zero case). Today's `enum`
   spelling is transitional and retired by this decision.
 - Cases ARE domains. A case implicitly declares the same-named domain (tag
   compare as a free classifier); `case` never appears at a use site. Case
@@ -148,8 +163,9 @@ This page tracks design pressure that is not fully nailed down yet.
 - Attribute-system stances: no per-item conditional compilation (per-target
   code lives in target packages); lint policy lives at the package/build
   declaration, never per-item in source; deprecation is versioned-data
-  metadata, not a marker; field-level codegen metadata is wire data, not
-  attributes; optimization hints deliberately deferred. `[open]`
+  metadata, not a marker; field-level codegen metadata is schema identity /
+  plan data (chapter 20), not attributes; optimization hints deliberately
+  deferred. `[open]`
   (non-exhaustive evolution contracts) is DROPPED until separate compilation
   gives it teeth; an in-language test surface is deferred.
 - Wire compatibility rulings: declared `version` blocks are checked schema
@@ -331,11 +347,14 @@ This page tracks design pressure that is not fully nailed down yet.
 - How should Omega express and prove sequence-wide domains over runtime text
   (decided direction; see ch8 "Domains On Strings And Encodings")? Encoding
   validity is a domain over the byte container (`Slice<u8>::Utf8`, `::NoNul`,
-  ...); the byte-level proof tax is avoided by validating once at the ingest
-  boundary (a `when valid_utf8` classifier/checker), carrying `in Utf8` as a
-  fact, and discharging a few preservation lemmas as operator contracts (concat
-  and boundary-slice preserve UTF-8) so downstream code never re-scans. Richer
-  sequence-wide invariants are staged later.
+  ...) with ZERO compiler encoding intrinsics (settled 2026-07-05) — the domain
+  body is a pure predicate, and a sequence property is a recursion-free state
+  machine that narrows the slice (the `utf8_ok` recogniser in ch8), not a blessed
+  `valid_utf8` primitive. The byte-level proof tax is avoided by validating once
+  at the ingest boundary (running that recogniser), carrying `in Utf8` as a fact,
+  and discharging a few preservation lemmas as operator contracts (concat and
+  boundary-slice preserve UTF-8) so downstream code never re-scans. Richer
+  sequence-wide invariants (the loop-invariant/inductive prover) are staged later.
 - When domains can participate in operator resolution, what exact ambiguity
   rules should apply, and which concepts should remain ordinary value domains
   versus a separate evaluation-mode/policy system?

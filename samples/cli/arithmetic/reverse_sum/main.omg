@@ -1,0 +1,69 @@
+// Sum an array by walking it BACKWARD -- a real data-processing loop whose
+// index bound is a loop INVARIANT rather than the loop guard.
+//
+//   acc = 0
+//   for i = N-1 down to 0: acc = acc + nums[i]
+//
+// The loop head's guard is `i >= 0` (the low side); the upper bound
+// `i < N` that `nums[i]` needs is the inductive invariant established by the
+// `i = N - 1` entry and preserved by each `i = i - 1` decrement. Over
+// [5, 10, 15, 20, 25] the reverse sum is 75.
+// Expected exit: 75.
+
+boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    // Wrapping DECLARED: the elements feed the Wrapping accumulator, and Decision
+    // 17 forbids mixing domains in one expression.
+    nums: [i32; 5] in Wrapping;
+    // The index walks 4 down to -1 (the exit value), guard-proven Exact: the
+    // `i >= 0` edge into add() plus the range's upper bound prove `i - 1`.
+    i: i32 [-1..=4];
+    // Wrapping DECLARED: sums array elements, which carry no range facts yet.
+    acc: i32 in Wrapping;
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("reverse_sum: sums an array by walking it backward from the top index");
+    self.nums[0] = 5;
+    self.nums[1] = 10;
+    self.nums[2] = 15;
+    self.nums[3] = 20;
+    self.nums[4] = 25;
+    self.i = 4;
+    self.acc = 0;
+
+    transition {
+        _ -> scan()
+    }
+
+    // Loop head: walk down until every element has been added.
+    state scan(&mut self) {
+        transition self.i >= 0 {
+            true -> add()
+            _ -> done()
+        }
+    }
+
+    // Add the current element, then step the index down by one.
+    state add(&mut self) {
+        self.acc = self.acc + self.nums[self.i];
+        self.i = self.i - 1;
+        transition {
+            _ -> scan()
+        }
+    }
+
+    state done(&mut self) {
+        self.console.write_line("PASS: reverse sum computed, 75 for this data (the exit code)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(self.acc);
+    }
+}

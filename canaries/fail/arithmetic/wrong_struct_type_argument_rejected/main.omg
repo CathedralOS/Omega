@@ -1,0 +1,31 @@
+// FAIL canary: NOMINAL type confusion at a call argument -- `take_foo(&self.bar)`
+// where `take_foo` expects `&Foo` but is passed a `&Bar` -- is rejected at
+// type-check. This was a SILENT MISCOMPILE: the argument shape gate
+// (argument_matches_type_reference_handle) blanket-accepts a place/name value
+// against ANY `Named` parameter, comparing only the SHAPE (it's a place), never
+// the type NAME, so `f.a` read Bar's storage at Foo's offset as garbage. The
+// nominal / user-type complement of the cross-class SCALAR store family.
+//
+// The check (report_data_type_conflict) rejects ONLY when both the parameter and
+// the argument resolve to CONCRETE DATA type names that differ; every other form
+// (traits, boundary types, generic parameters, versioned data, computed non-place
+// arguments) is skipped, so a data value passed to a trait/generic parameter is
+// still accepted. This canary uses a value-position call; the statement/transition
+// argument positions carry the same guard.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Foo { a: i32 in Wrapping; }
+data Bar { b: i32 in Wrapping; c: i32 in Wrapping; }
+
+data Main { console: Console; foo: Foo; bar: Bar; }
+
+machine Main::take_foo(&mut self, f: &Foo) -> i32 {
+    transition { _ -> (f.a) }
+}
+
+machine Main::main(&mut self) {
+    self.bar.b = 7;
+    let r: i32 = self.take_foo(&self.bar); // &Bar where &Foo expected -- incompatible data types
+    self.console.exit_process(r);
+}

@@ -1,0 +1,33 @@
+// NATIVE fs exists (Rust Path::exists) via STAT. A freshly created file stats OK
+// (exists=true); after remove, stat fails (exists=false). stat -- unlike an
+// open-probe -- needs no read permission on the file, matching Rust's stat-based
+// Path::exists (and the ergonomic Filesystem::exists wrapper). Prints PASS iff the
+// file is present after create and absent after remove.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    fd: i32;
+    rc: i32;
+    n: i64;
+    buffer: [u8; 144];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.fd = self.fs.create("/tmp/omega_exists.txt", self.mode);
+    self.n = self.fs.close(self.fd);
+    // exists? stat must succeed now (rc == 0)
+    self.rc = self.fs.read_metadata("/tmp/omega_exists.txt", &mut self.buffer);
+    transition self.rc == 0 { true -> present() _ -> fail() }
+    state present(&mut self) {
+        self.n = self.fs.remove("/tmp/omega_exists.txt");
+        // exists? stat must now fail (file removed)
+        self.rc = self.fs.read_metadata("/tmp/omega_exists.txt", &mut self.buffer);
+        transition self.rc == 0 { true -> fail() _ -> good() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: exists true after create, false after remove (via stat)\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: exists\n"); }
+}

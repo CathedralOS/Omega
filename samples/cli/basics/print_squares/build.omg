@@ -1,0 +1,16 @@
+// print_squares build manifest: each target lists the boundary packages it trusts.
+
+target cross_platform_cli {
+    boundary omega::host::contracts
+    boundary omega::host::standard
+}
+
+target windows_x64 {
+    boundary omega::host::contracts
+    boundary omega::host::targets::windows
+}
+
+target linux_x64 {
+    boundary omega::host::contracts
+    boundary omega::host::targets::linux
+}

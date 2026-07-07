@@ -15,6 +15,9 @@ pub enum StateGuardOperator {
     Modulo,
     ShiftLeft,
     ShiftRight,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
     /// Unsigned counterparts, selected when the operands are an unsigned integer
     /// type. They differ from the signed forms only in the machine encoding
     /// (`div`/`shr` vs `idiv`/`sar`).
@@ -31,6 +34,9 @@ pub enum StateGuardOperator {
     Min,
     And,
     Or,
+    /// `sqrt(x)`: a UNARY float op carried on the binary value-write path with
+    /// both operands = `x`; the encoder reads the first SSE register only.
+    Sqrt,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

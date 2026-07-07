@@ -8,5 +8,6 @@ pub use context::RuntimeStorageContext;
 pub use model::{RuntimeFrameSlot, RuntimeFrameSlotKind, RuntimeStoragePlan, RuntimeStorageWrite};
 pub use planning::{
     build_runtime_storage_plan, build_runtime_storage_plan_with_workers,
-    reserve_wire_nested_scratch, runtime_frame_storage_alignment, runtime_frame_storage_size,
+    reserve_entry_argument_spill, reserve_wire_nested_scratch, runtime_frame_storage_alignment,
+    runtime_frame_storage_size,
 };

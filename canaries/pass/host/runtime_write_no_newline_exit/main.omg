@@ -1,0 +1,21 @@
+// `write` (Stdout, no trailing newline) vs `write_line`. Writes "AB" with no newline
+// then "C" with a newline: stdout must be exactly "ABC\n". The differential oracle
+// compares native vs interpreter stdout byte-for-byte, so it verifies `write` does
+// NOT append a newline (a regression would show a stray 0x0a). Exits 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+    machine write(text: [u8] in Utf8);
+    machine write_line(text: [u8] in Utf8);
+}
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 2]::Utf8 when valid_utf8(self) {}
+domain [u8; 1]::Utf8 when valid_utf8(self) {}
+data Main { console: Console; a: [u8; 2] in Utf8; b: [u8; 1] in Utf8; }
+machine Main::main(&mut self) {
+    self.a = "AB";
+    self.b = "C";
+    self.console.write(self.a);
+    self.console.write_line(self.b);
+    transition { _ -> done() }
+    state done(&mut self) { self.console.exit_process(70); }
+}

@@ -1,0 +1,75 @@
+// argmax: find the INDEX of the maximum element (not the value -- array_max
+// already covers the value). The distinguishing move is a conditional INDEX
+// CAPTURE: when a new maximum is seen, record the current loop index. Over
+// [4, 15, 8, 42, 16, 23] the maximum 42 sits at index 3 (neither first nor last,
+// so an off-by-one or a "keep the last index" bug is caught). Exits 70 only when
+// best_idx == 3.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    arr: [i32; 6];
+    i: i32 [0..=6];
+    best_idx: i32 [0..=6];
+    best_val: i32;
+    cur: i32;
+}
+machine Main::main(&mut self) {
+    self.arr[0] = 4;
+    self.arr[1] = 15;
+    self.arr[2] = 8;
+    self.arr[3] = 42;
+    self.arr[4] = 16;
+    self.arr[5] = 23;
+    self.i = 0;
+    self.best_idx = 0;
+    self.best_val = 0;
+
+    transition {
+        _ -> step()
+    }
+
+    state step(&mut self) {
+        transition self.i < 6 {
+            true -> body()
+            _ -> done()
+        }
+    }
+    state body(&mut self) {
+        self.cur = self.arr[self.i];
+        transition self.cur > self.best_val {
+            true -> keep()
+            _ -> advance()
+        }
+    }
+    // New maximum: capture BOTH its value and its index.
+    state keep(&mut self) {
+        self.best_val = self.cur;
+        self.best_idx = self.i;
+        transition {
+            _ -> advance()
+        }
+    }
+    // Re-guard before the increment so `i + 1` stays provably in [0..=6].
+    state advance(&mut self) {
+        transition self.i < 6 {
+            true -> bump()
+            _ -> step()
+        }
+    }
+    state bump(&mut self) {
+        self.i = self.i + 1;
+        transition {
+            _ -> step()
+        }
+    }
+    state done(&mut self) {
+        transition self.best_idx == 3 {
+            true -> ok()
+            false -> bad()
+        }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

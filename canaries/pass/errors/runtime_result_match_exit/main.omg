@@ -1,0 +1,85 @@
+// Explicit Result-style error handling at RUNTIME -- the sum-type idiom (Ok / Err, no
+// exceptions) real apps use for recoverable failure. Distinct from fallible_result_data_
+// shape (a compile-only STRUCT-with-flag result via &mut out-params): here the result is a
+// two-case ENUM that is produced conditionally, then MATCHED and handled, with the loop
+// accumulating successes and counting errors. Safe-dividing 10/2, 7/0, 20/4 yields
+// Ok(5), Err, Ok(5); the Ok values sum to 10 and one Err is counted. The quotient is
+// computed only in the divisor-nonzero branch (so a divide-by-zero is never executed --
+// the error is data, not a trap), and the matched payload flows to the handler state.
+// Exits 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data DivResult {
+    case Ok(value: i32 in Wrapping);
+    case Err(code: i32 in Wrapping);
+}
+
+data Main {
+    console: Console;
+    aa: [i32; 3] in Wrapping;
+    bb: [i32; 3] in Wrapping;
+    result: DivResult;
+    i: i32 in Wrapping;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    q: i32 in Wrapping;
+    acc: i32 in Wrapping;  // sum of Ok values
+    errs: i32 in Wrapping; // count of Err
+}
+
+machine Main::main(&mut self) {
+    self.aa = [10, 7, 20];
+    self.bb = [2, 0, 4];
+    self.i = 0;
+    self.acc = 0;
+    self.errs = 0;
+    transition { _ -> loop() }
+
+    state loop(&mut self) {
+        transition self.i >= 0 && self.i < 3 { true -> load() _ -> verify() }
+    }
+    state load(&mut self) {
+        self.a = self.aa[self.i];
+        self.b = self.bb[self.i];
+        // produce a Result: Ok(a/b) when the divisor is nonzero, else Err
+        transition self.b != 0 { true -> comp_ok() _ -> comp_err() }
+    }
+    state comp_ok(&mut self) {
+        self.q = self.a / self.b; // only reached when b != 0
+        self.result = DivResult::Ok { value: self.q };
+        transition { _ -> handle() }
+    }
+    state comp_err(&mut self) {
+        self.result = DivResult::Err { code: 1 };
+        transition { _ -> handle() }
+    }
+    // match the Result and handle each case
+    state handle(&mut self) {
+        transition self.result {
+            DivResult::Ok { value } -> h_ok(value)
+            DivResult::Err { code } -> h_err()
+        }
+    }
+    state h_ok(&mut self, v: i32 in Wrapping) {
+        self.acc = self.acc + v;
+        self.i = self.i + 1;
+        transition { _ -> loop() }
+    }
+    state h_err(&mut self) {
+        self.errs = self.errs + 1;
+        self.i = self.i + 1;
+        transition { _ -> loop() }
+    }
+
+    state verify(&mut self) {
+        transition self.acc == 10 && self.errs == 1 { true -> good() _ -> wrong() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(self.acc); // surface the sum on regression
+    }
+}

@@ -1,0 +1,129 @@
+// PLAN-LAID VALUE TYPES across a BY-VALUE parameter (layouts L4). The sibling
+// `runtime_plan_laid_value_field_exit` proves a whole-value copy (`twin = gdt`)
+// preserves the baked plan offsets; this one proves the SAME placement survives
+// a by-value parameter pass. `Spread16<Gdtish>` places every field on its own
+// 16-byte slot (offsets 0/16/32/48), which disagrees with native packing past
+// field 0. When `gdt` is handed to a state by value and threaded across further
+// edges, each copy must carry the SAME plan offsets: if the callee recomputed
+// native packing, its reads would land in the spread's padding gaps and see
+// zeros, exiting 71. Exits 70 only when every field read through the passed-by-
+// value copies matches what main wrote.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField {
+    size: i64 [0..=4096];
+    align: i64 [1..=16];
+    number: i64;
+    kind: FieldKind;
+}
+data Schema {
+    fields: [SchemaField; 32];
+    field_count: i64 [0..=32];
+}
+data FieldPlan {
+    case At(offset: i64);
+    case Bits(container: i64, container_width: i64, lsb: i64, width: i64);
+    case Varint(tag: i64);
+    case LengthPrefixed(tag: i64);
+}
+data Plan {
+    fields: [FieldPlan; 32];
+    entry_count: i64;
+    size_fixed: i64;
+    size_is_dynamic: bool;
+    align: i64;
+}
+
+// The spread policy: field i lives at byte i*16 (offsets disagree with native
+// packing everywhere past field 0).
+data Spread16 {
+    plans: [FieldPlan; 32];
+    index: i64 in Wrapping;
+    slot: i64 in Wrapping;
+}
+machine Spread16::plan(&mut self, schema: Schema) -> Plan {
+    self.index = 0;
+    transition { _ -> fill_loop(schema) }
+
+    state fill_loop(&mut self, schema: Schema) {
+        transition self.index >= 0 && self.index < 32 && self.index < schema.field_count {
+            true -> place_field(schema)
+            _ -> done(schema)
+        }
+    }
+    state place_field(&mut self, schema: Schema) {
+        self.slot = self.index * 16;
+        transition self.index >= 0 && self.index < 32 {
+            true -> write_field(schema)
+            _ -> done(schema)
+        }
+    }
+    state write_field(&mut self, schema: Schema) {
+        self.plans[self.index] = FieldPlan::At { offset: self.slot as i64 };
+        self.index = self.index + 1;
+        transition { _ -> fill_loop(schema) }
+    }
+    state done(&mut self, schema: Schema) -> Plan {
+        Plan {
+            fields: self.plans,
+            entry_count: schema.field_count as i64,
+            size_fixed: (schema.field_count * 16) as i64,
+            size_is_dynamic: false,
+            align: 16,
+        }
+    }
+}
+
+data Gdtish {
+    limit_low: u16;
+    base_low: u32;
+    flags: u8;
+    base_high: u64;
+}
+
+data Main {
+    console: Console;
+    gdt: Spread16<Gdtish>;
+}
+
+machine Main::main(&mut self) {
+    self.gdt.limit_low = 7;
+    self.gdt.base_low = 20;
+    self.gdt.flags = 3;
+    self.gdt.base_high = 40;
+
+    // Hand the plan-laid value to a state BY VALUE; the callee reads each field
+    // through its own copy, then threads `g` on to the next check.
+    transition { _ -> check_limit(self.gdt) }
+
+    state check_limit(&mut self, g: Spread16<Gdtish>) {
+        transition g.limit_low == 7 {
+            true -> check_low(g)
+            false -> bad()
+        }
+    }
+    state check_low(&mut self, g: Spread16<Gdtish>) {
+        transition g.base_low == 20 {
+            true -> check_flags(g)
+            false -> bad()
+        }
+    }
+    state check_flags(&mut self, g: Spread16<Gdtish>) {
+        transition g.flags == 3 {
+            true -> check_high(g)
+            false -> bad()
+        }
+    }
+    state check_high(&mut self, g: Spread16<Gdtish>) {
+        transition g.base_high == 40 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

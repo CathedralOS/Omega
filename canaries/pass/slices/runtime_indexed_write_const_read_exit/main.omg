@@ -1,0 +1,58 @@
+// Regression: a RUNTIME-indexed write `arr[i] = v` (non-constant index) must
+// invalidate the compiler's recorded constants for the WHOLE array, so a later
+// CONST-indexed read `arr[2]` reads live storage instead of folding to its stale
+// initialization value.
+//
+// The bug (fixed): `static_values` keyed `arr[i]` separately from `arr[2]`, so the
+// runtime write left the `arr[2] = 0` init constant in place and `r = arr[2]`
+// folded to 0. A runtime read `arr[i]` was unaffected (never folds), which is why
+// bubble_sort -- all runtime-indexed -- never tripped it.
+//
+// Here we write two runtime indices and read three const indices (two touched, one
+// untouched). All correct -> exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    cells: [i32; 5] in Trapping;
+    i: usize;
+    j: usize;
+}
+
+machine Main::main(&mut self) {
+    self.cells[0] = 0;
+    self.cells[1] = 0;
+    self.cells[2] = 0;
+    self.cells[3] = 0;
+    self.cells[4] = 0;
+
+    self.i = 2;
+    self.cells[self.i] = 6;     // runtime-indexed write -> cells[2] = 6
+
+    self.j = 4;
+    self.cells[self.j] = 9;     // runtime-indexed write -> cells[4] = 9
+
+    // CONST-indexed reads must see the runtime writes, not the stale 0 init.
+    transition self.cells[2] == 6 {
+        true -> check_four()
+        _ -> bad()
+    }
+
+    state check_four(&mut self) {
+        transition self.cells[4] == 9 { true -> check_zero() _ -> bad() }
+    }
+    state check_zero(&mut self) {
+        // cells[0] was never written at a runtime index -> still 0.
+        transition self.cells[0] == 0 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

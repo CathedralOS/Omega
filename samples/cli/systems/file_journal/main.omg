@@ -1,0 +1,112 @@
+// A real end-to-end filesystem workflow over Omega's raw std::fs seam
+// (`FilesystemHost`), run for real on macOS: make a directory, create and write
+// a file inside it, confirm the file exists via `stat` (`read_metadata`), reopen
+// and read the bytes back, rename it, remove the file, then remove the directory.
+// Every step must succeed; the program tallies the seven verified steps and
+// exits with that count (so a partial failure exits with fewer than 7 and the
+// harness assertion catches it).
+//
+// This drives the raw value-returning seam directly — the layer that IS
+// native-correct today. The ergonomic `Filesystem` wrapper (result enums, `File`)
+// is interpreter-complete and its payload-FREE native results work
+// (`exists`/`last_error`), but its payload-CARRYING native results
+// (`OpenResult::Ok{file}`, `UnitResult::Error{kind}`, …) await a codegen fix for
+// the value-call transition-guard ordering (see TASKS_FS.md). A runnable NATIVE
+// sample therefore exercises the seam, which is proven correct by the
+// native_filesystem_canaries harness; the wrapper is covered by the interpreter
+// fs coverage suite.
+//
+// Expected exit: 7.
+
+use omega::language::std::filesystem_host;
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    fs: FilesystemHost;
+    console: Console;
+    file_mode: i32;
+    dir_mode: i32;
+    fd: i32;
+    rc: i32;
+    n: i64;
+    // Step tally 0..=7. `in Wrapping` gives the `+ 1` a defined-overflow domain so
+    // the exact-arithmetic proof obligation is discharged (the value never nears
+    // the i32 range, but the checker requires an explicit domain regardless).
+    passed: i32 in Wrapping;
+    buffer: [u8; 64];
+    meta: [u8; 144];
+}
+
+machine Main::main(&mut self) {
+    self.file_mode = 420; // 0o644
+    self.dir_mode = 493;  // 0o755
+
+    // Best-effort clean slate so a re-run is deterministic (ignore the results:
+    // on a fresh machine these targets do not exist yet).
+    self.rc = self.fs.remove("/tmp/omega_journal_dir/note.txt");
+    self.rc = self.fs.remove("/tmp/omega_journal_dir/renamed.txt");
+    self.rc = self.fs.remove_dir("/tmp/omega_journal_dir");
+
+    // Step 1 — create the working directory.
+    self.rc = self.fs.create_dir("/tmp/omega_journal_dir", self.dir_mode);
+    transition self.rc == 0 { true -> made_dir() _ -> done() }
+
+    state made_dir(&mut self) {
+        self.passed = self.passed + 1;
+        // Step 2 — create the file and write a known 17-byte line.
+        self.fd = self.fs.create("/tmp/omega_journal_dir/note.txt", self.file_mode);
+        transition self.fd >= 0 { true -> opened_for_write() _ -> done() }
+    }
+    state opened_for_write(&mut self) {
+        self.n = self.fs.write(self.fd, "omega fs journal\n");
+        self.rc = self.fs.close(self.fd);
+        transition self.n == 17 { true -> wrote_file() _ -> done() }
+    }
+    state wrote_file(&mut self) {
+        self.passed = self.passed + 1;
+        // Step 3 — the file exists (stat succeeds; no read permission needed).
+        self.rc = self.fs.read_metadata("/tmp/omega_journal_dir/note.txt", &mut self.meta);
+        transition self.rc == 0 { true -> confirmed_present() _ -> done() }
+    }
+    state confirmed_present(&mut self) {
+        self.passed = self.passed + 1;
+        // Step 4 — reopen read-only and read the 17 bytes back.
+        self.fd = self.fs.open("/tmp/omega_journal_dir/note.txt", 0);
+        transition self.fd >= 0 { true -> opened_for_read() _ -> done() }
+    }
+    state opened_for_read(&mut self) {
+        self.n = self.fs.read(self.fd, &mut self.buffer, 17);
+        self.rc = self.fs.close(self.fd);
+        transition self.n == 17 { true -> read_back() _ -> done() }
+    }
+    state read_back(&mut self) {
+        self.passed = self.passed + 1;
+        // Step 5 — rename within the directory.
+        self.rc = self.fs.rename("/tmp/omega_journal_dir/note.txt", "/tmp/omega_journal_dir/renamed.txt");
+        transition self.rc == 0 { true -> renamed() _ -> done() }
+    }
+    state renamed(&mut self) {
+        self.passed = self.passed + 1;
+        // Step 6 — remove the file.
+        self.rc = self.fs.remove("/tmp/omega_journal_dir/renamed.txt");
+        transition self.rc == 0 { true -> removed_file() _ -> done() }
+    }
+    state removed_file(&mut self) {
+        self.passed = self.passed + 1;
+        // Step 7 — remove the now-empty directory.
+        self.rc = self.fs.remove_dir("/tmp/omega_journal_dir");
+        transition self.rc == 0 { true -> removed_dir() _ -> done() }
+    }
+    state removed_dir(&mut self) {
+        self.passed = self.passed + 1;
+        transition { _ -> done() }
+    }
+
+    state done(&mut self) {
+        // Exit with the number of verified steps: 7 on full success.
+        self.console.exit_process(self.passed);
+    }
+}

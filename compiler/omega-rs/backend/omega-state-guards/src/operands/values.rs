@@ -1,4 +1,6 @@
-use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
+use omega_checked_trees::expression::{
+    BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
+};
 use omega_layout::{DataShape, LayoutPlan};
 
 pub(super) fn resolved_guard_operand_value(
@@ -13,10 +15,44 @@ pub(super) fn resolved_guard_operand_value(
         // `self.a == 5.0` becomes a CompareStaticValue; the emission compares
         // against these bits via `comisd` (selected by the guard's is_float).
         ExpressionNode::Float(literal) => return Some(literal.value().to_bits() as i64),
+        // A CONSTANT float-arith RHS (`self.a == 0.0 - 6.0`) folds to its bits too, so it
+        // is a CompareStaticValue like the integer case (`0 - 6` is folded to a literal
+        // upstream; float arith is not, so it arrives here as a Binary node). A place
+        // operand makes the fold fail -> falls through to the runtime-expression path,
+        // which already handles `self.a == self.b + self.c`. The guard's is_float comes
+        // from the LEFT place, so a folded-bits RHS still lowers to `ucomisd`.
+        ExpressionNode::Binary(_) => {
+            if let Some(folded) = const_fold_float(table, expression) {
+                return Some(folded.to_bits() as i64);
+            }
+        }
         _ => {}
     }
 
     enum_variant_tag_value(layouts, table, expression)
+}
+
+/// Folds a guard operand that is a constant f64 expression -- a float literal or a binary
+/// arithmetic tree over float literals -- to its value. Returns `None` the moment any leaf
+/// is not a constant float (e.g. a place), so a runtime operand is never mistaken for a
+/// constant. Strictly constant: no place reads, so the folded value matches the value the
+/// arithmetic would produce at runtime.
+fn const_fold_float(table: &ExpressionTable, expression: ExpressionHandle) -> Option<f64> {
+    match table.expression(expression) {
+        ExpressionNode::Float(literal) => Some(literal.value()),
+        ExpressionNode::Binary(binary) => {
+            let left = const_fold_float(table, binary.left)?;
+            let right = const_fold_float(table, binary.right)?;
+            match binary.operator {
+                BinaryOperator::Add => Some(left + right),
+                BinaryOperator::Subtract => Some(left - right),
+                BinaryOperator::Multiply => Some(left * right),
+                BinaryOperator::Divide => Some(left / right),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 
 /// `Some(tag)` when `expression` names a CASE of an enum-shaped data

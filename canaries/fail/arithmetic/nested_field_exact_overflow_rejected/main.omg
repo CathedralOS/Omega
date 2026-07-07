@@ -1,0 +1,13 @@
+// FAIL canary: Exact (default-domain) arithmetic on a NESTED field carries the
+// decision-17 overflow obligation exactly like a top-level field. 3+-member
+// places (`self.p.x`) used to bypass the check entirely and WRAP silently --
+// the "no silent-anything" hole: overflow-capable arithmetic must either prove
+// its bounds or declare a domain. `self.p.x` is an unbounded i32, so `* 10`
+// may overflow and must be rejected.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Point { x: i32; y: i32; }
+data Main { console: Console; p: Point; out: i32; }
+machine Main::main(&mut self) {
+    self.out = self.p.x * 10;
+    self.console.exit_process(0);
+}

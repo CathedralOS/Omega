@@ -1,0 +1,24 @@
+// A computed expression (here arithmetic, `self.a + self.b`) used DIRECTLY as a host-call
+// argument is not yet encodable: a host-call argument must be a simple value (a local, field,
+// parameter, or literal). The selector rejects it CLEANLY (#40 -- never a silent miscompile
+// that exits 0). Workaround: bind the computed value to a local or field first, then pass that:
+//   let total: i32 in Wrapping = self.a + self.b;
+//   self.console.exit_process(total);
+// Sibling of fail/calls/value_call_as_host_arg_rejected (a value-call arg). The same expression
+// IS materializable as a TRANSITION argument; only the host-call-argument path lacks it.
+// Remove when host-arg expression materialization lands (see memory host-arg-expression-materialization).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.a = 3;
+    self.b = 4;
+    self.console.exit_process(self.a + self.b);
+}

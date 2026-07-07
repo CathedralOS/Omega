@@ -1,0 +1,31 @@
+// FAIL canary: decision-17 exact-arithmetic overflow at the TRANSITION-VALUE
+// return boundary. `machine sum -> i32 { transition { _ -> (x + y) } }` with
+// full-range i32 params can overflow, and this boundary used to SKIP the
+// exact-overflow proof obligation that the assignment / let / terminal-expression
+// boundaries all enforce -- so `x + y` wrapped silently at runtime with no error.
+// Now the transition-value return is checked uniformly with every other value-
+// binding boundary. Domained operands (`in Wrapping`/`Saturating`/`Trapping`), an
+// `as` widen, or a dominating bound make it provable and stay fine.
+
+boundary trait Console {
+    machine exit_process(code: i32)
+    effects
+        process_exit;
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::sum(&mut self, x: i32, y: i32) -> i32 {
+    transition { _ -> (x + y) } // Exact i32 + i32, full range: not provably in range
+}
+
+machine Main::main(&mut self) -> i32 {
+    let r: i32 = self.sum(1, 2);
+
+    transition { _ -> done(r) }
+    state done(&mut self, code: i32) {
+        self.console.exit_process(code);
+    }
+}

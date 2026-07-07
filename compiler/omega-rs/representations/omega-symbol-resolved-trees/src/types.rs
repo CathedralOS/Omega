@@ -646,6 +646,10 @@ pub enum PrimitiveType {
     U32,
     U64,
     Usize,
+    /// A pointer-width ADDRESS, distinct from `usize`/counts (address and count
+    /// are separate axes; index_count_and_address_model brief). Naive
+    /// pointer-width for now -- rides the 8-byte unsigned path.
+    Addr,
 }
 
 impl TypeReference {
@@ -681,6 +685,7 @@ impl PrimitiveType {
             "u32" => Some(Self::U32),
             "u64" => Some(Self::U64),
             "usize" => Some(Self::Usize),
+            "addr" => Some(Self::Addr),
             _ => None,
         }
     }
@@ -701,6 +706,7 @@ impl PrimitiveType {
             Self::U32 => "u32",
             Self::U64 => "u64",
             Self::Usize => "usize",
+            Self::Addr => "addr",
         }
     }
 
@@ -717,6 +723,7 @@ impl PrimitiveType {
                 | Self::U32
                 | Self::U64
                 | Self::Usize
+                | Self::Addr
         )
     }
 
@@ -739,6 +746,7 @@ impl PrimitiveType {
                 | Self::U32
                 | Self::U64
                 | Self::Usize
+                | Self::Addr
         )
     }
 

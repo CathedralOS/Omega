@@ -1,0 +1,25 @@
+// FAIL canary: a cross-CLASS TERMINAL return of a PLACE -- `machine -> i32 {
+// self.bool_field }` -- is rejected at type-check. The terminal-return shape gate
+// rejects a cross-class LITERAL (`{ true }`) but BLANKET-ACCEPTS place/name values,
+// so returning a `bool` field from an `-> i32` machine slipped through silently.
+// Now the terminal-return path adds the class check for place values, gated on the
+// shape gate not having already erred (so a literal is not double-reported). This
+// closes the last sub-case of the transition-value-return position.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    flag: bool;
+}
+
+machine Main::produce(&mut self) -> i32 {
+    self.flag // bool field returned from an i32 machine -- blanket-accepted by the shape gate
+}
+
+machine Main::main(&mut self) {
+    let r: i32 = self.produce();
+    self.console.exit_process(r);
+}

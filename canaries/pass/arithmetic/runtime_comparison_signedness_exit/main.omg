@@ -1,0 +1,73 @@
+// Regression guard for COMPARISON-operator signedness across integer widths. A
+// signed compare used for unsigned operands (or vice versa) silently flips the
+// branch once a value crosses the type's signed/unsigned boundary -- a severe,
+// ubiquitous miscompile class. Each state sets a runtime operand pair (so the
+// compare is real, not folded) and branches on the signedness-sensitive case;
+// the wrong arm exits 71. Reaching the end exits 70. The differential oracle also
+// checks native==interpreter.
+//
+// Cases: u32 across i32::MAX (< and >), i32 negatives, u8 across i8::MAX,
+// u16 across i16::MAX, and a 64-bit signed negative.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    u: u32 in Wrapping;
+    u2: u32 in Wrapping;
+    s: i32 in Wrapping;
+    s2: i32 in Wrapping;
+    b8: u8 in Wrapping;
+    b8b: u8 in Wrapping;
+    w16: u16 in Wrapping;
+    w16b: u16 in Wrapping;
+    big: i64 in Wrapping;
+    big2: i64 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    // u32 0x80000000 < 1 is FALSE unsigned (TRUE if misread as signed -5...).
+    self.u = 2147483648;
+    self.u2 = 1;
+    transition self.u < self.u2 { true -> bad() _ -> check_u_gt() }
+
+    state check_u_gt(&mut self) {
+        // u32 0xFFFFFFFF > 0 is TRUE unsigned (FALSE if misread as -1 < 0).
+        self.u = 4294967295;
+        self.u2 = 0;
+        transition self.u > self.u2 { true -> check_i32_neg() _ -> bad() }
+    }
+    state check_i32_neg(&mut self) {
+        // i32 -5 < 3 is TRUE signed.
+        self.s = -5;
+        self.s2 = 3;
+        transition self.s < self.s2 { true -> check_u8() _ -> bad() }
+    }
+    state check_u8(&mut self) {
+        // u8 200 > 5 is TRUE unsigned (200 would be -56 signed).
+        self.b8 = 200;
+        self.b8b = 5;
+        transition self.b8 > self.b8b { true -> check_u16() _ -> bad() }
+    }
+    state check_u16(&mut self) {
+        // u16 40000 > 5 is TRUE unsigned (40000 > i16::MAX).
+        self.w16 = 40000;
+        self.w16b = 5;
+        transition self.w16 > self.w16b { true -> check_i64() _ -> bad() }
+    }
+    state check_i64(&mut self) {
+        // i64 -5_000_000_000 < 3 is TRUE signed (needs full 64-bit).
+        self.big = -5000000000;
+        self.big2 = 3;
+        transition self.big < self.big2 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

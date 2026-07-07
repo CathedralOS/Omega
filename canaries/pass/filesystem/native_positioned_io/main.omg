@@ -1,0 +1,55 @@
+// NATIVE positioned I/O via pwrite + pread (Rust FileExt::write_at/read_at).
+// Writes "0123456789", reopens O_RDWR, then write_at("XY", offset 2) overwrites
+// bytes 2..4 -> "01XY456789", and read_at(4 bytes, offset 1) reads back "1XY4".
+// Neither positioned op moves the cursor. Proves the pwrite/pread ops — the
+// [fd, buffer, count/len, offset] operand shapes (read/write plus a trailing
+// offset scalar) — lower and run on real macOS syscalls.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    rw: i32;
+    cap: usize;
+    fd: i32;
+    n: i64;
+    got: i64;
+    wrote: i64;
+    b0: u8;
+    b1: u8;
+    buffer: [u8; 64];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.rw = 2;      // O_RDWR
+    self.cap = 64;
+    self.fd = self.fs.create("/tmp/omega_pio.txt", self.mode);
+    self.n = self.fs.write(self.fd, "0123456789");
+    self.n = self.fs.close(self.fd);
+    self.fd = self.fs.open("/tmp/omega_pio.txt", self.rw);
+    transition self.fd >= 0 { true -> pwrite() _ -> fail() }
+    state pwrite(&mut self) {
+        // overwrite bytes 2..4 with "XY" -> "01XY456789"
+        self.wrote = self.fs.write_at(self.fd, "XY", 2);
+        transition self.wrote == 2 { true -> readback() _ -> fail() }
+    }
+    state readback(&mut self) {
+        // read 4 bytes at offset 1 -> "1XY4"
+        self.got = self.fs.read_at(self.fd, &mut self.buffer, 4, 1);
+        self.n = self.fs.close(self.fd);
+        self.n = self.fs.remove("/tmp/omega_pio.txt");
+        self.b0 = self.buffer[0];
+        self.b1 = self.buffer[1];
+        transition self.got == 4 { true -> checkb0() _ -> fail() }
+    }
+    state checkb0(&mut self) {
+        transition self.b0 == 49 { true -> checkb1() _ -> fail() }
+    }
+    state checkb1(&mut self) {
+        transition self.b1 == 88 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: positioned write_at+read_at (01XY456789, read 1XY4)\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: positioned io\n"); }
+}

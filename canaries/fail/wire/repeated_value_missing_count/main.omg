@@ -9,7 +9,7 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data Telemetry {
+data Telemetry {
     0: readings: [u32; 4];
 }
 
@@ -28,7 +28,7 @@ machine Main::main(&mut self) {
         readings: [1, 2, 3, 4]
     };
 
-    Telemetry::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    Telemetry::encode(&msg, &mut self.buffer, &mut self.written);
 
     self.console.exit_process(70);
 }

@@ -1,0 +1,13 @@
+// FAIL canary: the `provides` RHS is the CLOSED, compiler-known `Binding` sum.
+// A binding case outside {Syscall, DllImport, VtableSlot} is a guided error --
+// mechanisms are compiler-known (each needs a lowering), never user-invented.
+boundary trait Mixed {
+    machine via_syscall() effects stdout_io;
+}
+
+host demo_target provides Mixed {
+    via_syscall -> Frobnicate(1);
+}
+
+data Main {}
+machine Main::main(&mut self) {}

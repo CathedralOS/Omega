@@ -10,13 +10,14 @@ use omega_instruction_selection::{
     dispatch_case_enter_width, dispatch_case_leave_width, dispatch_guard_compare_static_width,
     runtime_atomic_compare_exchange_width, runtime_atomic_fetch_add_width,
     dispatch_loop_enter_width, dispatch_state_write_width, function_enter_width,
-    host_call_sequence_width, return_register_integer_write_width, return_width,
+    host_call_sequence_width, vtable_call_sequence_width, return_register_integer_write_width, return_width,
     runtime_frame_base_indexed_binary_write_width, runtime_frame_base_indexed_integer_write_width,
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
     runtime_frame_indexed_string_write_width, runtime_frame_string_write_width,
     runtime_machine_bounded_buffer_literal_append_width,
     runtime_machine_bounded_buffer_source_append_width, runtime_machine_bounded_buffer_write_width,
-    runtime_machine_integer_write_width, runtime_machine_string_write_width,
+    runtime_machine_indexed_binary_write_width, runtime_machine_integer_write_width,
+    runtime_machine_string_write_width,
     runtime_pointee_binary_write_width, runtime_pointee_integer_write_width,
     runtime_pointee_bounded_buffer_write_width, runtime_pointee_string_write_width,
     runtime_storage_binary_write_width,
@@ -28,7 +29,10 @@ use omega_instruction_selection::{
     runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage_width,
     runtime_storage_copy_from_runtime_frame_indexed_width,
     runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width,
+    runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width,
+    runtime_storage_copy_machine_indexed_to_machine_indexed_width,
     runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width,
+    entry_argument_register_write_width, entry_arguments_slice_descriptor_write_width,
     runtime_storage_copy_to_return_register_width,
     runtime_storage_copy_to_runtime_frame_indexed_width,
     runtime_storage_copy_to_runtime_pointee_width, runtime_storage_copy_width,
@@ -86,6 +90,9 @@ fn machine_instruction_width(
             Some(HostBindingMechanism::Syscall { number, .. }) => {
                 syscall_sequence_width(input.target.architecture, operands, *number)
             }
+            Some(HostBindingMechanism::VtableSlot { index }) => {
+                vtable_call_sequence_width(input.target.architecture, operands, *index)
+            }
             _ => host_call_sequence_width(
                 input.target.architecture,
                 host_operation.operation_key,
@@ -99,8 +106,10 @@ fn machine_instruction_width(
         // lands at that offset and crashes the binary at runtime.
         if width == 0 {
             return Err(Diagnostic::error(format!(
-                "host operation {}.{} has no encodable call sequence (an argument \
-                 did not marshal to an operand); refusing to emit a zero-byte host call",
+                "host operation {}.{} has no encodable call sequence: a host-call argument \
+                 must be a simple value (a local, field, parameter, or literal). Bind a computed \
+                 argument -- arithmetic, a cast, or a value-call result -- to a local or field \
+                 first, then pass that. (refusing to emit a zero-byte host call)",
                 host_operation.operation_key.capability_name(),
                 host_operation.operation_key.operation_name(),
             )));
@@ -636,6 +645,29 @@ fn machine_instruction_width(
             *operator,
             *right,
         ),
+        SelectedInstructionKind::WriteRuntimeMachineIndexedBinary {
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        } => runtime_machine_indexed_binary_write_width(
+            input.target.architecture,
+            input.assigned_target_operations,
+            *base_byte_offset,
+            *index_region,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_size,
+            *left,
+            *operator,
+            *right,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineString { byte_length, .. } => {
             runtime_machine_string_write_width(input.target.architecture, *byte_length)
         }
@@ -891,6 +923,7 @@ fn machine_instruction_width(
         ),
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
             base_byte_offset,
+            index_region,
             element_byte_size,
             field_byte_offset,
             target_offset,
@@ -899,11 +932,36 @@ fn machine_instruction_width(
         } => runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
             input.target.architecture,
             *base_byte_offset,
+            *index_region,
             *element_byte_size,
             *field_byte_offset,
             *target_offset,
             *byte_count,
         ),
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
+            source_region,
+            source_offset,
+            base_byte_offset,
+            index_region,
+            element_byte_size,
+            field_byte_offset,
+            byte_count,
+            ..
+        } => runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
+            input.target.architecture,
+            *source_region,
+            *source_offset,
+            *base_byte_offset,
+            *index_region,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_count,
+        ),
+        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. } => {
+            runtime_storage_copy_machine_indexed_to_machine_indexed_width(
+                input.target.architecture,
+            )
+        }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
             source_offset,
             pointer_byte_offset,
@@ -918,6 +976,7 @@ fn machine_instruction_width(
             *byte_count,
         ),
         SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+            target_region: _,
             pointer_byte_offset,
             field_byte_offset,
             target_offset,
@@ -945,6 +1004,12 @@ fn machine_instruction_width(
             *byte_offset,
             *byte_size,
         ),
+        SelectedInstructionKind::WriteEntryArgumentRegister { .. } => {
+            entry_argument_register_write_width(input.target.architecture)
+        }
+        SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor { .. } => {
+            entry_arguments_slice_descriptor_write_width(input.target.architecture)
+        }
         SelectedInstructionKind::LeaveDispatchCase => {
             dispatch_case_leave_width(input.target.architecture)
         }

@@ -14,7 +14,7 @@ pub(crate) fn check_operator_resolution(
         .resolution_issues()
         .filter_map(|issue| {
             if issue.is_ambiguous() {
-                Some(ambiguous_operator_diagnostic(issue))
+                Some(ambiguous_operator_diagnostic(program, issue))
             } else if issue.is_inadmissible() {
                 Some(inadmissible_operator_diagnostic(program, issue))
             } else {
@@ -65,30 +65,32 @@ fn inadmissible_operator_diagnostic(
     ))
 }
 
-fn ambiguous_operator_diagnostic(issue: CheckedOperatorResolutionIssue<'_>) -> Diagnostic {
+fn ambiguous_operator_diagnostic(
+    program: &omega_typed_trees::TypedTrees,
+    issue: CheckedOperatorResolutionIssue<'_>,
+) -> Diagnostic {
+    let candidates = issue
+        .candidates
+        .iter()
+        .map(|candidate| {
+            let operator = symbol_name(program, candidate.operator_symbol);
+            if candidate.domain_symbol.is_valid() {
+                format!(
+                    "`{operator}` owned by domain `{}`",
+                    symbol_name(program, candidate.domain_symbol)
+                )
+            } else {
+                format!("`{operator}` (builtin/root)")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
     Diagnostic::error(format!(
-        "ambiguous operator spelling `{}` has {} viable candidates: {}",
+        "ambiguous operator spelling `{}` has {} viable candidates: {candidates}. The proof \
+         context does not uniquely select one -- narrow the domain context (prove membership \
+         in a single domain) or choose a clearer operation.",
         issue.spelling().symbol(),
         issue.candidate_count(),
-        issue
-            .candidates
-            .iter()
-            .map(|candidate| {
-                let owner = if candidate.domain_symbol.is_valid() {
-                    format!("domain {}", candidate.domain_symbol.arena_index())
-                } else {
-                    "root".to_owned()
-                };
-                format!(
-                    "{} operator {} params {} contracts {}",
-                    owner,
-                    candidate.operator_symbol.arena_index(),
-                    candidate.parameter_count,
-                    candidate.contract_count
-                )
-            })
-            .collect::<Vec<_>>()
-            .join(", ")
     ))
 }
 

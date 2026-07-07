@@ -1,0 +1,16 @@
+// A deeper nested runtime-indexed write: `self.cube[a][b][0] = v` on a 3D array
+// with TWO runtime outer indices and a CONST final index silently NO-OPPED
+// (cube[1][1][0] = 99 then reading it back gave 7, not 99). The write fence's
+// top-index-only check missed it (the final index [0] is const); a runtime index
+// at an INNER level (`[b]`, above the array index `[a]`) also no-ops. The fence now
+// walks every level of the target chain. A single base-closest runtime index
+// (`grid[i][0]`, `arr[i]`) stays lowerable and valid.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; cube: [[[i32; 2]; 2]; 2]; a: i32; b: i32; }
+machine Main::main(&mut self) {
+    self.cube = [[[1, 2], [3, 4]], [[5, 6], [7, 8]]];
+    self.a = 1;
+    self.b = 1;
+    self.cube[self.a][self.b][0] = 99;
+    self.console.exit_process(0);
+}

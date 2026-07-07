@@ -1,0 +1,46 @@
+// NATIVE `let`-bound host-call CHAIN through a value-call (step 14: call-result
+// slot elision fix). A value-call callee runs the ergonomic-wrapper shape —
+// `let fd = create(..); let w = write(fd, bytes); let rc = close(fd)` — where the
+// create result `fd` is consumed ONLY by later `let`s (write, close) and the close
+// result `rc` is UNUSED. The final liveness scan in `local_data_requires_storage`
+// does not inspect `let` VALUES nor keep truly-dead results, so before the fix
+// `fd` and `rc` got NO frame slot -> the dependent call's `fd` argument and each
+// call's own result operand resolved against a missing slot ("no result storage
+// operand"). A host-call RESULT must be materialized (no value-call substitution),
+// so the fix keeps the slot for a CALL-result local the scan would otherwise elide.
+// Writes "hello" via the chain, then Main reopens + asserts the file is 5 bytes.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    cmode: i32;
+    rdonly: i32;
+    n: i64;
+    size: i64;
+    fd2: i32;
+}
+
+machine Main::main(&mut self) {
+    self.cmode = 420;
+    self.rdonly = 0;
+    self.n = self.helper("hello");
+    self.fd2 = self.fs.open("/tmp/omega_vclc.txt", self.rdonly);
+    transition self.fd2 >= 0 { true -> check() _ -> fail() }
+    state check(&mut self) {
+        self.size = self.fs.seek(self.fd2, 0, 2);
+        self.n = self.fs.close(self.fd2);
+        self.n = self.fs.remove("/tmp/omega_vclc.txt");
+        transition self.size == 5 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: let-chain create/write/close wrote 5 bytes\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: let-chain value-call\n"); }
+}
+
+machine Main::helper(&mut self, bytes: &[u8]) -> i64 {
+    let fd: i32 = self.fs.create("/tmp/omega_vclc.txt", self.cmode);
+    let w: i64 = self.fs.write(fd, bytes);
+    let rc: i32 = self.fs.close(fd);
+    transition w >= 0 { true -> done(w) _ -> done(w) }
+    state done(&mut self, w: i64) -> i64 { w }
+}

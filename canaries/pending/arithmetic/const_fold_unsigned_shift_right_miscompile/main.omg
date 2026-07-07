@@ -1,0 +1,56 @@
+// PARKED REPRO (probe 2026-07-04): const-folded unsigned right-shift miscompiles.
+//
+// `0u32 - 2` is a WRAPPING subtraction whose value is 0xFFFFFFFE (4294967294).
+// The state-values const-folder (omega-state-values/src/simplify/folding.rs) is
+// TYPE-BLIND -- it holds integers as bare i64 -- so it computes `0 - 2` as i64
+// `-2`, losing the u32 width, then folds `-2 >> 1` with Rust's ARITHMETIC `>>`
+// to `-1`, stored into the u32 slot as 0xFFFFFFFF (4294967295).
+//
+// The interpreter (the oracle) tracks the u32 domain: 0xFFFFFFFE >> 1 logical =
+// 0x7FFFFFFF (2147483647). So native (exit 71) DIVERGES from interp (exit 70).
+//
+// SCOPE: narrow. Runtime (field-held) unsigned shifts are CORRECT -- instruction
+// selection resolves the field's signedness and picks `shr` (locked by
+// canaries/pass/arithmetic/runtime_shift_right_signedness). This gap is ONLY the
+// compile-time-const-folded high-bit case, and only when the high-bit value is
+// produced by wrapping arithmetic (a DIRECT `0xFFFFFFFE >> 1` literal folds to a
+// POSITIVE i64 and shifts correctly).
+//
+// ROOT / FIX: the fold has no width or signedness. Right shift is the sole
+// operation whose high bits leak past truncation, so it cannot be folded
+// soundly here. Fix options: (a) fold `>>` only when the left value is provably
+// >= 0 (arith == logical) and defer the rest to a signedness-aware layer THAT
+// RETAINS TYPE -- but TableBinaryExpression carries no type today, so selection
+// also defaults to signed on a type-less literal (verified: deferring alone does
+// NOT fix it); (b) make the folder domain-aware so `0u32 - 2` folds to
+// 4294967294 (mask to width) -- the real fix, needs type threaded into the
+// folder. Do NOT "fix" by only deferring; that just relocates the same erasure.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let a: u32 in Wrapping = 0;
+    let b: u32 in Wrapping = a - 2;   // folds to i64 -2 (should be u32 4294967294)
+    let y: u32 in Wrapping = b >> 1;  // folds to i64 -1 => u32 0xFFFFFFFF (WRONG)
+
+    // native takes `false` (0xFFFFFFFF != 2147483647) and exits 71;
+    // interpreter takes `true` and exits 70.
+    transition y == 2147483647 {
+        _ -> report(y)
+    }
+
+    state report(&mut self, y: u32 in Wrapping) {
+        transition y == 2147483647 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

@@ -1,0 +1,18 @@
+// The first VALUE-RETURNING host import: `Clock.tick_count() -> u64` (Windows GetTickCount64).
+// An assignment with a boundary-call RHS (`self.t1 = self.clock.tick_count()`) is collected as a
+// HostCall whose single argument is the RESULT place; the x86_64 encoder emits the relocated call
+// plus the store-rax tail into that place. The check is MONOTONICITY (t2 >= t1 across a sleep) --
+// tick values are nondeterministic, so a value-based check would be meaningless; the interpreter
+// drives a deterministic virtual tick counter that advances on every read and sleep, so the same
+// monotonicity holds there. Exit 70. Differential (native must match the interpreter).
+boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Clock { machine sleep(milliseconds: u32); machine tick_count() -> u64; }
+data Main { console: Console; clock: Clock; t1: u64; t2: u64; }
+machine Main::main(&mut self) {
+    self.t1 = self.clock.tick_count();
+    self.clock.sleep(30);
+    self.t2 = self.clock.tick_count();
+    transition self.t2 >= self.t1 { true -> ok() _ -> bad() }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

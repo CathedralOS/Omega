@@ -12,6 +12,33 @@ pub struct TypedTrees {
     pub roots: TypedTreeRoots,
     pub tables: TypedTreeTables,
     pub symbols: SymbolTable,
+    /// Validated layout plans for PLAN-LAID VALUE TYPES (`gdt: CLayout<Gdt>`
+    /// in type position; programmable-layouts L4). Populated by the compiler
+    /// pipeline AFTER build-time plan evaluation + validation; the native
+    /// layout builder places the named data definitions at these offsets
+    /// instead of running its own packing. Empty for programs with no
+    /// plan-laid fields.
+    pub plan_laid_layouts: Vec<PlanLaidLayout>,
+    /// Derived wire placements (mint arc rung 2a): one arena for every
+    /// schema's placements, referenced by span from `wire_schema_plans` --
+    /// arena-backed storage, HandleSpan ownership.
+    pub wire_placements: Arena<wire::WirePlacement>,
+    pub wire_schema_plans: Vec<wire::WireSchemaPlan>,
+}
+
+/// One validated, FULLY-STATIC layout plan applied to a synthesized data
+/// definition (the compiler-generated `Policy<Schema>` instance). Offsets are
+/// per field in declaration order; the plan was validated (bounds, overlap,
+/// alignment) before it was recorded here, so the layout builder may trust it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PlanLaidLayout {
+    /// Name of the synthesized data definition (e.g. `CLayout<GdtEntryish>`).
+    pub data_name: String,
+    /// Byte offset of each field, in declaration order.
+    pub offsets: Vec<usize>,
+    /// Total value size (fixed by the value-type gate).
+    pub size: usize,
+    pub align: usize,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -98,7 +125,36 @@ impl TypedTrees {
             roots,
             tables,
             symbols,
+            plan_laid_layouts: Vec::new(),
+            wire_placements: Arena::new(),
+            wire_schema_plans: Vec::new(),
         }
+    }
+
+    /// Record a schema's derived wire plan: placements land contiguously in
+    /// the placement arena; the plan holds their span.
+    pub fn record_wire_schema_plan(
+        &mut self,
+        schema: omega_core::symbols::SymbolHandle,
+        placements: impl IntoIterator<Item = wire::WirePlacement>,
+    ) {
+        let span = self.wire_placements.insert_many(placements);
+        self.wire_schema_plans.push(wire::WireSchemaPlan {
+            schema,
+            placements: span,
+        });
+    }
+
+    /// The derived wire plan for a schema, when one was computed -- the
+    /// placements in tag order. `None` for schemas the plan pass skipped.
+    pub fn wire_schema_plan(
+        &self,
+        schema: omega_core::symbols::SymbolHandle,
+    ) -> Option<&[wire::WirePlacement]> {
+        self.wire_schema_plans
+            .iter()
+            .find(|plan| plan.schema == schema)
+            .and_then(|plan| self.wire_placements.span(plan.placements))
     }
 
     pub fn push_data_definition(&mut self, data_definition: data::DataDefinition) {
@@ -345,9 +401,9 @@ impl TypedTrees {
     }
 
     /// Recognize the compiler-synthesized wire encoder call shape
-    /// `Schema::encode_wire(&value, &mut out, &mut written)` (chapter 20,
+    /// `Schema::encode(&value, &mut out, &mut written)` (chapter 20,
     /// wire stage 2a): a statement call whose receiver path is exactly one
-    /// member naming a wire schema and whose target is `encode_wire`.
+    /// member naming a wire schema and whose target is `encode`.
     pub fn wire_encode_call_schema(
         &self,
         call: &crate::statement::TableCall,
@@ -364,10 +420,10 @@ impl TypedTrees {
     }
 
     /// Recognize the compiler-synthesized wire decoder call shape
-    /// `Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)`
+    /// `Schema::decode(&mut value, &buffer, &mut read, &mut ok)`
     /// (chapter 20, wire stage 2b): a statement call whose receiver path is
     /// exactly one member naming a wire schema and whose target is
-    /// `decode_wire`.
+    /// `decode`.
     pub fn wire_decode_call_schema(
         &self,
         call: &crate::statement::TableCall,

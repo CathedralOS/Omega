@@ -1,0 +1,55 @@
+// FAIL canary: a `dyn Trait` FIELD assigned a runtime-selected concrete impl and
+// dispatched at ONE call site is NOT YET SUPPORTED, and must be a CLEAN ERROR
+// (never a silent wrong-impl dispatch). Multi-impl dyn works by call-site
+// monomorphization by receiver TYPE (two call sites, each concrete -- see the
+// pass canary runtime_dyn_two_impl_dispatch_exit); a single call site over a
+// runtime-varying field would need a runtime descriptor tag, which is
+// unimplemented. This pins that the shape is REJECTED at compile time so it can
+// never regress into a silent miscompile. (Sound pattern today: guard on the
+// selector and call a concrete receiver per arm, i.e. two call sites.)
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+trait Shape {
+    machine code(&mut self) -> i32;
+}
+data Circle {}
+machine Circle::code(&mut self) -> i32 {
+    transition { _ -> 9 }
+}
+data Square {}
+machine Square::code(&mut self) -> i32 {
+    transition { _ -> 4 }
+}
+data Main {
+    console: Console;
+    c: Circle;
+    q: Square;
+    handler: dyn Shape;
+    pick: i32;
+    result: i32;
+}
+machine Main::main(&mut self) {
+    self.pick = 1;
+    transition self.pick == 0 {
+        true -> set_circle()
+        false -> set_square()
+    }
+    state set_circle(&mut self) {
+        self.handler = &mut self.c;
+        transition { _ -> call() }
+    }
+    state set_square(&mut self) {
+        self.handler = &mut self.q;
+        transition { _ -> call() }
+    }
+    state call(&mut self) {
+        self.result = self.handler.code();
+        transition self.result == 4 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

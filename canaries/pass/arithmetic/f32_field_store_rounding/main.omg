@@ -1,0 +1,26 @@
+// RUN CANARY (exit 70) + interpreter differential. An f32 field rounds each
+// STORED result to f32, matching the native SSE store -- so an f32 stepped by
+// `+ 1.0` past 2^24 (where f32 integer spacing is 2) PLATEAUS at 16777216 rather
+// than accumulating 16777218 in f64.
+//
+// Regression lock for the interpreter store-rounding fix (evaluator.rs Assignment
+// + LocalData stores round a Value::Float to the target's f32 width). Before it,
+// the interpreter kept f64 and reached 16777218 (exit 72) while native reached
+// the correct 16777216 (exit 70) -- a native-correct / interp-wrong divergence.
+// (The fully-inline `let x: f32 = 16777216.0 + 1.0 + 1.0` is a SEPARATE remaining
+// gap: the host folder folds f32 in f64, so native + interp AGREE on 16777218 --
+// no divergence, but both imprecise; needs per-op f32 rounding. See TASKS/memory.)
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: f32; }
+machine Main::main(&mut self) {
+    self.a = 16777216.0;
+    self.a = self.a + 1.0;   // true f32: below the ULP, rounds back to 16777216
+    self.a = self.a + 1.0;   // true f32: stays 16777216
+    transition self.a == 16777216.0 {
+        true  -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

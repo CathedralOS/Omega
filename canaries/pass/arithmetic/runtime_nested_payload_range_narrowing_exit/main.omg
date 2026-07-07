@@ -1,0 +1,19 @@
+// The field-stored payload's RANGE REFINEMENT narrows through the field path:
+// `self.m` holds `Msg::Move(dx: i32 [0..=15])`, and the destructure binding
+// lowers to the nested place `self.m.dx`, whose declared range discharges the
+// decision-17 obligation for `dx * 10` (bounded by 150) -- a completeness
+// bonus of the nested-place resolution that closed the silent-wrap hole (the
+// same walk that ENFORCES unbounded nested arithmetic also SEES nested
+// ranges). dx = 7, so the scaled arg is 70; the guard discriminates. Exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Msg { case Move(dx: i32 [0..=15]); case Stay; }
+data Main { console: Console; m: Msg; }
+machine Main::main(&mut self) {
+    self.m = Msg::Move { dx: 7 };
+    transition self.m { Msg::Move { dx } -> check(dx * 10) Msg::Stay -> bad() }
+    state check(&mut self, n: i32) {
+        transition n == 70 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

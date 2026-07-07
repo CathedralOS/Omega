@@ -1,0 +1,42 @@
+// Two runtime-indexed reads at DISTINCT indices as the operands of one binary expression:
+// `self.s = self.nums[self.i] + self.nums[self.j]`. Both `nums[i]` and `nums[j]` must resolve to
+// their own machine-indexed value operand (base + index*elem) -- a wrong second operand would read
+// the base or the first index. With nums = [30, 99, 40], i = 0, j = 2: 30 + 40 = 70; the 99 at the
+// unused index 1 is a decoy that a dropped index would surface. (Distinct from dot_product, which
+// uses the SAME index in a loop.)
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 3] in Wrapping;
+    i: u32 in Wrapping;
+    j: u32 in Wrapping;
+    s: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.nums = [30, 99, 40];
+    self.i = 0;
+    self.j = 2;
+    transition self.i < 3 {
+        true -> guard_j()
+        _ -> bad()
+    }
+    state guard_j(&mut self) {
+        transition self.j < 3 {
+            true -> compute()
+            _ -> bad()
+        }
+    }
+    state compute(&mut self) {
+        self.s = self.nums[self.i] + self.nums[self.j];
+        transition self.s == 70 {
+            true -> ok()
+            _ -> bad()
+        }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(self.s); }
+}

@@ -1,0 +1,56 @@
+// Reading a `[u8;N] in Utf8` CARRIER byte by a RUNTIME index: `self.text[self.i]`.
+// The carrier stores its inline bytes after a leading `len` word, so a runtime
+// index must skip that prefix -- the resolver was missing the `+pointer_size`
+// adjustment (it read at the len word, returning 0). Now reads the inline byte.
+// "abc": text[0]='a'(97), text[2]='c'(99). Self-checks and exits 70.
+
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+domain [u8; 4]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    text: [u8; 4] in Utf8;
+    i: i32 in Trapping;
+    a: u8;
+    b: u8;
+}
+
+machine Main::main(&mut self) {
+    self.text = "abc";
+
+    transition {
+        _ -> compute()
+    }
+
+    state compute(&mut self) {
+        self.i = 0;
+        self.a = self.text[self.i]; // 'a' = 97
+        self.i = 2;
+        self.b = self.text[self.i]; // 'c' = 99
+        transition self.a == 97 {
+            true -> check_b()
+            _ -> bad()
+        }
+    }
+
+    state check_b(&mut self) {
+        transition self.b == 99 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

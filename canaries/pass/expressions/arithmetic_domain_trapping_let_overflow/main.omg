@@ -1,0 +1,15 @@
+// Decision 17: a Trapping overflow in a `let` LOCAL const-fold ABORTS, like the
+// field-assignment path. `let b: i32 in Trapping = a + a` where a+a overflows i32
+// must trap (native ud2) -- it never reaches the exit(70). Before the fix the
+// frame-slot (`let`) store path wrote the folded constant RAW, silently running
+// past the overflow (a Trapping local that never traps defeats the safety domain).
+// (Named without `_canary_runs` so the differential drift guard does not treat it
+// as a clean-exit run canary -- a trap aborts, it does not exit cleanly.)
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let a: i32 in Trapping = 2000000000;
+    let b: i32 in Trapping = a + a;   // 4e9 overflows i32 -> MUST trap here
+    transition { _ -> done(b) }
+    state done(&mut self, b: i32 in Trapping) { self.console.exit_process(70); }
+}

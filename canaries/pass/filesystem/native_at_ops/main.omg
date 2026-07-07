@@ -1,0 +1,55 @@
+// NATIVE dirfd-relative `*at` ops (Rust `openat`/`unlinkat`) on real macOS. Creates
+// a directory + a file inside, opens the directory to a fd, then `open_at(dfd, "kid")`
+// opens the child relative to the dir fd, `unlink_at(dfd, "kid", 0)` removes it, and a
+// re-`open_at` confirms it is gone. Proves the `openat`/`unlinkat` lowerings (dirfd
+// SCALAR + relative name POINTER + flags) — the native building blocks of
+// `remove_dir_all`. Names are LITERALS (NUL-terminated in rodata); a runtime subslice
+// name awaits the NUL-termination seam.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    dirmode: i32;
+    filemode: i32;
+    rdonly: i32;
+    dfd: i32;
+    fd: i32;
+    rc: i32;
+    n: i64;
+}
+
+machine Main::main(&mut self) {
+    self.dirmode = 493;
+    self.filemode = 420;
+    self.rdonly = 0;
+    self.rc = self.fs.create_dir("/tmp/omega_at", self.dirmode);
+    self.fd = self.fs.create("/tmp/omega_at/kid", self.filemode);
+    self.n = self.fs.close(self.fd);
+    self.dfd = self.fs.open("/tmp/omega_at", self.rdonly);
+    transition self.dfd >= 0 { true -> openat_kid() _ -> fail() }
+    state openat_kid(&mut self) {
+        self.fd = self.fs.open_at(self.dfd, "kid", self.rdonly);
+        transition self.fd >= 0 { true -> unlink_kid() _ -> fail() }
+    }
+    state unlink_kid(&mut self) {
+        self.n = self.fs.close(self.fd);
+        self.rc = self.fs.unlink_at(self.dfd, "kid", 0);
+        transition self.rc == 0 { true -> reopen_gone() _ -> fail() }
+    }
+    state reopen_gone(&mut self) {
+        self.fd = self.fs.open_at(self.dfd, "kid", self.rdonly);
+        transition self.fd < 0 { true -> cleanup() _ -> fail() }
+    }
+    state cleanup(&mut self) {
+        self.n = self.fs.close(self.dfd);
+        self.rc = self.fs.remove_dir("/tmp/omega_at");
+        transition self.rc == 0 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) {
+        self.n = self.fs.write(1, "PASS: openat/unlinkat native (open kid, unlink, reopen fails)\n");
+    }
+    state fail(&mut self) {
+        self.n = self.fs.write(1, "FAIL: at ops\n");
+    }
+}

@@ -1,0 +1,84 @@
+// Smallest prime factor by trial division. Walk d = 2, 3, 4, ... and return the
+// first d that divides n; if d * d ever exceeds n with no divisor found, n is
+// prime and is its own smallest factor. For n = 169 (= 13 * 13) the answer is 13:
+// 2..12 leave a remainder, then 13 * 13 = 169 is not yet past n, and 169 % 13 == 0.
+//
+// The loop's two decisions both put ARITHMETIC directly in the transition guard:
+// `d * d > n` (multiply) and `n % d == 0` (modulo). Modulo/division in a guard
+// subject was wired in main 82822548 -- this sample exercises it in a real
+// algorithm rather than a canary.
+// Expected exit: 13.
+
+use omega::language::std::console;
+
+// FULLY EXACT -- no overflow domain: `n` and `d` carry ranges, so the guard
+// arithmetic `d * d` (<= 40000) and `n % d` are verifiably bounded, and the
+// `d = d + 1` step is guard-proven (`d < 200` on the direct edge into `advance`).
+data Trial [copy, zero_init] {
+    n: i32 [0..=1000];
+    d: i32 [0..=200];
+}
+
+data Main {
+    console: Console;
+    trial: Trial;
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("smallest_prime_factor: trial division finds the smallest factor of 169");
+    self.trial.n = 169;
+    self.trial.d = 2;
+
+    transition {
+        _ -> probe()
+    }
+
+    // If d has passed sqrt(n) with no divisor found, n is prime.
+    state probe(&mut self) {
+        transition self.trial.d * self.trial.d > self.trial.n {
+            true -> prime()
+            _ -> test_divisor()
+        }
+    }
+
+    // Does the current d divide n? (modulo in the guard subject)
+    state test_divisor(&mut self) {
+        transition self.trial.n % self.trial.d == 0 {
+            true -> found()
+            _ -> adv_guard()
+        }
+    }
+
+    // Re-assert d's headroom right before the increment: the `d < 200` guard on
+    // the direct edge into `advance` is what proves `d + 1` stays in [0..=200].
+    // (d never nears 200 -- the probe stops at sqrt(n) -- so the else arm is
+    // unreachable and routes to prime() as the give-up answer.)
+    state adv_guard(&mut self) {
+        transition self.trial.d < 200 {
+            true -> advance()
+            _ -> prime()
+        }
+    }
+
+    state advance(&mut self) {
+        self.trial.d = self.trial.d + 1;
+        transition {
+            _ -> probe()
+        }
+    }
+
+    state found(&mut self) {
+        self.console.write_line("PASS: smallest prime factor found, 13 for n=169 (the exit code)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(self.trial.d);
+    }
+
+    state prime(&mut self) {
+        self.console.write_line("result: n has no divisor up to sqrt(n), so n is prime and exits as its own factor (the exit code)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(self.trial.n);
+    }
+}

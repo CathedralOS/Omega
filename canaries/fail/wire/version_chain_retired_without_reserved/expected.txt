@@ -1,1 +1,1 @@
-wire data `CounterMessage` version `v2` retires field number 0 (`counter` in version `v1`) without reserving it
+data `CounterMessage` version `v2` drops field number 0 (`counter` in version `v1`) without tombstoning it

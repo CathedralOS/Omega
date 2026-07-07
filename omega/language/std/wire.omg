@@ -1,0 +1,16 @@
+// WIRE CODEC SURFACE (chapter 20). A schema (identity-numbered data) exposes
+// two synthesized entries -- the tagged grammar's DERIVED conformance
+// (design_briefs/programmable_layouts.md section 2b), never hand-written:
+//
+//   machine Schema::encode(&value, &mut out: [u8; N], &mut written: usize);
+//   machine Schema::decode(&mut value, &buffer: [u8; N], &mut read: usize,
+//                          &mut verdict: WireVerdict);
+//
+// The decode verdict is a dispatchable enum, not a forgettable flag. Invalid
+// is the ZII zero case, so an untouched verdict reads as failure; the first
+// violation during a decode (wrong era, unexpected tag, truncation, overlong
+// varint) makes the verdict Invalid and nothing sets it back.
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}

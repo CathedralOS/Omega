@@ -1,0 +1,40 @@
+// A value-call result materializes correctly when written to an ARRAY ELEMENT (a const index):
+// triple(14) = 42 is stored at arr[2], and the other slots stay 0. The check discriminates --
+// the result must land at the RIGHT index with the RIGHT value while the neighbours are
+// untouched -- so a wrong index, a wrong value, or an unmaterialized (0) write is caught.
+//
+// This locks the WORKING write-side of value-calls, the sound contrast to two documented silent
+// miscompiles: a value-call result used directly in a DISPATCH position (guard subject / transition
+// arg) is not materialized (see memory value-call-in-guard-always-true), and 2+ value-calls in one
+// state share a result slot (see memory value-call-shared-result-slot). Neither applies here: a
+// SINGLE value-call written to a field or array element materializes correctly. Exits 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 4] in Wrapping;
+}
+
+machine Main::triple(&self, x: i32 in Wrapping) -> i32 {
+    let r: i32 in Wrapping = x * 3;
+    transition { _ -> r }
+}
+
+machine Main::main(&mut self) {
+    self.arr[2] = self.triple(14); // -> 42 at index 2; the other slots stay 0
+    transition self.arr[2] == 42
+            && self.arr[0] == 0
+            && self.arr[1] == 0
+            && self.arr[3] == 0 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(self.arr[2]); // surface the written value on regression
+    }
+}

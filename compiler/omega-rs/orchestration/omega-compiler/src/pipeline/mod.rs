@@ -1,7 +1,12 @@
 mod artifacts;
 mod boundary_report;
+mod build_config;
+mod generic_instances;
 mod checked_entry;
 mod const_lengths;
+mod layout_plans;
+mod plan_laid;
+mod wire_plans;
 pub mod compile_options;
 pub mod compile_report;
 pub mod compiler;
@@ -18,3 +23,4 @@ pub use checked_entry::compile_to_checked;
 pub use compile_options::CompileOptions;
 pub use compile_report::CompileReport;
 pub use compiler::compile;
+pub use layout_plans::{LayoutPlanReport, compute_layout_plan};

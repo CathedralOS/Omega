@@ -1,0 +1,41 @@
+// Regression: a sum-type variant STORED INTO A MACHINE FIELD then matched must
+// read its payload fields at the correct per-variant offsets. Before the fix the
+// field-store construction tagged its payload writes with NO variant
+// (case_variant: None), so a payload field whose NAME is shared with another
+// variant resolved to the FIRST variant's same-named field: here `amount` (in
+// both Deposit and Transfer) wrote to Deposit.amount@tag+0, clobbering
+// Transfer.to, so the destructure read to=40 and amount=0. The read/destructure
+// path already tagged the variant; the write now matches it (writes/mod.rs
+// case_payload_field_variant_tag). to must be 3, amount 40 -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Tx {
+    case Deposit(amount: i32);
+    case Transfer(to: i32, amount: i32);
+}
+data Main {
+    console: Console;
+    tx: Tx;
+}
+machine Main::main(&mut self) {
+    self.tx = Tx::Transfer { to: 3, amount: 40 };
+    transition self.tx {
+        Tx::Transfer { to, amount } -> check(to, amount)
+        _ -> bad()
+    }
+    state check(&mut self, to: i32, amount: i32) {
+        transition to == 3 {
+            true -> check_amount(amount)
+            false -> bad()
+        }
+    }
+    state check_amount(&mut self, amount: i32) {
+        transition amount == 40 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

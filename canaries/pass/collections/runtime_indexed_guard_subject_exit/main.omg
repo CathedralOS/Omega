@@ -1,0 +1,35 @@
+// Count how many array elements exceed a threshold, using a DIRECT runtime-indexed read as the
+// transition guard subject: `transition self.arr[self.i] > 5`, with NO local bind. This form used
+// to SILENTLY MISCOMPILE -- the guard has no valid static byte offset for a runtime index, so the
+// compare read element 0 and every iteration took the same arm. It is now fixed at the frontend:
+// the syntax->symbol-resolved lowering hoists a comparison guard's runtime-indexed operands into a
+// synthetic `let __hoist = self.arr[self.i];` (the same operand-hoist used for assignment values),
+// so the guard compares a plain local with a correct offset. arr = [3,8,1,9,4,6]; 8, 9, 6 exceed 5
+// -> count 3, self-checked. Differential (native must match the interpreter).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; arr: [i32 in Wrapping; 6]; i: i32 in Wrapping; count: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.arr[0] = 3; self.arr[1] = 8; self.arr[2] = 1; self.arr[3] = 9; self.arr[4] = 4; self.arr[5] = 6;
+    self.count = 0;
+    self.i = 0;
+    transition { _ -> loop() }
+    state loop(&mut self) {
+        transition self.i < 6 { true -> test() _ -> check() }
+    }
+    state test(&mut self) {
+        transition self.arr[self.i] > 5 { true -> hit() _ -> advance() }
+    }
+    state hit(&mut self) {
+        self.count = self.count + 1;
+        transition { _ -> advance() }
+    }
+    state advance(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> loop() }
+    }
+    state check(&mut self) {
+        transition self.count == 3 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

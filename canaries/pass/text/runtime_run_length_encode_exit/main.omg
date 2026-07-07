@@ -1,0 +1,106 @@
+// Run-length encoding -- a real COMPRESSION algorithm and a text operation not covered
+// elsewhere (the text canaries hash, convert, search, compare, but none compress). Scan the
+// input counting consecutive equal bytes; when the byte changes (or the input ends), emit
+// the byte followed by its run count as a digit. "aaabbbbcc" -> "a3b4c2". A shared emit
+// path serves both the mid-stream run boundary and the final run, dispatched by a `mode`
+// field (the resume idiom). The carrier index is guarded against `.len` directly, and the
+// count digit is computed into a field before the carrier write (a computed value can't be
+// the inline write source). Six output bytes checked -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 16]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    input: [u8; 16] in Utf8;
+    out: [u8; 16] in Utf8;
+    prev: u8;             // the byte of the current run
+    c: u8;               // the byte just read
+    cc: u8;              // the count digit char (computed into a field)
+    count: i32 in Wrapping;
+    i: i32 in Wrapping;
+    pos: i32 in Wrapping; // output write offset
+    p1: i32 in Wrapping;  // pos + 1
+    mode: i32 in Wrapping; // 0 = mid-stream boundary, 1 = final run
+}
+
+machine Main::main(&mut self) {
+    self.input = "aaabbbbcc";
+    self.out = "                ";
+    self.prev = self.input[0];
+    self.count = 1;
+    self.i = 1;
+    self.pos = 0;
+    transition { _ -> scan_loop() }
+
+    state scan_loop(&mut self) {
+        transition self.i >= 0 && self.i < self.input.len { true -> scan_read() _ -> do_last() }
+    }
+    state scan_read(&mut self) {
+        self.c = self.input[self.i];
+        transition self.c == self.prev { true -> inc() _ -> run_emit() }
+    }
+    state inc(&mut self) {
+        self.count = self.count + 1;
+        self.i = self.i + 1;
+        transition { _ -> scan_loop() }
+    }
+    // run boundary: emit current run, then start a new one
+    state run_emit(&mut self) {
+        self.mode = 0;
+        transition { _ -> emit_guard() }
+    }
+    // input exhausted: emit the final run, then verify
+    state do_last(&mut self) {
+        self.mode = 1;
+        transition { _ -> emit_guard() }
+    }
+    state emit_guard(&mut self) {
+        self.p1 = self.pos + 1;
+        self.cc = (self.count + 48) as u8; // run count as a digit char
+        transition self.pos >= 0 && self.pos < 16 && self.p1 >= 0 && self.p1 < 16 {
+            true -> emit_write()
+            _ -> bad()
+        }
+    }
+    state emit_write(&mut self) {
+        self.out[self.pos] = self.prev;
+        self.out[self.p1] = self.cc;
+        self.pos = self.pos + 2;
+        transition { _ -> post() }
+    }
+    state post(&mut self) {
+        transition self.mode == 0 { true -> post_run() _ -> verify() }
+    }
+    state post_run(&mut self) {
+        self.prev = self.c;
+        self.count = 1;
+        self.i = self.i + 1;
+        transition { _ -> scan_loop() }
+    }
+
+    state verify(&mut self) {
+        // "a3b4c2" = 97,51,98,52,99,50
+        transition self.out[0] == 97
+            && self.out[1] == 51
+            && self.out[2] == 98
+            && self.out[3] == 52
+            && self.out[4] == 99
+            && self.out[5] == 50 {
+            true -> good()
+            _ -> wrong()
+        }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(71);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

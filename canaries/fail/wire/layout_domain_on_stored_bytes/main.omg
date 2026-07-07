@@ -1,0 +1,20 @@
+// Domain entry = MINTS ONLY (ch20 section 7): a layout domain is a fact about
+// bytes that validate/encode makes true. Declaring it on OWNED STORED bytes
+// is a trivially-claimed membership -- at ZII the buffer is zeroes and holds
+// no valid encoding. Hold the value instead; encode at the edge.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data CounterMessage {
+    0: counter: u32;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64] in OmegaLayout<CounterMessage>;
+}
+
+machine Main::main(&mut self) {
+    self.console.exit_process(0);
+}

@@ -5,18 +5,21 @@
 //! bit-rot against language changes. That is exactly what happened when
 //! exact-arithmetic (decision 17) became a proof obligation: 22 of the 48
 //! samples stopped compiling and nothing noticed. This harness is the guard:
-//! one iterating test that compiles every `samples/*/main.omg` for the default
+//! one iterating test that compiles every sample `main.omg` under `samples/` for the default
 //! target and reports *all* broken samples at once, so a language change that
 //! breaks a demo fails the suite the same day.
 //!
 //! Two guards:
-//!  * `all_samples_compile` — every `samples/*/main.omg` must compile (catches
+//!  * `all_samples_compile` — every sample `main.omg` under `samples/` must compile (catches
 //!    staleness like the decision-17 break).
 //!  * `samples_with_documented_exit_run_correctly` — every sample whose comment
 //!    states `Expected exit: N` is compiled, RUN, and its exit asserted. This
 //!    catches runtime miscompiles that compile cleanly: stack_vm exited 71 vs 70
 //!    for weeks because nothing ran the samples. Now a native miscompile in a
-//!    demo fails the suite the same day.
+//!    demo fails the suite the same day. A sample may ALSO state
+//!    `Expected output contains: <text>`, and its stdout is asserted to contain
+//!    that text — exit code alone passes even when a RENDERER silently draws
+//!    nothing (a broken carrier render), so the renderers assert a glyph they draw.
 
 use omega_compiler::{CompileOptions, compile};
 use std::fs;
@@ -34,9 +37,13 @@ fn executable_name() -> &'static str {
 }
 
 /// Parse a `// Expected exit: N` annotation (any casing) from a sample's source.
+/// The COLON is required: a comment merely MENTIONING the phrase ("this sample
+/// has no Expected exit annotation") must not opt a forever-running app into
+/// the auto-run set on a garbage code scraped from later prose (bitten by
+/// samples/gui/window_app, which waits for a human to close its window).
 fn documented_expected_exit(source: &str) -> Option<i32> {
     let lower = source.to_ascii_lowercase();
-    let after = &lower[lower.find("expected exit")? + "expected exit".len()..];
+    let after = &lower[lower.find("expected exit:")? + "expected exit:".len()..];
     let digits: String = after
         .chars()
         .skip_while(|c| !c.is_ascii_digit())
@@ -45,26 +52,73 @@ fn documented_expected_exit(source: &str) -> Option<i32> {
     digits.parse().ok()
 }
 
+/// Parse a `// Expected output contains: <text>` annotation from a sample's source.
+/// Returns the (original-case) substring that the sample's stdout must contain --
+/// the smoke test that a RENDERER actually drew something, since exit code alone
+/// passes even when a renderer silently emits nothing.
+fn documented_expected_output(source: &str) -> Option<String> {
+    const MARKER: &str = "expected output contains:";
+    // Lower-cased copy is ASCII-length-preserving, so the byte index is valid in the
+    // original source -- extract the substring from the original to keep its case.
+    let index = source.to_ascii_lowercase().find(MARKER)? + MARKER.len();
+    let line = source[index..].lines().next()?.trim();
+    (!line.is_empty()).then(|| line.to_owned())
+}
+
 fn sample_mains() -> Vec<PathBuf> {
     let samples_dir = repo_root().join("samples");
-    let mut mains: Vec<PathBuf> = fs::read_dir(&samples_dir)
-        .expect("samples/ directory should exist")
-        .filter_map(|entry| entry.ok())
-        .map(|entry| entry.path().join("main.omg"))
-        .filter(|main_path| main_path.is_file())
-        .collect();
+    let mut mains = Vec::new();
+    collect_sample_mains(&samples_dir, &mut mains);
     mains.sort();
-    assert!(!mains.is_empty(), "expected sample apps under {}", samples_dir.display());
+    assert!(
+        !mains.is_empty(),
+        "expected sample apps under {}",
+        samples_dir.display()
+    );
     mains
 }
 
+fn collect_sample_mains(directory: &Path, mains: &mut Vec<PathBuf>) {
+    if directory.join("main.omg").is_file() {
+        mains.push(directory.join("main.omg"));
+        return;
+    }
+
+    let entries = fs::read_dir(directory).unwrap_or_else(|error| {
+        panic!("failed to read directory {}: {error}", directory.display())
+    });
+    for entry in entries {
+        let path = entry
+            .unwrap_or_else(|error| panic!("failed to read directory entry: {error}"))
+            .path();
+        if !path.is_dir() {
+            continue;
+        }
+        if path
+            .file_name()
+            .is_some_and(|file_name| file_name == "build")
+        {
+            continue;
+        }
+        collect_sample_mains(&path, mains);
+    }
+}
+
 fn sample_name(main_path: &Path) -> String {
-    main_path
-        .parent()
-        .and_then(|parent| parent.file_name())
-        .and_then(|name| name.to_str())
-        .unwrap_or("<unknown>")
-        .to_owned()
+    let samples_dir = repo_root().join("samples");
+    let Some(parent) = main_path.parent() else {
+        return "<unknown>".to_owned();
+    };
+    let relative = parent.strip_prefix(&samples_dir).unwrap_or(parent);
+    let components: Vec<_> = relative
+        .components()
+        .filter_map(|component| component.as_os_str().to_str())
+        .collect();
+    if components.is_empty() {
+        "<unknown>".to_owned()
+    } else {
+        components.join("__")
+    }
 }
 
 fn repo_root() -> PathBuf {
@@ -121,8 +175,8 @@ fn samples_with_documented_exit_run_correctly() {
             continue;
         };
         let name = sample_name(main_path);
-        let build_dir = std::env::temp_dir()
-            .join(format!("omega-sample-run-{name}-{}", std::process::id()));
+        let build_dir =
+            std::env::temp_dir().join(format!("omega-sample-run-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&build_dir);
 
         match compile(CompileOptions {
@@ -146,6 +200,20 @@ fn samples_with_documented_exit_run_correctly() {
                                 output.status.code(),
                                 String::from_utf8_lossy(&output.stderr)
                             ));
+                        }
+                        // A renderer can exit cleanly while drawing NOTHING (a broken
+                        // carrier render). If the sample documents an expected output
+                        // substring, assert the stdout actually contains it.
+                        if let Some(expected_output) = documented_expected_output(&source) {
+                            let stdout = String::from_utf8_lossy(&output.stdout);
+                            if !stdout.contains(&expected_output) {
+                                failures.push(format!(
+                                    "{name}: stdout did not contain {expected_output:?} \
+                                     (a renderer that exits cleanly but drew nothing); \
+                                     {} bytes of stdout",
+                                    output.stdout.len()
+                                ));
+                            }
                         }
                         checked += 1;
                     }

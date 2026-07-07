@@ -1,0 +1,29 @@
+// FAIL canary: decision-17 narrowing at the STRUCT-LITERAL construction boundary.
+// `Small { v: self.big }` stores an i64 (300) into an `i8` field -- a narrowing
+// that is not provably in range. This was a SILENT MISCOMPILE (the value
+// truncated to 44 with no error), the construction-position sibling of the
+// assignment / call-argument narrowing holes. The construction field-obligation
+// check now enforces the field's TYPE width for EVERY primitive field, not only
+// `[a..=b]`-refined fields. An explicit `as` cast or a provably-in-range value
+// stays fine.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Small {
+    v: i8 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    s: Small;
+    big: i64 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.big = 300;
+    self.s = Small { v: self.big }; // i64 -> i8 field: narrowing, not provably in range
+    let code: i32 = self.s.v as i32;
+    self.console.exit_process(code);
+}

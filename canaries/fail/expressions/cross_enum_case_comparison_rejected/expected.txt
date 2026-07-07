@@ -1,0 +1,1 @@
+the operands are different data types (a case belongs to its own type only)

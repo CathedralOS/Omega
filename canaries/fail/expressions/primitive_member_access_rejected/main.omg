@@ -1,0 +1,7 @@
+// Accessing a field/`.len`/index of a PRIMITIVE scalar (`x.field` for an i32 x)
+// used to compile silently and read a ZII 0 -- a primitive has no members or
+// elements. Rejected now (numeric/bool receivers; struct/array/slice/String left
+// to their own resolution).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { let x: i32 = 42; let y: i32 = x.field; self.console.exit_process(y); }

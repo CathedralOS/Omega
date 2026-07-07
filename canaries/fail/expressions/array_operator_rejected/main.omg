@@ -1,0 +1,7 @@
+// Ordering/arithmetic/bitwise operators on an ARRAY operand (`xs < ys`) used to
+// compile silently (a garbage byte op). Arrays cannot carry domain operators, so
+// these are always meaningless. Rejected now. (Text carriers String/[u8] are
+// excluded -- string concat/comparison are fine.)
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; xs: [i32; 3]; ys: [i32; 3]; }
+machine Main::main(&mut self) { let r: bool = self.xs < self.ys; self.console.exit_process(0); }

@@ -194,7 +194,15 @@ fn parse_transition_match_list<'tokens, 'source, T>(
 where
     T: FromTransitionMatchComponent,
 {
-    if input.at_punctuation(PunctuationKind::LeftParen) {
+    // A leading `(` is a tuple/pattern list ONLY when it is a PATTERN context
+    // (`allow_wildcard`, e.g. `(A, B) ->` / `(_) ->`) or the group carries a
+    // top-level comma (`(a, b)`). A guard SUBJECT `( expr )` with no top-level
+    // comma -- `(self.x as i8) < 0`, `(a + b) > c`, `(a || b) && c` -- is a single
+    // parenthesized expression: fall through to the general expression parser
+    // (`parse_transition_match_component`), which handles the leading paren.
+    if input.at_punctuation(PunctuationKind::LeftParen)
+        && (allow_wildcard || input.leading_paren_group_has_top_level_comma())
+    {
         let input = input.take_punctuation(PunctuationKind::LeftParen, "(")?;
         let (values, input) =
             parse_transition_match_list_after_open_paren(syntax_trees, input, allow_wildcard)?;

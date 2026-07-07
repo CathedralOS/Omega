@@ -1,0 +1,12 @@
+// The narrowing obligation handles SIGNEDNESS via ranges: a u8 value can exceed
+// i8's positive range (200 > 127), so `i8 = <u8>` is a narrowing store even
+// though both are 8 bits wide. Decision 17 rejects it; an explicit `as i8` (or a
+// proven-in-range source) is the escape.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; u: u8; s: i8; }
+machine Main::main(&mut self) {
+    self.u = 200;
+    self.s = self.u;
+    let o: i32 = self.s as i32;
+    self.console.exit_process(o);
+}

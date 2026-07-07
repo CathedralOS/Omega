@@ -1,0 +1,45 @@
+// Extract and checksum the payload of a framed message. The frame is
+// [header, b0, b1, b2, trailer]; the payload is the middle three bytes, obtained
+// with the TWO-BOUND subslice `full[1..4]` (the `Slice::range` operator, distinct
+// from the one-bound tail `s[1..]` used elsewhere). The bound proof `1 <= 4 &&
+// 4 <= len` is discharged from the array's static length of 5. For
+// [255, 10, 20, 30, 0] the payload [10, 20, 30] sums to 60. The inner `sum`
+// walks the payload with the shrinking-window recursion.
+// Expected exit: 60.
+
+use omega::language::std::console;
+
+// Wrapping DECLARED: the checksum sums slice elements, which carry no range
+// facts yet (the elements share the domain so the accumulation is single-domain).
+data Frame {
+    bytes: [i32 in Wrapping; 5];
+}
+
+machine Frame::sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping {
+    transition s.len > 0 {
+        true -> sum(s[1..], acc + s[0])
+        false -> (acc)
+    }
+}
+
+data Main {
+    console: Console;
+    frame: Frame;
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("framed_payload: subslicing the payload out of a framed message and summing it");
+    self.frame.bytes[0] = 255;
+    self.frame.bytes[1] = 10;
+    self.frame.bytes[2] = 20;
+    self.frame.bytes[3] = 30;
+    self.frame.bytes[4] = 0;
+
+    let full: &[i32 in Wrapping] = self.frame.bytes.as_slice();
+    let checksum: i32 = self.frame.sum(full[1..4], 0);
+    self.console.write_line("result: the payload checksum, 60 for this frame (the exit code)");
+    self.console.write_line("[press Enter to close]");
+    self.console.read_line(&mut self.pause);
+    self.console.exit_process(checksum);
+}

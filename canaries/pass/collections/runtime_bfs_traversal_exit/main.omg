@@ -1,0 +1,123 @@
+// Breadth-first search over a graph -- the first GRAPH-traversal canary, foundational for
+// shortest paths and connectivity, and a composition of pieces already locked: a FIFO queue
+// for the frontier, an adjacency MATRIX (adj[u*N + v], a computed flat index), and a
+// `visited` set. From node 0 of a 4-node graph (undirected edges 0-1, 0-2, 1-3, 2-3) the
+// frontier expands level by level, visiting 0, then its neighbours 1 and 2, then 3 -- visit
+// order 0,1,2,3, all four reached. The adjacency flat index is formed into a field (a
+// computed index is refused in a subscript), and a slot's `adj`/`visited` value is read
+// into a field before being a guard subject (a runtime-indexed array can't be one directly).
+// Checks the visit order and count -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    adj: [i32; 16] in Wrapping;     // 4x4 adjacency matrix
+    visited: [i32; 4] in Wrapping;
+    queue: [i32; 8] in Wrapping;    // BFS frontier (no wrap needed: <= 4 enqueues)
+    order: [i32; 4] in Wrapping;    // visit order
+    head: i32 in Wrapping;
+    tail: i32 in Wrapping;
+    count: i32 in Wrapping;
+    oc: i32 in Wrapping;            // order count
+    u: i32 in Wrapping;             // dequeued node
+    v: i32 in Wrapping;             // neighbour candidate
+    ai: i32 in Wrapping;            // u*4 + v
+    e: i32 in Wrapping;             // adj[ai] read into a field
+    vv: i32 in Wrapping;            // visited[v] read into a field
+}
+
+machine Main::main(&mut self) {
+    self.adj = [0, 1, 1, 0,  1, 0, 0, 1,  1, 0, 0, 1,  0, 1, 1, 0];
+    self.visited = [0, 0, 0, 0];
+    self.queue = [0, 0, 0, 0, 0, 0, 0, 0];
+    self.order = [0, 0, 0, 0];
+    self.head = 0;
+    self.tail = 0;
+    self.count = 0;
+    self.oc = 0;
+    transition { _ -> start() }
+
+    // visit + enqueue the start node (0)
+    state start(&mut self) {
+        self.visited[0] = 1;
+        self.order[0] = 0;
+        self.oc = 1;
+        self.queue[0] = 0;
+        self.tail = 1;
+        self.count = 1;
+        transition { _ -> bfs_loop() }
+    }
+    state bfs_loop(&mut self) {
+        transition self.count > 0 { true -> deq() _ -> verify() }
+    }
+    state deq(&mut self) {
+        transition self.head >= 0 && self.head < 8 { true -> deq_read() _ -> bad() }
+    }
+    state deq_read(&mut self) {
+        self.u = self.queue[self.head];
+        self.head = self.head + 1;
+        self.count = self.count - 1;
+        self.v = 0;
+        transition { _ -> nb_loop() }
+    }
+    // scan node u's row of the adjacency matrix
+    state nb_loop(&mut self) {
+        transition self.v >= 0 && self.v < 4 { true -> edge_check() _ -> bfs_loop() }
+    }
+    state edge_check(&mut self) {
+        self.ai = self.u * 4 + self.v;
+        transition self.ai >= 0 && self.ai < 16 { true -> edge_read() _ -> bad() }
+    }
+    state edge_read(&mut self) {
+        self.e = self.adj[self.ai];
+        transition self.e == 1 { true -> vis_check() _ -> next_v() }
+    }
+    state vis_check(&mut self) {
+        transition self.v >= 0 && self.v < 4 { true -> vis_read() _ -> bad() }
+    }
+    state vis_read(&mut self) {
+        self.vv = self.visited[self.v];
+        transition self.vv == 0 { true -> visit_guard() _ -> next_v() }
+    }
+    state visit_guard(&mut self) {
+        transition self.oc >= 0 && self.oc < 4 && self.tail >= 0 && self.tail < 8 {
+            true -> do_visit()
+            _ -> bad()
+        }
+    }
+    state do_visit(&mut self) {
+        self.visited[self.v] = 1;
+        self.order[self.oc] = self.v;
+        self.oc = self.oc + 1;
+        self.queue[self.tail] = self.v;
+        self.tail = self.tail + 1;
+        self.count = self.count + 1;
+        transition { _ -> next_v() }
+    }
+    state next_v(&mut self) {
+        self.v = self.v + 1;
+        transition { _ -> nb_loop() }
+    }
+
+    state verify(&mut self) {
+        transition self.order[0] == 0
+            && self.order[1] == 1
+            && self.order[2] == 2
+            && self.order[3] == 3
+            && self.oc == 4 {
+            true -> good()
+            _ -> wrong()
+        }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(self.oc); // surface the count on regression
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

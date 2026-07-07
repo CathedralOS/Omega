@@ -1,0 +1,1 @@
+verdict argument must be `&mut WireVerdict`

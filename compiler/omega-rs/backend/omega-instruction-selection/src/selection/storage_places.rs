@@ -503,6 +503,21 @@ fn peel_mutable_in_table(
     }
 }
 
+/// A subslice bound (`a`/`b` in `arr[a..b]`) as a literal `i64`, peeling `Mutable`.
+/// `None` for a non-literal (runtime) bound.
+fn subslice_bound_literal_in_table(
+    expressions: &ExpressionTable,
+    handle: ExpressionHandle,
+) -> Option<i64> {
+    if !handle.is_valid() {
+        return None;
+    }
+    match expressions.expression(peel_mutable_in_table(expressions, handle)) {
+        ExpressionNode::Integer(value) => Some(*value),
+        _ => None,
+    }
+}
+
 /// How many unmaterialized local-alias hops (`let s = t;` / `let t = self.arr
 /// .as_slice();`) the fixed-array `.len` fold will trace before giving up.
 const FIXED_ARRAY_ALIAS_TRACE_DEPTH_LIMIT: usize = 4;
@@ -521,6 +536,39 @@ fn fixed_array_length_of_receiver_in_table(
 ) -> Option<usize> {
     if depth > FIXED_ARRAY_ALIAS_TRACE_DEPTH_LIMIT {
         return None;
+    }
+
+    // A literal-bounded subslice receiver `arr[a..b]` -- often the inlined value of
+    // a folded `let sub = arr[a..b]` local -- has `.len` equal to the window length
+    // `b - a`, a compile-time constant. No runtime descriptor slot exists for such
+    // an inlined subslice, so the place resolvers miss `sub.len` and the value-write
+    // resolver would drop it (a silent read-0 in a `let n = sub.len`). Fold it here
+    // so the value-write and guard/operand paths agree (mirrors the operand-path
+    // `fixed_array_subslice_length`). A RUNTIME-bounded subslice (`arr[i..j]`) is not
+    // a constant, so a non-literal bound falls through to the resolvers below.
+    if let ExpressionNode::Indexed(indexed) = expressions.expression(receiver) {
+        let collection = indexed.collection;
+        let index = indexed.index;
+        if let ExpressionNode::Range(range) = expressions.expression(index) {
+            let (range_start, range_end, end_inclusive) =
+                (range.start, range.end, range.end_inclusive);
+            let start = subslice_bound_literal_in_table(expressions, range_start).unwrap_or(0);
+            let end = if range_end.is_valid() {
+                subslice_bound_literal_in_table(expressions, range_end)?
+            } else {
+                i64::try_from(fixed_array_length_of_receiver_in_table(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    expressions,
+                    collection,
+                    depth + 1,
+                )?)
+                .ok()?
+            };
+            let end = if end_inclusive { end.checked_add(1)? } else { end };
+            return usize::try_from(end.checked_sub(start)?).ok();
+        }
     }
 
     if let Some(target) = resolve_machine_owned_collection_in_table(
@@ -1034,6 +1082,7 @@ fn scalar_primitive_rank(primitive: PrimitiveType) -> u8 {
         | PrimitiveType::U64
         | PrimitiveType::Usize
         | PrimitiveType::Isize
+        | PrimitiveType::Addr
         | PrimitiveType::String => 2,
     }
 }
@@ -1764,8 +1813,19 @@ pub(super) fn resolve_runtime_machine_indexed_target_in_table(
         indexed.suffix_root,
     )?;
 
+    // A carrier (`[u8;N]` BoundedByteBuffer) stores its inline bytes AFTER a
+    // leading `len` word, so a runtime index must address past that prefix --
+    // the same adjustment the constant-index path
+    // (`bounded_byte_buffer_indexed_place`) makes. A plain inline array has no
+    // prefix.
+    let carrier_byte_prefix = if descriptor_is_bounded_byte_buffer(&collection.type_descriptor) {
+        input.runtime_abi.pointer_size
+    } else {
+        0
+    };
+
     Some(RuntimeMachineIndexedTarget {
-        base_byte_offset: collection.byte_offset,
+        base_byte_offset: collection.byte_offset + carrier_byte_prefix,
         index_region: index_place.region,
         index_offset: index_place.byte_offset,
         element_byte_size: element_layout.size,
@@ -1817,7 +1877,36 @@ pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
     if slot.byte_size != input.runtime_abi.pointer_size {
         return None;
     }
+    // A SHARED `&Struct` slot is a REAL pointer only in a BOUNDARY machine
+    // (the entry hand-off vouches it). In a non-boundary machine a shared
+    // `&Struct` arg is spilled by CONTENT into the slot -- dereferencing it
+    // loads a field value as an address (probed 2026-07-04: `read(&self.inner)`
+    // then `r.b` as a binary operand segfaulted; the arg pass spills 8 content
+    // bytes while this arm treated them as a pointer). `&mut` slots stay
+    // pointee-resolvable everywhere -- a write must land in the CALLER's
+    // storage, so they hold genuine pointers (the alias-write canaries depend
+    // on it). Slice/carrier referees are {ptr,len} descriptors everywhere.
+    let slot_is_shared_reference = matches!(
+        &slot.type_descriptor,
+        omega_layout::TypeLayoutDescriptor::Reference {
+            is_mutable: false,
+            ..
+        }
+    );
     let pointee_descriptor = slot.type_descriptor.reference_referee()?;
+    if slot_is_shared_reference
+        && matches!(
+            pointee_descriptor,
+            omega_layout::TypeLayoutDescriptor::Named { .. }
+        )
+        && !input
+            .program
+            .machines()
+            .iter()
+            .any(|machine| machine.symbol == source_key.machine && machine.boundary)
+    {
+        return None;
+    }
     let pointee_layout = descriptor_layout(input, pointee_descriptor);
     let suffix = path.suffix(1);
     let (field_byte_offset, field_layout) = if path.len() <= 1 {
@@ -2705,37 +2794,21 @@ fn builtin_type_layout(
     None
 }
 
+/// Thin wrapper over the shared `omega_layout::primitive_layout` -- extracts this
+/// crate's pointer geometry + text-window descriptor from the runtime ABI and
+/// delegates, so the byte-width match is single-sourced in omega-layout.
 fn primitive_layout(
     input: &InstructionSelectionInput<'_>,
     primitive_type: PrimitiveType,
 ) -> TypeLayout {
-    match primitive_type {
-        PrimitiveType::Bool | PrimitiveType::I8 | PrimitiveType::U8 => TypeLayout {
-            size: 1,
-            alignment: 1,
+    let descriptor = input.runtime_abi.text_descriptor();
+    omega_layout::primitive_layout(
+        input.runtime_abi.pointer_size,
+        input.runtime_abi.pointer_alignment,
+        TypeLayout {
+            size: descriptor.total_size(),
+            alignment: descriptor.align(),
         },
-        PrimitiveType::I16 | PrimitiveType::U16 => TypeLayout {
-            size: 2,
-            alignment: 2,
-        },
-        PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => TypeLayout {
-            size: 4,
-            alignment: 4,
-        },
-        PrimitiveType::F64 | PrimitiveType::I64 | PrimitiveType::U64 => TypeLayout {
-            size: 8,
-            alignment: 8,
-        },
-        PrimitiveType::Usize | PrimitiveType::Isize => TypeLayout {
-            size: input.runtime_abi.pointer_size,
-            alignment: input.runtime_abi.pointer_alignment,
-        },
-        PrimitiveType::String => {
-            let descriptor = input.runtime_abi.text_descriptor();
-            TypeLayout {
-                size: descriptor.total_size(),
-                alignment: descriptor.align(),
-            }
-        }
-    }
+        primitive_type,
+    )
 }

@@ -1,0 +1,46 @@
+// NATIVE fs read_dir (Rust fs::read_dir) via ___getdirentries64 (classic
+// getdirentries is unavailable on arm64 with 64-bit inodes). Creates a directory
+// containing exactly one file, opens the directory, and reads its entries into a
+// buffer. The three entries — "." (reclen 32), ".." (reclen 32), and
+// "hello_entry" (11 chars -> reclen 40) — total 104 bytes, so the returned byte
+// count is exactly 104. Proves directory reading on real macOS syscalls. Prints
+// PASS iff read_dir returns 104.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    dirmode: i32;
+    filemode: i32;
+    rdonly: i32;
+    cap: usize;
+    rc: i32;
+    fd: i32;
+    dfd: i32;
+    n: i64;
+    total: i64;
+    position: i64;
+    buffer: [u8; 4096];
+}
+
+machine Main::main(&mut self) {
+    self.dirmode = 493;    // 0o755
+    self.filemode = 420;   // 0o644
+    self.rdonly = 0;
+    self.cap = 4096;
+    self.position = 0;
+    self.rc = self.fs.create_dir("/tmp/omega_rd", self.dirmode);
+    self.fd = self.fs.create("/tmp/omega_rd/hello_entry", self.filemode);
+    self.n = self.fs.close(self.fd);
+    self.dfd = self.fs.open("/tmp/omega_rd", self.rdonly);
+    transition self.dfd >= 0 { true -> readit() _ -> fail() }
+    state readit(&mut self) {
+        self.total = self.fs.read_dir(self.dfd, &mut self.buffer, self.cap, &mut self.position);
+        self.n = self.fs.close(self.dfd);
+        self.n = self.fs.remove("/tmp/omega_rd/hello_entry");
+        self.n = self.fs.remove_dir("/tmp/omega_rd");
+        transition self.total == 104 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: read_dir returns 104 bytes (., .., hello_entry)\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: read_dir\n"); }
+}

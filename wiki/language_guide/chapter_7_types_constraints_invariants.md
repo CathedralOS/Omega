@@ -6,6 +6,23 @@ Proof obligations live in contracts, domains, and local flow facts. Values are
 still stored as ordinary machine types; the compiler is responsible for proving
 the facts that APIs and mutations require.
 
+> **Invariants are the data's DEFAULT DOMAIN (settled 2026-07-05).** A `data`
+> declaration is layout only; a data type's invariants live in its **default
+> domain** — the domain that is always in scope for that data and travels with it
+> everywhere (nothing to shed or track: every use of the value is already inside
+> it). A per-field constraint is sugar for a single-field invariant of the default
+> domain, maintained *standing* by the store-check obligations (checked at every
+> write). "Top-level" domains like `Player::New` or `Quantity::Additive` are
+> **subdomains** that refine the default domain (tighter invariants, operators,
+> facts) and are proven at a mint point (`as`). Cross-field invariants
+> (`start <= end`) live in the default domain too, but are reachable only by
+> constructing a valid whole (init-syntax) or inside a [`relax`
+> scope](chapter_11_relax_scopes.md) that re-proves at exit — a bare single-field
+> store that would break one is rejected. There are **no default *values*** on data
+> (see [Chapter 1](chapter_1_data_values_literals.md)); ZII is the substrate and
+> construction forces the overrides where zero is invalid. *Settled model; not yet
+> implemented.*
+
 ```omega
 data Body {
     mass: i32;

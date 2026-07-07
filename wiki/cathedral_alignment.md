@@ -48,13 +48,17 @@ implementation work. Each one gets more expensive to retrofit every month.
    potential debt. Cheap first step: a validation pass (or lint) that flags
    zero-excluding declarations, plus a guide section stating the commitment.
 
-2. **`wire data` semantics** (STRUCTURAL today). Cathedral's IPC, networking,
-   on-disk storage format, package compatibility checking, and (eventually)
-   serialized capabilities are all `wire data`. Schema validation, duplicate/
-   reserved tag diagnostics, version compatibility rules, and encoder/decoder
-   generation need to become real. This is also the natural next differential-
-   oracle-friendly feature: encoders/decoders are pure functions with byte-
-   exact expected outputs.
+2. **`wire data` semantics** (STRUCTURAL today) — **construct retired as
+   design 2026-07-02** (`design_briefs/programmable_layouts.md`): one
+   declaration form (`data`) with *optional* identity numbers + `retired N;`;
+   serialization moves to layout policies (`OmegaLayout` grammar family,
+   durability as a build-time plan grade consumed by `Store<T>`-class APIs +
+   a publish-time predecessor diff). The *work* is unchanged in substance —
+   schema identity validation, tag diagnostics, codec generation — but the
+   surface it lands on is plain `data` + the plan/deriver machinery, so ch20
+   needs a rewrite before implementation starts. Still the natural next
+   differential-oracle-friendly feature: derived codecs are pure functions
+   with byte-exact expected outputs.
 
 3. **Versioned `data` + migration machines** (STRUCTURAL today). "The spine of
    Cathedral's no-reboot upgrade story." Historical member blocks are parsed
@@ -74,6 +78,24 @@ implementation work. Each one gets more expensive to retrofit every month.
    whole-program-with-absolute-addresses deepens the eventual rework. Worth an
    explicit architecture note: which backend layers are allowed to assume
    whole-program, and which must stay relocatable/per-component.
+
+   **Companion — the build & package model, SETTLED
+   (`design_briefs/build_and_package_model.md`, 2026-07-02).** The per-package
+   boundary manifest this item calls for is **`build.omg`** — an effect-free
+   Omega function returning a typed `BuildDescription`, *interpreted* at build
+   time (config-as-code with analyzable output; no TOML, no `build.rs` cliff).
+   Pure plan / effectful executor: `build.omg` describes, the toolchain fetches
+   and builds. No toolchain seed and no lockfile (interpreting a pure function
+   is version-invariant, so `build.omg` can name its own toolchain without
+   circularity; pins live in the manifest). Dependencies are local aliases bound
+   to pinned sources — no semver solving. ch14 updated to end-state (package =
+   reach boundary; imports resolve only against declared deps). **Remaining
+   implementation ask — the import-side gate:** ch14 name resolution must
+   consult the declared set so a fully-qualified path cannot bypass it
+   (undeclared reach *unresolvable*, not lint-flagged), making the layer law
+   self-enforcing. Interim enforcement is a graph check (`imports ⊆ declared
+   deps`, build-failing — the omega-architecture-test pattern). Open: the
+   `BuildDescription` schema and surface syntax.
 
 5. **Concurrency: pick the model's hard answers** — CORE MODEL DECIDED
    (frozen decision 16, 2026-06-12; implementation not started): typed
@@ -104,7 +126,26 @@ implementation work. Each one gets more expensive to retrofit every month.
    `asm { jmp state(...) }` (CR3/MSR/port-IO instruction contracts — the
    appendix already lists the open questions; they need answers). The direct
    image emission bet is aligned with this; the gap is the freestanding
-   flavor of it.
+   flavor of it. **Worked samples now exist**
+   (`design_briefs/freestanding_boot_and_hardware_facts.md`, 2026-07-02): six
+   samples walk a UEFI x86-64 handoff (entry provider → memory-map exit dance →
+   MMIO/volatile → CR3/MSR → interrupt mask → interrupt entry). They surface
+   that boot needs **no new `unsafe` regime** — every act is a declared axiom at
+   an enumerable boundary — and (after deflating the first draft's "world
+   facts" ask) **no new fact kind either**: every machine-state predicate
+   resolves to an existing mechanism — evidence tokens (`IrqGuard`,
+   `FinalMemoryMap`), value invariants (page tables built from the kernel
+   prototype), owned per-CPU state, or a one-time audited axiom list at the
+   entry boundary. Foreign structs ride the layout-policy machinery
+   (`programmable_layouts.md`); foreign *pointers* ride the extern brief's §12
+   taxonomy (borrows for call-scoped args, gated tokens / owned mints for
+   returned pointers, `Binding`-sum provides mappings — `Syscall(n)` /
+   `DllImport(m, s)` / `VtableSlot(i)` — for call targets). Remaining asks:
+   no-host target + entry spelling, lowering-contract vocabulary (volatile
+   `exactly_once`, `clobbers tlb`), and the **entry-stub lowering** — one
+   design for interrupt entry, the firmware seam's UEFI export table, and
+   outbound callbacks (foreign-initiated activation; shape settled in extern
+   brief §12, frame provenance open).
 
 8. **Case members (sum/mixed data shapes)** — SUM SHAPES IMPLEMENTED
    (2026-06-10): `case` members with named payloads parse, validate,
@@ -114,6 +155,50 @@ implementation work. Each one gets more expensive to retrofit every month.
    case part) remain pending, as does payload-aware structural equality
    (interim: `==` against a payload-bearing case is a compile error). See
    chapter 1 + TASKS.md frozen decisions 7/8.
+
+## The first-boot ladder — UEFI/QEMU (2026-07-02)
+
+The near-term goal: an Omega-emitted UEFI application booting under
+QEMU/OVMF, once the layouts arc (L0–L3, landing now) grows its deriver
+pieces. Harness is trivial (`qemu-system-x86_64 -bios OVMF.fd -drive
+format=raw,file=fat:rw:dir` — OVMF loads `\EFI\BOOT\BOOTX64.EFI` and calls
+its PE entry as an ordinary MS-x64 function: ImageHandle in RCX, SystemTable
+in RDX; no reset-vector anything). Cathedral-side design blocks nothing; the
+gate is three small Omega items, all milestone 1:
+
+**Milestone 1 — "Hello from Omega" (print via `ConOut->OutputString`, exit):**
+1. *Layouts + mints over the UEFI structs* — IN FLIGHT (L0–L3 landed; the
+   deriver's validate/materialize/projection remainder is the same arc).
+2. *No-host target + EFI entry* — NOT STARTED. A target with an empty
+   host-provider set (current targets assume stdout/stdin/process caps) whose
+   `main` has the EFI signature. The bounded-trivial case of the entry-stub
+   problem: one entry, two args, no re-entrancy.
+3. *PE32+ `EFI_APPLICATION` emission* — MOSTLY EXISTS. `omega-image-pe` needs
+   the subsystem value (10), an empty import table (EFI apps import nothing —
+   services arrive via the SystemTable argument), and — **verify early** —
+   base relocations / a `.reloc` section: OVMF loads at an arbitrary base; a
+   fixed-base assumption is a silent blocker.
+4. *Runtime-pointer call* — NOT STARTED. The existing MS-x64 encoder's
+   `call rax` variant (target from a projected value instead of the import
+   table). On the critical path even for hello-world
+   (`SystemTable → ConOut → OutputString`).
+
+**Milestone 2 — own the machine** (`GetMemoryMap` → `ExitBootServices` →
+first `Region` mint): **zero new language asks** — buffer dance, MapKey
+retry, runtime-stride walk, token mint are all expressible with milestone-1
+machinery per the boot brief.
+
+**Milestone 3 — alive after firmware dies** (timer tick, serial, idle):
+inline asm beyond `asm { jmp state(...) }` (`cli`/`hlt`/port-IO — serial is
+port IO, i.e. instruction contracts, not MMIO) + the real interrupt entry
+stub; then atomics/scheduler (C4/C5) for a kernel proper.
+
+**Calling plans** (`design_briefs/calling_plans.md`, direction settled
+2026-07-02): conventions = stated layouts over the register file
+(policy → validated CallPlan → call encoder + entry stub from one plan;
+internal convention stays compiler-sovereign; Binding kind implies the edge's
+plan). Explicitly NOT a milestone-1 blocker — the refactor target is when
+entry stubs or the second stated convention land.
 
 ## IPC + scheduler alignment (2026-06-13)
 

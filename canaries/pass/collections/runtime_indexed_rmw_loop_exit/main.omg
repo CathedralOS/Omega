@@ -1,0 +1,36 @@
+// Read-modify-write at a RUNTIME index: `self.arr[self.i] = self.arr[self.i] + 10` in a loop --
+// the count/accumulate primitive (the machine-indexed binary write accepts an indexed READ as its
+// value operand). First fills arr = [0,1,2,3,4], then increments every element by 10 in a second
+// loop, so arr = [10,11,12,13,14] and sum = 60. `marker` sits after the index field, set non-zero,
+// guarding the 32-bit zero-extending index load (a 64-bit load would corrupt the index). The RMW
+// index bound is still proven by the loop guard. Differential: native == interp.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; arr: [i32 in Wrapping; 5]; i: i32 in Wrapping; marker: i32 in Wrapping; sum: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.marker = 42;
+    self.i = 0;
+    transition { _ -> init() }
+    state init(&mut self) {
+        self.arr[self.i] = self.i;
+        self.i = self.i + 1;
+        transition self.i < 5 { true -> init() _ -> reset() }
+    }
+    state reset(&mut self) {
+        self.i = 0;
+        transition { _ -> inc() }
+    }
+    state inc(&mut self) {
+        self.arr[self.i] = self.arr[self.i] + 10;
+        self.i = self.i + 1;
+        transition self.i < 5 { true -> inc() _ -> tally() }
+    }
+    state tally(&mut self) {
+        self.sum = self.arr[0] + self.arr[1] + self.arr[2] + self.arr[3] + self.arr[4];
+        transition self.sum == 60 { true -> check() _ -> bad() }
+    }
+    state check(&mut self) {
+        transition self.marker == 42 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

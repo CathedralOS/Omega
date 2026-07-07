@@ -1,0 +1,83 @@
+// Base64 encoding -- the binary->text encoding behind data URIs, MIME, and JWTs, and a
+// text operation not covered elsewhere (the text canaries hash, convert, search, compare,
+// and compress, but none ENCODE to a radix alphabet). Three input bytes (24 bits) are
+// regrouped into four 6-bit values; each indexes the 64-character Base64 alphabet. The
+// regrouping is pure bit work: g0 = b0>>2; g1 = (b0&3)<<4 | b1>>4; g2 = (b1&15)<<2 | b2>>6;
+// g3 = b2&63 -- shifts, masks, and OR composing into the encoding. The classic example
+// "Man" (77,97,110) encodes to "TWFu"; all four output bytes are checked -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 64]::Utf8 when valid_utf8(self) {}
+domain [u8; 4]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    alpha: [u8; 64] in Utf8;  // the Base64 alphabet
+    g: [i32; 4] in Wrapping;  // the four 6-bit groups
+    out: [u8; 4] in Utf8;
+    b0: i32 in Wrapping;
+    b1: i32 in Wrapping;
+    b2: i32 in Wrapping;
+    t: i32 in Wrapping;
+    t2: i32 in Wrapping;
+    i: i32 in Wrapping;
+    gi: i32 in Wrapping;
+    ch: u8;
+}
+
+machine Main::main(&mut self) {
+    self.alpha = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    self.out = "????";
+    self.b0 = 77; // 'M'
+    self.b1 = 97; // 'a'
+    self.b2 = 110; // 'n'
+
+    // regroup 3 bytes (24 bits) into four 6-bit values
+    self.g[0] = self.b0 >> 2;
+    self.t = self.b0 & 3;
+    self.t = self.t << 4;
+    self.t2 = self.b1 >> 4;
+    self.g[1] = self.t | self.t2;
+    self.t = self.b1 & 15;
+    self.t = self.t << 2;
+    self.t2 = self.b2 >> 6;
+    self.g[2] = self.t | self.t2;
+    self.g[3] = self.b2 & 63;
+
+    self.i = 0;
+    transition { _ -> loop() }
+
+    state loop(&mut self) {
+        transition self.i >= 0 && self.i < 4 { true -> encode() _ -> verify() }
+    }
+    state encode(&mut self) {
+        self.gi = self.g[self.i];
+        transition self.gi >= 0 && self.gi < 64 { true -> encode_w() _ -> bad() }
+    }
+    state encode_w(&mut self) {
+        self.ch = self.alpha[self.gi];
+        self.out[self.i] = self.ch;
+        self.i = self.i + 1;
+        transition { _ -> loop() }
+    }
+
+    state verify(&mut self) {
+        // "TWFu" = 84, 87, 70, 117
+        transition self.out[0] == 84 && self.out[1] == 87 && self.out[2] == 70 && self.out[3] == 117 {
+            true -> good()
+            _ -> wrong()
+        }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(71);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

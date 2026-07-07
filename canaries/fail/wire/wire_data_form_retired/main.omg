@@ -1,0 +1,8 @@
+// FAIL canary: the `wire data` declaration form is RETIRED (ch20 rewrite).
+// Field identity is optional syntax on plain `data`; grammars are layout
+// policies chosen at carriers, so there is no second declaration form.
+wire data Save {
+    1: seed: u64;
+}
+data Main { }
+machine Main::main(&mut self) { }

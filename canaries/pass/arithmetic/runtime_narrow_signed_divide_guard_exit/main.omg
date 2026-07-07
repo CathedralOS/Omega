@@ -1,0 +1,43 @@
+// Narrow (i8/i16) SIGNED divide/modulo evaluated directly as a GUARD SUBJECT, with a
+// NEGATIVE result. This silently took the wrong arm: guard-subject operands arrive
+// ZERO-extended, so the 32-bit idiv divided i8 -20 as 236 (the divide core didn't
+// sign-extend, unlike the saturating multiply which does). Positive results and i32
+// happened to work; the write path (let c = a/b) works because its load sign-extends.
+// Fixed by sign-extending narrow signed operands in append_integer_divide_modulo_core.
+//
+// Covers: i8 divide (-20/3 == -6), i8 modulo (-20%3 == -2), and i16 divide
+// (-1000/7 == -142), each in the guard. Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a8: i8 in Saturating;
+    b8: i8 in Saturating;
+    a16: i16 in Saturating;
+    b16: i16 in Saturating;
+}
+
+machine Main::main(&mut self) {
+    self.a8 = 0 - 20;
+    self.b8 = 3;
+    transition self.a8 / self.b8 == 0 - 6 { true -> check_mod() _ -> bad() }
+
+    state check_mod(&mut self) {
+        transition self.a8 % self.b8 == 0 - 2 { true -> check_i16() _ -> bad() }
+    }
+    state check_i16(&mut self) {
+        self.a16 = 0 - 1000;
+        self.b16 = 7;
+        transition self.a16 / self.b16 == 0 - 142 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

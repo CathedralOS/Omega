@@ -1,0 +1,20 @@
+// FAIL canary: NOMINAL type confusion at an ARRAY-LITERAL element -- `[self.bar,
+// self.bar]` assigned to a `[Foo; 2]` -- is rejected at type-check. The array-
+// element check resolved a scalar element's class/width but returned early for a
+// DATA element type, so wrong-data-type elements (a `Bar` in a `[Foo; 2]`) slipped
+// silently. Now the element check runs report_data_type_conflict per element when
+// the element type is a concrete data type -- the array complement of the nominal
+// guard already at the assignment / field / let-init / return / call-arg positions.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Foo { a: i32 in Wrapping; }
+data Bar { b: i32 in Wrapping; }
+
+data Main { console: Console; foos: [Foo; 2]; bar: Bar; }
+
+machine Main::main(&mut self) {
+    self.bar.b = 7;
+    self.foos = [self.bar, self.bar]; // Bar elements into a [Foo; 2] -- incompatible data types
+    self.console.exit_process(self.foos[0].a);
+}

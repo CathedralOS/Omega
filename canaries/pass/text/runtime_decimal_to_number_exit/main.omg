@@ -1,0 +1,54 @@
+// Numeric INPUT: parsing decimal TEXT into an integer (atoi) -- the complement of
+// rendering a number to text. A serious app reads numbers (from stdin, a file, a
+// config) as much as it prints them. Iterates the bytes of the carrier "12345",
+// accumulating n = n*10 + (byte - '0'), and asserts n == 12345. Exercises runtime
+// carrier byte READS used as arithmetic operands (the read-side complement of
+// runtime_number_to_decimal_exit's writes). Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 5]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    text: [u8; 5] in Utf8;
+    n: u32 in Wrapping;
+    dval: u32 in Wrapping;
+    byte: u8 in Wrapping;
+    i: usize;
+}
+
+machine Main::main(&mut self) {
+    self.text = "12345";
+    self.n = 0;
+    self.i = 0;
+    transition { _ -> parse_loop() }
+
+    state parse_loop(&mut self) {
+        transition self.i < 5 { true -> read_digit() _ -> check() }
+    }
+    state read_digit(&mut self) {
+        self.byte = self.text[self.i];
+        transition { _ -> accumulate() }
+    }
+    state accumulate(&mut self) {
+        self.dval = self.byte as u32 in Wrapping;
+        self.dval = self.dval - 48;
+        self.n = self.n * 10 + self.dval;
+        self.i = self.i + 1;
+        transition { _ -> parse_loop() }
+    }
+
+    state check(&mut self) {
+        transition self.n == 12345 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

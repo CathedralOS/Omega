@@ -1,0 +1,56 @@
+// Population count via the shift-and-mask loop -- exercises a bounded loop
+// composing `& 1` (bitwise) with `>> 1` (LOGICAL shift on an unsigned word) and
+// pins native==interpreter agreement. A signed-vs-logical `>>` divergence would
+// either change the count or, on a high-bit word, never terminate -- so this
+// guards the loop form of the unsigned shift. popcount(0xDEADBEEF) == 24.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    x: u32 in Wrapping;
+    bit: u32 in Wrapping;
+    count: u32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.x = 3735928559; // 0xDEADBEEF
+    self.count = 0;
+
+    transition {
+        _ -> step()
+    }
+
+    state step(&mut self) {
+        transition self.x == 0 {
+            true -> check()
+            _ -> count_bit()
+        }
+    }
+
+    state count_bit(&mut self) {
+        self.bit = self.x & 1;
+        self.count = self.count + self.bit;
+        self.x = self.x >> 1;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state check(&mut self) {
+        transition self.count == 24 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

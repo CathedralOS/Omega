@@ -1,0 +1,100 @@
+// 2x2 matrix multiplication -- the backbone of graphics transforms and ML, and a
+// genuine step past the transpose canary: transpose only MOVES elements, this accumulates
+// an inner product. Row-major 2x2 matrices stored flat ([i*2 + j]); C[i][j] = sum over k
+// of A[i][k] * B[k][j], a triple i/j/k loop. Each flat index (i*2+k, k*2+j, i*2+j) is a
+// COMPUTED value, so it is formed into a field and bounds-guarded before subscripting
+// (a computed index is refused directly). A=[[1,2],[3,4]] * B=[[5,6],[7,8]] = [[19,22],
+// [43,50]]; the four cells are checked -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: [i32; 4] in Wrapping;
+    b: [i32; 4] in Wrapping;
+    c: [i32; 4] in Wrapping;
+    i: i32 in Wrapping;
+    j: i32 in Wrapping;
+    k: i32 in Wrapping;
+    acc: i32 in Wrapping;  // running inner product
+    ai: i32 in Wrapping;   // flat index into A
+    bi: i32 in Wrapping;   // flat index into B
+    ci: i32 in Wrapping;   // flat index into C
+    va: i32 in Wrapping;
+    vb: i32 in Wrapping;
+    prod: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.a = [1, 2, 3, 4]; // [[1,2],[3,4]]
+    self.b = [5, 6, 7, 8]; // [[5,6],[7,8]]
+    self.c = [0, 0, 0, 0];
+    self.i = 0;
+    transition { _ -> loop_i() }
+
+    state loop_i(&mut self) {
+        transition self.i >= 0 && self.i < 2 { true -> loop_j_init() _ -> verify() }
+    }
+    state loop_j_init(&mut self) {
+        self.j = 0;
+        transition { _ -> loop_j() }
+    }
+    state loop_j(&mut self) {
+        transition self.j >= 0 && self.j < 2 { true -> cell_init() _ -> i_next() }
+    }
+    state cell_init(&mut self) {
+        self.acc = 0;
+        self.k = 0;
+        transition { _ -> loop_k() }
+    }
+    state loop_k(&mut self) {
+        transition self.k >= 0 && self.k < 2 { true -> mac() _ -> store() }
+    }
+    // multiply-accumulate: acc += A[i][k] * B[k][j]
+    state mac(&mut self) {
+        self.ai = self.i * 2 + self.k;
+        self.bi = self.k * 2 + self.j;
+        transition self.ai >= 0 && self.ai < 4 && self.bi >= 0 && self.bi < 4 {
+            true -> mac_read()
+            _ -> bad()
+        }
+    }
+    state mac_read(&mut self) {
+        self.va = self.a[self.ai];
+        self.vb = self.b[self.bi];
+        self.prod = self.va * self.vb;
+        self.acc = self.acc + self.prod;
+        self.k = self.k + 1;
+        transition { _ -> loop_k() }
+    }
+    state store(&mut self) {
+        self.ci = self.i * 2 + self.j;
+        transition self.ci >= 0 && self.ci < 4 { true -> store_w() _ -> bad() }
+    }
+    state store_w(&mut self) {
+        self.c[self.ci] = self.acc;
+        self.j = self.j + 1;
+        transition { _ -> loop_j() }
+    }
+    state i_next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> loop_i() }
+    }
+
+    state verify(&mut self) {
+        transition self.c[0] == 19 && self.c[1] == 22 && self.c[2] == 43 && self.c[3] == 50 {
+            true -> good()
+            _ -> wrong()
+        }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(self.c[0]); // surface the wrong top-left on regression
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

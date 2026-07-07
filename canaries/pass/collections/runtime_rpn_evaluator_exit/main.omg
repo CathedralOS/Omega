@@ -1,0 +1,92 @@
+// A reverse-Polish-notation (RPN) expression evaluator -- a stack VM, the foundation of
+// calculators and bytecode interpreters. The program is a token array: a value < 1000 is
+// a number to PUSH; 1000 = add, 1001 = multiply pop two operands and PUSH the result. The
+// stack is a plain array with a `top` index (push: stk[top]=v, top++; pop: top--, read
+// stk[top]). Evaluating `3 4 + 5 *` -> (3+4)*5 = 35 leaves 35 on the stack. Exits 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    toks: [i32; 5] in Wrapping;  // 3, 4, ADD(1000), 5, MUL(1001)
+    stk: [i32; 8] in Wrapping;
+    top: i32 in Wrapping;
+    i: i32 in Wrapping;
+    t: i32 in Wrapping;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    r: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.toks = [3, 4, 1000, 5, 1001];
+    self.top = 0;
+    self.i = 0;
+    transition { _ -> scan() }
+
+    state scan(&mut self) {
+        transition self.i >= 0 && self.i < 5 { true -> read_token() _ -> verify() }
+    }
+    state read_token(&mut self) {
+        self.t = self.toks[self.i];
+        transition self.t >= 1000 { true -> pop_b() _ -> push_number() }
+    }
+
+    // push a number operand
+    state push_number(&mut self) {
+        transition self.top >= 0 && self.top < 8 { true -> do_push() _ -> bad() }
+    }
+    state do_push(&mut self) {
+        self.stk[self.top] = self.t;
+        self.top = self.top + 1;
+        self.i = self.i + 1;
+        transition { _ -> scan() }
+    }
+
+    // apply a binary operator: pop b, pop a, push (a op b)
+    state pop_b(&mut self) {
+        self.top = self.top - 1;
+        transition self.top >= 0 && self.top < 8 { true -> read_b() _ -> bad() }
+    }
+    state read_b(&mut self) {
+        self.b = self.stk[self.top];
+        self.top = self.top - 1;
+        transition self.top >= 0 && self.top < 8 { true -> read_a() _ -> bad() }
+    }
+    state read_a(&mut self) {
+        self.a = self.stk[self.top];
+        transition self.t == 1000 { true -> op_add() _ -> op_mul() }
+    }
+    state op_add(&mut self) {
+        self.r = self.a + self.b;
+        transition { _ -> push_result() }
+    }
+    state op_mul(&mut self) {
+        self.r = self.a * self.b;
+        transition { _ -> push_result() }
+    }
+    state push_result(&mut self) {
+        transition self.top >= 0 && self.top < 8 { true -> do_push_result() _ -> bad() }
+    }
+    state do_push_result(&mut self) {
+        self.stk[self.top] = self.r;
+        self.top = self.top + 1;
+        self.i = self.i + 1;
+        transition { _ -> scan() }
+    }
+
+    state verify(&mut self) {
+        self.r = self.stk[0];
+        transition self.r == 35 { true -> good() _ -> wrong() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(self.r); // surface the wrong result if it regresses
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

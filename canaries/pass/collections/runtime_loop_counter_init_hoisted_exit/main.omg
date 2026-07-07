@@ -1,0 +1,29 @@
+// The loop counter `self.i` is initialized to 0 in `main`, one state BEFORE the loop head --
+// a `setup` state (which touches only `self.acc`) sits between the init and the loop. The
+// loop-invariant pass walks back through the counter-untouched `setup` to find the constant
+// init, so the fill loop's index bound still proves. Fills [0..4], sums to 10, self-checks.
+// Differential: native == interp.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; hp: [i32 in Wrapping; 5]; i: i32 in Wrapping; acc: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.i = 0;
+    transition { _ -> setup() }
+    state setup(&mut self) {
+        self.acc = 0;
+        transition { _ -> loop() }
+    }
+    state loop(&mut self) {
+        transition self.i < 5 { true -> body() _ -> check() }
+    }
+    state body(&mut self) {
+        self.hp[self.i] = self.i;
+        self.i = self.i + 1;
+        transition { _ -> loop() }
+    }
+    state check(&mut self) {
+        self.acc = self.hp[0] + self.hp[1] + self.hp[2] + self.hp[3] + self.hp[4];
+        transition self.acc == 10 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

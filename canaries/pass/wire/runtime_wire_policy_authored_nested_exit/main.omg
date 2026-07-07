@@ -1,0 +1,165 @@
+// MINT ARC RUNG 2c: NESTED CHILD TAGS ARE PLAN-DRIVEN. The byte-pinned
+// nested roundtrip plus the inline `CompactBinary::plan` grammar policy: the
+// compiler evaluates the policy for BOTH schemas (parent and child), and the
+// codec takes the parent's tags AND the nested child's tags from the authored
+// plans. The hand-computed bytes must hold exactly.
+//
+// Wire nested message fields: a schema field whose type is ANOTHER wire
+// schema rides as tag varint + byte-LENGTH varint + the sub-message's fields
+// (tag + value pairs) WITHOUT an era discriminator -- the era rides only the
+// top-level envelope (frozen decision 10). The encoder stages the sub-message
+// in the planner-reserved wire scratch (its actual length is runtime-sized:
+// varints), then replays it length-prefixed; the decoder reads the length,
+// opens the sub-region (bound <= buffer), decodes the child's fields, and
+// fails unless the cursor lands exactly on the bound.
+//
+// Encoded bytes for { header: { room_id: 300, kind: -2 }, depth: -64 },
+// hand-computed:
+//   era 0          -> 0x00        (no version blocks)
+//   tag 0          -> 0x00        (header)
+//   length 5       -> 0x05        (the sub-message body below)
+//     tag 0        -> 0x00        (room_id; NO era inside the sub-message)
+//     room_id 300  -> 0xAC 0x02   (300 = 0b1_0010_1100: low7|0x80 = 0xAC, then 0x02)
+//     tag 1        -> 0x01        (kind)
+//     kind -2      -> 0x03        (zigzag(-2) = 3)
+//   tag 1          -> 0x01        (depth)
+//   depth -64      -> 0x7F        (zigzag(-64) = 127)
+// written = 10; the decoder consumes the same 10 bytes (read = 10, ok = true)
+// and every decoded field equals the original.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data RoomHeader {
+    0: room_id: u32;
+    1: kind: i32;
+}
+
+data RoomMessage {
+    0: header: RoomHeader;
+    1: depth: i32;
+}
+
+data RoomHeaderValue {
+    room_id: u32;
+    kind: i32;
+}
+
+data RoomMessageValue {
+    header: RoomHeaderValue;
+    depth: i32;
+}
+
+// The decode verdict: a dispatchable enum, not a forgettable flag. Invalid
+// is the ZII zero case, so an untouched verdict reads as failure.
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    written: usize;
+    read: usize;
+    verdict: WireVerdict;
+}
+
+machine Main::main(&mut self) {
+    let msg: RoomMessageValue = RoomMessageValue {
+        header: RoomHeaderValue {
+            room_id: 300,
+            kind: 0 - 2
+        },
+        depth: 0 - 64
+    };
+
+    RoomMessage::encode(&msg, &mut self.buffer, &mut self.written);
+
+    let decoded: RoomMessageValue = RoomMessageValue {
+        header: RoomHeaderValue {
+            room_id: 0,
+            kind: 0
+        },
+        depth: 0
+    };
+
+    RoomMessage::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
+
+    let matches: bool = self.verdict == WireVerdict::Sound
+        && self.written == 10
+        && self.read == 10
+        && decoded.header.room_id == 300
+        && decoded.header.kind == 0 - 2
+        && decoded.depth == 0 - 64;
+    transition matches {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}
+
+// --- The grammar policy (std layout vocabulary, inlined) -----------------
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
+data FieldPlan {
+    case At(offset: i64);
+    case Bits(container: i64, container_width: i64, lsb: i64, width: i64);
+    case Varint(tag: i64);
+    case LengthPrefixed(tag: i64);
+}
+data Plan { fields: [FieldPlan; 32]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
+
+data CompactBinary {
+    plans: [FieldPlan; 32];
+    index: i64 in Wrapping;
+    tag: i64;
+}
+machine CompactBinary::plan(&mut self, schema: Schema) -> Plan {
+    self.index = 0;
+    transition { _ -> fill(schema) }
+
+    state fill(&mut self, schema: Schema) {
+        transition self.index >= 0 && self.index < 32 && self.index < schema.field_count {
+            true -> classify(schema)
+            _ -> done(schema)
+        }
+    }
+    state classify(&mut self, schema: Schema) {
+        self.tag = schema.fields[self.index].number;
+        transition schema.fields[self.index].kind {
+            FieldKind::Scalar -> put_varint(schema)
+            FieldKind::Text -> put_blob(schema)
+            FieldKind::Nested -> put_blob(schema)
+            FieldKind::Repeated -> put_blob(schema)
+        }
+    }
+    state put_varint(&mut self, schema: Schema) {
+        self.plans[self.index] = FieldPlan::Varint { tag: self.tag };
+        self.index = self.index + 1;
+        transition { _ -> fill(schema) }
+    }
+    state put_blob(&mut self, schema: Schema) {
+        self.plans[self.index] = FieldPlan::LengthPrefixed { tag: self.tag };
+        self.index = self.index + 1;
+        transition { _ -> fill(schema) }
+    }
+    state done(&mut self, schema: Schema) -> Plan {
+        Plan {
+            fields: self.plans,
+            entry_count: schema.field_count as i64,
+            size_fixed: 0,
+            size_is_dynamic: true,
+            align: 1,
+        }
+    }
+}

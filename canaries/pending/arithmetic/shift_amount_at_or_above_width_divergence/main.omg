@@ -1,0 +1,39 @@
+// PARKED REPRO (probe 2026-07-04): shift by an amount >= the operand width
+// DIVERGES native-vs-interp, and the intended semantics are UNDECIDED.
+//
+// i32 `1 << 40` with a runtime shift amount:
+//   native  = 70: x86 `shl`/`sar` mask the count to the register width
+//             (40 & 31 = 8), so 1 << 8 = 256.
+//   interp  = 72: eval_int_binary does `(l as i64).wrapping_shl(40)` -- an i64
+//             shift masking to 64 (40 & 63 = 40), so 1 << 40, truncated to i32 = 0.
+//
+// Neither is obviously "correct": the behavior of a shift by >= width is
+// undocumented. For a proof-carrying language the most consistent answer is
+// probably a PROOF OBLIGATION that the shift amount is < the operand width (like
+// an array index bound), making `a << self.n` with unproven `n` a COMPILE ERROR.
+// Alternatives: DEFINE it as mask-to-operand-width (match native/hardware) and
+// fix the interpreter to mask to the operand width instead of i64; or define
+// shift-out-to-zero. DESIGN CALL for Zach -- see TASKS. Until then the oracle is
+// unreliable for out-of-range shift amounts (interp is the likely-wrong side if
+// mask-to-width is chosen). In-range shifts (amount < width) are correct + agree.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; n: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.n = 40;
+    let a: i32 in Wrapping = 1;
+    let y: i32 in Wrapping = a << self.n;
+    transition y == 256 {
+        true  -> masked_to_width()   // native (40 & 31 = 8 -> 256)
+        false -> other()
+    }
+    state masked_to_width(&mut self) { self.console.exit_process(70); }
+    state other(&mut self) {
+        transition y == 0 {
+            true  -> shifted_in_i64()  // interp (1 << 40 truncated -> 0)
+            false -> weird()
+        }
+    }
+    state shifted_in_i64(&mut self) { self.console.exit_process(72); }
+    state weird(&mut self)          { self.console.exit_process(99); }
+}

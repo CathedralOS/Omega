@@ -91,7 +91,7 @@ fn validate_structural_property(
 /// with the instantiation-time bound check: `zero_init` has its own walk
 /// (String's zeroed descriptor IS empty), `copy`/`send` share the structural
 /// walk.
-pub(crate) fn type_satisfies_declared_property(
+pub fn type_satisfies_declared_property(
     program: &TypedTrees,
     symbols: &TopLevelSymbols<'_>,
     type_parameters: &[TypeParameter],
@@ -160,7 +160,7 @@ fn type_satisfies_structural_property(
 
 /// The declared property names in canonical order, for diagnostics and for
 /// iterating a parameter's bounds.
-pub(crate) fn declared_property_names(
+pub fn declared_property_names(
     properties: &omega_typed_trees::data::DataProperties,
 ) -> Vec<&'static str> {
     let mut names = Vec::new();

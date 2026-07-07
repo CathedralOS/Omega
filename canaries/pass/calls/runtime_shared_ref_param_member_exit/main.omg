@@ -1,0 +1,48 @@
+// SHARED `&Struct` param in a NON-boundary machine -- the first RUN coverage
+// of this shape in the corpus. `read(&self.inner)` passes a shared reference;
+// the callee reads both fields as assignment RHS/operand and guards on one.
+// CONVENTION LOCKED HERE: a non-boundary shared `&Struct` arg is spilled by
+// CONTENT into the param slot (flat member reads are correct); the pointee
+// resolver must NOT treat it as a pointer (it did -- dereferencing the spilled
+// field value as an address segfaulted, probed 2026-07-04). `&mut` slots and
+// boundary-machine `&Struct` params hold REAL pointers and keep the pointee
+// path. inner = {7, 35}; got = a + b = 42 -> exit 42.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Inner {
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+}
+data Main {
+    console: Console;
+    inner: Inner;
+    got: i32 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.inner.a = 7;
+    self.inner.b = 35;
+    self.read(&self.inner);
+    transition self.got == 42 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(42); }
+    state bad(&mut self) { self.console.exit_process(self.got); }
+}
+machine Main::read(&mut self, r: &Inner) {
+    // assignment RHS through the ref param (both fields), then a guard on one
+    self.got = r.a;
+    self.got = self.got + r.b;
+    transition r.a == 7 {
+        true -> add()
+        false -> zero()
+    }
+    state add(&mut self) {
+        transition { _ -> add2() }
+    }
+    state add2(&mut self) { }
+    state zero(&mut self) {
+        self.got = 1;
+        transition { _ -> fin() }
+    }
+    state fin(&mut self) { }
+}

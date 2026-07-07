@@ -31,7 +31,18 @@ pub(super) fn parse_integer_literal(
         body
     };
     let normalized: String = body.chars().filter(|character| *character != '_').collect();
-    i64::from_str_radix(&normalized, radix).map_err(|_| "invalid integer literal")
+    i64::from_str_radix(&normalized, radix).map_err(|_| {
+        // Distinguish a too-LARGE (but otherwise well-formed) literal from genuinely
+        // invalid digits. The literal value is carried as i64 through the IR, so a u64
+        // literal above i64::MAX (a full-width mask, a u64::MAX sentinel) is well-formed
+        // yet not representable; reporting it as "invalid" misleads. If it parses as i128
+        // it is a magnitude overflow, not a syntax error -- name the real limitation.
+        if i128::from_str_radix(&normalized, radix).is_ok() {
+            "integer literal exceeds the i64 range (u64 literals above i64::MAX are not yet supported)"
+        } else {
+            "invalid integer literal"
+        }
+    })
 }
 
 pub(super) fn validate_float_literal(

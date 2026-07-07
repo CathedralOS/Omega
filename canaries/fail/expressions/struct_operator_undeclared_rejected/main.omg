@@ -1,0 +1,9 @@
+// Arithmetic/ordering on a struct with NO declared operator (`self.a + self.b`
+// for a plain `data P`) used to compile silently to a garbage byte op. Only
+// `==`/`!=` (Equatable) or a declared `domain P::... { operator ... }` meaning
+// operates on a data type. Rejected via the `resolve_spelling` authority (empty
+// candidate set for a concrete-data receiver). `Quantity + Quantity` stays valid.
+boundary trait Console { machine exit_process(return_code: i32); }
+data P { x: i32; }
+data Main { console: Console; a: P; b: P; }
+machine Main::main(&mut self) { let c: P = self.a + self.b; self.console.exit_process(0); }

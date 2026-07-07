@@ -24,6 +24,13 @@ pub(super) fn parse_target_definition<'tokens, 'source>(
             let (value, rest) = parse_target_host(syntax_trees, input)?;
             host = Some(value);
             input = rest;
+        } else if input.at_contextual("subsystem") {
+            // RETIRED (build_and_package_model.md addendum): image facts come
+            // from build.omg's augmenting `build(b: &mut Build)` machine, not
+            // an in-source config word.
+            return Err(input.error_here(
+                "`subsystem` no longer lives in target blocks: set it in build.omg -- `machine build(b: &mut Build) { b.subsystem = Subsystem::Gui; }`",
+            ));
         } else if input.at_contextual("boundary") {
             input = input.take_contextual("boundary")?;
             let (value, rest) = parse_boundary_policy(syntax_trees, input)?;

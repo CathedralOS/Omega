@@ -11,6 +11,11 @@ pub(super) struct RangeFacts<'field> {
     integer_locals: Vec<(SymbolHandle, String, i64)>,
     proven_indexes: Vec<(String, String)>,
     proven_index_upper_bounds: Vec<(String, i64)>,
+    /// Names provably `>= 0`. A SIGNED index access needs `0 <= i < len`; the
+    /// upper-bound facts only give `i < len`, so a signed (negative-capable)
+    /// index also requires its name here (seeded from `i >= 0`-style guards).
+    /// Unsigned indices are non-negative by type and never consult this.
+    proven_non_negatives: Vec<String>,
     proven_orderings: Vec<(String, String)>,
     proven_range_bounds: Vec<(String, String)>,
     minimum_lengths: Vec<(String, i64)>,
@@ -43,6 +48,7 @@ impl<'field> RangeFacts<'field> {
             integer_locals: Vec::new(),
             proven_indexes: Vec::new(),
             proven_index_upper_bounds: Vec::new(),
+            proven_non_negatives: Vec::new(),
             proven_orderings: Vec::new(),
             proven_range_bounds: Vec::new(),
             minimum_lengths: Vec::new(),

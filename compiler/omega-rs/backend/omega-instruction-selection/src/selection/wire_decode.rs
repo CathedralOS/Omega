@@ -1,5 +1,5 @@
 //! Selection of the synthesized wire decoder call (chapter 20, wire stage
-//! 2b): `Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)` lowers
+//! 2b): `Schema::decode(&mut value, &buffer, &mut read, &mut verdict)` lowers
 //! into a straight-line sequence of wire-read operations -- zero the cursor,
 //! set the sticky ok flag, expect the CURRENT era discriminator bytes, then
 //! per field in field-number order the expected field-number varint bytes
@@ -31,7 +31,7 @@ use omega_abstract_operations::{
 };
 use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_checked_trees::statement::StatementNode;
-use omega_checked_trees::wire::{WireMember, WireScalarEncoding, wire_varint_bytes};
+use omega_checked_trees::wire::{WireMember, WireScalarEncoding, wire_varint_bytes, WirePlacement};
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
 
@@ -51,7 +51,11 @@ enum WireReadContent {
         encoding: WireScalarEncoding,
         place: RuntimeStoragePlace,
     },
-    Nested { children: Vec<WireFieldRead> },
+    Nested {
+        /// The child schema (its own plan supplies the expected child tags).
+        schema: SymbolHandle,
+        children: Vec<WireFieldRead>,
+    },
     /// A borrowed `&[u8]` field: a byte-LENGTH varint then a fat `{ptr, len}`
     /// descriptor viewing the buffer content, stored zero-copy into `place`.
     ByteSlice { place: RuntimeStoragePlace },
@@ -68,7 +72,7 @@ enum WireReadContent {
     },
 }
 
-/// Lower a recognized `decode_wire` call statement; `true` when the statement
+/// Lower a recognized `decode` call statement; `true` when the statement
 /// produced its read sequence (the emission planner checks for the wire reads
 /// when it exempts the call from the unlowered-call blockers).
 pub(super) fn select_wire_decode_call(
@@ -152,7 +156,12 @@ pub(super) fn select_wire_decode_call(
     ) else {
         return false;
     };
-    if ok_place.byte_count != 1 {
+    // The verdict is a `WireVerdict` enum: a 4-byte tag with Invalid = 0 and
+    // Sound = 1, little-endian -- so the sticky mechanics are TAG-CORRECT as
+    // they stand: the initial full-width write below stores Sound (1), and
+    // every wire read's failure path ANDs the LOW byte to 0, which flips the
+    // whole tag to Invalid. (The remaining tag bytes start 0 and stay 0.)
+    if ok_place.byte_count != omega_layout::ENUM_TAG_BYTES {
         return false;
     }
 
@@ -246,8 +255,29 @@ pub(super) fn select_wire_decode_call(
         }
     };
 
-    for field in &fields {
-        for byte in wire_varint_bytes(field.number as u64) {
+    // MINT ARC RUNG 2a: the derived wire plan drives the EXPECTED tag bytes
+    // (see wire_encode.rs -- same agreement assertion, same fallback).
+    let plan = input.program.wire_schema_plan(schema.symbol);
+    if let Some(placements) = plan {
+        let agrees = placements.len() == fields.len()
+            && placements.iter().zip(fields.iter()).all(|(placement, field)| {
+                let field_is_varint =
+                    matches!(field.content, WireReadContent::Scalar { .. });
+                placement.tag() == field.number
+                    && matches!(placement, WirePlacement::Varint { .. }) == field_is_varint
+            });
+        if !agrees {
+            debug_assert!(false, "derived wire plan disagrees with the schema walk");
+            return false;
+        }
+    }
+
+    for (field_index, field) in fields.iter().enumerate() {
+        let tag = plan
+            .and_then(|placements| placements.get(field_index))
+            .map(|placement| placement.tag())
+            .unwrap_or(field.number);
+        for byte in wire_varint_bytes(tag as u64) {
             push(expected_byte_kind(byte));
         }
         match &field.content {
@@ -267,7 +297,27 @@ pub(super) fn select_wire_decode_call(
                     target_offset: place.byte_offset,
                 });
             }
-            WireReadContent::Nested { children } => {
+            WireReadContent::Nested {
+                schema: child_schema,
+                children,
+            } => {
+                // RUNG 2c: the child schema's plan supplies the EXPECTED child
+                // tags (see wire_encode.rs -- same agreement discipline).
+                let child_plan = input.program.wire_schema_plan(*child_schema);
+                if let Some(placements) = child_plan {
+                    let agrees = placements.len() == children.len()
+                        && placements.iter().zip(children.iter()).all(|(placement, child)| {
+                            placement.tag() == child.number
+                                && matches!(placement, WirePlacement::Varint { .. })
+                        });
+                    if !agrees {
+                        debug_assert!(
+                            false,
+                            "derived child wire plan disagrees with the schema walk"
+                        );
+                        return false;
+                    }
+                }
                 // LENGTH varint into the end-bound slot, then OPEN turns it
                 // into the absolute sub-region bound (and bounds-checks it),
                 // the child's fields decode WITHOUT an era discriminator, and
@@ -297,8 +347,12 @@ pub(super) fn select_wire_decode_call(
                     end_region: RuntimeStorageRegion::RuntimeFrame,
                     end_offset,
                 });
-                for child in children {
-                    for byte in wire_varint_bytes(child.number as u64) {
+                for (child_index, child) in children.iter().enumerate() {
+                    let child_tag = child_plan
+                        .and_then(|placements| placements.get(child_index))
+                        .map(|placement| placement.tag())
+                        .unwrap_or(child.number);
+                    for byte in wire_varint_bytes(child_tag as u64) {
                         push(expected_byte_kind(byte));
                     }
                     let WireReadContent::Scalar { encoding, place } = &child.content else {
@@ -496,7 +550,10 @@ fn collect_field_reads(
             )?;
             fields.push(WireFieldRead {
                 number: field.number,
-                content: WireReadContent::Nested { children },
+                content: WireReadContent::Nested {
+                    schema: child.symbol,
+                    children,
+                },
             });
             continue;
         }

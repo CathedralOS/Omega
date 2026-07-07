@@ -56,6 +56,7 @@ machine Lookup::search(&mut self, wanted: i32, out_room: &mut Room) {
         transition {
             matched -> apply(view[index], out_room)
             has_next -> find_at(view, wanted, out_room, next_index)
+            _ -> {}
         }
     }
 

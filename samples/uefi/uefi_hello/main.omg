@@ -1,0 +1,61 @@
+// uefi_hello -- MILESTONE 1: an Omega UEFI application that prints "Hello from
+// Omega" on the firmware console. BOOT-VERIFIED under QEMU/OVMF (2026-07-04):
+// the serial console shows "Hello from Omega" and the image returns Success.
+// No C, no host runtime, no hand-written assembly -- the whole stack is Omega
+// plus the compiler's derivers. (Compile-only in the sample harness: a
+// subsystem-10 image does not run on the host OS; boot it with the QEMU/OVMF
+// harness to see the greeting.)
+//
+// How every piece fits, all in this file + build.omg:
+//   * build.omg sets `efi_application` + `freestanding` -> an import-free
+//     PE32+ that firmware loads directly.
+//   * `boundary machine Main::run(&self, handle, table: &EfiSystemTable)` is
+//     the EXPORTED CALLABLE: firmware calls it, and the parameter list is the
+//     boundary-trusted shape imposed over the registers it hands us (handle in
+//     RCX, the SystemTable pointer in RDX). The boundary VOUCHES for that
+//     shape -- no cast, no mint, in the trusted boot code.
+//   * `table.con_out` projects the live SystemTable at the plan offset (+64):
+//     a dereference of the firmware pointer the boundary vouched for.
+//   * the `provides` table binds `output_string -> VtableSlot(1)`: the call
+//     dispatches through the protocol's own vtable (`mov rax, [rcx+8]; call
+//     rax`) -- COM/UEFI per-object dispatch, no import thunk.
+//   * `utf16"..."` is the CHAR16 text UEFI expects.
+
+boundary trait TextOutput {
+    machine output_string(this: addr, text: addr);
+}
+uefi_x64 provides TextOutput {
+    output_string -> VtableSlot(1);
+}
+
+// The fields of the EFI System Table we care about; con_out lands at +64 under
+// the C layout (sequential placement with natural alignment).
+data EfiSystemTable {
+    hdr_signature: u64;
+    hdr_revision: u32;
+    hdr_header_size: u32;
+    hdr_crc: u32;
+    hdr_reserved: u32;
+    firmware_vendor: addr;
+    firmware_revision: u32;
+    fw_pad: u32;
+    console_in_handle: addr;
+    con_in: addr;
+    console_out_handle: addr;
+    con_out: addr;
+}
+
+data Main {
+    out: TextOutput;
+    // "Hello from Omega\r\n\0" as UTF-16 CHAR16 code units.
+    msg: [u16; 19];
+}
+
+boundary machine Main::run(&self, handle: addr, table: &EfiSystemTable) -> i32 {
+    self.msg = utf16"Hello from Omega\r\n\0";
+    // Project con_out through a frame local (the reference-param deref), then
+    // dispatch OutputString(con_out, &msg) through the firmware's vtable.
+    let con_out: addr = table.con_out;
+    self.out.output_string(con_out, &self.msg);
+    transition { _ -> (0) }
+}

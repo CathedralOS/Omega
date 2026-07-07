@@ -1,0 +1,71 @@
+// A value-machine that RETURNS a sum type (Option), called in a loop with each result
+// matched -- the idiomatic functional shape for fallible/optional functions (find, lookup,
+// parse). Distinct from errors/runtime_result_match_exit (which builds the enum into a
+// FIELD inline): here the enum is the RETURN VALUE of a machine call, so the arm of the
+// callee constructs `Opt::Some { value: x }` / `Opt::None`, the caller binds it with `let`,
+// and matches it -- all inside a loop over the inputs. `classify(x)` returns Some(x) when x
+// is positive, else None; over [5, -3, 7] that is Some(5), None, Some(7), so the Some values
+// sum to 12 and one None is counted. Exits 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Opt {
+    case Some(value: i32 in Wrapping);
+    case None;
+}
+
+data Main {
+    console: Console;
+    vals: [i32; 3] in Wrapping;
+    i: i32 in Wrapping;
+    x: i32 in Wrapping;
+    acc: i32 in Wrapping;   // sum of Some values
+    nones: i32 in Wrapping; // count of None
+}
+
+// a function that returns an Option -- the callee's arms construct the enum result
+machine Main::classify(&self, x: i32 in Wrapping) -> Opt {
+    transition x > 0 { true -> Opt::Some { value: x } _ -> Opt::None }
+}
+
+machine Main::main(&mut self) {
+    self.vals = [5, 0 - 3, 7];
+    self.i = 0;
+    self.acc = 0;
+    self.nones = 0;
+    transition { _ -> loop() }
+
+    state loop(&mut self) {
+        transition self.i >= 0 && self.i < 3 { true -> call() _ -> verify() }
+    }
+    state call(&mut self) {
+        self.x = self.vals[self.i];
+        // call the Option-returning function, bind, and match the result
+        let r: Opt = self.classify(self.x);
+        transition r {
+            Opt::Some { value } -> got(value)
+            Opt::None -> nada()
+        }
+    }
+    state got(&mut self, v: i32 in Wrapping) {
+        self.acc = self.acc + v;
+        self.i = self.i + 1;
+        transition { _ -> loop() }
+    }
+    state nada(&mut self) {
+        self.nones = self.nones + 1;
+        self.i = self.i + 1;
+        transition { _ -> loop() }
+    }
+
+    state verify(&mut self) {
+        transition self.acc == 12 && self.nones == 1 { true -> good() _ -> wrong() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(self.acc); // surface the sum on regression
+    }
+}

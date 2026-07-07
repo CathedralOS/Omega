@@ -1,0 +1,7 @@
+// Two match arms with the SAME literal pattern used to compile silently and
+// produce garbage: the arithmetic desugar adds a term per matching arm, so both
+// `0` arms fire (`match a { 0->10, 0->20, _->30 }` yields 0 at a==0, not 10/20).
+// Rejected now at parse time.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { let a: i32 = 0; let r: i32 = match a { 0 -> 10, 0 -> 20, _ -> 30 }; self.console.exit_process(r); }

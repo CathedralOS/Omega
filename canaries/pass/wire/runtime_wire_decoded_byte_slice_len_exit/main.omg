@@ -2,7 +2,7 @@
 // descriptor's runtime length slot -- not silently fail to resolve (which left
 // the read uninitialized) nor read the descriptor's pointer bytes.
 //
-// The length here is genuinely RUNTIME: `decode_wire` reads a byte-length
+// The length here is genuinely RUNTIME: `decode` reads a byte-length
 // varint and stores a fat `{ptr, len}` descriptor viewing the buffer, so
 // `decoded.bytes.len` can only be correct if the read targets the len slot
 // (offset + len_offset) of the field descriptor. The motivating bug: the place
@@ -14,12 +14,19 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data Blob {
+data Blob {
     0: bytes: &[u8];
 }
 
 data BlobSample {
     bytes: &[u8];
+}
+
+// The decode verdict: a dispatchable enum, not a forgettable flag. Invalid
+// is the ZII zero case, so an untouched verdict reads as failure.
+data WireVerdict {
+    case Invalid;
+    case Sound;
 }
 
 data Main {
@@ -28,7 +35,7 @@ data Main {
     buffer: [u8; 64];
     written: usize;
     read: usize;
-    ok: bool;
+    verdict: WireVerdict;
 }
 
 machine Main::main(&mut self) {
@@ -36,14 +43,14 @@ machine Main::main(&mut self) {
     self.source[1] = 105;
     let sample: BlobSample = BlobSample { bytes: self.source[0..2] };
 
-    Blob::encode_wire(&sample, &mut self.buffer, &mut self.written);
+    Blob::encode(&sample, &mut self.buffer, &mut self.written);
 
     let decoded: BlobSample = BlobSample { bytes: self.source[0..2] };
-    Blob::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+    Blob::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
 
     let n: usize = decoded.bytes.len;
 
-    let matches: bool = self.ok && self.read == 5 && n == 2;
+    let matches: bool = self.verdict == WireVerdict::Sound && self.read == 5 && n == 2;
 
     transition matches {
         true -> good()

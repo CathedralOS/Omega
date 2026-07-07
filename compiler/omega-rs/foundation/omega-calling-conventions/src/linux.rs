@@ -12,17 +12,18 @@ struct LinuxSyscallNumbers {
 }
 
 pub(crate) fn populate(plan: &mut HostAbiPlan) {
+    let policy: std::sync::Arc<str> = "omega::host::targets::linux".into();
     plan.boundary_policies.insert(HostBoundaryPolicy {
-        path: "omega::host::targets::linux".into(),
+        path: std::sync::Arc::clone(&policy),
         checked: true,
     });
 
     let syscall_numbers = linux_syscall_numbers(plan.target.architecture);
     plan.bindings.insert_many([
-        linux_syscall("Stdin", "read", syscall_numbers.read),
-        linux_syscall("Stdout", "write", syscall_numbers.write),
-        linux_syscall("Stderr", "write", syscall_numbers.write),
-        linux_syscall("Process", "exit_group", syscall_numbers.exit_group),
+        linux_syscall("Stdin", "read", syscall_numbers.read, &policy),
+        linux_syscall("Stdout", "write", syscall_numbers.write, &policy),
+        linux_syscall("Stderr", "write", syscall_numbers.write, &policy),
+        linux_syscall("Process", "exit_group", syscall_numbers.exit_group, &policy),
     ]);
 
     insert_platform_lowering(
@@ -92,7 +93,12 @@ fn linux_syscall_numbers(architecture: Architecture) -> LinuxSyscallNumbers {
     }
 }
 
-fn linux_syscall(capability: &str, operation: &str, number: u32) -> HostBinding {
+fn linux_syscall(
+    capability: &str,
+    operation: &str,
+    number: u32,
+    policy: &std::sync::Arc<str>,
+) -> HostBinding {
     HostBinding {
         operation_key: crate::HostOperationKey::from_names(capability, operation),
         mechanism: HostBindingMechanism::Syscall {
@@ -101,6 +107,6 @@ fn linux_syscall(capability: &str, operation: &str, number: u32) -> HostBinding 
             number_register: 8,
             supervisor_call: 0,
         },
-        boundary_policy: "omega::host::targets::linux".into(),
+        boundary_policy: std::sync::Arc::clone(policy),
     }
 }

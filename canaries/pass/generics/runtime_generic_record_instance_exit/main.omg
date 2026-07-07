@@ -1,0 +1,17 @@
+// A MONOMORPHIZED generic data instance with native field access: `Box<T>` instantiated as
+// `Box<i32 in Wrapping>`, writing and reading BOTH the T-typed field and a concrete sibling.
+// Generic instances used to be type-check-only (every field access failed "needs runtime storage
+// write lowering" because the instance's field offsets were never recorded in the layout plan);
+// the layout builder now records ONE monomorphized instance per generic data (keyed by the
+// definition symbol, argument-collision -> the offsets are un-recorded and access rejects
+// cleanly). tag=30 + val=40 -> 70. Differential (native must match the interpreter).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Box<T> { val: T; tag: i32 in Wrapping; }
+data Main { console: Console; b: Box<i32 in Wrapping>; }
+machine Main::main(&mut self) {
+    self.b.tag = 30;
+    self.b.val = 40;
+    transition self.b.tag + self.b.val == 70 { true -> ok() _ -> bad() }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

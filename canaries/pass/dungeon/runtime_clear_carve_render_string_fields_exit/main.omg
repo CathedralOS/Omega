@@ -157,6 +157,7 @@ machine Lookup::find_room(
         transition {
             found -> apply_room(rooms[index], out_room)
             has_next -> find_room_at(rooms, room_count, cell, out_room, next_index)
+            _ -> {}
         }
     }
 

@@ -25,13 +25,13 @@ data Level {
 data Store {
 }
 
-machine Store::find(&mut self, level: Level, key: i32, out: &mut Item) {
+machine Store::find(&mut self, level: Level, key: u64, out: &mut Item) {
     let items: &[Item] = level.rooms.as_slice();
     transition key < 4 {
         true -> read(items, key, out)
         false -> {}
     }
-    state read(&mut self, items: &[Item], key: i32, out: &mut Item) {
+    state read(&mut self, items: &[Item], key: u64, out: &mut Item) {
         out.val = items[key].val;
     }
 }

@@ -1,0 +1,42 @@
+// i64 (64-bit) signed arithmetic at scales beyond i32 -- the width serious apps need for large
+// counters, timestamps, and hashing. Verifies a multiply past 2^32 (2000000 * 3000000 =
+// 6000000000000), a signed division with a negative dividend (-6e12 / 3000000 = -2000000), a signed
+// modulo whose sign follows the dividend (-6000000000007 % 1000 = -7), and a 64-bit shift
+// (1 << 40 = 1099511627776) that would overflow a 32-bit register. Each is chained; exits 70 iff
+// all hold.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: i64 in Wrapping;
+    b: i64 in Wrapping;
+    r: i64 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.a = 2000000;
+    self.b = 3000000;
+    self.r = self.a * self.b;
+    transition self.r == 6000000000000 { true -> div_s() _ -> bad() }
+    state div_s(&mut self) {
+        self.a = 0 - 6000000000000;
+        self.b = 3000000;
+        self.r = self.a / self.b;
+        transition self.r == 0 - 2000000 { true -> mod_s() _ -> bad() }
+    }
+    state mod_s(&mut self) {
+        self.a = 0 - 6000000000007;
+        self.b = 1000;
+        self.r = self.a % self.b;
+        transition self.r == 0 - 7 { true -> shift() _ -> bad() }
+    }
+    state shift(&mut self) {
+        self.a = 1;
+        self.r = self.a << 40;
+        transition self.r == 1099511627776 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

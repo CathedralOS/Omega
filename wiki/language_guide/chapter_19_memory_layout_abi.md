@@ -149,23 +149,25 @@ parameterized by word count, so it stays under the same owner.
 
 ## Calling Conventions
 
-Machine calls inside Omega use Omega calling rules.
+Machine calls inside Omega use Omega calling rules — the internal convention
+is compiler-sovereign, never stated, never observable, free to change any
+release. Conventions exist only at **boundaries**.
 
-Host calls and exported ABI machines must declare a calling convention.
+Direction (settled 2026-07-02, `design_briefs/calling_plans.md`): a calling
+convention is a **layout over the register file + stack frame** and gets the
+layout treatment — a per-ABI policy (stated or computed, audited against the
+psABI document) produces a validated **CallPlan** from a signature: per-param
+placements (`InReg`/`OnStack`/`ByPointer`), return placement, clobber set,
+shadow space, stack alignment. One plan feeds both derivers — the outbound
+call encoder and the inbound entry stub — so caller and callee agree by
+construction. In practice no code names a convention: the `Binding` kind at
+the provides-mapping implies it (`Syscall(n)` → the target's syscall plan,
+`DllImport`/`VtableSlot` → its C plan). An earlier sketch here spelled this as
+an `abi "aarch64-darwin"` string attribute — retired: a string names nothing
+checkable; a policy is auditable data.
 
-```omega
-abi "aarch64-darwin"
-machine Host::write(
-    fd: i32,
-    buffer: &[u8]
-) -> i32
-boundary host
-{
-}
-```
-
-The ABI contract must cover argument placement, return placement, clobbers,
-stack alignment, and failure behavior.
+The plan must cover argument placement, return placement, clobbers, stack
+alignment, and failure behavior — validated before any deriver trusts it.
 
 ## Volatile And Device Memory
 
@@ -193,19 +195,30 @@ volatile accesses also imply hardware ordering (they should not -- ordering
 against the device is the boundary contract's job, fences are separate), and
 how a region capability is constructed at boot.
 
-[^repr-hardware]: Open details: `repr` spelling for packed/explicit-offset
-layouts, untagged unions for hardware views, and whether such types are
-restricted to boundary-adjacent packages.
+[^repr-hardware]: Direction settled 2026-07-02
+(`design_briefs/programmable_layouts.md`): hardware-shaped structures are
+**stated layout plans** — a policy returning literal placements (`At` offsets,
+`Bits(container, lsb, width)` slots, per-register access classes) validated
+against overlap/straddle/range rules, with field access, RMW gating, and
+snapshot-then-project MMIO discipline *derived* from the plan. No bit-width
+value types (range facts on plain integers carry the surface). Still open:
+untagged unions for hardware views, and whether such types are restricted to
+boundary-adjacent packages.
 
 ## Endianness
 
 Native layout follows the target. Wire protocols must declare byte order or use
 field encodings that define byte order independently.
 
-## Relationship To Wire Data
+## Relationship To Serialized Bytes
 
-Wire data is not native layout.
+Serialized layout is not native layout.
 
-Native layout optimizes in-memory access. Wire layout optimizes compatibility
-and decoding. A declaration may choose to make them match, but that should be an
-explicit contract, not an accident.
+Native layout optimizes in-memory access; a serialized layout (a *layout
+policy* chosen at the carrier — [Wire Protocols](chapter_20_wire_protocols.md),
+`design_briefs/programmable_layouts.md`) optimizes compatibility and decoding.
+A value has exactly one in-memory form; a schema may serialize through many
+policies. The two coincide only by explicit contract: a fully static policy in
+type position makes the plan *be* the in-memory layout, and crossing a
+boundary with such a value is a borrow, not an encode — the copy vanishes by
+theorem, not by accident.

@@ -49,6 +49,16 @@ pub enum InstructionOperandKind {
         byte_offset: usize,
         byte_count: usize,
     },
+    /// The ADDRESS of a statically allocated runtime-storage place (`region` base
+    /// + `byte_offset`), marshalled as a pointer-sized host-call argument. This is
+    /// the pointer-argument shape of the extern boundary: a `[u32; N]` framebuffer
+    /// as an `LPVOID`, an OS struct built in an inline array, a NUL-terminated
+    /// byte-array C string. The encoders emit `lea` through the relocated region
+    /// base rather than loading the place's bytes.
+    RuntimeStorageAddress {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+    },
     ImmediateInteger(i64),
     ByteLength(usize),
 }

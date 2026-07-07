@@ -1,0 +1,27 @@
+// A runtime slice `.len` read into a LOCAL binding in a VALUE position (`let n =
+// s.len`, not an operand or a guard subject) used to leave the local slot
+// UNWRITTEN on the native side -- the descriptor length was never materialized,
+// so a later `n == 5` guard read the zeroed slot and took the false arm (a silent
+// read-0 miscompile; the interpreter always read the true length). Here `s` views
+// a fixed `[i32; 5]` through `.as_slice()`, so the length folds to the constant 5
+// and `n == 5` must take the true arm -> exit 5.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 5];
+}
+
+machine Main::main(&mut self) {
+    let s: &[i32] = self.arr.as_slice();
+    let n: usize = s.len;
+    transition n == 5 {
+        true -> matched()
+        false -> unmatched()
+    }
+
+    state matched(&mut self) { self.console.exit_process(5); }
+    state unmatched(&mut self) { self.console.exit_process(0); }
+}

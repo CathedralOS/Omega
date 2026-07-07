@@ -1,0 +1,30 @@
+// Float min / max / abs / clamp on the SSE unit (maxsd 0x5F / minsd 0x5D):
+// abs and clamp desugar to float min/max, which the encoder gained here (they
+// previously errored "float Max not implemented"). The native maxsd/minsd
+// realize `if a > b { a } else { b }`, which the interpreter's float min/max
+// matches exactly. Checks max(3,7)=7, min(3,7)=3, abs(-12)=12,
+// clamp(300,0,200)=200; sum = 7+3+12+200 = 222; exits 70 when it holds.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    mx: f64;
+    mn: f64;
+    ab: f64;
+    cl: f64;
+    total: i32;
+}
+machine Main::main(&mut self) {
+    self.mx = max(3.0, 7.0);
+    self.mn = min(3.0, 7.0);
+    self.ab = abs(0.0 - 12.0);
+    self.cl = clamp(300.0, 0.0, 200.0);
+    self.total = (self.mx + self.mn + self.ab + self.cl) as i32;
+    transition self.total == 222 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

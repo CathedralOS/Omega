@@ -1,15 +1,29 @@
-use crate::parse_error::ParseError;
 use crate::parser::expression::parse_expression_handle_without_struct_literals;
 use crate::parser::input::{Input, ParseResult};
 use omega_core::arena::{Handle, HandleSpan};
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::ExpressionNode;
+use omega_syntax_trees::identifier::Identifier;
 use omega_syntax_trees::types::{
     FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
 };
 use omega_tokens::{KeywordKind, PunctuationKind};
 
 pub(super) fn parse_type_reference_handle<'tokens, 'source>(
+    syntax_trees: &mut SyntaxTrees,
+    input: Input<'tokens, 'source>,
+) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
+    // Bound nesting depth: nested array types (`[[...;1];1]`) recurse through
+    // this choke point. Deepen on entry to reject pathological nesting before it
+    // overflows the stack, restoring the caller's depth on exit (see the mirror
+    // in `parse_expression_handle_in`).
+    let outer_depth = input.depth();
+    let input = input.deepen()?;
+    let (type_reference, rest) = parse_type_reference_handle_inner(syntax_trees, input)?;
+    Ok((type_reference, rest.with_depth(outer_depth)))
+}
+
+fn parse_type_reference_handle_inner<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, TypeReferenceHandle> {
@@ -233,6 +247,31 @@ fn apply_in_domain_suffix<'tokens, 'source>(
     }
     let after_in = input.take_contextual("in")?;
     let (domain_name, rest) = after_in.take_identifier()?;
+    // A PARAMETERIZED domain name (`in OmegaLayout<Save>`, ch20 "grammars are
+    // layout policies") flattens to a single instance name -- the same
+    // monomorphization-by-instantiation shape as generic data: no unification,
+    // no bounds, just a name resolved to a flat derived domain instance.
+    // Arguments are plain identifiers (a schema name + optionally a grammar).
+    let (domain_name, rest) = if rest.at_punctuation(PunctuationKind::Less) {
+        let mut flat = String::from(domain_name.as_str());
+        flat.push('<');
+        let mut cursor = rest.take_punctuation(PunctuationKind::Less, "<")?;
+        loop {
+            let (argument, next) = cursor.take_identifier()?;
+            flat.push_str(argument.as_str());
+            if next.at_punctuation(PunctuationKind::Comma) {
+                flat.push_str(", ");
+                cursor = next.take_punctuation(PunctuationKind::Comma, ",")?;
+                continue;
+            }
+            cursor = next.take_punctuation(PunctuationKind::Greater, ">")?;
+            break;
+        }
+        flat.push('>');
+        (Identifier::generated(flat), cursor)
+    } else {
+        (domain_name, rest)
+    };
     let constraint =
         match omega_core::arithmetic::ArithmeticDomain::from_name(domain_name.as_str()) {
             Some(domain) => TypeConstraintNode::ArithmeticDomain(domain),

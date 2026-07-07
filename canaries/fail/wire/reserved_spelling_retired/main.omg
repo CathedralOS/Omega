@@ -1,0 +1,9 @@
+// FAIL canary: the `reserved N;` spelling died with the `wire data` form.
+// A retired identity number is a DECLARATION (`retired N;`), not a tombstone
+// field -- tombstone fields would leak into every schema consumer.
+data Save {
+    1: seed: u64;
+    reserved 2;
+}
+data Main { }
+machine Main::main(&mut self) { }

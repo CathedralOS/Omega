@@ -23,6 +23,16 @@ pub(super) fn collect_runtime_storage_write_relocations(
             context.insert_data_address_at_instruction_start(symbol);
             true
         }
+        SelectedInstructionKind::WriteEntryArgumentRegister { .. }
+        | SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor { .. } => {
+            // The entry prologue's `mov r15, imm64` materializes the RUNTIME
+            // FRAME base (the entry parameters + the argument spill are frame
+            // storage), anchored at the instruction start like every other
+            // storage write.
+            let symbol = context.runtime_frame_symbol_handle();
+            context.insert_data_address_at_instruction_start(symbol);
+            true
+        }
         SelectedInstructionKind::WriteRuntimePointeeInteger { .. } => {
             let symbol = context.runtime_frame_symbol_handle();
             context.insert_data_address_at_instruction_start(symbol);
@@ -201,6 +211,46 @@ pub(super) fn collect_runtime_storage_write_relocations(
         } => {
             let symbol = context.runtime_frame_symbol_handle();
             context.insert_data_address_at_instruction_start(symbol);
+            let left_offset = context.selected_text_offset
+                + runtime_frame_base_indexed_binary_left_operand_offset(
+                    context.input.target.architecture,
+                    *base_byte_offset,
+                    *index_offset,
+                    *element_byte_size,
+                    *field_byte_offset,
+                );
+            collect_runtime_value_operand_relocations(context, left_offset, *left);
+            let left_width = omega_instruction_selection::runtime_value_operand_width(
+                context.input.target.architecture,
+                context.input.assigned_target_operations,
+                *left,
+            );
+            let right_offset = left_offset
+                + left_width
+                + omega_instruction_selection::runtime_binary_right_operand_gap(
+                    context.input.target.architecture,
+                );
+            collect_runtime_value_operand_relocations(context, right_offset, *right);
+            true
+        }
+        SelectedInstructionKind::WriteRuntimeMachineIndexedBinary {
+            base_byte_offset,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            left,
+            right,
+            ..
+        } => {
+            // Machine-region sibling of `WriteRuntimeFrameBaseIndexedBinary`: the
+            // base at the instruction start (`mov r14, imm64`) relocates to the
+            // MACHINE-storage symbol instead of the frame symbol. The byte layout
+            // is identical, so the left/right value-operand offsets reuse the
+            // frame-base helper. Only the Machine-resident index is emitted (the
+            // frame-index case errors in the encoder), so there is no extra
+            // frame-symbol relocation for the index.
+            context
+                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
             let left_offset = context.selected_text_offset
                 + runtime_frame_base_indexed_binary_left_operand_offset(
                     context.input.target.architecture,

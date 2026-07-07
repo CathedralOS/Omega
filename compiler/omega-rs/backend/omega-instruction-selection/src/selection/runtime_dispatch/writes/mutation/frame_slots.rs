@@ -7,10 +7,12 @@ use crate::selection::storage_places::{
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_near_slot_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
-    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_place_in_table,
+    resolve_runtime_pointee_slot_offset_in_table, resolve_runtime_storage_arithmetic_domain_in_table,
+    resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
+    static_fixed_array_len_in_table,
 };
 use omega_abstract_operations::{
-    RuntimeStorageRegion, RuntimeValueOperand, SelectedInstructionKind,
+    RuntimeStorageRegion, RuntimeValueOperand, SelectedInstructionKind, StateGuardOperator,
 };
 use omega_checked_trees::expression::{
     ExpressionHandle, ExpressionNode, ExpressionTable, TableNamePath,
@@ -38,6 +40,67 @@ pub(in crate::selection) fn runtime_frame_slot_target_expression(
         head_symbol: slot.symbol,
         symbol: slot.symbol,
     }))
+}
+
+/// Decision 17: a folded CONSTANT stored into a Trapping frame slot (`let b: iN in
+/// Trapping = <const overflow>`) whose value is out of the slot type's range MUST
+/// trap at runtime -- the trap is a runtime abort that cannot be pre-computed
+/// (unlike a Saturating clamp, which the fold bakes into the value, so Saturating
+/// never reaches here out of range). The static-integer store arm below would
+/// otherwise write the raw value and short-circuit the mutation-write fallback
+/// that traps. Mirrors the field path's `trapping_constant_overflow_write`: re-emit
+/// a guaranteed-overflowing Trapping binary write (`bound ± 1`) so the encoder's
+/// ud2/brk fires. `None` when the slot is not Trapping / not an integer primitive /
+/// the value is in range (then the normal store is correct).
+fn trapping_frame_slot_constant_overflow_write(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    slot: &omega_runtime_storage::RuntimeFrameSlot,
+    value: i64,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
+    let mut scratch = ExpressionTable::default();
+    let target = runtime_frame_slot_target_expression(&mut scratch, slot);
+    if resolve_runtime_storage_arithmetic_domain_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &scratch,
+        target,
+    ) != omega_core::arithmetic::ArithmeticDomain::Trapping
+    {
+        return None;
+    }
+    let primitive = resolve_runtime_storage_primitive_type_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &scratch,
+        target,
+    )?;
+    let (min, max) = super::saturating_integer_bounds(primitive)?;
+    if value >= min && value <= max {
+        return None;
+    }
+    let (bound, operator) = if value > max {
+        (max, StateGuardOperator::Add)
+    } else {
+        (min, StateGuardOperator::Subtract)
+    };
+    let left = runtime_value_operands.insert(RuntimeValueOperand::Immediate(bound));
+    let right = runtime_value_operands.insert(RuntimeValueOperand::Immediate(1));
+    Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
+        target_region: RuntimeStorageRegion::RuntimeFrame,
+        target_offset: slot.byte_offset,
+        byte_size: slot.byte_size,
+        left,
+        operator,
+        right,
+        is_float: false,
+        domain: omega_core::arithmetic::ArithmeticDomain::Trapping,
+        target_signed: primitive.is_signed_integer(),
+    })
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -79,6 +142,32 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     source_anchor_byte_offset: usize,
 ) -> Option<SelectedInstructionKind> {
+    // `let n = arr.len` / `let n = s.len` where the receiver views a FIXED array
+    // (directly, through `.as_slice()`, or through an unmaterialized local alias):
+    // the length is a compile-time constant. Without this the resolver drops the
+    // `.len` member source (a fixed array has no runtime descriptor len slot to
+    // copy from), leaving the local slot UNWRITTEN -- a later guard/use then reads
+    // the zeroed slot (a silent read-0 miscompile; the direct guard `arr.len == N`
+    // already folds via this same resolver, so the captured-into-a-local form must
+    // agree). Emit the constant length directly. Placed first so a `.len` into a
+    // pointer-width (usize) slot is never mistaken for an address write below.
+    if supports_scalar_integer_write(slot.byte_size)
+        && let Some(length) = static_fixed_array_len_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            value,
+        )
+    {
+        return Some(SelectedInstructionKind::WriteRuntimeStorageInteger {
+            target_region: RuntimeStorageRegion::RuntimeFrame,
+            byte_offset: slot.byte_offset,
+            byte_size: slot.byte_size,
+            value: length,
+        });
+    }
+
     if slot.byte_size == input.runtime_abi.pointer_size
         && let Some(kind) = select_runtime_frame_slot_address_write_in_table(
             input,
@@ -96,6 +185,18 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         && let Some(value) =
             resolve_runtime_static_integer_value_in_table(input, expressions, value, static_values)
     {
+        // A Trapping slot given an out-of-range folded constant must TRAP, not
+        // store raw (the field path already does this; this closes the `let` gap).
+        if let Some(kind) = trapping_frame_slot_constant_overflow_write(
+            input,
+            dispatch_index,
+            value_source_key,
+            slot,
+            value,
+            runtime_value_operands,
+        ) {
+            return Some(kind);
+        }
         return Some(SelectedInstructionKind::WriteRuntimeStorageInteger {
             target_region: RuntimeStorageRegion::RuntimeFrame,
             byte_offset: slot.byte_offset,
@@ -128,6 +229,7 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         && !matches!(expressions.expression(value), ExpressionNode::Mutable(_))
     {
         return Some(SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+            target_region: RuntimeStorageRegion::RuntimeFrame,
             pointer_byte_offset: pointee.pointer_byte_offset,
             field_byte_offset: pointee.field_byte_offset,
             target_offset: slot.byte_offset,
@@ -153,8 +255,44 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
         && pointee.pointee_byte_size > 0
     {
         return Some(SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+            target_region: RuntimeStorageRegion::RuntimeFrame,
             pointer_byte_offset: pointee.pointer_byte_offset,
             field_byte_offset: pointee.field_byte_offset,
+            target_offset: slot.byte_offset,
+            byte_count: slot.byte_size,
+        });
+    }
+
+    // `let n: usize = s.len` where `s` is a runtime slice DESCRIPTOR whose length
+    // is not statically known (a slice PARAM). The `.len` place resolver reports
+    // the descriptor's low 4-byte len word (the `i32`-assignable convention), so a
+    // wider `usize` (8-byte) local slot fails the exact-size copy below and the
+    // write is dropped -- the slot stays zeroed and the local reads 0 (a silent
+    // miscompile; the field-assign `self.count = s.len` works only because an
+    // `i32` count matches the 4-byte word). The descriptor's len is 8 bytes of
+    // storage holding the full `usize`, so read it at the target's width. Bounded
+    // by the descriptor's len-field size so the read stays inside the descriptor.
+    let value_is_len_member = match expressions.expression(value) {
+        ExpressionNode::Member(member) => member.member.as_str() == "len",
+        _ => false,
+    };
+    if slot.byte_size > 4
+        && supports_scalar_integer_write(slot.byte_size)
+        && value_is_len_member
+        && let Some(source_place) = resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            value,
+        )
+        && source_place.byte_count == 4
+        && slot.byte_size <= input.runtime_abi.slice_descriptor().len_size()
+    {
+        return Some(SelectedInstructionKind::CopyRuntimeStorage {
+            source_region: source_place.region,
+            source_offset: source_place.byte_offset,
+            target_region: RuntimeStorageRegion::RuntimeFrame,
             target_offset: slot.byte_offset,
             byte_count: slot.byte_size,
         });

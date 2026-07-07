@@ -128,6 +128,32 @@ impl TypeReferenceTable {
             })
     }
 
+    /// Every NAMED type reference in the table, as `(handle, symbol)` pairs.
+    /// The machine-monomorphization pass scans these for generic type-parameter
+    /// references to substitute before checking/layout (a type parameter's
+    /// symbol is unique to its declaring machine, so symbol equality exactly
+    /// identifies the occurrences to substitute).
+    pub fn named_references(
+        &self,
+    ) -> impl Iterator<Item = (TypeReferenceHandle, SymbolHandle, &str)> + '_ {
+        self.type_references
+            .iter()
+            .filter_map(|(handle, node)| match node {
+                TypeReferenceNode::Named { symbol, name } => {
+                    Some((handle, *symbol, name.as_str()))
+                }
+                _ => None,
+            })
+    }
+
+    /// Replace a type reference's node wholesale -- the machine-monomorphization
+    /// substitution: a `Named` type-parameter reference becomes a copy of the
+    /// inferred argument's node. Compound argument nodes share their child
+    /// handles, which is sound (children are never mutated by the pass).
+    pub fn substitute_node(&mut self, handle: TypeReferenceHandle, node: TypeReferenceNode) {
+        *self.type_references.get_mut(handle) = node;
+    }
+
     /// Replace a fixed-array type reference's length with a concrete literal
     /// (the comptime const-eval substitution). Panics if `handle` is not a
     /// fixed-array node -- callers obtain handles from `fixed_array_lengths`.
@@ -583,6 +609,10 @@ pub enum PrimitiveType {
     U32,
     U64,
     Usize,
+    /// A pointer-width ADDRESS, distinct from `usize`/counts (address and count
+    /// are separate axes; index_count_and_address_model brief). Naive
+    /// pointer-width for now -- rides the 8-byte unsigned path.
+    Addr,
 }
 
 impl PrimitiveType {
@@ -602,6 +632,7 @@ impl PrimitiveType {
             "u32" => Some(Self::U32),
             "u64" => Some(Self::U64),
             "usize" => Some(Self::Usize),
+            "addr" => Some(Self::Addr),
             // Atomic types: same layout as their underlying primitives (C11
             // atomics; alignment is the same because we use plain aligned
             // load/store on x86_64 for Relaxed/Acquire/Release/AcqRel).
@@ -629,6 +660,7 @@ impl PrimitiveType {
             Self::U32 => "u32",
             Self::U64 => "u64",
             Self::Usize => "usize",
+            Self::Addr => "addr",
         }
     }
 
@@ -645,6 +677,7 @@ impl PrimitiveType {
                 | Self::U32
                 | Self::U64
                 | Self::Usize
+                | Self::Addr
         )
     }
 
@@ -659,8 +692,21 @@ impl PrimitiveType {
     pub fn is_signed_integer(self) -> bool {
         !matches!(
             self,
-            Self::U8 | Self::U16 | Self::U32 | Self::U64 | Self::Usize
+            Self::U8 | Self::U16 | Self::U32 | Self::U64 | Self::Usize | Self::Addr
         )
+    }
+
+    /// Byte size of a scalar primitive, or `None` for `String` (not a fixed-width
+    /// scalar). Single source of truth for the backend's scalar-width decisions
+    /// (conversions, guard-operand widths, storage layout of scalars).
+    pub fn scalar_byte_size(self) -> Option<usize> {
+        match self {
+            Self::Bool | Self::I8 | Self::U8 => Some(1),
+            Self::I16 | Self::U16 => Some(2),
+            Self::F32 | Self::I32 | Self::U32 => Some(4),
+            Self::F64 | Self::I64 | Self::U64 | Self::Usize | Self::Isize | Self::Addr => Some(8),
+            Self::String => None,
+        }
     }
 
     pub fn accepts_range_constraint(self) -> bool {
@@ -678,6 +724,7 @@ impl PrimitiveType {
                 | Self::U32
                 | Self::U64
                 | Self::Usize
+                | Self::Addr
         )
     }
 

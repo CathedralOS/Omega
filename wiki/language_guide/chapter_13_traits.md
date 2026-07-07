@@ -576,7 +576,7 @@ reference interpreter and both gated by the effect system:
 
 - CONST EVALUATION: an effect-free machine called in a constant position
   (a field default, a fixed-array length, a lookup table initializer) simply
-  evaluates at compile time. The position makes it comptime; the effect
+  evaluates at compile time. The position makes it build-time; the effect
   system makes it legal. No new syntax.
 - TRAIT GENERATORS: a `default machine` body that uses member reflection is
   expanded per conforming type at the conformance site. Sketch:
@@ -587,7 +587,7 @@ trait Hashable {
 
     default machine hash(&self) -> u64 {
         let mut h: u64 = 14695981039346656037;
-        for field in Self::fields {          // comptime: unrolled per type
+        for field in Self::fields {          // build-time: unrolled per type
             h = (h ^ field_hash(self.[field])) * 1099511628211;
         }
         h
@@ -604,7 +604,7 @@ Point satisfies Hashable;    // expands the body for Point's fields
 
 Once trait generators exist, the synthesized core set above stops being
 special: `Equatable` becomes an ordinary core trait written this way, and the
-compiler privilege dissolves into the same mechanism.[^comptime-open]
+compiler privilege dissolves into the same mechanism.[^build-time-open]
 
 Equatable acquisition (frozen decision 11): IMPLICIT for primitives and
 payload-less sums -- tag identity is the only thing equality could mean
@@ -633,7 +633,7 @@ Without a conformance, `==` on a structural type stays a compile error
 suggesting the one-line conformance; payload-less sums keep `==` as the
 tag compare (which IS their total equality).
 
-[^comptime-open]: Sketch-grade, not implemented: the member-reflection
+[^build-time-open]: Sketch-grade, not implemented: the member-reflection
 surface (`Self::fields`, the field splice `self.[field]`, what reflection
 over sums/cases/payloads looks like), constant-position rules for const
 evaluation, and how the proof system sees expanded bodies are all open.

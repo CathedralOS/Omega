@@ -1,0 +1,14 @@
+// PARAM-position monomorphization inference: `weigh<T [copy]>(&self, x: &T) -> i32` has a CONCRETE
+// return (no return-position inference possible), so T is inferred from the ARGUMENT -- the declared
+// type of the place behind `&self.l` (T := Light). The [copy] bound is checked by the pass before
+// substitution (a violating instantiation stays generic and is rejected by the decision-13 bound
+// diagnostic + the value-call fence -- see fail/generics/machine_bound_value_call_unchecked). The
+// call materializes natively: exit 70. Differential (native must match the interpreter).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Light [copy] { weight: i32 in Wrapping; }
+data Main { console: Console; l: Light; }
+machine Main::weigh<T [copy]>(&self, x: &T) -> i32 { transition { _ -> 70 } }
+machine Main::main(&mut self) {
+    let a: i32 in Wrapping = self.weigh(&self.l);
+    self.console.exit_process(a);
+}

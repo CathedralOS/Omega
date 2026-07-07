@@ -1,0 +1,50 @@
+// Reading an inline array element by a RUNTIME index: `self.nums[self.i]` where
+// `self.i` is a runtime field. This was a silent x86_64 miscompile -- the read
+// emitted ZERO bytes (its width was hardcoded 0) so the target field was never
+// written and kept its zero value. Now it loads the element correctly. Reads two
+// different runtime indices and self-checks. (Constant indices already worked.)
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 4];
+    i: i32 in Trapping;
+    a: i32;
+    b: i32;
+}
+
+machine Main::main(&mut self) {
+    self.nums[0] = 10;
+    self.nums[1] = 20;
+    self.nums[2] = 30;
+    self.nums[3] = 40;
+
+    self.i = 1;
+    self.a = self.nums[self.i]; // 20
+
+    self.i = 3;
+    self.b = self.nums[self.i]; // 40
+
+    transition self.a == 20 {
+        true -> check_b()
+        _ -> bad()
+    }
+
+    state check_b(&mut self) {
+        transition self.b == 40 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

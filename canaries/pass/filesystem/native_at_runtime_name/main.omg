@@ -1,0 +1,60 @@
+// NATIVE `*at` op with a RUNTIME-BUILT name (not a rodata literal). The dirent
+// name `remove_dir_all` passes is computed at runtime; this proves the native
+// `openat`/`unlinkat` seam accepts such a name once it is NUL-terminated in a
+// buffer: the seam passes the subslice's base POINTER (`&namebuf[0]`) and the C
+// function reads until NUL, so a runtime name works with no scratch copy. Builds
+// "child\0" byte-by-byte in `namebuf`, removes /tmp/omega_atr/child via
+// `unlink_at(dfd, namebuf[0..5], 0)`, and confirms a literal-name `open_at` now
+// fails. This is exactly the mechanism native `remove_dir_all` will use (its
+// extracted names are NUL-terminated the same way).
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    dirmode: i32;
+    filemode: i32;
+    rdonly: i32;
+    dfd: i32;
+    fd: i32;
+    rc: i32;
+    n: i64;
+    namebuf: [u8; 16];
+}
+
+machine Main::main(&mut self) {
+    self.dirmode = 493;
+    self.filemode = 420;
+    self.rdonly = 0;
+    self.rc = self.fs.create_dir("/tmp/omega_atr", self.dirmode);
+    self.fd = self.fs.create("/tmp/omega_atr/child", self.filemode);
+    self.n = self.fs.close(self.fd);
+    // Build the name "child" + a trailing NUL in a runtime buffer.
+    self.namebuf[0] = 99;
+    self.namebuf[1] = 104;
+    self.namebuf[2] = 105;
+    self.namebuf[3] = 108;
+    self.namebuf[4] = 100;
+    self.namebuf[5] = 0;
+    self.dfd = self.fs.open("/tmp/omega_atr", self.rdonly);
+    transition self.dfd >= 0 { true -> unlink_it() _ -> fail() }
+    state unlink_it(&mut self) {
+        self.rc = self.fs.unlink_at(self.dfd, self.namebuf[0..5], 0);
+        transition self.rc == 0 { true -> confirm_gone() _ -> fail() }
+    }
+    state confirm_gone(&mut self) {
+        self.fd = self.fs.open_at(self.dfd, "child", self.rdonly);
+        transition self.fd < 0 { true -> cleanup() _ -> fail() }
+    }
+    state cleanup(&mut self) {
+        self.n = self.fs.close(self.dfd);
+        self.rc = self.fs.remove_dir("/tmp/omega_atr");
+        transition self.rc == 0 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) {
+        self.n = self.fs.write(1, "PASS: native unlink_at with a runtime NUL-terminated name\n");
+    }
+    state fail(&mut self) {
+        self.n = self.fs.write(1, "FAIL: runtime at name\n");
+    }
+}

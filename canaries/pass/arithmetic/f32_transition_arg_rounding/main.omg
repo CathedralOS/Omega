@@ -1,0 +1,24 @@
+// RUN CANARY (exit 70) + interpreter differential. An f32 passed through a
+// TRANSITION ARGUMENT rounds to f32 at the param binding (not just at stores):
+// accumulating via inline `+ 1.0` args past 2^24 plateaus at 16777216, matching
+// native (which passes f32 in an f32 register). Regression lock for the
+// interpreter bind_frame f32 rounding. exit 71 = the interpreter carried f64
+// through the params and over-accumulated to 16777218.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: f32; }
+machine Main::main(&mut self) {
+    self.a = 16777216.0;
+    transition { _ -> step(self.a + 1.0) }   // inline arg (f64) -> f32 param rounds
+    state step(&mut self, x: f32) {
+        transition { _ -> step2(x + 1.0) }
+    }
+    state step2(&mut self, y: f32) {
+        transition y == 16777216.0 {
+            true  -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

@@ -1,0 +1,11 @@
+// `1 << 100` (a shift amount >= the type width) used to PANIC the compiler while
+// const-folding ("attempt to shift left with overflow", omega-state-values). The
+// folder now leaves an out-of-range shift unfolded (its runtime semantics are a
+// separate target-defined question) instead of crashing. This exercises the folding
+// path but exits a FIXED 0 so it is robust regardless of the shift's runtime value.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; n: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.n = 1 << 100; // must not crash the compiler
+    self.console.exit_process(0);
+}

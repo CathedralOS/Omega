@@ -1,0 +1,5 @@
+boundary trait Console {
+    machine exit_process(code: i32)
+    effects
+        process_exit;
+}

@@ -1,0 +1,24 @@
+// The CO-LOCATED guard face of the keystone: an arm's guard and its arguments
+// evaluate at the same dispatch, so `count < 100` narrows the `count + 1`
+// argument into the [0..=100] parameter -- Exact, no domain. (Collection
+// downgrades the guard when a SIBLING argument contains a call, which could
+// mutate the guarded place between guard and argument evaluation.)
+// count starts 0, bumps to 1 through the param. Exit 70. Differential.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; count: i32 [0..=100]; }
+machine Main::main(&mut self) {
+    transition self.count < 100 {
+        true -> bump(self.count + 1)
+        _ -> sat()
+    }
+    state bump(&mut self, next: i32 [0..=100]) {
+        self.count = next;
+        transition { _ -> check() }
+    }
+    state check(&mut self) {
+        transition self.count == 1 { true -> ok() _ -> bad() }
+    }
+    state sat(&mut self) { self.console.exit_process(71); }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

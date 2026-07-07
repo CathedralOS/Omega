@@ -22,7 +22,25 @@ use omega_core::diagnostics::Diagnostic;
 use omega_core::parallel::WorkerPool;
 
 pub fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
-    Compiler::new(options).compile()
+    // Run the whole pipeline on a thread with a large explicit stack. The
+    // recursive-descent parser and the recursive tree/layout walks descend once
+    // per nesting level with heavy per-level frames (a full operator-precedence
+    // chain), so on the host's default stack -- as small as ~1 MiB on Windows --
+    // even modestly nested input overflows the stack before the parser's depth
+    // guard (`MAX_NESTING_DEPTH`) can reject it. A large stack guarantees the
+    // guard is what fires, turning pathological nesting into a clean diagnostic
+    // instead of a crash. The size is only reserved address space; pages commit
+    // lazily, so ordinary inputs pay nothing. A genuine panic (a compiler bug)
+    // is re-raised on the calling thread, preserving today's crash-on-bug
+    // behavior.
+    const COMPILE_STACK_SIZE: usize = 256 * 1024 * 1024;
+    std::thread::Builder::new()
+        .name("omega-compile".to_owned())
+        .stack_size(COMPILE_STACK_SIZE)
+        .spawn(move || Compiler::new(options).compile())
+        .expect("failed to spawn compiler thread")
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
 }
 
 /// Builds the boundary provider registry from `provider` declarations, enforces
@@ -42,6 +60,51 @@ fn validate_boundary_providers(
     }
 }
 
+/// Parsed `provides` arms -> the calling-convention rows the freestanding ABI
+/// builder consumes (`<target> provides <Trait> { method -> VtableSlot(1) }`).
+fn extract_provides_rows(
+    syntax_trees: &omega_syntax_trees::SyntaxTrees,
+) -> Vec<omega_calling_conventions::ProvidesRow> {
+    use omega_calling_conventions::{ProvidesBindingKind, ProvidesRow};
+    use omega_syntax_trees::item::HostProviderMappingKind;
+
+    let mut rows = Vec::new();
+    for item in syntax_trees.root_items() {
+        let omega_syntax_trees::item::Item::HostProvider(provider) = item else {
+            continue;
+        };
+        let trait_name = syntax_trees
+            .items
+            .identifier_path_members(provider.boundary_trait)
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>()
+            .join("::");
+        for mapping in syntax_trees.items.host_provider_mappings(provider.mappings) {
+            let binding = match &mapping.binding {
+                HostProviderMappingKind::Syscall { number } => {
+                    ProvidesBindingKind::Syscall { number: *number }
+                }
+                HostProviderMappingKind::DllImport { module, symbol } => {
+                    ProvidesBindingKind::DllImport {
+                        module: module.clone(),
+                        symbol: symbol.clone(),
+                    }
+                }
+                HostProviderMappingKind::VtableSlot { index } => {
+                    ProvidesBindingKind::VtableSlot { index: *index }
+                }
+            };
+            rows.push(ProvidesRow {
+                trait_name: trait_name.clone(),
+                method: mapping.machine.as_str().to_owned(),
+                binding,
+            });
+        }
+    }
+    rows
+}
+
 pub struct Compiler {
     options: CompileOptions,
 }
@@ -55,11 +118,19 @@ impl Compiler {
         let workers = WorkerPool::with_available_parallelism();
         let mut timings = CompileTimings::default();
 
-        let (source_file_count, syntax) = source_files_to_syntax_trees(
+        let (source_file_count, mut syntax) = source_files_to_syntax_trees(
             &self.options.root_path,
             self.options.target_name.as_deref(),
             &mut timings,
         )?;
+        // PLAN-LAID VALUE TYPES (layouts L4), desugar half: synthesize the
+        // `Policy<Schema>` instance definitions before resolution so every
+        // later stage sees ordinary records.
+        crate::pipeline::generic_instances::desugar_generic_data_instances(
+            &mut syntax.syntax_trees,
+        )?;
+        let plan_laid_records =
+            crate::pipeline::plan_laid::desugar_plan_laid_value_types(&mut syntax.syntax_trees)?;
         remove_stale_phase_diagrams(&self.options)?;
         write_pipeline_index(&self.options)?;
         write_syntax_snapshot(&self.options, &syntax)?;
@@ -75,6 +146,22 @@ impl Compiler {
         // length position and substitute concrete literals BEFORE checking,
         // proof facts, and layout consume the lengths.
         crate::pipeline::const_lengths::evaluate_const_array_lengths(&mut typed)?;
+        // PLAN-LAID VALUE TYPES, plan half: evaluate + validate each policy
+        // application and record the placements for the layout builder.
+        crate::pipeline::plan_laid::compute_plan_laid_layouts(&mut typed, &plan_laid_records)?;
+        // WIRE PLANS (mint arc rung 2a): derive each numbered schema's
+        // placement plan; the wire codec selection consumes it (tag + framing
+        // from the plan, asserted against its own walk).
+        crate::pipeline::wire_plans::compute_wire_plans(&mut typed)?;
+        // BUILD CONFIG (build_and_package_model.md): image facts from
+        // build.omg's augmenting `build(b: &mut Build)` machine, evaluated at
+        // build time. When present it is AUTHORITATIVE; the legacy in-source
+        // `target { subsystem }` word is the fallback until its removal.
+        let build_config = crate::pipeline::build_config::compute_build_config(&typed)?;
+        let build_machine_present = typed
+            .machines()
+            .iter()
+            .any(|machine| machine.name.as_str() == "build");
         write_typed_snapshot(&self.options, &typed)?;
         crate::pipeline::wire_report::write_wire_protocol_report(&self.options, &typed)?;
 
@@ -88,9 +175,26 @@ impl Compiler {
         let control_flow = state_graph_to_control_flow(state_graph, &mut timings)?;
         write_control_flow_snapshot(&self.options, &control_flow)?;
 
+        // The selected target's declared image subsystem (`subsystem
+        // console|gui|efi_application`, ch: target blocks); console when the
+        // target declares none. PE consumes it; other formats ignore it.
+        // Resolved BEFORE the backend build because `efi_application` also
+        // means FREESTANDING: the target trusts no host boundary packages, so
+        // the backend builds against an empty host ABI plan (no bindings, no
+        // import thunks -- services arrive via the entry's parameters).
+        // Image facts come from build.omg (build_and_package_model.md); the
+        // in-source `target { subsystem }` word is retired.
+        let _ = build_machine_present;
+        let (subsystem, freestanding) = (build_config.subsystem, build_config.freestanding);
+        // provides-sourced bindings (extern brief §12): parsed rows become
+        // the freestanding target's authored platform surface.
+        let provides_rows = extract_provides_rows(&syntax_trees);
+
         let backend = control_flow_to_backend_plan(
             checked,
             self.options.target_name.as_deref(),
+            freestanding,
+            &provides_rows,
             control_flow,
             workers.handle(),
             &mut timings,
@@ -100,7 +204,7 @@ impl Compiler {
         }
 
         let (emission_plan, emitted) =
-            backend_plan_to_native_image_payload(&backend, &mut timings)?;
+            backend_plan_to_native_image_payload(&backend, subsystem, &mut timings)?;
 
         if self.options.write_output {
             let output_path = write_output(&self.options, emitted)?;

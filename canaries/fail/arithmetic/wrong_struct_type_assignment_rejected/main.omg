@@ -1,0 +1,21 @@
+// FAIL canary: NOMINAL type confusion at an ASSIGNMENT -- `self.foo = self.bar`
+// stores a `Bar` value into a `Foo` place -- is rejected at type-check. Like the
+// call-argument case (wrong_struct_type_argument_rejected) this was a SILENT
+// MISCOMPILE: the assignment path checked scalar class + narrowing but never
+// compared user data-type names, so a whole-struct copy of the wrong type read the
+// wrong storage. The shared report_data_type_conflict now guards the assignment,
+// let-init, struct-field, return, and call-argument positions; it fires only when
+// both sides resolve to concrete data types that differ (traits / generics /
+// primitives / computed values are skipped).
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Foo { a: i32 in Wrapping; }
+data Bar { b: i32 in Wrapping; }
+
+data Main { console: Console; foo: Foo; bar: Bar; }
+
+machine Main::main(&mut self) {
+    self.foo = self.bar; // Bar value into a Foo place -- incompatible data types
+    self.console.exit_process(self.foo.a);
+}

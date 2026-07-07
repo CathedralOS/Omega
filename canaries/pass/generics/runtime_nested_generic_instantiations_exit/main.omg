@@ -1,0 +1,25 @@
+// GENERICS PHASE 3: NESTED generic data. `Pair<T>` contains a `Box<T>` field, so
+// `Pair<i32>` needs `Box<i32>` synthesized too, and `Pair<bool>` needs
+// `Box<bool>`. The monomorphization desugar now runs to a FIXPOINT: it synthesizes
+// `Pair<i32>` whose `a` field is a fresh `Box<i32>` spelling, which the next round
+// picks up and monomorphizes (and generic TEMPLATE bodies are skipped so the
+// param-arg `Box<T>` inside `Pair<T>` is never mistaken for a concrete instance).
+// Before this, a nested generic errored outright ("references unknown data type
+// T"). Reads 30 from the i32 pair's box, true from the bool pair's box; exits 30.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Box<T> { value: T; }
+data Pair<T> { a: Box<T>; b: T; }
+data Main { console: Console; pi: Pair<i32>; pb: Pair<bool>; r: i32; }
+machine Main::main(&mut self) {
+    self.pi.a.value = 30;
+    self.pi.b = 7;
+    self.pb.a.value = true;
+    self.r = self.pi.a.value;
+    transition self.pb.a.value == true {
+        true -> ok()
+        false -> bad()
+    }
+    state ok(&mut self) { self.console.exit_process(self.r); }
+    state bad(&mut self) { self.console.exit_process(99); }
+}
+// Expected exit: 30

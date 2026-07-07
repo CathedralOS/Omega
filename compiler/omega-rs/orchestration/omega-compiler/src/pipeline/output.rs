@@ -21,6 +21,7 @@ pub(super) fn write_output(
                 relocations: &emitted.relocations,
                 text_bytes: &emitted.text_bytes,
                 data_bytes: &emitted.data_bytes,
+                subsystem: emitted.subsystem,
             },
             emitted.planned_text_bytes,
         )

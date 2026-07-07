@@ -1,0 +1,27 @@
+// FAIL canary: a cross-CLASS assignment through a PLACE (not a literal) --
+// storing a `bool` field into a numeric (`i32`) field -- is rejected at
+// type-check. Like the literal case (literal_class_mismatch_rejected) this was
+// a SILENT MISCOMPILE: `self.n = self.b` passed both `--check` and `--build-dir`
+// with NO error, and the backend stored the bool (`true`) as `1`. The gate
+// resolves the RHS place's declared primitive and rejects a cross-class store;
+// same-class numeric copies (`i32 = self.i8_field`) are left to the narrowing /
+// mutation-lowering checks, so this fires ONLY on genuine class conflicts.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    n: i32 in Wrapping;
+    b: bool;
+}
+
+machine Main::main(&mut self) {
+    self.b = true;
+    self.n = self.b; // bool place into a numeric place -- would silently store 1
+    transition { _ -> done() }
+    state done(&mut self) {
+        self.console.exit_process(self.n);
+    }
+}

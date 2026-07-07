@@ -1,0 +1,14 @@
+// Comparing two integer places of DIFFERENT widths silently truncated the wider
+// operand: `self.small == self.big` (i8 vs i32) compiled to compare at i8 width,
+// so i32 300 became (300 & 0xFF) == 44 and matched i8 44 -- TRUE arm, a confirmed
+// miscompile (44 != 300). Rejected at check now (decision-17 explicit-width
+// sibling of the out-of-range comparison literal). Convert one operand with `as`.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; small: i8; big: i32; }
+machine Main::main(&mut self) {
+    self.small = 44;
+    self.big = 300;
+    transition self.small == self.big { true -> hit() _ -> miss() }
+    state hit(&mut self) { self.console.exit_process(1); }
+    state miss(&mut self) { self.console.exit_process(2); }
+}

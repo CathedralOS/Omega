@@ -1,4 +1,4 @@
-use crate::packing::{PlannedField, pack_fields, pack_fields_at};
+use crate::packing::{PlannedField, pack_fields, pack_fields_at, place_fields_by_plan};
 use crate::sizing::{fat_descriptor_layout, primitive_type_layout};
 use crate::{
     DataLayout, DataShape, FieldLayout, LayoutPlan, MachineLayout, TypeLayout,
@@ -42,6 +42,14 @@ struct LayoutBuilder<'program> {
     data_layouts: Arena<DataLayout>,
     data_visiting: LayoutVisitStack,
     fields: Arena<FieldLayout>,
+    /// One recorded MONOMORPHIZED instance per generic data definition: the
+    /// definition symbol paired with the canonical display of its type
+    /// arguments. The instance's `DataLayout` is keyed by the DEFINITION symbol
+    /// (that is what downstream field-offset resolution looks up through the
+    /// type descriptor), so a program may instantiate each generic data with
+    /// ONE argument list; a second, DIFFERENT instantiation is a clean error
+    /// until per-instance identity is threaded through descriptors.
+    generic_instance_signatures: Vec<(SymbolHandle, String)>,
     machine_definitions: &'program [Machine],
     machine_layouts: Arena<MachineLayout>,
     machine_visiting: LayoutVisitStack,
@@ -149,6 +157,7 @@ impl<'program> LayoutBuilder<'program> {
             data_layouts: Arena::with_capacity(data_definitions.len()),
             data_visiting: LayoutVisitStack::with_capacity(data_definitions.len()),
             fields: Arena::with_capacity(field_capacity),
+            generic_instance_signatures: Vec::new(),
             machine_definitions,
             machine_layouts: Arena::with_capacity(machine_definitions.len()),
             machine_visiting: LayoutVisitStack::with_capacity(machine_definitions.len()),
@@ -180,16 +189,31 @@ impl<'program> LayoutBuilder<'program> {
         }
 
         if self.data_visiting.contains(symbol) {
+            // A data type reached while it is still being laid out contains itself as an
+            // INLINE value (directly, or through a cycle of inline fields), so it has no
+            // finite size -- a `Node { next: Node }` value would nest endlessly. This is
+            // inherently impossible, not a missing feature; name the type and point at the
+            // fix (indirection) rather than exposing the internal symbol index.
+            let name = self
+                .data_definition_by_symbol(symbol)
+                .ok()
+                .map(|definition| definition.name.as_str().to_owned());
+            let target = name
+                .as_deref()
+                .map(|name| format!("`{name}`"))
+                .unwrap_or_else(|| format!("data symbol {}", symbol.arena_index()));
             return Err(Diagnostic::error(format!(
-                "recursive data layout is not supported yet for symbol {}",
-                symbol.arena_index()
+                "recursive data type {target} has no finite size: it contains itself \
+                 (directly or through a cycle) as an inline field, which would nest \
+                 endlessly. Break the cycle by making the recursive field an indirection \
+                 (a reference) instead of an inline value."
             )));
         }
 
         self.data_visiting.push(symbol);
 
         let definition = self.data_definition_by_symbol(symbol)?;
-        let data_layout = self.compute_data_layout(definition)?;
+        let data_layout = self.compute_data_layout(definition, &[])?;
         let layout = data_layout.layout;
 
         self.data_layouts.insert(data_layout);
@@ -230,13 +254,14 @@ impl<'program> LayoutBuilder<'program> {
     fn compute_data_layout(
         &mut self,
         definition: &DataDefinition,
+        bindings: &[GenericLayoutBinding<'program>],
     ) -> Result<DataLayout, Diagnostic> {
         let members = self.program.data_members(definition);
         if matches!(
             DataDefinition::shape_kind_from_members(members),
             DataShapeKind::Enum | DataShapeKind::Mixed
         ) {
-            return self.compute_case_bearing_layout(definition, members);
+            return self.compute_case_bearing_layout(definition, members, bindings);
         }
 
         let fields = members
@@ -246,7 +271,8 @@ impl<'program> LayoutBuilder<'program> {
                 DataMember::Variant(_) => None,
             })
             .map(|field| {
-                let layout = self.layout_type_reference_handle(field.type_reference)?;
+                let layout = self
+                    .layout_type_reference_handle_with_bindings(field.type_reference, bindings)?;
                 Ok(PlannedField {
                     symbol: field.symbol,
                     name: field.name.clone(),
@@ -255,11 +281,49 @@ impl<'program> LayoutBuilder<'program> {
                         .program
                         .display_type_reference_with_constraints(field.type_reference)
                         .into(),
-                    type_descriptor: self.type_descriptor(field.type_reference),
+                    type_descriptor: self
+                        .type_descriptor_with_bindings(field.type_reference, bindings),
                     layout,
                 })
             })
             .collect::<Result<Vec<_>, Diagnostic>>()?;
+
+        // PLAN-LAID VALUE TYPES (layouts L4): a synthesized `Policy<Schema>`
+        // instance is placed at its validated plan's offsets instead of the
+        // native packing; downstream field-offset resolution reads the baked
+        // `FieldLayout.offset` exactly as for packed records.
+        if let Some(plan) = self
+            .program
+            .plan_laid_layouts
+            .iter()
+            .find(|plan| definition.name.as_str() == plan.data_name)
+        {
+            if plan.offsets.len() != fields.len() {
+                return Err(Diagnostic::error(format!(
+                    "plan-laid data `{}` has {} fields but its plan places {}",
+                    definition.name,
+                    fields.len(),
+                    plan.offsets.len()
+                )));
+            }
+            let (fields, layout) = place_fields_by_plan(
+                &mut self.fields,
+                fields,
+                &plan.offsets,
+                TypeLayout {
+                    size: plan.size,
+                    alignment: plan.align,
+                },
+            );
+
+            return Ok(DataLayout {
+                symbol: definition.symbol,
+                name: definition.name.clone(),
+                shape: DataShape::Record { fields },
+                layout,
+            });
+        }
+
         let (fields, layout) = pack_fields(&mut self.fields, fields);
 
         Ok(DataLayout {
@@ -286,6 +350,7 @@ impl<'program> LayoutBuilder<'program> {
         &mut self,
         definition: &DataDefinition,
         members: &[DataMember],
+        bindings: &[GenericLayoutBinding<'program>],
     ) -> Result<DataLayout, Diagnostic> {
         const TAG_LAYOUT: TypeLayout = TypeLayout {
             size: crate::ENUM_TAG_BYTES,
@@ -301,7 +366,8 @@ impl<'program> LayoutBuilder<'program> {
                 DataMember::Variant(_) => None,
             })
             .map(|field| {
-                let layout = self.layout_type_reference_handle(field.type_reference)?;
+                let layout = self
+                    .layout_type_reference_handle_with_bindings(field.type_reference, bindings)?;
                 Ok(PlannedField {
                     symbol: field.symbol,
                     name: field.name.clone(),
@@ -310,7 +376,8 @@ impl<'program> LayoutBuilder<'program> {
                         .program
                         .display_type_reference_with_constraints(field.type_reference)
                         .into(),
-                    type_descriptor: self.type_descriptor(field.type_reference),
+                    type_descriptor: self
+                        .type_descriptor_with_bindings(field.type_reference, bindings),
                     layout,
                 })
             })
@@ -332,7 +399,8 @@ impl<'program> LayoutBuilder<'program> {
                 .data_payload_fields(variant)
                 .iter()
                 .map(|field| {
-                    let layout = self.layout_type_reference_handle(field.type_reference)?;
+                    let layout = self
+                        .layout_type_reference_handle_with_bindings(field.type_reference, bindings)?;
                     Ok(PlannedField {
                         symbol: field.symbol,
                         name: field.name.clone(),
@@ -341,7 +409,8 @@ impl<'program> LayoutBuilder<'program> {
                             .program
                             .display_type_reference_with_constraints(field.type_reference)
                             .into(),
-                        type_descriptor: self.type_descriptor(field.type_reference),
+                        type_descriptor: self
+                            .type_descriptor_with_bindings(field.type_reference, bindings),
                         layout,
                     })
                 })
@@ -543,13 +612,21 @@ impl<'program> LayoutBuilder<'program> {
                 // The owned bounded byte carrier `[u8; N] in <named-domain>` lays
                 // out as `{ len, bytes }`: a pointer-sized length word followed by
                 // the N inline bytes. Must agree with the BoundedByteBuffer arm of
-                // instruction-selection's `descriptor_layout`.
+                // instruction-selection's `descriptor_layout`. The OmegaLayout
+                // FAMILY is excluded: `[u8; N] in OmegaLayout<Save>` records what
+                // the bytes hold, never changes what they are -- the wire codec
+                // addresses the plain array directly.
                 let has_named_domain = self
                     .program
                     .type_reference_table
                     .constraints(*constraints)
                     .iter()
-                    .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)));
+                    .any(|constraint| match constraint {
+                        TypeConstraintNode::Domain(name) => {
+                            !omega_checked_trees::wire::is_layout_domain_name(name.as_str())
+                        }
+                        _ => false,
+                    });
                 if has_named_domain
                     && matches!(
                         self.program.type_reference_table.type_reference(*base_type),
@@ -573,8 +650,20 @@ impl<'program> LayoutBuilder<'program> {
                     return Ok(TypeLayout::default());
                 };
 
+                // `count * element_size` can exceed the addressable size for an absurd
+                // length (`[i32; 5e18]`); use checked arithmetic so a too-large array is a
+                // clean diagnostic, never a compiler panic on `attempt to multiply with
+                // overflow`.
+                let Some(size) = element_layout.size.checked_mul(*length) else {
+                    return Err(Diagnostic::error(format!(
+                        "fixed array `[_; {length}]` is too large: {length} elements of {} \
+                         byte(s) each overflow the addressable size",
+                        element_layout.size,
+                    )));
+                };
+
                 Ok(TypeLayout {
-                    size: element_layout.size * length,
+                    size,
                     alignment: element_layout.alignment,
                 })
             }
@@ -597,14 +686,10 @@ impl<'program> LayoutBuilder<'program> {
                 if base_symbol.is_valid()
                     && let Ok(definition) = self.data_definition_by_symbol(*base_symbol)
                 {
-                    let members = self.program.data_members(definition);
-                    if matches!(
-                        DataDefinition::shape_kind_from_members(members),
-                        DataShapeKind::Enum | DataShapeKind::Mixed
-                    ) {
-                        return self.layout_data_definition(*base_symbol);
-                    }
-
+                    // A GENERIC definition (record OR enum -- `Option<T>` included)
+                    // lays out as a recorded monomorphized instance; the shared
+                    // compute path dispatches on the shape internally. Only a
+                    // non-generic definition goes through the plain symbol route.
                     if !definition.type_parameters.is_empty() {
                         return self
                             .layout_generic_data_definition(definition, *arguments, bindings);
@@ -632,6 +717,18 @@ impl<'program> LayoutBuilder<'program> {
         }
     }
 
+    /// Lays out a MONOMORPHIZED instance of a generic data definition and RECORDS
+    /// it in the plan, so downstream field-offset resolution (which looks up
+    /// `data_layouts` by the definition symbol through the type descriptor) works
+    /// on generic instances exactly as on concrete data. Delegates the actual
+    /// field/variant packing to the shared `compute_data_layout` with the
+    /// parameter->argument bindings, so records AND case-bearing shapes
+    /// (`Option<T>`-style enums) are covered by one computation.
+    ///
+    /// STAGE-1 BOUNDARY: the instance is keyed by the DEFINITION symbol, so each
+    /// generic data may be instantiated with ONE argument list per program. A
+    /// second, different instantiation is a clean error (per-instance identity
+    /// through descriptors is the later stage).
     fn layout_generic_data_definition(
         &mut self,
         definition: &'program DataDefinition,
@@ -652,6 +749,26 @@ impl<'program> LayoutBuilder<'program> {
             )));
         }
 
+        // Canonical signature of this instantiation (argument display list).
+        let signature = arguments
+            .iter()
+            .map(|argument| {
+                self.program
+                    .display_type_reference_with_constraints(*argument)
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+
+        if self.data_visiting.contains(definition.symbol) {
+            return Err(Diagnostic::error(format!(
+                "recursive generic data type `{}` has no finite size: it contains itself \
+                 (directly or through a cycle) as an inline field, which would nest \
+                 endlessly. Break the cycle with an indirection (a reference) instead of \
+                 an inline value.",
+                definition.name
+            )));
+        }
+
         let mut bindings = Vec::with_capacity(parent_bindings.len() + parameters.len());
         bindings.extend_from_slice(parent_bindings);
         bindings.extend(
@@ -665,34 +782,61 @@ impl<'program> LayoutBuilder<'program> {
                 }),
         );
 
-        let fields = self
-            .program
-            .data_members(definition)
+        let existing = self
+            .generic_instance_signatures
             .iter()
-            .filter_map(|member| match member {
-                DataMember::Field(field) => Some(field),
-                DataMember::Variant(_) => None,
-            })
-            .map(|field| {
-                let layout = self
-                    .layout_type_reference_handle_with_bindings(field.type_reference, &bindings)?;
-                Ok(PlannedField {
-                    symbol: field.symbol,
-                    name: field.name.clone(),
-                    type_symbol: self.program.type_reference_symbol(field.type_reference),
-                    type_name: self
-                        .program
-                        .display_type_reference_with_constraints(field.type_reference)
-                        .into(),
-                    type_descriptor: self.type_descriptor(field.type_reference),
-                    layout,
-                })
-            })
-            .collect::<Result<Vec<_>, Diagnostic>>()?;
-        let mut scratch_fields = Arena::with_capacity(fields.len());
-        let (_, layout) = pack_fields(&mut scratch_fields, fields);
+            .position(|(symbol, _)| *symbol == definition.symbol);
+        match existing {
+            Some(index) if self.generic_instance_signatures[index].1 == signature => {
+                // Memo hit: the recorded instance is this one.
+                if let Some(data_layout) = self
+                    .data_layouts
+                    .iter()
+                    .find(|(_, data_layout)| data_layout.symbol == definition.symbol)
+                    .map(|(_, data_layout)| data_layout)
+                {
+                    return Ok(data_layout.layout);
+                }
+                // Same signature but nothing recorded: the entry was POISONED by
+                // an earlier collision. Compute sizes fresh; record nothing.
+            }
+            Some(index) => {
+                // COLLISION: a second, different instantiation. Field offsets
+                // recorded under the definition symbol are now ambiguous, so
+                // UN-RECORD the first instance (downstream field access then
+                // falls back to the pre-existing clean "needs runtime storage
+                // lowering" rejection instead of silently using the wrong
+                // instance's offsets). Sizes stay correct for BOTH: each use
+                // computes its own layout with its own bindings below.
+                if let Some(handle) = self
+                    .data_layouts
+                    .iter()
+                    .find(|(_, data_layout)| data_layout.symbol == definition.symbol)
+                    .map(|(handle, _)| handle)
+                {
+                    self.data_layouts.get_mut(handle).symbol = SymbolHandle::invalid();
+                }
+                self.generic_instance_signatures[index].1 = String::new(); // poisoned
+            }
+            None => {
+                // First instantiation: compute AND record it, keyed by the
+                // definition symbol, so field-offset resolution works natively.
+                self.generic_instance_signatures
+                    .push((definition.symbol, signature));
+                self.data_visiting.push(definition.symbol);
+                let data_layout = self.compute_data_layout(definition, &bindings)?;
+                let layout = data_layout.layout;
+                self.data_layouts.insert(data_layout);
+                self.data_visiting.pop();
+                return Ok(layout);
+            }
+        }
 
-        Ok(layout)
+        // Poisoned (or collision just detected): size this use privately.
+        self.data_visiting.push(definition.symbol);
+        let data_layout = self.compute_data_layout(definition, &bindings)?;
+        self.data_visiting.pop();
+        Ok(data_layout.layout)
     }
 
     fn layout_named_type(
@@ -806,6 +950,18 @@ impl<'program> LayoutBuilder<'program> {
     }
 
     fn type_descriptor(&self, type_reference: TypeReferenceHandle) -> TypeLayoutDescriptor {
+        self.type_descriptor_with_bindings(type_reference, &[])
+    }
+
+    /// Like `type_descriptor`, but a reference to a bound GENERIC TYPE PARAMETER
+    /// resolves to the descriptor of its ARGUMENT, so a monomorphized instance's
+    /// `val: T` field carries the substituted descriptor (arithmetic domain,
+    /// storage symbol) instead of an opaque parameter symbol.
+    fn type_descriptor_with_bindings(
+        &self,
+        type_reference: TypeReferenceHandle,
+        bindings: &[GenericLayoutBinding<'program>],
+    ) -> TypeLayoutDescriptor {
         match self
             .program
             .type_reference_table
@@ -816,14 +972,14 @@ impl<'program> LayoutBuilder<'program> {
                 is_mutable,
                 ..
             } => TypeLayoutDescriptor::Reference {
-                referee: Box::new(self.type_descriptor(*referee)),
+                referee: Box::new(self.type_descriptor_with_bindings(*referee, bindings)),
                 is_mutable: *is_mutable,
             },
             TypeReferenceNode::Constrained {
                 base_type,
                 constraints,
             } => {
-                let base = self.type_descriptor(*base_type);
+                let base = self.type_descriptor_with_bindings(*base_type, bindings);
                 let constraint_list =
                     self.program.type_reference_table.constraints(*constraints);
                 // An owned `[u8; N] in <named-domain>` field is the variable-fill
@@ -832,10 +988,14 @@ impl<'program> LayoutBuilder<'program> {
                 // `{len, bytes}` is a distinct layout from the always-full
                 // `FixedArray`, and the named domain does not otherwise survive to
                 // the backend (only arithmetic domains do), so the carrier needs
-                // its own variant to be recognizable downstream.
-                let has_named_domain = constraint_list
-                    .iter()
-                    .any(|constraint| matches!(constraint, TypeConstraintNode::Domain(_)));
+                // its own variant to be recognizable downstream. The OmegaLayout
+                // family stays a PLAIN array (see the TypeLayout arm above).
+                let has_named_domain = constraint_list.iter().any(|constraint| match constraint {
+                    TypeConstraintNode::Domain(name) => {
+                        !omega_checked_trees::wire::is_layout_domain_name(name.as_str())
+                    }
+                    _ => false,
+                });
                 match base {
                     TypeLayoutDescriptor::FixedArray {
                         element_type,
@@ -861,7 +1021,9 @@ impl<'program> LayoutBuilder<'program> {
                 length,
             } => match length {
                 FixedArrayLength::Literal(length) => TypeLayoutDescriptor::FixedArray {
-                    element_type: Box::new(self.type_descriptor(*element_type)),
+                    element_type: Box::new(
+                        self.type_descriptor_with_bindings(*element_type, bindings),
+                    ),
                     length: *length,
                 },
                 // ConstCall lengths are substituted to literals by the
@@ -873,7 +1035,9 @@ impl<'program> LayoutBuilder<'program> {
                 }
             },
             TypeReferenceNode::Slice { element_type } => TypeLayoutDescriptor::Slice {
-                element_type: Box::new(self.type_descriptor(*element_type)),
+                element_type: Box::new(
+                    self.type_descriptor_with_bindings(*element_type, bindings),
+                ),
             },
             TypeReferenceNode::DynamicTrait { symbol, name } => {
                 TypeLayoutDescriptor::DynamicTrait {
@@ -885,14 +1049,24 @@ impl<'program> LayoutBuilder<'program> {
                 base_symbol,
                 base_name,
                 ..
-            } => TypeLayoutDescriptor::Named {
-                symbol: *base_symbol,
-                name: base_name.clone(),
-            },
-            TypeReferenceNode::Named { symbol, name } => TypeLayoutDescriptor::Named {
-                symbol: *symbol,
-                name: name.clone(),
-            },
+            } => {
+                if let Some(binding) = binding_for_type(*base_symbol, base_name, bindings) {
+                    return self.type_descriptor_with_bindings(binding.argument, bindings);
+                }
+                TypeLayoutDescriptor::Named {
+                    symbol: *base_symbol,
+                    name: base_name.clone(),
+                }
+            }
+            TypeReferenceNode::Named { symbol, name } => {
+                if let Some(binding) = binding_for_type(*symbol, name, bindings) {
+                    return self.type_descriptor_with_bindings(binding.argument, bindings);
+                }
+                TypeLayoutDescriptor::Named {
+                    symbol: *symbol,
+                    name: name.clone(),
+                }
+            }
             TypeReferenceNode::Unit => TypeLayoutDescriptor::Unit,
         }
     }

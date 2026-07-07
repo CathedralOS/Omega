@@ -1,4 +1,5 @@
 use crate::EmissionPlanningInput;
+use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, ExpressionTable};
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_storage::RuntimeStorageWrite;
@@ -51,6 +52,32 @@ pub(super) fn collect_state_storage_blockers(
 
     for (_, mutation) in input.state_storage.mutations.iter() {
         if !mutation.required {
+            continue;
+        }
+
+        // #40 stopgap: refuse `arr[i] = arr[j]` (both runtime-indexed) BEFORE the
+        // already-lowered skip, since a wrong-but-present write may have marked it
+        // lowered. Never silently copy the array base.
+        if mutation_is_dual_runtime_indexed(
+            &input.state_storage.expressions,
+            mutation.target,
+            mutation.value,
+        ) && !dual_indexed_copy_is_planned(input, mutation.source_key, mutation.statement_index)
+        {
+            let source_name = state_name(input, mutation.source_key);
+            blockers.insert(blocker(
+                "state mutation",
+                &format!(
+                    "{} statement {} `{}` = `{}`{} writes a runtime-indexed element from a \
+                     runtime-indexed read, which is not yet supported (it would silently \
+                     copy the array base); bind the source to a field temp first",
+                    source_name,
+                    mutation.statement_index,
+                    input.state_storage.expressions.display_name(mutation.target),
+                    input.state_storage.expressions.display_name(mutation.value),
+                    proof_scope_suffix(input, mutation.source_key)
+                ),
+            ));
             continue;
         }
 
@@ -219,6 +246,7 @@ fn state_mutation_is_planned(
             matches!(
                 instruction.kind,
                 SelectedInstructionKind::AtomicFetchAdd { .. }
+                    | SelectedInstructionKind::HostOperation { .. }
                     | SelectedInstructionKind::AtomicCompareExchange { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineInteger { .. }
                     | SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
@@ -231,6 +259,7 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::WriteRuntimeMachineIndexedInteger { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { .. }
+                    | SelectedInstructionKind::WriteRuntimeMachineIndexedBinary { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineString { .. }
                     | SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. }
                     | SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource { .. }
@@ -264,9 +293,63 @@ fn state_mutation_is_planned(
                     | SelectedInstructionKind::CopyRuntimeFrameFixedIndexedToRuntimePointee { .. }
                     | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimePointee { .. }
                     | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
+                    | SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed { .. }
+                    | SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. }
                     | SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { .. }
             )
         })
+}
+
+/// True if `handle` is a RUNTIME-indexed access `arr[i]` whose index is NOT a compile-
+/// time integer literal. A fixed index (`arr[5]`) lowers correctly, so it returns false.
+fn expression_is_runtime_indexed(expressions: &ExpressionTable, handle: ExpressionHandle) -> bool {
+    let ExpressionNode::Indexed(indexed) = expressions.expression(handle) else {
+        return false;
+    };
+    let mut index = indexed.index;
+    while let ExpressionNode::Mutable(inner) = expressions.expression(index) {
+        index = *inner;
+    }
+    !matches!(expressions.expression(index), ExpressionNode::Integer(_))
+}
+
+/// True when selection planned the REAL dual-indexed copy instruction for this
+/// statement (task #38). Only then may the #40 stopgap below stand down: any
+/// dual shape the dual-copy arm does NOT catch would fall to the legacy path
+/// that silently copies the array base, so the fence must stay for those.
+fn dual_indexed_copy_is_planned(
+    input: &EmissionPlanningInput<'_>,
+    source_key: StateKey,
+    statement_index: usize,
+) -> bool {
+    input
+        .instructions
+        .code
+        .instructions
+        .iter()
+        .any(|(_, instruction)| {
+            state_key_matches_statement_source(instruction.source_key, source_key)
+                && instruction.source_statement == statement_index
+                && matches!(
+                    instruction.kind,
+                    SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. }
+                )
+        })
+}
+
+/// SOUNDNESS STOPGAP (#40): `arr[i] = arr[j]` with BOTH the target AND the value
+/// runtime-indexed is not yet correctly lowerable -- the value resolves to the array
+/// BASE, so it silently copies `arr[0]` (or no-ops) with no error. A wrong-but-present
+/// write instruction is selected, so the planned-check passes and the miscompile ships.
+/// Detect the pattern from the expressions and refuse it here so it errors cleanly; the
+/// sound workaround is a field temp (`self.t = arr[j]; arr[i] = self.t`).
+fn mutation_is_dual_runtime_indexed(
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    value: ExpressionHandle,
+) -> bool {
+    expression_is_runtime_indexed(expressions, target)
+        && expression_is_runtime_indexed(expressions, value)
 }
 
 fn state_key_matches_statement_source(actual: StateKey, expected: StateKey) -> bool {

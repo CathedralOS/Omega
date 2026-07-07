@@ -1,0 +1,39 @@
+// NATIVE fs set_permissions (Rust fs::set_permissions) via _chmod. Creates a
+// file, chmods it to read-only (0o444 = 292), then a write-open fails and errno
+// reports EACCES (13). Proves chmod takes effect on real macOS syscalls and the
+// kernel enforces the mode. Prints PASS iff the write-open fails with EACCES.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    readonly: u32;
+    wronly: i32;
+    fd: i32;
+    probe: i32;
+    code: i32;
+    n: i64;
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.readonly = 292;   // 0o444
+    self.wronly = 1;       // O_WRONLY
+    self.fd = self.fs.create("/tmp/omega_perms.txt", self.mode);
+    self.n = self.fs.write(self.fd, "x");
+    self.n = self.fs.close(self.fd);
+    self.n = self.fs.set_permissions("/tmp/omega_perms.txt", self.readonly);
+    transition self.n == 0 { true -> trywrite() _ -> fail() }
+    state trywrite(&mut self) {
+        self.probe = self.fs.open("/tmp/omega_perms.txt", self.wronly);
+        transition self.probe < 0 { true -> checkerrno() _ -> fail() }
+    }
+    state checkerrno(&mut self) {
+        self.code = self.fs.errno();
+        self.n = self.fs.remove("/tmp/omega_perms.txt");
+        transition self.code == 13 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: chmod read-only -> write-open EACCES (13)\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: set_permissions\n"); }
+}

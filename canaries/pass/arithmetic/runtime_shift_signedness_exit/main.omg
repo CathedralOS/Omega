@@ -1,0 +1,64 @@
+// Regression guard for SHIFT signedness. A signed right shift must be ARITHMETIC
+// (`sar`, sign-extending) and an unsigned right shift LOGICAL (`shr`, zero-filling);
+// using the wrong one silently corrupts negative or high-bit values. The shift VALUE
+// is built in a loop (base = 320) so the shifts run at runtime (not const-folded),
+// exercising the codegen. The differential oracle also checks native==interpreter.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    base: i32 in Wrapping;
+    i: i32 in Wrapping;
+    neg: i32 in Wrapping;
+    r: i32 in Wrapping;
+    u: u32 in Wrapping;
+    ru: u32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.base = 0;
+    self.i = 0;
+    transition { _ -> build() }
+
+    state build(&mut self) {
+        transition self.i < 5 { true -> step() _ -> pos_shift() }
+    }
+    state step(&mut self) {
+        self.base = self.base + 64;
+        self.i = self.i + 1;
+        transition { _ -> build() }
+    }
+
+    state pos_shift(&mut self) {
+        // base = 320 (runtime). 320 >> 2 = 80.
+        self.r = self.base >> 2;
+        transition self.r == 80 { true -> neg_arith() _ -> bad() }
+    }
+    state neg_arith(&mut self) {
+        // NEGATIVE arithmetic right shift (sar): -320 >> 2 = -80, not a huge logical value.
+        self.neg = 0 - self.base;
+        self.r = self.neg >> 2;
+        transition self.r == -80 { true -> unsigned_logical() _ -> bad() }
+    }
+    state unsigned_logical(&mut self) {
+        // u32 logical right shift (shr) of a value > i32::MAX: 0xFFFFFFFF >> 4 = 0x0FFFFFFF.
+        self.u = 4294967295;
+        self.ru = self.u >> 4;
+        transition self.ru == 268435455 { true -> left_shift() _ -> bad() }
+    }
+    state left_shift(&mut self) {
+        // 320 << 2 = 1280 (runtime).
+        self.r = self.base << 2;
+        transition self.r == 1280 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -1,0 +1,53 @@
+// Right-shift lowering is SIGNEDNESS-SENSITIVE: a signed operand shifts
+// arithmetically (`sar`, sign-replicating), an unsigned operand shifts logically
+// (`shr`, zero-filling). Both operands are held in FIELDS so they are genuine
+// runtime values (a const-folded high-bit value is a separate, documented gap:
+// the type-blind folder loses u32 width -- see TASKS "unsigned const-fold >>").
+//
+//   signed   i32 -8         >> 1 == -4          (arithmetic: sign bit replicated)
+//   unsigned u32 0xFFFFFFFE >> 1 == 0x7FFFFFFF  (logical: zero shifted in)
+//
+// A backend that emitted `sar` for the unsigned case would compute 0xFFFFFFFF
+// (4294967295) and take the `bad` arm. exit 70 = both correct; 71 = a misfire.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    s: i32;
+    u: u32 in Wrapping;
+    ys: i32;
+    yu: u32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.s = 0;
+    self.s = self.s - 8;    // -8 as a runtime value
+    self.ys = self.s >> 1;  // -4 via arithmetic sar
+
+    self.u = 0;
+    self.u = self.u - 2;    // 0xFFFFFFFE as a runtime value
+    self.yu = self.u >> 1;  // 0x7FFFFFFF via logical shr
+
+    transition self.ys == -4 {
+        true -> check_unsigned()
+        false -> bad()
+    }
+
+    state check_unsigned(&mut self) {
+        transition self.yu == 2147483647 {
+            true -> good()
+            false -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

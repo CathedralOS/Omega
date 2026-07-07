@@ -1,0 +1,20 @@
+// THE CANONICAL ENTRY (Zach 2026-07-03): `machine Main::run(&self, args: &[u8])`.
+// Main's members are the program's statics; `args` is the PLATFORM HANDOFF AS
+// RAW BYTES -- the entry prologue spills the four incoming argument registers
+// (MS-x64: RCX, RDX, R8, R9) into a reserved frame region and binds `args` as a
+// {ptr, len 32} view over them. The handoff is foreign bytes: the program
+// casts/mints what it trusts (UEFI: bytes 0..8 = ImageHandle, 8..16 =
+// SystemTable*). BOOT-VERIFIED under QEMU/OVMF: the efi_application twin of
+// this program returns 5 ("Warning Stale Data") -- args.len == 32 held under
+// real firmware. This console twin pins the same machinery on Windows: the
+// stub always binds len 32, so the exit is deterministic.
+data Main { }
+
+machine Main::run(&self, args: &[u8]) -> i32 {
+    transition args.len == 32 {
+        true -> bound()
+        false -> unbound()
+    }
+    state bound(&self) -> i32 { transition { _ -> (5) } }
+    state unbound(&self) -> i32 { transition { _ -> (4) } }
+}

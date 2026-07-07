@@ -1,0 +1,21 @@
+// The pre-rename codec spellings are retired (2026-07-02): the synthesized
+// entries are `Schema::encode` / `Schema::decode`.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Msg {
+    0: v: u32;
+}
+data Val {
+    v: u32;
+}
+data Main {
+    console: Console;
+    buffer: [u8; 32];
+    written: usize;
+}
+machine Main::main(&mut self) {
+    let msg: Val = Val { v: 5 };
+    Msg::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    self.console.exit_process(0);
+}

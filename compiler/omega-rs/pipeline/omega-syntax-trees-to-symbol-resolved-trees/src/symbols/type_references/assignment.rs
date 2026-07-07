@@ -10,6 +10,7 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
 ) {
     let data_type_parameters = &mut program.tables.declarations.data_type_parameters;
     let data_members = &mut program.tables.declarations.data_members;
+    let data_payload_fields = &mut program.tables.declarations.data_payload_fields;
     let child_type_references = &mut program.tables.declarations.child_type_references;
     program
         .roots
@@ -25,13 +26,31 @@ pub(in crate::symbols) fn assign_type_reference_symbols(
                 data_type_parameters.span_mut_or_empty(data_definition.type_parameters),
             );
             for member in data_members.span_mut_or_empty(data_definition.members) {
-                if let omega_symbol_resolved_trees::data::DataMember::Field(field) = member {
-                    assign_type_reference_symbol_with_locals(
-                        symbols,
-                        child_type_references,
-                        &type_parameters,
-                        &mut field.type_reference,
-                    );
+                match member {
+                    omega_symbol_resolved_trees::data::DataMember::Field(field) => {
+                        assign_type_reference_symbol_with_locals(
+                            symbols,
+                            child_type_references,
+                            &type_parameters,
+                            &mut field.type_reference,
+                        );
+                    }
+                    // A payload-bearing variant's fields are stored out of band (the
+                    // `data_payload_fields` arena); their type references need symbols
+                    // too -- a struct-typed payload `case Wrap(p: Point)` otherwise
+                    // fails in the layout builder ("non-primitive type `Point` is
+                    // missing a resolved symbol"). Primitive/array payloads resolved
+                    // anyway (no named symbol needed); only NAMED payload types broke.
+                    omega_symbol_resolved_trees::data::DataMember::Variant(variant) => {
+                        for field in data_payload_fields.span_mut_or_empty(variant.payload) {
+                            assign_type_reference_symbol_with_locals(
+                                symbols,
+                                child_type_references,
+                                &type_parameters,
+                                &mut field.type_reference,
+                            );
+                        }
+                    }
                 }
             }
         });

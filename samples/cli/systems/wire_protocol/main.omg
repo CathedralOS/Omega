@@ -1,0 +1,189 @@
+// Wire protocol sample: encode a sensor packet containing a nested header,
+// a repeated (packed) sample array, and a scalar depth field; then decode
+// it back and verify all fields round-trip correctly. The wire format is
+// AUTHORED by an explicit `CompactBinary::plan` grammar policy (see below).
+//
+// Wire schema:
+//   RoomHeader  { 0: room_id: u32 }
+//   SensorPacket{ 0: header: RoomHeader; 1: samples: [i32; 4]; 2: depth: i32 }
+//
+// Test values:
+//   header.room_id = 300
+//   samples = [150, -2, 0, 0], samples_count = 2
+//   depth = -64
+//
+// Encoded bytes (hand-computed, see runtime_wire_roundtrip_nested_and_repeated_exit):
+//   0x00 0x00 0xAC 0x02 0x01 0x03 0xAC 0x02 0x03 0x02 0x7F  (13 bytes; era 0)
+//   written = 13, read = 13, ok = true
+//
+// Expected exit: 70.
+
+use omega::language::std::console;
+
+data RoomHeader {
+    0: room_id: u32;
+}
+
+data SensorPacket {
+    0: header: RoomHeader;
+    1: samples: [i32; 4];
+    2: depth: i32;
+}
+
+data RoomHeaderValue {
+    room_id: u32;
+}
+
+data SensorPacketValue {
+    header: RoomHeaderValue;
+    samples: [i32; 4];
+    samples_count: usize;
+    depth: i32;
+}
+
+// The decode verdict: a dispatchable enum, not a forgettable flag. Invalid
+// is the ZII zero case, so an untouched verdict reads as failure.
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
+data Main {
+    console: Console;
+    buffer: [u8; 64];
+    written: usize;
+    read: usize;
+    verdict: WireVerdict;
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("wire_protocol: encodes a nested sensor packet to bytes and decodes it back");
+    let msg: SensorPacketValue = SensorPacketValue {
+        header: RoomHeaderValue {
+            room_id: 300
+        },
+        samples: [150, 0 - 2, 0, 0],
+        samples_count: 2,
+        depth: 0 - 64
+    };
+
+    SensorPacket::encode(&msg, &mut self.buffer, &mut self.written);
+
+    let decoded: SensorPacketValue = SensorPacketValue {
+        header: RoomHeaderValue {
+            room_id: 0
+        },
+        samples: [0, 0, 0, 0],
+        samples_count: 0,
+        depth: 0
+    };
+
+    SensorPacket::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
+
+    let ok_and_sizes: bool = self.verdict == WireVerdict::Sound && self.written == 13 && self.read == 13;
+    transition ok_and_sizes {
+        true -> check_fields()
+        false -> bad_sizes()
+    }
+
+    state check_fields(&mut self) {
+        let fields_ok: bool = decoded.header.room_id == 300
+            && decoded.samples_count == 2
+            && decoded.samples[0] == 150
+            && decoded.samples[1] == 0 - 2
+            && decoded.depth == 0 - 64;
+        transition fields_ok {
+            true -> good()
+            false -> bad_fields()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.write_line("PASS: 13 bytes round-tripped with every field intact (exit 70)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
+
+    state bad_sizes(&mut self) {
+        self.console.write_line("FAIL: encode/decode sizes were not both 13 bytes (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
+
+    state bad_fields(&mut self) {
+        self.console.write_line("FAIL: a decoded field did not match the original packet (exit 72)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(72);
+    }
+}
+
+// --- THE GRAMMAR POLICY (mint arc rung 2b/2c) ----------------------------
+// The wire format above is not hand-wired in the compiler -- it is AUTHORED by
+// this `CompactBinary::plan` policy. Because it exists, the compiler evaluates
+// it at build time against each schema's facts (field number + FieldKind) and
+// derives the placement of every field: a scalar varint-encodes (`Varint`),
+// while a text/nested/repeated payload is length-prefixed (`LengthPrefixed`).
+// The policy is AGREEMENT-CHECKED against the codec -- a plan that disagreed
+// would be a compile error -- so this block cannot change the bytes above; it
+// makes the grammar EXPLICIT and programmable (the Grammar law: policies
+// author plan(), everything else is derived). The std layout vocabulary is
+// inlined because temp/sample programs do not resolve `use omega::...` paths.
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
+data FieldPlan {
+    case At(offset: i64);
+    case Bits(container: i64, container_width: i64, lsb: i64, width: i64);
+    case Varint(tag: i64);
+    case LengthPrefixed(tag: i64);
+}
+data Plan { fields: [FieldPlan; 32]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
+
+data CompactBinary {
+    plans: [FieldPlan; 32];
+    index: i64 in Wrapping;
+    tag: i64;
+}
+machine CompactBinary::plan(&mut self, schema: Schema) -> Plan {
+    self.index = 0;
+    transition { _ -> fill(schema) }
+
+    state fill(&mut self, schema: Schema) {
+        transition self.index >= 0 && self.index < 32 && self.index < schema.field_count {
+            true -> classify(schema)
+            _ -> done(schema)
+        }
+    }
+    state classify(&mut self, schema: Schema) {
+        self.tag = schema.fields[self.index].number;
+        transition schema.fields[self.index].kind {
+            FieldKind::Scalar -> put_varint(schema)
+            FieldKind::Text -> put_blob(schema)
+            FieldKind::Nested -> put_blob(schema)
+            FieldKind::Repeated -> put_blob(schema)
+        }
+    }
+    state put_varint(&mut self, schema: Schema) {
+        self.plans[self.index] = FieldPlan::Varint { tag: self.tag };
+        self.index = self.index + 1;
+        transition { _ -> fill(schema) }
+    }
+    state put_blob(&mut self, schema: Schema) {
+        self.plans[self.index] = FieldPlan::LengthPrefixed { tag: self.tag };
+        self.index = self.index + 1;
+        transition { _ -> fill(schema) }
+    }
+    state done(&mut self, schema: Schema) -> Plan {
+        Plan {
+            fields: self.plans,
+            entry_count: schema.field_count as i64,
+            size_fixed: 0,
+            size_is_dynamic: true,
+            align: 1,
+        }
+    }
+}

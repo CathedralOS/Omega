@@ -1,0 +1,56 @@
+// Const-folded integer CASTS are correct across truncation and sign reinterpret,
+// INCLUDING a wrapping-produced high-bit value cast to a signed type. This is the
+// POSITIVE CONTRAST to the const-fold arithmetic miscompile class (memory
+// shift-right-signedness-const-fold / decision-17-const-fold-domain-hole,
+// pending repros const_fold_unsigned_*): a CAST node carries its target type
+// explicitly, so folding it never loses the width/signedness the way bare
+// `Expression::Integer(i64)` arithmetic operands do. It also guards against a
+// future "fix" to the arithmetic folder accidentally breaking cast folding.
+//
+//   300 as u8            = 44    (truncate)
+//   200 as i8            = -56   (reinterpret: 0xC8)
+//   (0u32 - 1) as i8     = -1    (0xFFFFFFFF -> low byte 0xFF -> i8 -1)
+// exit 70 = all three fold correctly; 71 = a fold dropped width/sign.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::main(&mut self) {
+    let a: i32 = 300;
+    let x: u8 = a as u8;             // 44
+
+    let b: i32 = 200;
+    let y: i8 = b as i8;             // -56
+
+    let c: u32 in Wrapping = 0;
+    let d: u32 in Wrapping = c - 1;  // 0xFFFFFFFF (wrapping)
+    let z: i8 = d as i8;             // -1
+
+    transition { _ -> ck(x, y, z) }
+
+    state ck(&mut self, x: u8, y: i8, z: i8) {
+        transition x == 44 {
+            true  -> ck2(y, z)
+            false -> bad()
+        }
+    }
+    state ck2(&mut self, y: i8, z: i8) {
+        transition y == 0 - 56 {
+            true  -> ck3(z)
+            false -> bad()
+        }
+    }
+    state ck3(&mut self, z: i8) {
+        transition z == 0 - 1 {
+            true  -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

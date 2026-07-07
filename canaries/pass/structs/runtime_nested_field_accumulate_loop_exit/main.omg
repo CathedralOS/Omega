@@ -1,0 +1,31 @@
+// Nested struct fields (`self.body.pos.x`, two levels deep) mutated in place across a
+// state-machine loop -- the core physics/entity-update pattern (position += velocity per
+// frame). Two sibling nested fields must track independently: pos.x accumulates 7 x 10 = 70
+// and pos.y accumulates 3 x 10 = 30. Chained guards self-check both, so any cross-talk or
+// stale-read between the nested places takes the false arm. Differential: native == interp.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Vec2 { x: i32 in Wrapping; y: i32 in Wrapping; }
+data Body { pos: Vec2; vel: Vec2; }
+data Main { console: Console; body: Body; i: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.body.pos.x = 0;
+    self.body.pos.y = 0;
+    self.body.vel.x = 7;
+    self.body.vel.y = 3;
+    self.i = 0;
+    transition { _ -> step() }
+    state step(&mut self) {
+        self.body.pos.x = self.body.pos.x + self.body.vel.x;
+        self.body.pos.y = self.body.pos.y + self.body.vel.y;
+        self.i = self.i + 1;
+        transition self.i < 10 { true -> step() _ -> check_x() }
+    }
+    state check_x(&mut self) {
+        transition self.body.pos.x == 70 { true -> check_y() _ -> bad() }
+    }
+    state check_y(&mut self) {
+        transition self.body.pos.y == 30 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

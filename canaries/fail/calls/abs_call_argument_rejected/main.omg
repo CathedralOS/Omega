@@ -1,0 +1,17 @@
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+machine pick(x: i32) -> i32 {
+    transition {
+        x > 0 -> 100
+        _ -> 200
+    }
+}
+data Main {
+    console: Console;
+    x: i32 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.x = abs(pick(5));
+    self.console.exit_process(0);
+}

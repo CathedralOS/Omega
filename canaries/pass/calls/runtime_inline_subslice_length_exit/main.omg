@@ -1,0 +1,26 @@
+// A literal-bounded subslice `.len` read INLINE in a value position, WITHOUT a
+// `let sub` binding: `let n = (self.arr[1..4]).len`. The native side folds the
+// window length `4 - 1 = 3` (the value-write subslice fold). The interpreter used
+// to REJECT this ("range expression outside index position") because a member on a
+// non-place receiver resolved as a place and hit the raw range; it now evaluates
+// the receiver as a value (the subslice view) and reads `.len` off it. Both engines
+// agree -> `n == 3` matches -> exit 3.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 5];
+}
+
+machine Main::main(&mut self) {
+    let n: usize = (self.arr[1..4]).len;
+    transition n == 3 {
+        true -> matched()
+        false -> unmatched()
+    }
+
+    state matched(&mut self) { self.console.exit_process(3); }
+    state unmatched(&mut self) { self.console.exit_process(0); }
+}

@@ -1,0 +1,73 @@
+// A counter saturating at a bound. Showcases `[copy, zero_init]` type
+// properties and saturating arithmetic over a dispatched self-write path
+// driven by scalar arguments. (Historical: case-payload commands threaded into
+// a self-writing sub-machine used to miscompile; FIXED 2026-06, locked by the
+// pass canary canaries/pass/calls/by_value_case_param_self_write_exit.
+// vending_machine is the case-payload showcase.)
+// Expected exit: 70.
+
+use omega::language::std::console;
+
+data Counter [copy, zero_init] {
+    value: i32 in Saturating;
+    bound: i32 in Saturating;
+}
+
+data Main {
+    console: Console;
+    counter: Counter;
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("bounded_counter: saturating counter -- three add(40)s against a bound of 100");
+    self.counter.bound = 100;
+
+    self.add(40);
+    self.add(40);
+    self.add(40);   // 120, saturates to 100
+
+    transition self.counter.value == 100 {
+        true -> good_msg()
+        _ -> not_hundred()
+    }
+    state good_msg(&mut self) {
+        self.console.write_line("PASS: counter saturated at the bound, value == 100 (exit 70)");
+        transition { _ -> report(70) }
+    }
+    state not_hundred(&mut self) {
+        transition self.counter.value == 120 {
+            true -> bad_sat_msg()   // saturation didn't apply
+            _ -> bad_other_msg()    // some other wrong value
+        }
+    }
+    state bad_sat_msg(&mut self) {
+        self.console.write_line("FAIL: counter reached 120 -- saturation did not apply (exit 81)");
+        transition { _ -> report(81) }
+    }
+    state bad_other_msg(&mut self) {
+        self.console.write_line("FAIL: counter holds an unexpected value -- neither 100 nor 120 (exit 82)");
+        transition { _ -> report(82) }
+    }
+    state report(&mut self, code: i32) {
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(code);
+    }
+}
+
+// add saturates at the bound; the self-write happens in a dispatched substate
+// reached via a scalar-argument call (probe-confirmed sound).
+machine Main::add(&mut self, amount: i32 in Saturating) {
+    let next: i32 in Saturating = self.counter.value + amount;
+    transition next > self.counter.bound {
+        true -> saturate()
+        _ -> set_value(next)
+    }
+    state saturate(&mut self) {
+        self.counter.value = self.counter.bound;
+    }
+    state set_value(&mut self, next: i32 in Saturating) {
+        self.counter.value = next;
+    }
+}

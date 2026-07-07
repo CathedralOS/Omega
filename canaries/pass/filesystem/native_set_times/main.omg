@@ -1,0 +1,56 @@
+// NATIVE set file times via futimens (Rust File::set_times). Creates a file,
+// builds two struct timespec (atime @0 = epoch, mtime @16 = 1500000000; nsec
+// fields 0) into a 32-byte buffer with the branch-free byte-decompose idiom
+// (`x as u8 in Wrapping`), calls futimens, then fstats the fd and confirms
+// st_mtimespec.tv_sec (@48) reads back 1500000000. Proves the futimens op (fd +
+// timespec-buffer pointer, the fstat operand shape) lowers and runs on macOS.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    fd: i32;
+    rc: i32;
+    mtime: i64;
+    got: i64;
+    n: i64;
+    times: [u8; 32];
+    statbuf: [u8; 144];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.mtime = 1500000000;
+    self.fd = self.fs.create("/tmp/omega_times.txt", self.mode);
+    // times[1].tv_sec (mtime) at byte offset 16; atime + nsec fields stay 0
+    self.times[16] = self.mtime as u8 in Wrapping;
+    self.times[17] = (self.mtime >> 8) as u8 in Wrapping;
+    self.times[18] = (self.mtime >> 16) as u8 in Wrapping;
+    self.times[19] = (self.mtime >> 24) as u8 in Wrapping;
+    self.times[20] = (self.mtime >> 32) as u8 in Wrapping;
+    self.times[21] = (self.mtime >> 40) as u8 in Wrapping;
+    self.times[22] = (self.mtime >> 48) as u8 in Wrapping;
+    self.times[23] = (self.mtime >> 56) as u8 in Wrapping;
+    self.rc = self.fs.set_file_times(self.fd, &mut self.times);
+    transition self.rc == 0 { true -> stat() _ -> fail() }
+    state stat(&mut self) {
+        self.rc = self.fs.read_file_metadata(self.fd, &mut self.statbuf);
+        self.n = self.fs.close(self.fd);
+        self.n = self.fs.remove("/tmp/omega_times.txt");
+        transition self.rc == 0 { true -> decode() _ -> fail() }
+    }
+    state decode(&mut self) {
+        self.got = (self.statbuf[48] as i64)
+            | ((self.statbuf[49] as i64) << 8)
+            | ((self.statbuf[50] as i64) << 16)
+            | ((self.statbuf[51] as i64) << 24)
+            | ((self.statbuf[52] as i64) << 32)
+            | ((self.statbuf[53] as i64) << 40)
+            | ((self.statbuf[54] as i64) << 48)
+            | ((self.statbuf[55] as i64) << 56);
+        transition self.got == 1500000000 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: set_times set mtime to 1500000000, fstat confirms\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: set_times\n"); }
+}

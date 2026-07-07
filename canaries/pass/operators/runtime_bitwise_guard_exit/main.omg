@@ -1,0 +1,55 @@
+// Bitwise operators as guard SUBJECTS -- the computed value feeding a transition
+// guard, the canonical bit-test idioms. `flags = READ(4) | EXEC(1) = 5`:
+//   flags & 2 == 0   WRITE bit clear   (is-clear test)
+//   flags & 4 == 4   READ bit set      (is-set test)
+//   flags | 2 == 7   add WRITE         (OR subject)
+//   flags ^ 5 == 0   self-XOR is zero  (XOR subject)
+// Bitwise carry no signedness, so they lower safely in the guard-subject path
+// (unlike `>>`, which needs operand-signedness threading -- a follow-up).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    flags: i32;
+}
+
+machine Main::main(&mut self) {
+    self.flags = 5;
+
+    transition self.flags & 2 == 0 {
+        true -> check_set()
+        _ -> bad()
+    }
+
+    state check_set(&mut self) {
+        transition self.flags & 4 == 4 {
+            true -> check_or()
+            _ -> bad()
+        }
+    }
+
+    state check_or(&mut self) {
+        transition self.flags | 2 == 7 {
+            true -> check_xor()
+            _ -> bad()
+        }
+    }
+
+    state check_xor(&mut self) {
+        transition self.flags ^ 5 == 0 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

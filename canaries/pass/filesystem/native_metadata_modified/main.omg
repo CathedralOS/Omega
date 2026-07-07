@@ -1,0 +1,42 @@
+// NATIVE fs Metadata::modified (Rust Metadata::modified()). Creates a file, then
+// stat's it and decodes st_mtimespec.tv_sec (i64 @48) by byte-assembly. A file
+// just created must have a real modification time well after 2001
+// (> 1_000_000_000 seconds since the epoch). Exercises the stat op + a runtime
+// i64 byte-assembly + comparison on real macOS syscalls.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    fd: i32;
+    rc: i32;
+    mtime: i64;
+    floor: i64;
+    n: i64;
+    buffer: [u8; 144];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.floor = 1000000000;
+    self.fd = self.fs.create("/tmp/omega_mtime.txt", self.mode);
+    self.n = self.fs.write(self.fd, "now");
+    self.n = self.fs.close(self.fd);
+    self.rc = self.fs.read_metadata("/tmp/omega_mtime.txt", &mut self.buffer);
+    self.n = self.fs.remove("/tmp/omega_mtime.txt");
+    transition self.rc == 0 { true -> decode() _ -> fail() }
+    state decode(&mut self) {
+        self.mtime = (self.buffer[48] as i64)
+            | ((self.buffer[49] as i64) << 8)
+            | ((self.buffer[50] as i64) << 16)
+            | ((self.buffer[51] as i64) << 24)
+            | ((self.buffer[52] as i64) << 32)
+            | ((self.buffer[53] as i64) << 40)
+            | ((self.buffer[54] as i64) << 48)
+            | ((self.buffer[55] as i64) << 56);
+        transition self.mtime > self.floor { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: stat decodes a real st_mtime (> 2001)\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: metadata modified\n"); }
+}

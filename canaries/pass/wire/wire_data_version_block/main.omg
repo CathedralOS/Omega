@@ -3,12 +3,12 @@
 // current body retires the old tag. Unimplemented: `wire` is not a top-level
 // declaration keyword.
 
-wire data CounterMessage {
+data CounterMessage {
     version v1 {
         0: counter: i32;
     }
 
-    reserved 0;
+    retired 0;
     1: counter: i32;
     2: timestamp_millis: i64;
 }

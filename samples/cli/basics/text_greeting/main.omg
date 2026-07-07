@@ -1,0 +1,56 @@
+// Owned `[u8; N] in Utf8` text carriers: build a greeting by concatenation, print
+// it, and verify it. Omega has no `String` keyword -- text is bytes refined by a
+// `Utf8` domain, stored inline in a fixed-capacity carrier (`len` + `[u8; N]`).
+// `self.greeting = "Hello, " + self.name + "!"` materializes the literal and the
+// `name` carrier's content into greeting's inline bytes; `write_line` prints them;
+// `==` compares content. Prints "Hello, Ada!" and exits 70 only if the carrier
+// holds exactly that.
+// Expected exit: 70.
+// Expected output contains: Hello, Ada!
+
+domain [u8]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 8]::Utf8 when valid_utf8(self) {
+}
+
+domain [u8; 32]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine write_line(text: &[u8] in Utf8);
+    machine read_line(out_line: &mut String);
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    name: [u8; 8] in Utf8;
+    greeting: [u8; 32] in Utf8;
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("text_greeting: builds Hello, Ada! by carrier concatenation");
+    self.name = "Ada";
+    self.greeting = "Hello, " + self.name + "!";
+    self.console.write_line(self.greeting);
+
+    transition self.greeting == "Hello, Ada!" {
+        true -> ok()
+        _ -> mismatch()
+    }
+
+    state ok(&mut self) {
+        self.console.write_line("PASS: the greeting matched Hello, Ada! exactly (exit 70)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(70);
+    }
+    state mismatch(&mut self) {
+        self.console.write_line("FAIL: the concatenated greeting did not match (exit 71)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(71);
+    }
+}

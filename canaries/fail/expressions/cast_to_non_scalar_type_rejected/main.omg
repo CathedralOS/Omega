@@ -1,0 +1,12 @@
+// `as` converts between scalar types only. A cast to a non-scalar target -- a data
+// type (`42 as Foo`) or an unknown/typo'd type (`42 as Bogus`) -- used to compile
+// SILENTLY as identity (the target resolved to no primitive, so the conversion was a
+// no-op and the value passed through with the wrong type; `42 as Bogus` ran to exit 42).
+// The cast target is now validated to be a scalar primitive.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Foo { a: i32; }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let y: i32 = 42 as Foo; // casting a scalar to a data type -- rejected
+    self.console.exit_process(y);
+}

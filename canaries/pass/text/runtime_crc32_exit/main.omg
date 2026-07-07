@@ -1,0 +1,71 @@
+// CRC-32 -- the ubiquitous data-integrity checksum (ZIP, PNG, Ethernet, gzip), and a
+// genuinely distinct algorithm from the running-sum checksums (samples/fletcher_checksum)
+// and from FNV hashing: it is polynomial division over GF(2), done bit by bit with shifts
+// and XOR. Standard parameters: init and final XOR 0xFFFFFFFF (4294967295), reflected
+// polynomial 0xEDB88320 (3988292384). For each input byte, XOR it into the low byte of the
+// running CRC, then for eight bits: shift right one, and XOR the polynomial whenever the
+// bit shifted out was set. CRC-32 of "abc" is 891568578 (verified against zlib). Exits 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    data: [i32; 3] in Wrapping; // "abc"
+    crc: u32 in Wrapping;
+    b: u32 in Wrapping;
+    i: i32 in Wrapping;
+    k: i32 in Wrapping;
+    lo: u32 in Wrapping;        // crc & 1 (the bit shifted out)
+    sh: u32 in Wrapping;        // crc >> 1
+}
+
+machine Main::main(&mut self) {
+    self.data = [97, 98, 99];
+    self.crc = 4294967295; // 0xFFFFFFFF
+    self.i = 0;
+    transition { _ -> byte_loop() }
+
+    state byte_loop(&mut self) {
+        transition self.i >= 0 && self.i < 3 { true -> byte_xor() _ -> finalize() }
+    }
+    state byte_xor(&mut self) {
+        self.b = self.data[self.i] as u32 in Wrapping;
+        self.crc = self.crc ^ self.b;
+        self.k = 0;
+        transition { _ -> bit_loop() }
+    }
+    state bit_loop(&mut self) {
+        transition self.k >= 0 && self.k < 8 { true -> bit_step() _ -> next_byte() }
+    }
+    state bit_step(&mut self) {
+        self.lo = self.crc & 1;
+        self.sh = self.crc >> 1;
+        transition self.lo == 1 { true -> bit_poly() _ -> bit_plain() }
+    }
+    state bit_poly(&mut self) {
+        self.crc = self.sh ^ 3988292384; // ^ 0xEDB88320
+        self.k = self.k + 1;
+        transition { _ -> bit_loop() }
+    }
+    state bit_plain(&mut self) {
+        self.crc = self.sh;
+        self.k = self.k + 1;
+        transition { _ -> bit_loop() }
+    }
+    state next_byte(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> byte_loop() }
+    }
+
+    state finalize(&mut self) {
+        self.crc = self.crc ^ 4294967295; // final XOR 0xFFFFFFFF
+        transition self.crc == 891568578 { true -> good() _ -> wrong() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(71);
+    }
+}

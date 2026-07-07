@@ -60,6 +60,7 @@ mod tests {
             target_region: RuntimeStorageRegion::RuntimeFrame,
             target_offset: 0,
             byte_capacity: 64,
+            is_bounded_buffer: false,
             source: RuntimeTextReadSource::HostOperation { operation_key },
         };
 

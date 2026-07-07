@@ -3,6 +3,42 @@ use crate::types::TypeReferenceHandle;
 use omega_core::arena::HandleSpan;
 use omega_core::symbols::SymbolHandle;
 
+/// One wire field's DERIVED placement -- the plan the tagged codec walks
+/// (mint arc rung 2a). The Rust-side mirror of the FieldPlan wire cases
+/// (`Varint(tag)` / `LengthPrefixed(tag)`, programmable_layouts §3): a scalar
+/// field encodes as tag varint + value varint; text/byte-slice/nested/repeated
+/// fields encode as tag varint + length varint + payload. Placements are
+/// stored SORTED BY TAG (the codec emits in field-number order).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WirePlacement {
+    Varint { tag: i64 },
+    LengthPrefixed { tag: i64 },
+}
+
+impl Default for WirePlacement {
+    /// The ZII zero placement (arena slots initialize to it): a varint at
+    /// tag 0 -- meaningless until written, exactly like a zeroed offset.
+    fn default() -> Self {
+        Self::Varint { tag: 0 }
+    }
+}
+
+impl WirePlacement {
+    pub fn tag(self) -> i64 {
+        match self {
+            Self::Varint { tag } | Self::LengthPrefixed { tag } => tag,
+        }
+    }
+}
+
+/// A schema's derived wire plan: its placements as a span into the
+/// `TypedTrees` placement arena (arena + span ownership, no nested vectors).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct WireSchemaPlan {
+    pub schema: SymbolHandle,
+    pub placements: HandleSpan<WirePlacement>,
+}
+
 /// A `wire data` protocol schema carried through the typed stage: stable field
 /// numbers, reserved (retired) numbers, and historical version eras. Wire
 /// schemas are external-representation contracts, kept separate from runtime
@@ -57,16 +93,16 @@ pub struct WireVersion {
 }
 
 /// The synthesized encoder entry point a wire schema exposes (chapter 20,
-/// wire stage 2a): `Schema::encode_wire(&value, &mut out, &mut written)`.
-pub const WIRE_ENCODE_MACHINE_NAME: &str = "encode_wire";
+/// wire stage 2a): `Schema::encode(&value, &mut out, &mut written)`.
+pub const WIRE_ENCODE_MACHINE_NAME: &str = "encode";
 
 /// The synthesized decoder entry point a wire schema exposes (chapter 20,
 /// wire stage 2b):
-/// `Schema::decode_wire(&mut value, &buffer, &mut read, &mut ok)`.
+/// `Schema::decode(&mut value, &buffer, &mut read, &mut ok)`.
 /// `read` receives the byte count consumed, `ok` the success flag; decoding
 /// only accepts the schema's CURRENT era (historical eras await the stage 3
 /// `Versioned<T>` container).
-pub const WIRE_DECODE_MACHINE_NAME: &str = "decode_wire";
+pub const WIRE_DECODE_MACHINE_NAME: &str = "decode";
 
 /// How one primitive scalar rides compact_binary v0 (wire stage 2a): the
 /// runtime load width and whether the value zigzags before LEB128. The
@@ -192,6 +228,31 @@ impl WireRepeatedEncoding {
     pub fn worst_case_body_bytes(self) -> usize {
         self.max_count * self.element.max_varint_length()
     }
+}
+
+/// The Omega-native LAYOUT-POLICY domain family on byte carriers
+/// (`[u8; N] in OmegaLayout<Save>`; ch20 "grammars are layout policies").
+/// Returns `(schema_name, optional grammar argument)` when `name` spells an
+/// `OmegaLayout` instance. The flat instance name is produced by the parser's
+/// parameterized-domain flattening (monomorphization-by-instantiation -- the
+/// name IS the identity, no unification).
+pub fn layout_domain_arguments(name: &str) -> Option<(&str, Option<&str>)> {
+    let rest = name.strip_prefix("OmegaLayout<")?;
+    let rest = rest.strip_suffix('>')?;
+    Some(match rest.split_once(',') {
+        Some((schema, grammar)) => (schema.trim(), Some(grammar.trim())),
+        None => (rest.trim(), None),
+    })
+}
+
+/// True when a domain-constraint name belongs to the `OmegaLayout` family.
+/// Consumers that reclassify `[u8; N] in <named-domain>` as the owned bounded
+/// TEXT carrier (`{len, bytes}` -- the layout builder, descriptor layouts, the
+/// interpreter's carrier detection) must EXCLUDE this family: an OmegaLayout
+/// refinement records what the bytes hold, it never changes what they are --
+/// the carrier stays a plain byte array the wire codec addresses directly.
+pub fn is_layout_domain_name(name: &str) -> bool {
+    layout_domain_arguments(name).is_some()
 }
 
 /// The unsigned LEB128 byte sequence for a compile-time value (era

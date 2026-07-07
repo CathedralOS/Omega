@@ -1,0 +1,52 @@
+// FULL NATIVE std::fs CRUD round-trip — RUNS end-to-end on real macOS syscalls.
+// Running the emitted mach-o prints
+//   "PASS: native fs CRUD round-trip (create+write+read 17B+close+remove)"
+// and the file is created (0644) then deleted.
+//
+// The raw boundary `FilesystemHost` is VALUE-RETURNING with HUMAN method names
+// (create/open/read/write/close/remove) — the ugly libc spellings (_creat,
+// _unlink) live only in the darwin binding table. `create` maps to `_creat`
+// (not `_open`) because open's mode is variadic (stack-passed on arm64);
+// creat's mode is a register parameter. Lowered via the aarch64 value-returning
+// host-call primitive. Read count is captured in `rn` BEFORE close overwrites
+// `n`. NOT registered in ACTIVE_PASS_CANARIES yet (canary_suite.rs is hot).
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    read_flags: i32;
+    cap: usize;
+    fd: i32;
+    n: i64;
+    rn: i64;
+    buffer: [u8; 64];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.read_flags = 0;
+    self.cap = 64;
+    self.fd = self.fs.create("/tmp/omega_crud.txt", self.mode);
+    transition self.fd >= 0 { true -> wrote() _ -> fail() }
+    state wrote(&mut self) {
+        self.n = self.fs.write(self.fd, "omega end to end\n");
+        self.n = self.fs.close(self.fd);
+        self.fd = self.fs.open("/tmp/omega_crud.txt", self.read_flags);
+        transition self.fd >= 0 { true -> rd() _ -> fail() }
+    }
+    state rd(&mut self) {
+        self.rn = self.fs.read(self.fd, &mut self.buffer, self.cap);
+        self.n = self.fs.close(self.fd);
+        transition self.rn == 17 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) {
+        self.n = self.fs.write(1, "PASS: native fs CRUD round-trip (create+write+read 17B+close+remove)\n");
+        self.n = self.fs.remove("/tmp/omega_crud.txt");
+    }
+    state fail(&mut self) {
+        self.n = self.fs.write(1, "FAIL\n");
+        self.n = self.fs.remove("/tmp/omega_crud.txt");
+    }
+}

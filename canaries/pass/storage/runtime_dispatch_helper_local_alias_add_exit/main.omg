@@ -62,5 +62,8 @@ requires
     let index: usize in Wrapping = room.exit_count;
 
     exits[index] = Exit { destination: destination };
-    room.exit_count = index + 1;
+    // Count in u32: `index + 1` is a `usize` (index type), so storing it into the
+    // u32 `exit_count` would be a usize->u32 narrowing (decision 17). Incrementing
+    // the `u32 in Wrapping` count directly keeps the store same-width.
+    room.exit_count = room.exit_count + 1;
 }

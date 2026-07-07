@@ -1,0 +1,1 @@
+stores a numeric value into a `bool`

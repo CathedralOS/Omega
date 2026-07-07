@@ -1,0 +1,137 @@
+// The N-queens count by BACKTRACKING -- the try / prune / undo paradigm, the last of the
+// major algorithmic modes (after search, sort, graph, and dynamic programming). Place one
+// queen per row; `cols[r]` holds the column being tried for row r and doubles as the state
+// stack, so no separate stack is needed. For each row advance the column; if it conflicts
+// with an earlier queen (same column, or same diagonal: |r-i| == |cols[r]-cols[i]|) try the
+// next; if a column is placed advance to the next row; if a row's columns are exhausted,
+// backtrack and advance the previous row. For N=4 there are exactly 2 solutions, so the
+// count is a discriminating check -- a wrong backtrack yields a wrong count.
+//
+// The board index r is re-guarded against the capacity at each access (the bound is lost
+// over the long branch chain), and a new column value is computed into a field before the
+// array write (a computed value can't be the inline write source). Exits 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    cols: [i32; 4] in Wrapping; // cols[r] = column of (or column being tried for) row r
+    r: i32 in Wrapping;         // current row
+    cr: i32 in Wrapping;        // cols[r] read into a field
+    i: i32 in Wrapping;         // earlier row in the conflict scan
+    ci: i32 in Wrapping;        // cols[i]
+    dc: i32 in Wrapping;        // |cr - ci|
+    dr: i32 in Wrapping;        // r - i
+    conf: i32 in Wrapping;      // 1 if the trial column conflicts
+    nc: i32 in Wrapping;        // next column value (computed into a field)
+    count: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.cols = [0, 0, 0, 0];
+    self.r = 0;
+    self.count = 0;
+    transition { _ -> step() }
+
+    state step(&mut self) {
+        transition self.r >= 0 && self.r < 4 { true -> step_read() _ -> bad() }
+    }
+    state step_read(&mut self) {
+        self.cr = self.cols[self.r];
+        transition self.cr >= 0 && self.cr < 4 { true -> conflict_init() _ -> exhausted() }
+    }
+
+    // scan rows 0..r-1 for a conflict with the trial column cr
+    state conflict_init(&mut self) {
+        self.i = 0;
+        self.conf = 0;
+        transition { _ -> conflict_loop() }
+    }
+    state conflict_loop(&mut self) {
+        transition self.i >= 0 && self.i < self.r && self.i < 4 { true -> cc_read() _ -> conflict_done() }
+    }
+    state cc_read(&mut self) {
+        self.ci = self.cols[self.i];
+        self.dc = self.cr - self.ci;
+        transition self.dc < 0 { true -> cc_absneg() _ -> cc_diag() }
+    }
+    state cc_absneg(&mut self) {
+        self.dc = 0 - self.dc;
+        transition { _ -> cc_diag() }
+    }
+    state cc_diag(&mut self) {
+        self.dr = self.r - self.i;
+        transition self.cr == self.ci || self.dr == self.dc { true -> set_conf() _ -> cc_next() }
+    }
+    state set_conf(&mut self) {
+        self.conf = 1;
+        transition { _ -> conflict_done() }
+    }
+    state cc_next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> conflict_loop() }
+    }
+
+    state conflict_done(&mut self) {
+        transition self.conf == 0 { true -> place_ok() _ -> place_bad() }
+    }
+    // no conflict: a solution if this is the last row, else descend
+    state place_ok(&mut self) {
+        transition self.r == 3 { true -> solution() _ -> advance_row() }
+    }
+    state solution(&mut self) {
+        self.count = self.count + 1;
+        transition self.r >= 0 && self.r < 4 { true -> solution_w() _ -> bad() }
+    }
+    state solution_w(&mut self) {
+        self.nc = self.cr + 1; // try the next column in this (last) row
+        self.cols[self.r] = self.nc;
+        transition { _ -> step() }
+    }
+    state advance_row(&mut self) {
+        self.r = self.r + 1;
+        transition self.r >= 0 && self.r < 4 { true -> reset_new() _ -> bad() }
+    }
+    state reset_new(&mut self) {
+        self.cols[self.r] = 0; // new row starts at column 0
+        transition { _ -> step() }
+    }
+    // conflict: try the next column in this row
+    state place_bad(&mut self) {
+        transition self.r >= 0 && self.r < 4 { true -> place_bad_w() _ -> bad() }
+    }
+    state place_bad_w(&mut self) {
+        self.nc = self.cr + 1;
+        self.cols[self.r] = self.nc;
+        transition { _ -> step() }
+    }
+
+    // columns exhausted in this row: backtrack
+    state exhausted(&mut self) {
+        transition self.r == 0 { true -> verify() _ -> backtrack() }
+    }
+    state backtrack(&mut self) {
+        self.r = self.r - 1;
+        transition self.r >= 0 && self.r < 4 { true -> bt_adv() _ -> bad() }
+    }
+    state bt_adv(&mut self) {
+        self.ci = self.cols[self.r];
+        self.nc = self.ci + 1; // advance the previous row's queen
+        self.cols[self.r] = self.nc;
+        transition { _ -> step() }
+    }
+
+    state verify(&mut self) {
+        transition self.count == 2 { true -> good() _ -> wrong() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(self.count); // surface the wrong count
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

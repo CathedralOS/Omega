@@ -138,6 +138,17 @@ impl TypeReferenceTable {
         self.type_references.get(handle)
     }
 
+    /// Replace a node in place. Every site holding this handle sees the new
+    /// node; used by pre-resolution desugars (plan-laid value types rewrite
+    /// `Policy<Schema>` spellings to the synthesized instance's plain name).
+    pub fn replace_type_reference(
+        &mut self,
+        handle: TypeReferenceHandle,
+        type_reference: TypeReferenceNode,
+    ) {
+        *self.type_references.get_mut(handle) = type_reference;
+    }
+
     pub fn type_reference_handles(
         &self,
         span: HandleSpan<TypeReferenceHandle>,

@@ -6,12 +6,48 @@ use omega_isa_x86_64 as x86_64;
 use omega_target::Architecture;
 use omega_target_operations::InstructionOperandLike;
 
+/// A VtableSlot call (provides-sourced, per-object dispatch). x86_64 only; an
+/// aarch64 vtable call awaits its stub.
+pub fn encode_vtable_call_sequence<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    index: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "AArch64 vtable-slot dispatch is not implemented (x86_64 only)",
+        )),
+        Architecture::X86_64 => x86_64::encode_win64_vtable_call(operands, index),
+    }
+}
+
 pub fn encode_host_call_sequence<T: InstructionOperandLike>(
     architecture: Architecture,
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
+        // Deref-result ops (errno) must be checked before the plain
+        // value-returning arm: they share `returns_value()` but insert an extra
+        // `ldr` to deref the returned pointer.
+        Architecture::Aarch64 if operation_key.dereferences_result() => {
+            aarch64::encode_host_call_sequence_value_returning_deref_from_operands(
+                operands.iter().map(aarch64_call_operand),
+            )
+        }
+        // Stack-mode ops (`open_create`) also share `returns_value()` but bracket
+        // the call with `sub sp`/`str [sp]`/`add sp` to pass the variadic `mode`
+        // on the stack; checked before the plain value-returning arm.
+        Architecture::Aarch64 if operation_key.passes_trailing_mode_on_stack() => {
+            aarch64::encode_host_call_sequence_value_returning_open_create_from_operands(
+                operands.iter().map(aarch64_call_operand),
+            )
+        }
+        Architecture::Aarch64 if operation_key.returns_value() => {
+            aarch64::encode_host_call_sequence_value_returning_from_operands(
+                operands.iter().map(aarch64_call_operand),
+            )
+        }
         Architecture::Aarch64 => aarch64::encode_host_call_sequence_from_operands(
             operands.iter().map(aarch64_call_operand),
         ),
@@ -82,6 +118,44 @@ pub fn encode_runtime_storage_copy_to_return_register_bytes(
         Architecture::X86_64 => {
             x86_64::encode_runtime_storage_copy_to_return_register_bytes(byte_offset, byte_size)
         }
+    }
+}
+
+/// The entry prologue's inbound argument unmarshal (`mov [frame+off], rcx/rdx/
+/// r8/r9`). x86_64 only; an aarch64 entry with parameters is a clean error
+/// until its stub (x0-x3) exists.
+pub fn encode_entry_argument_register_write_bytes(
+    architecture: Architecture,
+    argument_index: u8,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "AArch64 MVP encoder cannot unmarshal entry arguments yet (the entry \
+             prologue register store is x86_64-only)",
+        )),
+        Architecture::X86_64 => {
+            x86_64::encode_entry_argument_register_write_bytes(argument_index, byte_offset)
+        }
+    }
+}
+
+/// The entry prologue's `args: &[u8]` descriptor write (x86_64 only).
+pub fn encode_entry_arguments_slice_descriptor_write_bytes(
+    architecture: Architecture,
+    descriptor_offset: usize,
+    spill_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "AArch64 MVP encoder cannot bind entry arguments yet (the entry prologue is x86_64-only)",
+        )),
+        Architecture::X86_64 => x86_64::encode_entry_arguments_slice_descriptor_write_bytes(
+            descriptor_offset,
+            spill_offset,
+            byte_length,
+        ),
     }
 }
 

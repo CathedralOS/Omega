@@ -1,0 +1,56 @@
+// Regression: NESTED struct construction -- a struct literal whose field values are
+// themselves struct literals, `Rect { top_left: Point { .. }, bottom_right: Point { .. } }`.
+//
+// This PANICKED the compiler (an arena "span append must be contiguous" assert):
+// ExpressionTable::copy_struct_literal_fields appended the outer fields incrementally
+// while copying each field value, but copying a struct-valued field appended the
+// INNER struct's fields to the same arena mid-loop -- interleaving and breaking the
+// outer span. Fixed by reserving the span first and setting each slot (interleave-
+// safe). Field-by-field assignment was the workaround.
+//
+// Constructs a Rect from two Points, reads the nested fields, and computes the width
+// and height -- all correct -> exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Point {
+    x: i32 in Trapping;
+    y: i32 in Trapping;
+}
+
+data Rect {
+    top_left: Point;
+    bottom_right: Point;
+}
+
+data Main {
+    console: Console;
+    r: Rect;
+    w: i32 in Trapping;
+    h: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.r = Rect {
+        top_left: Point { x: 2, y: 3 },
+        bottom_right: Point { x: 12, y: 9 },
+    };
+    self.w = self.r.bottom_right.x - self.r.top_left.x;
+    self.h = self.r.bottom_right.y - self.r.top_left.y;
+
+    transition self.r.top_left.y == 3 { true -> check_w() _ -> bad() }
+    state check_w(&mut self) {
+        transition self.w == 10 { true -> check_h() _ -> bad() }
+    }
+    state check_h(&mut self) {
+        transition self.h == 6 { true -> good() _ -> bad() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

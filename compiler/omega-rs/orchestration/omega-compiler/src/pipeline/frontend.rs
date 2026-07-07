@@ -91,6 +91,23 @@ pub fn load_sources(
     Ok(LoadedSources { sources, batch })
 }
 
+/// Load a COMPILER-PROVIDED source (a virtual file with no on-disk backing):
+/// the build-vocabulary prelude and its future siblings. The synthetic path
+/// names the provider in diagnostics.
+pub fn load_injected_source(
+    name: &str,
+    text: &str,
+    first_source_id: usize,
+) -> LoadedSources {
+    let mut sources = Arena::with_capacity(1);
+    let batch = sources.insert_many([LoadedSource {
+        source_id: SourceId(first_source_id),
+        path: PathBuf::from(name),
+        source: Arc::from(text),
+    }]);
+    LoadedSources { sources, batch }
+}
+
 pub fn lex_sources(sources: LoadedSources) -> Result<LexedSources, Vec<Diagnostic>> {
     let loaded_sources = sources.sources.span_or_empty(sources.batch);
     let source_count = loaded_sources.len();

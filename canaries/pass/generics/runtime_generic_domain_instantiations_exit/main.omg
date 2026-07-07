@@ -1,0 +1,25 @@
+// GENERICS PHASE 1 (domain-arg extension): two DISTINCT DOMAIN-CARRYING
+// instantiations of one generic data type coexist. `Box<i32 in Wrapping>` and
+// `Box<u8 in Wrapping>` each carry an arithmetic domain on the argument. Before
+// the slug extension BOTH were skipped (a non-plain-Named argument), so the two
+// fell to the layout builder's one-slot path and the SECOND poisoned the first.
+// Now each slugs distinctly (`i32 in Wrapping` vs `u8 in Wrapping`) into its own
+// synthetic record (`data Box<i32 in Wrapping> { value: i32 in Wrapping }`, the
+// domain riding the substituted field). Distinct records -> resolution, typing,
+// and the native layout builder see two ordinary records. Reads 42 from the i32
+// box and 7 from the u8 box; exits 42.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Box<T> { value: T; }
+data Main { console: Console; wide: Box<i32 in Wrapping>; small: Box<u8 in Wrapping>; r: i32; }
+machine Main::main(&mut self) {
+    self.wide.value = 42;
+    self.small.value = 7;
+    self.r = self.wide.value;
+    transition self.small.value == 7 {
+        true -> ok()
+        false -> bad()
+    }
+    state ok(&mut self) { self.console.exit_process(self.r); }
+    state bad(&mut self) { self.console.exit_process(99); }
+}
+// Expected exit: 42

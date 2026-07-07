@@ -16,7 +16,7 @@ pub(crate) fn lower_machine(
         symbol: machine.symbol,
         name: crate::name::lower_name(&machine.name),
         attached_data: machine.attached_data.as_ref().map(crate::name::lower_name),
-        abi: machine.abi.clone(),
+        boundary: machine.boundary,
         type_parameters: omega_core::arena::HandleSpan::empty(),
         contains: omega_core::arena::HandleSpan::empty(),
         owned_data: omega_core::arena::HandleSpan::empty(),
@@ -140,7 +140,7 @@ pub(crate) fn lower_machine(
             machine,
             state,
         ));
-        let state = lower_state(lowerer, state)?;
+        let state = lower_state(lowerer, machine.attached_data.as_ref(), state)?;
         lowerer.equality_scope = None;
         lowerer
             .typed_trees

@@ -42,7 +42,8 @@ use super::super::text_writes::{
 };
 use super::slice_descriptors::emit_runtime_frame_slot_slice_descriptor_write_in_table;
 use super::static_values::{
-    RuntimeStaticValues, resolve_runtime_static_integer_value, set_runtime_static_value,
+    RuntimeStaticValues, invalidate_runtime_static_collection_for_indexed_write,
+    resolve_runtime_static_integer_value, set_runtime_static_value,
 };
 use super::storage_copy::runtime_storage_copy;
 use super::storage_copy::runtime_storage_indexed_source_copy;
@@ -790,6 +791,14 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    // A runtime-indexed write `arr[i] = ..` (non-constant index) can land on any
+    // element of `arr`, so every folded constant for the whole collection is now
+    // stale. Void it up front -- this covers every indexed sub-path below
+    // (frame/machine copy, indexed-integer) in one place, and stays correct
+    // because at runtime the RHS read precedes the write. No-op for non-indexed
+    // and const-indexed targets, which keep precise per-place tracking.
+    invalidate_runtime_static_collection_for_indexed_write(static_values, resolved_target);
+
     if let Expression::StructLiteral(struct_literal) = value {
         for field in struct_literal.fields.iter() {
             let field_target =
@@ -1214,6 +1223,45 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
             return;
         }
 
+        // A member read through a REFERENCE-typed slot on the RHS is a DEREF,
+        // not a flat fold: `self.c = table.con_out` (or a `let` lifted to
+        // machine storage) with `table: &EfiSystemTable` reads
+        // [*(slot) + 64]. Tried BEFORE the flat resolver below, which would
+        // read the frame bytes past the pointer slot (shared-ref-param-field-
+        // read gap). The generalized pointee copy lands in the target region.
+        if let Some(pointee) = resolve_runtime_pointee_slot_offset(
+            input,
+            dispatch_index,
+            resolved_value.source_key,
+            &resolved_value.expression,
+        ) && let Some(target_place) = resolve_runtime_storage_place(
+            input,
+            dispatch_index,
+            target_source_key,
+            source_machine,
+            source_state,
+            resolved_target,
+        ) && matches!(
+            target_place.region,
+            omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
+                | omega_abstract_operations::RuntimeStorageRegion::Machine
+        ) && pointee.pointee_byte_size == target_place.byte_count
+            && pointee.pointee_byte_size > 0
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+                    target_region: target_place.region,
+                    pointer_byte_offset: pointee.pointer_byte_offset,
+                    field_byte_offset: pointee.field_byte_offset,
+                    target_offset: target_place.byte_offset,
+                    byte_count: target_place.byte_count,
+                },
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
+
         if let Some(target_place) = resolve_runtime_storage_place(
             input,
             dispatch_index,
@@ -1477,6 +1525,72 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         target_source_key,
         resolved_target,
     ) {
+        // DUAL-indexed copy `arr[i] = arr[j]` (task #38): the VALUE is itself a
+        // runtime-indexed machine element. This must be tried BEFORE the
+        // storage-place source below -- `resolve_runtime_storage_place` on an
+        // indexed read resolves to the array BASE (dropping the index), which
+        // was the original silent miscompile this instruction closes.
+        if let Some(indexed_source) = resolve_runtime_machine_indexed_target(
+            input,
+            dispatch_index,
+            resolved_value.source_key,
+            &resolved_value.expression,
+        ) && indexed_source.byte_count == indexed_target.byte_count
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
+                    source_base_byte_offset: indexed_source.base_byte_offset,
+                    source_index_offset: indexed_source.index_offset,
+                    source_index_region: indexed_source.index_region,
+                    source_element_byte_size: indexed_source.element_byte_size,
+                    source_field_byte_offset: indexed_source.field_byte_offset,
+                    target_base_byte_offset: indexed_target.base_byte_offset,
+                    target_index_offset: indexed_target.index_offset,
+                    target_index_region: indexed_target.index_region,
+                    target_element_byte_size: indexed_target.element_byte_size,
+                    target_field_byte_offset: indexed_target.field_byte_offset,
+                    byte_count: indexed_target.byte_count,
+                },
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
+
+        // Runtime-value source: `self.nums[self.j] = self.b`. The source field
+        // resolves to a machine-resident storage place; the x86_64 encoder reads
+        // the value, the index, and the target element all off the single shared
+        // machine base, so it only handles a machine-region source.
+        if let Some(source_place) = resolve_runtime_storage_place(
+            input,
+            dispatch_index,
+            resolved_value.source_key,
+            source_machine,
+            source_state,
+            &resolved_value.expression,
+        ) && matches!(
+            source_place.region,
+            omega_abstract_operations::RuntimeStorageRegion::Machine
+                | omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
+        ) && source_place.byte_count == indexed_target.byte_count
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
+                    source_region: source_place.region,
+                    source_offset: source_place.byte_offset,
+                    base_byte_offset: indexed_target.base_byte_offset,
+                    index_offset: indexed_target.index_offset,
+                    index_region: indexed_target.index_region,
+                    element_byte_size: indexed_target.element_byte_size,
+                    field_byte_offset: indexed_target.field_byte_offset,
+                    byte_count: indexed_target.byte_count,
+                },
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
+
         if supports_scalar_integer_write(indexed_target.byte_count)
             && let Some(value) = resolve_runtime_static_integer_value(
                 input,
@@ -1847,6 +1961,29 @@ fn select_runtime_binary_mutation_write(
         );
     }
 
+    // Machine-owned runtime-indexed array element: `self.arr[self.i] = a OP b`.
+    // Sibling of the frame-base branch above, targeting the MACHINE region (like
+    // `WriteRuntimeMachineIndexedInteger`). Placed after the frame-base branch and
+    // before the pointee branch.
+    if let Some(indexed_target) = resolve_runtime_machine_indexed_target(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) {
+        return Some(SelectedInstructionKind::WriteRuntimeMachineIndexedBinary {
+            base_byte_offset: indexed_target.base_byte_offset,
+            index_region: indexed_target.index_region,
+            index_offset: indexed_target.index_offset,
+            element_byte_size: indexed_target.element_byte_size,
+            field_byte_offset: indexed_target.field_byte_offset,
+            byte_size: indexed_target.byte_count,
+            left,
+            operator,
+            right,
+        });
+    }
+
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
         input,
         dispatch_index,
@@ -2052,7 +2189,7 @@ fn saturating_integer_bounds(primitive: PrimitiveType) -> Option<(i64, i64)> {
         PrimitiveType::I32 => Some((i32::MIN as i64, i32::MAX as i64)),
         PrimitiveType::U32 => Some((0, u32::MAX as i64)),
         PrimitiveType::I64 | PrimitiveType::Isize => Some((i64::MIN, i64::MAX)),
-        PrimitiveType::U64 | PrimitiveType::Usize => Some((0, i64::MAX)),
+        PrimitiveType::U64 | PrimitiveType::Usize | PrimitiveType::Addr => Some((0, i64::MAX)),
         PrimitiveType::Bool
         | PrimitiveType::F32
         | PrimitiveType::F64

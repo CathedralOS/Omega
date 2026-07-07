@@ -2,6 +2,7 @@ use omega_assigned_target_operations::InstructionOperand;
 use omega_calling_conventions::HostOperationKey;
 use omega_target::Architecture;
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn data_address_relocation_offset(
     architecture: Architecture,
     operation_key: Option<HostOperationKey>,
@@ -9,7 +10,15 @@ pub(crate) fn data_address_relocation_offset(
     selected_text_offset: usize,
     operand_index: usize,
     is_syscall: bool,
+    is_vtable: bool,
 ) -> usize {
+    // A VtableSlot call marshals args like an import (no leading result), then
+    // reads the callee from RCX -- the arg region-base fixups follow the
+    // vtable-call layout.
+    if architecture == Architecture::X86_64 && is_vtable {
+        return selected_text_offset
+            + omega_isa_x86_64::vtable_call_data_relocation_byte_offset(operands, operand_index);
+    }
     // x86_64 Linux syscalls marshal each argument into its register independently, so
     // the data-address/runtime-storage fixup is the sum of the preceding arguments'
     // marshalling widths plus 2 -- a different layout than the win32 import sequence.
@@ -23,6 +32,42 @@ pub(crate) fn data_address_relocation_offset(
             omega_isa_x86_64::host_call_data_relocation_site(operation_key, operands, operand_index)
     {
         return selected_text_offset + site.byte_offset;
+    }
+
+    // AArch64 value-returning layout `[args (operands[1..])] [BL] [result
+    // store]`: the result operand[0]'s adrp/add lands AFTER the args + the BL
+    // (4 bytes); an arg's adrp/add lands after only the args before it (the
+    // result is not marshalled up front).
+    if architecture == Architecture::Aarch64
+        && let Some(operation_key) = operation_key
+        && operation_key.returns_value()
+    {
+        let arg_bytes = |range: std::ops::Range<usize>| {
+            operands[range]
+                .iter()
+                .map(|operand| omega_instruction_selection::operand_width(architecture, operand))
+                .sum::<usize>()
+        };
+        if operand_index == 0 {
+            // The result store's adrp/add lands after the args + the BL (4). A
+            // deref-result op (errno) inserts an extra `ldr w0,[x0]` (4) between
+            // the BL and the store, pushing the store's page-pair 4 bytes later.
+            // A stack-mode op (`open_create`) brackets the call with `sub sp`
+            // (before BL) + `str [sp]` (before BL) + `add sp` (after BL) = 12
+            // bytes beyond counting the mode immediate as a register arg.
+            let deref_bytes = if operation_key.dereferences_result() { 4 } else { 0 };
+            let stack_mode_bytes = if operation_key.passes_trailing_mode_on_stack() {
+                12
+            } else {
+                0
+            };
+            return selected_text_offset
+                + arg_bytes(1..operands.len())
+                + 4
+                + deref_bytes
+                + stack_mode_bytes;
+        }
+        return selected_text_offset + arg_bytes(1..operand_index);
     }
 
     selected_text_offset
@@ -51,16 +96,16 @@ mod tests {
         ];
 
         assert_eq!(
-            data_address_relocation_offset(Architecture::Aarch64, None, &operands, 20, 1, false),
+            data_address_relocation_offset(Architecture::Aarch64, None, &operands, 20, 1, false, false),
             24
         );
         assert_eq!(
-            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1, false),
+            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1, false, false),
             28
         );
         // x86_64 Linux syscall layout: arg 1's data-address fixup is at 20 + 1*10 + 2.
         assert_eq!(
-            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1, true),
+            data_address_relocation_offset(Architecture::X86_64, None, &operands, 20, 1, true, false),
             32
         );
     }

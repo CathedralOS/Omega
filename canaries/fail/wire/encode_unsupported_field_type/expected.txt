@@ -1,1 +1,1 @@
-wire data `SampleMessage` field `ratio`: `f64` is not encodable by the compact_binary v0 encoder yet; wire stage 2 supports i32, i64, u32, u64, bool, String, and a sibling wire schema (one nesting level)
+data `SampleMessage` field `ratio`: `f64` is not encodable by the compact_binary v0 encoder yet; wire stage 2 supports i32, i64, u32, u64, bool, String, and a sibling wire schema (one nesting level)

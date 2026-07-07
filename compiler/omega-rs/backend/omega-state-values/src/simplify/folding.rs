@@ -20,12 +20,17 @@ pub(super) fn fold_binary_expression(
                 let positive = matches!(operator, Op::Equal) == flag;
                 return if positive { right } else { boolean_not(right) };
             }
+            // NOTE: the REFLEXIVE fold (structurally-equal non-literal
+            // operands) is NOT here -- it lives in
+            // `simplify_binary_expression`, TYPE-GATED, because
+            // `x == x -> true` / `x != x -> false` is an INVALID identity for
+            // floats (IEEE: NaN != NaN is TRUE; the canonical isNaN idiom
+            // `f != f` was silently folded to `false` before the gate).
             match operator {
                 Op::Equal => match (&left, &right) {
                     (Expression::Boolean(a), Expression::Boolean(b)) => Expression::Boolean(a == b),
                     (Expression::Integer(a), Expression::Integer(b)) => Expression::Boolean(a == b),
                     (Expression::String(a), Expression::String(b)) => Expression::Boolean(a == b),
-                    _ if left == right => Expression::Boolean(true),
                     _ => Expression::Binary(Box::new(BinaryExpression {
                         left,
                         operator,
@@ -36,7 +41,6 @@ pub(super) fn fold_binary_expression(
                     (Expression::Boolean(a), Expression::Boolean(b)) => Expression::Boolean(a != b),
                     (Expression::Integer(a), Expression::Integer(b)) => Expression::Boolean(a != b),
                     (Expression::String(a), Expression::String(b)) => Expression::Boolean(a != b),
-                    _ if left == right => Expression::Boolean(false),
                     _ => Expression::Binary(Box::new(BinaryExpression {
                         left,
                         operator,
@@ -50,9 +54,15 @@ pub(super) fn fold_binary_expression(
         Op::GreaterOrEqual => fold_integer_compare(left, right, |a, b| a >= b, operator),
         Op::Less => fold_integer_compare(left, right, |a, b| a < b, operator),
         Op::LessOrEqual => fold_integer_compare(left, right, |a, b| a <= b, operator),
-        Op::Add => fold_integer_math(left, right, |a, b| a + b, operator),
-        Op::Subtract => fold_integer_math(left, right, |a, b| a - b, operator),
-        Op::Multiply => fold_integer_math(left, right, |a, b| a * b, operator),
+        // Wrapping arithmetic so const-folding a value that overflows i64 (`9e18 +
+        // 9e18`, `4e9 * 4e9`) does NOT panic the compiler ("attempt to add/multiply
+        // with overflow"). Overflow into an EXACT domain is caught earlier by the
+        // decision-17 obligation (validation, before this backend fold); the folder's
+        // job is only to compute a value without crashing, and i64 wrapping matches
+        // native execution.
+        Op::Add => fold_integer_math(left, right, |a, b| a.wrapping_add(b), operator),
+        Op::Subtract => fold_integer_math(left, right, |a, b| a.wrapping_sub(b), operator),
+        Op::Multiply => fold_integer_math(left, right, |a, b| a.wrapping_mul(b), operator),
         Op::Divide => match (&left, &right) {
             (Expression::Integer(_), Expression::Integer(0)) => {
                 Expression::Binary(Box::new(BinaryExpression {
@@ -61,7 +71,11 @@ pub(super) fn fold_binary_expression(
                     right,
                 }))
             }
-            (Expression::Integer(a), Expression::Integer(b)) => Expression::Integer(a / b),
+            // `wrapping_div` so `i64::MIN / -1` (reachable as `(1 << 63) / -1`) does not
+            // panic; div-by-zero is already left unfolded above.
+            (Expression::Integer(a), Expression::Integer(b)) => {
+                Expression::Integer(a.wrapping_div(*b))
+            }
             _ => Expression::Binary(Box::new(BinaryExpression {
                 left,
                 operator,
@@ -76,16 +90,48 @@ pub(super) fn fold_binary_expression(
                     right,
                 }))
             }
-            (Expression::Integer(a), Expression::Integer(b)) => Expression::Integer(a % b),
+            // `wrapping_rem` so `i64::MIN % -1` does not panic; mod-by-zero is already
+            // left unfolded above.
+            (Expression::Integer(a), Expression::Integer(b)) => {
+                Expression::Integer(a.wrapping_rem(*b))
+            }
             _ => Expression::Binary(Box::new(BinaryExpression {
                 left,
                 operator,
                 right,
             })),
         },
-        Op::ShiftLeft => fold_integer_math(left, right, |a, b| a << b, operator),
-        Op::ShiftRight => fold_integer_math(left, right, |a, b| a >> b, operator),
+        Op::ShiftLeft => fold_integer_shift(left, right, operator, i64::checked_shl),
+        Op::ShiftRight => fold_integer_shift(left, right, operator, i64::checked_shr),
+        Op::BitwiseAnd => fold_integer_math(left, right, |a, b| a & b, operator),
+        Op::BitwiseOr => fold_integer_math(left, right, |a, b| a | b, operator),
+        Op::BitwiseXor => fold_integer_math(left, right, |a, b| a ^ b, operator),
     }
+}
+
+/// Fold a constant SHIFT (`1 << 100`) only when the shift amount is a valid,
+/// in-range count. `i64::checked_shl`/`checked_shr` return `None` for an amount
+/// >= 64, and a negative amount fails the `u32` conversion -- in both cases the
+/// naive `a << b` would PANIC the compiler ("attempt to shift with overflow"), so
+/// we leave the expression unfolded for the backend/runtime (whose out-of-range
+/// shift semantics are a separate, target-defined question) instead of crashing.
+fn fold_integer_shift(
+    left: Expression,
+    right: Expression,
+    operator: BinaryOperator,
+    operation: impl FnOnce(i64, u32) -> Option<i64>,
+) -> Expression {
+    if let (Expression::Integer(a), Expression::Integer(b)) = (&left, &right)
+        && let Ok(amount) = u32::try_from(*b)
+        && let Some(result) = operation(*a, amount)
+    {
+        return Expression::Integer(result);
+    }
+    Expression::Binary(Box::new(BinaryExpression {
+        left,
+        operator,
+        right,
+    }))
 }
 
 fn fold_integer_math(
@@ -580,6 +626,9 @@ pub(super) fn boolean_not(expression: Expression) -> Expression {
                     return boolean_and(boolean_not(binary.left), boolean_not(binary.right));
                 }
                 Op::Add
+                | Op::BitwiseAnd
+                | Op::BitwiseOr
+                | Op::BitwiseXor
                 | Op::Divide
                 | Op::Modulo
                 | Op::Multiply

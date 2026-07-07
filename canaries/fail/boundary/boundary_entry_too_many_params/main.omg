@@ -1,0 +1,8 @@
+// FAIL (the ARRIVAL-FIT LAW v1): the platform hands the entry at most four
+// register arguments (MS-x64). A fifth declared parameter would read garbage;
+// that is a clear error, never a silently-unpopulated slot (which is exactly
+// what it was before this law).
+data Main { }
+boundary machine Main::run(&self, a: addr, b: addr, c: addr, d: addr, e: addr) -> i32 {
+    transition { _ -> (0) }
+}

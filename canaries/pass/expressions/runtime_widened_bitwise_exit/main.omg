@@ -1,0 +1,33 @@
+// RUN canary: the `as`-widen is the sanctioned way to bitwise-combine different-
+// width integers (see the fail canary mismatched_width_bitwise_rejected). This
+// locks that the widened bitwise op does NOT truncate the wider operand.
+//
+// `self.big` is u32 256 (0x100); `self.small` is u8 1. A truncating `|` (the
+// rejected bug) would read `(256 & 0xFF == 0) | 1` -> 1; the correct widened op
+// reads `256 | 1` -> 257 (the u8 zero-extends, the u32's high bits survive).
+// combined == 257 -> exit 70, else the wider operand was truncated -> exit 71.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    small: u8;
+    big: u32;
+    combined: u32;
+}
+
+machine Main::main(&mut self) {
+    self.small = 1;
+    self.big = 256;
+
+    // Widen the u8 so both operands are u32; the OR must preserve bit 8 (256) AND
+    // bit 0 (1) -> 257. A truncation to u8 width would drop the 256 and yield 1.
+    self.combined = self.big | self.small as u32;
+
+    transition self.combined == 257 { true -> correct() _ -> truncated() }
+
+    state correct(&mut self) { self.console.exit_process(70); }
+    // The wider operand was truncated to the narrower width -- the rejected bug.
+    state truncated(&mut self) { self.console.exit_process(71); }
+}

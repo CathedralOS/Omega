@@ -1,0 +1,65 @@
+// IN-PLACE ARRAY REVERSE with a LOCAL temp -- the two-pointer shape that
+// originally surfaced the dual-indexed silent miscompile (2026-06-28) and was
+// only expressible with machine-field temps until today. Each iteration is the
+// classic three-liner, composing the 2026-07-03 landings:
+//   let t = arr[lo];          -- capture semantics: arr is written below, so t
+//                                must hold the captured element, not re-fold
+//   arr[lo] = arr[hi];        -- the dual-indexed copy instruction
+//   arr[hi] = t;              -- the frame-source indexed write
+// The loop head's compound guard proves both indices for the body.
+// [1,2,3,4,5] -> [5,4,3,2,1]; checks arr[0], arr[1], arr[4] -> exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    arr: [i32; 5];
+    lo: i32 in Wrapping;
+    hi: i32 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.arr[0] = 1;
+    self.arr[1] = 2;
+    self.arr[2] = 3;
+    self.arr[3] = 4;
+    self.arr[4] = 5;
+    self.lo = 0;
+    self.hi = 4;
+    transition {
+        _ -> step()
+    }
+    state step(&mut self) {
+        transition self.lo >= 0 && self.hi >= 0 && self.lo < 5 && self.hi < 5 && self.lo < self.hi {
+            true -> swap_body()
+            _ -> check()
+        }
+    }
+    state swap_body(&mut self) {
+        let t: i32 = self.arr[self.lo];
+        self.arr[self.lo] = self.arr[self.hi];
+        self.arr[self.hi] = t;
+        self.lo = self.lo + 1;
+        self.hi = self.hi - 1;
+        transition {
+            _ -> step()
+        }
+    }
+    state check(&mut self) {
+        transition self.arr[0] == 5 {
+            true -> check2()
+            false -> bad()
+        }
+    }
+    state check2(&mut self) {
+        transition self.arr[1] == 4 {
+            true -> check3()
+            false -> bad()
+        }
+    }
+    state check3(&mut self) {
+        transition self.arr[4] == 1 {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

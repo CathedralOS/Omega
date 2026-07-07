@@ -1,0 +1,56 @@
+// Regression: i64 SIGNED division/modulo. The divide/modulo byte-size resolver ran
+// at the OPERAND width to handle a 32-bit dividend correctly, but when BOTH operands
+// are immediates (a constant/constant divide that did not fold) neither has a storage
+// width, so it fell back to 4 -- emitting a 32-bit idiv core. That (a) disagreed with
+// the planner's 64-bit width (a hard "encoded instruction width mismatch", blocking
+// all i64 constant division) and (b) would have TRUNCATED a 64-bit dividend to 32
+// bits had it run. The resolver now falls back to the TARGET (declared i64) width.
+//
+// Checks dividends that need the full 64 bits (a 32-bit core would give a wrong
+// quotient), both signs, and modulo (remainder takes the dividend's sign). exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: i64 in Trapping;
+    b: i64 in Trapping;
+    r: i64 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.a = -9000000000;
+    self.b = 1000;
+    self.r = self.a / self.b;
+    transition self.r == -9000000 { true -> pos_div() _ -> bad() }
+
+    state pos_div(&mut self) {
+        self.a = 9000000000;
+        self.b = 1000;
+        self.r = self.a / self.b;
+        transition self.r == 9000000 { true -> neg_mod() _ -> bad() }
+    }
+    state neg_mod(&mut self) {
+        // remainder takes the dividend's sign: -9_000_000_000 % 7 = -5.
+        self.a = -9000000000;
+        self.b = 7;
+        self.r = self.a % self.b;
+        transition self.r == -5 { true -> small_div() _ -> bad() }
+    }
+    state small_div(&mut self) {
+        // small magnitudes, still i64-typed -- must stay 64-bit, not crash the width.
+        self.a = 100;
+        self.b = 7;
+        self.r = self.a / self.b;
+        transition self.r == 14 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

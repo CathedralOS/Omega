@@ -524,6 +524,34 @@ pub fn runtime_frame_base_indexed_binary_write_width(
         + runtime_result_write_width(0, byte_size)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_machine_indexed_binary_write_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    _index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    // aarch64 does not emit this instruction (the encoder returns a clean
+    // error); reuse the frame-base layout as a conservative total width.
+    runtime_frame_base_indexed_binary_write_width(
+        runtime_value_operands,
+        base_byte_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+        left,
+        operator,
+        right,
+    )
+}
+
 pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
     24 + unsigned_immediate_width(byte_length as u64)
 }
@@ -601,10 +629,19 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_o
 
 pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
-    28 + add_constant_width(base_byte_offset)
+    // Target adrp lands after the index-address setup (12) + `add x16,#base` +
+    // index LOAD (Machine 4 / RuntimeFrame 12) + scale + `add x16,x16,x26` (4) +
+    // `add x16,#field`. MUST match the region-aware `..._width` / the encoder.
+    let index_load = match index_region {
+        omega_target_operations::RuntimeStorageRegion::Machine => 4,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => 12,
+    };
+    16 + index_load
+        + add_constant_width(base_byte_offset)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
 }
@@ -799,16 +836,68 @@ pub fn runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width(
 
 pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
     byte_count: usize,
 ) -> usize {
-    32 + add_constant_width(base_byte_offset)
+    // Fixed part = index-address setup (adrp+add+mov = 12) + the index LOAD +
+    // `add x16,x16,x26` (4) + the target-region adrp+add (8). The index load is
+    // region-dependent (Machine 4 / RuntimeFrame 12); MUST match the encoder.
+    let index_load = match index_region {
+        omega_target_operations::RuntimeStorageRegion::Machine => 4,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => 12,
+    };
+    24 + index_load
+        + add_constant_width(base_byte_offset)
         + scale_index_width(element_byte_size)
         + add_constant_width(field_byte_offset)
         + add_constant_width(target_offset)
         + runtime_storage_copy_data_width(0, 0, byte_count)
+}
+
+/// Write-side mirror of `..._from_runtime_machine_indexed_to_runtime_storage_width`:
+/// same fixed part (index-address setup + region-dependent index load + the store
+/// base's adrp/add), with `source_offset`'s `add x20,#source` in place of the
+/// read's `add x20,#target`. MUST match the encoder.
+pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
+    source_offset: usize,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    let index_load = match index_region {
+        omega_target_operations::RuntimeStorageRegion::Machine => 4,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => 12,
+    };
+    24 + index_load
+        + add_constant_width(base_byte_offset)
+        + scale_index_width(element_byte_size)
+        + add_constant_width(field_byte_offset)
+        + add_constant_width(source_offset)
+        + runtime_storage_copy_data_width(0, 0, byte_count)
+}
+
+/// The byte offset of the SOURCE adrp (`adrp x20`) within the store — same
+/// position as the read's target adrp, region-aware. Used by the relocation
+/// planner to relocate the source page-pair to the machine symbol.
+pub fn runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    let index_load = match index_region {
+        omega_target_operations::RuntimeStorageRegion::Machine => 4,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame => 12,
+    };
+    16 + index_load
+        + add_constant_width(base_byte_offset)
+        + scale_index_width(element_byte_size)
+        + add_constant_width(field_byte_offset)
 }
 
 pub fn runtime_storage_copy_to_runtime_pointee_width(
@@ -839,7 +928,10 @@ pub fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_width(
 pub fn operand_width(operand: &Aarch64CallOperand) -> usize {
     match operand {
         DataAddress { .. } => 8,
-        RuntimeStringPointer { .. } | RuntimeStringLength { .. } | RuntimeScalarInteger { .. } => 12,
+        RuntimeStringPointer { .. }
+        | RuntimeStringLength { .. }
+        | RuntimeScalarInteger { .. }
+        | RuntimeStorageAddress { .. } => 12,
         RuntimePointeeStringPointer { .. } | RuntimePointeeStringLength { .. } => 16,
         ImmediateInteger(value) => immediate_width(*value),
         ByteLength(value) => unsigned_immediate_width(*value as u64),
@@ -1101,6 +1193,9 @@ fn runtime_binary_operation_width(operator: StateGuardOperator) -> usize {
         StateGuardOperator::Add
         | StateGuardOperator::And
         | StateGuardOperator::Or
+        | StateGuardOperator::BitwiseAnd
+        | StateGuardOperator::BitwiseOr
+        | StateGuardOperator::BitwiseXor
         | StateGuardOperator::Subtract
         | StateGuardOperator::Multiply
         | StateGuardOperator::Divide

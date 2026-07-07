@@ -1,0 +1,22 @@
+// RUN CANARY (exit 70) + interpreter differential. A struct-literal field init
+// coerces the field value to the field's declared width/domain, matching the
+// native store into the field slot: `Point { x: a+b }` with `a+b`=300 (u8
+// Wrapping) reads back 44. The field is read DIRECTLY (`p.x`), so the coercion
+// must happen at CONSTRUCTION (a case payload would instead be coerced at the
+// destructure param binding). Regression lock for the interpreter
+// eval_struct_literal field coercion. exit 71 = the field carried the raw 300.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Point { x: u8 in Wrapping; }
+data Main { console: Console; a: u8 in Wrapping; b: u8 in Wrapping; }
+machine Main::main(&mut self) {
+    self.a = 200;
+    self.b = 100;
+    let p: Point = Point { x: self.a + self.b };   // 300 -> u8 field, reads 44
+    transition p.x == 44 {
+        true  -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

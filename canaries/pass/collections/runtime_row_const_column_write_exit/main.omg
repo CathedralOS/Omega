@@ -1,0 +1,33 @@
+// The WORKING side of the 2D-indexed-write boundary: a runtime ROW index with a CONST column
+// (`grid[r][0]`, `grid[r][1]`) lowers correctly -- the const column resolves to a fixed offset
+// within the runtime-selected row. (The runtime-COLUMN case `grid[r][c]` is the rejected side; see
+// fail/collections/nested_runtime_indexed_write_rejected.) Fill both columns of both rows by runtime
+// row index, read back: sum 10+15+20+25 = 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    grid: [[i32; 2]; 2] in Wrapping;
+    r: i32 in Wrapping;
+    s: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.r = 0;
+    self.grid[self.r][0] = 10;
+    self.grid[self.r][1] = 15;
+    self.r = 1;
+    self.grid[self.r][0] = 20;
+    self.grid[self.r][1] = 25;
+    self.s = self.grid[0][0] + self.grid[0][1];
+    self.s = self.s + self.grid[1][0];
+    self.s = self.s + self.grid[1][1];
+    transition self.s == 70 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(self.s); }
+}
