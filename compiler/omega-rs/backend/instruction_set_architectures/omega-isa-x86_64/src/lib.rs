@@ -350,6 +350,106 @@ pub fn encode_runtime_frame_fixed_indexed_address_to_runtime_frame_write(
     Ok(bytes)
 }
 
+/// Width of [`encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage`].
+/// MUST equal the emitter exactly. Relocs: frame @+2, target region @+24+2.
+pub fn runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage_width() -> usize {
+    // mov r14,imm64(frame) (10) + mov r14,[r14+desc] (7)
+    // + mov rax,[r14 + idx*elem + field] (7) + mov r15,imm64(target) (10)
+    // + store [r15+target],rax (7).
+    41
+}
+
+/// Relocation imm offset (pre-`+2`) of the TARGET region base `mov` in the
+/// fixed-indexed slice-element copy.
+pub const FRAME_FIXED_INDEXED_COPY_TARGET_IMM_OFFSET: usize = 24;
+
+/// Read `s[K]` (a CONST-index element of a slice DESCRIPTOR in the frame) and
+/// copy it into a runtime-storage target (machine field or frame slot). This
+/// op was WIDTH-0 on x86_64: `self.got = s[1]` silently dropped and the
+/// machine field kept its ZII 0.
+pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage(
+    descriptor_offset: usize,
+    element_index: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_count, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot copy {byte_count}-byte slice elements yet"
+        )));
+    }
+    let element_displacement = element_index
+        .checked_mul(element_byte_size)
+        .and_then(|scaled| scaled.checked_add(field_byte_offset))
+        .ok_or_else(|| Diagnostic::error("X86_64 fixed slice element offset overflow"))?;
+    let mut bytes = Vec::with_capacity(
+        runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage_width(),
+    );
+    append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +2)
+    bytes.extend([0x4d, 0x8b, 0xb6]); // mov r14, [r14+desc] -- the slice data ptr
+    bytes.extend(disp32(descriptor_offset)?.to_le_bytes());
+    append_load_rax_from_r14(&mut bytes, element_displacement, byte_count)?;
+    debug_assert_eq!(bytes.len(), FRAME_FIXED_INDEXED_COPY_TARGET_IMM_OFFSET);
+    append_mov_r15_imm64(&mut bytes, 0); // target region base (reloc @ +2)
+    append_store_rax_to_r15(&mut bytes, target_offset, byte_count)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage_width()
+    );
+    Ok(bytes)
+}
+
+/// Width of [`encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage`].
+/// MUST equal the emitter exactly. Relocs: frame @+2, target region @+41+2.
+pub fn runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage_width() -> usize {
+    // mov r14,imm64(frame) (10) + mov r11d,[r14+idx] (7) + imul r11,elem (7)
+    // + mov r14,[r14+desc] (7) + add r14,r11 (3) + mov rax,[r14+field] (7)
+    // + mov r15,imm64(target) (10) + store (7).
+    58
+}
+
+/// Relocation imm offset (pre-`+2`) of the TARGET region base `mov` in the
+/// runtime-indexed slice-element copy.
+pub const FRAME_INDEXED_COPY_TARGET_IMM_OFFSET: usize = 41;
+
+/// Read `s[i]` (a RUNTIME-index element of a slice DESCRIPTOR in the frame,
+/// index a frame slot) and copy it into a runtime-storage target. The
+/// runtime-index twin of the fixed-indexed copy above (same width-0 history).
+pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage(
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_count, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot copy {byte_count}-byte slice elements yet"
+        )));
+    }
+    let mut bytes = Vec::with_capacity(
+        runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage_width(),
+    );
+    append_mov_r14_imm64(&mut bytes, 0); // frame base (reloc @ +2)
+    append_load_r11_from_r14(&mut bytes, index_offset)?; // r11 = index (32-bit ZX)
+    append_imul_r11_imm32(&mut bytes, element_scale(element_byte_size)?);
+    bytes.extend([0x4d, 0x8b, 0xb6]); // mov r14, [r14+desc] -- the slice data ptr
+    bytes.extend(disp32(descriptor_offset)?.to_le_bytes());
+    append_add_r14_r11(&mut bytes); // r14 = ptr + index*elem
+    append_load_rax_from_r14(&mut bytes, field_byte_offset, byte_count)?;
+    debug_assert_eq!(bytes.len(), FRAME_INDEXED_COPY_TARGET_IMM_OFFSET);
+    append_mov_r15_imm64(&mut bytes, 0); // target region base (reloc @ +2)
+    append_store_rax_to_r15(&mut bytes, target_offset, byte_count)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage_width()
+    );
+    Ok(bytes)
+}
+
 /// Width of [`encode_runtime_frame_indexed_deref_address_to_runtime_frame_write`].
 /// MUST equal the emitter exactly. Frame index: two frame relocations (@+2 and
 /// the target mov at +41+2). Machine index: a machine relocation at +10+2 is

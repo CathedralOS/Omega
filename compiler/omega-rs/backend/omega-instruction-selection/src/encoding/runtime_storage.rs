@@ -905,7 +905,16 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage
                 byte_count,
             )
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage(
+                descriptor_offset,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            )
+        }
     }
 }
 
@@ -929,7 +938,16 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_s
                 byte_count,
             )
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_storage_copy_from_runtime_frame_fixed_indexed_to_runtime_storage(
+                descriptor_offset,
+                element_index,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            )
+        }
     }
 }
 

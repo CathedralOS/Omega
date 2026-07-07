@@ -1,0 +1,34 @@
+// RUNTIME-index slice-descriptor element read into a machine field
+// (`self.got = s[i]`, i a ranged param) -- the runtime twin of the fixed
+// copy, same width-0 history. Report shows the indexed copy op. -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    arr: [i32; 4];
+    got: i32;
+}
+machine Main::main(&mut self) {
+    self.arr[1] = 11;
+    let s: &[i32] = self.arr.as_slice();
+    transition s.len == 4 {
+        true -> pick(s, 1)
+        false -> no()
+    }
+    state pick(&mut self, s: &[i32], i: usize [0..=3]) {
+        transition i < s.len {
+            true -> go(s, i)
+            false -> no()
+        }
+    }
+    state go(&mut self, s: &[i32], i: usize [0..=3]) {
+        self.got = s[i];
+        transition self.got == 11 {
+            true -> yes()
+            false -> no()
+        }
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}
