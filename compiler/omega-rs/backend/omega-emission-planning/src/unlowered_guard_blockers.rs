@@ -1,9 +1,15 @@
-//! Reject any `EvaluateDispatchGuard` left in the selected-instruction plan
-//! with `StateGuardLowering::UnresolvedInlineArmGuard`: the POISON selection
-//! emits for an inline-leaf VALUE arm whose guard it could not resolve.
-//! Before the poison existed such an arm was silently DROPPED -- no compare,
-//! no result write -- so the value call returned a stale 0 (the slice-len
-//! guard miscompile). This check turns the drop into a compile error.
+//! Reject the POISON `EvaluateDispatchGuard` markers left in the
+//! selected-instruction plan:
+//! - `UnresolvedInlineArmGuard`: an inline-leaf VALUE arm whose guard could
+//!   not resolve. Before the poison such an arm was silently DROPPED -- no
+//!   compare, no result write -- so the value call returned a stale 0 (the
+//!   slice-len guard miscompile).
+//! - `UnloweredTerminalHostCall`: a host-boundary call as a machine/state
+//!   TERMINAL value. No write strategy lowers it, so the call silently never
+//!   ran and its result slot read ZII 0 (`Filesystem::close` reported rc 0
+//!   "success" while the fd stayed OPEN -- Windows' unlink-refuses-open-files
+//!   exposed what POSIX unlink masked).
+//! Each check turns a silent drop into a compile error.
 //!
 //! NOTE: `NeedsRuntimeExpression` guards are deliberately NOT rejected here;
 //! dispatch edges use that lowering as an intentional zero-width
@@ -23,24 +29,41 @@ pub(super) fn collect_unlowered_guard_blockers(
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     for (_, instruction) in input.instructions.code.instructions.iter() {
-        let SelectedInstructionKind::EvaluateDispatchGuard {
-            guard_lowering: StateGuardLowering::UnresolvedInlineArmGuard,
-            ..
-        } = instruction.kind
+        let SelectedInstructionKind::EvaluateDispatchGuard { guard_lowering, .. } =
+            instruction.kind
         else {
             continue;
         };
-
-        blockers.insert(blocker(
-            "state guards",
-            &format!(
-                "{} statement {} transition arm guard needs runtime guard lowering \
-                 (the guard expression did not resolve to a comparable operand; \
-                 emitting it as-is would silently drop the guarded arm){}",
-                state_name(input, instruction.source_key),
-                instruction.source_statement,
-                proof_scope_suffix(input, instruction.source_key)
-            ),
-        ));
+        match guard_lowering {
+            StateGuardLowering::UnresolvedInlineArmGuard => {
+                blockers.insert(blocker(
+                    "state guards",
+                    &format!(
+                        "{} statement {} transition arm guard needs runtime guard lowering \
+                         (the guard expression did not resolve to a comparable operand; \
+                         emitting it as-is would silently drop the guarded arm){}",
+                        state_name(input, instruction.source_key),
+                        instruction.source_statement,
+                        proof_scope_suffix(input, instruction.source_key)
+                    ),
+                ));
+            }
+            StateGuardLowering::UnloweredTerminalHostCall => {
+                blockers.insert(blocker(
+                    "state values",
+                    &format!(
+                        "{} statement {}: a host-boundary call is the TERMINAL value, \
+                         which has no native value-return lowering -- the call would \
+                         silently never run and its result would read 0 (ZII). Bind it \
+                         to a `let` and return the local \
+                         (`let rc: i32 = self.host.op(..); rc`){}",
+                        state_name(input, instruction.source_key),
+                        instruction.source_statement,
+                        proof_scope_suffix(input, instruction.source_key)
+                    ),
+                ));
+            }
+            _ => {}
+        }
     }
 }

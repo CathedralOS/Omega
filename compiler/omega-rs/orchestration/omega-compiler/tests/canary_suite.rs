@@ -23083,6 +23083,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "control_flow/transition_fall_through_value_match",
     "calls/abs_call_argument_rejected",
     "build/build_machine_wrong_arity",
+    "host/terminal_host_call_value",
     "boundary/entry_typed_params_unmarked",
     "boundary/boundary_entry_too_many_params",
     "wire/decode_into_ranged_field",

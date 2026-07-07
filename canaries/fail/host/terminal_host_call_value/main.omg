@@ -1,0 +1,18 @@
+// FAIL CANARY: a host-boundary call as a machine's TERMINAL value has no
+// native value-return lowering -- before the fence it silently never ran and
+// its result slot read ZII 0 (the Filesystem::close fd-leak shape: rc 0
+// "success" while the fd stayed open). The fence turns it into this clean
+// error; the supported spelling binds to a `let` and returns the local.
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Probe { host: FilesystemHost; fd: i32; }
+machine Probe::shutdown(&mut self, fd: i32) -> i32 {
+    self.fd = fd;
+    self.host.close(self.fd)
+}
+data Main { console: Console; probe: Probe; rc: i32; }
+machine Main::main(&mut self) {
+    self.rc = self.probe.shutdown(3);
+    transition self.rc == 0 { true -> good() _ -> good() }
+    state good(&mut self) { self.console.exit_process(0); }
+}

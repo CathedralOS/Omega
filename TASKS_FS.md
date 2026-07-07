@@ -113,13 +113,17 @@ remove→Ok, remove(missing)→Error{NotFound}. Three finds along the way:
    (`fs.read(file, &mut buf, 32)` → callee `count`=32) resolved as neither a
    place nor an immediate → clean encoder error. `scalar_argument_operand_at`
    now follows the alias to an Integer literal (`alias_resolved_integer_at`).
-2. **Bare TERMINAL host calls silently drop (wrapper FIXED; compiler face
-   OPEN):** `Filesystem::close`'s terminal `self.host.close(..)` emitted NO
-   call natively — rc read ZII 0 ("success") while the fd stayed open; macOS
-   never noticed (POSIX unlinks open files), Windows did. Wrapper sites now
-   let-bind (close, create_dir_all). ⚠️ ENGINEERING NEXT: make a terminal-
-   position host call a CLEAN COMPILE ERROR (the no-silent-fall-through
-   doctrine) instead of a silent no-op.
+2. **Bare TERMINAL host calls silently drop — BOTH HALVES CLOSED
+   (2026-07-07):** `Filesystem::close`'s terminal `self.host.close(..)`
+   emitted NO call natively — rc read ZII 0 ("success") while the fd stayed
+   open; macOS never noticed (POSIX unlinks open files), Windows did.
+   Wrapper sites let-bind (close, create_dir_all), and the compiler now
+   FENCES the shape: a bare CALL terminal that no write strategy lowers gets
+   the `UnloweredTerminalHostCall` poison (leaf.rs known-safe fallthrough)
+   and a clean bind-to-a-`let` diagnostic (unlowered_guard_blockers.rs) —
+   any unresolved machine/state value call was already a frontend error, so
+   the poisoned shape is exactly the host-boundary terminal. Fail canary
+   `host/terminal_host_call_value`.
 3. **⚠️ FLAG-VALUE PORTABILITY (feeds design #6):** the wrapper's POSIX flag
    words carry DARWIN values; darwin O_CREAT (0x200) is msvcrt O_TRUNC, so
    `create_new`/`open_with` on Windows would silently TRUNCATE the file they

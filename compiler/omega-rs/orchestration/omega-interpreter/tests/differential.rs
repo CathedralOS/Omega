@@ -772,6 +772,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_slice_length_local_param_binding_exit", 6),
     ("calls/runtime_subslice_length_local_binding_exit", 3),
     ("calls/runtime_post_clauses_return_type_exit", 1),
+    ("calls/runtime_recursive_accumulator_exit", 1),
+    ("calls/runtime_recursive_rotation_exit", 1),
     ("calls/runtime_recursive_self_spelling_exit", 1),
     ("calls/runtime_value_call_struct_payload_cast_field_exit", 70),
     ("time/runtime_duration_core_exit", 70),
