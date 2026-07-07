@@ -710,7 +710,35 @@ fn select_runtime_leaf_branch_terminal_value_write(
     // across the full canary suite and the dungeon stress sample's 470 reaches): the
     // `_in_table` path above handles every case that actually lowers. Removed in the
     // Phase 4 selection cleanup; an unhandled case here simply emits nothing, exactly
-    // as before.
+    // as before -- EXCEPT a bare CALL terminal, poisoned below.
+    //
+    // A TERMINAL VALUE that is a bare CALL no strategy lowered is a
+    // host-boundary call in value-return position (`machine close(..) -> i32
+    // { self.host.close(fd) }` -- any UNRESOLVED machine/state value call was
+    // already a frontend error). Silently emitting nothing made the call
+    // vanish and its result slot read ZII 0 (Filesystem::close reported
+    // "success" while the fd stayed open). Poison instead; emission planning
+    // rejects it with the bind-to-a-`let` diagnostic.
+    if matches!(
+        scratch.expressions.expression(resolved_value),
+        ExpressionNode::Call(_)
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::EvaluateDispatchGuard {
+                guard_lowering:
+                    omega_abstract_operations::StateGuardLowering::UnloweredTerminalHostCall,
+                operator: omega_abstract_operations::StateGuardOperator::Equal,
+                storage_region: RuntimeStorageRegion::Machine,
+                byte_offset: 0,
+                byte_size: 0,
+                expected_value: 0,
+                has_storage: false,
+                is_float: false,
+            },
+            source_key: expansion.branch_key,
+            source_statement: expansion.statement_index,
+        });
+    }
 }
 
 /// Substitute names that refer to the expansion SOURCE state's earlier `let`

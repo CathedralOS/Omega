@@ -65,4 +65,13 @@ pub enum StateGuardLowering {
     /// intentional zero-width "unconditionally enter" fallthrough (e.g. the
     /// false arm of a string-equality transition).
     UnresolvedInlineArmGuard,
+    /// POISON: a machine/state TERMINAL VALUE that is a bare CALL expression
+    /// no write strategy could lower (a host-boundary call in value-return
+    /// position: `machine close(..) -> i32 { self.host.close(fd) }`). The
+    /// call would silently never be emitted and its result slot would read
+    /// ZII 0 -- `Filesystem::close` reported rc 0 "success" while the fd
+    /// stayed open. Selection emits this marker instead; emission planning
+    /// rejects it with a bind-to-a-`let` diagnostic. Zero bytes; must never
+    /// reach a runnable image.
+    UnloweredTerminalHostCall,
 }

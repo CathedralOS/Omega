@@ -251,7 +251,31 @@ fn select_runtime_straight_line_branch_terminal_value_write(
     }
 
     // Non-table mutation-write fallback removed (Phase 4): proven dead emitter — the
-    // `_in_table` path above handles every case that lowers.
+    // `_in_table` path above handles every case that lowers — EXCEPT a bare CALL
+    // terminal, poisoned below (the leaf writer's twin: a host-boundary call in
+    // value-return position would silently never run and its result slot would
+    // read ZII 0; any unresolved machine/state value call was already a
+    // frontend error).
+    if matches!(
+        scratch.expressions.expression(resolved_value),
+        omega_checked_trees::expression::ExpressionNode::Call(_)
+    ) {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::EvaluateDispatchGuard {
+                guard_lowering:
+                    omega_abstract_operations::StateGuardLowering::UnloweredTerminalHostCall,
+                operator: omega_abstract_operations::StateGuardOperator::Equal,
+                storage_region: RuntimeStorageRegion::Machine,
+                byte_offset: 0,
+                byte_size: 0,
+                expected_value: 0,
+                has_storage: false,
+                is_float: false,
+            },
+            source_key: expansion.source_key,
+            source_statement: expansion.statement_index,
+        });
+    }
 }
 
 fn select_runtime_straight_line_assignment_value_target_copy(
