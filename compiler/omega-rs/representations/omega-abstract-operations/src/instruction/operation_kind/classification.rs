@@ -50,6 +50,7 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::WriteRuntimeFrameIndexedInteger { .. }
             | Self::WriteRuntimeFrameBaseIndexedInteger { .. }
             | Self::WriteRuntimeMachineIndexedInteger { .. }
+            | Self::WriteRuntimeMachineDoubleIndexedInteger { .. }
             | Self::WriteRuntimeFrameIndexedBinary { .. }
             | Self::WriteRuntimeFrameBaseIndexedBinary { .. }
             | Self::WriteRuntimeMachineIndexedBinary { .. }
@@ -90,6 +91,7 @@ impl OperationSemanticQuery for AbstractOperationKind {
             | Self::CopyRuntimeFrameIndexedToRuntimePointee { .. }
             | Self::CopyRuntimeMachineIndexedToRuntimeStorage { .. }
             | Self::CopyRuntimeMachineDoubleIndexedToRuntimeStorage { .. }
+            | Self::CopyRuntimeStorageToRuntimeMachineDoubleIndexed { .. }
             | Self::CopyRuntimeFrameBaseIndexedToRuntimeFrame { .. }
             | Self::CopyRuntimeStorageToRuntimeMachineIndexed { .. }
             | Self::CopyRuntimeMachineIndexedToRuntimeMachineIndexed { .. }

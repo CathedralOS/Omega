@@ -739,6 +739,38 @@ pub enum AbstractOperationKind {
         target_offset: usize,
         byte_count: usize,
     },
+    /// Write twin of `CopyRuntimeMachineDoubleIndexedToRuntimeStorage`:
+    /// `grid[i][j] = self.v` -- a both-runtime nested write sourced from a
+    /// runtime storage place. The target is machine-owned by definition (the
+    /// resolver guarantees it), so there is no target_region.
+    CopyRuntimeStorageToRuntimeMachineDoubleIndexed {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        base_byte_offset: usize,
+        outer_index_offset: usize,
+        outer_index_region: RuntimeStorageRegion,
+        outer_stride: usize,
+        inner_index_offset: usize,
+        inner_index_region: RuntimeStorageRegion,
+        inner_stride: usize,
+        field_byte_offset: usize,
+        byte_count: usize,
+    },
+    /// Const-value write into a both-runtime nested element
+    /// (`grid[i][j] = 70`) -- the double-indexed sibling of
+    /// `WriteRuntimeMachineIndexedInteger`.
+    WriteRuntimeMachineDoubleIndexedInteger {
+        base_byte_offset: usize,
+        outer_index_offset: usize,
+        outer_index_region: RuntimeStorageRegion,
+        outer_stride: usize,
+        inner_index_offset: usize,
+        inner_index_region: RuntimeStorageRegion,
+        inner_stride: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+        value: i64,
+    },
     /// Read `collection[index]` from a FRAME-resident inline array (a by-value
     /// param or local `[T; N]` living at `frame[base_byte_offset]`, no
     /// descriptor) at a runtime index (`frame[index_offset]`) and copy the

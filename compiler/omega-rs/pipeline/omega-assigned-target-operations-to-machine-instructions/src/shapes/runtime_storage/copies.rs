@@ -160,6 +160,12 @@ pub(super) fn selected_runtime_storage_copy_kind(
         SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage { .. } => {
             Some(MachineInstructionKind::RuntimeStorageCopyFromRuntimeMachineDoubleIndexed)
         }
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed { .. } => {
+            Some(MachineInstructionKind::RuntimeStorageCopyToRuntimeMachineDoubleIndexed)
+        }
+        SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger { .. } => {
+            Some(MachineInstructionKind::RuntimeMachineDoubleIndexedIntegerWrite)
+        }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
             source_offset,
             pointer_byte_offset,

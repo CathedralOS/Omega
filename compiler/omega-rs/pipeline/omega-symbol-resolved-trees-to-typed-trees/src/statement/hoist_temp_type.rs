@@ -212,7 +212,15 @@ pub(super) fn infer_hoist_temp_type(
     let ExpressionNode::Indexed(indexed) = expressions.expression(initial_value) else {
         return Ok(None);
     };
-    let collection = indexed.collection;
+    // A NESTED indexed read (`grid[i][j]`, the double-indexed hoist temp)
+    // descends one element level per `Indexed` layer: walk the collection
+    // chain to the base place, then take element-of-element depth times.
+    let mut collection = indexed.collection;
+    let mut depth = 1usize;
+    while let ExpressionNode::Indexed(inner) = expressions.expression(collection) {
+        collection = inner.collection;
+        depth += 1;
+    }
 
     let Some(collection_type) = collection_type_reference(lowerer, attached_data, state, collection)
     else {
@@ -220,12 +228,22 @@ pub(super) fn infer_hoist_temp_type(
     };
 
     // The element type, plus the collection-level constraints to re-apply (so an
-    // element read of `[i32; N] in Trapping` is `i32 in Trapping`).
-    let Some((element_type, constraints)) =
-        element_type_of(lowerer.source_trees, &collection_type)
-    else {
-        return Ok(None);
-    };
+    // element read of `[i32; N] in Trapping` is `i32 in Trapping`). For nested
+    // reads the LAST non-empty constraint span wins (the innermost declared
+    // domain characterizes the scalar element).
+    let mut element_type = collection_type;
+    let mut constraints = HandleSpan::empty();
+    for _ in 0..depth {
+        let Some((next_element, next_constraints)) =
+            element_type_of(lowerer.source_trees, &element_type)
+        else {
+            return Ok(None);
+        };
+        element_type = next_element;
+        if !next_constraints.is_empty() {
+            constraints = next_constraints;
+        }
+    }
 
     let element_handle = lower_type_reference_into_table(lowerer, &element_type)?;
     if constraints.is_empty() {

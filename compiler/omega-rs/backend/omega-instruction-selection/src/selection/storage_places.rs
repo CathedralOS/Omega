@@ -2112,6 +2112,23 @@ fn resolve_machine_owned_collection_with_const_prefix_in_table(
     })
 }
 
+pub(super) fn resolve_runtime_machine_double_indexed_source(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> Option<RuntimeMachineDoubleIndexedTarget> {
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_runtime_machine_double_indexed_source_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
+}
+
 pub(super) fn resolve_runtime_pointee_slot_offset(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,

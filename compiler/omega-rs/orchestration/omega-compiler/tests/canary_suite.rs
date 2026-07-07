@@ -1864,30 +1864,72 @@ fn runtime_dual_indexed_copy_exit_canary_runs() {
 }
 
 #[test]
-fn nested_runtime_indexed_write_rejected_canary_is_rejected() {
-    // A nested runtime-COLUMN indexed write `grid[row][col] = v` (a runtime column index applied to
-    // an already-indexed place) cannot be lowered by the static-assignment fast path -- it would
-    // silently NO-OP. The classifier guard (target_is_nested_runtime_indexed) keeps it out of the
-    // AlreadyLowered fast path so it is recorded as a mutation and rejected cleanly here. A const
-    // column (`grid[i][0]`) and a single index (`arr[i]`) still lower and are not rejected.
-    let canary = fail_canary("collections/nested_runtime_indexed_write_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected nested-runtime-indexed-write canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
-    let combined = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        combined.contains("needs mutation lowering")
-            || combined.contains("needs runtime storage write lowering"),
-        "expected a mutation-lowering rejection for the nested runtime-indexed write, got:\n{combined}"
+fn runtime_double_indexed_write_exit_canary_runs() {
+    // Both-runtime nested writes (`grid[i][j] = v`): const value, machine and
+    // frame place sources, neighbor-validated. Was the write fail canary.
+    let canary = pass_canary("collections/runtime_double_indexed_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-double-indexed-write-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("double-indexed write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("double-indexed write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `grid[i][j] = v` (both indices runtime) to write the right elements across all faces and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
     );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// Both-runtime nested read as a BINARY OPERAND (`grid[i][j] + 5`).
+#[test]
+fn runtime_double_indexed_operand_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_double_indexed_operand_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-double-indexed-operand-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("double-indexed operand canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("double-indexed operand canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `grid[i][j] + 5` (both indices runtime, hoisted operand) to compute 42 and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
 }
 
 #[test]

@@ -1198,6 +1198,76 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtim
     }
 }
 
+pub fn encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage(
+    architecture: Architecture,
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    source_offset: usize,
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "aarch64 cannot encode a both-runtime nested write (`grid[i][j] = v`) yet; \
+             make one index a constant or use a flat array",
+        )),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage(
+                source_region,
+                source_offset,
+                base_byte_offset,
+                outer_index_offset,
+                outer_index_region,
+                outer_stride,
+                inner_index_offset,
+                inner_index_region,
+                inner_stride,
+                field_byte_offset,
+                byte_count,
+            )
+        }
+    }
+}
+
+pub fn encode_runtime_machine_double_indexed_integer_write(
+    architecture: Architecture,
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "aarch64 cannot encode a both-runtime nested integer write yet; \
+             make one index a constant or use a flat array",
+        )),
+        Architecture::X86_64 => x86_64::encode_runtime_machine_double_indexed_integer_write(
+            base_byte_offset,
+            outer_index_offset,
+            outer_index_region,
+            outer_stride,
+            inner_index_offset,
+            inner_index_region,
+            inner_stride,
+            field_byte_offset,
+            byte_size,
+            value,
+        ),
+    }
+}
+
 pub fn encode_runtime_storage_copy_to_runtime_pointee(
     architecture: Architecture,
     source_offset: usize,

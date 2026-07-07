@@ -32,7 +32,8 @@ use super::super::super::storage_places::{
     resolve_runtime_call_argument_call_result_place,
     resolve_runtime_call_argument_call_result_place_by_ordinal,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_fixed_indexed_target,
-    resolve_runtime_frame_indexed_target, resolve_runtime_machine_indexed_target,
+    resolve_runtime_frame_indexed_target,
+    resolve_runtime_machine_double_indexed_source, resolve_runtime_machine_indexed_target,
     resolve_runtime_pointee_slot_offset, resolve_runtime_transition_argument_call_result_place,
 };
 use super::super::guards::static_guard_conjunct_summary_in_table;
@@ -1639,6 +1640,80 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
                     element_byte_size: indexed_target.element_byte_size,
                     field_byte_offset: indexed_target.field_byte_offset,
                     byte_size: indexed_target.byte_count,
+                    value,
+                },
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
+    }
+
+    // BOTH-RUNTIME nested write (`grid[i][j] = <v>`): the double-indexed
+    // write twin. Tried after the single-index block (mutually exclusive --
+    // the double resolver requires BOTH indices runtime).
+    if let Some(double_target) = resolve_runtime_machine_double_indexed_source(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) {
+        // Runtime-place source: `grid[i][j] = self.v` / a param slot.
+        if let Some(source_place) = resolve_runtime_storage_place(
+            input,
+            dispatch_index,
+            resolved_value.source_key,
+            source_machine,
+            source_state,
+            &resolved_value.expression,
+        ) && matches!(
+            source_place.region,
+            omega_abstract_operations::RuntimeStorageRegion::Machine
+                | omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame
+        ) && source_place.byte_count == double_target.byte_count
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed {
+                    source_region: source_place.region,
+                    source_offset: source_place.byte_offset,
+                    base_byte_offset: double_target.base_byte_offset,
+                    outer_index_offset: double_target.outer_index_offset,
+                    outer_index_region: double_target.outer_index_region,
+                    outer_stride: double_target.outer_stride,
+                    inner_index_offset: double_target.inner_index_offset,
+                    inner_index_region: double_target.inner_index_region,
+                    inner_stride: double_target.inner_stride,
+                    field_byte_offset: double_target.field_byte_offset,
+                    byte_count: double_target.byte_count,
+                },
+                source_key: operation_source_key,
+                source_statement: statement_index,
+            });
+            return;
+        }
+
+        // Const-value source: `grid[i][j] = 70`.
+        if supports_scalar_integer_write(double_target.byte_count)
+            && let Some(value) = resolve_runtime_static_integer_value(
+                input,
+                operation_source_key,
+                value,
+                aliases,
+                alias_expressions,
+                static_values,
+            )
+        {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger {
+                    base_byte_offset: double_target.base_byte_offset,
+                    outer_index_offset: double_target.outer_index_offset,
+                    outer_index_region: double_target.outer_index_region,
+                    outer_stride: double_target.outer_stride,
+                    inner_index_offset: double_target.inner_index_offset,
+                    inner_index_region: double_target.inner_index_region,
+                    inner_stride: double_target.inner_stride,
+                    field_byte_offset: double_target.field_byte_offset,
+                    byte_size: double_target.byte_count,
                     value,
                 },
                 source_key: operation_source_key,
