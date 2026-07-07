@@ -1364,6 +1364,88 @@ fn runtime_time_host_virtual_interpreter_oracle() {
 }
 
 #[test]
+fn runtime_time_elapsed_since_exit_canary_runs() {
+    // std::time rung 6 slice 2: Time::elapsed_since (the stopwatch read;
+    // single-level body with `stopwatch_*`-prefixed lets -- the cross-callee
+    // let-name collision dodge, see TASKS.md). DIFFERENTIAL: sleep(30) then
+    // elapsed >= 30ms on both engines (interp virtual clock = exactly 30ms).
+    // The caller mixes now() and elapsed_since in ONE state -- the shape
+    // that #DE-crashed while the two callees shared the let name `frequency`.
+    let canary = pass_canary("time/runtime_time_elapsed_since_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("elapsed-since canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.error, None, "elapsed-since chain should interpret cleanly");
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for the elapsed-since chain, got {}",
+        outcome.exit_code
+    );
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-elapsed-since-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("elapsed-since canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("elapsed-since canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the elapsed-since chain to run natively (exit 70), got {:?} \
+         (1 = under 30ms/zeroed; negative status = the frequency-collision #DE crash)",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_system_time_after_2026_exit_canary_runs() {
+    // std::time rung 6 slice 2: system_time_now() (one raw wall read +
+    // calibration constants, all math in the wrapper) + SystemTime::
+    // duration_since both directions. DIFFERENTIAL: the virtual wall clock
+    // (2026-01-01 seed + slept 30ms) and the real clock both satisfy the
+    // seconds>0-or-subsecond>=30ms splits; the Backwards PAYLOAD must carry
+    // the real gap (ZII Backwards(ZERO) fails leg 4).
+    let canary = pass_canary("time/runtime_system_time_after_2026_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("system-time canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.error, None, "system-time chain should interpret cleanly");
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for the system-time chain, got {}",
+        outcome.exit_code
+    );
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-system-time-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("system-time canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("system-time canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the system-time chain to run natively (exit 70), got {:?} \
+         (1/2 = forward leg; 3/4 = backward leg; 5/6 = Unmeasured arm fired)",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_instant_elapsed_exit_canary_runs() {
     // std::time rung 6: Time::now() normalization over the seam +
     // Instant::duration_since/checked_duration_since. DIFFERENTIAL: the
@@ -23294,6 +23376,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "time/runtime_duration_totals_exit",
     "time/runtime_time_host_native_exit",
     "time/runtime_instant_elapsed_exit",
+    "time/runtime_system_time_after_2026_exit",
+    "time/runtime_time_elapsed_since_exit",
     "parser/deep_nesting_within_limit",
     "traits/boundary_trait_effects_host_call",
     "traits/dyn_trait_object_dispatch",

@@ -129,6 +129,27 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   clock frequencies; interp honors the unsigned witness) — [[signedness-codegen-gap]]
   family. Fix = signedness resolution must consult the folded BINARY operand's
   declared type, not just direct storage operands.
+- **[ ] Cross-callee LET-NAME collision: the Mutation fallback write resolves the
+  WRONG callee's local (2026-07-08, std::time rung 6 slice 2; native only).** Two
+  different callees with same-named lets value-called from ONE caller state: the
+  call-result path delivers call 1 correctly, then the Mutation op's fallback
+  storage-write emits an EXTRA capture that resolves the callee terminal by NAME
+  through `find_runtime_frame_slot_for_path`'s cross-source-key `.or_else` ladder
+  and lands on the OTHER callee's still-ZII slot, clobbering the delivered value
+  (repro + op-stream analysis:
+  canaries/pending/calls/cross_callee_let_name_collision; in std it crashed as
+  #DE — `Time::now()` + `Time::elapsed_since` shared the let name `frequency`,
+  so the divisor read back ZII 0). Third flavor of the by-NAME resolution
+  disease (siblings both fixed via SLOT NAMING; locals cannot be renamed at
+  mint — they are user names). Fix on the emission side: suppress the Mutation
+  fallback when the call-result capture already delivered (emission-tracked —
+  careful: fs terminal-value completion RELIES on the fallback when the leaf
+  cascade emits nothing), or pin the fallback's terminal-name resolution to the
+  callee's source_key with NO cross-key fallback. Std dodge until then: unique
+  let names in wrapper machines callable from one state (time.omg elapsed_since
+  uses `stopwatch_*`). ⚠️ AUDIT flag: ANY two machines with same-named lets
+  value-called from one caller state can silently corrupt the FIRST call's
+  result — the class is not time-specific.
 - **[ ] Owner: REJECTED. NO-RECURSION directive ENFORCED 2026-07-10 (was: runtime_recursive_accumulator_exit).**
   Caused by THIS TASKS.md thread (the 2026-07-09 "recursive value machine" work -- my error:
   I read the pre-existing termination canaries' `self.countdown(..)` spelling as sanctioning

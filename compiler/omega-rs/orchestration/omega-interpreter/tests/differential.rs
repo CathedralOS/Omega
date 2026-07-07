@@ -798,6 +798,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_value_call_struct_payload_cast_field_exit", 70),
     ("time/runtime_duration_core_exit", 70),
     ("time/runtime_instant_elapsed_exit", 70),
+    ("time/runtime_system_time_after_2026_exit", 70),
+    ("time/runtime_time_elapsed_since_exit", 70),
     ("calls/runtime_value_machine_param_array_index_exit", 1),
     ("collections/runtime_declared_range_index_read_exit", 30),
     ("constants/runtime_scoped_const_exit", 70),

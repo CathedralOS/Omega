@@ -1,0 +1,89 @@
+// std::time rung 6 slice 2: SystemTime over the wall-clock seam --
+// `system_time_now()` (raw/units - offset, all math in the wrapper per D11)
+// must land strictly after 2026-01-01 (Unix 1_767_225_600), and
+// `SystemTime::duration_since` must discriminate both directions.
+//
+// DIFFERENTIAL (interp + native): sleep(30) first, so on the interpreter's
+// virtual wall clock (2026-01-01 seed + elapsed ms, D12) now == epoch2026 +
+// exactly 30ms; native is >= 30ms past whatever 2026+ date the real clock
+// reads. Each direction splits seconds>0 (native path) vs subsecond >= 30ms
+// (interp path) -- and both the Ok arm and the Backwards PAYLOAD are non-ZII
+// discriminators (a zeroed result fails; the ZII Backwards(ZERO) arm fails).
+//
+// AUTHORING: receivers route through `a` -- the FIRST SystemTime field (the
+// known same-type receiver-aliasing bug).
+// Expected exit: 70.
+use omega::language::std::time;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Clock { machine sleep(milliseconds: u32); }
+
+data Main {
+    console: Console;
+    clock: Clock;
+    time: Time;
+    a: SystemTime;
+    b: SystemTime;
+    now_keep: SystemTime;
+    epoch_2026: SystemTime;
+    forward: SystemTimeDifference;
+    backward: SystemTimeDifference;
+}
+
+machine Main::main(&mut self) {
+    self.clock.sleep(30);
+    self.now_keep = self.time.system_time_now();
+    self.epoch_2026 = SystemTime::from_unix_seconds(1767225600);
+    self.a = self.now_keep;
+    self.b = self.epoch_2026;
+    self.forward = self.a.duration_since(self.b);
+    transition self.forward {
+        SystemTimeDifference::Ok { duration } -> check_forward(duration)
+        SystemTimeDifference::Backwards { amount } -> fail_forward_backwards(amount)
+        SystemTimeDifference::Unmeasured -> fail_forward_unmeasured()
+    }
+    state check_forward(&mut self, duration: Duration) {
+        // Strictly after 2026: >= 1s ahead (native) or the 30ms the virtual
+        // clock slept (interp).
+        transition duration.seconds > 0 {
+            true -> check_backward()
+            false -> check_forward_subsecond(duration)
+        }
+    }
+    state check_forward_subsecond(&mut self, duration: Duration) {
+        transition duration.subsecond_nanoseconds >= 30000000 {
+            true -> check_backward()
+            false -> fail_forward_zero()
+        }
+    }
+    state check_backward(&mut self) {
+        self.a = self.epoch_2026;
+        self.b = self.now_keep;
+        self.backward = self.a.duration_since(self.b);
+        transition self.backward {
+            SystemTimeDifference::Backwards { amount } -> check_backward_amount(amount)
+            SystemTimeDifference::Ok { duration } -> fail_backward_ok(duration)
+            SystemTimeDifference::Unmeasured -> fail_backward_unmeasured()
+        }
+    }
+    state check_backward_amount(&mut self, amount: Duration) {
+        // The Backwards PAYLOAD must carry the real gap, not the ZII ZERO.
+        transition amount.seconds > 0 {
+            true -> good()
+            false -> check_backward_subsecond(amount)
+        }
+    }
+    state check_backward_subsecond(&mut self, amount: Duration) {
+        transition amount.subsecond_nanoseconds >= 30000000 {
+            true -> good()
+            false -> fail_backward_zero()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_forward_backwards(&mut self, amount: Duration) { self.console.exit_process(1); }
+    state fail_forward_zero(&mut self) { self.console.exit_process(2); }
+    state fail_backward_ok(&mut self, duration: Duration) { self.console.exit_process(3); }
+    state fail_backward_zero(&mut self) { self.console.exit_process(4); }
+    state fail_forward_unmeasured(&mut self) { self.console.exit_process(5); }
+    state fail_backward_unmeasured(&mut self) { self.console.exit_process(6); }
+}

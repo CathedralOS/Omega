@@ -1,0 +1,33 @@
+// PROBE: Time::elapsed_since -- now() nested at depth 2 (host calls inside)
+// + duration_since on a LOCAL receiver in terminal position. sleep(30) then
+// elapsed >= 30ms. exits: 70 ok; 1 = under 30ms / zeroed.
+use omega::language::std::time;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Clock { machine sleep(milliseconds: u32); }
+
+data Main {
+    console: Console;
+    clock: Clock;
+    time: Time;
+    start_keep: Instant;
+    elapsed: Duration;
+}
+
+machine Main::main(&mut self) {
+    self.start_keep = self.time.now();
+    self.clock.sleep(30);
+    self.elapsed = self.time.elapsed_since(self.start_keep);
+    transition self.elapsed.seconds == 0 {
+        true -> check_subsecond()
+        false -> good()
+    }
+    state check_subsecond(&mut self) {
+        transition self.elapsed.subsecond_nanoseconds >= 30000000 {
+            true -> good()
+            false -> fail_short()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_short(&mut self) { self.console.exit_process(1); }
+}
