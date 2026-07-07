@@ -1,0 +1,34 @@
+// MINIMAL REPRO of the value-call transition-guard ordering bug (TASKS_FS.md
+// "DEEP FIX"). A value-call into a DIFFERENT data type whose callee branches on a
+// host-call result in an internal `transition`. close(-1) returns -1 (EBADF), so
+// the guard `rc == 0` is FALSE and check() must return false. Natively the guard
+// reads rc's ZII zero (the store has not run yet) -> rc==0 TRUE -> returns true.
+//
+// Prints PASS when correct (false), BUG when the guard-ordering bug fires (true).
+
+use omega::language::std::filesystem_host;
+
+data Probe {
+    host: FilesystemHost;
+}
+
+machine Probe::check(&mut self) -> bool {
+    let rc: i32 = self.host.close(-1);
+    transition rc == 0 { true -> yes() _ -> no() }
+    state yes(&mut self) -> bool { true }
+    state no(&mut self) -> bool { false }
+}
+
+data Main {
+    probe: Probe;
+    raw: FilesystemHost;
+    n: i64;
+    here: bool;
+}
+
+machine Main::main(&mut self) {
+    self.here = self.probe.check();
+    transition self.here { true -> bug() _ -> ok() }
+    state ok(&mut self)  { self.n = self.raw.write(1, "PASS: value-call guard observed the host result (false)\n"); }
+    state bug(&mut self) { self.n = self.raw.write(1, "BUG: value-call guard read ZII zero (true)\n"); }
+}
