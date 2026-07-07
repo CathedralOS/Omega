@@ -1,0 +1,18 @@
+// V2: value-returning machine with an EMPTY body -- `machine get -> i32 { }`.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+}
+machine Main::get(&self) -> i32 {
+}
+machine Main::main(&mut self) {
+    let r: i32 = self.get();
+    transition r == 0 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

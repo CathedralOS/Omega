@@ -92,6 +92,28 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
         validate_machine_trait_conformances(program, machine, &mut diagnostics);
 
         for (state_index, state) in program.machine_states(machine).iter().enumerate() {
+            // A state that DECLARES a return type but has an EMPTY body can
+            // never produce the value -- callers would silently bind 0 (ZII),
+            // and native/interp diverge on what that zero reads as. GENERIC
+            // machines are exempt: the core/std container surface (`machine
+            // Vec::as_slice<T>(&self) -> &[T] { }`) is deliberately
+            // type-check-only, and value calls to generics are already fenced
+            // (fence_generic_value_callee).
+            if state.return_type.is_valid()
+                && program.machine_type_parameters(machine).is_empty()
+                && program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .is_empty()
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "machine `{}` state `{}` declares a return type but its body is \
+                     empty -- it can never produce the value (callers would silently \
+                     bind 0). Return a value or drop the `-> T`.",
+                    machine.name,
+                    state.name.as_str(),
+                )));
+            }
             validate_local_data_names(
                 program.statement_table.statements(state.statement_nodes),
                 &machine_symbols,

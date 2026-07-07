@@ -46,9 +46,16 @@ pub(super) fn parse_machine<'tokens, 'source>(
     let (machine_parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
     let (machine_return_type, mut input) = parse_optional_return_type(syntax_trees, input)?;
     let (satisfies, next) = parse_satisfies_traits(syntax_trees, input)?;
-    let ((terminates, decreases, decrease_order, effects, contracts), next) =
+    let ((terminates, decreases, decrease_order, effects, contracts, clauses_return_type), next) =
         parse_machine_clauses(syntax_trees, next)?;
     input = next;
+    // `-> T` is written either before the clauses or after them
+    // (`terminates {..} -> usize`); both spell the machine's return type.
+    let machine_return_type = if machine_return_type.is_valid() {
+        machine_return_type
+    } else {
+        clauses_return_type
+    };
     let MachinePath {
         name,
         attached_data,
