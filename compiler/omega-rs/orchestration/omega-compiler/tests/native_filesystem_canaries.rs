@@ -369,3 +369,19 @@ fn nsstring_length_exits_5() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(out.status.code(), Some(5), "[[NSString alloc] initWithUTF8String:\"hello\"] length should be 5");
 }
+
+// The arm64 HFA calling convention: a CGRect (4 doubles) passed BY VALUE lands in
+// v0-v3. CGRectGetMaxX({10,20,30,40}) = v0+v2 = 40, CGRectGetMaxY = v1+v3 = 60;
+// both round-tripped through round_nearest -> exit 6. Also proves CoreGraphics is
+// bindable as a directly-called framework (no objc).
+#[test]
+fn cgrect_hfa_exits_6() {
+    let main_path = repo_root().join("canaries/pass/objc/cgrect_hfa/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-cgrect-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("cgrect_hfa should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(6), "CGRectGetMaxX/Y of {{10,20,30,40}} should be 40/60 (HFA in v0-v3)");
+}

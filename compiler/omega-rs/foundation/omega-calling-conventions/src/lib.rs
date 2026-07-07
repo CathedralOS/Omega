@@ -1,7 +1,9 @@
 mod darwin;
 mod linux;
 mod windows;
-pub use darwin::{DARWIN_LIBOBJC_PATH, DARWIN_LIBSYSTEM_PATH, darwin_import_library};
+pub use darwin::{
+    DARWIN_COREGRAPHICS_PATH, DARWIN_LIBOBJC_PATH, DARWIN_LIBSYSTEM_PATH, darwin_import_library,
+};
 pub use windows::windows_import_library;
 
 use omega_core::arena::{Arena, Handle, HandleSpan};
@@ -47,7 +49,10 @@ impl HostOperationKey {
     pub fn returns_value(self) -> bool {
         matches!(
             self.capability,
-            HostCapability::Filesystem | HostCapability::Math | HostCapability::ObjectiveC
+            HostCapability::Filesystem
+                | HostCapability::Math
+                | HostCapability::ObjectiveC
+                | HostCapability::CoreGraphics
         )
     }
 
@@ -93,13 +98,18 @@ impl HostOperationKey {
     /// the encoder. (`round_nearest` returns an `i64`, NOT a float, so it is
     /// excluded.)
     pub fn returns_float(self) -> bool {
-        matches!(self.capability, HostCapability::Math)
+        (matches!(self.capability, HostCapability::Math)
             && matches!(
                 self.operation,
                 HostOperation::SquareRoot
                     | HostOperation::Hypotenuse
                     | HostOperation::FusedMultiplyAdd
-            )
+            ))
+            || (matches!(self.capability, HostCapability::CoreGraphics)
+                && matches!(
+                    self.operation,
+                    HostOperation::RectMaxX | HostOperation::RectMaxY
+                ))
     }
 }
 
@@ -129,6 +139,10 @@ pub enum HostCapability {
     /// binds against a SECOND dylib (see `darwin_import_library` + the Mach-O
     /// multi-dylib load commands). The gateway to Cocoa/AppKit.
     ObjectiveC,
+    /// CoreGraphics — the `CG*` C API. `CGRect`-taking geometry functions exercise
+    /// the arm64 HFA calling convention (a `CGRect` = 4 doubles passed in v0–v3);
+    /// `CGImageCreate`/`CGColorSpace…` build the blit surface.
+    CoreGraphics,
 }
 
 impl HostCapability {
@@ -144,6 +158,7 @@ impl HostCapability {
             "Filesystem" => Self::Filesystem,
             "Math" => Self::Math,
             "ObjectiveC" => Self::ObjectiveC,
+            "CoreGraphics" => Self::CoreGraphics,
             _ => Self::Unknown,
         }
     }
@@ -161,6 +176,7 @@ impl HostCapability {
             Self::Filesystem => "Filesystem",
             Self::Math => "Math",
             Self::ObjectiveC => "ObjectiveC",
+            Self::CoreGraphics => "CoreGraphics",
         }
     }
 }
@@ -339,6 +355,14 @@ pub enum HostOperation {
     /// `initWithUTF8String:` (window titles etc.). Shares `_objc_msgSend`. Only
     /// provable once Foundation is loaded (NSString registered).
     MsgSendString,
+    /// `CoreGraphics::rect_max_x(x, y, w, h) -> f64` → `CGRectGetMaxX`. Takes a
+    /// `CGRect` = 4 doubles passed as an HFA in v0–v3, returns `origin.x +
+    /// size.width` (v0 + v2) as a `CGFloat` in d0. The run-verified proof that 4
+    /// doubles land in v0–v3 (`RectMaxY` returns v1 + v3).
+    RectMaxX,
+    /// `CoreGraphics::rect_max_y(x, y, w, h) -> f64` → `CGRectGetMaxY` = `origin.y +
+    /// size.height` (v1 + v3).
+    RectMaxY,
     Sleep,
     TickCount,
     KeyState,
@@ -421,6 +445,8 @@ impl HostOperation {
             "send" => Self::MsgSend,
             "send_scalar" => Self::MsgSendScalar,
             "send_string" => Self::MsgSendString,
+            "rect_max_x" => Self::RectMaxX,
+            "rect_max_y" => Self::RectMaxY,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
@@ -489,6 +515,8 @@ impl HostOperation {
             Self::MsgSend => "send",
             Self::MsgSendScalar => "send_scalar",
             Self::MsgSendString => "send_string",
+            Self::RectMaxX => "rect_max_x",
+            Self::RectMaxY => "rect_max_y",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",

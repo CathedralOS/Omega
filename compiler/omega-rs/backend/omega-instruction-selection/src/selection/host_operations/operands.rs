@@ -331,6 +331,28 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::CoreGraphics, HostOperation::RectMaxX | HostOperation::RectMaxY) => {
+            // `r = rect_max_x(x, y, w, h) -> _CGRectGetMaxX({x,y,w,h})`. The CGRect's
+            // 4 doubles marshal as an HFA into v0–v3 (four consecutive
+            // `RuntimeScalarFloat` operands sequenced by the vreg counter); the f64
+            // result comes back in d0 (`returns_float`). operand[0] is the f64 result
+            // place. Any unresolvable float => no operands (encoder hard-errors).
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let x = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let y = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let w = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let h = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            match (result, x, y, w, h) {
+                (Some(result), Some(x), Some(y), Some(w), Some(h)) => operands.insert_many([
+                    operand(result),
+                    operand(x),
+                    operand(y),
+                    operand(w),
+                    operand(h),
+                ]),
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::Filesystem, HostOperation::Sync) => {
             // Value-returning `rc = sync(fd) -> _fsync(fd)`. Same shape as
             // `close`: operand[0]=result place, [1]=fd; either unresolvable =>

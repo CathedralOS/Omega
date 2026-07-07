@@ -1,6 +1,6 @@
 use crate::layout::align_to;
 use crate::load_commands::MachoDylib;
-use omega_calling_conventions::{DARWIN_LIBOBJC_PATH, DARWIN_LIBSYSTEM_PATH, darwin_import_library};
+use omega_calling_conventions::{DARWIN_LIBOBJC_PATH, darwin_import_library};
 use omega_core::diagnostics::Diagnostic;
 use omega_image::{FinalImage, FinalImageLayout, FinalImageSection};
 
@@ -25,17 +25,11 @@ pub(crate) fn macho_dylib_list(thunks: &[MachoImportThunk]) -> Vec<MachoDylib> {
         if thunk.library == DARWIN_LIBOBJC_PATH {
             uses_objc = true;
         }
-        let already = dylibs.iter().any(|dylib| dylib.path == thunk.library);
-        if !already {
-            match thunk.library {
-                DARWIN_LIBOBJC_PATH => dylibs.push(MachoDylib::LIBOBJC),
-                // libSystem is already present; an unknown library is a wiring bug
-                // (a symbol mapped to a dylib with no MachoDylib spec) — fall back
-                // to libSystem rather than emit a malformed load command.
-                DARWIN_LIBSYSTEM_PATH => {}
-                _ => {}
-            }
-        }
+        // Every imported symbol's library must carry a load command (CoreGraphics
+        // `_CG*` calls, libobjc, …). libSystem is already present; an unknown path
+        // is a wiring bug (a symbol mapped to a dylib with no spec) — skipped so no
+        // malformed load command is emitted.
+        ensure_dylib(&mut dylibs, thunk.library);
     }
     // A program that touches the Objective-C runtime needs the Cocoa frameworks
     // LOADED so their classes REGISTER — `objc_getClass("NSString"/"NSWindow")`
@@ -43,12 +37,38 @@ pub(crate) fn macho_dylib_list(thunks: &[MachoImportThunk]) -> Vec<MachoDylib> {
     // + the runtime). These carry NO imported symbols; they are loaded purely for
     // their class-registration side effect (appended AFTER libobjc so libobjc
     // keeps ordinal 2 and existing binds are unaffected). See D-objc-load.
+    // `ensure_dylib` de-dups, so a directly-called CoreGraphics is not doubled.
     if uses_objc {
-        dylibs.push(MachoDylib::FOUNDATION);
-        dylibs.push(MachoDylib::APPKIT);
-        dylibs.push(MachoDylib::COREGRAPHICS);
+        ensure_dylib(&mut dylibs, MachoDylib::FOUNDATION.path);
+        ensure_dylib(&mut dylibs, MachoDylib::APPKIT.path);
+        ensure_dylib(&mut dylibs, MachoDylib::COREGRAPHICS.path);
     }
     dylibs
+}
+
+/// Append the `MachoDylib` spec for `path` if it is not already loaded. An unknown
+/// path (no matching spec) is skipped — a symbol mapped to a dylib with no spec is
+/// a wiring bug, and emitting a malformed load command would be worse.
+fn ensure_dylib(dylibs: &mut Vec<MachoDylib>, path: &str) {
+    if dylibs.iter().any(|dylib| dylib.path == path) {
+        return;
+    }
+    if let Some(spec) = dylib_spec_for(path) {
+        dylibs.push(spec);
+    }
+}
+
+/// The `MachoDylib` spec (path + versions) for a known install-name path.
+fn dylib_spec_for(path: &str) -> Option<MachoDylib> {
+    [
+        MachoDylib::LIBSYSTEM,
+        MachoDylib::LIBOBJC,
+        MachoDylib::FOUNDATION,
+        MachoDylib::APPKIT,
+        MachoDylib::COREGRAPHICS,
+    ]
+    .into_iter()
+    .find(|spec| spec.path == path)
 }
 
 fn dylib_ordinal(dylibs: &[MachoDylib], library: &str) -> u8 {
@@ -60,16 +80,28 @@ fn dylib_ordinal(dylibs: &[MachoDylib], library: &str) -> u8 {
 }
 
 pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<MachoImportThunk> {
+    // The host-ABI binding catalog registers an import symbol for EVERY binding,
+    // but a program calls only a few. Only a REFERENCED import (a host-call `bl`
+    // targets its thunk through a relocation) needs a thunk + bind entry; the rest
+    // would be dead thunks whose bind entries force their dylibs
+    // (libobjc/Foundation/AppKit/CoreGraphics) to load needlessly. Restrict to the
+    // symbols an actual relocation points at, so e.g. a pure-filesystem program
+    // links only libSystem.
+    let referenced: Vec<_> = image
+        .relocation_table
+        .relocations
+        .iter()
+        .map(|(_, relocation)| relocation.symbol_handle)
+        .filter(|handle| image.symbol_table.symbols.is_valid(*handle))
+        .collect();
     let imports = image
         .symbol_table
         .imports
         .iter()
         .filter_map(|(_, import)| {
-            image
-                .symbol_table
-                .symbols
-                .is_valid(import.symbol_handle)
-                .then_some(import.symbol_handle)
+            (image.symbol_table.symbols.is_valid(import.symbol_handle)
+                && referenced.contains(&import.symbol_handle))
+            .then_some(import.symbol_handle)
         })
         .collect::<Vec<_>>();
     let mut thunks = Vec::new();
