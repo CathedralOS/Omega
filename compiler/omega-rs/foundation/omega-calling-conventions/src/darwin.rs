@@ -8,6 +8,11 @@ pub const DARWIN_LIBSYSTEM_PATH: &str = "/usr/lib/libSystem.B.dylib";
 /// The Objective-C runtime dylib (`objc_msgSend`, `objc_getClass`,
 /// `sel_registerName`, …) — a SEPARATE `LC_LOAD_DYLIB` from libSystem.
 pub const DARWIN_LIBOBJC_PATH: &str = "/usr/lib/libobjc.A.dylib";
+/// CoreGraphics — the `CG*` C API (`CGRectGetMaxX`, `CGImageCreate`,
+/// `CGColorSpaceCreateDeviceRGB`, …). A directly-CALLED framework (unlike
+/// Foundation/AppKit which load only for objc class registration).
+pub const DARWIN_COREGRAPHICS_PATH: &str =
+    "/System/Library/Frameworks/CoreGraphics.framework/Versions/A/CoreGraphics";
 
 /// The absolute dylib path a darwin import symbol binds against (its
 /// `LC_LOAD_DYLIB`). The Mach-O backend derives each import's dylib ordinal from
@@ -25,6 +30,10 @@ pub fn darwin_import_library(symbol: &str) -> &'static str {
         || symbol.starts_with("_protocol_")
     {
         return DARWIN_LIBOBJC_PATH;
+    }
+    // The CoreGraphics C API is `CG`-prefixed (`_CGRectGetMaxX`, `_CGImageCreate`).
+    if symbol.starts_with("_CG") {
+        return DARWIN_COREGRAPHICS_PATH;
     }
     DARWIN_LIBSYSTEM_PATH
 }
@@ -102,6 +111,11 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         darwin_import("ObjectiveC", "send", "_objc_msgSend", &policy),
         darwin_import("ObjectiveC", "send_scalar", "_objc_msgSend", &policy),
         darwin_import("ObjectiveC", "send_string", "_objc_msgSend", &policy),
+        // CoreGraphics geometry: a `CGRect` (4 doubles) is passed as an HFA in
+        // v0–v3 (`_CG*` routes to CoreGraphics via `darwin_import_library`). The
+        // run-verified proof that 4 doubles land in v0–v3.
+        darwin_import("CoreGraphics", "rect_max_x", "_CGRectGetMaxX", &policy),
+        darwin_import("CoreGraphics", "rect_max_y", "_CGRectGetMaxY", &policy),
     ]);
 
     insert_platform_lowering(
@@ -497,6 +511,22 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "ObjectiveC",
         "send_string",
         [host_operation("ObjectiveC", "send_string")],
+        PlatformCallData::None,
+    );
+    // `CoreGraphics::rect_max_x/y(x, y, w, h) -> f64` → `CGRectGetMaxX`/`MaxY`: the
+    // 4-double CGRect marshals as an HFA into v0–v3; the CGFloat result is in d0.
+    insert_platform_lowering(
+        plan,
+        "CoreGraphics",
+        "rect_max_x",
+        [host_operation("CoreGraphics", "rect_max_x")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "CoreGraphics",
+        "rect_max_y",
+        [host_operation("CoreGraphics", "rect_max_y")],
         PlatformCallData::None,
     );
 }

@@ -223,6 +223,26 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    the identical `next_vreg += 1` mechanism (no special-casing) and will be run-verified
    the moment the window-creation `objc_msgSend` first relies on it. Regression
    `native_float_three_args_exits_10` (native fs harness 59/59).
+   ✅ **fire 10: v0–v3 RUN-VERIFIED for real (a 4-double struct-by-value).** Wired
+   CoreGraphics as a bindable framework (`darwin_import_library` routes `_CG*` →
+   CoreGraphics; `DARWIN_COREGRAPHICS_PATH`; `HostCapability::CoreGraphics` +
+   `RectMaxX`/`RectMaxY` ops → `_CGRectGetMaxX`/`_CGRectGetMaxY`, `returns_float` +
+   `returns_value` extended). A `CGRect` = 4 doubles marshals as an HFA into v0–v3; op
+   arm `[result, x, y, w, h]` (4 `RuntimeScalarFloat`). PROVEN: `canaries/pass/objc/
+   cgrect_hfa` — `CGRectGetMaxX({10,20,30,40}) = v0+v2 = 40`, `CGRectGetMaxY = v1+v3 = 60`,
+   both round-tripped through `round_nearest` → exit 6; `otool` shows `fmov d0,x16; fmov
+   d1,x16; fmov d2,x16; fmov d3,x16; bl _CGRectGetMaxX`. All four v-registers proven placed.
+   ⚑ **BONUS FIX (D-import-pruning): reference-driven imports.** DISCOVERED that since fire
+   8 (objc bindings added), EVERY program imported ALL ~55 darwin bindings — so even a
+   pure-fs program loaded libobjc + Foundation + AppKit (a latent landmine: a headless env
+   where AppKit can't load would break ALL programs). Root cause: the object-plan inserts an
+   Import symbol for every binding (`omega-object-file-planning/src/symbols.rs`).
+   FIX at the mach-o layer: `install_import_thunks` now creates thunks only for imports
+   REFERENCED by a relocation (a host-call `bl` targets the thunk via one) — dead thunks
+   forced needless dylib loads. Result: native_stat → **1 dylib** (libSystem), cgrect →
+   libSystem+CoreGraphics, framework_classes → all 5. Native harness 65/65; canary_suite
+   zero new failures. **HFA is now fully proven (isolated v0–v3 + the independent-counter
+   mix); the window `initWithContentRect:` is HFA v0–v3 + trailing x2–x4 scalars — next.**
 3. **[~] Objective-C runtime boundary — STARTED (fire 7b): `objc_getClass` DONE; multi-dylib
    linking SHIPPED.** ✅ **The real blocker — MULTI-DYLIB LINKING — is solved.** The mach-o
    now emits an `LC_LOAD_DYLIB` per linked dylib (libSystem ordinal 1, libobjc ordinal 2)

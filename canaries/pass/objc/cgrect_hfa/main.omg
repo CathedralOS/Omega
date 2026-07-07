@@ -1,0 +1,54 @@
+// PROVES the arm64 HFA calling convention end-to-end (render fire 10): a struct
+// of 4 doubles (a CGRect) passed BY VALUE lands in v0–v3. Calls the CoreGraphics C
+// functions CGRectGetMaxX/MaxY, which read the CGRect {origin.x, origin.y,
+// size.width, size.height} from v0/v1/v2/v3 and return a CGFloat in d0:
+//   rect = {x:10, y:20, w:30, h:40}
+//   CGRectGetMaxX(rect) = origin.x + size.width  = v0 + v2 = 10 + 30 = 40
+//   CGRectGetMaxY(rect) = origin.y + size.height = v1 + v3 = 20 + 40 = 60
+// Correct results on BOTH prove all four v-registers are placed correctly (a
+// misplaced double would corrupt one of the sums). The CGFloat results are
+// round-tripped through the proven round_nearest to check without a float `==`.
+// n==40 AND m==60 -> exit 6; any miscompiled HFA slot -> exit 1. This also proves
+// CoreGraphics is bindable as a directly-called framework (2nd dylib, no objc).
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+boundary trait Math {
+    machine round_nearest(value: f64) -> i64;
+}
+
+boundary trait CoreGraphics {
+    machine rect_max_x(x: f64, y: f64, w: f64, h: f64) -> f64;
+    machine rect_max_y(x: f64, y: f64, w: f64, h: f64) -> f64;
+}
+
+data Main {
+    console: Console;
+    math: Math;
+    cg: CoreGraphics;
+    x: f64;
+    y: f64;
+    w: f64;
+    h: f64;
+    mx: f64;
+    my: f64;
+    n: i64;
+    m: i64;
+}
+
+machine Main::main(&mut self) {
+    self.x = 10.0;
+    self.y = 20.0;
+    self.w = 30.0;
+    self.h = 40.0;
+    self.mx = self.cg.rect_max_x(self.x, self.y, self.w, self.h);
+    self.my = self.cg.rect_max_y(self.x, self.y, self.w, self.h);
+    self.n = self.math.round_nearest(self.mx);
+    self.m = self.math.round_nearest(self.my);
+    transition self.n == 40 { true -> ck_y() _ -> bad() }
+    state ck_y(&mut self) { transition self.m == 60 { true -> good() _ -> bad() } }
+    state good(&mut self) { self.console.exit_process(6); }
+    state bad(&mut self)  { self.console.exit_process(1); }
+}
