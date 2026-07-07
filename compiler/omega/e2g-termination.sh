@@ -18,7 +18,7 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
   || { echo "e2g-termination FAIL — build omega2gamma.beta"; exit 1; }
 
 PASS=0; FAIL=0
-for d in ../../samples/*/; do
+for d in ../lattice-corpus/*/; do
   s=$(basename "$d")
   [ -f "$d/main.omg" ] || continue
   perl -e 'alarm 20; exec @ARGV' "$T/e2g.exe" < "$d/main.omg" > /dev/null 2>&1

@@ -22,7 +22,7 @@ b ../delta/check.beta  "$T/check.exe"  || { echo "input-tv FAIL — build check.
 
 PASS=0; FAIL=0
 tv() {
-  src="../../samples/$1/main.omg"
+  src="../lattice-corpus/$1/main.omg"
   "$T/e2g.exe" < "$src" > "$T/g" 2>/dev/null
   grep -q 'STDIN' "$T/g" || { FAIL=$((FAIL+1)); echo "  FAIL $1 : no STDIN placeholder (not input-taking?)"; return; }
   grep -A100 'INPUT-GRID:' "$src" | grep -oE '"[^"]*" -> [0-9]+' | while IFS= read -r row; do

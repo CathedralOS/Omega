@@ -1,0 +1,14 @@
+use generation::maze_builder;
+use rooms::rooms;
+
+data DungeonGenerator {
+    maze: MazeBuilder;
+}
+
+machine DungeonGenerator::generate(
+    &mut self,
+    seed: u64 in Wrapping,
+    out_level: &mut Level
+) {
+    self.maze.build(seed, out_level);
+}

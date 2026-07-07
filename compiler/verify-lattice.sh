@@ -86,10 +86,10 @@ step "seam — corpus theorems: proved AND operationally true" delta soundness-s
 step "seam — FUZZ: random +/* defeq vs operational eval" delta     seam-fuzz.sh gamma
 step "seam — recx accumulator recursion vs independent evaluation (check.beta + check_ref + checker.gamma agree)" delta recx-soundness.sh gamma beta beta-lang beta-lang-rs
 step "seam — prodrec product eliminator DIAMOND: check.beta + check_ref + checker.gamma decide identically (guard + soundness controls rejected by all three)" delta prodrec-seam.sh gamma beta beta-lang beta-lang-rs
-step "contract discharge (omega source) — math_proofs requires/ensures translated to delta props and proven by check.beta + check_ref + checker.gamma (perturbation rejected)" delta math-contracts.sh gamma beta beta-lang beta-lang-rs ../samples
-step "termination discharge (omega source) — 'decreases s -> Slice::Length' tail-recursion tied to a 3-checker measure-decrease lemma (reversed measure rejected)" delta termination-obligations.sh gamma beta beta-lang beta-lang-rs ../samples
+step "contract discharge (omega source) — math_proofs requires/ensures translated to delta props and proven by check.beta + check_ref + checker.gamma (perturbation rejected)" delta math-contracts.sh gamma beta beta-lang beta-lang-rs ../lattice-corpus
+step "termination discharge (omega source) — 'decreases s -> Slice::Length' tail-recursion tied to a 3-checker measure-decrease lemma (reversed measure rejected)" delta termination-obligations.sh gamma beta beta-lang beta-lang-rs ../lattice-corpus
 step "forall-input theorem — count(xs,n)=len(xs)+n proven for ALL inputs by induction (check.beta + check_ref + checker.gamma; perturbation rejected)" delta forall-input.sh gamma beta beta-lang beta-lang-rs
-step "forall-input SAMPLE connection — a real sample's count loop tied to the ∀-input theorem: proven = len(s)+acc for EVERY input (not just documented vectors)" delta forall-sample.sh gamma beta beta-lang beta-lang-rs ../samples
+step "forall-input SAMPLE connection — a real sample's count loop tied to the ∀-input theorem: proven = len(s)+acc for EVERY input (not just documented vectors)" delta forall-sample.sh gamma beta beta-lang beta-lang-rs ../lattice-corpus
 step "checker diamond — FUZZ: random props, check.beta vs checker.gamma" delta checker-diamond-fuzz.sh gamma
 step "logic diamond — FUZZ: random propositional proofs, all 3 checkers" delta logic-diamond-fuzz.sh gamma
 step "predicate diamond — FUZZ: random Mem/ProdIs/Perm proofs, all 3 checkers" delta predicate-diamond-fuzz.sh gamma
@@ -101,11 +101,11 @@ step "convergence — epsilon emits a proof; delta checks it" epsilon-rs converg
 step "convergence (self-hosted) — the self-hosted compiler's certifiers, checked by delta" epsilon-rs convergence-selfhost.sh delta
 step "convergence (reference route) — certifier RUN on interp.beta; cert checked by check.beta" epsilon-rs convergence-reference.sh delta gamma
 step "convergence (RUST-FREE) — omega2gamma.beta->interp.beta; cert checked by check.beta" omega convergence-reference.sh epsilon-rs delta gamma
-step "e2g termination canary — omega2gamma halts on every sample, supported or refused (no silent scan-forever)" omega e2g-termination.sh beta beta-lang beta-lang-rs ../samples
-step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega omega-meaning.sh gamma ../samples
-step "omega meaning-TV — the kernel re-computes each covered sample's arithmetic (proof, not comparison)" omega meaning-tv.sh gamma delta beta beta-lang beta-lang-rs ../samples
-step "input-grid meaning TV — input-taking samples proven per documented input vector (substitution closes the program; the whole proof pipe applies per vector)" omega input-tv.sh gamma delta beta beta-lang beta-lang-rs ../samples
-step "meaning-cert diamond — every meaning-TV cert (pins, witnesses, binary arithmetic, structural claims) decided identically by check.beta AND check_ref.py" omega meaning-cert-diamond.sh delta beta beta-lang beta-lang-rs ../samples
+step "e2g termination canary — omega2gamma halts on every sample, supported or refused (no silent scan-forever)" omega e2g-termination.sh beta beta-lang beta-lang-rs ../lattice-corpus
+step "omega meaning — real Omega samples run Rust-free; exits match documented intent" omega omega-meaning.sh gamma ../lattice-corpus
+step "omega meaning-TV — the kernel re-computes each covered sample's arithmetic (proof, not comparison)" omega meaning-tv.sh gamma delta beta beta-lang beta-lang-rs ../lattice-corpus
+step "input-grid meaning TV — input-taking samples proven per documented input vector (substitution closes the program; the whole proof pipe applies per vector)" omega input-tv.sh gamma delta beta beta-lang beta-lang-rs ../lattice-corpus
+step "meaning-cert diamond — every meaning-TV cert (pins, witnesses, binary arithmetic, structural claims) decided identically by check.beta AND check_ref.py" omega meaning-cert-diamond.sh delta beta beta-lang beta-lang-rs ../lattice-corpus
 step "translation validation — delta re-evaluates each compilation's result (+ - * < == / %, loops, gcd, cross-machine)" omega translation-validation.sh epsilon-rs delta gamma
 step "symbolic loops — beta_symbolic's data-dependent loop summaries (symbolic trip count -> closed form) pinned to the interpreter across an input grid" beta-lang-py symbolic-loops.sh
 step "refinement — bc's machine code proved to compute its Beta source meaning (instruction-level TV: both meanings auto-derived, equivalence kernel-checked, never run)" alpha refinement.sh delta beta beta-lang beta-lang-rs beta-lang-py

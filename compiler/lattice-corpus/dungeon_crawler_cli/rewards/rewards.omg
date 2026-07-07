@@ -1,0 +1,14 @@
+use inventory::items;
+
+data RewardKind {
+    case None;
+    case Gold;
+    case Item;
+    case GoldAndItem;
+}
+
+data Reward {
+    kind: RewardKind;
+    gold: u32 in Wrapping;
+    item: ItemKind;
+}
