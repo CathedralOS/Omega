@@ -140,7 +140,9 @@ pub(super) fn lower_version_membership_expression(
             case_variant: None,
         },
     ));
-    let era_literal = target.insert(typed::expression::ExpressionNode::Integer(era));
+    let era_literal = target.insert(typed::expression::ExpressionNode::Integer(
+        omega_core::literals::IntegerLiteral::from_value(era),
+    ));
 
     Ok(target.insert(typed::expression::ExpressionNode::Binary(
         typed::expression::TableBinaryExpression {

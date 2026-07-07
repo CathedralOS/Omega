@@ -168,7 +168,7 @@ pub(super) fn literal_subslice_bounds(
         let ExpressionNode::Integer(start) = expressions.expression(range.start) else {
             return None;
         };
-        usize::try_from(*start).ok()?
+        usize::try_from(start.value_i64()?).ok()?
     } else {
         0
     };
@@ -176,7 +176,7 @@ pub(super) fn literal_subslice_bounds(
         let ExpressionNode::Integer(end) = expressions.expression(range.end) else {
             return None;
         };
-        usize::try_from(*end).ok()?
+        usize::try_from(end.value_i64()?).ok()?
     } else {
         source_length
     };

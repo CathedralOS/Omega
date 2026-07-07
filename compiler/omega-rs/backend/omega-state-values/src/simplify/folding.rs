@@ -1,5 +1,14 @@
 use omega_checked_trees::expression::{BinaryExpression, BinaryOperator, Expression};
+use omega_core::literals::IntegerLiteral;
 use omega_core::symbols::SymbolHandle;
+
+/// The folder reads literals through the i64 VALUE WINDOW (D14): an anonymous
+/// literal that fits i64 folds exactly as before; an oversize (u64-magnitude)
+/// literal DEFERS -- the expression is left unfolded rather than interpreted
+/// through the wrong width. (The deeper type-aware folder is a separate rung.)
+fn literal_pair(a: &IntegerLiteral, b: &IntegerLiteral) -> Option<(i64, i64)> {
+    Some((a.value_i64()?, b.value_i64()?))
+}
 
 pub(super) fn fold_binary_expression(
     operator: BinaryOperator,
@@ -29,7 +38,12 @@ pub(super) fn fold_binary_expression(
             match operator {
                 Op::Equal => match (&left, &right) {
                     (Expression::Boolean(a), Expression::Boolean(b)) => Expression::Boolean(a == b),
-                    (Expression::Integer(a), Expression::Integer(b)) => Expression::Boolean(a == b),
+                    (Expression::Integer(a), Expression::Integer(b))
+                        if literal_pair(a, b).is_some() =>
+                    {
+                        let (a, b) = literal_pair(a, b).expect("guard checked");
+                        Expression::Boolean(a == b)
+                    }
                     (Expression::String(a), Expression::String(b)) => Expression::Boolean(a == b),
                     _ => Expression::Binary(Box::new(BinaryExpression {
                         left,
@@ -39,7 +53,12 @@ pub(super) fn fold_binary_expression(
                 },
                 Op::NotEqual => match (&left, &right) {
                     (Expression::Boolean(a), Expression::Boolean(b)) => Expression::Boolean(a != b),
-                    (Expression::Integer(a), Expression::Integer(b)) => Expression::Boolean(a != b),
+                    (Expression::Integer(a), Expression::Integer(b))
+                        if literal_pair(a, b).is_some() =>
+                    {
+                        let (a, b) = literal_pair(a, b).expect("guard checked");
+                        Expression::Boolean(a != b)
+                    }
                     (Expression::String(a), Expression::String(b)) => Expression::Boolean(a != b),
                     _ => Expression::Binary(Box::new(BinaryExpression {
                         left,
@@ -63,44 +82,12 @@ pub(super) fn fold_binary_expression(
         Op::Add => fold_integer_math(left, right, |a, b| a.wrapping_add(b), operator),
         Op::Subtract => fold_integer_math(left, right, |a, b| a.wrapping_sub(b), operator),
         Op::Multiply => fold_integer_math(left, right, |a, b| a.wrapping_mul(b), operator),
-        Op::Divide => match (&left, &right) {
-            (Expression::Integer(_), Expression::Integer(0)) => {
-                Expression::Binary(Box::new(BinaryExpression {
-                    left,
-                    operator,
-                    right,
-                }))
-            }
-            // `wrapping_div` so `i64::MIN / -1` (reachable as `(1 << 63) / -1`) does not
-            // panic; div-by-zero is already left unfolded above.
-            (Expression::Integer(a), Expression::Integer(b)) => {
-                Expression::Integer(a.wrapping_div(*b))
-            }
-            _ => Expression::Binary(Box::new(BinaryExpression {
-                left,
-                operator,
-                right,
-            })),
-        },
-        Op::Modulo => match (&left, &right) {
-            (Expression::Integer(_), Expression::Integer(0)) => {
-                Expression::Binary(Box::new(BinaryExpression {
-                    left,
-                    operator,
-                    right,
-                }))
-            }
-            // `wrapping_rem` so `i64::MIN % -1` does not panic; mod-by-zero is already
-            // left unfolded above.
-            (Expression::Integer(a), Expression::Integer(b)) => {
-                Expression::Integer(a.wrapping_rem(*b))
-            }
-            _ => Expression::Binary(Box::new(BinaryExpression {
-                left,
-                operator,
-                right,
-            })),
-        },
+        // `wrapping_div`/`wrapping_rem` so `i64::MIN / -1` (reachable as
+        // `(1 << 63) / -1`) does not panic; a zero divisor and any oversize
+        // operand are left unfolded.
+        Op::Divide => fold_integer_division(left, right, operator, i64::wrapping_div),
+        Op::Modulo => fold_integer_division(left, right, operator, i64::wrapping_rem),
+
         Op::ShiftLeft => fold_integer_shift(left, right, operator, i64::checked_shl),
         Op::ShiftRight => fold_integer_shift(left, right, operator, i64::checked_shr),
         Op::BitwiseAnd => fold_integer_math(left, right, |a, b| a & b, operator),
@@ -122,10 +109,11 @@ fn fold_integer_shift(
     operation: impl FnOnce(i64, u32) -> Option<i64>,
 ) -> Expression {
     if let (Expression::Integer(a), Expression::Integer(b)) = (&left, &right)
-        && let Ok(amount) = u32::try_from(*b)
-        && let Some(result) = operation(*a, amount)
+        && let Some((a, b)) = literal_pair(a, b)
+        && let Ok(amount) = u32::try_from(b)
+        && let Some(result) = operation(a, amount)
     {
-        return Expression::Integer(result);
+        return Expression::Integer(IntegerLiteral::from_value(result));
     }
     Expression::Binary(Box::new(BinaryExpression {
         left,
@@ -141,13 +129,39 @@ fn fold_integer_math(
     operator: BinaryOperator,
 ) -> Expression {
     match (&left, &right) {
-        (Expression::Integer(a), Expression::Integer(b)) => Expression::Integer(operation(*a, *b)),
+        (Expression::Integer(a), Expression::Integer(b)) => match literal_pair(a, b) {
+            Some((a, b)) => Expression::Integer(IntegerLiteral::from_value(operation(a, b))),
+            None => Expression::Binary(Box::new(BinaryExpression {
+                left,
+                operator,
+                right,
+            })),
+        },
         _ => Expression::Binary(Box::new(BinaryExpression {
             left,
             operator,
             right,
         })),
     }
+}
+
+fn fold_integer_division(
+    left: Expression,
+    right: Expression,
+    operator: BinaryOperator,
+    operation: impl FnOnce(i64, i64) -> i64,
+) -> Expression {
+    if let (Expression::Integer(a), Expression::Integer(b)) = (&left, &right)
+        && let Some((a, b)) = literal_pair(a, b)
+        && b != 0
+    {
+        return Expression::Integer(IntegerLiteral::from_value(operation(a, b)));
+    }
+    Expression::Binary(Box::new(BinaryExpression {
+        left,
+        operator,
+        right,
+    }))
 }
 
 fn fold_integer_compare(
@@ -157,7 +171,14 @@ fn fold_integer_compare(
     operator: BinaryOperator,
 ) -> Expression {
     match (&left, &right) {
-        (Expression::Integer(a), Expression::Integer(b)) => Expression::Boolean(comparison(*a, *b)),
+        (Expression::Integer(a), Expression::Integer(b)) => match literal_pair(a, b) {
+            Some((a, b)) => Expression::Boolean(comparison(a, b)),
+            None => Expression::Binary(Box::new(BinaryExpression {
+                left,
+                operator,
+                right,
+            })),
+        },
         _ => Expression::Binary(Box::new(BinaryExpression {
             left,
             operator,
@@ -346,7 +367,7 @@ fn simplify_comparison_conjunction(left: &Expression, right: &Expression) -> Opt
             } else {
                 BinaryOperator::Greater
             },
-            right: Expression::Integer(value),
+            right: Expression::Integer(IntegerLiteral::from_value(value)),
         })));
     }
 
@@ -359,7 +380,7 @@ fn simplify_comparison_conjunction(left: &Expression, right: &Expression) -> Opt
             } else {
                 BinaryOperator::Less
             },
-            right: Expression::Integer(value),
+            right: Expression::Integer(IntegerLiteral::from_value(value)),
         })));
     }
 
@@ -402,7 +423,7 @@ fn simplify_comparison_disjunction(left: &Expression, right: &Expression) -> Opt
                 } else {
                     Op::Greater
                 },
-                right: Expression::Integer(value),
+                right: Expression::Integer(IntegerLiteral::from_value(value)),
             })))
         }
         (Op::Less, Op::Less)
@@ -419,7 +440,7 @@ fn simplify_comparison_disjunction(left: &Expression, right: &Expression) -> Opt
             Some(Expression::Binary(Box::new(BinaryExpression {
                 left: left_compare.subject.clone(),
                 operator: if inclusive { Op::LessOrEqual } else { Op::Less },
-                right: Expression::Integer(value),
+                right: Expression::Integer(IntegerLiteral::from_value(value)),
             })))
         }
         (Op::Greater, Op::LessOrEqual)
@@ -460,7 +481,7 @@ fn parse_integer_comparison(expression: &Expression) -> Option<IntegerComparison
         return Some(IntegerComparison {
             subject: &binary.left,
             operator,
-            value: *value,
+            value: value.value_i64()?,
         });
     }
 
@@ -476,7 +497,7 @@ fn parse_integer_comparison(expression: &Expression) -> Option<IntegerComparison
         return Some(IntegerComparison {
             subject: &binary.right,
             operator: flipped_operator,
-            value: *value,
+            value: value.value_i64()?,
         });
     }
 

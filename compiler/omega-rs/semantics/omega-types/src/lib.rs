@@ -656,9 +656,9 @@ mod tests {
             .insert(TypeReferenceNode::Named(Identifier::generated("f32")));
         let minimum = syntax_trees
             .expressions
-            .insert(omega_syntax_trees::expression::ExpressionNode::Integer(0));
+            .insert(omega_syntax_trees::expression::ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
         let maximum = syntax_trees.expressions.insert(
-            omega_syntax_trees::expression::ExpressionNode::Integer(100000),
+            omega_syntax_trees::expression::ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(100000)),
         );
         let finite = syntax_trees
             .type_references

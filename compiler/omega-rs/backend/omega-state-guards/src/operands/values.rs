@@ -10,7 +10,7 @@ pub(super) fn resolved_guard_operand_value(
 ) -> Option<i64> {
     match table.expression(expression) {
         ExpressionNode::Boolean(value) => return Some(i64::from(*value)),
-        ExpressionNode::Integer(value) => return Some(*value),
+        ExpressionNode::Integer(value) => return value.value_i64(),
         // A float literal resolves to its IEEE-754 bit pattern so a guard like
         // `self.a == 5.0` becomes a CompareStaticValue; the emission compares
         // against these bits via `comisd` (selected by the guard's is_float).

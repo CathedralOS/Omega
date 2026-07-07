@@ -208,9 +208,10 @@ fn field_plus_positive_constant(
     }
     for (field_side, constant_side) in [(binary.left, binary.right), (binary.right, binary.left)] {
         if let ExpressionNode::Integer(constant) = program.expression_table.expression(constant_side)
-            && *constant > 0
+            && let Some(constant) = constant.value_i64()
+            && constant > 0
         {
-            return Some((program.expression_table.display_name(field_side), *constant));
+            return Some((program.expression_table.display_name(field_side), constant));
         }
     }
     None

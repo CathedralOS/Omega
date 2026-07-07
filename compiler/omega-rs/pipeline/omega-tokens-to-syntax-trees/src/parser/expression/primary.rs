@@ -4,6 +4,7 @@ use crate::parser::expression::{
     parse_expression_handle_without_struct_literals,
 };
 use crate::parser::input::{Input, ParseResult, parse_path_handle_span};
+use omega_core::literals::IntegerLiteral;
 use omega_syntax_trees::SyntaxTrees;
 use omega_syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression, TableStructLiteral,
@@ -62,17 +63,25 @@ fn parse_match_expression_handle<'tokens, 'source>(
     // two arms with the SAME literal pattern both fire and the result is garbage
     // (`match a { 0 -> 10, 0 -> 20, _ -> 30 }` yields 0 at a == 0, not 10 or 20).
     // Only literal patterns are compared; a non-literal pattern is left alone.
-    let mut seen_patterns: Vec<i64> = Vec::new();
+    // Anonymous literals (D14) compare by canonical spelling; same-value
+    // spellings across radixes are additionally caught through the i64 window
+    // (u64-magnitude cross-radix twins slip past, but those cannot type at a
+    // match pattern yet -- the oversize-literal gate rejects them first).
+    let mut seen_patterns: Vec<IntegerLiteral> = Vec::new();
     for (pattern, _) in &arms {
         if let Some(pattern) = pattern
-            && let ExpressionNode::Integer(value) = *syntax_trees.expressions.expression(*pattern)
+            && let ExpressionNode::Integer(value) = syntax_trees.expressions.expression(*pattern)
         {
-            if seen_patterns.contains(&value) {
+            let duplicate = seen_patterns.iter().any(|seen| {
+                seen == value
+                    || (seen.value_i64().is_some() && seen.value_i64() == value.value_i64())
+            });
+            if duplicate {
                 return Err(input.error_here(format!(
                     "duplicate match pattern `{value}`; each match pattern must be distinct"
                 )));
             }
-            seen_patterns.push(value);
+            seen_patterns.push(value.clone());
         }
     }
 
@@ -169,11 +178,11 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             TokenKind::NumericLiteral(NumericLiteralKind::Integer(_))
         )
     }) {
-        let (value, input) = input.take_integer()?;
+        let (literal, input) = input.take_integer_literal()?;
         return Ok((
             syntax_trees
                 .expressions
-                .insert(ExpressionNode::Integer(value)),
+                .insert(ExpressionNode::Integer(literal)),
             input,
         ));
     }
@@ -207,7 +216,9 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             .map(|unit| {
                 syntax_trees
                     .expressions
-                    .insert(ExpressionNode::Integer(i64::from(unit)))
+                    .insert(ExpressionNode::Integer(IntegerLiteral::from_value(
+                        i64::from(unit),
+                    )))
             })
             .collect();
         let units = syntax_trees.expressions.insert_expression_handles(units);

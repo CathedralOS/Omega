@@ -1,5 +1,6 @@
 use crate::name::Identifier;
 use omega_core::arena::{Arena, Handle, HandleSpan};
+use omega_core::literals::IntegerLiteral;
 use omega_core::symbols::SymbolHandle;
 use std::ops::Deref;
 use std::sync::Arc;
@@ -21,7 +22,7 @@ pub enum Expression {
     Call(Box<CallExpression>),
     Float(FloatLiteral),
     Indexed(Box<IndexedExpression>),
-    Integer(i64),
+    Integer(IntegerLiteral),
     Member(Box<MemberExpression>),
     Mutable(Box<Expression>),
     Name(NamePath),
@@ -294,7 +295,7 @@ impl ExpressionTable {
                     index,
                 }))
             }
-            ExpressionNode::Integer(value) => self.insert(ExpressionNode::Integer(*value)),
+            ExpressionNode::Integer(value) => self.insert(ExpressionNode::Integer(value.clone())),
             ExpressionNode::Member(member) => {
                 let receiver = self.copy_from(source, member.receiver);
                 self.insert(ExpressionNode::Member(TableMemberExpression {
@@ -1124,7 +1125,9 @@ impl ExpressionTable {
         let ExpressionNode::Integer(index) = self.expression(indexed.index) else {
             return None;
         };
-        let index = *index;
+        // An index beyond i64 cannot name a real element; treat it like any
+        // non-constant index (no synthetic const-index path).
+        let index = index.value_i64()?;
 
         let base = match self.expression(indexed.collection).clone() {
             ExpressionNode::Name(path) => path,
@@ -1230,7 +1233,7 @@ impl ExpressionTable {
                     index,
                 }))
             }
-            Expression::Integer(value) => self.insert(ExpressionNode::Integer(*value)),
+            Expression::Integer(value) => self.insert(ExpressionNode::Integer(value.clone())),
             Expression::Member(member) => {
                 let receiver = self.insert_tree(&member.receiver);
                 self.insert(ExpressionNode::Member(TableMemberExpression {
@@ -1329,7 +1332,7 @@ impl ExpressionTable {
                 collection: self.to_tree(indexed.collection),
                 index: self.to_tree(indexed.index),
             })),
-            ExpressionNode::Integer(value) => Expression::Integer(*value),
+            ExpressionNode::Integer(value) => Expression::Integer(value.clone()),
             ExpressionNode::Member(member) => Expression::Member(Box::new(MemberExpression {
                 receiver: self.to_tree(member.receiver),
                 member_symbol: member.member_symbol,
@@ -1461,7 +1464,11 @@ impl ExpressionTable {
             return None;
         }
         match self.expression(handle) {
-            ExpressionNode::Integer(value) => Some(*value),
+            // The i64 window is this helper's CONTRACT (its consumers are
+            // parse-time-numeric positions like range bounds); an oversize
+            // literal reads as "not a constant here", which its callers
+            // already reject loudly.
+            ExpressionNode::Integer(value) => value.value_i64(),
             ExpressionNode::Mutable(inner) => self.constant_integer_value(*inner),
             ExpressionNode::Binary(binary) => {
                 let left = self.constant_integer_value(binary.left)?;
@@ -1509,7 +1516,7 @@ pub enum ExpressionNode {
     Call(TableCallExpression),
     Float(FloatLiteral),
     Indexed(TableIndexedExpression),
-    Integer(i64),
+    Integer(IntegerLiteral),
     Member(TableMemberExpression),
     Mutable(ExpressionHandle),
     Name(TableNamePath),
@@ -1521,7 +1528,7 @@ pub enum ExpressionNode {
 
 impl Default for ExpressionNode {
     fn default() -> Self {
-        Self::Integer(0)
+        Self::Integer(IntegerLiteral::zero())
     }
 }
 
@@ -1652,7 +1659,7 @@ impl Default for TableStructLiteralField {
 
 impl Default for Expression {
     fn default() -> Self {
-        Self::Integer(0)
+        Self::Integer(IntegerLiteral::zero())
     }
 }
 

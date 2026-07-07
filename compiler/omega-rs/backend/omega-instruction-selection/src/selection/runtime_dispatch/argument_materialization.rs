@@ -906,7 +906,7 @@ fn ranges_overlap(a: (usize, usize), b: (usize, usize)) -> bool {
 
 pub(super) fn static_runtime_argument_value(expression: &ExpressionNode) -> Option<i64> {
     match expression {
-        ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Integer(value) => value.value_i64(),
         ExpressionNode::Boolean(value) => Some(i64::from(*value)),
         _ => None,
     }

@@ -15,7 +15,7 @@ pub(super) fn guard_is_positive_parameter(
         && patterns::expression_is_parameter(program, binary.left, parameter)
         && matches!(
             program.expression_table.expression(binary.right),
-            ExpressionNode::Integer(0)
+            ExpressionNode::Integer(literal) if literal.value_i64() == Some(0)
         )
 }
 
@@ -33,7 +33,7 @@ pub(super) fn guard_is_positive_parameter_member(
         && patterns::expression_is_parameter_member(program, binary.left, parameter, member_name)
         && matches!(
             program.expression_table.expression(binary.right),
-            ExpressionNode::Integer(0)
+            ExpressionNode::Integer(literal) if literal.value_i64() == Some(0)
         )
 }
 

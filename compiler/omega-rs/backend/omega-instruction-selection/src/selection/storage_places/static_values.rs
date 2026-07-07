@@ -61,7 +61,7 @@ pub(in crate::selection) fn static_integer_value(
     expression: &Expression,
 ) -> Option<i64> {
     match expression {
-        Expression::Integer(value) => Some(*value),
+        Expression::Integer(value) => value.value_i64(),
         Expression::Boolean(value) => Some(i64::from(*value)),
         // A `mut` wrapper around a value operand is transparent: an inlined
         // branching argument binds as `mut <expr>` even for a by-value parameter
@@ -77,7 +77,7 @@ pub(in crate::selection) fn static_integer_value_in_table(
     expression: ExpressionHandle,
 ) -> Option<i64> {
     match expressions.expression(expression) {
-        ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Integer(value) => value.value_i64(),
         ExpressionNode::Boolean(value) => Some(i64::from(*value)),
         ExpressionNode::Mutable(inner) => {
             static_integer_value_in_table(layouts, expressions, *inner)

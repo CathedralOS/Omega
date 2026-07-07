@@ -372,7 +372,9 @@ fn select_runtime_storage_resolved_mutation_write_in_mutable_table(
         let mut emitted = false;
         for offset in 0..elements.count() {
             let element = expressions.expression_handle_at_offset(elements, offset);
-            let element_index = expressions.insert(ExpressionNode::Integer(i64::from(offset)));
+            let element_index = expressions.insert(ExpressionNode::Integer(
+                omega_core::literals::IntegerLiteral::from_value(i64::from(offset)),
+            ));
             let element_target =
                 expressions.insert(ExpressionNode::Indexed(TableIndexedExpression {
                     collection: target,
@@ -970,7 +972,9 @@ fn unnamed_common_field_zero_writes(
             "f32" | "f64" => expressions.insert(ExpressionNode::Float(
                 omega_checked_trees::expression::FloatLiteral::new(0.0),
             )),
-            _ => expressions.insert(ExpressionNode::Integer(0)),
+            _ => expressions.insert(ExpressionNode::Integer(
+                omega_core::literals::IntegerLiteral::zero(),
+            )),
         };
         zero_writes.push((field.name.clone(), zero_value));
     }

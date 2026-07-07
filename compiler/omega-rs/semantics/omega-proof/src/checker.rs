@@ -313,10 +313,7 @@ fn integer_range_for_transition_argument(
         .expression_table
         .expression(obligation.argument)
     {
-        ExpressionNode::Integer(value) => Some(IntegerRange {
-            minimum: *value,
-            maximum: *value,
-        }),
+        ExpressionNode::Integer(value) => integer_range_for_literal(value),
         _ => integer_range_from_constraints(type_constraints(
             proof_plan,
             obligation.argument_constraints,
@@ -460,10 +457,7 @@ fn integer_range_for_call_argument(
         .expression_table
         .expression(obligation.argument)
     {
-        ExpressionNode::Integer(value) => Some(IntegerRange {
-            minimum: *value,
-            maximum: *value,
-        }),
+        ExpressionNode::Integer(value) => integer_range_for_literal(value),
         _ => integer_range_from_constraints(type_constraints(
             proof_plan,
             obligation.argument_constraints,
@@ -480,10 +474,7 @@ fn integer_range_for_assignment(
         .expression_table
         .expression(obligation.value)
     {
-        ExpressionNode::Integer(value) => Some(IntegerRange {
-            minimum: *value,
-            maximum: *value,
-        }),
+        ExpressionNode::Integer(value) => integer_range_for_literal(value),
         _ => integer_range_from_constraints(type_constraints(
             proof_plan,
             obligation.value_constraints,
@@ -844,10 +835,7 @@ fn integer_range_for_return_value(
         .expression_table
         .expression(obligation.value)
     {
-        ExpressionNode::Integer(value) => Some(IntegerRange {
-            minimum: *value,
-            maximum: *value,
-        }),
+        ExpressionNode::Integer(value) => integer_range_for_literal(value),
         _ => integer_range_from_constraints(type_constraints(
             proof_plan,
             obligation.value_constraints,
@@ -864,12 +852,24 @@ fn integer_range_for_initializer(
         .expression_table
         .expression(obligation.value)
     {
-        ExpressionNode::Integer(value) => Some(IntegerRange {
-            minimum: *value,
-            maximum: *value,
-        }),
+        ExpressionNode::Integer(value) => integer_range_for_literal(value),
         _ => None,
     }
+}
+
+/// The `[v, v]` interval for a literal that fits the checker's i64 bound
+/// width. An oversize (u64-magnitude) literal yields NO range: the obligation
+/// then stays unproven, and the oversize-literal validation gate reports the
+/// real error before proofs are consulted (D14 fire-B discipline -- never a
+/// silent skip).
+fn integer_range_for_literal(
+    literal: &omega_core::literals::IntegerLiteral,
+) -> Option<IntegerRange> {
+    let value = literal.value_i64()?;
+    Some(IntegerRange {
+        minimum: value,
+        maximum: value,
+    })
 }
 
 fn integer_range_from_constraints(constraints: &[ProofConstraint]) -> Option<IntegerRange> {
@@ -966,7 +966,7 @@ fn finite_float_literal(value: omega_typed_trees::expression::FloatLiteral) -> O
 
 fn integer_literal_handle(proof_plan: &ProofPlan, expression: ExpressionHandle) -> Option<i64> {
     match proof_plan.program.expression_table.expression(expression) {
-        ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Integer(value) => value.value_i64(),
         ExpressionNode::Name(path)
             if proof_plan
                 .program
@@ -1531,8 +1531,12 @@ fn argument_handle_satisfies_named_constraint(
             ("exact", ExpressionNode::Integer(_)) => true,
             ("finite", ExpressionNode::Float(value)) => finite_float_literal(*value).is_some(),
             ("finite", ExpressionNode::Integer(_)) => true,
-            ("non_negative", ExpressionNode::Integer(value)) => *value >= 0,
-            ("positive", ExpressionNode::Integer(value)) => *value > 0,
+            ("non_negative", ExpressionNode::Integer(value)) => {
+                value.value_i64().is_some_and(|value| value >= 0)
+            }
+            ("positive", ExpressionNode::Integer(value)) => {
+                value.value_i64().is_some_and(|value| value > 0)
+            }
             ("wrapping", ExpressionNode::Integer(_)) => true,
             _ => false,
         }
@@ -1623,8 +1627,12 @@ fn initializer_satisfies_named_constraint(
     ) {
         ("finite", ExpressionNode::Float(value)) => finite_float_literal(*value).is_some(),
         ("exact", ExpressionNode::Integer(_)) => true,
-        ("non_negative", ExpressionNode::Integer(value)) => *value >= 0,
-        ("positive", ExpressionNode::Integer(value)) => *value > 0,
+        ("non_negative", ExpressionNode::Integer(value)) => {
+                value.value_i64().is_some_and(|value| value >= 0)
+            }
+        ("positive", ExpressionNode::Integer(value)) => {
+                value.value_i64().is_some_and(|value| value > 0)
+            }
         ("wrapping", ExpressionNode::Integer(_)) => true,
         _ => false,
     }

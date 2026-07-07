@@ -2,6 +2,7 @@ pub mod allocations;
 pub mod arena;
 pub mod arithmetic;
 pub mod diagnostics;
+pub mod literals;
 pub mod operations;
 pub mod operator_spelling;
 pub mod parallel;

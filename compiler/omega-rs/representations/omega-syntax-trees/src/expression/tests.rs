@@ -5,9 +5,9 @@ use omega_core::arena::HandleSpan;
 #[test]
 fn expression_table_stores_recursive_expressions_as_handles() {
     let mut table = ExpressionTable::new();
-    let one = table.insert(ExpressionNode::Integer(1));
-    let two = table.insert(ExpressionNode::Integer(2));
-    let three = table.insert(ExpressionNode::Integer(3));
+    let one = table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(1)));
+    let two = table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(2)));
+    let three = table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(3)));
     let nested = table.insert(ExpressionNode::Binary(TableBinaryExpression {
         left: two,
         operator: BinaryOperator::Add,
@@ -34,9 +34,9 @@ fn expression_table_stores_recursive_expressions_as_handles() {
 #[test]
 fn expression_table_stores_array_children_as_handle_spans() {
     let mut table = ExpressionTable::new();
-    let one = table.insert(ExpressionNode::Integer(1));
-    let two = table.insert(ExpressionNode::Integer(2));
-    let three = table.insert(ExpressionNode::Integer(3));
+    let one = table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(1)));
+    let two = table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(2)));
+    let three = table.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(3)));
     let values = table.insert_expression_handles([one, two, three]);
     let root = table.insert(ExpressionNode::ArrayLiteral(values));
     let ExpressionNode::ArrayLiteral(values) = table.expression(root) else {

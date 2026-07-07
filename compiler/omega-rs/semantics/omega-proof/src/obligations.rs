@@ -1181,7 +1181,7 @@ fn expression_constraints(
             expression_constraints(program, machine, state, unary.operand)
         }
         ExpressionNode::Float(value) => float_literal_constraints(*value),
-        ExpressionNode::Integer(value) => integer_literal_constraints(*value),
+        ExpressionNode::Integer(value) => integer_literal_constraints(value),
         ExpressionNode::Name(path)
             if program
                 .expression_table
@@ -1190,7 +1190,9 @@ fn expression_constraints(
                 .map(|member| member.as_str())
                 .eq(["u32", "MAX"]) =>
         {
-            integer_literal_constraints(u32::MAX as i64)
+            integer_literal_constraints(&omega_core::literals::IntegerLiteral::from_value(
+                u32::MAX as i64,
+            ))
         }
         // An INDEXED read carries its collection's ELEMENT-type constraints
         // (`cells: [i32 [0..=7]; 4]` -> `cells[rp]` reads as [0..=7]). Sound
@@ -1666,8 +1668,16 @@ fn data_field_in_definition(
         })
 }
 
-fn integer_literal_constraints(value: i64) -> ConstraintBuffer {
+fn integer_literal_constraints(
+    literal: &omega_core::literals::IntegerLiteral,
+) -> ConstraintBuffer {
     let mut constraints = ConstraintBuffer::new();
+    // An oversize (u64-magnitude) literal carries NO facts: obligations built
+    // on it stay unproven, and the oversize-literal validation gate reports
+    // the real error first (D14 fire-B discipline -- never a silent skip).
+    let Some(value) = literal.value_i64() else {
+        return constraints;
+    };
     constraints.push(ProofConstraint::Named(Identifier::generated_static(
         "exact",
     )));
@@ -2267,7 +2277,7 @@ fn integer_constant_value_from_node(
     expression: &ExpressionNode,
 ) -> Option<i64> {
     match expression {
-        ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Integer(value) => value.value_i64(),
         ExpressionNode::Name(path)
             if program
                 .expression_table
@@ -2288,7 +2298,7 @@ fn float_constant_value_from_node(
 ) -> Option<f64> {
     match expression {
         ExpressionNode::Float(value) => Some(value.value()),
-        ExpressionNode::Integer(value) => Some(*value as f64),
+        ExpressionNode::Integer(value) => value.value_i64().map(|value| value as f64),
         ExpressionNode::Name(path)
             if program
                 .expression_table

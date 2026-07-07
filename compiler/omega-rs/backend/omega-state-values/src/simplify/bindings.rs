@@ -21,7 +21,7 @@ impl Default for Binding {
         Self {
             symbol: SymbolHandle::invalid(),
             name: omega_checked_trees::name::Identifier::generated_static(""),
-            value: Expression::Integer(0),
+            value: Expression::Integer(omega_core::literals::IntegerLiteral::zero()),
         }
     }
 }
@@ -295,7 +295,7 @@ fn simple_local_binding_value_from_table(
         }))),
         ExpressionNode::Boolean(value) => Some(Expression::Boolean(*value)),
         ExpressionNode::Float(value) => Some(Expression::Float(*value)),
-        ExpressionNode::Integer(value) => Some(Expression::Integer(*value)),
+        ExpressionNode::Integer(value) => Some(Expression::Integer(value.clone())),
         ExpressionNode::String(value) => Some(Expression::String(value.clone())),
         ExpressionNode::Indexed(indexed) => {
             // A RUNTIME-indexed read (`arr[i]` with a non-constant index) is

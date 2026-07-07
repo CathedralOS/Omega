@@ -1131,7 +1131,7 @@ fn subslice_argument_operands(
     let start_is_zero = if range.start.is_valid() {
         matches!(
             input.host_calls.expressions.expression(range.start),
-            ExpressionNode::Integer(value) if *value == 0
+            ExpressionNode::Integer(value) if value.value_i64() == Some(0)
         )
     } else {
         true
@@ -1235,7 +1235,7 @@ fn subslice_path_pointer(
         else {
             return None;
         };
-        usize::try_from(*start).ok()?
+        usize::try_from(start.value_i64()?).ok()?
     } else {
         0
     };

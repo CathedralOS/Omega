@@ -477,7 +477,7 @@ fn indexes_terminal_state_contract_ensures() {
         ));
     let return_expression = program
         .expression_table
-        .insert(omega_typed_trees::expression::ExpressionNode::Integer(0));
+        .insert(omega_typed_trees::expression::ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(0)));
 
     let mut machine = Machine {
         symbol: machine_symbol,

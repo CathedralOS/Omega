@@ -3513,7 +3513,14 @@ impl<'program> Evaluator<'program> {
         self.tick()?;
         let node = self.program.expression_table.expression(handle).clone();
         match node {
-            ExpressionNode::Integer(value) => Ok(Value::Int(value)),
+            ExpressionNode::Integer(value) => match value.value_i64() {
+                Some(value) => Ok(Value::Int(value)),
+                // The oversize-literal validation gate rejects these before
+                // execution; refuse rather than wrap if one ever leaks through.
+                None => unsupported(format!(
+                    "integer literal `{value}` exceeds the interpreter's i64 value width"
+                )),
+            },
             ExpressionNode::Boolean(value) => Ok(Value::Bool(value)),
             ExpressionNode::Float(value) => Ok(Value::Float(value.value())),
             ExpressionNode::String(value) => Ok(Value::str(value.to_string())),

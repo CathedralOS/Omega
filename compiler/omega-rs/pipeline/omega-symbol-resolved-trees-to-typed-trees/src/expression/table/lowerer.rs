@@ -109,7 +109,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             }
             resolved::expression::ExpressionNode::Integer(value) => Ok(self
                 .target
-                .insert(typed::expression::ExpressionNode::Integer(*value))),
+                .insert(typed::expression::ExpressionNode::Integer(value.clone()))),
             resolved::expression::ExpressionNode::Membership(membership) => {
                 self.lower_membership_expression(membership)
             }

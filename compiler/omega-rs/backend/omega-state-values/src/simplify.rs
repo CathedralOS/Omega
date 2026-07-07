@@ -743,7 +743,7 @@ impl Default for HelperTransition {
     fn default() -> Self {
         Self {
             guard: Expression::Boolean(true),
-            value: Expression::Integer(0),
+            value: Expression::Integer(omega_core::literals::IntegerLiteral::zero()),
         }
     }
 }
@@ -815,7 +815,7 @@ mod tests {
                     initial_value: Some(Expression::Binary(Box::new(BinaryExpression {
                         left: name("roll", roll_symbol),
                         operator: BinaryOperator::Less,
-                        right: Expression::Integer(20),
+                        right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(20)),
                     }))),
                 },
                 TestStatement::LocalData {
@@ -828,7 +828,7 @@ mod tests {
                     initial_value: Some(Expression::Binary(Box::new(BinaryExpression {
                         left: name("roll", roll_symbol),
                         operator: BinaryOperator::Less,
-                        right: Expression::Integer(30),
+                        right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(30)),
                     }))),
                 },
                 TestStatement::LocalData {
@@ -841,7 +841,7 @@ mod tests {
                     initial_value: Some(Expression::Binary(Box::new(BinaryExpression {
                         left: name("roll", roll_symbol),
                         operator: BinaryOperator::Less,
-                        right: Expression::Integer(60),
+                        right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(60)),
                     }))),
                 },
                 TestStatement::TransitionValue {
@@ -928,7 +928,7 @@ mod tests {
             Expression::Binary(Box::new(BinaryExpression {
                 left: name("roll", roll_symbol),
                 operator: BinaryOperator::Less,
-                right: Expression::Integer(20),
+                right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(20)),
             }))
         );
 
@@ -968,13 +968,13 @@ mod tests {
                 left: Expression::Binary(Box::new(BinaryExpression {
                     left: name("roll", roll_symbol),
                     operator: BinaryOperator::GreaterOrEqual,
-                    right: Expression::Integer(20),
+                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(20)),
                 })),
                 operator: BinaryOperator::And,
                 right: Expression::Binary(Box::new(BinaryExpression {
                     left: name("roll", roll_symbol),
                     operator: BinaryOperator::Less,
-                    right: Expression::Integer(30),
+                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(30)),
                 })),
             }))
         );
@@ -985,13 +985,13 @@ mod tests {
                 left: Expression::Binary(Box::new(BinaryExpression {
                     left: name("roll", roll_symbol),
                     operator: BinaryOperator::GreaterOrEqual,
-                    right: Expression::Integer(30),
+                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(30)),
                 })),
                 operator: BinaryOperator::And,
                 right: Expression::Binary(Box::new(BinaryExpression {
                     left: name("roll", roll_symbol),
                     operator: BinaryOperator::Less,
-                    right: Expression::Integer(60),
+                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(60)),
                 })),
             }))
         );
@@ -1001,7 +1001,7 @@ mod tests {
             Expression::Binary(Box::new(BinaryExpression {
                 left: name("roll", roll_symbol),
                 operator: BinaryOperator::GreaterOrEqual,
-                right: Expression::Integer(60),
+                right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(60)),
             }))
         );
     }
@@ -1027,13 +1027,13 @@ mod tests {
             left: Expression::Binary(Box::new(BinaryExpression {
                 left: name("roll", roll_symbol),
                 operator: BinaryOperator::GreaterOrEqual,
-                right: Expression::Integer(20),
+                right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(20)),
             })),
             operator: BinaryOperator::And,
             right: Expression::Binary(Box::new(BinaryExpression {
                 left: name("roll", roll_symbol),
                 operator: BinaryOperator::Less,
-                right: Expression::Integer(20),
+                right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(20)),
             })),
         }));
 
@@ -1065,13 +1065,13 @@ mod tests {
                 left: Expression::Binary(Box::new(BinaryExpression {
                     left: name("health", health_symbol),
                     operator: BinaryOperator::GreaterOrEqual,
-                    right: Expression::Integer(0),
+                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(0)),
                 })),
                 operator: BinaryOperator::And,
                 right: Expression::Binary(Box::new(BinaryExpression {
                     left: name("health", health_symbol),
                     operator: BinaryOperator::Greater,
-                    right: Expression::Integer(0),
+                    right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(0)),
                 })),
             })),
             operator: BinaryOperator::Equal,
@@ -1083,7 +1083,7 @@ mod tests {
             Expression::Binary(Box::new(BinaryExpression {
                 left: name("health", health_symbol),
                 operator: BinaryOperator::LessOrEqual,
-                right: Expression::Integer(0),
+                right: Expression::Integer(omega_core::literals::IntegerLiteral::from_value(0)),
             }))
         );
     }

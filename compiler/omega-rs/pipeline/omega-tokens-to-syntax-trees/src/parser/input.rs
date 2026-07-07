@@ -5,6 +5,7 @@ use crate::parser::input::delimited::{
 };
 use crate::parser::input::literals::{parse_integer_literal, validate_float_literal};
 use omega_core::arena::{Handle, HandleSpan};
+use omega_core::literals::IntegerLiteral;
 use omega_core::source::{SourceId, SourceSpan, SourceText};
 use omega_syntax_trees::identifier::Identifier;
 use omega_tokens::{KeywordKind, PunctuationKind, Token, TokenKind, TokenText};
@@ -179,11 +180,35 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         }
     }
 
+    /// An integer literal as its ANONYMOUS payload (D14) -- the expression
+    /// path, where the literal's type comes from a later use.
+    pub(super) fn take_integer_literal(self) -> Result<(IntegerLiteral, Self), ParseError> {
+        let (token, rest) = self.expect_token()?;
+        if let Some(kind) = token.integer_literal_kind() {
+            let literal = parse_integer_literal(token.lexeme.as_str(), kind)
+                .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
+            Ok((literal, rest))
+        } else {
+            Err(diagnostics::expected(self, token, "integer literal"))
+        }
+    }
+
+    /// An integer literal at a STRUCTURAL position that needs a number at
+    /// parse time (array lengths, wire field numbers, case discriminants,
+    /// range-form bounds). These keep an explicit i64 ceiling with a loud
+    /// error -- they are not value-binding uses, so D14's fit-at-use does not
+    /// apply.
     pub(super) fn take_integer(self) -> Result<(i64, Self), ParseError> {
         let (token, rest) = self.expect_token()?;
         if let Some(kind) = token.integer_literal_kind() {
-            let value = parse_integer_literal(token.lexeme.as_str(), kind)
+            let literal = parse_integer_literal(token.lexeme.as_str(), kind)
                 .map_err(|message| ParseError::at_source_span(message, self.source_span(token)))?;
+            let value = literal.value_i64().ok_or_else(|| {
+                ParseError::at_source_span(
+                    "integer literal exceeds i64; this position needs a parse-time number",
+                    self.source_span(token),
+                )
+            })?;
             Ok((value, rest))
         } else {
             Err(diagnostics::expected(self, token, "integer literal"))

@@ -43,7 +43,7 @@ impl ContractExpressionEvaluator<'_, '_> {
                     | BinaryOperator::ShiftRight => None,
                 }
             }
-            ExpressionNode::Integer(value) => Some(*value),
+            ExpressionNode::Integer(value) => value.value_i64(),
             ExpressionNode::Member(member) if member.member.as_str() == "len" => self
                 .collection_length(member.receiver)
                 .and_then(|length| i64::try_from(length).ok()),

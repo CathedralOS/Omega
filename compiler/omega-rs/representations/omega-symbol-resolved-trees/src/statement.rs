@@ -592,9 +592,9 @@ mod tests {
         let target_symbol = SymbolHandle::from_arena_index(7);
         let mut source_expressions = ExpressionTable::new();
         let mut arguments = omega_core::arena::HandleSpan::empty();
-        let first_argument = source_expressions.insert(ExpressionNode::Integer(1));
+        let first_argument = source_expressions.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(1)));
         source_expressions.push_expression_handle(&mut arguments, first_argument);
-        let second_argument = source_expressions.insert(ExpressionNode::Integer(2));
+        let second_argument = source_expressions.insert(ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(2)));
         source_expressions.push_expression_handle(&mut arguments, second_argument);
         let guard = source_expressions.insert(ExpressionNode::Boolean(true));
         let mut source_statement_path_members = Arena::new();

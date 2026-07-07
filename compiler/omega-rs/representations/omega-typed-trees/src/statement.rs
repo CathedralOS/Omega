@@ -262,7 +262,7 @@ mod tests {
         let target_symbol = SymbolHandle::from_arena_index(11);
         let mut statements = StatementTable::new();
         let mut expressions = ExpressionTable::new();
-        let argument = expressions.insert(crate::expression::ExpressionNode::Integer(99));
+        let argument = expressions.insert(crate::expression::ExpressionNode::Integer(omega_core::literals::IntegerLiteral::from_value(99)));
 
         let mut arguments = omega_core::arena::HandleSpan::empty();
         statements.push_expression_handle(&mut arguments, argument);

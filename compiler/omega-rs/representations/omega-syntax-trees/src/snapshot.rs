@@ -461,7 +461,9 @@ pub enum ExpressionSnapshot {
         index: Box<ExpressionSnapshot>,
     },
     Integer {
-        value: i64,
+        /// Canonical literal spelling (see `omega_core::literals::IntegerLiteral`) --
+        /// snapshots stay anonymous like the nodes they mirror (D14).
+        text: String,
     },
     Membership {
         value: Box<ExpressionSnapshot>,
@@ -1303,7 +1305,9 @@ fn snapshot_expression_handle(
             collection: Box::new(snapshot_expression_handle(syntax_trees, indexed.collection)),
             index: Box::new(snapshot_expression_handle(syntax_trees, indexed.index)),
         },
-        ExpressionNode::Integer(value) => ExpressionSnapshot::Integer { value: *value },
+        ExpressionNode::Integer(value) => ExpressionSnapshot::Integer {
+            text: value.text().to_owned(),
+        },
         ExpressionNode::Membership(membership) => ExpressionSnapshot::Membership {
             value: Box::new(snapshot_expression_handle(syntax_trees, membership.value)),
             domain: snapshot_identifier_slice(

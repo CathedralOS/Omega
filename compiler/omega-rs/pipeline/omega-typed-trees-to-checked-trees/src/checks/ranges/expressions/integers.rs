@@ -62,7 +62,7 @@ pub(in crate::checks::ranges) fn expression_integer_value(
             let right = expression_integer_value(program, facts, binary.right)?;
             folded_integer_binary(left, binary.operator, right)
         }
-        ExpressionNode::Integer(value) => Some(*value),
+        ExpressionNode::Integer(value) => value.value_i64(),
         ExpressionNode::Name(_) => {
             let (symbol, name) = expression_name(program, expression)?;
             facts.local_integer(symbol, name)
