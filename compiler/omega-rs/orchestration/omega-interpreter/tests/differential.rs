@@ -775,6 +775,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_recursive_accumulator_exit", 1),
     ("calls/runtime_recursive_rotation_exit", 1),
     ("calls/runtime_recursive_self_spelling_exit", 1),
+    ("calls/runtime_value_call_shared_payload_name_exit", 70),
     ("calls/runtime_value_call_struct_payload_cast_field_exit", 70),
     ("time/runtime_duration_core_exit", 70),
     ("calls/runtime_value_machine_param_array_index_exit", 1),

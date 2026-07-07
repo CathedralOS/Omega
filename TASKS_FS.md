@@ -135,6 +135,16 @@ remove→Ok, remove(missing)→Error{NotFound}. Three finds along the way:
    `file_fd` scratch field (a param MEMBER is not a marshallable host arg; a
    let folds back to the member).
 
+**Leaf-path #38 collision CLOSED (2026-07-07):** the value-call leaf
+terminal's per-field decomposition (branches/mutation.rs) now tags payload
+fields with the constructed variant (`case_payload_field_variant_tag`, was
+`case_variant: None`) — `Transfer{to, amount}` beside `Deposit(amount)`
+delivered wrong offsets natively (silent). Canary
+`calls/runtime_value_call_shared_payload_name_exit`. LATENT SIBLING (noted,
+unchased): the leaf path skips the unnamed-common-field ZERO-writes on
+mixed-shape case construction, and call-result frame slots are REUSED — a
+second value call could expose the previous call's stale common bytes.
+
 **Interp fs coverage FIXED (2026-07-07).** The 11 `filesystem_std_module_*`
 failures ("non-integer operand", pre-existing at the fs handoff commit) were
 the value-position `match` desugar doing TAG ARITHMETIC over payload-free
