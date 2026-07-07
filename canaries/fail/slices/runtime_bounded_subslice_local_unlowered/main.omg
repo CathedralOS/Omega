@@ -1,0 +1,34 @@
+// A runtime-bounded subslice bound to a USED local: `let sub =
+// self.arr[self.lo..self.hi]; let n = sub.len`. The bounds are PROVEN in range
+// (dominating exact assignments), so the prover admits it -- but the subslice
+// descriptor CONSTRUCTION (ptr/len from runtime bounds) has no lowering for a
+// local descriptor slot yet. This shape used to slip past the descriptor blocker
+// when the local was ELIDED (uses folded inline) and silently read 0 (native took
+// the wrong guard arm while the interpreter was right). Storage planning now
+// keeps the slot for a used runtime-bounded subslice local, so emission
+// planning's descriptor-local verification reports it loudly. (Literal-bounded
+// subslice locals and runtime-END subslices in ARGUMENT position still lower.)
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 5];
+    lo: usize;
+    hi: usize;
+}
+
+machine Main::main(&mut self) {
+    self.lo = 1;
+    self.hi = 4;
+    let sub: &[i32] = self.arr[self.lo..self.hi];
+    let n: usize = sub.len;
+    transition n == 3 {
+        true -> matched()
+        false -> unmatched()
+    }
+
+    state matched(&mut self) { self.console.exit_process(3); }
+    state unmatched(&mut self) { self.console.exit_process(9); }
+}
