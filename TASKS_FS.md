@@ -8,7 +8,7 @@
 > **WORKING RULES.** Consult `wiki/language_guide/*` before language features;
 > ZII / arena / `Handle` / `HandleSpan`; full human-word op names (C symbols only
 > in per-target binding tables); every fix ships a canary that RUNS and asserts.
-> Gates: canary_suite (654+ green on Windows), samples_compile (grep the whole
+> Gates: canary_suite (678+ green on Windows), samples_compile (grep the whole
 > tail for FAILED — never judge by a piped grep's exit code), omega-interpreter
 > coverage + differential drift guard (`run_canary_list` — run IMMEDIATELY after
 > every rebase), instr-sel/reloc/calling-conv crate tests. Push every iteration:
@@ -30,7 +30,9 @@ are the differential oracle. Value-position `match` desugars to tag arithmetic;
 **Native raw seam:**
 - **darwin/aarch64** — complete (54 canaries; create→flock breadth incl. variadic
   `open_create`, deref-result `___error`, stack-marshalled mode). Runtime
-  re-confirmation pending on a real Mac.
+  re-confirmation pending on a real Mac. 2026-07-07: the week's value-call
+  selection changes (deferral, pairing, hoist) cross-compile cleanly to
+  macos_arm64 (five key canaries probe-verified via temp target blocks).
 - **windows/x86_64** — LIVE through msvcrt rows in `WINDOWS_IMPORT_ROWS` riding
   the general Win64 import-call encoder (data-address + byte-length args,
   `dereferences_result` for `_errno`). Verified RUNNING:
