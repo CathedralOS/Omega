@@ -1,0 +1,102 @@
+// std::time Duration core (TASKS_TIME.md rung 3): exact-value assertions over
+// the pure-value API on both engines. Exercises the CARRY path of checked_add
+// (2.6s + 3.5s = 6.1s), the BORROW path of checked_subtract (6.1s - 3.5s =
+// 2.6s), the ZERO clamp of saturating_subtract (2.6s - 3.5s), ordering, and
+// the underflow arm. Every failure exits a distinct code.
+// Expected exit: 70.
+use omega::language::std::time;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    a: Duration;
+    b: Duration;
+    sum_result: DurationResult;
+    sum: Duration;
+    difference_result: DurationResult;
+    difference: Duration;
+    clamped: Duration;
+    a_less_than_b: bool;
+}
+
+machine Main::main(&mut self) {
+    self.a = Duration { seconds: 2, subsecond_nanoseconds: 600000000 };
+    self.b = Duration { seconds: 3, subsecond_nanoseconds: 500000000 };
+    self.sum_result = self.a.checked_add(self.b);
+    transition self.sum_result {
+        DurationResult::Ok { duration } -> check_sum(duration)
+        DurationResult::Overflow -> fail_add()
+    }
+
+    state check_sum(&mut self, duration: Duration) {
+        self.sum = duration;
+        transition self.sum.seconds == 6 && self.sum.subsecond_nanoseconds == 100000000 {
+            true -> do_subtract()
+            false -> fail_sum_value()
+        }
+    }
+    state do_subtract(&mut self) {
+        self.difference_result = self.sum.checked_subtract(self.b);
+        transition self.difference_result {
+            DurationResult::Ok { duration } -> check_difference(duration)
+            DurationResult::Overflow -> fail_subtract()
+        }
+    }
+    state check_difference(&mut self, duration: Duration) {
+        self.difference = duration;
+        transition self.difference.seconds == 2 {
+            true -> check_difference_nanoseconds()
+            false -> probe_difference_seconds()
+        }
+    }
+    state check_difference_nanoseconds(&mut self) {
+        transition self.difference.subsecond_nanoseconds == 600000000 {
+            true -> do_saturate()
+            false -> fail_difference_value()
+        }
+    }
+    state do_saturate(&mut self) {
+        self.clamped = self.a.saturating_subtract(self.b);
+        transition self.clamped.seconds == 0 && self.clamped.subsecond_nanoseconds == 0 {
+            true -> do_compare()
+            false -> fail_saturate()
+        }
+    }
+    state do_compare(&mut self) {
+        // Entry-capture: a value-call whose callee dispatches internally is
+        // fenced as a GUARD SUBJECT; bind to a field, then guard the field.
+        self.a_less_than_b = self.a.is_less_than(self.b);
+        transition self.a_less_than_b {
+            true -> check_underflow()
+            false -> fail_compare()
+        }
+    }
+    state check_underflow(&mut self) {
+        self.difference_result = self.a.checked_subtract(self.b);
+        transition self.difference_result {
+            DurationResult::Overflow -> good()
+            DurationResult::Ok { duration } -> fail_underflow(duration)
+        }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_add(&mut self) { self.console.exit_process(1); }
+    state fail_sum_value(&mut self) { self.console.exit_process(2); }
+    state fail_subtract(&mut self) { self.console.exit_process(3); }
+    state fail_difference_value(&mut self) { self.console.exit_process(4); }
+    state fail_difference_seconds(&mut self) { self.console.exit_process(8); }
+    state probe_difference_seconds(&mut self) {
+        // PROBE: which wrong value arrived? 6 => direct-emit ran with
+        // other-fields-as-zero; 5 => borrow-emit ran with other.seconds 0.
+        transition self.difference.seconds == 6 { true -> probe_six() false -> probe_not_six() }
+    }
+    state probe_six(&mut self) { self.console.exit_process(20); }
+    state probe_not_six(&mut self) {
+        transition self.difference.seconds == 5 { true -> probe_five() false -> fail_difference_seconds() }
+    }
+    state probe_five(&mut self) { self.console.exit_process(21); }
+    state fail_saturate(&mut self) { self.console.exit_process(5); }
+    state fail_compare(&mut self) { self.console.exit_process(6); }
+    state fail_underflow(&mut self, duration: Duration) { self.console.exit_process(7); }
+}
