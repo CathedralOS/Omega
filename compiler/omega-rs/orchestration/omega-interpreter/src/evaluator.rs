@@ -681,13 +681,16 @@ impl<'program> Evaluator<'program> {
             // matching native zero-initialized storage, so tag compares and
             // synthesized structural equality agree on never-assigned sum
             // fields instead of seeing a Unit placeholder.
-            if let Some((variant_name, payload_fields)) = self.enum_zero_case(type_reference) {
+            if let Some((type_symbol, variant_name, payload_fields)) =
+                self.enum_zero_case(type_reference)
+            {
                 let mut payload = Vec::with_capacity(payload_fields.len());
                 for field in payload_fields {
                     let value = self.default_value_for_type(field.type_reference)?;
                     payload.push((field.name.as_str().to_owned(), value.cell()));
                 }
                 return Ok(Value::Enum {
+                    type_symbol,
                     variant_name,
                     payload,
                 });
@@ -703,7 +706,11 @@ impl<'program> Evaluator<'program> {
     fn enum_zero_case(
         &self,
         type_reference: omega_typed_trees::types::TypeReferenceHandle,
-    ) -> Option<(String, Vec<omega_typed_trees::data::DataField>)> {
+    ) -> Option<(
+        SymbolHandle,
+        String,
+        Vec<omega_typed_trees::data::DataField>,
+    )> {
         if self
             .program
             .primitive_type_reference(type_reference)
@@ -733,7 +740,7 @@ impl<'program> Evaluator<'program> {
             })
             .collect();
         fields.extend(self.program.data_payload_fields(first_variant).to_vec());
-        Some((first_variant.name.as_str().to_owned(), fields))
+        Some((data.symbol, first_variant.name.as_str().to_owned(), fields))
     }
 
     /// If a field's declared type is a (non-primitive) `data` record, return it.
@@ -2170,8 +2177,14 @@ impl<'program> Evaluator<'program> {
         *read_cell.borrow_mut() = Value::Int(cursor as i64);
         // The verdict enum (`WireVerdict`): Sound on a clean decode, Invalid
         // on the first violation -- mirrors the native tag write (Invalid = 0
-        // = the ZII zero case, Sound = 1).
+        // = the ZII zero case, Sound = 1). The declaring type resolves by
+        // name (invalid when the program declares no WireVerdict, and the
+        // name-global fallback covers it).
         *ok_cell.borrow_mut() = Value::Enum {
+            type_symbol: self
+                .find_data_by_name("WireVerdict")
+                .map(|data| data.symbol)
+                .unwrap_or_else(SymbolHandle::invalid),
             variant_name: if ok { "Sound" } else { "Invalid" }.to_owned(),
             payload: Vec::new(),
         };
@@ -4001,6 +4014,7 @@ impl<'program> Evaluator<'program> {
                 })
                 .collect();
             Value::Enum {
+                type_symbol: data.symbol,
                 variant_name: variant_name.to_owned(),
                 payload: common,
             }
@@ -4493,6 +4507,7 @@ impl<'program> Evaluator<'program> {
         }
 
         Ok(Value::Enum {
+            type_symbol: data.symbol,
             variant_name: case_name.to_owned(),
             payload,
         })
@@ -4513,6 +4528,7 @@ impl<'program> Evaluator<'program> {
             Value::Enum {
                 variant_name,
                 payload,
+                ..
             } => payload
                 .iter()
                 .find(|(name, _)| name == field)
@@ -4756,10 +4772,22 @@ impl<'program> Evaluator<'program> {
             // into enum-typed places -- natively both sides are the same tag
             // constant, so the oracle compares the Int against the case's tag
             // ordinal.
-            (Value::Int(tag), Value::Enum { variant_name, .. })
-            | (Value::Enum { variant_name, .. }, Value::Int(tag)) => {
-                self.enum_variant_tag(variant_name) == Some(*tag)
-            }
+            (
+                Value::Int(tag),
+                Value::Enum {
+                    type_symbol,
+                    variant_name,
+                    ..
+                },
+            )
+            | (
+                Value::Enum {
+                    type_symbol,
+                    variant_name,
+                    ..
+                },
+                Value::Int(tag),
+            ) => self.enum_variant_tag(*type_symbol, variant_name) == Some(*tag),
             (Value::Str(a), Value::Str(b)) => *a.borrow() == *b.borrow(),
             (Value::Bool(a), Value::Bool(b)) => a == b,
             _ => {
@@ -4780,32 +4808,27 @@ impl<'program> Evaluator<'program> {
             return Ok(int);
         }
         if let Value::Enum {
+            type_symbol,
             variant_name,
             payload,
         } = value
             && payload.is_empty()
-            && let Some(tag) = self.enum_variant_tag(variant_name)
+            && let Some(tag) = self.enum_variant_tag(*type_symbol, variant_name)
         {
             return Ok(tag);
         }
         Err(Halt::Trap("non-integer operand".to_owned()))
     }
 
-    /// The tag ORDINAL of a case, resolved by variant NAME across the
-    /// program's data definitions -- the same name-keyed grain `values_equal`
-    /// uses for enum equality (first declaration wins; tag 0 = the first
-    /// variant, matching the ZII zero case and native tag layout).
-    ///
-    /// ⚠️ Name-global resolution mis-ranks SAME-NAME variants that sit at
-    /// DIFFERENT ordinals in different enums (`Ok` = 0 in `UnitResult` but 1
-    /// in `MetadataResult`). Today's only tag-arithmetic producer is the
-    /// value-position `match` desugar, whose operands are one enum's variants
-    /// (ErrorKind's names are program-unique), so this cannot misfire yet --
-    /// the durable fix is carrying `type_symbol` on `Value::Enum` (like
-    /// `Value::Struct`) and resolving type-locally (TASKS_FS.md follow-up;
-    /// the #38 payload-collision landmine class).
-    fn enum_variant_tag(&self, variant_name: &str) -> Option<i64> {
-        for data in self.program.data_definitions() {
+    /// The tag ORDINAL of a case: resolved WITHIN the declaring type when the
+    /// value carries a valid `type_symbol` (tag 0 = the first variant,
+    /// matching the ZII zero case and native tag layout), so same-name
+    /// variants at different ordinals across enums (`Ok` = 0 in `UnitResult`
+    /// but 1 in `MetadataResult`) never cross-resolve. A symbol-less value
+    /// (the build-time boundary) falls back to the name-global scan -- the
+    /// same name-keyed grain `values_equal` uses for enum equality.
+    fn enum_variant_tag(&self, type_symbol: SymbolHandle, variant_name: &str) -> Option<i64> {
+        let ordinal_in = |data: &DataDefinition| {
             let mut ordinal: i64 = 0;
             for member in self.program.data_members(data) {
                 if let DataMember::Variant(variant) = member {
@@ -4815,8 +4838,17 @@ impl<'program> Evaluator<'program> {
                     ordinal += 1;
                 }
             }
+            None
+        };
+        if type_symbol.is_valid() {
+            let data = self
+                .program
+                .data_definitions()
+                .iter()
+                .find(|data| data.symbol == type_symbol)?;
+            return ordinal_in(data);
         }
-        None
+        self.program.data_definitions().iter().find_map(ordinal_in)
     }
 
     // ---- lookups ------------------------------------------------------------
