@@ -319,6 +319,11 @@ data Filesystem {
     // terminal expression has no such guard and is evaluated after the entry, so the
     // STAT queries observe the result.
     stat_rc: i32;
+    // `try_exists` captures errno into a FIELD in the entry (right after the stat,
+    // before any transition) so the No-vs-Error split guards on a stored field, not
+    // a nested host-call-in-guard (`let code = errno(); transition code == 2` inside
+    // a leaf state) — which the value-call deep fix does not reach at that nesting.
+    stat_errno: i32;
     // `last_error`: the captured errno and its classified ErrorKind. Produced by a
     // `match` TERMINAL (errno -> nullary ErrorKind), NOT a transition-guard chain,
     // for the same value-call guard-ordering reason as the STAT queries. This is
@@ -559,12 +564,18 @@ machine Filesystem::exists(&mut self, path: &[u8] in Path) -> bool {
 // reserved for a real failure such as an unsearchable ancestor directory (EACCES on
 // a parent) — surfaced, not silently reported as absent.
 machine Filesystem::try_exists(&mut self, path: &[u8] in Path) -> ExistsResult {
-    let rc: i32 = self.host.read_metadata(path, &mut self.stat_buf);
-    transition rc == 0 { true -> present() _ -> absent() }
+    // Capture BOTH host results into fields in the ENTRY, before branching: the stat
+    // rc, then errno (valid only right after the failing stat, before any other host
+    // call). The No-vs-Error split then guards on the STORED `self.stat_errno` field
+    // rather than a nested `let code = errno(); transition code == 2` — the deep fix
+    // schedules the entry's host-call stores before the outer value-call's leaf, so
+    // both fields are live when the (nested) guards read them.
+    self.stat_rc = self.host.read_metadata(path, &mut self.stat_buf);
+    self.stat_errno = self.host.errno();
+    transition self.stat_rc == 0 { true -> present() _ -> absent() }
     state present(&mut self) -> ExistsResult { ExistsResult::Yes }
     state absent(&mut self) -> ExistsResult {
-        let code: i32 = self.host.errno();
-        transition code == 2 { true -> no() _ -> other() }
+        transition self.stat_errno == 2 { true -> no() _ -> other() }
     }
     state no(&mut self) -> ExistsResult { ExistsResult::No }
     state other(&mut self) -> ExistsResult { let kind: ErrorKind = self.last_error(); ExistsResult::Error { kind: kind } }

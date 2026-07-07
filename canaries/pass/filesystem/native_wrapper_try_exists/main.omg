@@ -1,0 +1,44 @@
+// The ergonomic wrapper's faithful 3-way `Filesystem::try_exists -> ExistsResult`
+// natively (payload-carrying result, unblocked by the value-call deep fix). It
+// stats the path and returns `Yes` / `No` / `Error{kind}` via internal transitions
+// (and a nested `last_error` value-call for the Error case). A present file must be
+// `Yes`; after removal it must be `No`. The result is matched with a `transition`
+// (which supports payload bindings). PASS iff Yes-then-No.
+
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: Filesystem;
+    raw: FilesystemHost;
+    mode: i32;
+    fd: i32;
+    n: i64;
+    res: ExistsResult;
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.fd = self.raw.create("/tmp/omega_try_exists_wrap.txt", self.mode);
+    self.n = self.raw.close(self.fd);
+
+    self.res = self.fs.try_exists("/tmp/omega_try_exists_wrap.txt");
+    transition self.res {
+        ExistsResult::Yes -> present()
+        ExistsResult::No -> fail_present()
+        ExistsResult::Error { kind } -> fail_present()
+    }
+
+    state present(&mut self) {
+        self.n = self.raw.remove("/tmp/omega_try_exists_wrap.txt");
+        self.res = self.fs.try_exists("/tmp/omega_try_exists_wrap.txt");
+        transition self.res {
+            ExistsResult::No -> good()
+            ExistsResult::Yes -> fail_absent()
+            ExistsResult::Error { kind } -> fail_absent()
+        }
+    }
+    state good(&mut self)         { self.n = self.raw.write(1, "PASS: try_exists Yes-then-No (payload-carrying result)\n"); }
+    state fail_present(&mut self) { self.n = self.raw.write(1, "FAIL: try_exists(present) not Yes\n"); }
+    state fail_absent(&mut self)  { self.n = self.raw.write(1, "FAIL: try_exists(absent) not No\n"); }
+}

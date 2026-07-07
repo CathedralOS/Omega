@@ -195,6 +195,12 @@ fn native_value_call_guard_passes() { assert_pass("native_value_call_guard"); }
 // for a good one — the RESULT, not just the side effect, is now correct.
 #[test]
 fn native_wrapper_write_all_result_passes() { assert_pass("native_wrapper_write_all_result"); }
+// `Filesystem::try_exists -> ExistsResult` Yes/No natively: the faithful 3-way now
+// captures errno into a field in the entry (before branching) so the No-vs-Error
+// split guards on a stored field, not a nested host-call-in-guard the deep fix
+// doesn't reach at that nesting.
+#[test]
+fn native_wrapper_try_exists_passes() { assert_pass("native_wrapper_try_exists"); }
 
 // The `file_journal` CLI SAMPLE (samples/cli/systems/file_journal) — a real
 // end-to-end raw-seam workflow (mkdir -> create+write -> stat -> reopen+read ->
