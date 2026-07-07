@@ -29,11 +29,39 @@ pub(super) fn collect_unlowered_guard_blockers(
     blockers: &mut Arena<EmissionBlocker>,
 ) {
     for (_, instruction) in input.instructions.code.instructions.iter() {
-        let SelectedInstructionKind::EvaluateDispatchGuard { guard_lowering, .. } =
-            instruction.kind
+        let SelectedInstructionKind::EvaluateDispatchGuard {
+            guard_lowering,
+            operator,
+            ..
+        } = instruction.kind
         else {
             continue;
         };
+        // A NeedsRuntimeExpression guard carrying a REAL comparison operator is
+        // an unlowered comparison the emitter drops entirely -- the arm is
+        // entered unconditionally (the value-call guard subject's always-true
+        // face: `transition self.dbl(5) == 11` took the true arm). Operator
+        // None is the legitimate zero-width "unconditionally enter"
+        // fallthrough (a `_` arm / a string-equality false arm) and stays
+        // accepted.
+        if matches!(guard_lowering, StateGuardLowering::NeedsRuntimeExpression)
+            && !matches!(operator, omega_target_operations::StateGuardOperator::None)
+        {
+            blockers.insert(blocker(
+                "state guards",
+                &format!(
+                    "{} statement {} transition guard comparison has no runtime \
+                     lowering (a value-machine call in the guard subject is not \
+                     materialized -- the comparison would be silently dropped and \
+                     the arm entered unconditionally). Bind the call result to a \
+                     `let` local first, then guard the local{}",
+                    state_name(input, instruction.source_key),
+                    instruction.source_statement,
+                    proof_scope_suffix(input, instruction.source_key)
+                ),
+            ));
+            continue;
+        }
         match guard_lowering {
             StateGuardLowering::UnresolvedInlineArmGuard => {
                 blockers.insert(blocker(

@@ -661,7 +661,6 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("text/runtime_text_builder", 0),
     ("time/runtime_duration_constructors_exit", 70),
     ("time/runtime_duration_totals_exit", 70),
-    ("time/runtime_time_host_native_exit", 70),
     (
         "text/runtime_call_argument_struct_string_field_slice_alias_exit",
         77,
@@ -839,6 +838,10 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
     (
         "targets/entry_run_args_bytes",
         "NATIVE-ONLY: the entry prologue binds `args: &[u8]` over the spilled platform argument registers; the interpreter has no entry-argument notion yet",
+    ),
+    (
+        "time/runtime_time_host_native_exit",
+        "NATIVE-ONLY: asserts real host-clock behavior; the interpreter's virtual clock returns deterministic values (interp exits 3, native 70 by design)",
     ),
     (
         "arithmetic/runtime_trapping_overflow_traps",
