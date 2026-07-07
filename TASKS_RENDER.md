@@ -441,26 +441,45 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    framebuffer through the field value-call → still exit 9 (win!=0 AND get_dc==win AND
    blit>0). MODULE OPS DONE: window_create/get_dc/blit/is_window/window_destroy (5/8).
    REMAINING: the 3 pump ops (msg_peek/translate/dispatch), then task #57 substitution.
-   ⚑ **fire 21: PUMP-OP CRASH DISCOVERED + a KEY design finding (SIGTRAP, exit 133).**
-   Attempted `msg_peek`/`translate`/`dispatch`. They compile, but `msg_peek`
-   (`nextEventMatchingMask:…`) TRAPS at runtime. Bisected exhaustively:
-   • flat window+pump in ONE machine — WORKS (`native_gui_loop`, fire 16).
-   • `nextEvent` in a value-called machine, NO window — WORKS (vcpump probe, exit 6).
-   • window + pump in ONE value-call — WORKS (varE probe, exit 7).
-   • window created in value-call A (`window_create`) + `nextEvent` in a SEPARATE
-     value-call B (`msg_peek`) — **CRASHES** (varD, exit 133), even with a self-contained
-     msg_peek that recreates all pump inputs. Cross-call FIELD state persists fine (xstate
-     probe, exit 5), so it is NOT the stored inputs.
-   → **The crash is intrinsic to: an NSWindow created in one value-call, then `nextEvent`
-     in a DIFFERENT value-call.** A deep value-call/objc interaction (task #45-adjacent).
-   **⚑ DESIGN IMPLICATION for task #57 (the substitution): the macOS Gui ops must be
-   INLINED FLAT into the caller's state machine (macro-expansion), NOT dispatched as
-   separate per-op value-calls** — `native_gui_loop` (flat) runs window+blit+pump fine,
-   but the per-op-value-call `MacosGui` cannot pump after a window. So D-gui-backend
-   shifts: keep the `MacosGui` machines as the readable SOURCE of each op's objc sequence,
-   but the substitution should INLINE each op body at the sample's call site (flat), not
-   emit a value-call. The crashing pump ops were REVERTED; the module stays at the 5
-   working non-pump ops (green, harness 74/74). Next: task #57 as INLINE expansion.
+   ⚑ **fire 21: a pump-op crash was seen (SIGTRAP, exit 133) and (wrongly) attributed to
+   "window-in-value-call-A + nextEvent-in-value-call-B is intrinsically broken → must inline."**
+   ⚑ **fire 22: THAT CONCLUSION IS REFUTED.** Could not reproduce the crash in FOUR
+   independent, run-verified tests of exactly that shape (all exit cleanly):
+   • `sdpump` — SAME-DATA `self.make_window()` + `self.pump()` (2 value-calls) → exit 8.
+   • `nestpump` — NESTED `self.gui.make_window()` + `self.gui.pump()` through a data field → exit 8.
+   • `repro21` — full window_create (NSApp+NSWindow+**NSImageView**+colorspace) + `msg_peek([u64;6])`
+     through the `gui` field, the precise fire-21 shape → exit 8.
+   • `fullpump` — **the whole window_demo shape**: a 60-frame loop driving a 3-op pump
+     (`msg_peek`→`msg_translate`→`msg_dispatch`) + `is_window` liveness repeatedly through
+     the `gui` field → exit 7. No crash.
+   → The fire-21 exit-133 was a **confounded/transient bisection artifact**, NOT a real
+   value-call/objc limitation. **Nested-field value-call dispatch of window+pump WORKS.**
+   **⚑ CORRECTED PLAN for task #57: the SIMPLE substitution is viable — no inlining needed.**
+   Make the sample's abstract `gui: Gui` (boundary, zero-sized field) resolve to the concrete
+   `gui: MacosGui` provider (a `data` type; its ops are ordinary value-calls) on darwin. The
+   RUNTIME is fully de-risked (fullpump = the entire sample behavior through MacosGui value-calls).
+   The only remaining feature is a pure **resolution/layout substitution** (`Gui`→`MacosGui` so the
+   field gains the provider's storage) + **auto-injecting the macos_gui module** on darwin. See #57.
+   ⚑ **fire 22 SHIPPED: `macos_gui.omg` COMPLETE (all 7 Gui-trait ops, exact signatures) +
+   the FULL window_demo behavior runs natively through it.** `macos_gui.omg` now has
+   window_create (title `[u8;11]`), get_dc, msg_peek, msg_translate, msg_dispatch, is_window,
+   blit — every op the samples call, matching the `Gui` trait so the substitution is a drop-in.
+   `canaries/pass/objc/macos_gui_module` is now `samples/gui/window_demo`'s WHOLE state machine
+   (window_create → get_dc → per-frame: 64×64 diagonal-wash fill → blit `copied==64` → 3-op
+   pump loop `msg_peek`/`translate`/`dispatch` → `is_window` liveness → advance, 8 frames)
+   driven through a `gui: MacosGui` concrete-provider field → **exit 3, run-verified**, harness
+   74/74 (spawned with a 20s deadline guard). This is the entire sample behavior proven native
+   through the provider — only the source-transparent `Gui`→`MacosGui` substitution (task #57)
+   now stands between this and the UNTOUCHED sample.
+   ⚑ **fire 22 ENCODER GAP FOUND (task #59, deferred): large-offset machine-index load.** The
+   sample declares its loop counter `i` + guards AFTER `pixels: [i32;4096]`, so their frame
+   offsets exceed the AArch64 LDR scaled-immediate range (>16380) → the machine-indexed index
+   load errors. The frame-BASE-indexed path already materializes such offsets; extending the
+   same to the machine-indexed path touches emission + width + **relocation address-offset**
+   fns (adrp positions shift) — broad, silent-misrelocation-risky, so DEFERRED to task #59.
+   The canary SIDESTEPS it by declaring `i`/guards BEFORE `pixels` (orthogonal to what it
+   proves). **This encoder fix is a hard requirement for the untouched window_demo to compile
+   natively** (alongside the #57 substitution and a `Clock.sleep`→`usleep` native lowering).
 9. **[ ] Interpreter headless stub** for `Gui`/`Input`/`Clock` — open no real window,
    succeed all calls, report "no event / alive", quit after N frames — so the samples
    stay runnable on both engines and differential/coverage stay green.
