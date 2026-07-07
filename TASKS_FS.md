@@ -1,17 +1,37 @@
 # Tasks — Filesystem (`std::fs`)
 
-> **AUTONOMOUS LOOP (this file is the source of truth).** A `/loop` runs every
-> ~5 min re-reading this file to continue the fs work unattended. Cron job id
-> **`371842c4`** — `CronDelete 371842c4` to stop (when fs is complete or blocked
-> only on a user-only design decision). Keep **Current state**, **Next steps**,
-> and **Design decisions** current every fire so the next fire (fresh context)
-> can continue.
+> **⏸ AUTONOMOUS LOOP STOPPED (2026-07-12).** The recurring `/loop` (cron job
+> `371842c4`) was unscheduled at a clean stopping point for handoff — tree green,
+> everything pushed to `origin/main`. This file is the source of truth; it has full
+> context to pick up fresh. To resume unattended work, re-create a `/loop` that
+> reads this file (or just continue manually from **START HERE** below).
 >
-> **PUSH TO MAIN each fire (user-authorized).** After committing: `git fetch
-> origin`; if behind, `git rebase origin/main` + re-verify; then `git push
-> origin HEAD:main`. Our fs work and the other omega-rs work are on DISJOINT
-> files (rebases stay conflict-free); the bootstrap-lattice agent is on a
-> separate line. Keep main green.
+> **START HERE (fresh pickup).** The fs is broadly complete (interpreter = full
+> Rust-parity; native raw seam = complete; native ergonomic wrapper = scalar/tag
+> results work). The remaining work is native delivery of PAYLOAD-carrying wrapper
+> results — see **LIVE BLOCKERS** under Current state. The next concrete task is
+> **blocker #2: a big multi-field StructLiteral payload isn't fully delivered**
+> (`metadata_path -> Ok{Metadata}` gives `meta.len == 0`). Parked minimal repro:
+> `canaries/run/filesystem/wrapper_metadata_repro/main.omg`. Every blocker has a
+> precise diagnosis + fix direction. The interpreter is fully correct for all of
+> it, so this is purely native codegen.
+>
+> **WORKING RULES (were the loop's standing instructions).** Consult
+> `wiki/language_guide/*` before adding language features; prefer ZII / arena /
+> `Handle` / `HandleSpan`; check Rust source for `std::fs` parity; full human-word
+> names (`create`/`open`/`read`/`write`/`close`/`remove`/`metadata`), C symbols only
+> in the per-target binding table; only macOS/aarch64 must be TESTED; keep
+> x86_64/linux/windows structurally ready; build canaries that RUN and verify
+> behavior. Gates that must stay green: Console lowering; `omega-instruction-
+> selection`/`omega-relocations`/`omega-calling-conventions` crate tests; the
+> interpreter fs coverage in `canary_suite`; the native fs harness. Verify
+> canary_suite regressions by an **A/B failure-set diff** (the 85 failures are
+> pre-existing and NOT ours), never by raw count.
+>
+> **PUSH TO MAIN.** After committing: `git fetch origin`; if behind, `git rebase
+> origin/main` + re-verify; then `git push origin HEAD:main`. Our fs work and the
+> other omega-rs work are on DISJOINT files (rebases stay conflict-free); the
+> bootstrap-lattice agent is on a separate line. Keep main green.
 
 ## North star
 
