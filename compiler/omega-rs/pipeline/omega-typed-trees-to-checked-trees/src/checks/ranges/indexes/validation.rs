@@ -19,7 +19,9 @@ use super::super::expressions::{
 };
 use super::super::facts::RangeFacts;
 use super::super::proofs::{unknown_length_index_is_proven, unknown_length_range_is_proven};
-use super::super::types::{expression_is_slice, expression_is_unsigned_integer};
+use super::super::types::{
+    expression_enforced_declared_range, expression_is_slice, expression_is_unsigned_integer,
+};
 
 /// The proof obligation for an `items[i]` / `items[a..b]` access, sourced from
 /// the spelled boundary operator that governs the access.
@@ -237,14 +239,24 @@ fn check_known_length_index(
                 // construction); a SIGNED index must prove it -- without that, a
                 // counter that runs negative reads out of bounds (a confirmed
                 // segfault). Exempt only when PROVABLY unsigned (closed-world).
+                // A DECLARED range (`i: usize [0..=4]`) is a store-enforced
+                // invariant when the domain is Exact, so it discharges both
+                // halves without a guard: high < length proves the upper
+                // bound, low >= 0 the lower.
+                let declared_range =
+                    expression_enforced_declared_range(program, machine, state, index);
                 let upper_bound_proven = facts
                     .index_is_proven(&collection_label, &index_label)
                     || facts.index_upper_bound_is_proven(&index_label, length)
-                    || facts.index_upper_bound_is_proven_via_ordering(&index_label, length);
+                    || facts.index_upper_bound_is_proven_via_ordering(&index_label, length)
+                    || declared_range.is_some_and(|(_, high)| {
+                        i64::try_from(length).is_ok_and(|length| high < length)
+                    });
                 let lower_bound_proven = expression_is_unsigned_integer(
                     program, machine, state, index,
                 ) || facts.non_negative_is_proven(&index_label)
-                    || facts.non_negative_is_proven_via_ordering(&index_label);
+                    || facts.non_negative_is_proven_via_ordering(&index_label)
+                    || declared_range.is_some_and(|(low, _)| low >= 0);
                 if upper_bound_proven && lower_bound_proven {
                     return;
                 }

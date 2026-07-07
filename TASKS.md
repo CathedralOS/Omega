@@ -38,8 +38,6 @@ representation machinery behind a deliberate boundary.
 4. Multi-VARIABLE compound guards don't decompose (single-variable conjuncts work).
 5. Multi-predecessor edge agreement fails for the write keystone (equivalent
    `sp < 16` guards on 3 edges don't prove; funnel states are the workaround).
-6. Declared ranges don't feed the INDEX lower-bound prover (an explicit
-   `>= 0` conjunct is still needed).
 
 **Abort-as-effect (#65) design sketch (chat, NOT settled):** every trap-capable
 site (`in Trapping`, future assert/panic) carries an `abort` effect threaded to
@@ -88,6 +86,17 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 "provably correct native output," which it meets.
 
 ## Open latent bugs / fenced gaps
+
+- **[ ] Range constraint + non-Exact domain = the range is a LIE (found 2026-07-06).**
+  `i: usize [0..=4] in Wrapping` accepts `self.i = 100` -- the range enforces only under the
+  EXACT domain ("Wrapping stays permissive" was scoped to source-type narrowing, but it also
+  bypasses the DECLARED-range store check entirely). Consumers are correctly defensive (the
+  index prover's declared-range feed is gated on Exact; canary
+  collections/wrapping_range_index_unproven), but the DECLARATION itself is misleading.
+  PROBLEM: what does a range constraint MEAN under Wrapping/Saturating -- wrap/clamp INTO the
+  declared range at stores, or is the combination ill-formed (reject at declaration)?
+  Same underspecified-numeric family as the shift/cast divergences
+  ([[shift-amount-out-of-range-divergence]]).
 
 - Contained-machine METHOD-CALL storage resolution is a SILENT miscompile with TWO faces
   (see memory `contained-machine-same-type-aliasing`), both from the backend resolving a

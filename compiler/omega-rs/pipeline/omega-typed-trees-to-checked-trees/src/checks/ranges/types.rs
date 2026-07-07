@@ -54,6 +54,82 @@ pub(super) fn expression_is_slice(
         .is_some_and(|type_reference| type_reference_is_slice(program, type_reference))
 }
 
+/// The DECLARED range constraint of `expression`'s type (`i: usize [0..=4]`)
+/// as inclusive i64 bounds -- ONLY when that range is a true invariant the
+/// index prover may rely on:
+/// - the base type is a plain INTEGER primitive (an atomic's hardware
+///   semantics wrap; a float range never indexes), and
+/// - the arithmetic domain is EXACT: a `in Wrapping`/`Saturating` store is
+///   deliberately permissive (probed live: `[0..=4] in Wrapping` accepts a
+///   store of 100), so a non-Exact range must never discharge an index bound.
+/// Every store into an Exact ranged place is range-checked (the narrowing
+/// keystone) and ZII requires 0 in range, so the declared interval holds at
+/// every read.
+pub(super) fn expression_enforced_declared_range(
+    program: &omega_typed_trees::TypedTrees,
+    machine: &Machine,
+    state: &State,
+    expression: ExpressionHandle,
+) -> Option<(i64, i64)> {
+    let type_reference = expression_type_reference(program, machine, state, expression)?;
+    let primitive = primitive_of_type_reference(program, type_reference)?;
+    if !matches!(
+        primitive,
+        PrimitiveType::I8
+            | PrimitiveType::I16
+            | PrimitiveType::I32
+            | PrimitiveType::I64
+            | PrimitiveType::U8
+            | PrimitiveType::U16
+            | PrimitiveType::U32
+            | PrimitiveType::U64
+            | PrimitiveType::Usize
+    ) {
+        return None;
+    }
+    enforced_range_of_type_reference(program, type_reference)
+}
+
+fn enforced_range_of_type_reference(
+    program: &omega_typed_trees::TypedTrees,
+    handle: TypeReferenceHandle,
+) -> Option<(i64, i64)> {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            enforced_range_of_type_reference(program, *referee)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            let constraints = program.type_reference_table.constraints(*constraints);
+            // Any non-Exact arithmetic domain in the shells kills the invariant.
+            if constraints.iter().any(|constraint| {
+                matches!(
+                    constraint,
+                    omega_typed_trees::types::TypeConstraintNode::ArithmeticDomain(domain)
+                        if *domain != omega_core::arithmetic::ArithmeticDomain::Exact
+                )
+            }) {
+                return None;
+            }
+            constraints
+                .iter()
+                .find_map(|constraint| match constraint {
+                    omega_typed_trees::types::TypeConstraintNode::Range { minimum, maximum } => {
+                        Some((
+                            program.expression_table.constant_integer_value(*minimum)?,
+                            program.expression_table.constant_integer_value(*maximum)?,
+                        ))
+                    }
+                    _ => None,
+                })
+                .or_else(|| enforced_range_of_type_reference(program, *base_type))
+        }
+        _ => None,
+    }
+}
+
 fn expression_type_reference(
     program: &omega_typed_trees::TypedTrees,
     machine: &Machine,

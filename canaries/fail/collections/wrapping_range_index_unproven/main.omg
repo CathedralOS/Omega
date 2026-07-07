@@ -1,0 +1,22 @@
+// A WRAPPING-domained range must NOT discharge an index bound: `[0..=4] in
+// Wrapping` is deliberately permissive at stores (a store of 100 is accepted),
+// so the "declared range" is not an invariant -- feeding it to the index
+// prover would read out of bounds. The Exact-domain gate keeps this rejected.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 5];
+    i: usize [0..=4] in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    transition { _ -> read() }
+    state read(&mut self) {
+        let v: i32 = self.arr[self.i];
+        transition v == 0 { true -> m() false -> m() }
+    }
+    state m(&mut self) { self.console.exit_process(1); }
+}
