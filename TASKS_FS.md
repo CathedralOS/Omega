@@ -114,11 +114,13 @@ StateCall* are the calls themselves; StateCallResult/Other carry no store.
 DELIVER (closed by the deferral machinery; pinned by
 `calls/runtime_value_call_dispatch_results_exit`): dispatch STRUCT result
 straight to a FIELD, and free-machine runtime-branch calls bound to lets.
-NEW FENCE: EFFECTFUL arm bodies in a value call ran for EVERY arm ×2 while
-the result stayed correct — MachineOwned mutations / host calls in a
-non-entry state of a value-called machine are now a clean move-to-the-entry
-error (`value_call_arm_effect_blockers.rs`; fail canary
-`calls/value_call_effectful_arm_rejected`). Caught account_ledger live
+NEW FENCE: EFFECTFUL arm bodies in a value call ran for EVERY arm (×2 for
+machine-owned; ×1-per-arm for &mut-param mutations, probed count=11) while
+the result stayed correct — MachineOwned/ParameterOrAlias mutations and host
+calls in a non-entry state of a value-called machine are now a clean
+move-to-the-entry error (`value_call_arm_effect_blockers.rs`; fail canaries
+`calls/value_call_effectful_arm_rejected` +
+`calls/value_call_param_effect_arm_rejected`). Caught account_ledger live
 (query_count bumped per arm: 6 for 2 queries natively, invisible to the
 exit-only differential — its bump moved to the entry). Pure arm bodies (the
 fs wrapper's decode `let`s) are unaffected. Real fix = guard arm-body
