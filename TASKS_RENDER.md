@@ -114,6 +114,31 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
      `widths.rs` operand_width for the float operand. Adding an enum variant breaks all
      exhaustive matches (x86_64 encoder/width/data_addresses) — handle each (x86_64
      untested → a "not yet" arm is fine). Land it as ONE focused vertical, build green.
+   - **FIRE 3 (2026-07-12) — full blast radius CONFIRMED by compiler; do the whole
+     vertical in ONE pass (no clean half-green checkpoint — an unconstructed variant
+     dead-code-fails, so the builder must CONSTRUCT it in the same change).** The
+     operand flows through a 3-layer pipeline, each its own enum needing a
+     `RuntimeScalarFloat { region, byte_offset, byte_count }` variant + pass-through:
+     (1) `omega-abstract-operations/.../instruction/operand.rs::InstructionOperandKind`;
+     (2) `omega-target-operations/.../instruction/operand.rs` (target enum ~L166; its
+     accessor methods use `_ => None`, no arm needed); (3)
+     `omega-isa-aarch64/src/operand.rs::Aarch64CallOperand`. Mapping arms:
+     `pipeline/omega-abstract-operations-to-target-operations/src/operands.rs`
+     (abstract→target) + the target→Aarch64CallOperand mapper; plus a formatter arm in
+     `omega-backend-report/src/codegen/operands.rs`, the x86_64 "not yet" arm, and
+     `widths.rs`. REAL work: (a) aarch64 `append_call_operands` float-arg arm (load bits
+     → scratch GPR → `encode_float_move_from_gpr` into next V-reg, `next_vreg` tracked
+     separately; width = load+fmov); (b) the builder
+     `host_operations/operands.rs::scalar_argument_operand_at` detects a float arg via
+     `resolve_runtime_storage_primitive_type_in_table` and emits `RuntimeScalarFloat`
+     (constructs it → no dead code); (c) darwin binding + `HostOperation` + op arm.
+   - **DO `lround` FIRST (float ARG only), not `sqrt`.** `machine round_nearest(x: f64)
+     -> i64` → darwin `lround`: double arg in d0, LONG return in x0 (existing int-return
+     path). Proves float-arg passing WITHOUT the v0 float-return store — a strictly
+     smaller first vertical. Canary `round_nearest(3.7) == 4` (`ldr d0,…; bl _lround;
+     str x0,…`), disassemble + run. A follow fire adds the float-RETURN store (v0 →
+     `encode_float_move_to_gpr`, gated on a `returns_float()` predicate), proven by
+     `sqrt(16.0) == 4.0`. (Reverted this fire's partial edits to keep the tree green.)
 2. **[ ] HFA struct-by-value args** — pass `NSRect` (4 doubles) / `CGSize` (2) in
    v-regs. Canary: `NSMakeRect(...)` round-trip or `[NSWindow ... initWithContentRect:
    styleMask:backing:defer:]` produces a non-nil window.
