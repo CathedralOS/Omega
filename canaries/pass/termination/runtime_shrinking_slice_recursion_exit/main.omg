@@ -48,7 +48,7 @@ terminates {
     self.total = self.total + take;
 
     transition items.len > 0 {
-        true -> self.accumulate(items[1..], items[0].value)
+        true -> accumulate(items[1..], items[0].value)
         false -> finished()
     }
 

@@ -24,7 +24,7 @@ ensures
     result >= acc + limit - index
 {
     transition index < limit {
-        true -> self.climb(limit, index + 1, acc)
+        true -> climb(limit, index + 1, acc)
         false -> acc
     }
 }

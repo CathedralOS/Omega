@@ -11,7 +11,7 @@ terminates {
 -> u32
 {
     transition remaining > 0 {
-        true -> self.countdown(remaining - 1)
+        true -> countdown(remaining - 1)
         false -> remaining
     }
 }

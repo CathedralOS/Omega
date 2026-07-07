@@ -16,7 +16,7 @@ terminates {
 -> usize
 {
     transition power > 0 {
-        true -> self.weaken(power - 1)
+        true -> weaken(power - 1)
         false -> power
     }
 }

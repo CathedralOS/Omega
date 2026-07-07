@@ -867,7 +867,7 @@ terminates {
 {
     self.walk_rc = self.mkall_step(path, i);
     transition i < path.len {
-        true -> self.mkall_walk(path, i + 1)
+        true -> mkall_walk(path, i + 1)
         false -> self.mkall_leaf(path)
     }
     state mkall_leaf(&mut self, path: &[u8] in Path) -> UnitResult {

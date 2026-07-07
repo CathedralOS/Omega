@@ -1,4 +1,4 @@
-// RECURSIVE ACCUMULATOR: `self.sum(n - 1, acc + n)` -- the loop-carried
+// RECURSIVE ACCUMULATOR: `sum(n - 1, acc + n)` -- the loop-carried
 // argument writes used to run IN PLACE and in order, so `acc + n` read the
 // ALREADY-DECREMENTED n (the parallel-assignment hazard; sum(5,0) natively
 // computed 10). The overlap detector now collects every place read inside
@@ -17,7 +17,7 @@ terminates {
 -> usize
 {
     transition n > 0 {
-        true -> self.sum(n - 1, acc + (n as usize in Wrapping))
+        true -> sum(n - 1, acc + (n as usize in Wrapping))
         false -> acc
     }
 }

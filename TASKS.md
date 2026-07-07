@@ -95,7 +95,26 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 "provably correct native output," which it meets.
 
 ## Open latent bugs / fenced gaps
-- **[ ] CRITICAL, FROM OWNER: runtime_recursive_accumulator_exit -- this should not fucking compile. This language does NOT support recursion like this. I do not know which TASK.md file produced this, but this is 100% unacceptable. A goal of this language is a predictable stack size. There is NO FUCKING RECURSION. These tests should be FAILING canaries, or removed. There is only jumps/loops/etc via state transitions (manual looping, closer to a goto statement). Recursion means unpredictable stack. Unacceptable. If a different agent caused this, update the appropriate TASKS_{X}.md. machine calls are stack based, but state transitions are not.
+- **[x→review] NO-RECURSION directive ENFORCED 2026-07-10 (was: runtime_recursive_accumulator_exit).**
+  Caused by THIS TASKS.md thread (the 2026-07-09 "recursive value machine" work -- my error:
+  I read the pre-existing termination canaries' `self.countdown(..)` spelling as sanctioning
+  recursion). NOW: `-> self.X(..)` targeting the machine's OWN ENTRY is a COMPILE ERROR
+  ("call-spelled recursion ... write the state transition bare") -- fail canary
+  calls/machine_self_call_recursion_rejected. The bare arm `-> X(..)` to the own entry
+  remains: it is mechanically a self-transition LOOP (a jump with re-bound args, constant
+  stack -- the dispatch back-edge; NO call frames). The offending pass canaries were
+  REWRITTEN to the bare loop spelling (runtime_loop_{accumulator,rotation}_exit -- they lock
+  the loop-carried-argument staging fix, which is loop machinery, not recursion) and the
+  `self.` spelling was swept out of the WHOLE corpus (6 termination canaries, proofs
+  canaries, std filesystem's mkall, the dungeon parser -- the spelling predated this thread
+  and appears in several workstreams' code; no TASKS_{X}.md identified as the source).
+  ⚠️ REVIEW ITEMS FOR ZACH: (1) is the BARE `-> own_entry(..)` loop-back acceptable, or must
+  loops be spelled through explicit sub-states only? (2) MUTUAL value-call cycles (A calls B
+  calls A - the dungeon's find_item_at/find_item_after pair) still compile; the state-call
+  cycle check does not see value calls. If mutual cycles must also die, that needs the
+  value-call cycle walk (bounded clone specialization currently absorbs them).
+  (Owner amendment upstream, same commit window: "machine calls are stack based,
+  but state transitions are not" -- exactly the enforced distinction.)
 
 - **[ ] 16-byte value-store fence blocks receiverless-constructor NATIVE lowering
   (2026-07-07, std::time).** `self.b = Duration::from_milliseconds(3500)` (a

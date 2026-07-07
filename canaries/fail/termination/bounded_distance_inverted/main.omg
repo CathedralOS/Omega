@@ -19,7 +19,7 @@ terminates {
 -> usize
 {
     transition index < limit {
-        true -> self.walk(limit, index + 1)
+        true -> walk(limit, index + 1)
         false -> index
     }
 }
