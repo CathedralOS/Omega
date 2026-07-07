@@ -1762,6 +1762,55 @@ pub fn runtime_storage_copy_machine_indexed_to_machine_indexed_width(
     }
 }
 
+pub fn runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width(
+    architecture: Architecture,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    match architecture {
+        // aarch64 has no double-indexed encoder yet; emission rejects the
+        // instruction with a clean diagnostic before any bytes are placed.
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width(
+                outer_index_region,
+                inner_index_region,
+            )
+        }
+    }
+}
+
+/// Frame-base relocation start inside the double-indexed read (pre-`+2`;
+/// present only when an index is frame-resident). x86_64 only.
+pub fn runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
+    architecture: Architecture,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset()
+        }
+    }
+}
+
+/// Target-region relocation start (the write-half `mov r15,imm64`, pre-`+2`)
+/// inside the double-indexed read. x86_64 only.
+pub fn runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offset(
+    architecture: Architecture,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offset(
+                outer_index_region,
+                inner_index_region,
+            )
+        }
+    }
+}
+
 pub fn runtime_storage_copy_to_runtime_pointee_width(
     architecture: Architecture,
     source_offset: usize,

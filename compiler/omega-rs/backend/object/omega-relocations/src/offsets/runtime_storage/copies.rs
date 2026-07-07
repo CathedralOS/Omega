@@ -202,6 +202,29 @@ pub(crate) fn runtime_storage_copy_to_runtime_machine_indexed_frame_index_base_o
     }
 }
 
+/// Frame-base relocation start (pre-`+2`) inside the double-indexed read,
+/// present only when an index is frame-resident.
+pub(crate) fn runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
+    architecture: Architecture,
+) -> usize {
+    omega_instruction_selection::runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
+        architecture,
+    )
+}
+
+/// Target-region relocation start (pre-`+2`) inside the double-indexed read.
+pub(crate) fn runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offset(
+    architecture: Architecture,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    omega_instruction_selection::runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offset(
+        architecture,
+        outer_index_region,
+        inner_index_region,
+    )
+}
+
 pub(crate) fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_target_address_offset(
     architecture: Architecture,
 ) -> usize {

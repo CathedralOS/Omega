@@ -1,0 +1,65 @@
+// BOTH-RUNTIME double-indexed reads (`grid[i][j]`, both indices runtime):
+// the CopyRuntimeMachineDoubleIndexedToRuntimeStorage op (2026-07-07) carries
+// the (row, element) index pair -- base + i*row_stride + j*elem_stride.
+// Faces: machine-field target, LET target, both-FRAME indices (state params),
+// MIXED regions (machine row / frame column), and a const-prefix 3D face
+// (`cube[1][a][b]` -- the const level folds into the collection resolution).
+// Values seeded distinctly per face; wrong-element reads exit 2.
+// Still fenced (clean errors): writes, `rows[i].data[j]` (member between the
+// indices), 3+ runtime levels, local/param 2D arrays.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    grid: [[i32; 4]; 3];
+    cube: [[[i32; 2]; 2]; 2];
+    i: usize [0..=2];
+    j: usize [0..=3];
+    got: i32;
+}
+machine Main::main(&mut self) {
+    self.grid[1][2] = 42;
+    self.grid[2][2] = 5;
+    self.grid[1][3] = 9;
+    self.cube[1][1][1] = 77;
+    self.i = 1;
+    self.j = 2;
+    self.got = self.grid[self.i][self.j];
+    transition self.got == 42 {
+        true -> let_face()
+        false -> no()
+    }
+    state let_face(&mut self) {
+        let picked: i32 = self.grid[self.i][self.j];
+        transition picked == 42 {
+            true -> frame_indices(2, 2)
+            false -> no()
+        }
+    }
+    state frame_indices(&mut self, fi: usize [0..=2], fj: usize [0..=3]) {
+        self.got = self.grid[fi][fj];
+        transition self.got == 5 {
+            true -> mixed(3)
+            false -> no()
+        }
+    }
+    state mixed(&mut self, fj: usize [0..=3]) {
+        self.got = self.grid[self.i][fj];
+        transition self.got == 9 {
+            true -> deep()
+            false -> no()
+        }
+    }
+    state deep(&mut self) {
+        let a: usize [0..=1] = 1;
+        let b: usize [0..=1] = 1;
+        self.got = self.cube[1][a][b];
+        transition self.got == 77 {
+            true -> yes()
+            false -> no()
+        }
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

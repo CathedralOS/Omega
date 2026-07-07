@@ -1843,6 +1843,123 @@ pub(super) struct RuntimeMachineIndexedTarget {
     pub(super) byte_count: usize,
 }
 
+/// The BOTH-RUNTIME nested element `grid[i][j]`: outer = the ROW index (`i`,
+/// stride = row byte size), inner = the ELEMENT index (`j`, stride = element
+/// byte size). NOTE the tree/op naming flip: `i` is the tree-INNER `Indexed`
+/// node's index but the op's OUTER (row) index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct RuntimeMachineDoubleIndexedTarget {
+    pub(super) base_byte_offset: usize,
+    pub(super) outer_index_region: RuntimeStorageRegion,
+    pub(super) outer_index_offset: usize,
+    pub(super) outer_stride: usize,
+    pub(super) inner_index_region: RuntimeStorageRegion,
+    pub(super) inner_index_offset: usize,
+    pub(super) inner_stride: usize,
+    pub(super) field_byte_offset: usize,
+    pub(super) byte_count: usize,
+}
+
+/// Resolve `grid[i][j]` -- a machine-owned 2D fixed array read with BOTH
+/// indices runtime -- to its double-indexed place. `None` for every other
+/// shape: a single runtime level (the single-index resolver), 3+ runtime
+/// levels (no op carries three indices), a frame-resident collection (the
+/// shadowing gate -- frame arrays use the frame op family), a carrier, or a
+/// member suffix above the element (not wired yet; the fence keeps those
+/// shapes rejected).
+pub(super) fn resolve_runtime_machine_double_indexed_source_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeMachineDoubleIndexedTarget> {
+    let mut outer = expression;
+    while let ExpressionNode::Mutable(next) = expressions.expression(outer) {
+        outer = *next;
+    }
+    let ExpressionNode::Indexed(outer_indexed) = expressions.expression(outer) else {
+        return None;
+    };
+    let mut inner = outer_indexed.collection;
+    while let ExpressionNode::Mutable(next) = expressions.expression(inner) {
+        inner = *next;
+    }
+    let ExpressionNode::Indexed(inner_indexed) = expressions.expression(inner) else {
+        return None;
+    };
+    // BOTH indices must be runtime -- a const level belongs to the
+    // single-index paths (const levels fold into the collection resolution
+    // or ride the suffix walk).
+    if indexed_index_is_const(expressions, outer_indexed.index)
+        || indexed_index_is_const(expressions, inner_indexed.index)
+    {
+        return None;
+    }
+    // The row collection must be a plain machine-owned place (possibly behind
+    // CONST-indexed layers, which the const-prefix peel folds); a THIRD
+    // runtime level makes the peel fail and the resolve correctly refuses.
+    if runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        inner_indexed.collection,
+    )
+    .is_some()
+    {
+        return None;
+    }
+    let collection = resolve_machine_owned_collection_with_const_prefix_in_table(
+        input,
+        source_key,
+        expressions,
+        inner_indexed.collection,
+    )?;
+    if descriptor_is_bounded_byte_buffer(&collection.type_descriptor) {
+        return None;
+    }
+    let (row_type, _rows) = collection.type_descriptor.fixed_array()?;
+    let row_layout = descriptor_layout(input, row_type);
+    let (element_type, _columns) = row_type.fixed_array()?;
+    let element_layout = descriptor_layout(input, element_type);
+
+    let outer_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        inner_indexed.index,
+    )?;
+    let inner_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        outer_indexed.index,
+    )?;
+    for place in [&outer_place, &inner_place] {
+        if !matches!(
+            place.region,
+            RuntimeStorageRegion::RuntimeFrame | RuntimeStorageRegion::Machine
+        ) {
+            return None;
+        }
+    }
+
+    Some(RuntimeMachineDoubleIndexedTarget {
+        base_byte_offset: collection.byte_offset,
+        outer_index_region: outer_place.region,
+        outer_index_offset: outer_place.byte_offset,
+        outer_stride: row_layout.size,
+        inner_index_region: inner_place.region,
+        inner_index_offset: inner_place.byte_offset,
+        inner_stride: element_layout.size,
+        field_byte_offset: 0,
+        byte_count: element_layout.size,
+    })
+}
+
 pub(super) fn resolve_runtime_machine_indexed_target_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
