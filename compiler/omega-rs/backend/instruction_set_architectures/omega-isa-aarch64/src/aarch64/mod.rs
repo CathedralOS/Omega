@@ -255,6 +255,8 @@ fn append_call_operands(
     operands: impl Iterator<Item = Aarch64CallOperand>,
 ) -> Result<(), Diagnostic> {
     let mut next_register = 0u8;
+    // arm64 passes float/double args in the SEPARATE v0.. vector-register sequence.
+    let mut next_vreg = 0u8;
 
     for operand in operands {
         match &operand {
@@ -337,6 +339,26 @@ fn append_call_operands(
                     )?);
                 }
                 next_register += 1;
+            }
+            RuntimeScalarFloat {
+                byte_offset,
+                byte_count,
+            } => {
+                // A float/double arg goes in the VECTOR-register sequence (v0..),
+                // independent of the x-register (integer) sequence. Load the bits
+                // into a scratch GPR (x16/IP0, caller-saved), then `fmov` them into
+                // the next v-register. Width = adrp+add+load+fmov = 16 (one more than
+                // an int scalar's 12), summed automatically so the BL/result-store
+                // relocation offsets stay correct — no manual lockstep.
+                bytes.extend(encode_adrp_placeholder(16));
+                bytes.extend(encode_add_page_offset_placeholder(16));
+                if *byte_count >= 8 {
+                    bytes.extend(encode_load_x_from_x(16, 16, *byte_offset)?);
+                } else {
+                    bytes.extend(encode_load_w_from_x(16, 16, *byte_offset, *byte_count)?);
+                }
+                bytes.extend(encode_float_move_from_gpr(*byte_count, next_vreg, 16)?);
+                next_vreg += 1;
             }
             RuntimeStorageAddress { byte_offset } => {
                 // The place's ADDRESS: adrp/add to the region base (relocated),

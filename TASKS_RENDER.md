@@ -139,6 +139,30 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
      str x0,…`), disassemble + run. A follow fire adds the float-RETURN store (v0 →
      `encode_float_move_to_gpr`, gated on a `returns_float()` predicate), proven by
      `sqrt(16.0) == 4.0`. (Reverted this fire's partial edits to keep the tree green.)
+   - **FIRE 4 (2026-07-12) — operand-layer plumbing + aarch64 float-ARG encoder LANDED,
+     GREEN.** Added `RuntimeScalarFloat { region, byte_offset, byte_count }` to all three
+     operand enums (`omega-abstract-operations`, `omega-target-operations`,
+     `omega-isa-aarch64::Aarch64CallOperand`) + the abstract→target mapping arm + a
+     backend-report formatter arm. Implemented the REAL aarch64 float-arg marshalling in
+     `append_call_operands` (mod.rs): a `next_vreg` counter (separate from
+     `next_register`); for a float operand `adrp/add` to the region base into scratch
+     x16, load the bits (`ldr x`/`ldr w` by byte_count), then
+     `encode_float_move_from_gpr(byte_count, next_vreg, 16)` → value lands in the next
+     v-reg. `widths.rs operand_width` reports 16 (adrp+add+load+fmov) so BL/result-store
+     relocation offsets stay automatic — no manual lockstep. VERIFIED: workspace builds;
+     isa-aarch64 5/5; native fs harness 55/55 (zero regression). The variant is
+     UNCONSTRUCTED so far (harmless dead-code warning — no `deny(warnings)`).
+   - **FIRE 5 (next) — construct it + prove it. Three small pieces remain:** (1)
+     `HostCapability::Libm` (+ `from_name`/`name` arms + extend `returns_value()` to
+     include Libm) and `HostOperation::RoundNearest` (+ `from_str`/`to_str` arms) in
+     `foundation/omega-calling-conventions/src/lib.rs`; (2) `darwin.rs`
+     `darwin_import("Libm","round_nearest","_lround")` + `host_operation` +
+     `insert_platform_lowering`; (3) the op arm in
+     `host_operations/operands.rs::select_host_operation_operands` — int result via
+     `first_scalar_argument_operand` + a float arg via a NEW `float_argument_operand_at`
+     helper (mirror `scalar_argument_operand_at`, emit `RuntimeScalarFloat` — this
+     CONSTRUCTS the variant, clearing the dead-code warning). Probe `machine
+     round_nearest(x: f64) -> i64` → `round_nearest(3.7) == 4`; compile, `otool -tv`, RUN.
 2. **[ ] HFA struct-by-value args** — pass `NSRect` (4 doubles) / `CGSize` (2) in
    v-regs. Canary: `NSMakeRect(...)` round-trip or `[NSWindow ... initWithContentRect:
    styleMask:backing:defer:]` produces a non-nil window.
