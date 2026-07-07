@@ -95,6 +95,16 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 "provably correct native output," which it meets.
 
 ## Open latent bugs / fenced gaps
+
+- **[ ] Straight-line LETS in a POST-ENTRY state of an inlined value callee misdeliver
+  natively (2026-07-07, std::time `divide`; interp correct).** A guarded post-entry
+  state computing lets (`seconds_quotient`, chained div/mod/mul) then threading them to
+  an emit state produced a wrong subsecond natively; restructuring to ENTRY-ONLY lets
+  (safe-divisor bump trick for the eager-eval zero case) fixed it. Same #2B
+  splice-machinery family as the deferred-entry-locals fix — post-entry-state locals
+  need the same deferral/contiguity treatment. The std authoring rule (entry-only
+  lets, params-only states) dodges it; a minimal repro can be distilled from
+  time.omg's divide at commit HEAD~1 if the fix lands here.
 - **[ ] Owner: REJECTED. NO-RECURSION directive ENFORCED 2026-07-10 (was: runtime_recursive_accumulator_exit).**
   Caused by THIS TASKS.md thread (the 2026-07-09 "recursive value machine" work -- my error:
   I read the pre-existing termination canaries' `self.countdown(..)` spelling as sanctioning

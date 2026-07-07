@@ -317,6 +317,107 @@ machine Duration::checked_subtract(&self, other: Duration) -> DurationResult {
     }
 }
 
+// self * factor; `Overflow` when the true product exceeds the range.
+machine Duration::checked_multiply(&self, factor: u32) -> DurationResult {
+    let factor_wide: u64 = factor as u64;
+    // Subsecond product fits u64 by math ([0..=999_999_999] * [0..=u32::MAX])
+    // but the interval fold cannot multiply variable bounds -- Wrapping
+    // spelling, correctness carried by the bounds themselves.
+    let nano_product_wrapped: u64 in Wrapping =
+        (self.subsecond_nanoseconds as u64 in Wrapping) * (factor_wide as u64 in Wrapping);
+    let nano_product: u64 = nano_product_wrapped as u64;
+    let extra_seconds: u64 = nano_product / 1000000000;
+    let nano_remainder_wide: u64 = nano_product % 1000000000;
+    let nano_remainder: u32 = nano_remainder_wide as u32;
+    // Division-free u64 overflow detection for seconds * factor via the
+    // 32-bit split (the interpreter's div/mod on msb-set u64 was only just
+    // taught unsignedness; shifts and adds need no such care):
+    // seconds = hi<<32 | lo. Overflow iff hi*factor exceeds 32 bits or a
+    // carry wraps (wrapped-compare idiom).
+    let seconds_high: u64 = self.seconds >> 32;
+    let seconds_low: u64 = self.seconds & 4294967295;
+    let high_product_wrapped: u64 in Wrapping =
+        (seconds_high as u64 in Wrapping) * (factor_wide as u64 in Wrapping);
+    let high_product: u64 = high_product_wrapped as u64;
+    let low_product_wrapped: u64 in Wrapping =
+        (seconds_low as u64 in Wrapping) * (factor_wide as u64 in Wrapping);
+    let low_product: u64 = low_product_wrapped as u64;
+    let high_fits: bool = high_product <= 4294967295;
+    let high_shifted: u64 in Wrapping = (high_product as u64 in Wrapping) << 32;
+    let seconds_product: u64 in Wrapping =
+        (high_shifted as u64 in Wrapping) + (low_product as u64 in Wrapping);
+    let product_wrapped: bool = seconds_product < low_product;
+    let final_seconds: u64 in Wrapping =
+        (seconds_product as u64 in Wrapping) + (extra_seconds as u64 in Wrapping);
+    let final_wrapped: bool = final_seconds < seconds_product;
+    transition high_fits {
+        true -> multiply_carry_gate(product_wrapped, final_wrapped, final_seconds, nano_remainder)
+        false -> multiply_overflow()
+    }
+    state multiply_carry_gate(&self, product_wrapped: bool, final_wrapped: bool, final_seconds: u64, nano_remainder: u32) -> DurationResult {
+        transition product_wrapped {
+            true -> multiply_overflow()
+            false -> multiply_final_gate(final_wrapped, final_seconds, nano_remainder)
+        }
+    }
+    state multiply_final_gate(&self, final_wrapped: bool, final_seconds: u64, nano_remainder: u32) -> DurationResult {
+        transition final_wrapped {
+            true -> multiply_overflow()
+            false -> multiply_emit(final_seconds, nano_remainder)
+        }
+    }
+    state multiply_emit(&self, seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
+        DurationResult::Ok {
+            duration: Duration {
+                seconds: seconds_final,
+                subsecond_nanoseconds: nanoseconds_final % 1000000000,
+            },
+        }
+    }
+    state multiply_overflow(&self) -> DurationResult {
+        DurationResult::Overflow
+    }
+}
+
+// self / divisor; the `Overflow` case doubles as the divisor-0 signal (a
+// guard, never a runtime fault -- per the settled surface). The subsecond
+// remainder of the seconds division redistributes into the nanoseconds.
+machine Duration::divide(&self, divisor: u32) -> DurationResult {
+    // ENTRY-ONLY discipline: entry lets evaluate eagerly, so a zero divisor
+    // is bumped to 1 (`divisor + (divisor == 0)` -- the comparison->int
+    // coercion is intended semantics) and the real zero case routes to the
+    // Overflow arm, ignoring the harmlessly-computed values.
+    let divisor_is_zero: bool = divisor == 0;
+    let zero_bump: u64 = (divisor == 0) as u64;
+    let safe_divisor: u64 = (divisor as u64) + zero_bump;
+    let seconds_quotient: u64 = self.seconds / safe_divisor;
+    let seconds_remainder: u64 = self.seconds % safe_divisor;
+    // remainder < divisor <= u32::MAX, so this fits u64 by math; Wrapping
+    // spelling because the fold cannot multiply variable bounds.
+    let total_wrapped: u64 in Wrapping = ((seconds_remainder as u64 in Wrapping)
+        * 1000000000)
+        + (self.subsecond_nanoseconds as u64 in Wrapping);
+    let total_subnanoseconds: u64 = total_wrapped as u64;
+    let sub_quotient_wide: u64 = total_subnanoseconds / safe_divisor;
+    let sub_quotient_bounded: u64 = sub_quotient_wide % 1000000000;
+    let sub_quotient: u32 = sub_quotient_bounded as u32;
+    transition divisor_is_zero {
+        true -> divide_by_zero()
+        false -> divide_emit(seconds_quotient, sub_quotient)
+    }
+    state divide_emit(&self, seconds_final: u64, nanoseconds_final: u32) -> DurationResult {
+        DurationResult::Ok {
+            duration: Duration {
+                seconds: seconds_final,
+                subsecond_nanoseconds: nanoseconds_final % 1000000000,
+            },
+        }
+    }
+    state divide_by_zero(&self) -> DurationResult {
+        DurationResult::Overflow
+    }
+}
+
 // self + other, clamping at MAX instead of reporting overflow (total).
 machine Duration::saturating_add(&self, other: Duration) -> Duration {
     let sum: DurationResult = self.checked_add(other);

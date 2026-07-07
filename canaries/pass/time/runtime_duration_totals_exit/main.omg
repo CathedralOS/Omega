@@ -10,6 +10,7 @@ data Main {
     console: Console;
     a: Duration;
     total_result: TotalResult;
+    duration_result: DurationResult;
 }
 
 machine Main::main(&mut self) {
@@ -46,8 +47,62 @@ machine Main::main(&mut self) {
         self.a = Duration::MAX;
         self.total_result = self.a.checked_as_nanoseconds();
         transition self.total_result {
-            TotalResult::Overflow -> good()
+            TotalResult::Overflow -> do_multiply()
             TotalResult::Ok { total } -> fail_overflow_arm(total)
+        }
+    }
+    state do_multiply(&mut self) {
+        // {2, 600000000} * 3 = {7, 800000000}: the nanosecond product carries
+        // a whole second into the seconds.
+        self.a = Duration { seconds: 2, subsecond_nanoseconds: 600000000 };
+        self.duration_result = self.a.checked_multiply(3);
+        transition self.duration_result {
+            DurationResult::Ok { duration } -> check_multiply(duration)
+            DurationResult::Overflow -> fail_multiply_overflow()
+        }
+    }
+    state check_multiply(&mut self, duration: Duration) {
+        self.a = duration;
+        transition self.a.seconds == 7 && self.a.subsecond_nanoseconds == 800000000 {
+            true -> do_multiply_overflow()
+            false -> fail_multiply_value()
+        }
+    }
+    state do_multiply_overflow(&mut self) {
+        self.a = Duration::MAX;
+        self.duration_result = self.a.checked_multiply(2);
+        transition self.duration_result {
+            DurationResult::Overflow -> do_divide()
+            DurationResult::Ok { duration } -> fail_multiply_no_overflow(duration)
+        }
+    }
+    state do_divide(&mut self) {
+        // {7, 800000000} / 2 = {3, 900000000}: the odd second redistributes.
+        self.a = Duration { seconds: 7, subsecond_nanoseconds: 800000000 };
+        self.duration_result = self.a.divide(2);
+        transition self.duration_result {
+            DurationResult::Ok { duration } -> check_divide(duration)
+            DurationResult::Overflow -> fail_divide_overflow()
+        }
+    }
+    state check_divide(&mut self, duration: Duration) {
+        self.a = duration;
+        transition self.a.seconds == 3 {
+            true -> check_divide_nanoseconds()
+            false -> fail_divide_seconds()
+        }
+    }
+    state check_divide_nanoseconds(&mut self) {
+        transition self.a.subsecond_nanoseconds == 900000000 {
+            true -> do_divide_zero()
+            false -> fail_divide_value()
+        }
+    }
+    state do_divide_zero(&mut self) {
+        self.duration_result = self.a.divide(0);
+        transition self.duration_result {
+            DurationResult::Overflow -> good()
+            DurationResult::Ok { duration } -> fail_divide_zero(duration)
         }
     }
     state good(&mut self) { self.console.exit_process(70); }
@@ -58,4 +113,11 @@ machine Main::main(&mut self) {
     state fail_milliseconds_overflow(&mut self) { self.console.exit_process(5); }
     state fail_milliseconds_value(&mut self) { self.console.exit_process(6); }
     state fail_overflow_arm(&mut self, total: u64) { self.console.exit_process(7); }
+    state fail_multiply_overflow(&mut self) { self.console.exit_process(8); }
+    state fail_multiply_value(&mut self) { self.console.exit_process(9); }
+    state fail_multiply_no_overflow(&mut self, duration: Duration) { self.console.exit_process(10); }
+    state fail_divide_overflow(&mut self) { self.console.exit_process(11); }
+    state fail_divide_value(&mut self) { self.console.exit_process(12); }
+    state fail_divide_seconds(&mut self) { self.console.exit_process(14); }
+    state fail_divide_zero(&mut self, duration: Duration) { self.console.exit_process(13); }
 }
