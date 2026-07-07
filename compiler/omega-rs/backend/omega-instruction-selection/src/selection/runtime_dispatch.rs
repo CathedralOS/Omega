@@ -629,7 +629,13 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                                 && later.statement_index == operation.statement_index
                         });
                     // Case B: callee-body LocalStorage ops spliced in from the
-                    // inlined callee (source_key == target_key of this StateCall).
+                    // inlined callee (source_key == target_key of this StateCall),
+                    // OR a callee-body HostCall (`let rc = self.host.close(..)`): a
+                    // host-call `let` emits a HostCall op, never a LocalStorage op
+                    // (collection.rs continues after the HostCall), so its result
+                    // store into the callee slot would otherwise be missed and this
+                    // StateCall's inline guard emitted BEFORE the store, reading the
+                    // slot's ZII zero (deep-fix bug #1, TASKS_FS.md).
                     let has_callee_local = state_call_target_key(operation).is_some_and(
                         |target_key| {
                             operations
@@ -639,6 +645,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                                     matches!(
                                         later.kind,
                                         RuntimeDispatchBodyOperationKind::LocalStorage { .. }
+                                            | RuntimeDispatchBodyOperationKind::HostCall
                                     ) && later.source_key == target_key
                                 })
                         },
@@ -700,6 +707,48 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         operands,
                         selected_instructions,
                     );
+
+                    // Deep-fix bug #1: fire a deferred outer-value-call leaf whose
+                    // guard SUBJECT is this callee's host-call result (e.g. `rc`)
+                    // HERE -- after select_host_call stored the result into the
+                    // callee slot. The HostCall analogue of the Case-B LocalStorage
+                    // firing above; without it the guard deferred by the Case-B
+                    // HostCall test would never fire. Fire only once no further
+                    // callee-body host calls / locals follow for this same callee,
+                    // so the guard reads the FINAL store.
+                    let deferred_indices_to_fire: Vec<usize> = deferred_leaf_operations
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(deferred_index, deferred)| {
+                            let target_key = state_call_target_key(deferred)?;
+                            if target_key != operation.source_key {
+                                return None;
+                            }
+                            let has_more = operations
+                                .iter()
+                                .skip(operation_index + 1)
+                                .any(|later| {
+                                    matches!(
+                                        later.kind,
+                                        RuntimeDispatchBodyOperationKind::LocalStorage { .. }
+                                            | RuntimeDispatchBodyOperationKind::HostCall
+                                    ) && later.source_key == target_key
+                                });
+                            if has_more { None } else { Some(deferred_index) }
+                        })
+                        .collect();
+                    for deferred_index in deferred_indices_to_fire.into_iter().rev() {
+                        let deferred = deferred_leaf_operations.remove(deferred_index);
+                        select_runtime_leaf_branch_expansions_for_operation(
+                            input,
+                            dispatch_case.dispatch_index,
+                            &deferred,
+                            &mut leaf_expansion_cursor,
+                            &mut leaf_selection_scratch,
+                            runtime_value_operands,
+                            selected_instructions,
+                        );
+                    }
                 }
             }
         }

@@ -83,13 +83,10 @@ fn collect_subslice_local_initializer_blockers(
         let ExpressionNode::Indexed(indexed) = expressions.expression(local.initial_value) else {
             continue;
         };
-        if !matches!(
-            expressions.expression(indexed.index),
-            ExpressionNode::Range(_)
-        ) {
+        let ExpressionNode::Range(range) = expressions.expression(indexed.index) else {
             continue;
-        }
-        let Some(slot) = input
+        };
+        let slot = input
             .runtime_storage
             .frame_slots
             .iter()
@@ -98,15 +95,40 @@ fn collect_subslice_local_initializer_blockers(
                     slot.kind,
                     omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
                 ) && state_key_matches(slot.source_key, local.source_key)
-                    && slot.symbol == local.symbol)
+                    && slot.symbol == local.symbol
+                    && slot.byte_size > 0)
                     .then_some(slot)
-            })
-        else {
+            });
+        let Some(slot) = slot else {
+            // An ELIDED subslice local (no frame slot): its uses fold the
+            // initializer inline. LITERAL bounds fold correctly everywhere the
+            // shape lowers (window-length `.len`, windowed element reads,
+            // descriptor arguments), so an elided literal subslice is fine. A
+            // RUNTIME bound has NO native construction lowering at all
+            // (`literal_fixed_array_slice_source` is literal-only), so every
+            // folded use silently reads garbage -- `let sub =
+            // arr[self.lo..self.hi]; let n = sub.len` read 0 and took the
+            // wrong guard arm while the interpreter was right. Report it
+            // loudly instead. (A slot-holding local is verified by the planned
+            // write check below; this closes the elided twin.)
+            if range_bounds_are_literal(expressions, range.start, range.end) {
+                continue;
+            }
+            blockers.insert(blocker(
+                "descriptor local",
+                &format!(
+                    "{} statement {} local `{}` = `{}`: runtime-bounded subslice \
+                     construction (ptr/len from runtime bounds) is not lowered yet; \
+                     bind the bounds to literals or index the base array directly{}",
+                    state_name(input, local.source_key),
+                    local.statement_index,
+                    local.name,
+                    expressions.display_name(local.initial_value),
+                    proof_scope_suffix(input, local.source_key)
+                ),
+            ));
             continue;
         };
-        if slot.byte_size == 0 {
-            continue;
-        }
         if parameter_slot_write_is_planned(
             input,
             local.statement_index,
@@ -133,6 +155,26 @@ fn collect_subslice_local_initializer_blockers(
 
 fn state_key_matches(actual: StateKey, expected: StateKey) -> bool {
     actual == expected || (actual.machine == expected.machine && actual.state == expected.state)
+}
+
+/// Whether both subslice bounds are LITERAL integers (peeling `Mutable`). An
+/// open bound (invalid handle) is static -- the fold paths resolve it to 0 /
+/// the collection's fixed length -- so it counts as literal.
+fn range_bounds_are_literal(
+    expressions: &omega_checked_trees::expression::ExpressionTable,
+    start: ExpressionHandle,
+    end: ExpressionHandle,
+) -> bool {
+    [start, end].into_iter().all(|bound| {
+        if !bound.is_valid() {
+            return true;
+        }
+        let mut handle = bound;
+        while let ExpressionNode::Mutable(inner) = expressions.expression(handle) {
+            handle = *inner;
+        }
+        matches!(expressions.expression(handle), ExpressionNode::Integer(_))
+    })
 }
 
 fn verify_subslice_arguments_materialized(
