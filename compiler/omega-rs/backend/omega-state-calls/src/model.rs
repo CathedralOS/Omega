@@ -159,6 +159,11 @@ pub struct StateCall {
     pub call_ordinal: usize,
     pub role: StateCallRole,
     pub receiver_symbol: SymbolHandle,
+    /// The receiver's spelled field/local name (`b` in `self.b.increment()`).
+    /// `receiver_symbol` handles cross arenas between control flow and layout,
+    /// so layout-side consumers (the contained-receiver blocker) match fields
+    /// by this name; empty when the call has no named receiver.
+    pub receiver_name: Identifier,
     pub target_key: StateKey,
     pub argument_count: usize,
     pub arguments: HandleSpan<StateCallArgument>,
@@ -176,6 +181,7 @@ impl Default for StateCall {
             call_ordinal: 0,
             role: StateCallRole::Statement,
             receiver_symbol: SymbolHandle::invalid(),
+            receiver_name: Identifier::default(),
             target_key: StateKey::default(),
             argument_count: 0,
             arguments: HandleSpan::empty(),

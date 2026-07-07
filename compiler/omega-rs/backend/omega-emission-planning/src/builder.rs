@@ -1,4 +1,5 @@
 use crate::EmissionPlanningInput;
+use crate::contained_receiver_blockers::collect_contained_receiver_blockers;
 use crate::host_argument_blockers::collect_host_argument_blockers;
 use crate::host_binding_blockers::collect_host_binding_blockers;
 use crate::runtime_dispatch_blockers::{
@@ -71,6 +72,7 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
 
     collect_host_binding_blockers(input, &mut blockers);
     collect_host_argument_blockers(input, &state_schedule, &mut blockers);
+    collect_contained_receiver_blockers(input, &mut blockers);
     collect_state_call_blockers(
         input,
         &state_schedule,
