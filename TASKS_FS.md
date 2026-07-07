@@ -112,6 +112,18 @@ needs deferral coverage, and every defer/fire scan must respect the splice
 boundary. Kinds audited 2026-07-07: HostCall/LocalStorage/Mutation covered;
 StateCall* are the calls themselves; StateCallResult/Other carry no store.
 
+**Enum methods on bare `self` WORK (2026-07-07).** `transition self {
+Signal::Green -> .. }` inside an enum-attached machine, called as
+`self.s.go_value()`: native gained a guard-compare-only TAG place for the
+bare-self subject (tag at offset 0 per DataShape::Enum) with the CALLEE's
+machine threaded down the guard-conjunct chain (`callee_key` from the
+expansion's `branch_key` -- the caller's key resolved `self` to the wrong
+attached data); the interpreter gained ENUM receivers in
+`machine_for_instance_state` (Struct-only before: enum method calls
+silently returned ZII -- exit 0). Canary
+`calls/runtime_enum_self_method_exit` (differential, 3 discriminating
+cases + designed-false leg).
+
 **Value-call arm bodies (2026-07-07).** Two more traced-broken shapes now
 DELIVER (closed by the deferral machinery; pinned by
 `calls/runtime_value_call_dispatch_results_exit`): dispatch STRUCT result
