@@ -5,10 +5,14 @@ use super::nested_fields::{
     NestedFieldLayoutCursor, resolve_nested_field_layout_step,
     resolve_nested_field_layout_with_pairs, resolve_nested_field_layout_with_symbols,
 };
+use super::model::RuntimeStoragePlace;
+use omega_abstract_operations::RuntimeStorageRegion;
 use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
 use omega_checked_trees::name::Identifier;
 use omega_core::symbols::SymbolHandle;
-use omega_layout::{FieldLayout, LayoutPlan, TypeLayout, TypeLayoutDescriptor};
+use omega_layout::{
+    DataShape, ENUM_TAG_BYTES, FieldLayout, LayoutPlan, TypeLayout, TypeLayoutDescriptor,
+};
 
 #[derive(Clone)]
 pub(in crate::selection) struct MachineOwnedCollectionTarget {
@@ -34,6 +38,44 @@ pub(in crate::selection) fn resolve_machine_owned_place(
         })?;
 
     Some((machine_base_offset + field_offset, field_layout.size))
+}
+
+/// A BARE `self` GUARD subject in a machine attached to CASE-BEARING data
+/// (`machine Verdict::is_yes(&self) { transition self { Verdict::Yes -> .. } }`)
+/// resolves to the attached value's TAG word: `DataShape::Enum` fixes the i32
+/// tag at offset 0 of every case-bearing value, so the case compare is an
+/// `ENUM_TAG_BYTES` read at the machine's storage base. GUARD-COMPARE USE
+/// ONLY -- a whole-value read through this place would drop common/payload
+/// bytes, so it is deliberately NOT part of the general place resolver.
+/// Which instance the base resolves to is the by-type walk; a receiver naming
+/// a non-first same-type field is already rejected by the contained-receiver
+/// blocker in emission planning.
+pub(in crate::selection) fn resolve_machine_owned_self_case_tag_place_in_table(
+    layouts: &LayoutPlan,
+    entry_machine: SymbolHandle,
+    source_machine: SymbolHandle,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeStoragePlace> {
+    let path = normalized_storage_name_path_in_table(expressions, expression)?;
+    if path.len() != 1 || !table_path_targets_source_machine(&path, source_machine) {
+        return None;
+    }
+    let attached_data = source_attached_data_name(layouts, source_machine)?;
+    let is_case_bearing = layouts
+        .data_layouts
+        .iter()
+        .find(|(_, data_layout)| data_layout.name.as_str() == attached_data)
+        .is_some_and(|(_, data_layout)| matches!(data_layout.shape, DataShape::Enum { .. }));
+    if !is_case_bearing {
+        return None;
+    }
+    let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
+    Some(RuntimeStoragePlace {
+        region: RuntimeStorageRegion::Machine,
+        byte_offset: machine_base_offset,
+        byte_count: ENUM_TAG_BYTES,
+    })
 }
 
 pub(in crate::selection) fn resolve_machine_owned_place_in_table(

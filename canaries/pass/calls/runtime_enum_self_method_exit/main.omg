@@ -1,0 +1,50 @@
+// An enum-attached machine matching BARE `self` (the enum-method idiom):
+// `transition self { Signal::Green -> .. }` inside `Signal::go_value(&self)`,
+// called as `self.s.go_value()`. The guard subject resolves to the attached
+// value's TAG at the receiver's storage base
+// (resolve_machine_owned_self_case_tag_place_in_table, threaded to the
+// CALLEE's machine via the expansion's branch_key -- the caller's machine
+// resolved `self` to the caller's own attached data before). All three
+// cases DISCRIMINATE, including the non-ZII last tag; a bool designed-false
+// leg guards against always-first-arm coincidence.
+// exit 70 = all legs right; 71..74 name the leg.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Signal { case Red; case Amber; case Green; }
+machine Signal::go_value(&self) -> i32 {
+    transition self {
+        Signal::Green -> g()
+        Signal::Amber -> a()
+        _ -> r()
+    }
+    state g(&self) -> i32 { 30 }
+    state a(&self) -> i32 { 20 }
+    state r(&self) -> i32 { 10 }
+}
+machine Signal::is_green(&self) -> bool {
+    transition self { Signal::Green -> yes() _ -> no() }
+    state yes(&self) -> bool { true }
+    state no(&self) -> bool { false }
+}
+data Main { console: Console; s: Signal; v1: i32; v2: i32; v3: i32; flag: bool; }
+machine Main::main(&mut self) {
+    self.s = Signal::Green;
+    self.v1 = self.s.go_value();
+    transition self.v1 == 30 { true -> leg2() _ -> bad(71) }
+    state leg2(&mut self) {
+        self.s = Signal::Amber;
+        self.v2 = self.s.go_value();
+        transition self.v2 == 20 { true -> leg3() _ -> bad(72) }
+    }
+    state leg3(&mut self) {
+        self.s = Signal::Red;
+        self.v3 = self.s.go_value();
+        transition self.v3 == 10 { true -> leg4() _ -> bad(73) }
+    }
+    state leg4(&mut self) {
+        // Designed-false: Red is NOT green.
+        self.flag = self.s.is_green();
+        transition self.flag { true -> bad(74) _ -> good() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

@@ -1404,6 +1404,19 @@ impl<'program> Evaluator<'program> {
                 type_name,
                 ..
             } => (*type_symbol, type_name.clone()),
+            // An ENUM receiver (`self.s.go_value()` where `s: Signal`): the
+            // enum-attached machine group is the declaring data type, whose
+            // NAME resolves from the value's type_symbol. Without this arm the
+            // method call silently failed to find its machine and returned ZII.
+            Value::Enum { type_symbol, .. } => {
+                let name = self
+                    .program
+                    .data_definitions()
+                    .iter()
+                    .find(|data| type_symbol.is_valid() && data.symbol == *type_symbol)
+                    .map(|data| data.name.as_str().to_owned())?;
+                (*type_symbol, name)
+            }
             _ => return None,
         };
         // The group is the leading segment of the type name (e.g. `Circle` from `Circle`).

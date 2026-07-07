@@ -20506,6 +20506,56 @@ fn runtime_value_call_shared_slot_straight_line_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// An enum-attached machine matching BARE `self` (`transition self {
+// Signal::Green -> .. }` inside Signal::go_value, called as
+// self.s.go_value()): the guard subject resolves to the attached value's
+// TAG at the receiver's storage base, threaded to the CALLEE's machine via
+// the expansion's branch_key (the caller's machine had resolved `self` to
+// the caller's own attached data). Three discriminating cases incl. the
+// non-ZII last tag + a bool designed-false leg.
+#[test]
+fn runtime_enum_self_method_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_enum_self_method_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("enum-self-method canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (all enum-self legs discriminate), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-enum-self-method-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("enum-self-method canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("enum-self-method canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected every bare-self enum-method leg to discriminate (exit 70), got {:?} \
+         (71/72/73 = Green/Amber/Red legs; 74 = is_green designed-false took the \
+         true arm)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Dispatch-bodied value calls deliver into every result position: a STRUCT
 // result assigned straight to a FIELD (stored 0 until the Mutation fire
 // site gave field assignments a flush point), and a FREE machine with a
@@ -23849,6 +23899,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_indexed_local_copy_chain_exit",
     "collections/runtime_inplace_reverse_local_temp_exit",
     "control_flow/runtime_captured_local_swap_exit",
+    "calls/runtime_enum_self_method_exit",
     "calls/runtime_same_type_contained_direct_fields_exit",
     "calls/runtime_shared_ref_param_member_exit",
     "calls/runtime_value_call_dispatch_results_exit",

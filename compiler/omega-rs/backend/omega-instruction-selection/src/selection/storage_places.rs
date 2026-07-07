@@ -8,6 +8,7 @@ pub(super) use expressions::indexed_expression_path;
 pub(super) use machine_owned::{
     MachineOwnedCollectionTarget, resolve_machine_owned_collection_in_table,
     resolve_machine_owned_place, resolve_machine_owned_place_in_table,
+    resolve_machine_owned_self_case_tag_place_in_table,
 };
 pub(super) use model::{
     RuntimeFrameBaseIndexedTarget, RuntimeFrameFixedIndexedTarget, RuntimeFrameIndexedTarget,
