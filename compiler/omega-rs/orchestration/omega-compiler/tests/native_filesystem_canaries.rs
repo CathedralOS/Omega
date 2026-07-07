@@ -481,3 +481,33 @@ fn gui_backend_valuecall_exits_7() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(out.status.code(), Some(7), "a value-called Omega machine should compose objc into a non-null NSWindow");
 }
+
+// The samples' WHOLE behavior, composed from the proven objc/CG primitives: open
+// a window with an NSImageView content view, then a bounded 3-frame loop of
+// blit (CGBitmapContext -> CGImage -> NSImage -> setImage:) + non-blocking event
+// pump, then [window isVisible] + [window close]. This is samples/gui/window_demo's
+// shape running natively. Bounded + headless-safe, but the pump could hang if it
+// ever regressed to blocking, so the test spawns with a deadline. -> exit 4.
+#[test]
+fn native_gui_loop_exits_4() {
+    let main_path = repo_root().join("canaries/pass/objc/native_gui_loop/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-guiloop-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("native_gui_loop should compile:\n{d:#?}"));
+    let mut child = Command::new(build_dir.join("omega-program")).spawn().expect("spawn");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let code = loop {
+        if let Some(status) = child.try_wait().expect("wait") {
+            break status.code();
+        }
+        if std::time::Instant::now() > deadline {
+            let _ = child.kill();
+            let _ = std::fs::remove_dir_all(&build_dir);
+            panic!("native_gui_loop HUNG — the render/pump loop blocked");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(code, Some(4), "native_gui_loop should run the full window+blit+pump loop and exit 4");
+}

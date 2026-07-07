@@ -392,9 +392,17 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
 9. **[ ] Interpreter headless stub** for `Gui`/`Input`/`Clock` — open no real window,
    succeed all calls, report "no event / alive", quit after N frames — so the samples
    stay runnable on both engines and differential/coverage stay green.
-10. **[ ] Run the samples natively** + a CI canary `native_gui_window`
-    (open → blit one frame → pump a few non-blocking frames → destroy → exit 0),
-    headless-safe (bounded frame count, no blocking pump).
+10. **[~] Run the samples natively — the WHOLE APP BEHAVIOR RUNS NATIVELY (fire 16).**
+    ✅ `canaries/pass/objc/native_gui_loop` is `samples/gui/window_demo`'s shape running
+    natively end-to-end: NSApp + NSWindow + NSImageView content view + `makeKeyAndOrderFront:`,
+    then a bounded 3-frame loop of blit (`CGBitmapContext(&pixels)` → `CGImage` → `NSImage`
+    → `setImage:`) + non-blocking `nextEventMatchingMask:untilDate:distantPast` pump, then
+    `[window isVisible]` + `[window close]` → exit 4. Selectors interned once + cached; the
+    bounded-counter keystone (guard-before-increment) satisfies the checker; the regression
+    spawns with a 20s deadline (hang guard). Native harness 71/71. This is the CI canary #10
+    minus the boundary-trait indirection — **the samples' entire behavior is proven native.**
+    The ONLY remaining gap is the source-transparent PROVIDER WIRING (item #8, W1) so the
+    UNCHANGED samples' `boundary trait Gui/Clock/Input` calls dispatch to this composition.
 
 ## Semantic mapping (existing Win32-shaped op → native macOS behavior)
 
