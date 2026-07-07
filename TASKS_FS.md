@@ -376,6 +376,34 @@ crate tests; interpreter fs coverage) and commits.
     transition form that FAILS on the same shape to bisect. Full `otool -tv` trace + repro
     steps are in the git history of the deleted `wrapper_exists_absent` canary.
 
+- **🎉🎉 DEEP FIX — LANDED (2026-07-10). Both bugs fixed; ZERO canary_suite regressions.**
+  The value-call transition-guard deep bug — the sole blocker for the native ergonomic
+  wrapper's payload-carrying result enums — is FIXED. Two coordinated changes:
+  1. **Ordering** (`backend/omega-instruction-selection/src/selection/runtime_dispatch.rs`):
+     extended the `defers_to_local_initializer` Case-B matcher to also treat a callee-body
+     `HostCall` op (not just `LocalStorage`) as a reason to defer the outer value-call's
+     inline leaf, and added a firing block after the general-path `select_host_call` (the
+     HostCall analogue of the existing Case-B LocalStorage firing). Now the callee's
+     host-call store precedes its inline transition guard — the guard reads the real result,
+     not the slot's ZII zero.
+  2. **Field-mutation constant-fold** (`.../runtime_dispatch/writes/mod.rs`): the Mutation
+     storage-write for `self.field = self.g()` — a BARE, RECEIVER-FUL value-call whose
+     statement has a guarded AssignmentValue leaf — now returns early (`statement_has_
+     guarded_assignment_value_leaf` + the bare-receiver-ful-`Call` value guard). The leaf's
+     target copy already delivers the correct guarded result; skipping stops the mutation
+     write from re-materializing the callee's first leaf terminal as a constant over it. The
+     bare-call + receiver-ful guard preserves `self.f = self.g() + 1` (binary path) and
+     `self.f = max(x, self.g())` (builtin, no receiver) — both fall through unchanged.
+  VERIFIED: repro flips PASS; **canary_suite 515/85 IDENTICAL** (A/B failure-set diff — zero
+  new regressions, the one intermediate `runtime_call_result_binary_operand` regression was
+  fixed by the bare-receiver-ful-call guard); native fs harness **52/52** incl. the promoted
+  regression canary `canaries/pass/filesystem/native_value_call_guard`; instruction-selection
+  10/10. **NEXT: the payload-carrying ergonomic wrappers (`write_all`→UnitResult, faithful
+  3-way `try_exists`, `metadata_path`, `open`→OpenResult) can now use their natural
+  `transition { ok -> .. err -> .. }` forms natively — convert + add native canaries that
+  assert the Ok/Error RESULT (not just the side effect).** The terminal-value/match
+  workarounds (`exists`, `last_error`) still work and can stay or revert at leisure.
+
 - **🔬 DEEP FIX — CONFIRMED it is TWO bugs, not one; the ordering fix is necessary but NOT
   sufficient (2026-07-10).** Built a minimal, fast, self-contained repro (committed):
   `canaries/run/filesystem/value_call_guard_repro/main.omg` — a value-call `self.here =

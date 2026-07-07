@@ -1,0 +1,39 @@
+// Regression for the value-call transition-guard deep bug (TASKS_FS.md "DEEP FIX",
+// FIXED 2026-07-10). A value-call into a DIFFERENT data type whose callee branches
+// on a host-call result in an internal `transition`, then a field is assigned the
+// bool result. close(-1) returns -1 (EBADF), so the guard `rc == 0` is FALSE and
+// check() must return false; `self.here` must be false, taking the ok() arm.
+//
+// This exercised BOTH halves of the fix: (1) the callee's host-call store is now
+// scheduled BEFORE its inline transition guard (the guard reads the real -1, not
+// the slot's ZII zero); (2) the field-mutation `self.here = self.probe.check()` no
+// longer re-materializes the callee's first leaf terminal (`true`) as a constant
+// over the guarded result. Prints PASS when correct (false), FAIL if either half
+// regresses (returns true).
+
+use omega::language::std::filesystem_host;
+
+data Probe {
+    host: FilesystemHost;
+}
+
+machine Probe::check(&mut self) -> bool {
+    let rc: i32 = self.host.close(-1);
+    transition rc == 0 { true -> yes() _ -> no() }
+    state yes(&mut self) -> bool { true }
+    state no(&mut self) -> bool { false }
+}
+
+data Main {
+    probe: Probe;
+    raw: FilesystemHost;
+    n: i64;
+    here: bool;
+}
+
+machine Main::main(&mut self) {
+    self.here = self.probe.check();
+    transition self.here { true -> bug() _ -> ok() }
+    state ok(&mut self)  { self.n = self.raw.write(1, "PASS: value-call guard observed the host result (false)\n"); }
+    state bug(&mut self) { self.n = self.raw.write(1, "FAIL: value-call guard read ZII zero (true)\n"); }
+}
