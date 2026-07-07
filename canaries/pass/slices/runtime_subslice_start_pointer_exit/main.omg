@@ -1,0 +1,45 @@
+// Runtime-START subslice POINTER correctness: `self.arr[lo..hi]` (params)
+// then `s[0] == arr[1]`. The descriptor-deref indexed-address op was WIDTH-0
+// on x86_64 -- the ptr write silently dropped and the descriptor kept the
+// whole-array base (len was right, the POINTER was wrong; a len-only check
+// could not see it). arr[1]=10, lo=1 -> s[0]==10 -> exit 1.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    arr: [i32; 5];
+}
+machine Main::main(&mut self) {
+    self.arr[1] = 10;
+    transition { _ -> self.view(1, 4) }
+}
+machine Main::view(&mut self, lo: usize, hi: usize) {
+    transition lo <= hi && hi <= self.arr.len {
+        true -> slice_it(lo, hi)
+        false -> bad()
+    }
+    state slice_it(&mut self, lo: usize, hi: usize) {
+        let sub: &[i32] = self.arr[lo..hi];
+        transition sub.len == 3 {
+            true -> deep(sub)
+            false -> no()
+        }
+    }
+    state deep(&mut self, s: &[i32]) {
+        transition 0 < s.len {
+            true -> read_it(s)
+            false -> no()
+        }
+    }
+    state read_it(&mut self, s: &[i32]) {
+        let first: i32 = s[0];
+        transition first == 10 {
+            true -> yes()
+            false -> no()
+        }
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+    state bad(&mut self) { self.console.exit_process(8); }
+}

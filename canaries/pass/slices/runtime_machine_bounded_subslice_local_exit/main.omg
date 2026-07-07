@@ -1,0 +1,30 @@
+// A MACHINE-FIELD-bounded subslice bound to a USED local: `let sub =
+// self.arr[self.lo..self.hi]; let n = sub.len`. Was a loud fence ("subslice
+// descriptor construction ... not lowered"): the START's indexed-address op
+// had a frame-only index. The op is region-tagged since 2026-07-10 -- a
+// machine-resident START loads off the machine base (its own relocation).
+// lo=1, hi=4 -> len 3 -> exit 3.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 5];
+    lo: usize;
+    hi: usize;
+}
+
+machine Main::main(&mut self) {
+    self.lo = 1;
+    self.hi = 4;
+    let sub: &[i32] = self.arr[self.lo..self.hi];
+    let n: usize = sub.len;
+    transition n == 3 {
+        true -> matched()
+        false -> unmatched()
+    }
+
+    state matched(&mut self) { self.console.exit_process(3); }
+    state unmatched(&mut self) { self.console.exit_process(9); }
+}

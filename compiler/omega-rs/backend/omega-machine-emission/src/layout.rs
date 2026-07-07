@@ -753,12 +753,14 @@ fn machine_instruction_width(
             )
         }
         SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
+            index_region,
             element_byte_size,
             field_byte_offset,
             target_offset,
             ..
         } => omega_instruction_selection::runtime_frame_indexed_address_to_runtime_frame_write_width(
             input.target.architecture,
+            *index_region,
             *element_byte_size,
             *field_byte_offset,
             *target_offset,

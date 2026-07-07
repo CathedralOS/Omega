@@ -687,16 +687,23 @@ pub fn encode_runtime_pointee_address_to_runtime_frame_write(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
     architecture: Architecture,
     descriptor_offset: usize,
     index_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => {
+            if index_region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                return Err(Diagnostic::error(
+                    "aarch64 encoder does not yet support a machine-resident subslice                      START index",
+                ));
+            }
             aarch64::encode_runtime_frame_indexed_address_to_runtime_frame_write(
                 descriptor_offset,
                 index_offset,
@@ -705,7 +712,16 @@ pub fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
                 target_offset,
             )
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_frame_indexed_deref_address_to_runtime_frame_write(
+                descriptor_offset,
+                index_offset,
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+            )
+        }
     }
 }
 

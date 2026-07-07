@@ -3930,6 +3930,76 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// MACHINE-FIELD-bounded subslice local (`self.arr[self.lo..self.hi]`) --
+// the START's indexed-address op is region-tagged now. len 3 -> exit 3.
+#[test]
+fn runtime_machine_bounded_subslice_local_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_machine_bounded_subslice_local_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-mach-subslice-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("machine-bounded subslice canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("machine-bounded subslice canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(3),
+        "expected `self.arr[self.lo..self.hi]` (1..4) len 3 to exit 3, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// Runtime-START subslice POINTER correctness (the ptr write was width-0 and
+// silently dropped on x86_64; only len checks passed). s[0]==arr[1] -> 1.
+#[test]
+fn runtime_subslice_start_pointer_exit_canary_runs() {
+    let canary = pass_canary("slices/runtime_subslice_start_pointer_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-subslice-ptr-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("subslice start pointer canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("subslice start pointer canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected sub[0] == arr[1] == 10 (the shrunk pointer, not the array base) to exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // LOOP-CARRIED accumulator through the dispatch self-loop: transition args
 // stage through scratch so `acc + n` reads the pre-decrement n. -> 15 -> 1.
 #[test]
@@ -23610,7 +23680,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "slices/dynamic_subslice_bounded_unproven",
     "slices/dynamic_subslice_end_unproven",
     "slices/dynamic_subslice_start_unproven",
-    "slices/runtime_bounded_subslice_local_unlowered",
     "slices/invalid_fixed_array_literal_index_unchecked",
     "slices/known_length_dynamic_index_unproven",
     "slices/machine_field_index_reassigned_unproven",

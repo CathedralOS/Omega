@@ -647,10 +647,12 @@ pub(super) fn encode_runtime_pointee_address_to_runtime_frame_write(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
     input: MachineEmissionContext<'_>,
     descriptor_offset: usize,
     index_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -659,6 +661,7 @@ pub(super) fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
         input.target.architecture,
         descriptor_offset,
         index_offset,
+        index_region,
         element_byte_size,
         field_byte_offset,
         target_offset,

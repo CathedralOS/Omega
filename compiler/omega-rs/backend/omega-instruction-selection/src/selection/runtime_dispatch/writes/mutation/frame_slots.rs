@@ -540,6 +540,7 @@ fn select_runtime_frame_slot_address_write_in_table(
             SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
                 descriptor_offset: indexed_target.descriptor_offset,
                 index_offset: indexed_target.index_offset,
+                index_region: RuntimeStorageRegion::RuntimeFrame,
                 element_byte_size: indexed_target.element_byte_size,
                 field_byte_offset: indexed_target.field_byte_offset,
                 target_offset: slot.byte_offset,
@@ -623,6 +624,7 @@ fn select_runtime_frame_slot_place_address_write_in_table(
             SelectedInstructionKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
                 descriptor_offset: target.descriptor_offset,
                 index_offset: target.index_offset,
+                index_region: RuntimeStorageRegion::RuntimeFrame,
                 element_byte_size: target.element_byte_size,
                 field_byte_offset: target.field_byte_offset,
                 target_offset: slot.byte_offset,

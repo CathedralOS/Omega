@@ -485,6 +485,7 @@ pub enum TargetOperationKind {
     WriteRuntimeFrameIndexedAddressToRuntimeFrame {
         descriptor_offset: usize,
         index_offset: usize,
+        index_region: RuntimeStorageRegion,
         element_byte_size: usize,
         field_byte_offset: usize,
         target_offset: usize,

@@ -810,12 +810,14 @@ impl From<&omega_abstract_operations::AbstractOperationKind> for TargetOperation
             omega_abstract_operations::AbstractOperationKind::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
                 descriptor_offset,
                 index_offset,
+                index_region,
                 element_byte_size,
                 field_byte_offset,
                 target_offset,
             } => Self::WriteRuntimeFrameIndexedAddressToRuntimeFrame {
                 descriptor_offset: *descriptor_offset,
                 index_offset: *index_offset,
+                index_region: *index_region,
                 element_byte_size: *element_byte_size,
                 field_byte_offset: *field_byte_offset,
                 target_offset: *target_offset,
