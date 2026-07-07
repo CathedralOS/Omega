@@ -1,0 +1,129 @@
+// RUN CANARY (exit 70) -- Windows raw-seam BREADTH: the wired-but-unverified
+// msvcrt ops beyond the open/read/write/close roundtrip. Exercises
+// sync (_commit), seek (_lseeki64, the only i64-returning 3-arg row),
+// duplicate (_dup), set_permissions (_chmod), rename (msvcrt `rename` --
+// fails if dest exists on Windows, so dest is pre-removed), create_dir
+// (_mkdir) and remove_dir (_rmdir). The interpreter's virtual fs is the
+// differential oracle. exit 70 = full pass; each probe has its own code:
+// 71 create, 72 write, 73 sync, 74 close, 75 reopen, 76 seek, 77 read
+// count, 78 seeked bytes, 79 dup, 80 read-through-dup, 81 close dup,
+// 82 chmod, 83 rename, 84 old name still opens, 85 mkdir, 86 remove file,
+// 87 rmdir.
+
+use omega::language::std::filesystem_host;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    raw: FilesystemHost;
+    buffer: [u8; 8];
+    fd: i32;
+    fd2: i32;
+    n: i64;
+    pos: i64;
+    rc: i32;
+}
+
+machine Main::main(&mut self) {
+    self.fd = self.raw.create("omega_fswin_breadth_a.txt", 438);
+    transition self.fd >= 0 { true -> write_it() _ -> bad(71) }
+
+    state write_it(&mut self) {
+        self.n = self.raw.write(self.fd, "abcdef");
+        transition self.n == 6 { true -> sync_it() _ -> bad(72) }
+    }
+
+    state sync_it(&mut self) {
+        self.rc = self.raw.sync(self.fd);
+        transition self.rc == 0 { true -> close_it() _ -> bad(73) }
+    }
+
+    state close_it(&mut self) {
+        self.rc = self.raw.close(self.fd);
+        transition self.rc == 0 { true -> reopen() _ -> bad(74) }
+    }
+
+    state reopen(&mut self) {
+        // 32768 = O_BINARY (msvcrt); harmless for the virtual fs.
+        self.fd = self.raw.open("omega_fswin_breadth_a.txt", 32768);
+        transition self.fd >= 0 { true -> seek_it() _ -> bad(75) }
+    }
+
+    state seek_it(&mut self) {
+        // SEEK_SET=0: land on byte 2 ('c').
+        self.pos = self.raw.seek(self.fd, 2, 0);
+        transition self.pos == 2 { true -> read_it() _ -> bad(76) }
+    }
+
+    state read_it(&mut self) {
+        self.n = self.raw.read(self.fd, &mut self.buffer, 2);
+        transition self.n == 2 { true -> check_c() _ -> bad(77) }
+    }
+
+    state check_c(&mut self) {
+        transition self.buffer[0] == 99 { true -> check_d() _ -> bad(78) }
+    }
+
+    state check_d(&mut self) {
+        transition self.buffer[1] == 100 { true -> dup_it() _ -> bad(78) }
+    }
+
+    state dup_it(&mut self) {
+        self.fd2 = self.raw.duplicate(self.fd);
+        self.rc = self.raw.close(self.fd);
+        transition self.fd2 >= 0 { true -> read_dup() _ -> bad(79) }
+    }
+
+    state read_dup(&mut self) {
+        // The dup shares (or copied) the file position: next byte is 'e'.
+        self.n = self.raw.read(self.fd2, &mut self.buffer, 1);
+        transition self.buffer[0] == 101 { true -> close_dup() _ -> bad(80) }
+    }
+
+    state close_dup(&mut self) {
+        self.rc = self.raw.close(self.fd2);
+        transition self.rc == 0 { true -> chmod_it() _ -> bad(81) }
+    }
+
+    state chmod_it(&mut self) {
+        // 438 = rw for owner/group/other (msvcrt honours _S_IREAD|_S_IWRITE).
+        self.rc = self.raw.set_permissions("omega_fswin_breadth_a.txt", 438);
+        transition self.rc == 0 { true -> pre_clean_dest() _ -> bad(82) }
+    }
+
+    state pre_clean_dest(&mut self) {
+        // msvcrt rename FAILS if dest exists (unlike POSIX replace): clear a
+        // leftover from a crashed prior run; rc deliberately unchecked.
+        self.rc = self.raw.remove("omega_fswin_breadth_b.txt");
+        transition true { _ -> rename_it() }
+    }
+
+    state rename_it(&mut self) {
+        self.rc = self.raw.rename("omega_fswin_breadth_a.txt", "omega_fswin_breadth_b.txt");
+        transition self.rc == 0 { true -> probe_old() _ -> bad(83) }
+    }
+
+    state probe_old(&mut self) {
+        self.fd = self.raw.open("omega_fswin_breadth_a.txt", 0);
+        transition self.fd < 0 { true -> mkdir_it() _ -> bad(84) }
+    }
+
+    state mkdir_it(&mut self) {
+        self.rc = self.raw.create_dir("omega_fswin_breadth_dir", 448);
+        transition self.rc == 0 { true -> clean_file() _ -> bad(85) }
+    }
+
+    state clean_file(&mut self) {
+        self.rc = self.raw.remove("omega_fswin_breadth_b.txt");
+        transition self.rc == 0 { true -> clean_dir() _ -> bad(86) }
+    }
+
+    state clean_dir(&mut self) {
+        self.rc = self.raw.remove_dir("omega_fswin_breadth_dir");
+        transition self.rc == 0 { true -> good() _ -> bad(87) }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

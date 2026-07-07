@@ -1,0 +1,54 @@
+// Deferral face #5: a NESTED value call inside the callee's entry.
+// `Probe::make` assigns `self.flag = self.helper.check(1)` and guards on
+// flag -- through an OUTER value call, the nested callee splices a THIRD
+// source_key between the middle callee's ops, so a defer/fire scan that
+// stops at the first foreign key never sees the middle callee's flag
+// mutation. The outer leaf then fired at the StateCall, computing the
+// caller's result from ZII flag=false (wrong arm, silently).
+// The splice run ends at the CALLER's next own op, not at the first
+// foreign source_key.
+// exit 70 = both shapes guard on the delivered flag; 71 = nested-only
+// entry read ZII; 72 = stores-around-the-nested-call variant read ZII.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Verdict { case No; case Yes; }
+data Helper { seen: i32; }
+machine Helper::check(&mut self, x: i32) -> bool {
+    self.seen = x;
+    transition self.seen == 1 { true -> yes() _ -> no() }
+    state yes(&mut self) -> bool { true }
+    state no(&mut self) -> bool { false }
+}
+data Probe { helper: Helper; flag: bool; }
+machine Probe::make(&mut self) -> Verdict {
+    self.flag = self.helper.check(1);
+    transition self.flag { true -> mk_yes() _ -> mk_no() }
+    state mk_yes(&mut self) -> Verdict { Verdict::Yes }
+    state mk_no(&mut self) -> Verdict { Verdict::No }
+}
+data Sensor { seen: i32; }
+machine Sensor::check(&mut self, x: i32) -> bool {
+    self.seen = x;
+    transition self.seen == 2 { true -> yes() _ -> no() }
+    state yes(&mut self) -> bool { true }
+    state no(&mut self) -> bool { false }
+}
+data Bracket { sensor: Sensor; a: i32; flag: bool; b: i32; }
+machine Bracket::make(&mut self) -> Verdict {
+    self.a = 1;
+    self.flag = self.sensor.check(2);
+    self.b = 3;
+    transition self.flag { true -> mk_yes() _ -> mk_no() }
+    state mk_yes(&mut self) -> Verdict { Verdict::Yes }
+    state mk_no(&mut self) -> Verdict { Verdict::No }
+}
+data Main { console: Console; probe: Probe; bracket: Bracket; v1: Verdict; v2: Verdict; }
+machine Main::main(&mut self) {
+    self.v1 = self.probe.make();
+    transition self.v1 { Verdict::Yes -> step2() _ -> bad(71) }
+    state step2(&mut self) {
+        self.v2 = self.bracket.make();
+        transition self.v2 { Verdict::Yes -> good() _ -> bad(72) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

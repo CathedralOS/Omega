@@ -548,11 +548,15 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                                 }
                                 // Only fire if no more callee-body ops (locals,
                                 // host calls, field mutations) follow for this
-                                // same callee (target_key).
+                                // same callee (target_key). The splice run ends
+                                // at the CALLER's next own op (deferred.source_key)
+                                // -- not at the first foreign key, because a
+                                // NESTED value call splices a third source_key
+                                // between the callee's own ops (face #5).
                                 let has_more = operations
                                     .iter()
                                         .skip(operation_index + 1)
-                                        .take_while(|later| later.source_key == target_key)
+                                        .take_while(|later| later.source_key != deferred.source_key)
                                         .any(|later| {
                                         matches!(
                                             later.kind,
@@ -630,7 +634,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                             let has_more = operations
                                 .iter()
                                     .skip(operation_index + 1)
-                                    .take_while(|later| later.source_key == target_key)
+                                    .take_while(|later| later.source_key != deferred.source_key)
                                     .any(|later| {
                                     matches!(
                                         later.kind,
@@ -713,12 +717,17 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     // same callee splices indistinguishable ops later in the
                     // body, and counting those made call 1's leaf fire after
                     // call 2's stores (call 1's guard then read call 2's state).
+                    // The run ends at the CALLER's next own op -- NOT at the
+                    // first foreign source_key, because a callee containing its
+                    // OWN value call splices the nested callee's ops (a third
+                    // key) BETWEEN the callee's entry ops and its store (face
+                    // #5: `self.flag = self.helper.check(1)` in the callee).
                     let has_callee_local = state_call_target_key(operation).is_some_and(
                         |target_key| {
                             operations
                                 .iter()
                                 .skip(operation_index + 1)
-                                .take_while(|later| later.source_key == target_key)
+                                .take_while(|later| later.source_key != operation.source_key)
                                 .any(|later| {
                                     matches!(
                                         later.kind,
@@ -824,7 +833,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                             let has_more = operations
                                 .iter()
                                     .skip(operation_index + 1)
-                                    .take_while(|later| later.source_key == target_key)
+                                    .take_while(|later| later.source_key != deferred.source_key)
                                     .any(|later| {
                                     matches!(
                                         later.kind,
