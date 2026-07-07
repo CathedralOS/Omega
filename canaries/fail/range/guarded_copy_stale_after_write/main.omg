@@ -1,0 +1,30 @@
+// The guarded-copy STABILITY twin: the edge guard establishes [0..=9] for
+// `self.yv`, but a write to `self.yv` INSIDE the guarded state invalidates
+// the fact before the copy -- the stability gate must drop the guard and the
+// store must reject (without the gate, `self.yv = 100; self.y = self.yv`
+// would "prove" through the stale guard).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    yv: i32;
+    y: i32 [0..=9];
+}
+
+machine Main::main(&mut self) {
+    self.yv = 7;
+    transition self.yv >= 0 && self.yv <= 9 {
+        true -> store()
+        false -> bad()
+    }
+
+    state store(&mut self) {
+        self.yv = 100;
+        self.y = self.yv;
+        transition self.y == 7 { true -> m() false -> m() }
+    }
+    state m(&mut self) { self.console.exit_process(1); }
+    state bad(&mut self) { self.console.exit_process(8); }
+}

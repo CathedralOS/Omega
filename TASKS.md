@@ -30,9 +30,8 @@ representation machinery behind a deliberate boundary.
 1. guard_refined_binary_range is literal-only + top-level-only (`p + dir` and
    compound values unrefinable); declared ranges of a non-self OPERAND don't
    feed either fold.
-2. A guarded COPY (`y = self.yv` with yv fully edge-guarded) doesn't narrow.
-3. Multi-VARIABLE compound guards don't decompose (single-variable conjuncts work).
-4. Multi-predecessor edge agreement fails for the write keystone (equivalent
+2. Multi-VARIABLE compound guards don't decompose (single-variable conjuncts work).
+3. Multi-predecessor edge agreement fails for the write keystone (equivalent
    `sp < 16` guards on 3 edges don't prove; funnel states are the workaround).
 
 **Abort-as-effect (#65) design sketch (chat, NOT settled):** every trap-capable
