@@ -96,6 +96,16 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 
 ## Open latent bugs / fenced gaps
 
+- **[ ] TWO value-callee native miscompile faces (found 2026-07-07 authoring std::time;
+  repro canaries/pending/time/value_machine_receiver_field_postentry).** Interp correct,
+  native silent: (1) `as T in Domain` casts inside an INLINED value callee emit i8-width
+  converts (cast target type resolves against a wrong/un-remapped type-reference entry
+  during the value-call splice; masked whenever operands fit i8); (2) post-entry
+  `self.field` reads in a value callee resolve against the CALLER's frame (receiver
+  substitution stops at the entry; the "guarded branch expansion" fence is this same
+  machinery refusing where it knows). Fix (1) first — it unblocks std::time's native
+  Duration promotion; (2) needs receiver substitution past the entry or a loud fence.
+
 - **[ ] Range constraint + non-Exact domain = the range is a LIE (found 2026-07-06).**
   `i: usize [0..=4] in Wrapping` accepts `self.i = 100` -- the range enforces only under the
   EXACT domain ("Wrapping stays permissive" was scoped to source-type narrowing, but it also

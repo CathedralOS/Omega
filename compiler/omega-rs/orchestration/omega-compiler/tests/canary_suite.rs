@@ -1346,6 +1346,26 @@ fn runtime_i64_min_literal_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_duration_core_interpreter_oracle() {
+    // std::time rung 3: Duration checked/saturating arithmetic, exact values
+    // (carry, borrow, clamp, ordering, underflow arms) -- INTERPRETER oracle.
+    // (No `_canary_runs` suffix: the NATIVE run is blocked on the value-callee
+    // domain-cast width miscompile -- `x as u64 in Wrapping` inside an inlined
+    // value machine lowers as an i8->i8 convert; see
+    // canaries/pending/time/value_machine_receiver_field_postentry. Promote to
+    // a native `_canary_runs` test when that face is fixed.)
+    let canary = pass_canary("time/runtime_duration_core_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("duration core canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for the Duration chain, got {}",
+        outcome.exit_code
+    );
+}
+
+#[test]
 fn runtime_scoped_const_exit_canary_runs() {
     // const-v0 (D15): scalar + struct type-scoped consts substitute their
     // literal initializers at symbol resolution; 60 + 10 == 70, exit 70.
@@ -22199,6 +22219,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/const_fold_overflow_compiles",
     "arithmetic/runtime_i64_min_literal_exit",
     "constants/runtime_scoped_const_exit",
+    "time/runtime_duration_core_exit",
     "parser/deep_nesting_within_limit",
     "traits/boundary_trait_effects_host_call",
     "traits/dyn_trait_object_dispatch",
