@@ -96,24 +96,14 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 
 ## Open latent bugs / fenced gaps
 
-- **[ ] FRAME-resident array runtime-index READ = silent read-0 (mapped 2026-07-07; focused session).**
-  `let v = arr[k]` / `vals[k] + 0` / `container.items[k].id` where the array is a by-value
-  PARAM or LOCAL (frame-resident) and k is runtime: every read position silently yields 0
-  (native; interp correct). CONST indices work; guard subjects work; machine-owned arrays
-  work (separate paths). ROOT: no `CopyRuntimeFrameBaseIndexedToRuntimeFrame` op exists --
-  the operand hoist routes ALL positions into a value-let whose materialization falls
-  through every resolver arm. FIX RECIPE (the ~15-site op-threading, encoder mirrors
-  `WriteRuntimeFrameBaseIndexedAddressToRuntimeFrame`'s base+index*elem computation plus a
-  load/store): new op in operation_kind + classification + machine-instruction shape +
-  selection arm in the shared value-write resolver + emission + width + frame relocs (two
-  imm64s). A READY PIECE: `resolve_frame_member_array_base` (root-slot-by-path-head + member
-  prefix walk for offset+descriptor, for the `container.items[k]` face) was drafted and
-  reverted un-consumed 2026-07-07 -- see git history of storage_places.rs. GUARDRAIL landed
-  2026-07-07: `resolve_runtime_machine_indexed_target_in_table` now refuses frame-resident
-  collections (a shadowing param `arr` beside `self.arr` used to silently ALIAS the
-  machine's storage when the index was machine-region; loud encoder reject otherwise).
-  Memory [[lookup-value-call-param-element]].
-
+- **[ ] Value-let `in Wrapping` domain not honored through a hoisted indexed operand (found 2026-07-07).**
+  `let v: i32 in Wrapping = vals[k] + 100` (vals a by-value param array, unranged elements)
+  still rejects with the EXACT-arithmetic overflow error naming local `v` -- the Wrapping
+  annotation on the value-let does not reach the obligation when the operand is a hoisted
+  runtime-indexed read (`__hoist_N + 100`). Workaround: element ranges on the param type
+  (`[i32 [0..=30]; 3]`) prove it Exact (that path works and is canaried). Probe whether the
+  domain is lost at the hoist-temp typing or at obligation collection; a plain
+  `let v: i32 in Wrapping = <field> + 100` works, so it is specific to the hoist funnel.
 
 - **[ ] Range constraint + non-Exact domain = the range is a LIE (found 2026-07-06).**
   `i: usize [0..=4] in Wrapping` accepts `self.i = 100` -- the range enforces only under the
