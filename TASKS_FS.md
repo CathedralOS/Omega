@@ -53,8 +53,24 @@ WRAPPER rename (the two-path import call now resolves each path PER ARGUMENT
 through the alias chain -- param-forwarded literals had no encodable sequence),
 append (flag word 9 is darwin==msvcrt portable), read_all, remove. Still fenced
 on windows: copy/exists/remove_dir_all (set_len/read_metadata/read_dir rows) and
-create_dir_all's DEEP walk (runtime SUBSLICE paths need a NUL-terminated scratch
-copy -- the runtime-path extension, a concrete next windows-seam item). First
+create_dir_all's DEEP walk (runtime SUBSLICE paths need a NUL-terminated
+scratch copy). ATTEMPTED 2026-07-07 (reverted clean, findings recorded): the
+plan is an Omega-side rework, no encoder work -- copy the prefix into a
+`mkall_scratch: [u8; 256]` field, NUL it, pass `mkall_scratch[0..i]` (a
+LITERAL-START subslice of a fixed array = the already-supported
+open_at/unlink_at name idiom; the interp sees the same exact bytes, perfect
+agreement). TWO blockers hit: (1) the byte-copy walk's `decreases (j, i)`
+proof rejects nested-state recursion -- mkall_walk's own comment records
+"recurse in the ENTRY [is] the only shape the decreases proof accepts", so
+the copy body must move into the ENTRY, guarded via `requires` clauses on
+the machine params (spelling to be pulled from the language guide) with
+call-site proofs (j=0 and j+1 under j<i). (2) PUZZLE while there: why does
+`value_call_arm_effect_blockers` NOT fire on the existing
+`self.walk_rc = self.mkall_step(..)` value call, whose `mkall_mk` arm state
+does a HOST CALL? Either the fence has a reachability/keying hole (check
+target_key vs machine symbols for attached wrapper machines) or these calls
+lower dispatched-not-inline and the fence should filter by lowering --
+investigate BEFORE relying on either. First
 wave detail — `filesystem/windows_wrapper_results_exit` runs write_all→Ok,
 create_dir×2→AlreadyExists, open→Ok{File} destructured and USED, close, remove→Ok,
 remove missing→NotFound. Discipline established: host results captured into
