@@ -296,6 +296,37 @@ crate tests; interpreter fs coverage) and commits.
   value completion is the wrapper-level workaround that unblocks result-returning STAT
   wrappers now.
 
+- **⛔ THE WORKAROUND'S CEILING — payload-FREE results only; `match` desugars to arithmetic
+  (2026-07-09).** Probed how far terminal-value completion extends. Two hard limits found:
+  1. **A bare `match` is not a valid terminal** ("expected expression" at parse). A `match`
+     is only accepted on an assignment RHS. So the discipline is: `self.f = match … ;` then
+     a bare `self.f` terminal — assign-then-return (mirrors `exists`' `self.stat_rc == 0`).
+  2. **`match` desugars to branchless ARITHMETIC** (`Σ variantᵢ · (x == patternᵢ)`), so the
+     arm-value type needs an `Add` operator. That holds for **payload-free nullary variants**
+     (their tags are ints → tag arithmetic), so a `match` producing a `bool` / `ExistsResult`
+     picked between `Yes`/`No` / an all-nullary `ErrorKind` works. It **fails** the moment an
+     arm is a **payload-carrying** variant (`ExistsResult::Error{kind}`, `UnitResult::Error
+     {kind}`, `MetadataResult::Ok{metadata}`) or a runtime data-VALUE field: the desugar tries
+     to `Add` two `ExistsResult` values → checker error *"applies `Add` to a `ExistsResult`
+     value, but no such operator is declared"*. Confirmed by building a faithful 3-way
+     `try_exists` (`… _ -> ExistsResult::Error{kind: self.err_kind}`) — rejected; the 2-way
+     `{ 0 -> Yes, _ -> No }` compiled + ran native-correct.
+  - **Consequence:** the workaround covers `exists` (bool ✅) and `last_error` (nullary
+     ErrorKind ✅, converted below), and *could* do a lossy 2-way `try_exists` — but the
+     faithful 3-way `try_exists` and ALL the byte-I/O / metadata result enums that carry a
+     payload on their `Error`/`Ok` arm still require the deep guard-ordering fix. `try_exists`
+     was therefore LEFT on its (interpreter-faithful) transition form; not regressed to the
+     lossy 2-way (Rust distinguishes a definite `No`/ENOENT from a real `Error`/EACCES).
+
+- **✅ `last_error` converted to a `match` TERMINAL (2026-07-09).** errno → `ErrorKind` was a
+  7-state transition-guard CHAIN (natively broken: an inlined value-call reads errno's ZII
+  zero in the first guard → always misclassifies). Rewrote as one value-yielding `match`
+  (`self.err_kind = match self.err_code { 2 -> NotFound, 13|1 -> PermissionDenied, … };
+  self.err_kind`) — all `ErrorKind` cases are nullary so it is within the ceiling. 30 lines →
+  12, native-CORRECT for when the deep fix lands (its callers — the `Error{kind}` arms — are
+  still payload-blocked, so its native correctness is not yet observable), and interpreter-
+  faithful: **canary_suite 515/85 IDENTICAL**, native fs harness **50/50**.
+
 - **🎉 STEP 14 COMPLETE — the SHIPPED ergonomic `Filesystem` wrapper runs NATIVELY
   (2026-07-08).** `Filesystem::write_all`/`read_all`/`remove` — the Rust-parity API,
   reached via a value-call to the `Filesystem` sub-machine (`fs: Filesystem`, a DIFFERENT

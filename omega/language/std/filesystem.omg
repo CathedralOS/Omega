@@ -319,6 +319,15 @@ data Filesystem {
     // terminal expression has no such guard and is evaluated after the entry, so the
     // STAT queries observe the result.
     stat_rc: i32;
+    // `last_error`: the captured errno and its classified ErrorKind. Produced by a
+    // `match` TERMINAL (errno -> nullary ErrorKind), NOT a transition-guard chain,
+    // for the same value-call guard-ordering reason as the STAT queries. This is
+    // within the workaround's ceiling: all ErrorKind cases are payload-free, so the
+    // match desugars to branchless tag arithmetic. (A payload-CARRYING result enum --
+    // e.g. UnitResult::Error{kind} -- cannot use this: the arithmetic desugar would
+    // need `Add` on the data type, which is undeclared. Those await the deep fix.)
+    err_code: i32;
+    err_kind: ErrorKind;
     // Scratch for `read_dir_count`: one buffer of packed darwin `dirent` records
     // plus the runtime-indexed cursor that walks them by `d_reclen`.
     dir_buf: [u8; 512];
@@ -763,34 +772,24 @@ machine Filesystem::remove(&mut self, path: &[u8] in Path) -> UnitResult {
 // codes; call it IMMEDIATELY after an op returned an Error/negative value,
 // before any other host call (errno is only valid right after the failure).
 machine Filesystem::last_error(&mut self) -> ErrorKind {
-    let code: i32 = self.host.errno();
-    transition code == 2 { true -> not_found() _ -> check_acces(code) }
-    state check_acces(&mut self, code: i32) -> ErrorKind {
-        transition code == 13 { true -> denied() _ -> check_eperm(code) }
-    }
-    state check_eperm(&mut self, code: i32) -> ErrorKind {
-        // EPERM (1) and EACCES (13) both surface as Rust `PermissionDenied`.
-        transition code == 1 { true -> denied() _ -> check_exist(code) }
-    }
-    state check_exist(&mut self, code: i32) -> ErrorKind {
-        transition code == 17 { true -> exists() _ -> check_badf(code) }
-    }
-    state check_badf(&mut self, code: i32) -> ErrorKind {
-        transition code == 9 { true -> bad_descriptor() _ -> check_isdir(code) }
-    }
-    state check_isdir(&mut self, code: i32) -> ErrorKind {
-        transition code == 21 { true -> is_a_directory() _ -> check_wouldblock(code) }
-    }
-    state check_wouldblock(&mut self, code: i32) -> ErrorKind {
-        transition code == 35 { true -> would_block() _ -> other() }
-    }
-    state not_found(&mut self) -> ErrorKind { ErrorKind::NotFound }
-    state denied(&mut self) -> ErrorKind { ErrorKind::PermissionDenied }
-    state exists(&mut self) -> ErrorKind { ErrorKind::AlreadyExists }
-    state bad_descriptor(&mut self) -> ErrorKind { ErrorKind::BadDescriptor }
-    state is_a_directory(&mut self) -> ErrorKind { ErrorKind::IsADirectory }
-    state would_block(&mut self) -> ErrorKind { ErrorKind::WouldBlock }
-    state other(&mut self) -> ErrorKind { ErrorKind::Other }
+    // errno -> ErrorKind via a value-yielding `match` TERMINAL (assigned to a field,
+    // then returned). EPERM (1) and EACCES (13) both surface as PermissionDenied.
+    // Match desugars to branchless arithmetic over `code == pattern` (all ErrorKind
+    // cases are payload-free -> tag arithmetic), so it observes the real errno
+    // host-call result; a transition-guard chain read the pre-store ZII zero in an
+    // inlined value-call (see TASKS_FS.md "terminal-value completion").
+    self.err_code = self.host.errno();
+    self.err_kind = match self.err_code {
+        2 -> ErrorKind::NotFound,
+        13 -> ErrorKind::PermissionDenied,
+        1 -> ErrorKind::PermissionDenied,
+        17 -> ErrorKind::AlreadyExists,
+        9 -> ErrorKind::BadDescriptor,
+        21 -> ErrorKind::IsADirectory,
+        35 -> ErrorKind::WouldBlock,
+        _ -> ErrorKind::Other
+    };
+    self.err_kind
 }
 
 // Create a directory.
