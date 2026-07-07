@@ -59,6 +59,7 @@ pub(super) fn select_runtime_leaf_branch_guards(
         input,
         expansion.dispatch_index,
         expansion.source_key,
+        Some(expansion.branch_key),
         expansion.statement_index,
         &input.runtime_branching_calls.expressions,
         expansion.resolved_guard,
@@ -79,6 +80,7 @@ pub(super) fn select_runtime_straight_line_branch_guards(
         input,
         expansion.dispatch_index,
         expansion.source_key,
+        Some(expansion.branch_key),
         expansion.statement_index,
         &input.runtime_branching_calls.expressions,
         expansion.resolved_guard,
@@ -86,10 +88,12 @@ pub(super) fn select_runtime_straight_line_branch_guards(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn select_runtime_branch_guard_conjuncts_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: omega_control_flow::StateKey,
+    callee_key: Option<omega_control_flow::StateKey>,
     statement_index: usize,
     expressions: &ExpressionTable,
     guard: ExpressionHandle,
@@ -100,6 +104,7 @@ fn select_runtime_branch_guard_conjuncts_in_table(
         input,
         dispatch_index,
         source_key,
+        callee_key,
         statement_index,
         expressions,
         guard,
@@ -122,6 +127,7 @@ pub(super) fn select_runtime_dispatch_expression_guard_conjuncts_in_table(
         input,
         dispatch_index,
         source_key,
+        None,
         statement_index,
         expressions,
         guard,
@@ -170,10 +176,12 @@ fn collect_static_guard_conjunct_summary_in_table(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn collect_runtime_branch_guard_conjuncts_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: omega_control_flow::StateKey,
+    callee_key: Option<omega_control_flow::StateKey>,
     statement_index: usize,
     expressions: &ExpressionTable,
     guard: ExpressionHandle,
@@ -191,6 +199,7 @@ fn collect_runtime_branch_guard_conjuncts_in_table(
             input,
             dispatch_index,
             source_key,
+            callee_key,
             statement_index,
             expressions,
             binary.left,
@@ -201,6 +210,7 @@ fn collect_runtime_branch_guard_conjuncts_in_table(
             input,
             dispatch_index,
             source_key,
+            callee_key,
             statement_index,
             expressions,
             binary.right,
@@ -210,10 +220,11 @@ fn collect_runtime_branch_guard_conjuncts_in_table(
         return;
     }
 
-    if let Some(guard) = select_runtime_dispatch_expression_guard_in_table(
+    if let Some(guard) = select_runtime_dispatch_expression_guard_in_table_with_callee(
         input,
         dispatch_index,
         source_key,
+        callee_key,
         statement_index,
         expressions,
         guard,
@@ -323,6 +334,29 @@ pub(super) fn select_runtime_dispatch_expression_guard_in_table(
     guard: ExpressionHandle,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
+    select_runtime_dispatch_expression_guard_in_table_with_callee(
+        input,
+        dispatch_index,
+        source_key,
+        None,
+        statement_index,
+        expressions,
+        guard,
+        runtime_value_operands,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_dispatch_expression_guard_in_table_with_callee(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: omega_control_flow::StateKey,
+    callee_key: Option<omega_control_flow::StateKey>,
+    statement_index: usize,
+    expressions: &ExpressionTable,
+    guard: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+) -> Option<SelectedInstructionKind> {
     if !guard.is_valid() {
         return None;
     }
@@ -331,6 +365,7 @@ pub(super) fn select_runtime_dispatch_expression_guard_in_table(
         input,
         dispatch_index,
         source_key,
+        callee_key,
         statement_index,
         expressions,
         guard,
@@ -343,6 +378,7 @@ pub(super) fn select_runtime_dispatch_expression_guard_in_table(
             input,
             dispatch_index,
             source_key,
+            callee_key,
             statement_index,
             &normalized_expressions,
             normalized_guard,
@@ -351,10 +387,12 @@ pub(super) fn select_runtime_dispatch_expression_guard_in_table(
     })
 }
 
+#[allow(clippy::too_many_arguments)]
 fn select_runtime_dispatch_expression_guard_in_table_once(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: omega_control_flow::StateKey,
+    callee_key: Option<omega_control_flow::StateKey>,
     statement_index: usize,
     expressions: &ExpressionTable,
     guard: ExpressionHandle,
@@ -420,7 +458,14 @@ fn select_runtime_dispatch_expression_guard_in_table_once(
             )
         })
         .or_else(|| {
-            runtime_storage_guard_in_table(input, dispatch_index, source_key, expressions, guard)
+            runtime_storage_guard_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                callee_key,
+                expressions,
+                guard,
+            )
         })
 }
 
@@ -1338,6 +1383,7 @@ pub(super) fn runtime_storage_guard_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: omega_control_flow::StateKey,
+    callee_key: Option<omega_control_flow::StateKey>,
     expressions: &ExpressionTable,
     guard: ExpressionHandle,
 ) -> Option<SelectedInstructionKind> {
@@ -1350,20 +1396,35 @@ pub(super) fn runtime_storage_guard_in_table(
         _ => return None,
     };
 
+    eprintln!("RSG-table: reached");
+    // A bare `self` subject in a case-enum-attached machine compares the
+    // attached value's TAG (a guard-compare-only place; see
+    // resolve_machine_owned_self_case_tag_place_in_table).
+    let self_tag_place = |operand: omega_checked_trees::expression::ExpressionHandle| {
+        crate::selection::storage_places::resolve_machine_owned_self_case_tag_place_in_table(
+            &input.layouts,
+            input.entry_key.machine,
+            callee_key.map(|key| key.machine).unwrap_or(source_key.machine),
+            expressions,
+            operand,
+        )
+    };
     let left = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,
         source_key,
         expressions,
         binary.left,
-    );
+    )
+    .or_else(|| self_tag_place(binary.left));
     let right = resolve_runtime_storage_place_in_table(
         input,
         dispatch_index,
         source_key,
         expressions,
         binary.right,
-    );
+    )
+    .or_else(|| self_tag_place(binary.right));
 
     if let (Some(left), Some(right)) = (left.clone(), right.clone()) {
         if left.byte_count != right.byte_count {
