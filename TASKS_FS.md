@@ -327,6 +327,35 @@ crate tests; interpreter fs coverage) and commits.
   still payload-blocked, so its native correctness is not yet observable), and interpreter-
   faithful: **canary_suite 515/85 IDENTICAL**, native fs harness **50/50**.
 
+- **🔧 DEEP FIX — precise starting point for a focused session (2026-07-09).** The remaining
+  native ergonomic-wrapper work (payload-carrying `Ok{…}`/`Error{kind}` results:
+  `write_all`/`read_all`/`create`/`open`/`metadata_path`/faithful `try_exists`) is gated on
+  ONE codegen bug: an inlined value-call's transition GUARD reads the host-call result's ZII
+  zero because the guard is scheduled before the callee entry body's result STORE. Located
+  the machinery this fire (do NOT attempt blind — blast radius is EVERY transition in every
+  program; a naive reorder reds all 515 canary_suite tests):
+  - `backend/omega-runtime-bodies/src/collection.rs` ~L479–520: for a NON-guard value-call
+    (e.g. `self.here = self.fs.exists(..)`, role `AssignmentValue`) the StateCall op is
+    inserted FIRST, then the callee body is spliced via `append_state_body_operations`. For a
+    `TransitionGuard` role the splice is SKIPPED — the branch prelude is the executor instead
+    (comment L501–506), to avoid double-executing side effects.
+  - `backend/omega-runtime-branching/src/branching/mod.rs` ~L100–160: `append_branch_prelude_
+    expansion` with `PreludeStatementFilter::All` for a guard call runs the callee's
+    statements in the prelude; `LocalDataOnly` for other roles (the splice ran the rest). The
+    repeated-guard-subject dedupe (L110–130) parks the subject result in a slot shared by all
+    arms — the FIRST arm's prelude is meant to execute the callee.
+  - HYPOTHESIS to verify first: when the callee (`exists`) is itself an `AssignmentValue`
+    value-call whose body is spliced AND contains an internal `transition`, the internal
+    guard's subject (`rc == 0`, `rc` = the spliced host-call result) is evaluated by the
+    branch prelude at the caller dispatch point, which is emitted BEFORE the spliced entry
+    body's host-call store — inverting the order the instruction trace shows (guard `cmp` at
+    ~0x3bc, `read_metadata` `bl` at ~0x43c). The fix is to guarantee the entry body's stores
+    precede the guard-subject evaluation for a spliced-callee-with-internal-transition (either
+    order the prelude after the splice's host-call ops, or resolve the guard subject against
+    the post-store slot). Reproduce with a payload-free 2-way `match` that WORKS vs the
+    transition form that FAILS on the same shape to bisect. Full `otool -tv` trace + repro
+    steps are in the git history of the deleted `wrapper_exists_absent` canary.
+
 - **🎉 STEP 14 COMPLETE — the SHIPPED ergonomic `Filesystem` wrapper runs NATIVELY
   (2026-07-08).** `Filesystem::write_all`/`read_all`/`remove` — the Rust-parity API,
   reached via a value-call to the `Filesystem` sub-machine (`fs: Filesystem`, a DIFFERENT
