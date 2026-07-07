@@ -1,7 +1,8 @@
 use crate::obligations::{
     BoundedAssignmentObligation, BoundedCallArgumentObligation, BoundedInitializerObligation,
     BoundedStateReturnObligation, BoundedTransitionArgumentObligation, IntegerRange,
-    ProofConstraint, ProofObligation, ProofPlan, integer_binary_range,
+    ProofConstraint, ProofObligation, ProofPlan, dehoisted_condition, dehoisted_operand,
+    integer_binary_range,
 };
 use omega_core::arena::HandleSpan;
 use omega_core::diagnostics::Diagnostic;
@@ -531,7 +532,14 @@ fn guarded_integer_range_for_assignment(
         {
             let operand_range = |declared: Option<IntegerRange>, handle: ExpressionHandle| {
                 let base = declared.unwrap_or(NEUTRAL);
-                let narrowed = apply_handle_condition(proof_plan, base, handle, *condition);
+                let narrowed = apply_source_condition(
+                    proof_plan,
+                    base,
+                    handle,
+                    *condition,
+                    obligation.machine_symbol,
+                    obligation.state_guard_source,
+                );
                 (narrowed != NEUTRAL).then_some(narrowed)
             };
             if let (Some(left), Some(right)) = (
@@ -585,12 +593,29 @@ fn assignment_guard_is_stable(
         return false;
     };
 
-    // Every place the guard fact (and the value it refines) depends on.
-    let mut read_paths: Vec<Vec<String>> = Vec::new();
+    // Every place the guard fact (and the value it refines) depends on. The
+    // DE-HOISTED binary operands are included too: the obligation value may
+    // spell `__hoist_N + 1` while the guard fact is applied to the hoisted
+    // read's PLACE (`tallies[self.k]`), so an aliasing write into the
+    // collection (or to the index) must drop the fact even though the value's
+    // own read path is only the local name.
+    // GUARD reads and VALUE reads are tracked separately: a body `let` that
+    // DEFINES a name the value reads (the operand hoist's own
+    // `let __hoist_N = tallies[self.k]`) is the fact's SOURCE, not an
+    // invalidation -- but a `let` shadowing a name the GUARD read (the guard
+    // evaluates in the SOURCE state's scope, so a same-named body local is a
+    // different binding) must still kill the fact, and any ASSIGNMENT
+    // aliasing either list still kills it.
+    let mut guard_read_paths: Vec<Vec<String>> = Vec::new();
     if let TransitionGuardNode::When(condition) = guard {
-        collect_read_place_paths(proof_plan, *condition, &mut read_paths);
+        collect_read_place_paths(proof_plan, *condition, &mut guard_read_paths);
     }
+    let mut read_paths: Vec<Vec<String>> = guard_read_paths.clone();
     collect_read_place_paths(proof_plan, obligation.value, &mut read_paths);
+    if let Some(operands) = &obligation.binary_operands {
+        collect_read_place_paths(proof_plan, operands.left, &mut read_paths);
+        collect_read_place_paths(proof_plan, operands.right, &mut read_paths);
+    }
 
     for statement in program.statement_table.statements(state.statement_nodes) {
         match statement {
@@ -622,10 +647,14 @@ fn assignment_guard_is_stable(
                     return false;
                 }
                 // A `let` binds a fresh local name; it cannot alias a field
-                // path, and same-name reads in `read_paths` would be the local
-                // itself (rebinding kills the fact conservatively).
+                // path. Only a name the GUARD read kills the fact (a body
+                // local shadowing a source-scope name -- by-name matching
+                // would conflate two bindings). A name only the VALUE reads is
+                // the let's own definition (the hoist shape), not an
+                // invalidation; a later reassignment is an Assignment and is
+                // caught above.
                 let written = vec![local.name.as_str().to_owned()];
-                if read_paths
+                if guard_read_paths
                     .iter()
                     .any(|read| member_paths_may_alias(read, &written))
                 {
@@ -1106,6 +1135,98 @@ fn apply_handle_condition(
     range
 }
 
+/// `apply_handle_condition` with GUARD-SIDE de-hoisting: the guard's compared
+/// sides may spell a hoisted local from the SOURCE state's scope (an indexed
+/// guard subject is frontend-hoisted to `let __hoist_N = tallies[self.k]`), so
+/// each side is resolved through that state's call-free place initializers
+/// before the structural match. Only used where the obligation carries the
+/// guard's source state; co-located guards keep the plain applier.
+fn apply_source_condition(
+    proof_plan: &ProofPlan,
+    range: IntegerRange,
+    argument: ExpressionHandle,
+    condition: ExpressionHandle,
+    machine_symbol: omega_core::symbols::SymbolHandle,
+    source_state: omega_core::symbols::SymbolHandle,
+) -> IntegerRange {
+    // A hoisted GUARD SUBJECT is a bare name whose initializer is the actual
+    // comparison (`transition __hoist_N { .. }`): resolve it in the SOURCE
+    // state's scope before matching.
+    let condition = proof_plan
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        .and_then(|machine| {
+            proof_plan
+                .program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == source_state)
+                .map(|state| dehoisted_condition(proof_plan.program, state, condition))
+        })
+        .unwrap_or(condition);
+    let ExpressionNode::Binary(binary) = proof_plan.program.expression_table.expression(condition)
+    else {
+        return range;
+    };
+
+    if binary.operator == BinaryOperator::Equal {
+        if matches!(
+            proof_plan.program.expression_table.expression(binary.right),
+            ExpressionNode::Boolean(true)
+        ) {
+            return apply_source_condition(
+                proof_plan, range, argument, binary.left, machine_symbol, source_state,
+            );
+        }
+        if matches!(
+            proof_plan.program.expression_table.expression(binary.left),
+            ExpressionNode::Boolean(true)
+        ) {
+            return apply_source_condition(
+                proof_plan, range, argument, binary.right, machine_symbol, source_state,
+            );
+        }
+    }
+
+    if binary.operator == BinaryOperator::And {
+        let range = apply_source_condition(
+            proof_plan, range, argument, binary.left, machine_symbol, source_state,
+        );
+        return apply_source_condition(
+            proof_plan, range, argument, binary.right, machine_symbol, source_state,
+        );
+    }
+
+    let dehoist = |handle: ExpressionHandle| {
+        let program = proof_plan.program;
+        program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .and_then(|machine| {
+                program
+                    .machine_states(machine)
+                    .iter()
+                    .find(|state| state.symbol == source_state)
+                    .map(|state| dehoisted_operand(program, state, handle))
+            })
+            .unwrap_or(handle)
+    };
+
+    let left = dehoist(binary.left);
+    let right = dehoist(binary.right);
+    if expressions_equivalent_for_proof(proof_plan, left, argument) {
+        return apply_right_literal_guard(proof_plan, range, binary.operator, right);
+    }
+    if expressions_equivalent_for_proof(proof_plan, right, argument) {
+        return apply_left_literal_guard(proof_plan, range, left, binary.operator);
+    }
+
+    range
+}
+
 fn expressions_equivalent_for_proof(
     proof_plan: &ProofPlan,
     left: ExpressionHandle,
@@ -1113,6 +1234,19 @@ fn expressions_equivalent_for_proof(
 ) -> bool {
     if left == right {
         return true;
+    }
+
+    // The SAME place is spelled two ways across statements: a flat Name path
+    // (`Name(["self", "k"])`) or a Member chain (`Member(Name(["self"]), "k")`).
+    // Flatten both to segment lists and compare -- without this, a guard's
+    // `self.k` never matched a hoisted initializer's `self.k` and the fact
+    // silently failed to apply. `flat_place_segments` returns None for
+    // anything indexed/called, which falls through to the structural arms.
+    if let (Some(left_path), Some(right_path)) = (
+        flat_place_segments(proof_plan, left),
+        flat_place_segments(proof_plan, right),
+    ) {
+        return left_path == right_path;
     }
 
     match (
@@ -1190,6 +1324,30 @@ fn expressions_equivalent_for_proof(
         (ExpressionNode::Float(left), ExpressionNode::Float(right)) => left == right,
         (ExpressionNode::String(left), ExpressionNode::String(right)) => left == right,
         _ => false,
+    }
+}
+
+/// A pure member place flattened to its name segments (`self.k` ->
+/// ["self", "k"]), through `Mutable`. `None` for anything indexed, called, or
+/// non-place -- those compare structurally.
+fn flat_place_segments(proof_plan: &ProofPlan, expression: ExpressionHandle) -> Option<Vec<String>> {
+    match proof_plan.program.expression_table.expression(expression) {
+        ExpressionNode::Mutable(inner) => flat_place_segments(proof_plan, *inner),
+        ExpressionNode::Name(path) => Some(
+            proof_plan
+                .program
+                .expression_table
+                .name_path_members(path.members)
+                .iter()
+                .map(|member| member.as_str().to_owned())
+                .collect(),
+        ),
+        ExpressionNode::Member(member) => {
+            let mut segments = flat_place_segments(proof_plan, member.receiver)?;
+            segments.push(member.member.as_str().to_owned());
+            Some(segments)
+        }
+        _ => None,
     }
 }
 
