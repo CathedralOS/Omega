@@ -3101,6 +3101,42 @@ fn runtime_expression_range_bound_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// An array-of-structs element FIELD as a BINARY OPERAND
+// (`self.x = self.cells[self.k].v + 5`): the member-over-indexed hoist + the
+// field-typed temp + the machine-indexed materialization compose. -> exit 1.
+#[test]
+fn runtime_indexed_struct_field_operand_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_indexed_struct_field_operand_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-idx-sf-operand-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed struct field operand canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed struct field operand canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `self.cells[self.k].v + 5` (cells[2].v=9) to compute 14 and          exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A MACHINE-owned array's runtime-indexed read as a transition ARGUMENT
 // (`self.report(self.arr[self.k])`): used to silently pass a stale/zero
 // parameter (wrong arm; interp right). Now lowered via the machine-indexed

@@ -317,6 +317,15 @@ fn validate_state_statement_node(
                 value_env,
                 arithmetic_domains::place_path(program, assignment.target),
                 interval,
+                places::declared_place_type_raw(
+                    program,
+                    machine,
+                    machine_symbols.state(state_name),
+                    assignment.target,
+                )
+                .and_then(|handle| {
+                    arithmetic_domains::enforced_declared_range(program, handle)
+                }),
             );
         }
         StatementNode::Call(call) => {
@@ -564,6 +573,16 @@ fn validate_state_statement_node(
                     value_env,
                     Some(local_data.name.as_str().to_owned()),
                     interval,
+                    local_data
+                        .type_reference
+                        .is_valid()
+                        .then(|| {
+                            arithmetic_domains::enforced_declared_range(
+                                program,
+                                local_data.type_reference,
+                            )
+                        })
+                        .flatten(),
                 );
             }
         }
