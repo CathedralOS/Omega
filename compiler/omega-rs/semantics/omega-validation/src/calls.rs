@@ -1057,6 +1057,36 @@ fn scan_expression_calls(
             data.name.as_str()
         )));
     }
+    // Unknown NESTED-field READ (3+ segments): `self.o.inner.nonexistent` (final
+    // missing) and `self.o.bogus.value` (intermediate missing) used to compile
+    // and silently read a ZII 0. The walker reports only a provably-missing
+    // member on a provably-plain container -- versioned containers (fields in
+    // wire version blocks), contained-machine/owned-data roots, and non-data
+    // hops all skip. The recursion below revisits inner Member receivers, which
+    // resolve to the SAME missing hop (`self.o.bogus.value` then `self.o.bogus`),
+    // so an identical message is deduplicated rather than reported per level.
+    if matches!(
+        program.expression_table.expression(expression),
+        ExpressionNode::Member(_) | ExpressionNode::Name(_)
+    ) && let Some((container, member)) = crate::places::first_unknown_nested_field(
+        program,
+        machine,
+        Some(state),
+        expression,
+    ) {
+        let message = format!(
+            "machine `{}` state `{}` reads a nested member `{member}`, but data `{container}` \
+             has no field `{member}` (check the spelling of the field name)",
+            machine.name.as_str(),
+            state.name.as_str(),
+        );
+        if !diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.to_string().contains(&message))
+        {
+            diagnostics.push(Diagnostic::error(message));
+        }
+    }
     // Member / index access on a PRIMITIVE receiver. A number or bool has no fields,
     // no `.len`, and is not indexable, so `x.field` / `x.len` / `x[0]` on an `i32`
     // local silently reads a ZII 0 -- reject any such access. `String` is the one

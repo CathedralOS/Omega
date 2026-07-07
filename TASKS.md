@@ -91,38 +91,6 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 
 ## Open latent bugs / fenced gaps
 
-- **[ ] Unknown NESTED field READ compiles silently (found 2026-07-05).**
-  `let y = self.inner.nonexistent` (3+-segment member read, final OR intermediate field
-  missing) reads a ZII 0 -- the unknown-field READ check (`direct_self_field_member` in
-  places.rs / scan_expression_calls) only covers the DIRECT `self.<field>` (2-segment)
-  case; the WRITE side errors crudely via the backend. ATTEMPTED + REVERTED 2026-07-05:
-  a `first_unknown_nested_field` walker (reusing the `resolve_nested_member_path`
-  resolvers -- `data_field_or_payload_type` + `data_definition_for_type`) reported the
-  first member missing from its resolved data container. It false-positived on VERSIONED
-  data: `Counter` (with `version v1 {..} version v2 {..}` blocks + a common field) does
-  NOT expose its common field `count` via `data_members`/`data_field_or_payload_type`
-  (version-block fields live in a per-version structure), and a versioned type is not
-  cheaply detectable (no property flag; it reads as a pure record, so a "no variant
-  members" guard did not exclude it). The payload-binding desugar (`current.count` ->
-  a nested path through the versioned container) surfaces this. CLEAN FIX needs a
-  VERSIONED-AWARE field resolver (walk version blocks + common fields) before the "field
-  not found" conclusion is reliable -- a focused session tied to the versioned-data
-  representation. (The direct `self.<field>` case already skips versioned attached data
-  via `is_version_selector` in `machine_attached_data`, but that is name-suffix-based and
-  does not catch a nested versioned container.)
-  RE-CONFIRMED + SHARPENED 2026-07-05: both faces still reproduce (`self.o.inner.nonexistent`
-  final-missing AND `self.o.bogus.v` intermediate-missing, both compile + read ZII 0).
-  PRECISE BLOCKER: version-block fields are stored in the WIRE model as
-  `wire::WireMember::Version` on a `wire::WireSchema` (typed_trees.rs) -- NOT in
-  `DataDefinition.members`, which is why `data_field_or_payload_type` (iterates
-  `data_members`) misses them. IMPLEMENTATION PATH for the focused session: (a) extend
-  `data_field_or_payload_type` (places.rs) to ALSO search a data type's wire version-block
-  members (reach them via `program.wire_schemas()` matched by name + `WireMember::Version`
-  members), OR (b) conservatively SKIP the reject when the containing type has a WireSchema
-  with Version members (detect via `wire_schemas()`), catching only plain non-versioned
-  records/enums. Once the resolver is versioned-sound, gate the check on
-  `resolve_nested_member_path(...).is_none()` for a 3+-segment self/local/param member read.
-
 - Contained-machine METHOD-CALL storage resolution is a SILENT miscompile with TWO faces
   (see memory `contained-machine-same-type-aliasing`), both from the backend resolving a
   method-call receiver's `self`-base by machine TYPE rather than the receiver field:

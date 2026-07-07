@@ -1,0 +1,36 @@
+// A 3+-segment member READ whose FINAL member does not exist on its container:
+// `self.o.inner.nonexistent` (Inner has only `value`). This used to compile and
+// silently read a ZII 0 -- the unknown-field READ check covered only the direct
+// 2-segment `self.<field>` case. The nested walker resolves each hop through
+// the data definitions and reports the first missing member; versioned
+// containers (fields in wire version blocks), contained-machine/owned-data
+// roots, and non-data hops are all skipped, so only a provably-missing field on
+// a provably-plain container rejects.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Inner {
+    value: i32;
+}
+
+data Outer {
+    inner: Inner;
+}
+
+data Main {
+    console: Console;
+    o: Outer;
+}
+
+machine Main::main(&mut self) {
+    self.o.inner.value = 5;
+    let y: i32 = self.o.inner.nonexistent;
+    transition y == 0 {
+        true -> zii()
+        false -> other()
+    }
+
+    state zii(&mut self) { self.console.exit_process(1); }
+    state other(&mut self) { self.console.exit_process(2); }
+}

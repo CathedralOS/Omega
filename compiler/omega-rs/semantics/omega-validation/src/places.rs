@@ -283,6 +283,105 @@ fn collect_member_path(
     }
 }
 
+/// The first member of a 3+-segment place path that is MISSING from its
+/// resolved containing data definition: `Some((container, member))` for
+/// `self.o.inner.nonexistent` (final missing) and `self.o.bogus.value`
+/// (intermediate missing) -- both used to compile and silently read a ZII 0.
+/// Deliberately conservative -- every unresolvable shape SKIPS (`None`) so only
+/// a provably-missing field on a provably-plain container reports:
+/// - a non-`self` root that is not a data-typed local/param (machines,
+///   schemas, cases) skips;
+/// - a `self` path whose FIRST hop names a CONTAINED machine or the machine's
+///   OWNED data skips (those live on the machine, not the attached data --
+///   `self.counter.value` with `contains counter: Counter` is legal);
+/// - a VERSIONED container skips: its fields live in wire VERSION BLOCKS
+///   (`WireMember::Version` on the schema), not `DataDefinition.members`, so a
+///   member lookup there cannot conclude "missing" (the false positive that
+///   reverted the first attempt at this check);
+/// - a hop through a non-data type (array, slice, primitive, generic
+///   parameter, `Versioned<T>`) skips -- other checks own those shapes.
+pub(crate) fn first_unknown_nested_field(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: Option<&omega_typed_trees::state::State>,
+    expression: ExpressionHandle,
+) -> Option<(String, String)> {
+    let path = collect_member_path(program, expression)?;
+    if path.len() < 3 {
+        return None;
+    }
+    let (root, rest) = path.split_first()?;
+    let mut current_data = if root == "self" {
+        // `self.<contained>/<owned>.…` roots on the MACHINE, not its data.
+        let first_hop = rest.first()?;
+        let is_machine_object = program
+            .machine_contained_objects(current_machine)
+            .iter()
+            .any(|contained| contained.name.as_str() == *first_hop)
+            || program
+                .machine_owned_data(current_machine)
+                .iter()
+                .any(|owned| owned.name.as_str() == *first_hop);
+        if is_machine_object {
+            return None;
+        }
+        let attached = current_machine.attached_data.as_ref()?;
+        program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name == *attached)?
+    } else {
+        let receiver_type = local_or_parameter_type(program, current_state, root)?;
+        data_definition_for_type(program, receiver_type)?
+    };
+    for (position, hop) in rest.iter().enumerate() {
+        if data_is_versioned(program, current_data) {
+            return None;
+        }
+        let Some(hop_type) = data_field_or_payload_type(program, current_data, hop) else {
+            // Missing from a resolved, plain container: the silent-ZII read.
+            return Some((current_data.name.as_str().to_owned(), hop.clone()));
+        };
+        if position + 1 == rest.len() {
+            return None;
+        }
+        // An intermediate hop through a non-data type (array/primitive/generic):
+        // not this check's shape.
+        current_data = data_definition_for_type(program, hop_type)?;
+    }
+    None
+}
+
+/// Whether a data definition is VERSIONED -- its member lookup CANNOT conclude
+/// "missing" because some of its fields live outside `DataDefinition.members`.
+/// Two representations exist:
+/// - versioned DATA (`version v1 {..}` blocks) lowers to a FAMILY of sibling
+///   definitions (`Counter`, `Counter::v1`, `Counter::v2`), and the COMMON
+///   fields (`count`) are not in the base definition's members (they ride the
+///   per-version structures) -- detect via any sibling named `<name>::…`;
+/// - a versioned WIRE schema carries `WireMember::Version` blocks (matched by
+///   name). Over-matching only SKIPS (under-reports a typo), never falsely
+///   rejects, so both checks stay generous.
+fn data_is_versioned(
+    program: &TypedTrees,
+    data: &omega_typed_trees::data::DataDefinition,
+) -> bool {
+    let version_prefix = format!("{}::", data.name.as_str());
+    program
+        .data_definitions()
+        .iter()
+        .any(|sibling| sibling.name.as_str().starts_with(&version_prefix))
+        || program.wire_schemas().iter().any(|schema| {
+            schema.name.as_str() == data.name.as_str()
+                && program
+                    .wire_members(schema.members)
+                    .iter()
+                    .any(|member| {
+                        matches!(member, omega_typed_trees::wire::WireMember::Version(_))
+                    })
+        })
+}
+
 /// Resolve a 3+-member place by walking each hop through its struct/sum type:
 /// the root is `self` (the machine's attached data) or a local/parameter of
 /// data type; every intermediate hop must land on a Named data definition; the

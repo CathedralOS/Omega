@@ -21483,6 +21483,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
 
 const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "data/recursive_data_infinite_size",
+    "data/unknown_nested_field_read_rejected",
+    "data/unknown_nested_intermediate_field_read_rejected",
     "data/fixed_array_too_large",
     "data/struct_literal_duplicate_field_rejected",
     "data/struct_literal_primitive_type_rejected",
