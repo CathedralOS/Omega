@@ -1,0 +1,42 @@
+// MULTI-predecessor edge agreement (the last keystone catalog item): TWO
+// states funnel into `push` under STRUCTURALLY IDENTICAL guards `sp >= 0 &&
+// sp < 16`, and the guarded copy `self.y = self.sp` proves into `y: [0..=15]`.
+// Two fixes compose: the proof side's guard-equivalence walker gained literal
+// LEAF arms (identical guards from different statements used to compare
+// `false` at `(Integer(0), Integer(0))`), and validation joins ALL incoming
+// edge envs per-place (interval union). sp=7 -> exit 7.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    sp: i32;
+    y: i32 [0..=15];
+}
+
+machine Main::main(&mut self) {
+    self.sp = 7;
+    transition self.sp >= 0 && self.sp < 16 {
+        true -> push()
+        false -> bad()
+    }
+
+    state other(&mut self) {
+        transition self.sp >= 0 && self.sp < 16 {
+            true -> push()
+            false -> bad()
+        }
+    }
+
+    state push(&mut self) {
+        self.y = self.sp;
+        transition self.y == 7 {
+            true -> matched()
+            false -> unmatched()
+        }
+    }
+    state matched(&mut self) { self.console.exit_process(7); }
+    state unmatched(&mut self) { self.console.exit_process(0); }
+    state bad(&mut self) { self.console.exit_process(8); }
+}

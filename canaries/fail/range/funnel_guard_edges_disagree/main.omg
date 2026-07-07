@@ -1,0 +1,35 @@
+// Funnel edges with DIFFERENT guards (`sp < 16` vs `sp < 32`): the wider edge
+// admits values outside `y: [0..=15]`, so the copy must reject (the proof
+// side accepts only equivalent guards; the validation join keeps the union
+// [0, 31], which does not fit either).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    sp: i32;
+    y: i32 [0..=15];
+}
+
+machine Main::main(&mut self) {
+    self.sp = 7;
+    transition self.sp >= 0 && self.sp < 16 {
+        true -> push()
+        false -> other()
+    }
+
+    state other(&mut self) {
+        transition self.sp >= 0 && self.sp < 32 {
+            true -> push()
+            false -> bad()
+        }
+    }
+
+    state push(&mut self) {
+        self.y = self.sp;
+        transition self.y == 7 { true -> m() false -> m() }
+    }
+    state m(&mut self) { self.console.exit_process(1); }
+    state bad(&mut self) { self.console.exit_process(8); }
+}

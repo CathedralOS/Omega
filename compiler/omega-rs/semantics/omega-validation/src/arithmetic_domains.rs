@@ -274,10 +274,7 @@ pub(crate) fn sole_incoming_guard_env(
 ) -> ValueEnv {
     use omega_typed_trees::statement::{StatementNode, TransitionTargetNode};
     let state_name = state.name.as_str();
-    let mut sole_entry: Option<(
-        omega_typed_trees::statement::TransitionGuardNode,
-        omega_core::symbols::SymbolHandle,
-    )> = None;
+    let mut entries: Vec<omega_typed_trees::statement::TransitionGuardNode> = Vec::new();
     let mut disqualified = false;
 
     let target_names_state = |handle: omega_typed_trees::statement::TransitionTargetHandle| {
@@ -299,10 +296,12 @@ pub(crate) fn sole_incoming_guard_env(
             match statement {
                 StatementNode::Transition(transition) => {
                     if target_names_state(transition.target) {
-                        if sole_entry.is_some() || source.symbol == state.symbol {
+                        if source.symbol == state.symbol {
+                            // A self-loop back edge is loop-invariant territory
+                            // (loop_invariants.rs), not entry seeding.
                             disqualified = true;
                         } else {
-                            sole_entry = Some((transition.guard.clone(), source.symbol));
+                            entries.push(transition.guard.clone());
                         }
                     }
                     if target_names_state(transition.continuation) {
@@ -322,13 +321,23 @@ pub(crate) fn sole_incoming_guard_env(
         }
     }
 
-    if disqualified {
+    if disqualified || entries.is_empty() {
         return ValueEnv::new();
     }
-    let Some((guard, _)) = sole_entry else {
-        return ValueEnv::new();
-    };
-    guard_narrowed_env(program, machine, Some(state), &guard, &ValueEnv::new())
+    // MULTI-predecessor JOIN: a fact holds at state entry only if EVERY guarded
+    // edge implies it -- per place, keep the ones present under every entry's
+    // guard, at the interval UNION (the widest value any edge admits).
+    // Identical funnel guards join to themselves; differing guards keep their
+    // common places at the union of their bounds. An edge whose guard
+    // establishes nothing contributes an empty env, emptying the join (sound:
+    // that edge admits anything).
+    let mut joined =
+        guard_narrowed_env(program, machine, Some(state), &entries[0], &ValueEnv::new());
+    for guard in &entries[1..] {
+        let entry_env = guard_narrowed_env(program, machine, Some(state), guard, &ValueEnv::new());
+        joined = joined.join(&entry_env);
+    }
+    joined
 }
 
 /// Whether any CALL expression inside the statement's expression trees targets
@@ -495,6 +504,22 @@ impl ValueEnv {
             None => interval,
         };
         self.intervals.insert(path, merged);
+    }
+
+    /// The JOIN of two envs at a control-flow merge: only places tracked in
+    /// BOTH survive, each at the UNION of its intervals (the fact that holds
+    /// regardless of which path was taken). Used to seed a multi-predecessor
+    /// state from its incoming edge guards.
+    pub(crate) fn join(&self, other: &ValueEnv) -> ValueEnv {
+        let mut joined = ValueEnv::new();
+        for (path, interval) in &self.intervals {
+            if let Some(other_interval) = other.intervals.get(path) {
+                joined
+                    .intervals
+                    .insert(path.clone(), interval.union(*other_interval));
+            }
+        }
+        joined
     }
 }
 

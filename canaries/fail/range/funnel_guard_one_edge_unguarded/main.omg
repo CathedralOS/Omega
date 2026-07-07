@@ -1,0 +1,30 @@
+// The funnel agreement's soundness twin: one of the two edges into `push` is
+// UNGUARDED (`_ ->`), so no entry fact survives the join and the ranged copy
+// must reject.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    sp: i32;
+    y: i32 [0..=15];
+}
+
+machine Main::main(&mut self) {
+    self.sp = 7;
+    transition self.sp >= 0 && self.sp < 16 {
+        true -> push()
+        false -> other()
+    }
+
+    state other(&mut self) {
+        transition { _ -> push() }
+    }
+
+    state push(&mut self) {
+        self.y = self.sp;
+        transition self.y == 7 { true -> m() false -> m() }
+    }
+    state m(&mut self) { self.console.exit_process(1); }
+}
