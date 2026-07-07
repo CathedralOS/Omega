@@ -28,6 +28,9 @@ pub trait InstructionOperandLike {
     /// A scalar integer read directly from a runtime-storage slot: `(region, byte_offset,
     /// byte_count)`. Used to marshal a non-constant exit code / host-call argument.
     fn runtime_scalar_integer(&self) -> Option<(RuntimeStorageRegion, usize, usize)>;
+    /// A floating-point scalar read from a runtime-storage slot: `(region,
+    /// byte_offset, byte_count)`. Marshalled into a float argument register (v0–v7).
+    fn runtime_scalar_float(&self) -> Option<(RuntimeStorageRegion, usize, usize)>;
     /// The ADDRESS of a runtime-storage place, `(region, byte_offset)`, marshalled
     /// as a pointer-sized host-call argument (`lea` through the relocated region
     /// base) -- the extern boundary's pointer-argument shape.
@@ -102,6 +105,17 @@ impl InstructionOperandLike for TargetInstructionOperand {
     fn runtime_scalar_integer(&self) -> Option<(RuntimeStorageRegion, usize, usize)> {
         match self.kind {
             InstructionOperandKind::RuntimeScalarInteger {
+                region,
+                byte_offset,
+                byte_count,
+            } => Some((region, byte_offset, byte_count)),
+            _ => None,
+        }
+    }
+
+    fn runtime_scalar_float(&self) -> Option<(RuntimeStorageRegion, usize, usize)> {
+        match self.kind {
+            InstructionOperandKind::RuntimeScalarFloat {
                 region,
                 byte_offset,
                 byte_count,

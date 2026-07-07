@@ -152,18 +152,29 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
      relocation offsets stay automatic — no manual lockstep. VERIFIED: workspace builds;
      isa-aarch64 5/5; native fs harness 55/55 (zero regression). The variant is
      UNCONSTRUCTED so far (harmless dead-code warning — no `deny(warnings)`).
-   - **FIRE 5 (next) — construct it + prove it. Three small pieces remain:** (1)
-     `HostCapability::Libm` (+ `from_name`/`name` arms + extend `returns_value()` to
-     include Libm) and `HostOperation::RoundNearest` (+ `from_str`/`to_str` arms) in
-     `foundation/omega-calling-conventions/src/lib.rs`; (2) `darwin.rs`
-     `darwin_import("Libm","round_nearest","_lround")` + `host_operation` +
-     `insert_platform_lowering`; (3) the op arm in
-     `host_operations/operands.rs::select_host_operation_operands` — int result via
-     `first_scalar_argument_operand` + a float arg via a NEW `float_argument_operand_at`
-     helper (mirror `scalar_argument_operand_at`, emit `RuntimeScalarFloat` — this
-     CONSTRUCTS the variant, clearing the dead-code warning). Probe `machine
-     round_nearest(x: f64) -> i64` → `round_nearest(3.7) == 4`; compile, `otool -tv`, RUN.
-2. **[ ] HFA struct-by-value args** — pass `NSRect` (4 doubles) / `CGSize` (2) in
+   - **✅ FIRE 5 (2026-07-12) — FLOAT-ARG CALLING CONVENTION LANDED + RUN-VERIFIED.**
+     Constructed the variant + proved it end-to-end: `HostCapability::Math` +
+     `HostOperation::RoundNearest` (+ `from_name`/`name`/`from_str`/`to_str` +
+     `returns_value` extended to Math) in `lib.rs`; `darwin_import("Math",
+     "round_nearest","_lround")` + `insert_platform_lowering` in `darwin.rs`; the
+     `(Math, RoundNearest)` op arm + a `float_argument_operand_at` builder helper (emits
+     `RuntimeScalarFloat`). ONE extra site the compiler didn't flag (a runtime
+     `unreachable!`): the target→aarch64 operand mapper `omega-instruction-selection/
+     src/operands.rs::aarch64_call_operand` needed a `runtime_scalar_float()` branch,
+     which meant adding that accessor to the `InstructionOperandLike` trait + both impls
+     (target + x86_64→None). AND the region relocation: `omega-relocations/src/
+     data_addresses.rs` collects an operand's region via an accessor or-chain —
+     `runtime_scalar_float()` added there so the arg's `adrp` is relocated to the region
+     base (without it the `adrp` stayed at page 0 → `lround` read the Mach-O header →
+     wrong result). PROVEN: `canaries/pass/float/native_float_arg` (`round_nearest(3.7)
+     == 4`) compiles + RUNS natively, exit 4, `otool` shows `ldr; fmov d0,x16; bl
+     _lround`; regression `native_float_arg_exits_4` (native fs harness 56/56);
+     canary_suite **zero new failures** (A/B diff; baseline is 86 post-fs-thread, not
+     mine). **Scalar float ARGS work.** Float RETURN (a method returning `f64`) is a
+     small follow-up: after `BL`, `encode_float_move_to_gpr(v0→GPR)` then the normal
+     store, gated on a `returns_float()` predicate — needed only if a Cocoa/CG call we
+     use returns a double (most return objects/ints); defer until one does.
+2. **[ ] HFA struct-by-value args (NEXT)** — pass `NSRect` (4 doubles) / `CGSize` (2) in
    v-regs. Canary: `NSMakeRect(...)` round-trip or `[NSWindow ... initWithContentRect:
    styleMask:backing:defer:]` produces a non-nil window.
 3. **[ ] Objective-C runtime boundary** — `objc_getClass`, `sel_registerName`,

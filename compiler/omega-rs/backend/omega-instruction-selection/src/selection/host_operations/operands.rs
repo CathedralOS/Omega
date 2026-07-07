@@ -205,6 +205,21 @@ pub(super) fn select_host_operation_operands(
                 None => HandleSpan::empty(),
             }
         }
+        (HostCapability::Math, HostOperation::RoundNearest) => {
+            // Value-returning `n = round_nearest(x: f64) -> _lround(x)`. operand[0]
+            // is the i64 result place (returned in x0, same as the scalar fs ops);
+            // operand[1] is the f64 ARGUMENT, marshalled into v0 via a
+            // `RuntimeScalarFloat` operand. Either unresolvable => no operands so
+            // the encoder hard-errors rather than rounding garbage.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let arg = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            match (result, arg) {
+                (Some(result), Some(arg)) => {
+                    operands.insert_many([operand(result), operand(arg)])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::Filesystem, HostOperation::Sync) => {
             // Value-returning `rc = sync(fd) -> _fsync(fd)`. Same shape as
             // `close`: operand[0]=result place, [1]=fd; either unresolvable =>
@@ -1251,6 +1266,42 @@ fn scalar_argument_operand_at(
         .or_else(|| alias_resolved_place_at(input, host_call, dispatch_index, alias_context, index))
         .filter(|place| matches!(place.byte_count, 1 | 2 | 4 | 8))
         .map(|place| InstructionOperandKind::RuntimeScalarInteger {
+            region: place.region,
+            byte_offset: place.byte_offset,
+            byte_count: place.byte_count,
+        }),
+        _ => None,
+    }
+}
+
+/// Like `scalar_argument_operand_at`, but for a FLOAT (`f32`/`f64`) argument: emits
+/// a `RuntimeScalarFloat` operand so the encoder marshals it into a v-register.
+/// Only a place-backed float (a field/local holding the value) is supported — a
+/// bare float literal has no storage slot, so pass it through a field. `byte_count`
+/// must be 4 or 8.
+fn float_argument_operand_at(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
+    index: usize,
+) -> Option<InstructionOperandKind> {
+    let argument = input
+        .host_calls
+        .arguments
+        .span(host_call.arguments)
+        .and_then(|arguments| arguments.get(index))?;
+    match &argument.kind {
+        HostCallArgumentKind::Expression(expression) => resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index.unwrap_or(0),
+            host_call.source_key,
+            &input.host_calls.expressions,
+            *expression,
+        )
+        .or_else(|| alias_resolved_place_at(input, host_call, dispatch_index, alias_context, index))
+        .filter(|place| matches!(place.byte_count, 4 | 8))
+        .map(|place| InstructionOperandKind::RuntimeScalarFloat {
             region: place.region,
             byte_offset: place.byte_offset,
             byte_count: place.byte_count,

@@ -25,6 +25,11 @@ pub(crate) fn aarch64_call_operand(operand: &impl InstructionOperandLike) -> Aar
             byte_offset,
             byte_count,
         }
+    } else if let Some((_, byte_offset, byte_count)) = operand.runtime_scalar_float() {
+        Aarch64CallOperand::RuntimeScalarFloat {
+            byte_offset,
+            byte_count,
+        }
     } else if let Some((_, byte_offset)) = operand.runtime_storage_address() {
         Aarch64CallOperand::RuntimeStorageAddress { byte_offset }
     } else if let Some(value) = operand.immediate_integer() {
