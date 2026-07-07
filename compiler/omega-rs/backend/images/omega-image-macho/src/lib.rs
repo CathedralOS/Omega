@@ -12,14 +12,14 @@ mod plan;
 
 use code_signature::macho_ad_hoc_code_signature;
 use entry::macho_entry_text_offset;
-use imports::{install_import_thunks, macho_bind_info, patch_import_thunks};
+use imports::{install_import_thunks, macho_bind_info, macho_dylib_list, patch_import_thunks};
 use load_commands::{
     write_empty_macho_dysymtab_command, write_empty_macho_symtab_command,
     write_macho_code_signature_command, write_macho_dyld_info_command,
     write_macho_executable_build_version_command, write_macho_executable_data_segment,
     write_macho_executable_header, write_macho_executable_text_segment,
-    write_macho_linkedit_segment, write_macho_load_dylinker_command,
-    write_macho_load_libsystem_command, write_macho_main_command, write_macho_pagezero_segment,
+    write_macho_linkedit_segment, write_macho_load_dylib_command,
+    write_macho_load_dylinker_command, write_macho_main_command, write_macho_pagezero_segment,
     write_macho_uuid_command,
 };
 use plan::plan_macho_image;
@@ -28,8 +28,11 @@ pub fn emit_macho_aarch64_executable(
     mut image: FinalImage,
 ) -> Result<ExecutableImageOutput, Diagnostic> {
     let import_thunks = install_import_thunks(&mut image);
-    let bind_info = macho_bind_info(&import_thunks);
-    let plan = plan_macho_image(&image, import_thunks.len(), bind_info.len());
+    // The ordered set of dylibs to load (libSystem first, then libobjc/etc.); each
+    // import binds against its library's ordinal (index + 1).
+    let dylibs = macho_dylib_list(&import_thunks);
+    let bind_info = macho_bind_info(&import_thunks, &dylibs);
+    let plan = plan_macho_image(&image, import_thunks.len(), bind_info.len(), &dylibs);
     let entry_offset = plan.text_offset + macho_entry_text_offset(&image)?;
     let layout = plan.final_image_layout();
 
@@ -59,7 +62,10 @@ pub fn emit_macho_aarch64_executable(
     write_macho_uuid_command(&mut bytes);
     write_macho_executable_build_version_command(&mut bytes);
     write_macho_main_command(&mut bytes, entry_offset);
-    write_macho_load_libsystem_command(&mut bytes);
+    // One LC_LOAD_DYLIB per linked dylib, in ordinal order (libSystem first).
+    for dylib in &dylibs {
+        write_macho_load_dylib_command(&mut bytes, dylib);
+    }
     if plan.has_imports {
         write_macho_dyld_info_command(&mut bytes, plan.bind_offset, bind_info.len());
     }

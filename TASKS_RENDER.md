@@ -223,22 +223,38 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    the identical `next_vreg += 1` mechanism (no special-casing) and will be run-verified
    the moment the window-creation `objc_msgSend` first relies on it. Regression
    `native_float_three_args_exits_10` (native fs harness 59/59).
-3. **[ ] Objective-C runtime boundary** — `objc_getClass`, `sel_registerName`,
-   `objc_msgSend` (int/ptr/string args → mostly the existing mechanism; strings are
-   NUL-terminated rodata like fs paths). Canary: `[[NSString alloc] initWithUTF8String:]`
-   → `length` returns the right count. **⚑ PREREQUISITE (fire 7, the real blocker):
-   MULTI-DYLIB LINKING.** The mach-o today emits exactly ONE `LC_LOAD_DYLIB`
-   (`/usr/lib/libSystem.B.dylib`, hardcoded in `macho/load_commands/dynamic_linking.rs`)
-   and `macho_bind_info` (`macho/imports.rs`) binds EVERY import to dylib ordinal 1
-   (opcode `0x11` = `SET_DYLIB_ORDINAL_IMM|1`). `objc_getClass`/`objc_msgSend` live in
-   `/usr/lib/libobjc.A.dylib`; CoreGraphics/AppKit/Foundation are separate frameworks.
-   NEEDED: (a) a generic `write_macho_load_dylib_command(path)` + a 2nd load command for
-   libobjc (ordinal 2); (b) `plan.rs` `command_count`/`sizeofcmds` count the extra
-   dylib(s) — header ncmds/sizeofcmds derive from the plan; (c) `MachoImportThunk` carries
-   the library, threaded from `HostBinding.mechanism.Import.library` (bindings ALREADY
-   carry it) through `image.symbol_table.imports`; (d) `macho_bind_info` emits `0x10|ord`
-   per-thunk. Prove: `objc_getClass("NSObject") != 0`. Bounded to the `omega-image-macho`
-   crate; layout offset math is the only risk (A/B canary_suite catches regressions).
+3. **[~] Objective-C runtime boundary — STARTED (fire 7b): `objc_getClass` DONE; multi-dylib
+   linking SHIPPED.** ✅ **The real blocker — MULTI-DYLIB LINKING — is solved.** The mach-o
+   now emits an `LC_LOAD_DYLIB` per linked dylib (libSystem ordinal 1, libobjc ordinal 2)
+   and binds each import to its library's ordinal. What landed:
+   - `omega_calling_conventions::darwin_import_library(symbol)` (mirrors
+     `windows_import_library`): routes `_objc_*`/`_sel_*`/`_class_*`/… → libobjc, else
+     libSystem. Exported consts `DARWIN_LIBSYSTEM_PATH`/`DARWIN_LIBOBJC_PATH`.
+   - `omega-image-macho`: `MachoDylib` {path, versions} with `LIBSYSTEM`/`LIBOBJC` specs +
+     `command_size()` = `align_to(24 + path + 1, 8)` (libSystem = 56, historical value);
+     generic `write_macho_load_dylib_command`. `MachoImportThunk` carries `library`
+     (from `darwin_import_library(symbol)`); `macho_dylib_list` = ordered de-duped dylibs
+     (libSystem always first); `macho_bind_info` emits `0x10 | ordinal` per thunk;
+     `plan_macho_image` takes the dylib list and computes `command_count = 10 + dylibs.len()
+     + …` and per-dylib `sizeofcmds`. macho now deps calling-conventions (as PE does).
+   - SAFETY: images with NO objc symbols get exactly 1 dylib (56 bytes) → **byte-identical**
+     output; the whole 59-canary fs corpus is unaffected (verified).
+   - `HostCapability::ObjectiveC` + `HostOperation::GetClass` (→ `_objc_getClass`,
+     `returns_value`); darwin import+lowering; operand arm `[result u64, name path-pointer]`
+     reusing `path_pointer_operand`. Canary declares its own NUL-free byte-domain
+     (`domain [u8]::ClassName when no_nul`).
+   - PROVEN: `canaries/pass/objc/objc_get_class` — `objc_getClass("NSObject") != 0` exits 7;
+     `otool -l` shows BOTH `LC_LOAD_DYLIB` (libSystem + libobjc). Regression
+     `objc_get_class_exits_7` (native harness 60/60); macho unit 2/2; canary_suite **zero
+     new failures** (A/B, identical 87 baseline).
+   REMAINING for the boundary: `sel_registerName` (SEL, same string-arg shape) and
+   `objc_msgSend` (variadic `id(id, SEL, …)` — int/ptr args are the existing mechanism;
+   the NSRect variant uses the HFA v0–v3 path from item #2). Next fire.
+4. **[ ] Window without reverse callbacks** — `NSApplication sharedApplication` +
+   `setActivationPolicy:Regular` + `activateIgnoringOtherApps:YES`; `NSWindow` with an
+   `NSImageView` contentView (present via the image view, NOT a `drawRect:` subclass —
+   Omega has no guest-callback ABI). Static empty window that stays up via a bounded
+   non-blocking pump.
 4. **[ ] Window without reverse callbacks** — `NSApplication sharedApplication` +
    `setActivationPolicy:Regular` + `activateIgnoringOtherApps:YES`; `NSWindow` with an
    `NSImageView` contentView (present via the image view, NOT a `drawRect:` subclass —

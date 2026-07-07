@@ -3,11 +3,11 @@ use crate::constants::{
     MACHO_ARM64_PAGE_SIZE, MACHO_CODE_SIGNATURE_COMMAND_SIZE, MACHO_DYLD_INFO_COMMAND_SIZE,
     MACHO_DYSYMTAB_COMMAND_SIZE, MACHO_EXECUTABLE_BASE,
     MACHO_EXECUTABLE_BUILD_VERSION_COMMAND_SIZE, MACHO_HEADER_SIZE,
-    MACHO_LOAD_DYLINKER_COMMAND_SIZE, MACHO_LOAD_LIBSYSTEM_COMMAND_SIZE, MACHO_MAIN_COMMAND_SIZE,
-    MACHO_SECTION_SIZE, MACHO_SEGMENT_COMMAND_SIZE, MACHO_SYMTAB_COMMAND_SIZE,
-    MACHO_UUID_COMMAND_SIZE,
+    MACHO_LOAD_DYLINKER_COMMAND_SIZE, MACHO_MAIN_COMMAND_SIZE, MACHO_SECTION_SIZE,
+    MACHO_SEGMENT_COMMAND_SIZE, MACHO_SYMTAB_COMMAND_SIZE, MACHO_UUID_COMMAND_SIZE,
 };
 use crate::layout::{align_to, align_to_u64};
+use crate::load_commands::MachoDylib;
 use omega_image::{FinalImage, FinalImageLayout};
 
 pub(crate) struct MachOImagePlan {
@@ -44,12 +44,19 @@ pub(crate) fn plan_macho_image(
     image: &FinalImage,
     import_count: usize,
     bind_size: usize,
+    dylibs: &[MachoDylib],
 ) -> MachOImagePlan {
     let has_imports = import_count > 0;
     let data_section_count =
         usize::from(!image.memory.data.is_empty()) + usize::from(image.memory.bss_size > 0);
     let has_data_segment = data_section_count > 0;
-    let command_count = 11 + usize::from(has_data_segment) + usize::from(has_imports);
+    // The 10 always-present commands (2 segments minimum, dylinker, uuid,
+    // build_version, main, linkedit, symtab, dysymtab, code_signature) plus one
+    // LC_LOAD_DYLIB per linked dylib (≥1: libSystem) plus the optional data
+    // segment + dyld_info(bind) commands.
+    let dylib_commands_size: usize = dylibs.iter().map(MachoDylib::command_size).sum();
+    let command_count =
+        10 + dylibs.len() + usize::from(has_data_segment) + usize::from(has_imports);
     let sizeofcmds = MACHO_SEGMENT_COMMAND_SIZE
         + (MACHO_SEGMENT_COMMAND_SIZE + MACHO_SECTION_SIZE)
         + usize::from(has_data_segment)
@@ -58,7 +65,7 @@ pub(crate) fn plan_macho_image(
         + MACHO_UUID_COMMAND_SIZE
         + MACHO_EXECUTABLE_BUILD_VERSION_COMMAND_SIZE
         + MACHO_MAIN_COMMAND_SIZE
-        + MACHO_LOAD_LIBSYSTEM_COMMAND_SIZE
+        + dylib_commands_size
         + usize::from(has_imports) * MACHO_DYLD_INFO_COMMAND_SIZE
         + MACHO_SYMTAB_COMMAND_SIZE
         + MACHO_DYSYMTAB_COMMAND_SIZE
@@ -149,7 +156,7 @@ mod tests {
             0,
         );
 
-        let plan = plan_macho_image(&image, 1, 12);
+        let plan = plan_macho_image(&image, 1, 12, &[crate::load_commands::MachoDylib::LIBSYSTEM]);
 
         assert!(plan.has_imports);
         assert!(plan.has_data_segment);

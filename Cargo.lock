@@ -479,6 +479,7 @@ dependencies = [
 name = "omega-image-macho"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-core",
  "omega-image",
  "sha2",

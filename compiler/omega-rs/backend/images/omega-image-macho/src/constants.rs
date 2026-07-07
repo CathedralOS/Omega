@@ -7,7 +7,8 @@ pub(super) const MACHO_LOAD_DYLINKER_COMMAND_SIZE: usize = 32;
 pub(super) const MACHO_UUID_COMMAND_SIZE: usize = 24;
 pub(super) const MACHO_MAIN_COMMAND_SIZE: usize = 24;
 pub(super) const MACHO_EXECUTABLE_BUILD_VERSION_COMMAND_SIZE: usize = 32;
-pub(super) const MACHO_LOAD_LIBSYSTEM_COMMAND_SIZE: usize = 56;
+// LC_LOAD_DYLIB command sizes are per-dylib now (24-byte header + padded install
+// name) — see `MachoDylib::command_size`. libSystem's is 56, its historical value.
 pub(super) const MACHO_DYLD_INFO_COMMAND_SIZE: usize = 48;
 pub(super) const MACHO_SYMTAB_COMMAND_SIZE: usize = 24;
 pub(super) const MACHO_DYSYMTAB_COMMAND_SIZE: usize = 80;

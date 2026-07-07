@@ -1,6 +1,7 @@
 mod darwin;
 mod linux;
 mod windows;
+pub use darwin::{DARWIN_LIBOBJC_PATH, DARWIN_LIBSYSTEM_PATH, darwin_import_library};
 pub use windows::windows_import_library;
 
 use omega_core::arena::{Arena, Handle, HandleSpan};
@@ -46,7 +47,7 @@ impl HostOperationKey {
     pub fn returns_value(self) -> bool {
         matches!(
             self.capability,
-            HostCapability::Filesystem | HostCapability::Math
+            HostCapability::Filesystem | HostCapability::Math | HostCapability::ObjectiveC
         )
     }
 
@@ -123,6 +124,11 @@ pub enum HostCapability {
     /// float calling convention (v-register args), the foundation for calling
     /// Cocoa/Core Graphics `CGFloat`/`double` methods.
     Math,
+    /// The Objective-C runtime (`objc_getClass`, `sel_registerName`,
+    /// `objc_msgSend`) in `/usr/lib/libobjc.A.dylib` — the FIRST boundary that
+    /// binds against a SECOND dylib (see `darwin_import_library` + the Mach-O
+    /// multi-dylib load commands). The gateway to Cocoa/AppKit.
+    ObjectiveC,
 }
 
 impl HostCapability {
@@ -137,6 +143,7 @@ impl HostCapability {
             "Gui" => Self::Gui,
             "Filesystem" => Self::Filesystem,
             "Math" => Self::Math,
+            "ObjectiveC" => Self::ObjectiveC,
             _ => Self::Unknown,
         }
     }
@@ -153,6 +160,7 @@ impl HostCapability {
             Self::Gui => "Gui",
             Self::Filesystem => "Filesystem",
             Self::Math => "Math",
+            Self::ObjectiveC => "ObjectiveC",
         }
     }
 }
@@ -308,6 +316,11 @@ pub enum HostOperation {
     /// doubles → v0–v3) marshals correctly, since an HFA and N separate double args
     /// occupy the SAME consecutive v-registers on AArch64 AAPCS.
     FusedMultiplyAdd,
+    /// `ObjectiveC::get_class(name: &[u8] in Path) -> u64` → libobjc `objc_getClass`.
+    /// Takes a NUL-terminated C string (the class name, materialized like an fs
+    /// path) and returns the `Class` pointer in x0. The first op binding a SECOND
+    /// dylib (libobjc) — proves multi-dylib linking.
+    GetClass,
     Sleep,
     TickCount,
     KeyState,
@@ -385,6 +398,7 @@ impl HostOperation {
             "square_root" => Self::SquareRoot,
             "hypotenuse" => Self::Hypotenuse,
             "fused_multiply_add" => Self::FusedMultiplyAdd,
+            "get_class" => Self::GetClass,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
@@ -448,6 +462,7 @@ impl HostOperation {
             Self::SquareRoot => "square_root",
             Self::Hypotenuse => "hypotenuse",
             Self::FusedMultiplyAdd => "fused_multiply_add",
+            Self::GetClass => "get_class",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",

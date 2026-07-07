@@ -1,4 +1,6 @@
 use crate::layout::align_to;
+use crate::load_commands::MachoDylib;
+use omega_calling_conventions::{DARWIN_LIBOBJC_PATH, DARWIN_LIBSYSTEM_PATH, darwin_import_library};
 use omega_core::diagnostics::Diagnostic;
 use omega_image::{FinalImage, FinalImageLayout, FinalImageSection};
 
@@ -7,6 +9,39 @@ pub(crate) struct MachoImportThunk {
     pub(crate) symbol: String,
     pub(crate) text_offset: usize,
     pub(crate) data_offset: usize,
+    /// The install name of the dylib this symbol binds against — selects the
+    /// bind-info dylib ordinal (`macho_dylib_list` position + 1).
+    pub(crate) library: &'static str,
+}
+
+/// The ordered, de-duplicated dylibs this image links against. libSystem is ALWAYS
+/// first (ordinal 1) — dyld requires the C runtime and every program links it —
+/// then any others (e.g. libobjc) in first-appearance order. A thunk's dylib
+/// ordinal is its library's index here, plus 1.
+pub(crate) fn macho_dylib_list(thunks: &[MachoImportThunk]) -> Vec<MachoDylib> {
+    let mut dylibs = vec![MachoDylib::LIBSYSTEM];
+    for thunk in thunks {
+        let already = dylibs.iter().any(|dylib| dylib.path == thunk.library);
+        if !already {
+            match thunk.library {
+                DARWIN_LIBOBJC_PATH => dylibs.push(MachoDylib::LIBOBJC),
+                // libSystem is already present; an unknown library is a wiring bug
+                // (a symbol mapped to a dylib with no MachoDylib spec) — fall back
+                // to libSystem rather than emit a malformed load command.
+                DARWIN_LIBSYSTEM_PATH => {}
+                _ => {}
+            }
+        }
+    }
+    dylibs
+}
+
+fn dylib_ordinal(dylibs: &[MachoDylib], library: &str) -> u8 {
+    dylibs
+        .iter()
+        .position(|dylib| dylib.path == library)
+        .map(|index| index as u8 + 1)
+        .unwrap_or(1)
 }
 
 pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<MachoImportThunk> {
@@ -40,10 +75,12 @@ pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<MachoImportTh
         image_symbol.offset = text_offset;
         image_symbol.size = 12;
 
+        let library = darwin_import_library(&symbol);
         thunks.push(MachoImportThunk {
             symbol,
             text_offset,
             data_offset,
+            library,
         });
     }
 
@@ -77,18 +114,23 @@ pub(crate) fn patch_import_thunks(
     Ok(())
 }
 
-pub(crate) fn macho_bind_info(thunks: &[MachoImportThunk]) -> Vec<u8> {
+pub(crate) fn macho_bind_info(thunks: &[MachoImportThunk], dylibs: &[MachoDylib]) -> Vec<u8> {
     let mut bytes = Vec::new();
 
     for thunk in thunks {
-        bytes.push(0x11);
-        bytes.push(0x40);
+        // BIND_OPCODE_SET_DYLIB_ORDINAL_IMM | ordinal — which LC_LOAD_DYLIB this
+        // symbol resolves through (1 = libSystem, 2 = libobjc, …). Ordinals ≤ 15
+        // fit the immediate; the ordinal comes from `macho_dylib_list` order.
+        let ordinal = dylib_ordinal(dylibs, thunk.library);
+        debug_assert!(ordinal <= 0xf, "Mach-O dylib ordinal {ordinal} exceeds IMM");
+        bytes.push(0x10 | ordinal);
+        bytes.push(0x40); // SET_SYMBOL_TRAILING_FLAGS_IMM | 0
         bytes.extend(thunk.symbol.as_bytes());
         bytes.push(0);
-        bytes.push(0x51);
-        bytes.push(0x72);
+        bytes.push(0x51); // SET_TYPE_IMM | BIND_TYPE_POINTER
+        bytes.push(0x72); // SET_SEGMENT_AND_OFFSET_ULEB | segment 2 (__DATA)
         write_uleb128(&mut bytes, thunk.data_offset as u64);
-        bytes.push(0x90);
+        bytes.push(0x90); // DO_BIND
     }
     if !thunks.is_empty() {
         bytes.push(0);

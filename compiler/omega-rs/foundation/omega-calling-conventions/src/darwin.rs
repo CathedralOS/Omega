@@ -3,6 +3,32 @@ use crate::{
     host_operation, insert_platform_lowering,
 };
 
+/// The canonical libc/libm umbrella every ordinary darwin import resolves through.
+pub const DARWIN_LIBSYSTEM_PATH: &str = "/usr/lib/libSystem.B.dylib";
+/// The Objective-C runtime dylib (`objc_msgSend`, `objc_getClass`,
+/// `sel_registerName`, …) — a SEPARATE `LC_LOAD_DYLIB` from libSystem.
+pub const DARWIN_LIBOBJC_PATH: &str = "/usr/lib/libobjc.A.dylib";
+
+/// The absolute dylib path a darwin import symbol binds against (its
+/// `LC_LOAD_DYLIB`). The Mach-O backend derives each import's dylib ordinal from
+/// this, so a program that calls into the Objective-C runtime emits a second load
+/// command for libobjc. Everything else (libc/libm) is the libSystem umbrella.
+/// Mirrors `windows_import_library`; extends as CoreGraphics/AppKit/Foundation
+/// symbols are added. Symbols are the Mach-O `_`-prefixed spellings.
+pub fn darwin_import_library(symbol: &str) -> &'static str {
+    if symbol.starts_with("_objc_")
+        || symbol.starts_with("_sel_")
+        || symbol.starts_with("_class_")
+        || symbol.starts_with("_object_")
+        || symbol.starts_with("_method_")
+        || symbol.starts_with("_ivar_")
+        || symbol.starts_with("_protocol_")
+    {
+        return DARWIN_LIBOBJC_PATH;
+    }
+    DARWIN_LIBSYSTEM_PATH
+}
+
 pub(crate) fn populate(plan: &mut HostAbiPlan) {
     let policy: std::sync::Arc<str> = "omega::host::targets::darwin".into();
     plan.boundary_policies.insert(HostBoundaryPolicy {
@@ -64,6 +90,12 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // Three f64 args (v0, v1, v2) → libm `fma`: proves the v-register sequence
         // reaches v2, i.e. an HFA of ≤4 doubles (NSRect) marshals into v0–v3.
         darwin_import("Math", "fused_multiply_add", "_fma", &policy),
+        // First SECOND-dylib import: `ObjectiveC::get_class(name) -> u64` →
+        // libobjc `objc_getClass`. `darwin_import_library` routes `_objc_*` to
+        // libobjc, so the Mach-O emits a 2nd LC_LOAD_DYLIB and binds this at
+        // ordinal 2. (The binding's `library` string below is unused on darwin —
+        // the Mach-O backend derives the dylib from the symbol name.)
+        darwin_import("ObjectiveC", "get_class", "_objc_getClass", &policy),
     ]);
 
     insert_platform_lowering(
@@ -416,6 +448,17 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "Math",
         "fused_multiply_add",
         [host_operation("Math", "fused_multiply_add")],
+        PlatformCallData::None,
+    );
+
+    // `ObjectiveC::get_class(name) -> u64` → `_objc_getClass`: a NUL-terminated
+    // class-name string (materialized like an fs path) + a pointer result — the
+    // first call into a second dylib (libobjc).
+    insert_platform_lowering(
+        plan,
+        "ObjectiveC",
+        "get_class",
+        [host_operation("ObjectiveC", "get_class")],
         PlatformCallData::None,
     );
 }
