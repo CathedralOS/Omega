@@ -110,6 +110,20 @@ needs deferral coverage, and every defer/fire scan must respect the splice
 boundary. Kinds audited 2026-07-07: HostCall/LocalStorage/Mutation covered;
 StateCall* are the calls themselves; StateCallResult/Other carry no store.
 
+**Value-call arm bodies (2026-07-07).** Two more traced-broken shapes now
+DELIVER (closed by the deferral machinery; pinned by
+`calls/runtime_value_call_dispatch_results_exit`): dispatch STRUCT result
+straight to a FIELD, and free-machine runtime-branch calls bound to lets.
+NEW FENCE: EFFECTFUL arm bodies in a value call ran for EVERY arm ×2 while
+the result stayed correct — MachineOwned mutations / host calls in a
+non-entry state of a value-called machine are now a clean move-to-the-entry
+error (`value_call_arm_effect_blockers.rs`; fail canary
+`calls/value_call_effectful_arm_rejected`). Caught account_ledger live
+(query_count bumped per arm: 6 for 2 queries natively, invisible to the
+exit-only differential — its bump moved to the entry). Pure arm bodies (the
+fs wrapper's decode `let`s) are unaffected. Real fix = guard arm-body
+straight-line expansions per arm (dispatch-specialization territory).
+
 **Leaf-path writes:** `branches/mutation.rs` is a PARALLEL decomposition to
 `writes/mod.rs` — keep arms in sync (convert arm + `case_variant` tagging added;
 `calls/runtime_value_call_struct_payload_cast_field_exit`,
