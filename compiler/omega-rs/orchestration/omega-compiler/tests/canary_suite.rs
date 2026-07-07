@@ -1405,6 +1405,82 @@ fn runtime_time_elapsed_since_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_checked_time_arith_exit_canary_runs() {
+    // std::time rung 6 slice 3: Instant + SystemTime checked_add/
+    // checked_subtract, exact values. 8 legs: carry/borrow Ok arms (non-ZII),
+    // u64::MAX / i64::MAX / i64::MIN overflow pins, and a duration-seconds-
+    // above-i64::MAX leg pinning the biased-space detection.
+    let canary = pass_canary("time/runtime_checked_time_arith_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("checked time arith canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.error, None, "checked arith should interpret cleanly");
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for the checked-arith chain, got {}",
+        outcome.exit_code
+    );
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-checked-arith-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("checked time arith canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("checked time arith canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the checked-arith chain to run natively (exit 70), got {:?} \
+         (exit N = leg N failed; see the canary header for the leg list)",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_sleep_for_exit_canary_runs() {
+    // std::time rung 6 slice 3: Time::sleep_for (Duration -> one clamped u32
+    // host sleep, returning the clamped request). Returned ms == 30 exactly
+    // on both engines; elapsed >= 30ms.
+    let canary = pass_canary("time/runtime_sleep_for_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("sleep_for canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.error, None, "sleep_for should interpret cleanly");
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for the sleep_for chain, got {}",
+        outcome.exit_code
+    );
+    let build_dir = std::env::temp_dir().join(format!("omega-sleep-for-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sleep_for canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sleep_for canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the sleep_for chain to run natively (exit 70), got {:?} \
+         (1 = returned ms wrong; 2 = elapsed under 30ms)",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_system_time_after_2026_exit_canary_runs() {
     // std::time rung 6 slice 2: system_time_now() (one raw wall read +
     // calibration constants, all math in the wrapper) + SystemTime::
@@ -23912,6 +23988,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "time/runtime_instant_elapsed_exit",
     "time/runtime_system_time_after_2026_exit",
     "time/runtime_time_elapsed_since_exit",
+    "time/runtime_checked_time_arith_exit",
+    "time/runtime_sleep_for_exit",
     "parser/deep_nesting_within_limit",
     "traits/boundary_trait_effects_host_call",
     "traits/dyn_trait_object_dispatch",

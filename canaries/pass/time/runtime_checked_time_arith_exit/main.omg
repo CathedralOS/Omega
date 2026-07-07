@@ -1,0 +1,127 @@
+// std::time rung 6 slice 3: Instant and SystemTime checked arithmetic,
+// exact values on both engines (pure value machines, no clock).
+//
+// Legs (each Ok leg is a NON-ZII arm; the Overflow legs pin the detection):
+//  1. Instant checked_add with nanosecond CARRY: {5s,800M} + {2s,300M} =
+//     {8s,100M}
+//  2. Instant checked_subtract with BORROW: {5s,100M} - {2s,300M} = {2s,800M}
+//  3. Instant checked_add at u64::MAX seconds -> Overflow
+//  4. SystemTime checked_add crossing NEGATIVE->positive with carry:
+//     {-5s,800M} + {2s,300M} = {-2s,100M}
+//  5. SystemTime checked_subtract with borrow: {-2s,100M} - {0s,300M} =
+//     {-3s,800M}
+//  6. SystemTime checked_add at i64::MAX -> Overflow
+//  7. SystemTime checked_subtract at i64::MIN -> Overflow
+//  8. SystemTime checked_add of duration seconds ABOVE i64::MAX -> Overflow
+//     (pins the biased-space detection for the huge-addend half)
+//
+// AUTHORING: receivers route through the FIRST field of each type (`ia` for
+// Instant, `wa` for SystemTime).
+// Expected exit: 70.
+use omega::language::std::time;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    ia: Instant;
+    wa: SystemTime;
+    d: Duration;
+    instant_result: InstantResult;
+    wall_result: SystemTimeResult;
+}
+
+machine Main::main(&mut self) {
+    self.ia = Instant { seconds: 5, subsecond_nanoseconds: 800000000 };
+    self.d = Duration { seconds: 2, subsecond_nanoseconds: 300000000 };
+    self.instant_result = self.ia.checked_add(self.d);
+    transition self.instant_result {
+        InstantResult::Ok { instant } -> check_add_carry(instant)
+        InstantResult::Overflow -> fail_leg(1)
+    }
+    state check_add_carry(&mut self, instant: Instant) {
+        transition instant.seconds == 8 && instant.subsecond_nanoseconds == 100000000 {
+            true -> leg2()
+            false -> fail_leg(1)
+        }
+    }
+    state leg2(&mut self) {
+        self.ia = Instant { seconds: 5, subsecond_nanoseconds: 100000000 };
+        self.instant_result = self.ia.checked_subtract(self.d);
+        transition self.instant_result {
+            InstantResult::Ok { instant } -> check_sub_borrow(instant)
+            InstantResult::Overflow -> fail_leg(2)
+        }
+    }
+    state check_sub_borrow(&mut self, instant: Instant) {
+        transition instant.seconds == 2 && instant.subsecond_nanoseconds == 800000000 {
+            true -> leg3()
+            false -> fail_leg(2)
+        }
+    }
+    state leg3(&mut self) {
+        self.ia = Instant { seconds: 18446744073709551615, subsecond_nanoseconds: 0 };
+        self.instant_result = self.ia.checked_add(self.d);
+        transition self.instant_result {
+            InstantResult::Overflow -> leg4()
+            InstantResult::Ok { instant } -> fail_leg(3)
+        }
+    }
+    state leg4(&mut self) {
+        self.wa = SystemTime { seconds_since_unix_epoch: 0 - 5, subsecond_nanoseconds: 800000000 };
+        self.wall_result = self.wa.checked_add(self.d);
+        transition self.wall_result {
+            SystemTimeResult::Ok { time } -> check_wall_add(time)
+            SystemTimeResult::Overflow -> fail_leg(4)
+        }
+    }
+    state check_wall_add(&mut self, time: SystemTime) {
+        transition time.seconds_since_unix_epoch == 0 - 2 && time.subsecond_nanoseconds == 100000000 {
+            true -> leg5()
+            false -> fail_leg(4)
+        }
+    }
+    state leg5(&mut self) {
+        self.wa = SystemTime { seconds_since_unix_epoch: 0 - 2, subsecond_nanoseconds: 100000000 };
+        self.d = Duration { seconds: 0, subsecond_nanoseconds: 300000000 };
+        self.wall_result = self.wa.checked_subtract(self.d);
+        transition self.wall_result {
+            SystemTimeResult::Ok { time } -> check_wall_sub(time)
+            SystemTimeResult::Overflow -> fail_leg(5)
+        }
+    }
+    state check_wall_sub(&mut self, time: SystemTime) {
+        transition time.seconds_since_unix_epoch == 0 - 3 && time.subsecond_nanoseconds == 800000000 {
+            true -> leg6()
+            false -> fail_leg(5)
+        }
+    }
+    state leg6(&mut self) {
+        self.wa = SystemTime { seconds_since_unix_epoch: 9223372036854775807, subsecond_nanoseconds: 0 };
+        self.d = Duration { seconds: 1, subsecond_nanoseconds: 0 };
+        self.wall_result = self.wa.checked_add(self.d);
+        transition self.wall_result {
+            SystemTimeResult::Overflow -> leg7()
+            SystemTimeResult::Ok { time } -> fail_leg(6)
+        }
+    }
+    state leg7(&mut self) {
+        self.wa = SystemTime { seconds_since_unix_epoch: 0 - 9223372036854775807 - 1, subsecond_nanoseconds: 0 };
+        self.wall_result = self.wa.checked_subtract(self.d);
+        transition self.wall_result {
+            SystemTimeResult::Overflow -> leg8()
+            SystemTimeResult::Ok { time } -> fail_leg(7)
+        }
+    }
+    state leg8(&mut self) {
+        self.wa = SystemTime { seconds_since_unix_epoch: 0, subsecond_nanoseconds: 0 };
+        self.d = Duration { seconds: 9300000000000000000, subsecond_nanoseconds: 0 };
+        self.wall_result = self.wa.checked_add(self.d);
+        transition self.wall_result {
+            SystemTimeResult::Overflow -> good()
+            SystemTimeResult::Ok { time } -> fail_leg(8)
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_leg(&mut self, leg: i32) { self.console.exit_process(leg); }
+}

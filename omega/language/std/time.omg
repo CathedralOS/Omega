@@ -507,6 +507,96 @@ data Instant [copy, zero_init] {
     subsecond_nanoseconds: u32 [0..=999_999_999];
 }
 
+data InstantResult [copy, zero_init] {
+    case Overflow;
+    case Ok(instant: Instant);
+}
+
+// self + duration as a later Instant; `Overflow` past the representable
+// range. Mirrors Duration::checked_add -- identical field shapes, identical
+// carry idiom (wrapped-compare overflow detection).
+machine Instant::checked_add(&self, duration: Duration) -> InstantResult {
+    let nanoseconds_total: u32 = self.subsecond_nanoseconds + duration.subsecond_nanoseconds;
+    let seconds_sum: u64 in Wrapping =
+        (self.seconds as u64 in Wrapping) + (duration.seconds as u64 in Wrapping);
+    let seconds_wrapped: bool = seconds_sum < self.seconds;
+    transition nanoseconds_total >= 1000000000 {
+        true -> instant_add_carried(nanoseconds_total, seconds_sum, seconds_wrapped)
+        false -> instant_add_flat(nanoseconds_total, seconds_sum, seconds_wrapped)
+    }
+    state instant_add_carried(&self, nanoseconds_total: u32, seconds_sum: u64, seconds_wrapped: bool) -> InstantResult {
+        let seconds_carried: u64 in Wrapping = (seconds_sum as u64 in Wrapping) + 1;
+        let carry_wrapped: bool = seconds_carried < seconds_sum;
+        let nanoseconds_reduced: u32 in Wrapping = (nanoseconds_total as u32 in Wrapping) - 1000000000;
+        transition seconds_wrapped {
+            true -> instant_add_overflow()
+            false -> instant_add_carry_gate(nanoseconds_reduced, seconds_carried, carry_wrapped)
+        }
+    }
+    state instant_add_carry_gate(&self, nanoseconds_reduced: u32, seconds_carried: u64, carry_wrapped: bool) -> InstantResult {
+        transition carry_wrapped {
+            true -> instant_add_overflow()
+            false -> instant_add_emit(seconds_carried, nanoseconds_reduced)
+        }
+    }
+    state instant_add_flat(&self, nanoseconds_total: u32, seconds_sum: u64, seconds_wrapped: bool) -> InstantResult {
+        transition seconds_wrapped {
+            true -> instant_add_overflow()
+            false -> instant_add_emit(seconds_sum, nanoseconds_total)
+        }
+    }
+    state instant_add_emit(&self, seconds_final: u64, nanoseconds_final: u32) -> InstantResult {
+        InstantResult::Ok {
+            instant: Instant {
+                seconds: seconds_final,
+                subsecond_nanoseconds: nanoseconds_final % 1000000000,
+            },
+        }
+    }
+    state instant_add_overflow(&self) -> InstantResult { InstantResult::Overflow }
+}
+
+// self - duration as an earlier Instant; `Overflow` on underflow below the
+// monotonic epoch. Mirrors Duration::checked_subtract's borrow idiom.
+machine Instant::checked_subtract(&self, duration: Duration) -> InstantResult {
+    let seconds_bigger: bool = self.seconds > duration.seconds;
+    let seconds_equal: bool = self.seconds == duration.seconds;
+    let nanoseconds_fit: bool = self.subsecond_nanoseconds >= duration.subsecond_nanoseconds;
+    let seconds_direct: u64 in Wrapping =
+        (self.seconds as u64 in Wrapping) - (duration.seconds as u64 in Wrapping);
+    let seconds_borrowed: u64 in Wrapping = (seconds_direct as u64 in Wrapping) - 1;
+    let nanoseconds_direct: u32 = ((self.subsecond_nanoseconds as u32 in Wrapping)
+        - (duration.subsecond_nanoseconds as u32 in Wrapping)) as u32;
+    let nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
+        - (duration.subsecond_nanoseconds as u32 in Wrapping))
+        + (self.subsecond_nanoseconds as u32 in Wrapping)) as u32;
+    transition seconds_bigger == true {
+        true -> instant_sub_bigger(nanoseconds_fit, seconds_direct, seconds_borrowed, nanoseconds_direct, nanoseconds_borrowed)
+        false -> instant_sub_equal_or_less(seconds_equal, nanoseconds_fit, seconds_direct, nanoseconds_direct)
+    }
+    state instant_sub_bigger(&self, nanoseconds_fit: bool, seconds_direct: u64, seconds_borrowed: u64, nanoseconds_direct: u32, nanoseconds_borrowed: u32) -> InstantResult {
+        transition nanoseconds_fit {
+            true -> instant_sub_emit(seconds_direct, nanoseconds_direct)
+            false -> instant_sub_emit(seconds_borrowed, nanoseconds_borrowed)
+        }
+    }
+    state instant_sub_equal_or_less(&self, seconds_equal: bool, nanoseconds_fit: bool, seconds_direct: u64, nanoseconds_direct: u32) -> InstantResult {
+        transition seconds_equal && nanoseconds_fit {
+            true -> instant_sub_emit(seconds_direct, nanoseconds_direct)
+            false -> instant_sub_overflow()
+        }
+    }
+    state instant_sub_emit(&self, seconds_final: u64, nanoseconds_final: u32) -> InstantResult {
+        InstantResult::Ok {
+            instant: Instant {
+                seconds: seconds_final,
+                subsecond_nanoseconds: nanoseconds_final % 1000000000,
+            },
+        }
+    }
+    state instant_sub_overflow(&self) -> InstantResult { InstantResult::Overflow }
+}
+
 // self - earlier as a Duration; `Overflow` when `earlier` is later than self
 // (the monotonic clock cannot run backwards, so this means the caller swapped
 // the operands or mixed instants across processes). Mirrors
@@ -670,6 +760,119 @@ machine SystemTime::duration_since(&self, earlier: SystemTime) -> SystemTimeDiff
     }
 }
 
+data SystemTimeResult [copy, zero_init] {
+    case Overflow;
+    case Ok(time: SystemTime);
+}
+
+// self + duration; `Overflow` past i64::MAX seconds. The signed overflow
+// detection runs in BIASED u64 space: adding 2^63 (spelled `1 << 63` -- the
+// raw literal is not blessed in operand position) maps the whole i64 range
+// onto [0, 2^64) order-preserving, so "exceeds i64::MAX" becomes the plain
+// unsigned wrapped-compare idiom, uniformly for duration seconds above
+// i64::MAX too. The RESULT seconds compute in i64-domained Wrapping
+// bit-arithmetic (probe-verified incl. above-i64::MAX operands).
+machine SystemTime::checked_add(&self, duration: Duration) -> SystemTimeResult {
+    let nanoseconds_total: u32 = self.subsecond_nanoseconds + duration.subsecond_nanoseconds;
+    let bias: u64 in Wrapping = (1 as u64 in Wrapping) << 63;
+    let seconds_biased: u64 in Wrapping =
+        (self.seconds_since_unix_epoch as u64 in Wrapping) + (bias as u64 in Wrapping);
+    let sum_biased: u64 in Wrapping =
+        (seconds_biased as u64 in Wrapping) + (duration.seconds as u64 in Wrapping);
+    let add_wrapped: bool = sum_biased < seconds_biased;
+    let seconds_sum: i64 in Wrapping =
+        (self.seconds_since_unix_epoch as i64 in Wrapping) + (duration.seconds as i64 in Wrapping);
+    transition nanoseconds_total >= 1000000000 {
+        true -> wall_add_carried(nanoseconds_total, seconds_sum, sum_biased, add_wrapped)
+        false -> wall_add_flat(nanoseconds_total, seconds_sum, add_wrapped)
+    }
+    state wall_add_carried(&self, nanoseconds_total: u32, seconds_sum: i64, sum_biased: u64, add_wrapped: bool) -> SystemTimeResult {
+        let seconds_carried: i64 in Wrapping = (seconds_sum as i64 in Wrapping) + 1;
+        let carried_biased: u64 in Wrapping = (sum_biased as u64 in Wrapping) + 1;
+        let carry_wrapped: bool = carried_biased < sum_biased;
+        let nanoseconds_reduced: u32 in Wrapping = (nanoseconds_total as u32 in Wrapping) - 1000000000;
+        transition add_wrapped {
+            true -> wall_add_overflow()
+            false -> wall_add_carry_gate(nanoseconds_reduced, seconds_carried, carry_wrapped)
+        }
+    }
+    state wall_add_carry_gate(&self, nanoseconds_reduced: u32, seconds_carried: i64, carry_wrapped: bool) -> SystemTimeResult {
+        transition carry_wrapped {
+            true -> wall_add_overflow()
+            false -> wall_add_emit(seconds_carried, nanoseconds_reduced)
+        }
+    }
+    state wall_add_flat(&self, nanoseconds_total: u32, seconds_sum: i64, add_wrapped: bool) -> SystemTimeResult {
+        transition add_wrapped {
+            true -> wall_add_overflow()
+            false -> wall_add_emit(seconds_sum, nanoseconds_total)
+        }
+    }
+    state wall_add_emit(&self, seconds_final: i64, nanoseconds_final: u32) -> SystemTimeResult {
+        SystemTimeResult::Ok {
+            time: SystemTime {
+                seconds_since_unix_epoch: seconds_final,
+                subsecond_nanoseconds: nanoseconds_final % 1000000000,
+            },
+        }
+    }
+    state wall_add_overflow(&self) -> SystemTimeResult { SystemTimeResult::Overflow }
+}
+
+// self - duration; `Overflow` below i64::MIN seconds. Same biased-space
+// idiom, subtraction direction: underflow iff the biased difference wrapped
+// UPWARD (difference > minuend, unsigned).
+machine SystemTime::checked_subtract(&self, duration: Duration) -> SystemTimeResult {
+    let nanoseconds_fit: bool = self.subsecond_nanoseconds >= duration.subsecond_nanoseconds;
+    let bias: u64 in Wrapping = (1 as u64 in Wrapping) << 63;
+    let seconds_biased: u64 in Wrapping =
+        (self.seconds_since_unix_epoch as u64 in Wrapping) + (bias as u64 in Wrapping);
+    let difference_biased: u64 in Wrapping =
+        (seconds_biased as u64 in Wrapping) - (duration.seconds as u64 in Wrapping);
+    let subtract_wrapped: bool = difference_biased > seconds_biased;
+    let seconds_difference: i64 in Wrapping =
+        (self.seconds_since_unix_epoch as i64 in Wrapping) - (duration.seconds as i64 in Wrapping);
+    let nanoseconds_direct: u32 = ((self.subsecond_nanoseconds as u32 in Wrapping)
+        - (duration.subsecond_nanoseconds as u32 in Wrapping)) as u32;
+    let nanoseconds_borrowed: u32 = (((1000000000 as u32 in Wrapping)
+        - (duration.subsecond_nanoseconds as u32 in Wrapping))
+        + (self.subsecond_nanoseconds as u32 in Wrapping)) as u32;
+    transition nanoseconds_fit {
+        true -> wall_sub_flat(seconds_difference, subtract_wrapped, nanoseconds_direct)
+        false -> wall_sub_borrowed(seconds_difference, difference_biased, subtract_wrapped, nanoseconds_borrowed)
+    }
+    state wall_sub_flat(&self, seconds_difference: i64, subtract_wrapped: bool, nanoseconds_direct: u32) -> SystemTimeResult {
+        transition subtract_wrapped {
+            true -> wall_sub_overflow()
+            false -> wall_sub_emit(seconds_difference, nanoseconds_direct)
+        }
+    }
+    state wall_sub_borrowed(&self, seconds_difference: i64, difference_biased: u64, subtract_wrapped: bool, nanoseconds_borrowed: u32) -> SystemTimeResult {
+        let seconds_borrowed: i64 in Wrapping = (seconds_difference as i64 in Wrapping) - 1;
+        let borrowed_biased: u64 in Wrapping = (difference_biased as u64 in Wrapping) - 1;
+        let borrow_wrapped: bool = borrowed_biased > difference_biased;
+        transition subtract_wrapped {
+            true -> wall_sub_overflow()
+            false -> wall_sub_borrow_gate(seconds_borrowed, borrow_wrapped, nanoseconds_borrowed)
+        }
+    }
+    state wall_sub_borrow_gate(&self, seconds_borrowed: i64, borrow_wrapped: bool, nanoseconds_borrowed: u32) -> SystemTimeResult {
+        transition borrow_wrapped {
+            true -> wall_sub_overflow()
+            false -> wall_sub_emit(seconds_borrowed, nanoseconds_borrowed)
+        }
+    }
+    state wall_sub_emit(&self, seconds_final: i64, nanoseconds_final: u32) -> SystemTimeResult {
+        SystemTimeResult::Ok {
+            time: SystemTime {
+                seconds_since_unix_epoch: seconds_final,
+                subsecond_nanoseconds: nanoseconds_final % 1000000000,
+            },
+        }
+    }
+    state wall_sub_overflow(&self) -> SystemTimeResult { SystemTimeResult::Overflow }
+}
+
 // The clock-read CAPABILITY (D9): reads live here, never ambiently on the
 // value types -- Rust's `Instant::now()`/`Instant::elapsed()` intentionally
 // have no equivalent (the Cathedral no-ambient-authority stance).
@@ -803,3 +1006,23 @@ machine Time::elapsed_since(&mut self, start: Instant) -> Duration {
     // saturate at ZERO (total, never faulting).
     state elapsed_backwards(&mut self) -> Duration { Duration::ZERO }
 }
+
+// Sleep for (approximately, never less than the platform grants) the given
+// duration, through the millisecond host op. ONE clamped chunk: durations
+// above u32::MAX milliseconds (~49.7 days) saturate -- the clamped request
+// is RETURNED so the caller can observe it. All-entry lets; the clamps
+// carry the narrowing proofs (4294968 * 1000 + 999 just exceeds u32::MAX,
+// hence the second clamp).
+machine Time::sleep_for(&mut self, duration: Duration) -> u32 {
+    let seconds_capped: u64 = clamp(duration.seconds, 0, 4294968);
+    let seconds_scaled: u64 in Wrapping = (seconds_capped as u64 in Wrapping) * 1000;
+    let subsecond_milliseconds: u32 = duration.subsecond_nanoseconds / 1000000;
+    let total_wide: u64 in Wrapping =
+        (seconds_scaled as u64 in Wrapping) + (subsecond_milliseconds as u64 in Wrapping);
+    let total: u64 = total_wide as u64;
+    let capped: u64 = clamp(total, 0, 4294967295);
+    let milliseconds: u32 = capped as u32;
+    self.host.sleep(milliseconds);
+    milliseconds
+}
+
