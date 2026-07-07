@@ -119,11 +119,42 @@ pub(crate) fn runtime_storage_copy_to_runtime_machine_indexed_source_address_off
 /// dual-indexed encoder; emission rejects the instruction first).
 pub(crate) fn runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset(
     architecture: Architecture,
+    source_index_region: omega_target_operations::RuntimeStorageRegion,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => 0,
-        // The 34-byte read part (10+7+7+3+7) precedes it.
-        Architecture::X86_64 => 34,
+        // The read part (10+7+7+3+7 = 34) precedes it; a FRAME-resident source
+        // index inserts its frame-base `mov r10,imm64` (+10).
+        Architecture::X86_64 => {
+            if source_index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                44
+            } else {
+                34
+            }
+        }
+    }
+}
+
+/// Start of the frame-base `mov r10,imm64` for a FRAME-resident index inside
+/// the dual-indexed copy: the source side sits after the opening machine mov
+/// (+10); the target side after the read part + the write's machine mov.
+pub(crate) fn runtime_storage_copy_machine_indexed_frame_index_offset(
+    architecture: Architecture,
+    source_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_side: bool,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => {
+            if target_side {
+                runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset(
+                    architecture,
+                    source_index_region,
+                ) + 10
+            } else {
+                10
+            }
+        }
     }
 }
 
