@@ -320,10 +320,18 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    x1=sel, fmov d0..d3=rect, x2=#0xf, x3=#0x2, x4=#0x0, bl _objc_msgSend`. Headless-safe
    (never ordered on-screen). Native harness 66/66; canary_suite zero new failures (A/B vs
    FRESH baseline — 5 pre-existing `runtime_frame_indexed_*` drift, present w/ and w/o my
-   changes). REMAINING for a VISIBLE static window: `NSImageView` contentView +
-   `setContentView:` + `makeKeyAndOrderFront:` + `setActivationPolicy:` + a bounded
-   non-blocking pump (folds into items #5/#6). The class-lookup / alloc / init / scalar /
-   HFA pieces are all proven — the rest is composing them.
+   changes). ✅ **fire 13: FULL VISIBLE WINDOW + FRAME PRESENTED.** The complete Cocoa
+   object graph now works natively: `[NSApplication sharedApplication]` +
+   `setActivationPolicy:0`; a CGImage-backed `NSImage` (`initWithCGImage:size:`) attached
+   via `[imageView setImage:]` to an `NSImageView` (`initWithFrame:`) set as the window's
+   `setContentView:` and `makeKeyAndOrderFront:`. The one NEW ABI piece: `ObjectiveC::
+   send_image_size(recv, sel, image, w, h)` — a scalar arg (x2) + an `NSSize` (2 doubles →
+   v0,v1); everything else reuses `send`/`send_scalar`/`send_rect`. PROVEN:
+   `canaries/pass/objc/present_frame` — builds the whole graph and asserts `[imageView
+   image] != nil` → exit 5 (headless-safe: the check is the object graph, not on-screen
+   visibility; the window DOES show on a session box). Native harness 68/68; canary_suite
+   zero new failures. **The static-window + blit path is DONE end-to-end.** REMAINING:
+   the animated pump + input (items #6/#7) and wiring behind the samples' traits (#8).
 5. **[~] CGImage blit — framebuffer → CGImage DONE (fire 12); NSImage/view wrap next.**
    ✅ The pixels-to-image half works: a `[i32;N]` BGRA framebuffer becomes a `CGImage`.
    **JUDGEMENT CALL: use `CGBitmapContextCreate` (7 args, all registers) + snapshot,

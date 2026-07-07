@@ -362,6 +362,12 @@ pub enum HostOperation {
     /// `initWithContentRect:styleMask:backing:defer:` needs (rect + styleMask +
     /// backing + defer). Shares the `_objc_msgSend` symbol.
     MsgSendRect,
+    /// `ObjectiveC::send_image_size(recv, sel, image, w, h) -> u64` → `objc_msgSend`
+    /// with a pointer arg plus an `NSSize` (2 doubles): `recv`→x0, `sel`→x1,
+    /// `image`→x2, then the size in v0,v1. For `NSImage initWithCGImage:size:` —
+    /// the mixed scalar-plus-2-float call that wraps a `CGImage` for display.
+    /// Shares the `_objc_msgSend` symbol.
+    MsgSendImageSize,
     /// `CoreGraphics::rect_max_x(x, y, w, h) -> f64` → `CGRectGetMaxX`. Takes a
     /// `CGRect` = 4 doubles passed as an HFA in v0–v3, returns `origin.x +
     /// size.width` (v0 + v2) as a `CGFloat` in d0. The run-verified proof that 4
@@ -471,6 +477,7 @@ impl HostOperation {
             "send_scalar" => Self::MsgSendScalar,
             "send_string" => Self::MsgSendString,
             "send_rect" => Self::MsgSendRect,
+            "send_image_size" => Self::MsgSendImageSize,
             "rect_max_x" => Self::RectMaxX,
             "rect_max_y" => Self::RectMaxY,
             "color_space_rgb" => Self::ColorSpaceRgb,
@@ -546,6 +553,7 @@ impl HostOperation {
             Self::MsgSendScalar => "send_scalar",
             Self::MsgSendString => "send_string",
             Self::MsgSendRect => "send_rect",
+            Self::MsgSendImageSize => "send_image_size",
             Self::RectMaxX => "rect_max_x",
             Self::RectMaxY => "rect_max_y",
             Self::ColorSpaceRgb => "color_space_rgb",

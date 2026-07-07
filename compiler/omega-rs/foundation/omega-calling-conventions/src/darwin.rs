@@ -114,6 +114,8 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // The MIXED HFA-plus-scalar send: NSRect (4 doubles → v0–v3) + 3 trailing
         // scalars (→ x2–x4) for `initWithContentRect:styleMask:backing:defer:`.
         darwin_import("ObjectiveC", "send_rect", "_objc_msgSend", &policy),
+        // Scalar + NSSize (2 doubles → v0,v1) for `initWithCGImage:size:`.
+        darwin_import("ObjectiveC", "send_image_size", "_objc_msgSend", &policy),
         // CoreGraphics geometry: a `CGRect` (4 doubles) is passed as an HFA in
         // v0–v3 (`_CG*` routes to CoreGraphics via `darwin_import_library`). The
         // run-verified proof that 4 doubles land in v0–v3.
@@ -527,6 +529,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "ObjectiveC",
         "send_rect",
         [host_operation("ObjectiveC", "send_rect")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "ObjectiveC",
+        "send_image_size",
+        [host_operation("ObjectiveC", "send_image_size")],
         PlatformCallData::None,
     );
     // `CoreGraphics::rect_max_x/y(x, y, w, h) -> f64` → `CGRectGetMaxX`/`MaxY`: the

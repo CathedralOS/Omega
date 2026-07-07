@@ -374,6 +374,30 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::ObjectiveC, HostOperation::MsgSendImageSize) => {
+            // `r = send_image_size(recv, sel, image, w, h) -> _objc_msgSend(recv,
+            // sel, image, NSSize{w,h})`. recv/sel/image are SCALARS (→ x0,x1,x2) and
+            // w/h are FLOATS (the NSSize → v0,v1) — the two register counters are
+            // independent. operand[0]=result, then [recv, sel, image, w, h].
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let recv = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let sel = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let image = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let w = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            let h = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 5);
+            match (result, recv, sel, image, w, h) {
+                (Some(result), Some(recv), Some(sel), Some(image), Some(w), Some(h)) => operands
+                    .insert_many([
+                        operand(result),
+                        operand(recv),
+                        operand(sel),
+                        operand(image),
+                        operand(w),
+                        operand(h),
+                    ]),
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::CoreGraphics, HostOperation::RectMaxX | HostOperation::RectMaxY) => {
             // `r = rect_max_x(x, y, w, h) -> _CGRectGetMaxX({x,y,w,h})`. The CGRect's
             // 4 doubles marshal as an HFA into v0–v3 (four consecutive
