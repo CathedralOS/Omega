@@ -376,6 +376,46 @@ crate tests; interpreter fs coverage) and commits.
     transition form that FAILS on the same shape to bisect. Full `otool -tv` trace + repro
     steps are in the git history of the deleted `wrapper_exists_absent` canary.
 
+- **🔬 DEEP FIX — CONFIRMED it is TWO bugs, not one; the ordering fix is necessary but NOT
+  sufficient (2026-07-10).** Built a minimal, fast, self-contained repro (committed):
+  `canaries/run/filesystem/value_call_guard_repro/main.omg` — a value-call `self.here =
+  self.probe.check()` where `Probe::check` does `let rc = self.host.close(-1); transition
+  rc == 0 { true -> yes() _ -> no() }` with `state yes -> bool { true }` / `no { false }`.
+  close(-1) = -1, so check() must return false; natively it returns true (prints "BUG").
+  Investigated with `otool -tv` disassembly at each step. TWO independent defects:
+  1. **ORDERING (the diagnosed one) — root-caused + a WORKING scoped fix found.** The
+     deferral in `backend/omega-instruction-selection/src/selection/runtime_dispatch.rs`
+     (`select_runtime_dispatch_loop_instructions`, the `defers_to_local_initializer` test
+     Cases A/B ~L615-660) only recognizes a later `LocalStorage` op as the callee slot's
+     writer. But a host-call `let` (`let rc = self.host.close(..)`) emits a **HostCall** op,
+     NEVER a LocalStorage op (`omega-runtime-bodies/collection.rs` `continue`s after the
+     HostCall), so the deferral misses it and the outer value-call's inline guard is emitted
+     BEFORE the host-call store. FIX (verified at the instruction level): (a) add
+     `| RuntimeDispatchBodyOperationKind::HostCall` to Case B's `has_callee_local` matcher;
+     (b) add a firing block after the general-path `select_host_call` (the HostCall analogue
+     of the existing Case-B LocalStorage firing at ~L528-569) that fires the deferred leaf
+     once no further callee locals/host-calls follow. With this, the disasm shows `bl close`
+     + `str w0,[rc]` now PRECEDE the guard `ldr/cmp` — the guard reads the real -1. CONTAINED
+     to runtime_dispatch.rs. (Reverted this fire because bug #2 masks it — no canary flips —
+     so keeping it adds codegen risk for no observable gain; re-apply together with #2.)
+  2. **UNCONDITIONAL LEAF-TERMINAL OVERWRITE (the dominant bug) — NEW, not yet fixed.** Even
+     with the guard correctly ordered and branching on -1, `check()` STILL returns true: the
+     disasm has a SECOND store sequence (repro addr ~0x448: `mov w17,#1; strb w17,[result];
+     copy → call-result slot`) that writes the yes-leaf terminal value (`true`) into check's
+     result slot UNCONDITIONALLY, after and regardless of the guarded selection — so the
+     guard's correct false is overwritten by true. Present in BOTH the pre-fix and post-fix
+     binaries (proven by A/B disassembly with the deferral toggled off). This is the real
+     reason the transition-shaped `exists` "always returned true", and exactly why
+     TERMINAL-VALUE COMPLETION fixed `exists` (a bare terminal expression has NO leaf
+     terminal states, so no unconditional overwrite) while the `{ true -> yes() _ -> no() }`
+     shape stays broken. NEXT: find where the value-call result materialization emits the
+     leaf terminal(s) unconditionally — the guarded selection into the call-result slot is
+     correct, but a later straight-line/leaf emission of one leaf's terminal value overwrites
+     it. Look at `branches.rs` `select_runtime_leaf_branch_expansions_for_operation` /
+     `select_runtime_straight_line_branch_expansions_for_operation` and how a value-call whose
+     callee transitions to constant-returning leaf STATES lowers those states' terminal
+     values. Both #1 and #2 must land together for the payload-carrying wrappers to work.
+
 - **🎉 STEP 14 COMPLETE — the SHIPPED ergonomic `Filesystem` wrapper runs NATIVELY
   (2026-07-08).** `Filesystem::write_all`/`read_all`/`remove` — the Rust-parity API,
   reached via a value-call to the `Filesystem` sub-machine (`fs: Filesystem`, a DIFFERENT
