@@ -103,6 +103,34 @@ title-bar CONTEXT-MENU Close sends (not posts) WM_SYSCOMMAND — invisible to a
 pump; the real fix is outbound WndProc entry stubs (extern brief §12.4).
 DESIGN Q for Zach: build.omg asset copying (declarative `Build` asset list the
 compiler copies at emit? — build.omg must describe, never do).
+**Wrapper NATIVELY VERIFIED on windows_x64 (2026-07-07)** — canary
+`filesystem/windows_wrapper_results_exit` runs the REAL ergonomic wrapper end
+to end: write_all→Ok, create_dir×2→Error{AlreadyExists}, open→Ok{File}
+destructured and USED (read through the File value-call arg), real close,
+remove→Ok, remove(missing)→Error{NotFound}. Three finds along the way:
+1. **Alias-resolved LITERAL host args (compiler, FIXED):** a wrapper param
+   forwarded to a host call and bound to the caller's literal
+   (`fs.read(file, &mut buf, 32)` → callee `count`=32) resolved as neither a
+   place nor an immediate → clean encoder error. `scalar_argument_operand_at`
+   now follows the alias to an Integer literal (`alias_resolved_integer_at`).
+2. **Bare TERMINAL host calls silently drop (wrapper FIXED; compiler face
+   OPEN):** `Filesystem::close`'s terminal `self.host.close(..)` emitted NO
+   call natively — rc read ZII 0 ("success") while the fd stayed open; macOS
+   never noticed (POSIX unlinks open files), Windows did. Wrapper sites now
+   let-bind (close, create_dir_all). ⚠️ ENGINEERING NEXT: make a terminal-
+   position host call a CLEAN COMPILE ERROR (the no-silent-fall-through
+   doctrine) instead of a silent no-op.
+3. **⚠️ FLAG-VALUE PORTABILITY (feeds design #6):** the wrapper's POSIX flag
+   words carry DARWIN values; darwin O_CREAT (0x200) is msvcrt O_TRUNC, so
+   `create_new`/`open_with` on Windows would silently TRUNCATE the file they
+   must refuse to touch. The windows `open_create` row/lowering is REMOVED
+   (clean "no native lowering" fence) until the portable-flags design — same
+   design bucket as the stat-record layout: per-OS VALUES inside one portable
+   wrapper (flags, stat offsets; errno values happen to agree so far).
+   Also fixed: File-consuming wrapper machines capture `file.fd` into a
+   `file_fd` scratch field (a param MEMBER is not a marshallable host arg; a
+   let folds back to the member).
+
 **Interp fs coverage FIXED (2026-07-07).** The 11 `filesystem_std_module_*`
 failures ("non-integer operand", pre-existing at the fs handoff commit) were
 the value-position `match` desugar doing TAG ARITHMETIC over payload-free

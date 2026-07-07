@@ -1,0 +1,100 @@
+// RUN CANARY (exit 70) -- the ERGONOMIC Filesystem wrapper natively on
+// windows_x64: every result SHAPE the wrapper produces, asserted end to end.
+//   write_all           -> UnitResult::Ok            (create+write+close)
+//   create_new existing -> OpenResult::Error{kind}   kind == AlreadyExists
+//   open                -> OpenResult::Ok{File}      the STRUCT payload, USED:
+//   read(file, ..)      -> IoResult::Ok{count}       the File rides as an arg
+//   remove              -> UnitResult::Ok
+//   remove missing      -> UnitResult::Error{kind}   kind == NotFound
+// This runs the value-call payload-delivery fixes (TASKS_FS blockers #2/#3)
+// through the REAL wrapper -- the Windows twins covered the pure-language
+// shapes; this covers the fs machinery itself. The interpreter's virtual fs
+// is the differential oracle. Content is "hello" (no CR/LF/^Z bytes), so the
+// wrapper's text-mode open (flags 0, no O_BINARY) reads it unmangled.
+// exits: 70 ok; 71 write_all not Ok; 72 create_new not Error; 73 kind not
+// AlreadyExists; 74 open not Ok; 75 read not Ok; 76 count != 5; 77 first
+// byte wrong; 78 remove not Ok; 79 remove(missing) not Error; 80 kind not
+// NotFound.
+
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    fs: Filesystem;
+    buffer: [u8; 32];
+    unit_result: UnitResult;
+    open_result: OpenResult;
+    io_result: IoResult;
+    rc: i32;
+}
+
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("omega_wrapper_probe.txt", "hello");
+    transition self.unit_result { UnitResult::Ok -> exists_check() _ -> bad(71) }
+
+    state exists_check(&mut self) {
+        // AlreadyExists via mkdir (flag-FREE, so fully portable): create_new's
+        // O_CREAT|O_EXCL carries DARWIN flag values, which mean different bits
+        // to msvcrt (0x200 = darwin O_CREAT = windows O_TRUNC!) -- the flag
+        // portability question rides the portable-fs design (TASKS_FS #6).
+        self.unit_result = self.fs.create_dir("omega_wrapper_probe_dir");
+        transition self.unit_result { UnitResult::Ok -> exists_again() _ -> bad(72) }
+    }
+    state exists_again(&mut self) {
+        self.unit_result = self.fs.create_dir("omega_wrapper_probe_dir");
+        transition self.unit_result {
+            UnitResult::Error { kind } -> exists_kind(kind)
+            _ -> bad(81)
+        }
+    }
+    state exists_kind(&mut self, kind: ErrorKind) {
+        self.unit_result = self.fs.remove_dir("omega_wrapper_probe_dir");
+        transition kind { ErrorKind::AlreadyExists -> open_it() _ -> bad(73) }
+    }
+
+    state open_it(&mut self) {
+        self.open_result = self.fs.open("omega_wrapper_probe.txt");
+        transition self.open_result {
+            OpenResult::Ok { file } -> read_it(file)
+            _ -> bad(74)
+        }
+    }
+    state read_it(&mut self, file: File) {
+        self.io_result = self.fs.read(file, &mut self.buffer, 32);
+        self.rc = self.fs.close(file);
+        transition self.rc == 0 { true -> read_checked() _ -> bad(82) }
+    }
+    state read_checked(&mut self) {
+        transition self.io_result {
+            IoResult::Ok { count } -> check_count(count)
+            _ -> bad(75)
+        }
+    }
+    state check_count(&mut self, count: usize) {
+        transition count == 5 { true -> check_byte() _ -> bad(76) }
+    }
+    state check_byte(&mut self) {
+        transition self.buffer[0] == 104 { true -> remove_it() _ -> bad(77) }
+    }
+
+    state remove_it(&mut self) {
+        self.unit_result = self.fs.remove("omega_wrapper_probe.txt");
+        transition self.unit_result { UnitResult::Ok -> remove_missing() _ -> bad(78) }
+    }
+    state remove_missing(&mut self) {
+        self.unit_result = self.fs.remove("omega_wrapper_probe.txt");
+        transition self.unit_result {
+            UnitResult::Error { kind } -> missing_kind(kind)
+            _ -> bad(79)
+        }
+    }
+    state missing_kind(&mut self, kind: ErrorKind) {
+        transition kind { ErrorKind::NotFound -> good() _ -> bad(80) }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

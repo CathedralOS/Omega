@@ -19120,6 +19120,59 @@ fn contained_loop_command_branch_carrier_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The ERGONOMIC Filesystem wrapper natively on windows_x64 -- every result
+// SHAPE asserted end to end: write_all -> Ok; create_dir twice ->
+// Error{AlreadyExists} (the error PAYLOAD through the nested last_error);
+// open -> Ok{File} destructured and USED (read through the File value-call
+// arg -- the alias-resolved literal `count`); a REAL close (rc 0, previously
+// a silently-dropped terminal host call); remove -> Ok; remove missing ->
+// Error{NotFound}. Interpreter-first differential. Windows-gated like the
+// raw roundtrip.
+#[cfg(windows)]
+#[test]
+fn windows_fs_wrapper_results_exit_canary_runs() {
+    let canary = pass_canary("filesystem/windows_wrapper_results_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("windows fs wrapper canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (wrapper result shapes on the virtual fs), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fs-win-wrapper-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("windows fs wrapper canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("windows fs wrapper canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected every wrapper result shape to deliver natively (exit 70), got {:?} \
+         (71 write_all; 72/81/73 AlreadyExists leg; 74 open; 75/76/77 File read leg; \
+         82 close rc; 78/79/80 remove legs)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // The FIRST windows_x64-native fs raw-seam roundtrip (msvcrt bindings through
 // the general Win64 import call): create/write/close/open/read/close/verify/
 // remove, then an ENOENT + errno probe (the deref-result `_errno()` path).
@@ -22316,6 +22369,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_shared_ref_param_member_exit",
     "calls/runtime_value_call_struct_payload_cast_field_exit",
     "filesystem/windows_raw_roundtrip_exit",
+    "filesystem/windows_wrapper_results_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",

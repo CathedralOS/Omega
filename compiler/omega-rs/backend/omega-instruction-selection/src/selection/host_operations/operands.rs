@@ -1441,6 +1441,50 @@ fn alias_resolved_place_at(
     )
 }
 
+/// Like `alias_resolved_place_at`, but for an alias that rewrites the argument
+/// to the CALLER'S INTEGER LITERAL: the wrapper shape `fs.read(file, &mut buf,
+/// 32)` binds the callee's `count` param to `32`, which has no storage place --
+/// the scalar operand is the literal itself.
+fn alias_resolved_integer_at(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
+    index: usize,
+) -> Option<i64> {
+    use crate::selection::bindings::{RuntimeAliasBuffer, resolve_runtime_alias_binding_handle};
+    let alias_context = alias_context?;
+    let argument = input
+        .host_calls
+        .arguments
+        .span(host_call.arguments)
+        .and_then(|arguments| arguments.get(index))?;
+    let HostCallArgumentKind::Expression(expression) = &argument.kind else {
+        return None;
+    };
+    let mut expressions = ExpressionTable::with_expression_capacity(
+        alias_context.aliases.len().saturating_add(4),
+    );
+    let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
+        alias_context.alias_expressions,
+        alias_context.aliases,
+        &mut expressions,
+    );
+    let expression_handle = expressions.copy_from(&input.host_calls.expressions, *expression);
+    let resolved = resolve_runtime_alias_binding_handle(
+        expression_handle,
+        host_call.source_key,
+        copied_aliases.bindings(),
+        &mut expressions,
+    );
+    if resolved.source_key == host_call.source_key && resolved.expression == expression_handle {
+        return None;
+    }
+    match expressions.expression(resolved.expression) {
+        omega_checked_trees::expression::ExpressionNode::Integer(literal) => literal.value_i64(),
+        _ => None,
+    }
+}
+
 fn find_data_object(
     input: &InstructionSelectionInput<'_>,
     host_call: &HostCall,
@@ -1584,6 +1628,14 @@ fn scalar_argument_operand_at(
             region: place.region,
             byte_offset: place.byte_offset,
             byte_count: place.byte_count,
+        })
+        // An alias that rewrites the argument to the CALLER'S INTEGER LITERAL
+        // (`fs.read(file, &mut buf, 32)` forwards the wrapper's `count` param
+        // bound to `32`): a literal has no storage place, so it marshals as an
+        // immediate instead.
+        .or_else(|| {
+            alias_resolved_integer_at(input, host_call, alias_context, index)
+                .map(InstructionOperandKind::ImmediateInteger)
         }),
         _ => None,
     }
