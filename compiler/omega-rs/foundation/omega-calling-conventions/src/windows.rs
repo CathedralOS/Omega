@@ -29,6 +29,29 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     ("Gui", "msg_dispatch", "User32.dll", "DispatchMessageW"),
     ("Gui", "is_window", "User32.dll", "IsWindow"),
     ("Gui", "window_destroy", "User32.dll", "DestroyWindow"),
+    // std::fs raw seam (the windows_x64 mirror of darwin's libSystem rows):
+    // msvcrt's POSIX-shaped CRT calls match the raw seam's value-returning
+    // fd/count/rc surface directly (same arg shapes as the darwin libc calls),
+    // so the general import-call encoder marshals them unchanged. The ops with
+    // NO clean msvcrt equivalent (pread/pwrite, *at, link/symlink/readlink,
+    // read_dir, flock, chown, futimens, realpath) and the stat family (whose
+    // per-OS record layout the portable decode does not answer yet) keep the
+    // clean "no native lowering" diagnostic.
+    ("Filesystem", "open", "msvcrt.dll", "_open"),
+    ("Filesystem", "open_create", "msvcrt.dll", "_open"),
+    ("Filesystem", "creat", "msvcrt.dll", "_creat"),
+    ("Filesystem", "read", "msvcrt.dll", "_read"),
+    ("Filesystem", "write", "msvcrt.dll", "_write"),
+    ("Filesystem", "close", "msvcrt.dll", "_close"),
+    ("Filesystem", "unlink", "msvcrt.dll", "_unlink"),
+    ("Filesystem", "lseek", "msvcrt.dll", "_lseeki64"),
+    ("Filesystem", "mkdir", "msvcrt.dll", "_mkdir"),
+    ("Filesystem", "rmdir", "msvcrt.dll", "_rmdir"),
+    ("Filesystem", "rename", "msvcrt.dll", "rename"),
+    ("Filesystem", "dup", "msvcrt.dll", "_dup"),
+    ("Filesystem", "fsync", "msvcrt.dll", "_commit"),
+    ("Filesystem", "chmod", "msvcrt.dll", "_chmod"),
+    ("Filesystem", "read_errno", "msvcrt.dll", "_errno"),
 ];
 
 /// The DLL a Windows import symbol belongs to, per the catalog. `None` for
@@ -211,6 +234,129 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             "*",
             "window_destroy",
             [host_operation("Gui", "window_destroy")],
+            PlatformCallData::None,
+        );
+        // std::fs raw seam -- registered under the raw trait `FilesystemHost`
+        // (not `*`) so `write`/`read` win the exact-platform lookup over
+        // Console's wildcard entries (same discipline as darwin.rs). All
+        // marshal declared args straight through; the value-returning result
+        // store is driven by `HostOperationKey::returns_value()`. x86_64-gated
+        // with the Gui block: the encoders ride the general Win64 import call.
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "open",
+            [host_operation("Filesystem", "open")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "open_create",
+            [host_operation("Filesystem", "open_create")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "create",
+            [host_operation("Filesystem", "creat")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "read",
+            [host_operation("Filesystem", "read")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "write",
+            [host_operation("Filesystem", "write")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "close",
+            [host_operation("Filesystem", "close")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "remove",
+            [host_operation("Filesystem", "unlink")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "seek",
+            [host_operation("Filesystem", "lseek")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "create_dir",
+            [host_operation("Filesystem", "mkdir")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "remove_dir",
+            [host_operation("Filesystem", "rmdir")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "rename",
+            [host_operation("Filesystem", "rename")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "duplicate",
+            [host_operation("Filesystem", "dup")],
+            PlatformCallData::None,
+        );
+        // `sync`/`sync_data` both map to `_commit` (msvcrt's fsync analogue),
+        // mirroring darwin's shared-fsync fallback.
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "sync",
+            [host_operation("Filesystem", "fsync")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "sync_data",
+            [host_operation("Filesystem", "fsync")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "set_permissions",
+            [host_operation("Filesystem", "chmod")],
+            PlatformCallData::None,
+        );
+        // errno accessor: `_errno()` returns `&errno` (the same int*-returning
+        // shape as darwin's `___error()`); the value-returning lowering derefs
+        // the returned pointer once (see `dereferences_result`).
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "errno",
+            [host_operation("Filesystem", "read_errno")],
             PlatformCallData::None,
         );
     }

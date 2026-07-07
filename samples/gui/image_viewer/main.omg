@@ -1,0 +1,327 @@
+// IMAGE VIEWER -- a standalone software-rendered Windows app that LOADS BMP
+// FILES FROM DISK and displays them stretched to the window. RIGHT/LEFT arrows
+// flip through img0.bmp / img1.bmp / img2.bmp (loaded fresh from disk on every
+// flip -- the fs raw seam at work); ESC or the X button closes.
+//
+// The whole pipeline is Omega end to end on windows_x64: msvcrt _open/_read/
+// _close pull the file bytes, a pure-Omega decoder walks the 24bpp bottom-up
+// BMP pixel array into a top-down 32bpp [i32; 4096] framebuffer with RUNNING
+// COUNTERS (src marches +3 through the file; dst walks visual rows from the
+// bottom up, the `dst >= 128` dominating guard proving the row jump stays in
+// range -- no computed indices anywhere), and StretchDIBits blits it 8x into
+// the ~512x512 client area.
+//
+// Run from THIS folder (the BMP paths are relative): `build\omega-program.exe`.
+// This sample deliberately carries NO exit annotation for the harness: it is
+// compiled but never auto-run (it waits for a human to close the window).
+// (The annotation parser substring-matches, so: no exit phrase here.)
+
+use omega::language::std::filesystem_host;
+
+boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
+    machine exit_process(return_code: i32);
+}
+boundary trait Clock { machine sleep(milliseconds: u32); }
+boundary trait Input { machine key_state(virtual_key: u32) -> u64; }
+boundary trait Gui {
+    machine window_create(class_name: [u8; 7], title: [u8; 13], style: u32, x: i32, y: i32, width: i32, height: i32) -> u64;
+    machine get_dc(window: u64) -> u64;
+    machine blit(device: u64, dest_width: u32, dest_height: u32, source_width: u32, source_height: u32, pixels: [i32; 4096], info: [i32; 11]) -> u32;
+    machine msg_peek(message: [u64; 6]) -> u32;
+    machine msg_translate(message: [u64; 6]) -> u32;
+    machine msg_dispatch(message: [u64; 6]) -> u64;
+    machine is_window(window: u64) -> u32;
+    machine window_destroy(window: u64) -> u32;
+}
+
+data Main {
+    console: Console;
+    clock: Clock;
+    input: Input;
+    gui: Gui;
+    raw: FilesystemHost;
+    cls: [u8; 7];
+    title: [u8; 13];
+    message: [u64; 6];
+    // The raw file bytes (12,342 = 54-byte header + 64*64*3 pixel array; the
+    // 64-wide 24bpp row is 192 bytes, already 4-aligned, so no stride padding).
+    buffer: [u8; 16384];
+    // The decoded top-down 32bpp framebuffer StretchDIBits consumes.
+    pixels: [i32; 4096];
+    info: [i32; 11];
+    fd: i32;
+    n: i64;
+    rc: i32;
+    hwnd: u64;
+    hdc: u64;
+    copied: u32;
+    have: u32;
+    translated: u32;
+    dispatched: u64;
+    alive: u32;
+    killed: u32;
+    escape: u64;
+    next_key: u64;
+    prev_key: u64;
+    next_held: u32;
+    prev_held: u32;
+    current: i32 [0..=2];
+    src: i32 [0..=16384];
+    dst: i32 [0..=4096];
+    col: i32 [0..=64];
+    b: i32;
+    g: i32;
+    r: i32;
+    px: i32;
+    pumped: i32 [0..=16];
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("image_viewer: BMPs from disk, software-blitted -- RIGHT/LEFT flip, ESC closes");
+    // "#32770\0" -- the predefined dialog class (draggable top-level window).
+    self.cls[0] = 35;
+    self.cls[1] = 51;
+    self.cls[2] = 50;
+    self.cls[3] = 55;
+    self.cls[4] = 55;
+    self.cls[5] = 48;
+    self.cls[6] = 0;
+    // "omega viewer\0"
+    self.title[0] = 111;
+    self.title[1] = 109;
+    self.title[2] = 101;
+    self.title[3] = 103;
+    self.title[4] = 97;
+    self.title[5] = 32;
+    self.title[6] = 118;
+    self.title[7] = 105;
+    self.title[8] = 101;
+    self.title[9] = 119;
+    self.title[10] = 101;
+    self.title[11] = 114;
+    self.title[12] = 0;
+    // BITMAPINFOHEADER for the DECODED buffer: 64x64 top-down 32bpp BI_RGB
+    // (2097153 = planes 1 | bitcount 32 packed into one i32).
+    self.info[0] = 40;
+    self.info[1] = 64;
+    self.info[2] = 0 - 64;
+    self.info[3] = 2097153;
+    self.current = 0;
+    transition { _ -> load() }
+
+    // --- load the current image from disk (also re-entered on every flip) ---
+    state load(&mut self) {
+        transition self.current == 0 { true -> open0() _ -> load1() }
+    }
+    state load1(&mut self) {
+        transition self.current == 1 { true -> open1() _ -> open2() }
+    }
+    state open0(&mut self) {
+        // 32768 = O_BINARY (msvcrt): BMP bytes must not ride text-mode CRLF
+        // translation (0x0D 0x0A pairs collapse) or the ^Z end-of-file rule.
+        self.fd = self.raw.open("img0.bmp", 32768);
+        transition { _ -> read_file() }
+    }
+    state open1(&mut self) {
+        self.fd = self.raw.open("img1.bmp", 32768);
+        transition { _ -> read_file() }
+    }
+    state open2(&mut self) {
+        self.fd = self.raw.open("img2.bmp", 32768);
+        transition { _ -> read_file() }
+    }
+    state read_file(&mut self) {
+        transition self.fd >= 0 { true -> read_go() _ -> load_failed() }
+    }
+    state read_go(&mut self) {
+        self.n = self.raw.read(self.fd, &mut self.buffer, 16384);
+        self.rc = self.raw.close(self.fd);
+        transition self.n == 12342 { true -> decode_init() _ -> load_failed() }
+    }
+
+    // --- decode: 24bpp bottom-up BGR -> top-down 0x00RRGGBB ---
+    // File row 0 is the visual BOTTOM row, so dst starts at the last pixel row
+    // (63*64 = 4032) and jumps back 128 after each row (64 forward within the
+    // row, 192 back to the previous visual row's start).
+    state decode_init(&mut self) {
+        self.src = 54;
+        self.dst = 4032;
+        self.col = 0;
+        transition { _ -> px_b() }
+    }
+    state px_b(&mut self) {
+        transition self.src < 16384 { true -> px_b_go() _ -> load_failed() }
+    }
+    state px_b_go(&mut self) {
+        self.b = self.buffer[self.src] as i32;
+        self.src = self.src + 1;
+        transition self.src < 16384 { true -> px_g() _ -> load_failed() }
+    }
+    state px_g(&mut self) {
+        self.g = self.buffer[self.src] as i32;
+        self.src = self.src + 1;
+        transition self.src < 16384 { true -> px_r() _ -> load_failed() }
+    }
+    state px_r(&mut self) {
+        self.r = self.buffer[self.src] as i32;
+        self.px = (self.r << 16) | (self.g << 8) | self.b;
+        transition self.src < 16384 { true -> px_advance() _ -> load_failed() }
+    }
+    state px_advance(&mut self) {
+        self.src = self.src + 1;
+        transition self.dst < 4096 { true -> px_put() _ -> load_failed() }
+    }
+    state px_put(&mut self) {
+        self.pixels[self.dst] = self.px;
+        self.dst = self.dst + 1;
+        transition self.col < 63 { true -> px_next_col() _ -> row_done() }
+    }
+    state px_next_col(&mut self) {
+        self.col = self.col + 1;
+        transition { _ -> px_b() }
+    }
+    state row_done(&mut self) {
+        self.col = 0;
+        // dst sits one past the finished visual row's end. The bottom-up walk
+        // is complete exactly when that row was the visual TOP row (dst == 64);
+        // otherwise step back to the previous visual row's start (dst - 128,
+        // proven in range by this guard).
+        transition self.dst >= 128 { true -> prev_row() _ -> decoded() }
+    }
+    state prev_row(&mut self) {
+        self.dst = self.dst - 128;
+        transition { _ -> px_b() }
+    }
+
+    // --- first decode creates the window; flips just re-present ---
+    state decoded(&mut self) {
+        transition self.hwnd > 0 { true -> present() _ -> create_window() }
+    }
+    state create_window(&mut self) {
+        // WS_VISIBLE|WS_OVERLAPPEDWINDOW; outer padded so the client area is
+        // roughly 512x512 (the 64x64 image stretched 8x).
+        self.hwnd = self.gui.window_create(self.cls, self.title, 282001408, 160, 120, 528, 551);
+        transition self.hwnd > 0 { true -> dc() _ -> bad() }
+    }
+    state dc(&mut self) {
+        self.hdc = self.gui.get_dc(self.hwnd);
+        transition self.hdc > 0 { true -> present() _ -> bad() }
+    }
+
+    // --- pump: drain up to 16 queued messages through DefWindowProc ---
+    state pump_init(&mut self) {
+        self.pumped = 0;
+        transition { _ -> pump_loop() }
+    }
+    state pump_loop(&mut self) {
+        self.have = self.gui.msg_peek(self.message);
+        transition self.have > 0 { true -> pump_handle() _ -> liveness() }
+    }
+    state pump_handle(&mut self) {
+        self.translated = self.gui.msg_translate(self.message);
+        self.dispatched = self.gui.msg_dispatch(self.message);
+        transition self.pumped < 16 { true -> pump_next() _ -> liveness() }
+    }
+    state pump_next(&mut self) {
+        self.pumped = self.pumped + 1;
+        transition { _ -> pump_loop() }
+    }
+
+    // --- quit paths: closed window or ESC; flip paths: RIGHT/LEFT edges ---
+    state liveness(&mut self) {
+        self.alive = self.gui.is_window(self.hwnd);
+        transition self.alive > 0 { true -> esc_check() _ -> closed() }
+    }
+    state esc_check(&mut self) {
+        self.escape = self.input.key_state(27);
+        transition self.escape > 0 { true -> quit_self() _ -> next_check() }
+    }
+    state quit_self(&mut self) {
+        self.killed = self.gui.window_destroy(self.hwnd);
+        transition { _ -> closed() }
+    }
+    // Edge-detect the arrows (key_state reports HELD): flip only on the
+    // 0 -> held transition, so holding the key is one flip, not sixty.
+    state next_check(&mut self) {
+        self.next_key = self.input.key_state(39);
+        transition self.next_key > 0 && self.next_held == 0 { true -> next_edge() _ -> next_level() }
+    }
+    state next_edge(&mut self) {
+        self.next_held = 1;
+        transition self.current < 2 { true -> next_up() _ -> next_wrap() }
+    }
+    state next_up(&mut self) {
+        self.current = self.current + 1;
+        transition { _ -> load() }
+    }
+    state next_wrap(&mut self) {
+        self.current = 0;
+        transition { _ -> load() }
+    }
+    state next_level(&mut self) {
+        transition self.next_key > 0 { true -> prev_check() _ -> next_release() }
+    }
+    state next_release(&mut self) {
+        self.next_held = 0;
+        transition { _ -> prev_check() }
+    }
+    state prev_check(&mut self) {
+        self.prev_key = self.input.key_state(37);
+        transition self.prev_key > 0 && self.prev_held == 0 { true -> prev_edge() _ -> prev_level() }
+    }
+    state prev_edge(&mut self) {
+        self.prev_held = 1;
+        transition self.current > 0 { true -> prev_down() _ -> prev_wrap() }
+    }
+    state prev_down(&mut self) {
+        self.current = self.current - 1;
+        transition { _ -> load() }
+    }
+    state prev_wrap(&mut self) {
+        self.current = 2;
+        transition { _ -> load() }
+    }
+    state prev_level(&mut self) {
+        transition self.prev_key > 0 { true -> present() _ -> prev_release() }
+    }
+    state prev_release(&mut self) {
+        self.prev_held = 0;
+        transition { _ -> present() }
+    }
+
+    // --- present + pace ---
+    state present(&mut self) {
+        self.copied = self.gui.blit(self.hdc, 512, 512, 64, 64, self.pixels, self.info);
+        transition self.copied == 64 { true -> pace() _ -> present_failed() }
+    }
+    state present_failed(&mut self) {
+        // A failed blit right after the user closed the window is the normal
+        // shutdown race, not an error.
+        self.alive = self.gui.is_window(self.hwnd);
+        transition self.alive > 0 { true -> bad() _ -> closed() }
+    }
+    state pace(&mut self) {
+        self.clock.sleep(15);
+        transition { _ -> pump_init() }
+    }
+
+    state closed(&mut self) {
+        self.console.write_line("viewer closed -- goodbye (exit 0)");
+        self.console.exit_process(0);
+    }
+    state load_failed(&mut self) {
+        self.console.write_line("FAIL: could not load imgN.bmp -- run from the image_viewer folder (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(1);
+    }
+    state bad(&mut self) {
+        self.console.write_line("FAIL: window/DC creation failed or a blit failed while alive (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(1);
+    }
+}
