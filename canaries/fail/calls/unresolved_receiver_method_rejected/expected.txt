@@ -1,0 +1,1 @@
+value call `tally.grand_total(..)` does not resolve to any machine state, attached machine, platform state, or boundary-trait method

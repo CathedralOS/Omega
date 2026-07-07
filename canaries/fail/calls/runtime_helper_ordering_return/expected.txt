@@ -1,1 +1,1 @@
-needs runtime guard lowering
+value call `chance(..)` does not resolve to a state of this machine, an attached sibling machine, or a free machine

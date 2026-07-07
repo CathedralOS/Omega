@@ -1553,7 +1553,18 @@ fn validate_expression_call_bounds(
                 callee_state,
                 diagnostics,
             );
+            return;
         }
+        report_unresolved_value_call(
+            program,
+            current_machine,
+            current_state,
+            symbols,
+            None,
+            None,
+            call,
+            diagnostics,
+        );
         return;
     }
 
@@ -1591,7 +1602,18 @@ fn validate_expression_call_bounds(
                 callee_state,
                 diagnostics,
             );
+            return;
         }
+        report_unresolved_value_call(
+            program,
+            current_machine,
+            current_state,
+            symbols,
+            Some(receiver_name),
+            receiver_type,
+            call,
+            diagnostics,
+        );
         return;
     }
 
@@ -1620,7 +1642,198 @@ fn validate_expression_call_bounds(
             callee_state,
             diagnostics,
         );
+        let _ = writable_roots;
+        return;
     }
+    report_unresolved_value_call(
+        program,
+        current_machine,
+        current_state,
+        symbols,
+        Some(receiver_name),
+        receiver_type,
+        call,
+        diagnostics,
+    );
 
     let _ = writable_roots;
+}
+
+/// The declared TYPE NAME of a receiver that is a state param, state local,
+/// whole-machine param, or machine-owned field -- walked through reference/
+/// constraint shells to the Named/Generic/DynamicTrait head. `None` for
+/// primitives, arrays, slices, and unknown names.
+fn receiver_declared_type_name<'program>(
+    program: &'program TypedTrees,
+    machine: &Machine,
+    state: &State,
+    receiver: &str,
+) -> Option<&'program str> {
+    let handle = program
+        .state_parameters(state)
+        .iter()
+        .find(|parameter| parameter.name.as_str() == receiver)
+        .map(|parameter| parameter.type_reference)
+        .or_else(|| {
+            program
+                .statement_table
+                .statements(state.statement_nodes)
+                .iter()
+                .find_map(|statement| {
+                    let StatementNode::LocalData(local) = statement else {
+                        return None;
+                    };
+                    (local.name.as_str() == receiver).then_some(local.type_reference)
+                })
+        })
+        .or_else(|| {
+            program
+                .machine_owned_data(machine)
+                .iter()
+                .find(|owned| owned.name.as_str() == receiver)
+                .map(|owned| owned.type_reference)
+        })
+        .or_else(|| {
+            // State bindings are whole-machine scope: a param declared on any
+            // state of this machine is readable everywhere in it.
+            program.machine_states(machine).iter().find_map(|other| {
+                program
+                    .state_parameters(other)
+                    .iter()
+                    .find(|parameter| parameter.name.as_str() == receiver)
+                    .map(|parameter| parameter.type_reference)
+            })
+        })?;
+    named_type_reference_name(program, handle)
+}
+
+fn named_type_reference_name<'program>(
+    program: &'program TypedTrees,
+    handle: TypeReferenceHandle,
+) -> Option<&'program str> {
+    match program.type_reference_table.type_reference(handle) {
+        TypeReferenceNode::Reference { referee, .. } => {
+            named_type_reference_name(program, *referee)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            named_type_reference_name(program, *base_type)
+        }
+        TypeReferenceNode::Named { name, .. }
+        | TypeReferenceNode::Generic {
+            base_name: name, ..
+        }
+        | TypeReferenceNode::DynamicTrait { name, .. } => Some(name.as_str()),
+        _ => None,
+    }
+}
+
+/// True when `type_name` resolves the value-call target through any of the
+/// channels the LOWERING understands: a platform state, a boundary-trait
+/// machine signature, a machine's local state, or a machine attached to that
+/// data type.
+fn type_name_resolves_value_call(
+    program: &TypedTrees,
+    symbols: &TopLevelSymbols<'_>,
+    type_name: &str,
+    target: &str,
+) -> bool {
+    if let Some(platform) = symbols.platform(type_name)
+        && program
+            .platform_state_signatures(platform)
+            .iter()
+            .any(|state| state.name.as_str() == target)
+    {
+        return true;
+    }
+    if let Some(trait_definition) = symbols.trait_definition(type_name)
+        && program
+            .trait_machine_signatures(trait_definition)
+            .iter()
+            .any(|signature| signature.name.as_str() == target)
+    {
+        return true;
+    }
+    if let Some(machine) = symbols.machine(type_name)
+        && program
+            .machine_states(machine)
+            .iter()
+            .any(|state| state.name.as_str() == target)
+    {
+        return true;
+    }
+    symbols
+        .attached_machine_state(program, type_name, target)
+        .is_some()
+}
+
+/// Decision layer for the value-call fall-through: everything the partial
+/// bounds resolver above recognizes has already returned; anything the
+/// LOWERING can still resolve is checked here (builtins, platform/trait
+/// receivers, declared receiver types, type-name receivers). A target that
+/// resolves through NONE of these names nothing anywhere -- it would silently
+/// bind a ZII 0 at runtime, so it is a compile error.
+#[allow(clippy::too_many_arguments)]
+fn report_unresolved_value_call(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: &State,
+    symbols: &TopLevelSymbols<'_>,
+    receiver_name: Option<&str>,
+    receiver_type: Option<&str>,
+    call: &TableCallExpression,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let target = call.target.as_str();
+    let Some(receiver) = receiver_name else {
+        // Receiverless: the three machine channels missed; only the reserved
+        // value builtins remain.
+        if matches!(target, "min" | "max" | "sqrt") {
+            return;
+        }
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}`: value call `{target}(..)` does not resolve to a \
+             state of this machine, an attached sibling machine, or a free machine -- \
+             it would silently bind 0 (ZII) at runtime. Check the name.",
+            current_machine.name,
+            current_state.name.as_str(),
+        )));
+        return;
+    };
+
+    // Collection/text view builtins: `arr.as_slice()` / `.as_mut_slice()`,
+    // the text view `text.as_view()` (the borrow layer's own builtin list,
+    // borrow/loans.rs), and the view byte accessor `view.bytes()`.
+    if matches!(target, "as_slice" | "as_mut_slice" | "as_view" | "bytes") {
+        return;
+    }
+    // Wire-schema synthesized codecs (`Schema::encode(..)` / `::decode(..)`)
+    // are not user machines; a data-definition receiver resolves them.
+    if matches!(target, "encode" | "decode")
+        && program
+            .data_definitions()
+            .iter()
+            .any(|definition| definition.name.as_str() == receiver)
+    {
+        return;
+    }
+
+    let declared_type = receiver_declared_type_name(program, current_machine, current_state, receiver);
+    let resolves = receiver_type
+        .is_some_and(|type_name| type_name_resolves_value_call(program, symbols, type_name, target))
+        || declared_type
+            .is_some_and(|type_name| type_name_resolves_value_call(program, symbols, type_name, target))
+        // The receiver may BE a type name (`Real.from(..)`, `Worker.run(..)`).
+        || type_name_resolves_value_call(program, symbols, receiver, target);
+    if resolves {
+        return;
+    }
+
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}`: value call `{receiver}.{target}(..)` does not resolve \
+         to any machine state, attached machine, platform state, or boundary-trait \
+         method -- it would silently bind 0 (ZII) at runtime. Check the receiver and \
+         method names.",
+        current_machine.name,
+        current_state.name.as_str(),
+    )));
 }

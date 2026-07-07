@@ -1,0 +1,18 @@
+// A value call whose target names NOTHING anywhere used to compile and
+// silently bind 0 (ZII) -- `let y: i32 = bogus_fn(1)` took whatever arm the
+// zero picked. Now a compile error from the complete value-call resolution.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+}
+machine Main::main(&mut self) {
+    let y: i32 = bogus_fn(1);
+    transition y == 0 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

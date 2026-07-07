@@ -1,6 +1,5 @@
 use inventory::items;
 use rewards::rewards;
-use omega::language::std::option;
 
 data InventorySystem {
 }
@@ -65,10 +64,14 @@ machine InventorySystem::add_item(
     inventory: &mut Inventory,
     kind: ItemKind
 ) {
-    let existing_index: Option<usize> = self.find_item(inventory, kind);
+    // Sentinel search: an index past the 32-slot capacity means "not found".
+    // (Option<T> case payloads are not runtime-ready yet; the old
+    // `Option<usize>` + `is_some()`/`unwrap()` spelling resolved to NOTHING and
+    // silently bound 0 -- every pickup appended a fresh stack.)
+    let existing_index: usize = self.find_item(inventory, kind);
 
-    transition existing_index.is_some() {
-        true -> increment_existing(inventory, kind, existing_index.unwrap())
+    transition existing_index < 32 {
+        true -> increment_existing(inventory, kind, existing_index)
         false -> append_item(inventory, kind)
     }
 
@@ -132,12 +135,12 @@ machine InventorySystem::find_item(
     &mut self,
     inventory: &Inventory,
     kind: ItemKind
-    ) -> Option<usize> {
+    ) -> usize {
     let items: &[InventoryItem] = inventory.items.as_slice();
 
     match inventory.item_count > 0 {
         true -> self.find_item_at(items, kind, 0)
-        false -> None
+        false -> (32)
     }
 }
 
@@ -146,10 +149,10 @@ machine InventorySystem::find_item_at(
     items: &[InventoryItem],
     kind: ItemKind,
     index: usize in Wrapping
-    ) -> Option<usize> {
+    ) -> usize {
     transition index < items.len {
         true -> inspect_item(items, kind, index)
-        false -> None
+        false -> (32)
     }
 
 
@@ -174,12 +177,12 @@ machine InventorySystem::find_item_after(
     items: &[InventoryItem],
     kind: ItemKind,
     next_index: usize in Wrapping
-    ) -> Option<usize> {
+    ) -> usize {
     let has_next: bool = next_index < items.len;
 
     match has_next {
         true -> self.find_item_at(items, kind, next_index)
-        false -> None
+        false -> (32)
     }
 }
 

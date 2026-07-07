@@ -49,13 +49,3 @@ machine Random::chance(
     }
 }
 
-machine Random::unit_real(
-    &mut self,
-    state: &mut RandomState
-    ) -> Real {
-    let raw: u32 in Wrapping = self.next_u32(state);
-
-    transition {
-        _ -> (Real::from(raw) / Real::from(u32::MAX))
-    }
-}
