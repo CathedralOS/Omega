@@ -20,10 +20,12 @@ use omega_state_storage::StateMutationKind;
 /// callee's ENTRY body stays allowed (entry effects are ordered by the
 /// deferral machinery and pinned by canaries).
 ///
-/// Known accepted gap: `&mut` PARAM mutations in arm states
-/// (ParameterOrAlias kind) are not fenced -- the guard-subject tripwire
-/// canaries rely on param-mutating callees whose effects live in entries,
-/// and no probe has shown the param-arm face yet.
+/// 2026-07-07b: `&mut` PARAM mutations in arm states (ParameterOrAlias kind)
+/// are fenced too -- probed `tally.count + 1` in one arm of a two-arm value
+/// callee and read back 11 (BOTH arms ran; the param face skips the
+/// re-emission doubling but not the all-arms execution). The tripwire
+/// canaries' param-mutating callees keep their effects in ENTRY bodies and
+/// stay accepted.
 pub(crate) fn collect_value_call_arm_effect_blockers(
     input: &EmissionPlanningInput<'_>,
     blockers: &mut Arena<EmissionBlocker>,
@@ -54,7 +56,10 @@ pub(crate) fn collect_value_call_arm_effect_blockers(
             .find(|(_, mutation)| {
                 mutation.source_key.machine == callee_machine
                     && mutation.source_key.state != entry_state
-                    && mutation.mutation_kind == StateMutationKind::MachineOwned
+                    && matches!(
+                        mutation.mutation_kind,
+                        StateMutationKind::MachineOwned | StateMutationKind::ParameterOrAlias
+                    )
             })
             .map(|(_, mutation)| mutation.source_key)
             .or_else(|| {
