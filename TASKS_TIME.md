@@ -1,12 +1,15 @@
 # Tasks — Time (`std::time`)
 
-> **START HERE (fresh workstream, scoped 2026-07-06).** Nothing is built yet.
-> This file is the source of truth: it carries the settled design, the per-target
-> binding plan, and the phased task list. The feature does not start from zero —
-> the compiler already has a `Clock` host capability (`sleep`, `tick_count`)
-> bound on windows_x64 with passing canaries; see **Current state**. Phase 1
-> (the pure-value `Duration` core) needs no host or compiler work at all and can
-> start immediately.
+> **START HERE (scoped 2026-07-06; ALL judgment calls settled with Zach same day —
+> see Design decisions D11/D12/D14/D15/D16 and Resolved questions).** Nothing is
+> built yet. This file is the source of truth: it carries the settled design, the
+> per-target binding plan, and the phased task list. The feature does not start
+> from zero — the compiler already has a `Clock` host capability (`sleep`,
+> `tick_count`) bound on windows_x64 with passing canaries; see **Current state**.
+> Zach roped TWO compiler pre-rungs into this workstream: the **i128 literal
+> carrier** (D14) and **const-v0** (D15) — they are rungs 1–2 below and unblock
+> the surface as designed (`Duration::MAX` at true `u64::MAX`, type-scoped
+> consts). The first pure-Omega rung is #3.
 >
 > **WORKING RULES.** Consult `wiki/language_guide/*` before assuming a language
 > feature; prefer ZII / arena / `Handle` / `HandleSpan`; check Rust source for
@@ -25,7 +28,9 @@
 > **PUSH TO MAIN.** After committing: `git fetch origin`; if behind, `git rebase
 > origin/main` + re-verify; then `git push origin HEAD:main`. This workstream
 > SHARES hot files with the fs and render workstreams — see **Coordination**
-> before touching the calling-convention tables.
+> before touching the calling-convention tables, and note rung 1 (literal
+> carrier) sweeps proof/validation/folding files other threads touch: land it as
+> ONE focused commit, rebase small and often.
 
 ## North star
 
@@ -41,7 +46,7 @@ differing where Omega is better:
   same way `Filesystem` holds `FilesystemHost`. `Duration`, `Instant`, and
   `SystemTime` are pure `[copy, zero_init]` values with no authority.
 - Rust's `u128` returns (`as_nanos`) → checked/saturating `u64` variants
-  (no `u128` in the language; `u64` nanoseconds cap at ~584 years, fine for
+  (no `u128` TYPE in the language; `u64` nanoseconds cap at ~584 years, fine for
   everything except whole-`Duration` nanosecond totals, which get result cases).
 
 Two layers, exactly the fs pattern: portable wrapper in
@@ -49,30 +54,47 @@ Two layers, exactly the fs pattern: portable wrapper in
 `omega/language/std/time_host.omg`, lowered per-target via binding rows +
 `insert_platform_lowering`.
 
-## Current state
+## Current state (corrected 2026-07-06 after direct verification)
 
 - **Compiler:** `HostCapability::Clock` exists
   (`omega-calling-conventions/src/lib.rs`) with operations `Sleep` and
   `TickCount`, bound in `windows.rs` to `Kernel32 Sleep` / `GetTickCount64`.
-  Value-returning Clock/Gui/Input ops are fenced to x86_64 (clean
-  `UnsupportedHostCall` elsewhere). The fs workstream has since proven
-  value-returning host calls on darwin/aarch64 for Filesystem ops, so the fence
-  is precedent to follow, not a wall.
-- **Canaries:** `canaries/pass/host/runtime_tick_count_monotonic_exit` (the
-  repo's first value-returning host import) and
+  The "value-returning ops are x86_64-only" fence is actually a **Gui-only
+  x86_64 gate inside `windows.rs`** — Clock rows are bound unconditionally, and
+  the fs workstream already proved value-returning host calls on darwin/aarch64.
+  No fence lift is needed for new value-returning Clock ops; darwin is table
+  work.
+- **Canaries:** `canaries/pass/host/runtime_tick_count_monotonic_exit` and
   `runtime_tick_paced_marquee_exit` pin sleep + tick_count natively. Apps
   declare `boundary trait Clock { machine sleep(milliseconds: u32); machine
   tick_count() -> u64; }` inline; lowering matches on MACHINE NAME (the `"*"`
   type wildcard), so trait names are cosmetic and new operation names must be
   collision-free across all host-lowered names.
-- **std:** no time module. `std/console.omg` carries a signature-only
-  `sleep(milliseconds: u32)` entry. Filesystem `Metadata` exposes
-  `modified_secs`/`accessed_secs`/`created_secs`/`changed_secs` as `i64` Unix
-  epoch seconds — `SystemTime` must be constructible from those.
+- **Interpreter:** Clock is a **virtual clock** (`evaluator.rs` ~2270): `sleep`
+  advances `virtual_ticks` by the milliseconds (no real delay), `tick_count`
+  increments by 1 per read. The interpreter filesystem is likewise a virtual
+  in-memory FS. D12 builds on this, not on real host clocks.
+- **std:** no time module. `std/console.omg` carries `sleep(milliseconds: u32)`
+  and it is **LIVE, not a stub** — 11 animation samples + the
+  `runtime_sleep_exit` canary call `self.console.sleep(...)` (it lowers because
+  host lowering matches the machine name). D16 kills it. Filesystem `Metadata`
+  exposes `modified_secs`/`accessed_secs`/`created_secs`/`changed_secs` as `i64`
+  Unix epoch seconds — `SystemTime` must be constructible from those.
+- **Language features verified for this design:** scalar data-field range
+  refinements are parse + WRITE-ENFORCED + read-narrowed (fail canaries
+  `range/guarded_copy_bound_too_wide` et al. pin over-wide scalar-field writes)
+  — D3 is sound as written. Case-enum payloads may be multi-field structs
+  (fs `MetadataResult` precedent, construction + transition-arm destructuring).
+  Struct-payload native delivery fixed 2026-07-06 (windows-verified). No
+  `Ordering` type exists anywhere in `omega/language` — time mints the first.
+- **Known gaps this workstream now OWNS (Zach 2026-07-06):** integer literals
+  are carried as `i64` from parse, so `u64` magnitudes above `i64::MAX` are
+  unspellable (D14); `const` declarations are design-settled
+  (`static_root_and_constants.md`, 2026-07-04) but unbuilt (D15).
 - **No wall clock anywhere; no sub-millisecond monotonic source anywhere.**
   `GetTickCount64` is millisecond-unit, ~10–16ms granularity.
 
-## Design decisions (ratified in scoping, user reviews later)
+## Design decisions (ratified with Zach 2026-07-06)
 
 - **D1. Full human-word API.** `from_seconds` / `from_milliseconds` /
   `from_microseconds` / `from_nanoseconds`, `checked_add` / `checked_subtract`,
@@ -83,18 +105,19 @@ Two layers, exactly the fs pattern: portable wrapper in
   `boundary trait TimeHost` seam (mirrors D2/D-fs-host-module from TASKS_FS.md).
 - **D3. Duration representation.**
   `seconds: u64; subsecond_nanoseconds: u32 [0..=999_999_999];` — the field
-  range refinement carries the normalization invariant the compiler enforces at
-  every construction site, and ZII zero IS `Duration::ZERO`. No `new()`
-  machine needed; literal construction is already range-checked.
+  range refinement carries the normalization invariant (write-enforcement
+  VERIFIED live, see Current state), and ZII zero IS `Duration::ZERO`. No
+  `new()` machine needed; literal construction is range-checked.
 - **D4. No panicking arithmetic, no operator forms.** `checked_*` machines
   return a result data (`case Overflow;` first); `saturating_*` return plain
   values. Internally these are guard transitions — the house "checked" idiom.
-- **D5. No u128 workarounds.** `as_nanoseconds`/`as_microseconds`/
-  `as_milliseconds` totals come in `checked_` and `saturating_` forms returning
-  `u64`. Internal conversion math stays in guarded `u64`; the normalization
-  identity `(ticks % frequency) * 1_000_000_000 / frequency` fits `u64` for
-  every real clock frequency (proof bound: frequency ≤ 18_446_744_073 Hz,
-  guarded once at calibration).
+- **D5. No u128 TYPE.** `as_nanoseconds`/`as_microseconds`/`as_milliseconds`
+  totals come in `checked_` and `saturating_` forms returning `u64`. Internal
+  conversion math stays in guarded `u64`; the normalization identity
+  `(ticks % frequency) * 1_000_000_000 / frequency` fits `u64` for every real
+  clock frequency (proof bound: frequency ≤ 18_446_744_073 Hz, guarded once at
+  calibration). With D14, `u64::MAX` LITERALS become spellable — the type
+  system still has no u128.
 - **D6. Instant normalizes at `now()`.** The host returns raw ticks + a
   ticks-per-second calibration; the wrapper converts ONCE into normalized
   (seconds, subsecond_nanoseconds). Duration math stays trivial; per-platform
@@ -103,9 +126,9 @@ Two layers, exactly the fs pattern: portable wrapper in
   meaningful.
 - **D7. SystemTime ZII = Unix epoch.** `seconds_since_unix_epoch: i64` +
   `subsecond_nanoseconds: u32 [0..=999_999_999]`. `UNIX_EPOCH` is the ZII zero,
-  spelled as a type-scoped const. `duration_since` returns a case enum whose
-  error case carries the backwards amount (Rust's `SystemTimeError` shape).
-  `from_unix_seconds(i64)` bridges filesystem `Metadata`.
+  spelled as a type-scoped const (D15). `duration_since` returns a case enum
+  whose error case carries the backwards amount. `from_unix_seconds(i64)`
+  bridges filesystem `Metadata`.
 - **D8. Extend the existing `Clock` capability**, do not mint a second one.
   `sleep` and `tick_count` keep their exact current bindings and canaries; new
   operations are added alongside.
@@ -113,22 +136,68 @@ Two layers, exactly the fs pattern: portable wrapper in
   `elapsed_since()`, and `sleep_for()` live on `data Time { host: TimeHost; }`.
   Rust's `Instant::elapsed(&self)` (ambient clock read) intentionally has no
   equivalent; the Cathedral no-ambient-authority stance applies.
-- **D10. No float surface in v1.** `from_seconds_f64` etc. wait for the float
-  ABI (render workstream). Integer constructors cover real use.
-- **D11. Wall-clock reads must not tear.** Seconds and subsecond nanoseconds
-  derive from ONE underlying clock read per `system_time_now()` (a two-op
-  split reading the clock twice can straddle a second boundary).
-- **D12. Interpreter = real host clock.** New ops get interpreter
-  implementations over the interpreter's own runtime clock (reference
-  semantics, same as fs running real syscalls). Host-clock canaries assert
-  inequalities (monotonic non-decreasing; elapsed ≥ sleep duration); pure-value
-  Duration canaries assert exact values.
+- **D10. No float surface in v1.** `from_seconds_f64` etc. deferred. (The
+  aarch64 scalar float ABI landed both directions in render fire 6, so this is
+  now a SCOPE choice, not an ABI blocker; the type-blind f32/f64 folder issues
+  also argue for waiting.)
+- **D11. Wall clock = ONE raw `u64` read + per-target constants (SETTLED,
+  replaces the buffer op).** The lowering layer cannot express post-call
+  arithmetic (`PlatformCallData` = None | FirstTextArgument |
+  MutableOutputBuffer; `append_newline` is pre-call text shaping), so ALL
+  epoch/unit conversion lives in the wrapper, fed by per-target constants:
+  `wall_clock_raw() -> u64` (a single non-tearing read),
+  `wall_clock_units_per_second() -> u64`, `wall_clock_epoch_offset_seconds()
+  -> u64`. `unix_seconds = raw / units - epoch_offset`;
+  `subsecond_nanoseconds = (raw % units) * 1_000_000_000 / units` (same D5
+  proof bound). One read per `system_time_now()` — no second-boundary tearing,
+  no buffer, and the wall-clock math becomes frequency-shaped exactly like D6.
+- **D12. Interpreter = VIRTUAL clock (SETTLED, replaces "real host clock").**
+  The interpreter's Clock is already virtual and its fs is a virtual in-memory
+  FS; new ops extend that model, they do not fight it. `monotonic_ticks`
+  derives from `virtual_ticks` (so `sleep` advances the monotonic clock —
+  elapsed-vs-sleep canaries hold); wall clock = a fixed seed constant +
+  the virtual advance. CONSEQUENCE: interpreter time canaries assert EXACT
+  values (stronger than inequalities); native canaries assert inequalities
+  (monotonic non-decreasing; elapsed ≥ sleep duration). This also dissolves
+  the render-workstream conflict: their headless interpreter stub covers
+  Gui/Input only — TIME owns interpreter Clock semantics.
 - **D13. Ordering.** `data Ordering { case Less; case Equal; case Greater; }`
-  shared vocabulary type, plus `is_less_than`/`is_greater_than` bool
-  conveniences. Struct equality via the synthesized `Equatable` `equals`
-  (normalized fields make field-equality correct). Do not depend on `==` for
-  payload-bearing case enums (payload-aware equality is still pending
-  language-side).
+  minted in `time.omg` (verified: no Ordering exists anywhere; promote to a
+  shared std module when a second consumer appears), plus
+  `is_less_than`/`is_greater_than` bool conveniences. Struct equality via the
+  synthesized `Equatable` `equals`. Do not depend on `==` for payload-bearing
+  case enums (payload-aware equality is still pending language-side).
+- **D14. i128 literal carrier (ROPED IN, Zach 2026-07-06: "sounds like a
+  compiler bug").** Integer literals become anonymous-until-use (the squalr
+  model: the literal is an inert payload; the fit-check happens where a type
+  meets it). Omega already HAS the use-site half (`integer_literal_constraints`
+  → `[v,v]` interval intersected with the target-type range at every binding
+  boundary); the fix is the CARRIER: `Integer(i64)` → `Integer(i128)` in the
+  three tree enums (syntax / typed / symbol-resolved `expression.rs`), widen
+  `IntegerRange { minimum, maximum }` (omega-proof `obligations.rs:378`) to
+  i128, accept full-magnitude parse in `literals.rs` (reject only above
+  u64::MAX / below i64::MIN at the USE against the target type). ~284 accesses
+  / ~167 logical sites / 123 files, overwhelmingly mechanical match-arm
+  destructures. NO backend work (both ISAs already take 64-bit two's-complement
+  bit patterns). Negative literals keep folding at parse (`wrapping_neg` —
+  now exact in i128). EXPLICITLY NOT FIXED BY THIS: the type-blind const-folder
+  miscompile class (`>>`/`/`/`%` on high-bit constants) — that fix stays "the
+  type rides on the constant" and is NOT this workstream's item.
+- **D15. const-v0 (ROPED IN; design settled 2026-07-04, unclaimed in TASKS.md).**
+  Implement the `const` declaration per `static_root_and_constants.md`, scoped
+  to LITERAL-ONLY initializers: scalars and struct-literals-of-literals, free
+  or `Type::`-scoped, pure-value check, never a data member. Enough for
+  `Duration::ZERO/MAX`, `SystemTime::UNIX_EPOCH`, and Cathedral's EFI constants.
+  The full build-time-evaluation arc (effect-free machines in const position)
+  stays where it is in TASKS.md. Fallback if this rabbit-holes (revert +
+  document): v1 ships ZII-as-ZERO/UNIX_EPOCH + a `maximum()` value machine.
+- **D16. `Console::sleep` is KILLED (Zach: kill outright if possible).** Remove
+  the entry from `std/console.omg`; migrate the 11 animation samples + the
+  `runtime_sleep_exit` canary to a clock capability field (distinct type beside
+  Console — same-type contained-machine aliasing does not apply). Lowering
+  matches machine name, so behavior/exit codes are unchanged by the re-plumb.
+  Fall back to deprecation (entry stays, marked deprecated, no new users) ONLY
+  if a migration face resists; document why.
 
 ## The surface (end state)
 
@@ -142,6 +211,7 @@ data Duration [copy, zero_init] {
 
 const Duration::ZERO: Duration = Duration { seconds: 0, subsecond_nanoseconds: 0 };
 const Duration::MAX: Duration = Duration { seconds: 18446744073709551615, subsecond_nanoseconds: 999999999 };
+// (MAX's seconds literal needs D14; ZERO/UNIX_EPOCH need only D15.)
 
 data DurationResult [copy, zero_init] {
     case Overflow;
@@ -158,6 +228,11 @@ data Instant [copy, zero_init] {
     subsecond_nanoseconds: u32 [0..=999_999_999];
 }
 
+data InstantResult [copy, zero_init] {
+    case Overflow;
+    case Ok(instant: Instant);
+}
+
 data SystemTime [copy, zero_init] {
     seconds_since_unix_epoch: i64;
     subsecond_nanoseconds: u32 [0..=999_999_999];
@@ -170,9 +245,17 @@ data SystemTimeDifference [copy, zero_init] {
     case Ok(duration: Duration);
 }
 
+data Ordering [copy, zero_init] {
+    case Less;
+    case Equal;
+    case Greater;
+}
+
 data Time {
     host: TimeHost;
-    // calibration captured on first use (ticks_per_second, guarded ≤ 18_446_744_073)
+    // calibration captured on first use; fields carry the proof bounds:
+    // monotonic_frequency: u64 [1..=18_446_744_073];
+    // wall_units: u64 [1..=18_446_744_073]; wall_epoch_offset_seconds: u64;
 }
 ```
 
@@ -194,7 +277,7 @@ bounds error); `compare(other: &Duration) -> Ordering`, `is_less_than`,
 Duration` (saturating at `ZERO`, total — the ZII-friendly default),
 `checked_duration_since(earlier: Instant) -> DurationResult`,
 `checked_add(duration: Duration) -> InstantResult` /
-`checked_subtract(duration: Duration) -> InstantResult` (same two-case shape).
+`checked_subtract(duration: Duration) -> InstantResult`.
 
 **SystemTime machines** (pure value): `from_unix_seconds(seconds: i64) ->
 SystemTime`; `duration_since(earlier: SystemTime) -> SystemTimeDifference`;
@@ -208,137 +291,154 @@ saturating each chunk at `u32` max).
 ### `omega/language/std/time_host.omg`
 
 ```omega
-// Raw per-OS time boundary. Value-returning scalars only; portable SEMANTICS
-// are fixed here and each target's binding/lowering must meet them.
+// Raw per-OS time boundary. Value-returning scalars ONLY (D11) — portable
+// SEMANTICS are fixed here and each target's binding/lowering must meet them.
 boundary trait TimeHost {
     // Monotonic, never-decreasing tick counter since an unspecified epoch.
     machine monotonic_ticks() -> u64;
     // Ticks per second for monotonic_ticks. Stable for the process lifetime.
     machine monotonic_ticks_per_second() -> u64;
-    // Wall clock as a single non-tearing read: Unix-epoch seconds (i64) and
-    // subsecond nanoseconds, delivered per the buffer layout in the module.
-    machine read_wall_clock(buffer: &mut [u8]) -> i32;
+    // Wall clock: ONE read, raw platform units since the platform epoch.
+    machine wall_clock_raw() -> u64;
+    // Units per second for wall_clock_raw (constant per target).
+    machine wall_clock_units_per_second() -> u64;
+    // Platform-epoch → Unix-epoch shift, in seconds (constant per target).
+    machine wall_clock_epoch_offset_seconds() -> u64;
     // Existing op, unchanged: millisecond sleep (already bound on windows).
     machine sleep(milliseconds: u32);
 }
 ```
 
-(`read_wall_clock` buffer layout: bytes 0..8 little-endian `i64` Unix seconds,
-bytes 8..12 `u32` subsecond nanoseconds; returns 0 on success, negative on
-failure. If open question O1 resolves toward lowering-layer transforms, the
-wrapper decode stays identical on every target.)
-
 ## Reference — per-target bindings
 
-| Contract op | windows_x64 (TESTED) | darwin/aarch64 (ready) | linux (ready) |
+| Contract op | windows_x64 (TESTED) | darwin/aarch64 (ready) | linux |
 |---|---|---|---|
-| `monotonic_ticks` | `QueryPerformanceCounter` (out-param `LARGE_INTEGER`) | `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)` (direct `u64` return, needs clockid constant arg) | `clock_gettime(CLOCK_MONOTONIC, &timespec)` syscall (out-param) |
-| `monotonic_ticks_per_second` | `QueryPerformanceFrequency` (out-param) | constant `1_000_000_000` | constant `1_000_000_000` |
-| `read_wall_clock` | `GetSystemTimePreciseAsFileTime` (out-param `FILETIME`) + epoch/unit conversion | `clock_gettime_nsec_np(CLOCK_REALTIME)` or `clock_gettime` | `clock_gettime(CLOCK_REALTIME, &timespec)` |
-| `sleep` | `Kernel32 Sleep` — **already bound** | `usleep(ms * 1000)` — **render workstream item 7** | `nanosleep` syscall |
+| `monotonic_ticks` | `QueryPerformanceCounter` (out-param `LARGE_INTEGER` → item 1) | `clock_gettime_nsec_np(CLOCK_UPTIME_RAW)` (direct `u64`, clockid constant arg → item 2) | deferred — `clock_gettime` writes a timespec (needs arithmetic; no shape) |
+| `monotonic_ticks_per_second` | `QueryPerformanceFrequency` (out-param → item 1) | constant `1_000_000_000` (item 2) | deferred |
+| `wall_clock_raw` | `GetSystemTimePreciseAsFileTime` (out-param `FILETIME` = one LE `u64` → item 1) | `clock_gettime_nsec_np(CLOCK_REALTIME)` (direct `u64`) | ABSENT — clean `UnsupportedHostCall` until an arithmetic-capable shape exists |
+| `wall_clock_units_per_second` | constant `10_000_000` (item 2) | constant `1_000_000_000` | — |
+| `wall_clock_epoch_offset_seconds` | constant `11_644_473_600` (1601→1970) | constant `0` | — |
+| `sleep` | `Kernel32 Sleep` — **already bound** | `usleep(ms * 1000)` — **render workstream item 7, theirs** | `nanosleep` syscall |
 
-**Conversion math (lives per D6 in the wrapper, or per O1 in lowering):**
+**Conversion math (ALL in the wrapper, per D11):**
 
-- Tick normalization: `seconds = ticks / frequency`; `subsecond_nanoseconds =
-  (ticks % frequency) * 1_000_000_000 / frequency`. The multiply fits `u64`
+- Monotonic: `seconds = ticks / frequency`; `subsecond_nanoseconds =
+  (ticks % frequency) * 1_000_000_000 / frequency` — the multiply fits `u64`
   because `ticks % frequency < frequency ≤ 18_446_744_073` (guard once when
   calibration is captured; QPF is typically 10 MHz, POSIX is 10^9).
-- FILETIME (u64 count of 100ns units since 1601-01-01 UTC):
-  `unix_seconds = filetime / 10_000_000 - 11_644_473_600`;
-  `subsecond_nanoseconds = (filetime % 10_000_000) * 100`.
+- Wall: `unix_seconds = raw / units - epoch_offset`; `subsecond_nanoseconds =
+  (raw % units) * 1_000_000_000 / units` (same bound on `units`).
 - Instant subtraction borrow: if `later.subsecond_nanoseconds <
   earlier.subsecond_nanoseconds`, borrow one second and add `1_000_000_000`.
 
-**Compiler engineering items (the real machinery of this feature):**
+**Compiler engineering items:**
 
-1. **Out-param scalar result shape.** QPC, QPF, FILETIME, and timespec all
-   deliver their value through a pointer argument, not the return register. A
-   `PlatformCallData` variant (stack slot + post-call load, or the fs
-   stat-buffer pattern where the Omega side passes `&mut [u8]`) is needed; it
-   is reused by every row in the table above except darwin's `_nsec_np` calls
-   and the already-bound ops. Precedents: `MutableOutputBuffer` (read_line),
-   fs `stat` buffer decode, D9 in TASKS_FS.md (`dereferences_result()`
-   post-call load, including its three-site lockstep width rule).
-2. **Constant-argument injection** (darwin clockid values for `_nsec_np`) and
-   **constant result** (fixed 10^9 frequency on darwin/linux). Precedent for
-   lowering-layer data shaping: `FirstTextArgument { append_newline }`.
+1. **Out-param scalar result shape (windows).** QPC, QPF, and FILETIME deliver
+   through a pointer argument. New shape: reserve a stack slot, pass its
+   address, load the `u64` after the call, store via the normal result path.
+   Follow the 3-site lockstep discipline (`widths.rs` + relocation offsets +
+   encoder) that `dereferences_result()` (fs D9) and the fire-6 float return
+   both used — the precedent is cheap and well-trodden. x86_64 first (tested
+   target).
+2. **Constant-result ops + constant-argument injection.** A lowering that
+   materializes a per-target constant `u64` as the op result with NO call
+   (windows wall units/epoch, darwin/linux frequencies) — new
+   `PlatformCallData` variant, trivially encodable; and constant ARG injection
+   for darwin's `_nsec_np` clockid values. Precedent for lowering-layer data
+   shaping: `FirstTextArgument { append_newline }`.
 3. **Enum + table additions:** new `HostOperation` variants with
-   `from_name`/`name` arms in `omega-calling-conventions/src/lib.rs`; import
-   rows + `insert_platform_lowering` calls in `windows.rs` (then `darwin.rs`,
-   `linux.rs`); check `omega-relocations` host-operation instruction records
-   and any driver trust-root count assertions.
-4. **aarch64 value-returning Clock ops** — lift the x86_64 fence following the
-   path fs proved for Filesystem value returns (coordinate with render).
+   `from_name`/`name` arms in `omega-calling-conventions/src/lib.rs`
+   (names collision-free across ALL host-lowered names — lowering matches on
+   machine name); import rows + `insert_platform_lowering` in `windows.rs`
+   (then `darwin.rs`); check `omega-relocations` host-operation instruction
+   records and any driver trust-root count assertions.
+4. **NO aarch64 fence lift needed** (corrected): the x86_64 gate in
+   `windows.rs` wraps Gui ops only; Clock rows bind unconditionally and fs
+   proved aarch64 value returns. Darwin Clock additions are table work.
+5. **D14 literal carrier** — scope in D14; land as ONE focused commit;
+   canaries: `let x: u64 = 18446744073709551615` exact round-trip natively +
+   interp, and a FAIL canary for a magnitude no type fits / a u64-range
+   literal bound to i64 (fit-check at use).
+6. **D15 const-v0** — declaration parse (free + `Type::`-scoped), symbol
+   resolution, literal-only initializer evaluation, pure-value check,
+   use-site materialization (a const use folds to its literal value / struct
+   literal). Canaries: scalar const in arithmetic + guard; struct const
+   (`Duration::ZERO`-shaped) constructed and field-read; FAIL canary for a
+   non-literal initializer.
 
-## Open questions
+## Resolved questions (were O1–O3)
 
-- **O1. Where does per-OS glue math live?** D6 puts tick normalization in the
-  portable wrapper (frequency makes it target-agnostic). The FILETIME
-  epoch/unit conversion is not frequency-shaped, so it must live either (a) in
-  a lowering-layer transform (recommended; `append_newline` precedent), or
-  (b) in a per-target instruction sequence behind the `read_wall_clock`
-  contract, or (c) by weakening the contract to raw platform units + a
-  per-target constant pair (epoch offset, units per second) the wrapper
-  consumes. Implementer resolves against the codebase; the contract semantics
-  in `time_host.omg` must not change whichever way this goes.
-- **O2. `Time` calibration capture.** Guarding `ticks_per_second ≤
-  18_446_744_073` once and storing it in `Time` fields vs. re-reading per
-  `now()`. Storing is preferred (one guard, prover-visible field range);
-  confirm the field-range spelling the prover accepts.
-- **O3. `Ordering` home.** `std/time.omg` for now, or promote to a shared std
-  module immediately if the fs workstream wants it too.
+- **O1 (glue math home): RESOLVED → wrapper + constants (D11).** Verified: the
+  lowering layer cannot express post-call arithmetic; option (c) — raw platform
+  units + per-target constants — is now the contract itself.
+- **O2 (calibration): RESOLVED → store in `Time` fields.** Scalar field range
+  write-enforcement is verified live, so range-refined calibration fields carry
+  the D5 proof bound; capture via the fs entry-capture pattern (host result
+  into a field in the machine ENTRY, then guard the stored field).
+- **O3 (Ordering home): RESOLVED → mint in `time.omg`** (D13); nothing else
+  defines or needs one today.
 
 ## Next steps
 
-1. [ ] **Duration pure-value core** (`time.omg`, no host, no compiler work):
-   data + consts + constructors + accessors + checked/saturating arithmetic +
-   compare. Interpreter canaries under `canaries/pass/time/` asserting exact
+1. [ ] **i128 literal carrier (D14).** The mechanical sweep + parse acceptance +
+   `IntegerRange` widening; canaries per engineering item 5. Verify by A/B
+   failure-set diff (this touches proof/validation/folding — high blast
+   radius, zero intended behavior change for in-range programs).
+2. [ ] **const-v0 (D15).** Declaration + literal-only eval + use-site
+   materialization; canaries per engineering item 6.
+3. [ ] **Duration pure-value core** (`time.omg`, no host work): data + consts +
+   constructors + accessors + checked/saturating arithmetic + compare +
+   `Ordering`. Interpreter canaries under `canaries/pass/time/` asserting exact
    values: construction, `checked_add` overflow arm taken, saturating clamps at
    `MAX`/`ZERO`, unit conversions, borrow-carrying subtraction, `divide` by
-   zero takes the first case. Native runs on windows_x64 (pure value code —
-   should be table-free).
-2. [ ] **`TimeHost` seam + interpreter support** (`time_host.omg`, D12):
-   interpreter implementations for the three new ops; interpreter canary for
-   `Time::now()` monotonicity and `system_time_now() > from_unix_seconds(1_767_225_600)`
-   (2026-01-01).
-3. [ ] **Windows bindings** — engineering items 1–3: out-param shape,
-   QPC/QPF/`GetSystemTimePreciseAsFileTime` rows + lowerings, O1 resolution.
-   Native canaries mirroring `runtime_tick_count_monotonic_exit`:
+   zero takes the first case; a FAIL canary pinning literal-construction
+   rejection of `subsecond_nanoseconds` > 999_999_999. Native runs on
+   windows_x64. (Native struct-returning value machines were fixed 2026-07-06;
+   interpreter-first ordering covers residual faces.)
+4. [ ] **`TimeHost` seam + interpreter support** (`time_host.omg`, D12):
+   virtual-clock interpreter implementations for the five value ops;
+   interpreter canaries asserting EXACT values (monotonicity across a virtual
+   sleep; `system_time_now()` == seed + advance).
+5. [ ] **Windows bindings** — engineering items 1–3: out-param shape,
+   constant-result shape, QPC/QPF/`GetSystemTimePreciseAsFileTime` rows +
+   lowerings. Native canaries mirroring `runtime_tick_count_monotonic_exit`:
    `runtime_instant_elapsed_exit` (t1 = now, sleep 30ms, elapsed_since(t1) ≥
    30ms → distinct exit codes per failure arm) and
-   `runtime_system_time_after_2026_exit`.
-4. [ ] **Wrapper completion** — `Instant`/`SystemTime`/`Time` machines over the
-   seam, using the fs entry-capture pattern (host result into a field in the
-   machine ENTRY, then guard on the stored field).
-5. [ ] **Sample** — `samples/cli/systems/elapsed_timer`: measure a real
+   `runtime_system_time_after_2026_exit`
+   (`system_time_now() > from_unix_seconds(1_767_225_600)`).
+6. [ ] **Wrapper completion** — `Instant`/`SystemTime`/`Time` machines over the
+   seam, entry-capture pattern, calibration guard (O2).
+7. [ ] **Kill `Console::sleep` (D16).** Remove the entry from
+   `std/console.omg`; migrate the 11 samples + `runtime_sleep_exit` onto a
+   clock capability; exit codes / expected outputs unchanged; re-green
+   samples_compile by A/B diff. Deprecation fallback only if a face resists.
+8. [ ] **Sample** — `samples/cli/systems/elapsed_timer`: measure a real
    workload with `Instant`, print milliseconds, exit code proves the
-   elapsed-≥-sleep chain (the stopwatch sample stays simulated-tick; a new
-   sample avoids rewriting it).
-6. [ ] **Filesystem interop** — `SystemTime::from_unix_seconds` consumed from
+   elapsed-≥-sleep chain (the stopwatch sample stays simulated-tick).
+9. [ ] **Filesystem interop** — `SystemTime::from_unix_seconds` consumed from
    `Metadata` timestamps; later, fs-side `modified() -> SystemTime` parity
    (coordinate with the fs workstream; their file, their call).
-7. [ ] **darwin/aarch64** — engineering item 4 (fence lift) + `_nsec_np` rows
-   (needs O2 constant-arg injection) + `usleep` (render workstream owns
-   `Clock.sleep` darwin — do not duplicate). Native confirmation needs a Mac.
-8. [ ] **linux** — binding table rows only (structural readiness, same policy
-   as fs next-step #5).
-9. [ ] **`Console::sleep` reconciliation** — the signature-only stub in
-   `std/console.omg` either delegates to `Time::sleep_for` or is removed in
-   favor of it (user call).
+10. [ ] **darwin/aarch64** — `_nsec_np` rows (constant-arg injection) +
+    constant-result rows; `usleep` stays render's (do not duplicate). Native
+    confirmation needs a Mac.
+11. [ ] **linux** — monotonic/wall rows stay DEFERRED (timespec out-param needs
+    arithmetic no lowering shape provides); document the gap honestly rather
+    than a broken row. `nanosleep` row only.
 
 ## Coordination
 
 - **Render workstream (TASKS_RENDER.md):** owns darwin `Clock.sleep` binding
-  (item 7) and the interpreter headless `Gui`/`Input`/`Clock` stub (item 9).
-  Agree before adding ANY darwin Clock rows or interpreter Clock behavior —
-  D12 (real interpreter clock) must not fight their headless stub; the stub
-  can virtualize `sleep` while `monotonic_ticks` stays real.
+  (their item 7). SETTLED HERE (D12): the interpreter headless stub (their
+  item 9) covers **Gui/Input only** — time owns interpreter Clock semantics
+  (virtual clock). Reflect that in TASKS_RENDER.md item 9 when next edited.
 - **Filesystem workstream (TASKS_FS.md):** shares the calling-convention hot
   files (`lib.rs`, `windows.rs`, `darwin.rs`, `linux.rs`), `canary_suite.rs`
   (`ACTIVE_PASS_CANARIES`), and established the wrapper patterns this plan
-  reuses (entry-capture, buffer decode, D9 lockstep rule). Rebase small and
-  often; enum arms and table rows are append-mostly but not conflict-free.
+  reuses (entry-capture, D9 lockstep rule). Rebase small and often.
+- **TASKS.md claims:** the u64-literal gap (fence catalog) and the const task
+  are now CLAIMED by this workstream — annotated there 2026-07-06.
 - **Cathedral:** keep `TimeHost` narrow and capability-shaped — the
   freestanding target has no host layer, and this contract is what Cathedral
   would later implement via UEFI `GetTime` / TSC calibration. Nothing here may
-  grow an ambient-authority shortcut (D9).
+  grow an ambient-authority shortcut (D9). const-v0 (D15) directly serves
+  Cathedral's EFI constants.

@@ -140,8 +140,9 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   by `calls/runtime_same_type_contained_direct_fields_exit`. Real fix = thread the receiver
   field offset through dispatch (deep). A precise frontend fence for (1) rejects
   currently-compiling code -> needs a Zach decision, not landed unilaterally.
-- u64 literals above i64::MAX rejected at parse (`literals.rs`); const float arith
-  in a guard refused (clean error); a tail of value-call corner cases.
+- u64 literals above i64::MAX rejected at parse (`literals.rs`) — **CLAIMED by the
+  std::time workstream** (TASKS_TIME.md D14: i128 literal carrier, rung 1); const
+  float arith in a guard refused (clean error); a tail of value-call corner cases.
 - **[ ] Unresolved value-call returns 0 silently (found 2026-07-05).**
   `let y: i32 = bogus_fn(1)` compiles and yields 0 (silent miscompile);
   statement-position `bogus_fn(1);` is correctly rejected by `validate_call_node` ("has
@@ -352,6 +353,12 @@ stays the compiler's). Milestone-2 driver: `EfiMemoryType` in the memory-map
 walk.
 
 ## TASK — const + the static root (settled 2026-07-04, Zach; brief: static_root_and_constants.md, ch1 updated)
+
+> **const-v0 CLAIMED by the std::time workstream (2026-07-06)** — the `const`
+> declaration with LITERAL-ONLY initializers (scalars + struct-literals-of-
+> literals, free or `Type::`-scoped, pure-value check); see TASKS_TIME.md D15 /
+> rung 2. The full build-time-evaluation arc (machines in const position) stays
+> here.
 
 The three tangled holes (where const lives, where static lives, why main's &self
 looked like a hack) resolve into two:
