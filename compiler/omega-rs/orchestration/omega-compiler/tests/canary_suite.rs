@@ -3824,6 +3824,42 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// RECURSIVE value machine via the `self.` spelling: used to silently
+// materialize 0 natively (planned as a Nested/contained transition). Now the
+// dispatch self-loop. countdown(2) -> 7 -> exit 1.
+#[test]
+fn runtime_recursive_self_spelling_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_recursive_self_spelling_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-rec-self-spell-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("recursive self-spelling canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("recursive self-spelling canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `self.countdown(2)` to reach the base case 7 and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // `-> usize` written AFTER the machine clauses (`terminates -> usize`): the
 // parser used to silently DROP it (skip-any-token fallback), so the machine
 // parsed as VOID and callers bound ZII 0. Non-recursive value flows -> exit 1.
