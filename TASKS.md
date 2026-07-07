@@ -126,34 +126,23 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   no numeric carrier at all; also absorbs the type-blind const-fold sign-miscompile
   class, since a context-less folder defers instead of folding); const float arith
   in a guard refused (clean error); a tail of value-call corner cases.
-- **[ ] Unresolved value-call returns 0 silently (found 2026-07-05).**
-  `let y: i32 = bogus_fn(1)` compiles and yields 0 (silent miscompile);
-  statement-position `bogus_fn(1);` is correctly rejected by `validate_call_node` ("has
-  no local state"). The value path (`validate_expression_call_bounds`) is a PARTIAL
-  best-effort resolver -- unresolved = skip the bounds check, NOT an error. ATTEMPTED +
-  REVERTED 2026-07-05 TWICE: (1) erroring when its three receiverless branches
-  (self-state / attached-sibling / free-machine-entry) all miss broke ~40 canaries; (2)
-  erroring only when the target names NOTHING anywhere (a global scan of machine names +
-  every machine's states + platform states, excluding `min`/`max`/`sqrt`) STILL broke
-  ~40 -- so valid value-calls reach the fall-through with targets a naive global scan
-  doesn't recognize (free machines + their sub-states are not in `program.machines()`;
-  contained/cross-machine/dispatch calls resolve via backend paths). CLEAN FIX needs the
-  COMPLETE value-call target resolver (matching lowering), not the partial bounds one;
-  a focused session. NOTE 2026-07-05 (commit 0a2abd4c6): for a RESOLVED value-call the
-  path now enforces argument ARITY too (shared `report_argument_count_mismatch`, was
-  statement-position only -- `let r = self.pick(1)` for a 2-param `pick` silently read a
-  ZII arg), alongside the existing class/narrowing/nominal checks. Only the UNRESOLVED
-  fall-through (this bullet's nonexistent-target case) remains.
-  SIBLINGS in the SAME frontier (found 2026-07-05, both silently bind a ZII 0; both need
-  the complete resolver, NOT tick-sized): (a) a VOID callee used in value position
-  (`let r: i32 = self.act()` for a unit `act`); (b) a value-returning machine with an
-  EMPTY/no-value body (`machine get -> i32 { }`). ATTEMPTED + REVERTED (a) 2026-07-05:
-  keying the check off the resolved `callee_state.return_type` false-positived on
-  terminating/transition machines (`weaken -> usize`, `table_size() -> usize`) whose
-  entry-state return_type is EMPTY; `call_return_type` can't help either -- it filters to
-  states with a VALID return type, so a resolved-void callee and an unresolved call both
-  yield None (indistinguishable), and it's self/attached-only. Distinguishing "resolved
-  void" from "unresolved" is precisely what the complete value-call resolver provides.
+- **[ ] Value-call frontier SIBLINGS (the nonexistent-target face CLOSED 2026-07-09).**
+  `let y: i32 = bogus_fn(1)` and `recv.bogus_method()` are now COMPILE ERRORS
+  (`report_unresolved_value_call` in calls.rs: a decision layer after the partial bounds
+  resolver -- builtins {min,max,sqrt,as_slice,as_mut_slice,as_view,bytes}, wire
+  encode/decode on a data receiver, then platform/trait/machine/attached through three
+  receiver-type channels: contained type, DECLARED local/param type walked to its Named
+  head, receiver-as-type-name). Vocabulary was collected empirically via fall-through
+  logging across canaries+samples -- extend the channels there if a new valid shape ever
+  hits the error. It caught real silent-0s in the dungeon (Option `is_some`/`unwrap`
+  resolved to nothing; inventory never stacked -- rewritten to the usize-sentinel idiom).
+  REMAINING siblings (both still silently bind ZII 0; need resolved-void vs unresolved
+  DISTINCTION, which the decision layer now makes possible): (a) a VOID callee in value
+  position (`let r: i32 = self.act()` for a unit `act`) -- prior attempt false-positived
+  on terminating/transition machines whose entry-state return_type is EMPTY (`weaken ->
+  usize`), so the fix needs the RESOLVED callee's return type from the SAME channel that
+  resolved it, not a second lookup; (b) a value-returning machine with an EMPTY body
+  (`machine get -> i32 { }`).
 - **[ ] MACHINE-FIELD-START subslice of a fixed array (fenced; everything else lowered 2026-07-06).**
   `let sub = self.arr[self.lo..self.hi]` (START = a machine FIELD) = clean error ("subslice
   descriptor construction ... not lowered"; fail canary
