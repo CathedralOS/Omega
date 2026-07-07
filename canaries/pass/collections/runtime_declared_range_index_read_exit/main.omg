@@ -1,0 +1,31 @@
+// A DECLARED range discharges the index obligation with NO guard: `i: usize
+// [0..=4]` indexing `[i32; 5]` proves both halves (0 <= i by the range's low
+// bound -- and by unsignedness -- and i < 5 by high=4). Before, an explicit
+// dominating guard or exact assignment was required; the declared range alone
+// left "cannot prove index within length 5". Sound because an EXACT-domained
+// range is enforced at every store and ZII 0 must be in range. The read state
+// sees only the ZII i=0 -> arr[0]=30 -> exit 30.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 5];
+    i: usize [0..=4];
+}
+
+machine Main::main(&mut self) {
+    self.arr[0] = 30;
+    transition { _ -> read() }
+
+    state read(&mut self) {
+        let v: i32 = self.arr[self.i];
+        transition v == 30 {
+            true -> matched()
+            false -> unmatched()
+        }
+    }
+    state matched(&mut self) { self.console.exit_process(30); }
+    state unmatched(&mut self) { self.console.exit_process(0); }
+}

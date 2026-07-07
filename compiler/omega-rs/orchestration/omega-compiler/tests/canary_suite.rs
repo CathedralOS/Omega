@@ -2709,6 +2709,75 @@ fn runtime_slice_length_field_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A DECLARED range discharges the index obligation with no guard: `i: usize
+// [0..=4]` indexing `[i32; 5]` proves both bounds (Exact-domain ranges are
+// store-enforced invariants). Read face: ZII i=0 -> arr[0]=30 -> exit 30.
+#[test]
+fn runtime_declared_range_index_read_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_declared_range_index_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-range-idx-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("declared range index read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("declared range index read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(30),
+        "expected `self.arr[self.i]` (i: usize [0..=4], no guard) to prove and read \
+         arr[0]=30 -> exit 30, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// The WRITE face of the declared-range index proof: `self.arr[self.i] = 30`
+// with `i: usize [0..=4]` and no dominating guard -> read-back -> exit 30.
+#[test]
+fn runtime_declared_range_index_write_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_declared_range_index_write_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-range-idx-write-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("declared range index write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("declared range index write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(30),
+        "expected `self.arr[self.i] = 30` (i: usize [0..=4], no guard) to prove, \
+         write arr[0], and read back 30 -> exit 30, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A range constraint with a CONSTANT-EXPRESSION bound: `x: i32 [0 - 1..=40]`
 // folds to `[-1..=40]` via the expression-table const-eval. Expression bounds
 // used to parse but silently behave UNBOUNDED (a store of 100 passed). This
@@ -21579,6 +21648,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "collections/nested_runtime_indexed_read_rejected",
     "collections/nested_runtime_indexed_struct_field_read_rejected",
     "collections/nested_runtime_indexed_struct_field_write_rejected",
+    "collections/declared_range_index_too_wide",
+    "collections/wrapping_range_index_unproven",
     "collections/deep_nested_runtime_indexed_write_rejected",
     "layouts/plan_laid_dynamic_plan",
     "layouts/plan_laid_policy_without_plan_machine",
