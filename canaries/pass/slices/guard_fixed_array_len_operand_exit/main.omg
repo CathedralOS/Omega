@@ -1,0 +1,28 @@
+// A machine-field FIXED array's `.len` as a dispatch-guard COMPARISON OPERAND
+// against a runtime value: `transition hi <= self.arr.len`. The length is a
+// compile-time constant with no storage, so before the guard-normalization fold
+// this classified as a runtime compare with no right storage and died at
+// emission ("operand did not resolve to storage"). The fold rewrites it to the
+// literal 5 -> a plain CompareStaticValue. hi=4 -> true arm -> exit 7. (The
+// false arm is exercised by the same shape with hi=9 in the probe family.)
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 5];
+}
+
+machine Main::main(&mut self) {
+    transition { _ -> self.view(4) }
+}
+
+machine Main::view(&mut self, hi: usize) {
+    transition hi <= self.arr.len {
+        true -> ok()
+        false -> bad()
+    }
+    state ok(&mut self) { self.console.exit_process(7); }
+    state bad(&mut self) { self.console.exit_process(0); }
+}
