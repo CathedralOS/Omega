@@ -20014,6 +20014,56 @@ fn windows_fs_raw_roundtrip_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// ERGONOMIC-wrapper breadth on windows_x64, second wave: WRAPPER rename (the
+// two-path import call resolves each path PER ARGUMENT through the alias
+// chain -- param-forwarded literals had no encodable sequence before),
+// append (portable flag word 9), read_all, remove -- every step checked
+// through its result enum. Windows-gated like the raw canaries.
+#[cfg(windows)]
+#[test]
+fn windows_fs_wrapper_breadth_exit_canary_runs() {
+    let canary = pass_canary("filesystem/windows_wrapper_breadth_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("windows wrapper breadth canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (wrapper rename/append/read_all pass), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fs-win-wrapper-breadth-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("windows wrapper breadth canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("windows wrapper breadth canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the wrapper breadth pass (exit 70), got {:?} (71 write_all;          72 rename; 73 old name still opens; 74/75 append open/write; 76-78          read_all count/head/tail; 82 remove)
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Raw-seam BREADTH on windows_x64: the wired-but-previously-unverified msvcrt
 // ops beyond the roundtrip -- sync (_commit), seek (_lseeki64), duplicate
 // (_dup), set_permissions (_chmod), rename (dest pre-removed: msvcrt rename
@@ -23917,6 +23967,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_call_transition_args_exit",
     "calls/runtime_value_call_transition_args_straight_line_exit",
     "filesystem/windows_raw_breadth_exit",
+    "filesystem/windows_wrapper_breadth_exit",
     "filesystem/windows_raw_roundtrip_exit",
     "filesystem/windows_wrapper_results_exit",
     "collections/runtime_palindrome_two_pointer_exit",

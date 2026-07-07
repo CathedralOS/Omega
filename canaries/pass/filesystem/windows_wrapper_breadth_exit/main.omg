@@ -1,0 +1,83 @@
+// RUN CANARY (exit 70) -- ERGONOMIC-wrapper breadth on windows_x64, second
+// wave: wrapper machines riding already-wired msvcrt rows, natively
+// verified end to end. Covers WRAPPER rename (the two-path import call now
+// resolves each path PER ARGUMENT through the alias chain -- param-forwarded
+// literals lived at the CALLER's statement and had no encodable sequence
+// before), append (flag word 9 = O_WRONLY|O_APPEND -- darwin and msvcrt
+// VALUES agree, so it needs no fenced open_create; the payload avoids
+// newlines so msvcrt text mode cannot translate), read_all, and remove.
+// Every step checks its RESULT ENUM tag; the interpreter's virtual fs is
+// the differential oracle. Still windows-fenced: copy/remove_dir_all
+// (set_len / read_metadata / read_dir rows) and create_dir_all's DEEP walk
+// (runtime SUBSLICE paths need a NUL-terminated scratch copy -- the
+// runtime-path extension).
+// exit 70 = full pass; 71 write_all; 72 rename; 73 old name still exists;
+// 74 append open; 75 append write; 76 read_all count; 77 head byte;
+// 78 tail byte; 82 remove file.
+
+use omega::language::std::filesystem;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    fs: Filesystem;
+    buffer: [u8; 16];
+    wr: UnitResult;
+    opened: OpenResult;
+    io: IoResult;
+    rc: i32;
+}
+
+machine Main::main(&mut self) {
+    self.wr = self.fs.write_all("omega_wb_a.txt", "abc");
+    transition self.wr { UnitResult::Ok -> do_rename() _ -> bad(71) }
+
+    state do_rename(&mut self) {
+        self.wr = self.fs.rename("omega_wb_a.txt", "omega_wb_b.txt");
+        transition self.wr { UnitResult::Ok -> probe_old() _ -> bad(72) }
+    }
+
+    state probe_old(&mut self) {
+        // `exists` is stat-based (read_metadata -- windows-fenced), so probe
+        // the old name with `open`: it must be gone (Error, not Ok).
+        self.opened = self.fs.open("omega_wb_a.txt");
+        transition self.opened { OpenResult::Ok { file } -> bad(73) _ -> do_append() }
+    }
+
+    state do_append(&mut self) {
+        self.opened = self.fs.append("omega_wb_b.txt");
+        transition self.opened { OpenResult::Ok { file } -> do_append_write(file) _ -> bad(74) }
+    }
+
+    state do_append_write(&mut self, file: File) {
+        self.io = self.fs.write(file, "xyz");
+        self.rc = self.fs.close(file);
+        transition self.io { IoResult::Ok { count } -> do_read_all() _ -> bad(75) }
+    }
+
+    state do_read_all(&mut self) {
+        self.io = self.fs.read_all("omega_wb_b.txt", &mut self.buffer, 16);
+        transition self.io { IoResult::Ok { count } -> chk_count(count) _ -> bad(76) }
+    }
+
+    state chk_count(&mut self, count: usize) {
+        transition count == 6 { true -> chk_head() _ -> bad(76) }
+    }
+
+    state chk_head(&mut self) {
+        transition self.buffer[0] == 97 { true -> chk_tail() _ -> bad(77) }
+    }
+
+    state chk_tail(&mut self) {
+        transition self.buffer[5] == 122 { true -> clean_file() _ -> bad(78) }
+    }
+
+    state clean_file(&mut self) {
+        self.wr = self.fs.remove("omega_wb_b.txt");
+        transition self.wr { UnitResult::Ok -> good() _ -> bad(82) }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
