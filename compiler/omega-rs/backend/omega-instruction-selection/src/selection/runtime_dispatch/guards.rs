@@ -1396,7 +1396,6 @@ pub(super) fn runtime_storage_guard_in_table(
         _ => return None,
     };
 
-    eprintln!("RSG-table: reached");
     // A bare `self` subject in a case-enum-attached machine compares the
     // attached value's TAG (a guard-compare-only place; see
     // resolve_machine_owned_self_case_tag_place_in_table).
