@@ -95,7 +95,7 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 "provably correct native output," which it meets.
 
 ## Open latent bugs / fenced gaps
-- **[ ] CRITICAL, FROM OWNER: runtime_recursive_accumulator_exit -- this should not fucking compile. This language does NOT support recursion like this. I do not know which TASK.md file produced this, but this is 100% unacceptable. A goal of this language is a predictable stack size. There is NO FUCKING RECURSION. These tests should be FAILING canaries, or removed. There is only jumps/loops/etc via state transitions (manual looping, closer to a goto statement). Recursion means unpredictable stack. Unacceptable. If a different agent caused this, update the appropriate TASKS_{X}.md.
+- **[ ] CRITICAL, FROM OWNER: runtime_recursive_accumulator_exit -- this should not fucking compile. This language does NOT support recursion like this. I do not know which TASK.md file produced this, but this is 100% unacceptable. A goal of this language is a predictable stack size. There is NO FUCKING RECURSION. These tests should be FAILING canaries, or removed. There is only jumps/loops/etc via state transitions (manual looping, closer to a goto statement). Recursion means unpredictable stack. Unacceptable. If a different agent caused this, update the appropriate TASKS_{X}.md. machine calls are stack based, but state transitions are not.
 
 - **[ ] Interpreter unsigned-u64 arithmetic remainder (2026-07-07).** Comparisons now
   take an UNSIGNED witness from declared types (evaluator: Frame.unsigned64_locals +
