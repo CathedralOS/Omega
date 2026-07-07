@@ -39,9 +39,11 @@ marshalling happens (clang's output vs our own encoder).
   only (a `Gui` call on other targets is a deliberate compile error).
 - **darwin binds no GUI.** `darwin.rs` covers only `Filesystem`/`Process`/std
   streams — so `Gui.*`, `Input.key_state`, AND `Clock.sleep` are all unbound on macOS.
-- **aarch64 host-call ABI is INTEGER/POINTER only** (from the fs work): args in
-  x0–x7, one stack scalar, int/deref returns. NO float/double args, NO
-  struct-by-value, NO indirect struct returns. This is the one real gap.
+- **aarch64 host-call ABI: integer/pointer + SCALAR FLOAT (both directions) DONE.**
+  Args in x0–x7 + one stack scalar + double args in v0–v7 (fires 5–6); int/deref
+  returns + double return from d0 (fire 6). STILL MISSING: HFA struct-by-value
+  (double args in v0–v3, item #2) and indirect struct return via x8 (item #3, avoid
+  if possible). HFA is the remaining gating gap for `NSWindow initWithContentRect:`.
 - **Sample model** (`samples/gui/window_app/main.omg`): create window → get DC → per
   frame fill a 64×64 `pixels: [i32;4096]` framebuffer (32-bit BGRA/BGRX) and `blit` →
   pump ≤16 messages → `is_window` / `key_state(27=ESC)` quit paths.
@@ -65,8 +67,9 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
 
 ## Work items (native, ABI-first)
 
-1. **[ ] Float-arg + float-return host calls** — double args in v0–v7, double return
-   from v0. **GROUNDED (fire 1, 2026-07-12):** the hard part (instruction encodings)
+1. **[x] Float-arg + float-return host calls DONE (fires 5–6)** — double args in v0–v7,
+   double return from d0; run-verified `round_nearest`/`square_root`/`hypotenuse`
+   canaries. **GROUNDED (fire 1, 2026-07-12):** the hard part (instruction encodings)
    already EXISTS — `aarch64/primitives/float.rs` has `encode_float_move_from_gpr`
    (GPR→v `fmov`, for loading an arg's bits into a v-register) and
    `encode_float_move_to_gpr` (v→GPR, for spilling a v0 return to store). Omega
@@ -174,6 +177,34 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
      small follow-up: after `BL`, `encode_float_move_to_gpr(v0→GPR)` then the normal
      store, gated on a `returns_float()` predicate — needed only if a Cocoa/CG call we
      use returns a double (most return objects/ints); defer until one does.
+   - **✅ FIRE 6 (2026-07-06) — FLOAT-RETURN + MULTI-FLOAT-ARG LANDED + RUN-VERIFIED.**
+     Did the follow-up now (not deferred): float RETURN is the same +4-lockstep shape as
+     `dereferences_result`, so mirroring it was cheap AND it closes the whole *scalar*
+     float ABI (both directions) in one fire — the natural next canaries (HFA `cabs`, any
+     objc double getter) need it anyway. Added `HostOperationKey::returns_float()`
+     (`lib.rs`, true for `Math::SquareRoot`/`Hypotenuse` only — `round_nearest` returns
+     i64 so it is excluded); a new encoder
+     `encode_host_call_sequence_value_returning_float_from_operands` (`isa-aarch64/aarch64/
+     mod.rs`) = the plain value-returning encoder + `fmov x0,d0` after `BL` (the result
+     place stores bit-identically to an i64); dispatch arm in `encoding/host.rs` BEFORE
+     the plain `returns_value()` arm; +4 lockstep at `widths.rs` and `offsets/
+     data_addresses.rs` (result store sits 4 bytes later — same discipline as deref).
+     Ops `SquareRoot`(`_sqrt`)/`Hypotenuse`(`_hypot`) + darwin imports/lowerings + op arms
+     reusing `float_argument_operand_at`. GOTCHA (already known, re-hit): a bare float
+     LITERAL arg (`square_root(16.0)`) has no storage slot → `float_argument_operand_at`
+     returns None → empty operands → encoder hard-errors "no result storage operand"; the
+     value must flow through a FIELD (`self.input = 16.0; square_root(self.input)`).
+     PROVEN: `canaries/pass/float/native_float_return` (`sqrt(16.0)`→4.0, round-tripped
+     through the proven `round_nearest` to dodge float-`==`-in-guard) exits 4;
+     `native_float_two_args` (`hypot(3,4)`→5.0, args in v0+v1) exits 5. `otool` on the
+     sqrt binary shows the exact new instr: `fmov d0,x16; bl _sqrt; fmov x0,d0; …; fmov
+     d0,x16; bl _lround`. Regressions `native_float_return_exits_4` +
+     `native_float_two_args_exits_5` (native fs harness now 58/58); crate tests green
+     (isa-aarch64 31, instruction-selection 10, relocations 5, calling-conventions 5);
+     canary_suite **zero new failures** (A/B failure-SET diff — identical 87-failure
+     baseline w/ and w/o my changes; the remembered "86" had drifted after rebases).
+     **Scalar float ABI (args v0–v7 + double return d0) is now COMPLETE both directions.**
+     Next is HFA (struct-of-N-doubles in v0–vN-1) — item #2.
 2. **[ ] HFA struct-by-value args (NEXT)** — pass `NSRect` (4 doubles) / `CGSize` (2) in
    v-regs. Canary: `NSMakeRect(...)` round-trip or `[NSWindow ... initWithContentRect:
    styleMask:backing:defer:]` produces a non-nil window.

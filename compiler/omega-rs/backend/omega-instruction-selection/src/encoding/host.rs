@@ -43,6 +43,14 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
                 operands.iter().map(aarch64_call_operand),
             )
         }
+        // Float-returning ops (sqrt/hypot) also share `returns_value()` but the
+        // result comes back in `d0`; the encoder inserts `fmov x0, d0` before the
+        // result store. Checked before the plain value-returning arm.
+        Architecture::Aarch64 if operation_key.returns_float() => {
+            aarch64::encode_host_call_sequence_value_returning_float_from_operands(
+                operands.iter().map(aarch64_call_operand),
+            )
+        }
         Architecture::Aarch64 if operation_key.returns_value() => {
             aarch64::encode_host_call_sequence_value_returning_from_operands(
                 operands.iter().map(aarch64_call_operand),
