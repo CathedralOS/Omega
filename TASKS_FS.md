@@ -59,10 +59,19 @@ paths (a consequence of the deferral contiguity work below) — the historical
 shared-result-slot fence was verified obsolete by discriminating probes and
 REMOVED (`shared_value_call_slot_blockers.rs` deleted; shapes pinned by pass
 canaries `calls/runtime_value_call_same_callee_sites_exit` +
-`calls/runtime_value_call_shared_slot_straight_line_exit`). Still-broken
-positions: (a) a scalar/bool user value-call as a GUARD SUBJECT is silently
-ALWAYS-TRUE (designed-false probe re-confirmed; any sound fence forces
-corpus-wide bind-to-local rewrites incl. the dungeon — POLICY Q for Zach).
+`calls/runtime_value_call_shared_slot_straight_line_exit`). Matrix status:
+(a) a scalar value-call as a GUARD SUBJECT = CLEAN ERROR since 2026-07-07
+(was silently always-true; the guard-role callee body is never spliced and
+the comparison lowered to NeedsRuntimeExpression which the emitter DROPS —
+schedule-success programs bypass all three dispatch can-emit gates, so the
+fence lives in `collect_unlowered_guard_blockers`: NeedsRuntimeExpression +
+a real operator = blocker; operator-None fallthrough edges stay accepted).
+ZERO corpus impact — the feared dungeon/single-eval rewrites don't arise, so
+the old policy question is MOOT. Fail canary
+`calls/guard_scalar_value_call_rejected`. Making the shape WORK (splice the
+callee once per dispatch frame — the effectful-subject memo constraint —
+then compare the populated slot) is future engineering with the
+transition-arg fix as the template.
 (b) TRANSITION-ARGUMENT value calls are FIXED (2026-07-07 deep fix — the
 one-day stopgap is retired): TransitionArgument leaf captures defer past the
 callee's spliced body ops; leaf expansions pair with their own call op by
