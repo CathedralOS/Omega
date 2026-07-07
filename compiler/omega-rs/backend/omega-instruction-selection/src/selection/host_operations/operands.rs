@@ -374,6 +374,32 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::ObjectiveC, HostOperation::MsgSendScalar4) => {
+            // `r = send_scalar4(recv, sel, a, b, c, d) -> _objc_msgSend(recv, sel, a,
+            // b, c, d)`. Six scalar args in list order → x0,x1,x2,x3,x4,x5. For the
+            // event pump's nextEventMatchingMask:untilDate:inMode:dequeue:.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let recv = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let sel = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let a = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let b = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            let c = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 5);
+            let d = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 6);
+            match (result, recv, sel, a, b, c, d) {
+                (Some(result), Some(recv), Some(sel), Some(a), Some(b), Some(c), Some(d)) => {
+                    operands.insert_many([
+                        operand(result),
+                        operand(recv),
+                        operand(sel),
+                        operand(a),
+                        operand(b),
+                        operand(c),
+                        operand(d),
+                    ])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::ObjectiveC, HostOperation::MsgSendImageSize) => {
             // `r = send_image_size(recv, sel, image, w, h) -> _objc_msgSend(recv,
             // sel, image, NSSize{w,h})`. recv/sel/image are SCALARS (→ x0,x1,x2) and

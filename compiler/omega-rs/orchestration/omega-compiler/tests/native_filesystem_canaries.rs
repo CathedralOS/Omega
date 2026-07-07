@@ -435,3 +435,32 @@ fn present_frame_exits_5() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(out.status.code(), Some(5), "present_frame should attach the CGImage-backed NSImage to the view");
 }
+
+// The NON-BLOCKING event pump: 3x [NSApp nextEventMatchingMask:0xffffffff
+// untilDate:[NSDate distantPast] inMode:"kCFRunLoopDefaultMode" dequeue:1] via the
+// new send_scalar4 (4 args -> x2-x5). untilDate:distantPast is what makes it
+// non-blocking; a regression to a blocking pump would HANG, so this test spawns
+// with a deadline and fails loudly instead of hanging the suite. -> exit 6.
+#[test]
+fn event_pump_exits_6() {
+    let main_path = repo_root().join("canaries/pass/objc/event_pump/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-pump-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("event_pump should compile:\n{d:#?}"));
+    let mut child = Command::new(build_dir.join("omega-program")).spawn().expect("spawn");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+    let code = loop {
+        if let Some(status) = child.try_wait().expect("wait") {
+            break status.code();
+        }
+        if std::time::Instant::now() > deadline {
+            let _ = child.kill();
+            let _ = std::fs::remove_dir_all(&build_dir);
+            panic!("event_pump HUNG — the pump blocked (untilDate not distantPast?)");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(code, Some(6), "event_pump should complete 3 non-blocking pumps and exit 6");
+}

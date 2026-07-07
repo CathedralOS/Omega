@@ -1,0 +1,74 @@
+// PROVES the NON-BLOCKING event pump (render fire 14) — the drain-the-queue call
+// the animated samples run every frame. Builds the pump inputs and pumps in a
+// bounded loop:
+//   app  = [NSApplication sharedApplication]
+//   date = [NSDate distantPast]                              (class method)
+//   mode = [[NSString alloc] initWithUTF8String:"kCFRunLoopDefaultMode"]
+//   loop 3x: evt = [app nextEventMatchingMask:0xffffffff
+//                       untilDate:date inMode:mode dequeue:1]
+// `untilDate:distantPast` is what makes the pump NON-BLOCKING (it returns at once,
+// nil when the queue is empty). The 4 message-send args (mask, date, mode, dequeue)
+// go in x2,x3,x4,x5 via the new `send_scalar4`. If the pump BLOCKED (wrong
+// untilDate), this canary would HANG (the test times out); reaching exit 6 after 3
+// fast iterations proves the pump is repeatably non-blocking. Headless-safe: a
+// fresh process has no events, so each pump returns nil and the loop completes.
+
+domain [u8]::CString when no_nul(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+boundary trait ObjectiveC {
+    machine get_class(name: &[u8] in CString) -> u64;
+    machine register_selector(name: &[u8] in CString) -> u64;
+    machine send(recv: u64, sel: u64) -> u64;
+    machine send_string(recv: u64, sel: u64, text: &[u8] in CString) -> u64;
+    machine send_scalar4(recv: u64, sel: u64, a: u64, b: u64, c: u64, d: u64) -> u64;
+}
+
+data Main {
+    console: Console;
+    objc: ObjectiveC;
+    app_cls: u64;
+    date_cls: u64;
+    str_cls: u64;
+    sel: u64;
+    tmp: u64;
+    app: u64;
+    date: u64;
+    mode: u64;
+    pump_sel: u64;
+    evt: u64;
+    mask: u64;
+    n: i32 [0..=8];
+}
+
+machine Main::main(&mut self) {
+    self.app_cls = self.objc.get_class("NSApplication");
+    self.sel = self.objc.register_selector("sharedApplication");
+    self.app = self.objc.send(self.app_cls, self.sel);
+    self.date_cls = self.objc.get_class("NSDate");
+    self.sel = self.objc.register_selector("distantPast");
+    self.date = self.objc.send(self.date_cls, self.sel);
+    self.str_cls = self.objc.get_class("NSString");
+    self.sel = self.objc.register_selector("alloc");
+    self.tmp = self.objc.send(self.str_cls, self.sel);
+    self.sel = self.objc.register_selector("initWithUTF8String:");
+    self.mode = self.objc.send_string(self.tmp, self.sel, "kCFRunLoopDefaultMode");
+    self.pump_sel = self.objc.register_selector("nextEventMatchingMask:untilDate:inMode:dequeue:");
+    self.mask = 4294967295;
+    self.n = 0;
+    transition self.date != 0 { true -> pump() _ -> bad() }
+    state pump(&mut self) {
+        self.evt = self.objc.send_scalar4(self.app, self.pump_sel, self.mask, self.date, self.mode, 1);
+        transition self.n < 3 { true -> pump_next() _ -> good() }
+    }
+    state pump_next(&mut self) {
+        self.n = self.n + 1;
+        transition { _ -> pump() }
+    }
+    state good(&mut self) { self.console.exit_process(6); }
+    state bad(&mut self)  { self.console.exit_process(1); }
+}

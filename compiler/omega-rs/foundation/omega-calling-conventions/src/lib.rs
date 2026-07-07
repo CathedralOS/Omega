@@ -362,6 +362,11 @@ pub enum HostOperation {
     /// `initWithContentRect:styleMask:backing:defer:` needs (rect + styleMask +
     /// backing + defer). Shares the `_objc_msgSend` symbol.
     MsgSendRect,
+    /// `ObjectiveC::send_scalar4(recv, sel, a, b, c, d) -> u64` → `objc_msgSend` with
+    /// FOUR integer/pointer args: `recv`→x0, `sel`→x1, then `a`→x2, `b`→x3, `c`→x4,
+    /// `d`→x5. For the event pump's `nextEventMatchingMask:untilDate:inMode:dequeue:`
+    /// (mask, NSDate*, mode NSString*, BOOL). Shares the `_objc_msgSend` symbol.
+    MsgSendScalar4,
     /// `ObjectiveC::send_image_size(recv, sel, image, w, h) -> u64` → `objc_msgSend`
     /// with a pointer arg plus an `NSSize` (2 doubles): `recv`→x0, `sel`→x1,
     /// `image`→x2, then the size in v0,v1. For `NSImage initWithCGImage:size:` —
@@ -477,6 +482,7 @@ impl HostOperation {
             "send_scalar" => Self::MsgSendScalar,
             "send_string" => Self::MsgSendString,
             "send_rect" => Self::MsgSendRect,
+            "send_scalar4" => Self::MsgSendScalar4,
             "send_image_size" => Self::MsgSendImageSize,
             "rect_max_x" => Self::RectMaxX,
             "rect_max_y" => Self::RectMaxY,
@@ -553,6 +559,7 @@ impl HostOperation {
             Self::MsgSendScalar => "send_scalar",
             Self::MsgSendString => "send_string",
             Self::MsgSendRect => "send_rect",
+            Self::MsgSendScalar4 => "send_scalar4",
             Self::MsgSendImageSize => "send_image_size",
             Self::RectMaxX => "rect_max_x",
             Self::RectMaxY => "rect_max_y",

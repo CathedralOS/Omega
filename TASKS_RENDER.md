@@ -350,10 +350,18 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    setImage:` (`send_scalar`), then the window presents the frame. NB the sample is
    top-down 32bpp; CGBitmapContext is also top-down, so NO row flip (unlike the Win32
    bottom-up DIB) — good.
-6. **[ ] Event pump + quit** — `nextEventMatchingMask:NSEventMaskAny
-   untilDate:distantPast inMode:default dequeue:YES` + `sendEvent:` (non-blocking, no
-   `[NSApp run]`/delegate). Close-detect by POLLING `[window isVisible]` each frame (no
-   callback). `key_state` from tracked `NSEvent` keyDown/keyUp (ESC keycode 53).
+6. **[~] Event pump — NON-BLOCKING PUMP PROVEN (fire 14).** The drain-the-queue call the
+   animated samples run every frame works natively. Added `ObjectiveC::send_scalar4(recv,
+   sel, a, b, c, d)` → `_objc_msgSend` (4 scalar args → x2–x5) for
+   `nextEventMatchingMask:untilDate:inMode:dequeue:`. PROVEN: `canaries/pass/objc/
+   event_pump` — a bounded 3× loop of `[NSApp nextEventMatchingMask:0xffffffff
+   untilDate:[NSDate distantPast] inMode:"kCFRunLoopDefaultMode" dequeue:1]` completes
+   without hanging → exit 6 (`untilDate:distantPast` = non-blocking; `otool` shows `ldr
+   x2=mask, x3=date, x4=mode, mov x5=1, bl _objc_msgSend`). The regression test SPAWNS with
+   a 20s deadline and fails loudly rather than hanging the suite if the pump ever blocks.
+   Native harness 69/69; canary_suite zero new failures. REMAINING for full quit-handling:
+   `[NSApp sendEvent:evt]` (guarded on `evt != nil`, `send_scalar`) + `[window isVisible]`
+   poll for the close path (`send`, BOOL) — both reuse existing sends; wire in item #8.
 7. **[ ] `Input.key_state` + `Clock.sleep` darwin** — key state polled from the event
    stream; `sleep` → `usleep(ms*1000)` (plain int arg, existing mechanism).
 8. **[ ] Wire behind the existing trait ops** (mapping below) so the samples are

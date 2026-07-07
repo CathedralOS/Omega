@@ -114,6 +114,9 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // The MIXED HFA-plus-scalar send: NSRect (4 doubles → v0–v3) + 3 trailing
         // scalars (→ x2–x4) for `initWithContentRect:styleMask:backing:defer:`.
         darwin_import("ObjectiveC", "send_rect", "_objc_msgSend", &policy),
+        // Four scalar args (x2–x5) for the event pump's
+        // `nextEventMatchingMask:untilDate:inMode:dequeue:`.
+        darwin_import("ObjectiveC", "send_scalar4", "_objc_msgSend", &policy),
         // Scalar + NSSize (2 doubles → v0,v1) for `initWithCGImage:size:`.
         darwin_import("ObjectiveC", "send_image_size", "_objc_msgSend", &policy),
         // CoreGraphics geometry: a `CGRect` (4 doubles) is passed as an HFA in
@@ -529,6 +532,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "ObjectiveC",
         "send_rect",
         [host_operation("ObjectiveC", "send_rect")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "ObjectiveC",
+        "send_scalar4",
+        [host_operation("ObjectiveC", "send_scalar4")],
         PlatformCallData::None,
     );
     insert_platform_lowering(
