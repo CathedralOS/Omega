@@ -1,0 +1,42 @@
+// Dispatch-bodied value calls deliver into every result position (shapes the
+// 2026-06-30 trace found broken, closed by the deferral machinery):
+// (1) a STRUCT result assigned straight to a FIELD (`self.vec = self.delta(d)`
+//     stored 0 before -- the field assignment had no flush point until the
+//     Mutation fire site existed);
+// (2) a FREE machine with a runtime-selected branch bound to a let
+//     (`let n = pick(v)` returned garbage before).
+// Arm bodies here are PURE (bare terminal values) -- effectful arm bodies are
+// fenced by calls/value_call_effectful_arm_rejected until arm bodies are
+// guarded per-arm. exit 70 = all four values right; 71..74 name the leg.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Vec2 { x: i32 in Wrapping; y: i32 in Wrapping; }
+data Main { console: Console; d: i32; v: i32; vec: Vec2; }
+machine Main::delta(&self, d: i32) -> Vec2 {
+    transition d == 1 { true -> pos() _ -> neg() }
+    state pos(&self) -> Vec2 { Vec2 { x: 3, y: 4 } }
+    state neg(&self) -> Vec2 { Vec2 { x: 7, y: 9 } }
+}
+machine pick(x: i32) -> i32 {
+    transition x > 0 { true -> hi() _ -> lo() }
+    state hi() -> i32 { 100 }
+    state lo() -> i32 { 200 }
+}
+machine Main::main(&mut self) {
+    self.d = 1;
+    self.vec = self.delta(self.d);
+    transition self.vec.x == 3 { true -> chk_y() _ -> bad(71) }
+    state chk_y(&mut self) {
+        transition self.vec.y == 4 { true -> chk_pick() _ -> bad(72) }
+    }
+    state chk_pick(&mut self) {
+        self.v = 0 - 5;
+        let n: i32 = pick(self.v);
+        transition n == 200 { true -> chk_pick_hi() _ -> bad(73) }
+    }
+    state chk_pick_hi(&mut self) {
+        let m: i32 = pick(9);
+        transition m == 100 { true -> good() _ -> bad(74) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

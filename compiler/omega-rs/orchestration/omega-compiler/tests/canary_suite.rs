@@ -20223,6 +20223,54 @@ fn runtime_value_call_shared_slot_straight_line_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Dispatch-bodied value calls deliver into every result position: a STRUCT
+// result assigned straight to a FIELD (stored 0 until the Mutation fire
+// site gave field assignments a flush point), and a FREE machine with a
+// runtime-selected branch bound to a let (returned garbage before). Arm
+// bodies are PURE -- the effectful-arm shape is fenced separately
+// (calls/value_call_effectful_arm_rejected).
+#[test]
+fn runtime_value_call_dispatch_results_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_value_call_dispatch_results_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("dispatch-results canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (struct-to-field + free-pick legs), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-dispatch-results-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dispatch-results canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dispatch-results canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected dispatch-bodied value-call results to deliver (exit 70), got {:?} \
+         (71/72 = struct-to-field components; 73/74 = free-pick false/true branch)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A scalar value-call compared to an integer literal DIRECTLY in a guard
 // subject discriminates (the historical always-true face): the syntax
 // lowering hoists the call into a shared let temp typed from the callee's
@@ -23520,6 +23568,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_captured_local_swap_exit",
     "calls/runtime_same_type_contained_direct_fields_exit",
     "calls/runtime_shared_ref_param_member_exit",
+    "calls/runtime_value_call_dispatch_results_exit",
     "calls/runtime_value_call_entry_field_write_exit",
     "calls/runtime_value_call_guard_subject_exit",
     "calls/runtime_value_call_nested_entry_call_exit",
@@ -24420,6 +24469,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/contained_same_type_receiver_rejected",
     "calls/guard_call_vs_call_rejected",
+    "calls/value_call_effectful_arm_rejected",
     "calls/terminal_return_type_mismatch_rejected",
     "collections/write_first_loop_bound_exceeds_capacity",
     "capabilities/duplicate_provider_declaration",
