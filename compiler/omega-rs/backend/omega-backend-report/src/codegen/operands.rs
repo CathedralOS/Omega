@@ -57,6 +57,14 @@ pub(super) fn selected_instruction_operands_name(
                 let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
                 format!("scalar i{} {symbol}@{byte_offset}", byte_count * 8)
             }
+            InstructionOperandKind::RuntimeScalarFloat {
+                region,
+                byte_offset,
+                byte_count,
+            } => {
+                let symbol = storage_region_symbol_name(*region, backend_plan.entry_machine_name());
+                format!("scalar f{} {symbol}@{byte_offset}", byte_count * 8)
+            }
             InstructionOperandKind::RuntimeStorageAddress {
                 region,
                 byte_offset,

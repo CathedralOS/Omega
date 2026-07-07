@@ -58,6 +58,15 @@ fn translate_operand_kind(
             byte_offset: *byte_offset,
             byte_count: *byte_count,
         },
+        omega_abstract_operations::InstructionOperandKind::RuntimeScalarFloat {
+            region,
+            byte_offset,
+            byte_count,
+        } => InstructionOperandKind::RuntimeScalarFloat {
+            region: *region,
+            byte_offset: *byte_offset,
+            byte_count: *byte_count,
+        },
         omega_abstract_operations::InstructionOperandKind::RuntimeStorageAddress {
             region,
             byte_offset,

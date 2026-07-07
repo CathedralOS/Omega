@@ -49,6 +49,17 @@ pub enum InstructionOperandKind {
         byte_offset: usize,
         byte_count: usize,
     },
+    /// A floating-point scalar (`f32`/`f64`) read from a runtime-storage slot and
+    /// marshalled into a FLOAT argument register (arm64 v0–v7), NOT a GPR. arm64
+    /// passes float/double args in the vector-register sequence, independent of the
+    /// x-register sequence used for integers/pointers. `byte_count` is 4 (`f32`) or
+    /// 8 (`f64`). Needed by any Cocoa/Core Graphics/libm call taking a `CGFloat`/
+    /// `double`. (Wired in a later fire — see TASKS_RENDER.md.)
+    RuntimeScalarFloat {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+        byte_count: usize,
+    },
     /// The ADDRESS of a statically allocated runtime-storage place (`region` base
     /// + `byte_offset`), marshalled as a pointer-sized host-call argument. This is
     /// the pointer-argument shape of the extern boundary: a `[u32; N]` framebuffer

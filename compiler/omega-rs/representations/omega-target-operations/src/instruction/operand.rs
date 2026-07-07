@@ -168,6 +168,14 @@ pub enum TargetInstructionOperandKind {
         byte_offset: usize,
         byte_count: usize,
     },
+    /// A floating-point scalar (`f32`/`f64`) marshalled into a FLOAT argument
+    /// register (arm64 v0–v7), independent of the integer/pointer x-register
+    /// sequence. `byte_count` is 4 or 8. (Cocoa/Core Graphics/libm `double` args.)
+    RuntimeScalarFloat {
+        region: RuntimeStorageRegion,
+        byte_offset: usize,
+        byte_count: usize,
+    },
     /// The ADDRESS of a statically allocated runtime-storage place (`region` base
     /// + `byte_offset`), marshalled as a pointer-sized host-call argument (the
     /// extern boundary's pointer-argument shape). Encoders emit `lea` through the

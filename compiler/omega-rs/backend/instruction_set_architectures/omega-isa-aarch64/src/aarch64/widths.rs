@@ -933,6 +933,8 @@ pub fn operand_width(operand: &Aarch64CallOperand) -> usize {
         | RuntimeScalarInteger { .. }
         | RuntimeStorageAddress { .. } => 12,
         RuntimePointeeStringPointer { .. } | RuntimePointeeStringLength { .. } => 16,
+        // adrp + add + load + fmov (into a v-register) = 16.
+        RuntimeScalarFloat { .. } => 16,
         ImmediateInteger(value) => immediate_width(*value),
         ByteLength(value) => unsigned_immediate_width(*value as u64),
     }
