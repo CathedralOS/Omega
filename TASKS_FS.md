@@ -216,6 +216,26 @@ crate tests; interpreter fs coverage) and commits.
 
 ## Current state (update every fire)
 
+- **✅ SAMPLE — `samples/cli/systems/file_journal` (2026-07-09).** The first CLI sample that
+  actually drives the filesystem (the prior `file_permissions` sample is only bitwise math).
+  A real end-to-end raw-seam workflow on macOS: mkdir → create+write a 17-byte file → confirm
+  via `stat` → reopen+read back → rename → remove → rmdir, tallying its 7 verified steps and
+  exiting with the count (`Expected exit: 7`). Drives the raw `FilesystemHost` seam (the
+  native-correct layer) since the ergonomic wrapper's payload-carrying native results are
+  still codegen-blocked. Green regression coverage as `sample_file_journal_exits_7` in the
+  native fs harness (**51/51** now) — NOT via `samples_compile`, which is currently RED for a
+  reason unrelated to fs (below). Judgement (D-sample): a runnable NATIVE sample must exercise
+  the seam that works today; a wrapper-result sample would mis-report until the deep fix.
+- **⚠ OBSERVATION (not fs) — `samples_compile` is broadly RED from a pre-existing aarch64
+  encoder bug**: many unrelated samples (algorithms/arithmetic/basics/…) fail to compile with
+  *"AArch64 b.ne target is not instruction aligned: N byte(s)"* (N not a multiple of 4 — a
+  branch target computed at a non-instruction-aligned byte offset; also a couple of *"cannot
+  lower runtime float binary operator Min/Max"*). NONE are fs samples and `file_journal`
+  compiles + runs cleanly, so this does not touch the fs work, but it means the sample suite
+  is not a reliable green gate right now. Flagged for a focused encoder session (out of scope
+  for the fs loop; the required-green gates — Console lowering, instr-sel/reloc/calling-conv
+  crate tests, interpreter fs coverage, native fs harness — remain green).
+
 - **✅ FIXED — encoder large-offset scalar arg (STAT wrappers now COMPILE) (2026-07-08).**
   The blocker was NOT a general "add-then-load for any u64" (my first framing) — it was
   narrower + cleaner: `append_call_operands` (aarch64 `mod.rs`) loaded EVERY
