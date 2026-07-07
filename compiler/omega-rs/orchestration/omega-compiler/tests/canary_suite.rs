@@ -19346,6 +19346,58 @@ fn windows_fs_raw_roundtrip_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Raw-seam BREADTH on windows_x64: the wired-but-previously-unverified msvcrt
+// ops beyond the roundtrip -- sync (_commit), seek (_lseeki64), duplicate
+// (_dup), set_permissions (_chmod), rename (dest pre-removed: msvcrt rename
+// fails if dest exists, unlike POSIX replace), create_dir (_mkdir),
+// remove_dir (_rmdir). Windows-gated like the roundtrip canary.
+#[cfg(windows)]
+#[test]
+fn windows_fs_raw_breadth_exit_canary_runs() {
+    let canary = pass_canary("filesystem/windows_raw_breadth_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("windows fs breadth canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (virtual-fs breadth pass), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fs-win-breadth-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("windows fs breadth canary should compile");
+
+    // Run from the temp build dir so probe files/dirs land there, not the repo.
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("windows fs breadth canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the full breadth pass (exit 70), got {:?} (71-74 = \
+         create/write/sync/close; 75-78 = reopen/seek/read/seeked bytes; 79-81 = \
+         dup/read-through-dup/close dup; 82 chmod; 83 rename; 84 old name still \
+         opens; 85 mkdir; 86 remove file; 87 rmdir)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // The callee-entry FIELD WRITE deferral face + same-callee-twice firing:
 // `machine make(alive) { self.flag = alive; transition self.flag {..} }`
 // called TWICE. (a) The spliced entry Mutation is neither LocalStorage nor
@@ -19392,6 +19444,56 @@ fn runtime_value_call_entry_field_write_exit_canary_runs() {
         "expected both same-callee calls to guard on THEIR OWN entry field write \
          (exit 70), got {:?} (71/73 = a guard read the wrong flag; 74 = stale hp \
          through the reused slot)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// Deferral face #5: a NESTED value call inside the callee's entry
+// (`self.flag = self.helper.check(1)` in Probe::make, guarded on flag,
+// through an outer value call). The nested callee splices a THIRD
+// source_key between the middle callee's ops, so defer/fire scans that
+// stopped at the first foreign key never saw the flag mutation -- the
+// outer leaf fired at the StateCall and computed the result from ZII
+// flag=false. The splice run ends at the CALLER's next own op.
+#[test]
+fn runtime_value_call_nested_entry_call_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_value_call_nested_entry_call_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("nested-entry-call canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (both nested-entry shapes deliver), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-nested-entry-call-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested-entry-call canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested-entry-call canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected both callee entries with nested value calls to guard on the \
+         DELIVERED flag (exit 70), got {:?} (71 = nested-only entry read ZII; \
+         72 = stores-around-the-nested-call variant read ZII)\nstderr:\n{}",
         output.status.code(),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -22593,8 +22695,10 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_same_type_contained_direct_fields_exit",
     "calls/runtime_shared_ref_param_member_exit",
     "calls/runtime_value_call_entry_field_write_exit",
+    "calls/runtime_value_call_nested_entry_call_exit",
     "calls/runtime_value_call_shared_payload_name_exit",
     "calls/runtime_value_call_struct_payload_cast_field_exit",
+    "filesystem/windows_raw_breadth_exit",
     "filesystem/windows_raw_roundtrip_exit",
     "filesystem/windows_wrapper_results_exit",
     "collections/runtime_palindrome_two_pointer_exit",
