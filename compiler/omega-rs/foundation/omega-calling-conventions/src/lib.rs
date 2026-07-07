@@ -80,6 +80,24 @@ impl HostOperationKey {
         matches!(self.capability, HostCapability::Filesystem)
             && matches!(self.operation, HostOperation::OpenCreate)
     }
+
+    /// Whether this op's callee returns its result in the FLOAT return register
+    /// (`d0`/`s0`) rather than `x0`: libm `sqrt`/`hypot` and, later, Core Graphics
+    /// `double` getters. After the `BL` the lowering moves the bits back with
+    /// `fmov x0, d0` before the normal integer result-store, so — exactly like
+    /// `dereferences_result` — the width function (`host_call_sequence_width`) and
+    /// the result-operand data-address relocation offset (`data_addresses.rs`) both
+    /// add 4 when this is set. Float args precede the `BL`, so the external-call
+    /// relocation is unaffected. MUST stay in lockstep across those three sites +
+    /// the encoder. (`round_nearest` returns an `i64`, NOT a float, so it is
+    /// excluded.)
+    pub fn returns_float(self) -> bool {
+        matches!(self.capability, HostCapability::Math)
+            && matches!(
+                self.operation,
+                HostOperation::SquareRoot | HostOperation::Hypotenuse
+            )
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -274,6 +292,14 @@ pub enum HostOperation {
     /// `Math::round_nearest(x: f64) -> i64` → libm `lround`. The first op with an
     /// `f64` ARGUMENT (passed in v0), proving the arm64 float calling convention.
     RoundNearest,
+    /// `Math::square_root(x: f64) -> f64` → libm `sqrt`. The first op with an `f64`
+    /// RESULT (returned in d0), proving the arm64 float RETURN convention (see
+    /// `HostOperationKey::returns_float`).
+    SquareRoot,
+    /// `Math::hypotenuse(x: f64, y: f64) -> f64` → libm `hypot`. First op with TWO
+    /// `f64` arguments (v0, v1) AND a float return — proves multi-float-arg
+    /// register sequencing alongside the float return.
+    Hypotenuse,
     Sleep,
     TickCount,
     KeyState,
@@ -348,6 +374,8 @@ impl HostOperation {
             "open_create" => Self::OpenCreate,
             "read_errno" => Self::ReadErrno,
             "round_nearest" => Self::RoundNearest,
+            "square_root" => Self::SquareRoot,
+            "hypotenuse" => Self::Hypotenuse,
             "sleep" => Self::Sleep,
             "tick_count" => Self::TickCount,
             "key_state" => Self::KeyState,
@@ -408,6 +436,8 @@ impl HostOperation {
             Self::OpenCreate => "open_create",
             Self::ReadErrno => "read_errno",
             Self::RoundNearest => "round_nearest",
+            Self::SquareRoot => "square_root",
+            Self::Hypotenuse => "hypotenuse",
             Self::Sleep => "sleep",
             Self::TickCount => "tick_count",
             Self::KeyState => "key_state",

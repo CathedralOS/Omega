@@ -245,3 +245,34 @@ fn native_float_arg_exits_4() {
     let _ = std::fs::remove_dir_all(&build_dir);
     assert_eq!(out.status.code(), Some(4), "round_nearest(3.7) should be 4 (float arg in v0)");
 }
+
+// The arm64 FLOAT-RETURN calling convention: Math::square_root(x: f64) -> f64 via
+// libm sqrt. Proves the result comes back in d0 and is moved to x0 (fmov x0,d0)
+// before the store; the stored f64 is round-tripped through round_nearest to
+// verify the bits. sqrt(16.0) -> 4.0 -> round 4 -> exit 4.
+#[test]
+fn native_float_return_exits_4() {
+    let main_path = repo_root().join("canaries/pass/float/native_float_return/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-floatret-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("native_float_return should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(4), "sqrt(16.0) round-tripped should be 4 (float return in d0)");
+}
+
+// Two f64 ARGUMENTS in consecutive float registers (v0, v1) alongside a float
+// return: Math::hypotenuse(x, y) -> f64 via libm hypot. hypot(3.0, 4.0) -> 5.0
+// round-tripped through round_nearest -> exit 5.
+#[test]
+fn native_float_two_args_exits_5() {
+    let main_path = repo_root().join("canaries/pass/float/native_float_two_args/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-float2-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("native_float_two_args should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program")).output().expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(5), "hypot(3,4) round-tripped should be 5 (args in v0,v1)");
+}

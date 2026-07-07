@@ -52,10 +52,13 @@ pub(crate) fn data_address_relocation_offset(
             // The result store's adrp/add lands after the args + the BL (4). A
             // deref-result op (errno) inserts an extra `ldr w0,[x0]` (4) between
             // the BL and the store, pushing the store's page-pair 4 bytes later.
-            // A stack-mode op (`open_create`) brackets the call with `sub sp`
-            // (before BL) + `str [sp]` (before BL) + `add sp` (after BL) = 12
-            // bytes beyond counting the mode immediate as a register arg.
+            // A float-returning op (sqrt/hypot) inserts an extra `fmov x0,d0` (4)
+            // in that same slot (same shift). A stack-mode op (`open_create`)
+            // brackets the call with `sub sp` (before BL) + `str [sp]` (before BL)
+            // + `add sp` (after BL) = 12 bytes beyond counting the mode immediate
+            // as a register arg.
             let deref_bytes = if operation_key.dereferences_result() { 4 } else { 0 };
+            let float_return_bytes = if operation_key.returns_float() { 4 } else { 0 };
             let stack_mode_bytes = if operation_key.passes_trailing_mode_on_stack() {
                 12
             } else {
@@ -65,6 +68,7 @@ pub(crate) fn data_address_relocation_offset(
                 + arg_bytes(1..operands.len())
                 + 4
                 + deref_bytes
+                + float_return_bytes
                 + stack_mode_bytes;
         }
         return selected_text_offset + arg_bytes(1..operand_index);

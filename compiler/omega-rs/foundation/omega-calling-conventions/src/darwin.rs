@@ -56,6 +56,11 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // First float-arg op: `Math::round_nearest(x: f64) -> i64` → libm `lround`.
         // Proves the arm64 float calling convention (double in v0, long in x0).
         darwin_import("Math", "round_nearest", "_lround", &policy),
+        // First float-RETURN op: `Math::square_root(x: f64) -> f64` → libm `sqrt`
+        // (double in v0, double out d0). `hypotenuse(x, y) -> f64` → `_hypot`
+        // adds a second float arg (v0, v1) alongside the float return.
+        darwin_import("Math", "square_root", "_sqrt", &policy),
+        darwin_import("Math", "hypotenuse", "_hypot", &policy),
     ]);
 
     insert_platform_lowering(
@@ -377,6 +382,27 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "Math",
         "round_nearest",
         [host_operation("Math", "round_nearest")],
+        PlatformCallData::None,
+    );
+
+    // `Math::square_root(x: f64) -> f64` → `_sqrt`: the first host op whose result
+    // comes back in the FLOAT register `d0`; the aarch64 lowering moves it to x0
+    // with `fmov x0,d0` before the normal result store (see `returns_float`).
+    insert_platform_lowering(
+        plan,
+        "Math",
+        "square_root",
+        [host_operation("Math", "square_root")],
+        PlatformCallData::None,
+    );
+
+    // `Math::hypotenuse(x: f64, y: f64) -> f64` → `_hypot`: two f64 args (v0, v1)
+    // plus a float return — proves multi-float-arg register sequencing.
+    insert_platform_lowering(
+        plan,
+        "Math",
+        "hypotenuse",
+        [host_operation("Math", "hypotenuse")],
         PlatformCallData::None,
     );
 }

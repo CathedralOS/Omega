@@ -116,6 +116,54 @@ pub fn encode_host_call_sequence_value_returning_deref_from_operands(
     Ok(bytes)
 }
 
+/// A value-returning host call whose callee returns its result in the FLOAT
+/// return register `d0`/`s0` (libm `sqrt`, `hypot`; Core Graphics `double`
+/// getters). Identical to `encode_host_call_sequence_value_returning_from_operands`
+/// except that, right after the `BL`, it moves the raw float bits back into the
+/// GPR bank with `fmov x0, d0` (`encode_float_move_to_gpr`) so the normal
+/// integer result-store can spill the 8 bytes into the field. The result place is
+/// an `f64` slot but the store is bit-identical to an i64 store, so the result
+/// operand still destructures as `RuntimeScalarInteger`. The single extra 4-byte
+/// `fmov` is why `returns_float` adds 4 to both the call-sequence width and the
+/// result-store data-address relocation offset (the store sits 4 bytes later) —
+/// MUST stay in lockstep with those sites. Float args precede the `BL`, so the
+/// `BL` relocation is unaffected.
+pub fn encode_host_call_sequence_value_returning_float_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all: Vec<Aarch64CallOperand> = operands.collect();
+    let Some((result, args)) = all.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 float-returning host call has no result storage operand",
+        ));
+    };
+    let RuntimeScalarInteger {
+        byte_offset,
+        byte_count,
+    } = *result
+    else {
+        return Err(Diagnostic::error(
+            "AArch64 float-returning host call result place did not lower to a runtime scalar",
+        ));
+    };
+    let mut bytes =
+        Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()) + 4);
+    append_call_operands(&mut bytes, args.iter().copied())?;
+    bytes.extend(encode_branch_link_placeholder());
+    // Move the float return (`d0`/`s0`) into `x0` so the integer result-store can
+    // spill the raw bits: `fmov x0, d0` (double) / `fmov w0, s0` (single).
+    bytes.extend(encode_float_move_to_gpr(byte_count.max(4), 0, 0)?);
+    // Result store: x16 <- result region base (adrp/add relocated), then store.
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    if byte_count >= 8 {
+        bytes.extend(encode_store_x_to_x(0, 16, byte_offset)?);
+    } else {
+        bytes.extend(encode_store_w_to_x(0, 16, byte_offset, byte_count)?);
+    }
+    Ok(bytes)
+}
+
 /// A value-returning host call whose TRAILING argument (a `mode`) is passed on the
 /// STACK, not a register — darwin `open(path, flags, ...)` reads the create `mode`
 /// via `va_arg`, and Apple arm64 places variadic args at `[sp,#0]`. The register

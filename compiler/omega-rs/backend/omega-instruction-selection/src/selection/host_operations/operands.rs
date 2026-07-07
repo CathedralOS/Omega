@@ -220,6 +220,39 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::Math, HostOperation::SquareRoot) => {
+            // Value-returning `r = square_root(x: f64) -> _sqrt(x)`. operand[0] is
+            // the f64 result place (returned in d0 → moved to x0 by `fmov x0,d0`,
+            // then stored as raw 8 bytes — bit-identical to an i64 store, so it is
+            // built as a plain scalar result operand); operand[1] is the f64
+            // ARGUMENT in v0. Either unresolvable => no operands so the encoder
+            // hard-errors rather than storing garbage.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let arg = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            match (result, arg) {
+                (Some(result), Some(arg)) => {
+                    operands.insert_many([operand(result), operand(arg)])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::Math, HostOperation::Hypotenuse) => {
+            // Value-returning `r = hypotenuse(x, y) -> _hypot(x, y)`. operand[0] is
+            // the f64 result place; operand[1]/[2] are the two f64 ARGUMENTS,
+            // marshalled into v0 and v1 by consecutive `RuntimeScalarFloat`
+            // operands (the vreg counter in `append_call_operands` sequences them
+            // independently of the x-register file). Any unresolvable => no
+            // operands so the encoder hard-errors.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let x = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let y = float_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            match (result, x, y) {
+                (Some(result), Some(x), Some(y)) => {
+                    operands.insert_many([operand(result), operand(x), operand(y)])
+                }
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::Filesystem, HostOperation::Sync) => {
             // Value-returning `rc = sync(fd) -> _fsync(fd)`. Same shape as
             // `close`: operand[0]=result place, [1]=fd; either unresolvable =>
