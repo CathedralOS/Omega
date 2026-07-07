@@ -733,12 +733,31 @@ pub fn runtime_frame_base_indexed_address_to_runtime_frame_write_width(
         + store_x_offset_width(target_offset)
 }
 
-pub fn runtime_text_line_read_import_width(_byte_capacity: usize) -> usize {
-    116
+/// Extra bytes the line-read's result-descriptor store spends when the String field's
+/// offset is too large for the STR scaled immediate: the two stores (ptr@target_offset,
+/// len@target_offset+8) go DIRECT when both fit (offset in the immediate = free);
+/// otherwise the base is materialized ONCE (`append_add_x_constant`). MUST match the
+/// conditional in `encode_runtime_text_line_read`. The x16 target adrp precedes this, so
+/// its relocation offset is unchanged.
+pub(in crate::aarch64) fn line_read_descriptor_store_extra(target_offset: usize) -> usize {
+    if data_offset_encodable(target_offset + 8, 8) {
+        0
+    } else {
+        add_constant_width(target_offset)
+    }
 }
 
-pub fn runtime_text_line_read_syscall_width(_byte_capacity: usize, syscall_number: u32) -> usize {
+pub fn runtime_text_line_read_import_width(_byte_capacity: usize, target_offset: usize) -> usize {
+    116 + line_read_descriptor_store_extra(target_offset)
+}
+
+pub fn runtime_text_line_read_syscall_width(
+    _byte_capacity: usize,
+    syscall_number: u32,
+    target_offset: usize,
+) -> usize {
     116 + unsigned_immediate_width(u64::from(syscall_number))
+        + line_read_descriptor_store_extra(target_offset)
 }
 
 pub fn runtime_text_line_read_import_target_address_offset() -> usize {

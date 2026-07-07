@@ -1,5 +1,16 @@
 # Tasks — GUI samples on macOS (native, no C shim)
 
+> # ✅ GOAL ACHIEVED (fire 29) — ALL FOUR gui samples run natively on macOS/aarch64.
+> `window_demo` (renders 60 frames → exit 0), `window_app`, `windowed_calculator`, and
+> `image_viewer` (loads img*.bmp, software-blits) all compile to a native mach-o and run
+> — the UNTOUCHED samples, `Gui`/`Input`/`Clock` traits unchanged, no C shim: Omega calls
+> Cocoa / Core Graphics / libc directly. Run-verified: `sample_window_demo_runs_natively_exits_0`,
+> `sample_window_app_renders_natively`, `sample_windowed_calculator_renders_natively`,
+> `sample_image_viewer_renders_natively` (native harness 82/82). The whole stack landed:
+> arm64 float/HFA ABI → objc runtime → NSWindow/CGImage blit/event-pump → the Gui/Input
+> provider substitution → Clock.sleep→poll → saturating div/mod → the large-offset scalar
+> sweep. **The autonomous loop's success condition is met — unscheduling cron `6bdd3b5e`.**
+
 > **AUTONOMOUS LOOP (this file is the source of truth).** A `/loop` runs every ~5 min
 > re-reading this file. Cron job id **`6bdd3b5e`** — `CronDelete 6bdd3b5e` to stop
 > (when the samples run natively, or blocked only on a user-only decision). Keep

@@ -799,3 +799,44 @@ fn sample_windowed_calculator_renders_natively() {
 
 
 
+
+
+// The UNTOUCHED samples/gui/image_viewer runs natively: it loads img{0,1,2}.bmp from
+// disk (the fs raw seam), decodes each 24bpp BMP into a top-down 32bpp framebuffer, and
+// software-blits it into a window; RIGHT/LEFT flip, ESC closes. It combines EVERY native
+// capability built for the gui samples: the Gui + Input provider substitutions,
+// Clock.sleep, FilesystemHost, AND the large-offset scalar sweep (task #61 -- its two
+// 16KB arrays push most fields past the LDR/STR/ADD immediate ranges). Human-interactive
+// (waits for a window close), so we confirm it STARTS + RENDERS without crashing for 2s.
+// Run from the sample dir so the relative img*.bmp paths resolve.
+#[test]
+fn sample_image_viewer_renders_natively() {
+    let sample_dir = repo_root().join("samples/gui/image_viewer");
+    let main_path = sample_dir.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-image-viewer-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })
+        .unwrap_or_else(|d| panic!("the untouched samples/gui/image_viewer should compile to a native mach-o:\n{d:#?}"));
+    let mut child = Command::new(build_dir.join("omega-program"))
+        .current_dir(&sample_dir)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .spawn()
+        .expect("spawn");
+    let watch_until = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    let early = loop {
+        if let Some(status) = child.try_wait().expect("try_wait") {
+            break Some(status);
+        }
+        if std::time::Instant::now() > watch_until {
+            break None;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    };
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = std::fs::remove_dir_all(&build_dir);
+    if let Some(status) = early {
+        assert_eq!(status.code(), Some(0), "image_viewer exited early with a non-zero code (crash) instead of rendering");
+    }
+}

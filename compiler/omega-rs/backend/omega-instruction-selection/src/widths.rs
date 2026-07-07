@@ -1310,14 +1310,15 @@ pub fn runtime_text_line_read_width(
     byte_capacity: usize,
     binding: &HostBindingMechanism,
     is_bounded_buffer: bool,
+    target_offset: usize,
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => match binding {
             HostBindingMechanism::Import { .. } => {
-                aarch64::runtime_text_line_read_import_width(byte_capacity)
+                aarch64::runtime_text_line_read_import_width(byte_capacity, target_offset)
             }
             HostBindingMechanism::Syscall { number, .. } => {
-                aarch64::runtime_text_line_read_syscall_width(byte_capacity, *number)
+                aarch64::runtime_text_line_read_syscall_width(byte_capacity, *number, target_offset)
             }
             // read_line is never vtable-bound; 0 = the refuse-to-emit convention.
             HostBindingMechanism::VtableSlot { .. } => 0,
