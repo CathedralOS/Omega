@@ -2,6 +2,20 @@
 
 Omega starts with explicit data shapes and explicit values.
 
+> **No default *values* on data (settled 2026-07-05).** A field may not carry a
+> `= default` initializer. ZII is the substrate: a field's default IS its zero, and
+> construction lets you omit a field only when its zero satisfies the data type's
+> **default domain** (its invariants — see
+> [Chapter 7](chapter_7_types_constraints_invariants.md)). Where zero is invalid you
+> are *forced* to supply the value (Odin/Go partial-literal style, but
+> invariant-gated): `Player{ health = 50 }` leaves an unconstrained `age` at ZII but
+> makes `health` mandatory because `0` is out of its range. This generalizes the
+> case-bearing rule below ("common fields may not declare default initializers; ZII
+> makes the zero valid") to *all* data. A convenience non-zero default, if wanted, is
+> an explicit constructor machine (`Config::with_defaults() -> Config in Ready`), not
+> a hidden field default. *Settled model; not yet implemented — today scalar defaults
+> emit and array defaults silently drop.*
+
 ## Hello World
 
 The smallest console program has one root data object and one entry machine.
@@ -87,6 +101,27 @@ data Command {
     case Say(text: String);
 }
 ```
+
+**Explicit discriminant values** (settled 2026-07-04). A payload-less case may
+pin its tag to a specific integer — required when the sum matches a *foreign
+ABI* whose tag values are fixed by a spec (firmware, hardware, a protocol):
+
+```omega
+data EfiMemoryType {           // UEFI EFI_MEMORY_TYPE — tags are the firmware's
+    case ReservedMemory = 0;
+    case LoaderCode     = 1;
+    case LoaderData     = 2;
+    case ConventionalMemory = 7;
+    // ...
+}
+```
+
+Rules: unspecified cases number sequentially from the previous (0-based by
+default), as in C; a mix of specified and unspecified is allowed; duplicate
+discriminants are a compile error. The discriminant is the on-the-wire /
+in-memory tag under a layout policy, so a foreign enum reads back into the right
+case. For a purely internal sum, leave them off — tag identity is the compiler's
+to assign.
 
 A declaration's shape follows from its members: only fields is a RECORD, only
 cases is a SUM, fields AND cases together is MIXED -- common fields shared by
@@ -253,6 +288,81 @@ machine Player::heal(
 
 Locals are not data fields. They do not become part of the data layout and they
 do not survive outside the graph paths where their lifetime is valid.
+
+## Constants
+
+A `const` is a named compile-time value. Its initializer is evaluated at build
+time (an effect-free expression in constant position — see
+[Build-Time Evaluation](../design_briefs/build_time_evaluation.md)), so a `const`
+is a *value*, not runtime storage.
+
+```omega
+pub const PAGE_SIZE: u64 = 4096;
+pub const EFI_SUCCESS: EfiStatus = EfiStatus { code: 0 };
+```
+
+- **Free-floating, namespaced by package/module** (the default), resolved by the
+  `::` path rule — a `const` is a compile-time name (`memory::PAGE_SIZE`). It may
+  instead be **type-scoped** when it genuinely belongs to a type
+  (`const EfiStatus::SUCCESS = …`), declared like a machine (`Type::NAME`),
+  **outside** the `data` block — so it is never part of a value's shape and never
+  counts toward `sizeof`. (Only scope a constant to a type it truly belongs to;
+  binding unrelated constants to a `data` symbol is worse design.)
+- **Immutable, and a pure value** — the const's type must have **no cleanup
+  obligation, no shared ownership, and no interior mutability**. It is copied
+  freely at each use, so it is trivially borrowable and thread-safe. A type with
+  a drop/cleanup obligation cannot be a `const`; the restriction is checked from
+  the cleanup facts ([Drops And Cleanup](chapter_16_drops_and_cleanup.md)), and
+  it is what makes a `const` safe to reference from anywhere without analysis.
+- **Not authority.** A constant grants nothing, so free-floating constants are
+  consistent with the capability model — unlike ambient *mutable* state, which
+  does not exist (there is no `static` keyword; persistent state is the root's
+  subtree — see
+  [Constants & the Static Root](../design_briefs/static_root_and_constants.md)).
+
+## String Literals And Bytes
+
+A quoted literal is **raw bytes**, nothing more. The compiler's only string job
+is turning quoted text into bytes; it knows nothing about encodings (that is
+library code — see [Chapter 8](chapter_8_domains.md)). So a string literal has
+type `&[u8]` and carries **no** encoding domain until one is explicitly
+established.
+
+```omega
+let greeting = "Hello, Omega.";   // : &[u8]  -- just bytes, no Utf8 yet
+```
+
+The rule is **copy, never synthesize or interpret**:
+
+- The lexer copies the source bytes between the quotes verbatim. `"café"` typed
+  directly copies whatever bytes the editor saved — the compiler does not decode
+  anything.
+- **Byte-level escapes** produce one specific byte and need no encoding
+  knowledge: `\n \r \t \0 \\ \" \xNN`. `\\` and `\"` are required so the lexer
+  can find the closing quote.
+- **No `\u{...}` codepoint escapes.** Encoding a codepoint to bytes *is* an
+  encoding decision, which the front end does not make; a codepoint is produced
+  by a library compile-time helper (e.g. `utf8::encode(0x1F600)`) and joined with
+  `+`, not smuggled into literal syntax.
+- **No raw newlines inside `"..."`.** A program's meaning must not depend on how
+  the file was checked out (CRLF vs LF), so a newline is written `\n`; span
+  source lines by joining literals, which folds at compile time:
+
+  ```omega
+  let banner = "line one\n"
+             + "line two\n";
+  ```
+
+- **Source must be ASCII-transparent** (UTF-8 in practice). Only ASCII bytes are
+  syntactically significant; any non-ASCII byte appears solely as opaque payload
+  inside a literal or comment. This is a fact about the *input format*, not about
+  value semantics — it is the one and only place UTF-8 has a privileged
+  relationship, and even that is minimizable.
+
+To treat a literal as text, establish the encoding domain explicitly
+(`"hi" as [u8] in Utf8`, which the compiler discharges by checking the bytes at
+compile time — [Chapter 8](chapter_8_domains.md)). The literal itself stays raw
+bytes.
 
 ## Parameters
 

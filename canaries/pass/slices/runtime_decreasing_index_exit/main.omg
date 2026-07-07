@@ -1,0 +1,66 @@
+// Iterating an inline array by a DECREASING runtime index in a LOOP. The bound
+// `self.i < 4` that the body's `self.nums[self.i]` relies on is a loop
+// INVARIANT, not the loop guard (`self.i >= 0`, which only bounds the LOW side).
+// The loop head `loop_` is MULTI-PREDECESSOR (entry from `main` where `i = 3`,
+// plus the BACK edge from `body` where `i = i - 1`), so single-predecessor
+// incoming-guard seeding cannot reach the bound.
+//
+// The inductive invariant: the entry establishes `i = 3 < 4`, and each
+// decrement preserves `i < 4` (`i <= 3 => i - 1 <= 2 < 4`). Seeding `i < K + 1`
+// (= `i < 4`) over `[i32; 4]` discharges the index obligation. Sums
+// nums[3]+nums[2]+nums[1]+nums[0] = 4+3+2+1 = 10 backwards; self-checks and
+// exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 4] in Trapping;
+    i: i32 in Trapping;
+    acc: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.nums[0] = 1;
+    self.nums[1] = 2;
+    self.nums[2] = 3;
+    self.nums[3] = 4;
+    self.i = 3;
+    self.acc = 0;
+
+    transition {
+        _ -> loop_()
+    }
+
+    state loop_(&mut self) {
+        transition self.i >= 0 {
+            true -> body()
+            _ -> done()
+        }
+    }
+
+    state body(&mut self) {
+        self.acc = self.acc + self.nums[self.i];
+        self.i = self.i - 1;
+        transition {
+            _ -> loop_()
+        }
+    }
+
+    state done(&mut self) {
+        transition self.acc == 10 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

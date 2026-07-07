@@ -18,7 +18,9 @@ boundary trait Console {
 
 data S [copy, zero_init] {
     arr: [i32; 4];
-    count: i32;
+    // Wrapping DECLARED: the unbounded counter increment is overflow-capable
+    // under the (now-enforced) nested-field exact check.
+    count: i32 in Wrapping;
 }
 
 data Main {

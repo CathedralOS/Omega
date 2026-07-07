@@ -57,6 +57,25 @@ fn parse_match_expression_handle<'tokens, 'source>(
         return Err(input.error_here("match expression must have at least one arm"));
     }
 
+    // Reject duplicate integer-literal patterns. The arithmetic desugar below ADDS
+    // a `(scrutinee == pattern) * (value - default)` term per non-default arm, so
+    // two arms with the SAME literal pattern both fire and the result is garbage
+    // (`match a { 0 -> 10, 0 -> 20, _ -> 30 }` yields 0 at a == 0, not 10 or 20).
+    // Only literal patterns are compared; a non-literal pattern is left alone.
+    let mut seen_patterns: Vec<i64> = Vec::new();
+    for (pattern, _) in &arms {
+        if let Some(pattern) = pattern
+            && let ExpressionNode::Integer(value) = *syntax_trees.expressions.expression(*pattern)
+        {
+            if seen_patterns.contains(&value) {
+                return Err(input.error_here(format!(
+                    "duplicate match pattern `{value}`; each match pattern must be distinct"
+                )));
+            }
+            seen_patterns.push(value);
+        }
+    }
+
     // The default value is the wildcard arm if present, else the last arm.
     let wildcard_index = arms.iter().position(|(pattern, _)| pattern.is_none());
     let (default_value, default_index) = match wildcard_index {
@@ -170,6 +189,32 @@ pub(super) fn parse_primary_expression_handle<'tokens, 'source>(
             syntax_trees
                 .expressions
                 .insert(ExpressionNode::Float(value)),
+            input,
+        ));
+    }
+
+    // `utf16"..."`: UTF-16 text sugar for UEFI/Windows CHAR16 data. Desugars in
+    // the PARSER to the ordinary integer ARRAY LITERAL of the string's UTF-16
+    // code units (surrogate pairs for non-BMP), so it fits every `[u16; N]`
+    // context an array literal fits -- no new tree node, no backend work. The
+    // prefix is contextual: a bare identifier followed by a string literal is
+    // never otherwise valid, so `utf16` stays usable as an ordinary name.
+    if input.at_contextual("utf16") && input.at_contextual_then_string("utf16") {
+        let input = input.take_contextual("utf16")?;
+        let (value, input) = input.take_string()?;
+        let units: Vec<_> = value
+            .encode_utf16()
+            .map(|unit| {
+                syntax_trees
+                    .expressions
+                    .insert(ExpressionNode::Integer(i64::from(unit)))
+            })
+            .collect();
+        let units = syntax_trees.expressions.insert_expression_handles(units);
+        return Ok((
+            syntax_trees
+                .expressions
+                .insert(ExpressionNode::ArrayLiteral(units)),
             input,
         ));
     }

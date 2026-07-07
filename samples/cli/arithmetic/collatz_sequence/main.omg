@@ -1,0 +1,72 @@
+// Collatz ("hailstone") sequence length. Starting at N = 27, count the steps to
+// reach 1, where each step is `n/2` when n is even and `3n+1` when n is odd. 27
+// is the famous small seed: it takes 111 steps and peaks at 9232 before falling
+// to 1. The `3n+1` step is GENUINELY unbounded math (whether any seed's orbit
+// stays bounded is the open Collatz conjecture itself), so the arithmetic
+// DECLARES honest modular semantics with `in Wrapping` -- no proof of a bound
+// exists to make it Exact. Drives a pure self-transition loop with no host I/O
+// until the final exit.
+// Expected exit: 111.
+
+use omega::language::std::console;
+
+data Collatz [copy, zero_init] {
+    value: i32 in Wrapping; // Wrapping DECLARED: 3n+1 growth is the open Collatz conjecture -- no bound is provable.
+    steps: i32 in Wrapping; // Wrapping DECLARED: the step count has no provable ceiling (termination is the conjecture).
+}
+
+data Main {
+    console: Console;
+    collatz: Collatz;
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("collatz_sequence: count hailstone steps from 27 down to 1");
+    self.collatz.value = 27;
+    self.collatz.steps = 0;
+
+    transition {
+        _ -> step()
+    }
+
+    // One hailstone step, or stop once the sequence has collapsed to 1.
+    state step(&mut self) {
+        transition self.collatz.value == 1 {
+            true -> done()
+            _ -> advance()
+        }
+    }
+
+    // Count this step, then branch on parity (computed into a local so the guard
+    // compares a plain value, never inline arithmetic).
+    state advance(&mut self) {
+        self.collatz.steps = self.collatz.steps + 1;
+        let remainder: i32 = self.collatz.value % 2;
+        transition remainder == 0 {
+            true -> halve()
+            _ -> climb()
+        }
+    }
+
+    state halve(&mut self) {
+        self.collatz.value = self.collatz.value / 2;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state climb(&mut self) {
+        self.collatz.value = self.collatz.value * 3 + 1;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state done(&mut self) {
+        self.console.write_line("result: the step count, 111 for seed 27 (the exit code)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(self.collatz.steps);
+    }
+}

@@ -1,0 +1,64 @@
+// Iterating an inline array by a RUNTIME index in a LOOP -- the end-to-end goal
+// (real data iteration: scanning/parsing/hashing). Sums nums[0..3] = 100. This
+// needs TWO things that just landed together:
+//   * the x86_64 runtime-indexed READ codegen (was a 0-byte stub), and
+//   * cross-state bounds propagation: the loop head `transition self.i < 4`
+//     proves the bound that the body's `self.nums[self.i]` relies on, carried
+//     across the state edge (the body is the loop head's only predecessor).
+// Self-checks the sum and exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 4];
+    i: i32 in Trapping;
+    t: i32 in Trapping;
+    acc: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.nums[0] = 10;
+    self.nums[1] = 20;
+    self.nums[2] = 30;
+    self.nums[3] = 40;
+    self.i = 0;
+    self.acc = 0;
+
+    transition {
+        _ -> step()
+    }
+
+    state step(&mut self) {
+        transition self.i < 4 {
+            true -> body()
+            _ -> check()
+        }
+    }
+
+    state body(&mut self) {
+        self.t = self.nums[self.i];
+        self.acc = self.acc + self.t;
+        self.i = self.i + 1;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state check(&mut self) {
+        transition self.acc == 100 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -1,0 +1,46 @@
+// Saturating signed divide for the NARROW widths i8/i16 -- previously unimplemented
+// (a hard "not implemented" error). Integer division overflows only at TYPE_MIN / -1;
+// Saturating clamps it to TYPE_MAX. For i8/i16 the dividend rides sign-extended in a
+// 32-bit register, so `neg` doesn't wrap at the narrow width and the i32/i64 overflow-
+// flag trick can't fire -- the encoder clamps `-a > TYPE_MAX` to TYPE_MAX instead.
+// Locks: a normal i8 divide, i8::MIN/-1 -> 127, and i16::MIN/-1 -> 32767. Each check
+// lives in its own state (divide into a local, compared immediately). Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a8: i8 in Saturating;
+    b8: i8 in Saturating;
+    a16: i16 in Saturating;
+    b16: i16 in Saturating;
+}
+
+machine Main::main(&mut self) {
+    self.a8 = 0 - 20;
+    self.b8 = 3;
+    let normal: i8 in Saturating = self.a8 / self.b8; // -6
+    transition normal == 0 - 6 { true -> check_overflow8() _ -> bad() }
+
+    state check_overflow8(&mut self) {
+        self.a8 = 0 - 128; // i8::MIN
+        self.b8 = 0 - 1;
+        let sat8: i8 in Saturating = self.a8 / self.b8; // 128 -> 127
+        transition sat8 == 127 { true -> check_overflow16() _ -> bad() }
+    }
+    state check_overflow16(&mut self) {
+        self.a16 = 0 - 32768; // i16::MIN
+        self.b16 = 0 - 1;
+        let sat16: i16 in Saturating = self.a16 / self.b16; // 32768 -> 32767
+        transition sat16 == 32767 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

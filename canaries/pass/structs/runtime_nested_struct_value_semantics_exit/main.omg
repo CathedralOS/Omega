@@ -1,0 +1,61 @@
+// Deep struct nesting + whole-struct VALUE semantics -- the data backbone of serious
+// apps (Game.board.origin.x, copying records around). Locks:
+//   - a THREE-level nested field READ   (self.o.mid.inner.v)
+//   - a THREE-level nested field WRITE  (self.o.mid.inner.v = 9)
+//   - a WHOLE-struct copy by assignment (self.dst = self.src copies content)
+//   - copy INDEPENDENCE (overwriting the source leaves the copy intact -- value, not
+//     reference, semantics)
+// Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Inner {
+    v: i32 in Trapping;
+}
+data Mid {
+    inner: Inner;
+}
+data Outer {
+    mid: Mid;
+}
+data Point {
+    x: i32 in Trapping;
+    y: i32 in Trapping;
+}
+
+data Main {
+    console: Console;
+    o: Outer;
+    src: Point;
+    dst: Point;
+}
+
+machine Main::main(&mut self) {
+    self.o = Outer { mid: Mid { inner: Inner { v: 7 } } };
+
+    transition self.o.mid.inner.v == 7 { true -> check_write() _ -> bad() }
+
+    state check_write(&mut self) {
+        self.o.mid.inner.v = 9;
+        transition self.o.mid.inner.v == 9 { true -> check_copy() _ -> bad() }
+    }
+    state check_copy(&mut self) {
+        self.src = Point { x: 42, y: 13 };
+        self.dst = self.src;
+        transition self.dst.x == 42 { true -> check_independence() _ -> bad() }
+    }
+    state check_independence(&mut self) {
+        // Overwrite the source; the copy must keep its own value.
+        self.src = Point { x: 99, y: 0 };
+        transition self.dst.x == 42 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

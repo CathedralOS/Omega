@@ -355,6 +355,25 @@ pub enum AbstractOperationKind {
         byte_size: usize,
         value: i64,
     },
+    /// The ENTRY PROLOGUE's inbound calling plan: store the platform's incoming
+    /// argument register (MS-x64: 0=RCX 1=RDX 2=R8 3=R9) into the entry state's
+    /// parameter frame slot at `byte_offset`. Emitted once per declared entry
+    /// parameter, BEFORE anything else at the entry (registers are volatile) --
+    /// this is how a UEFI `main(image_handle, system_table)` receives the
+    /// firmware handoff (calling_plans.md, the entry-stub inbound direction).
+    WriteEntryArgumentRegister {
+        argument_index: u8,
+        byte_offset: usize,
+    },
+    /// The bytes-handoff half of the entry prologue: bind the entry's
+    /// `args: &[u8]` parameter as a view over the ENTRY-ARGUMENT SPILL (where
+    /// the prologue stored the platform's argument registers). Writes the
+    /// 16-byte slice descriptor {ptr @ +0 -> frame+spill_offset, len @ +8}.
+    WriteEntryArgumentsSliceDescriptor {
+        descriptor_offset: usize,
+        spill_offset: usize,
+        byte_length: usize,
+    },
     WriteRuntimePointeeInteger {
         pointer_byte_offset: usize,
         field_byte_offset: usize,
@@ -466,6 +485,22 @@ pub enum AbstractOperationKind {
     },
     WriteRuntimeFrameBaseIndexedBinary {
         base_byte_offset: usize,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+        left: AbstractValueOperandHandle,
+        operator: StateGuardOperator,
+        right: AbstractValueOperandHandle,
+    },
+    /// Write a computed binary value into a MACHINE-owned runtime-indexed array
+    /// element (`self.arr[self.i] = a OP b`). The machine-region sibling of
+    /// `WriteRuntimeFrameBaseIndexedBinary`: the base relocates against the
+    /// machine-storage symbol (not the frame), and `index_region` names where the
+    /// index operand lives (mirrors `WriteRuntimeMachineIndexedInteger`).
+    WriteRuntimeMachineIndexedBinary {
+        base_byte_offset: usize,
+        index_region: RuntimeStorageRegion,
         index_offset: usize,
         element_byte_size: usize,
         field_byte_offset: usize,
@@ -675,10 +710,47 @@ pub enum AbstractOperationKind {
     CopyRuntimeMachineIndexedToRuntimeStorage {
         base_byte_offset: usize,
         index_offset: usize,
+        index_region: RuntimeStorageRegion,
         element_byte_size: usize,
         field_byte_offset: usize,
         target_region: RuntimeStorageRegion,
         target_offset: usize,
+        byte_count: usize,
+    },
+    /// Write-side mirror of `CopyRuntimeMachineIndexedToRuntimeStorage`:
+    /// `self.nums[self.j] = self.b` -- a runtime-indexed write into a
+    /// machine-owned inline array, sourced from a runtime storage place.
+    /// The target is machine-owned by definition, so there is no
+    /// `target_region`.
+    CopyRuntimeStorageToRuntimeMachineIndexed {
+        source_region: RuntimeStorageRegion,
+        source_offset: usize,
+        base_byte_offset: usize,
+        index_offset: usize,
+        index_region: RuntimeStorageRegion,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_count: usize,
+    },
+    /// The DUAL-indexed copy `arr[i] = arr[j]` (task #38): both the source and
+    /// the target are runtime-indexed elements of machine-owned inline arrays.
+    /// Composes the two halves above -- read the source element exactly as
+    /// `CopyRuntimeMachineIndexedToRuntimeStorage` does, then store it exactly
+    /// as `CopyRuntimeStorageToRuntimeMachineIndexed` does. Source and target
+    /// may be DIFFERENT arrays (`a[i] = b[j]`); both live off the one machine
+    /// base symbol. Only machine-resident indices are encodable today (the
+    /// same gate as the halves).
+    CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
+        source_base_byte_offset: usize,
+        source_index_offset: usize,
+        source_index_region: RuntimeStorageRegion,
+        source_element_byte_size: usize,
+        source_field_byte_offset: usize,
+        target_base_byte_offset: usize,
+        target_index_offset: usize,
+        target_index_region: RuntimeStorageRegion,
+        target_element_byte_size: usize,
+        target_field_byte_offset: usize,
         byte_count: usize,
     },
     CopyRuntimeStorageToRuntimePointee {
@@ -689,6 +761,10 @@ pub enum AbstractOperationKind {
         byte_count: usize,
     },
     CopyRuntimePointeeToRuntimeFrame {
+        /// Where the copied bytes LAND (frame or machine statics). The
+        /// encoder's target base comes from the relocation, so one encoding
+        /// serves both -- the region only picks the relocated symbol.
+        target_region: RuntimeStorageRegion,
         pointer_byte_offset: usize,
         field_byte_offset: usize,
         target_offset: usize,

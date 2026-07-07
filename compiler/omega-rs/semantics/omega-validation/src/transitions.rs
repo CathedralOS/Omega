@@ -1,14 +1,21 @@
+use crate::arithmetic_domains::ValueEnv;
 use crate::calls::validate_call_arguments_handles;
 use crate::locals::WritableRoots;
 use crate::symbols::{MachineSymbols, TopLevelSymbols};
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
 use omega_typed_trees::expression::ExpressionHandle;
+use omega_typed_trees::machine::Machine;
 use omega_typed_trees::signature::StateParameter;
+use omega_typed_trees::state::State;
 use omega_typed_trees::statement::{TransitionTargetHandle, TransitionTargetNode};
 
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_transition_target_node(
     program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: Option<&State>,
+    value_env: &ValueEnv,
     target: TransitionTargetHandle,
     machine_symbols: &MachineSymbols<'_>,
     symbols: &TopLevelSymbols<'_>,
@@ -31,6 +38,9 @@ pub(crate) fn validate_transition_target_node(
 
         validate_transition_arguments_handles(
             program,
+            current_machine,
+            current_state,
+            value_env,
             arguments,
             state.name.as_str(),
             program.state_parameters(state),
@@ -48,6 +58,9 @@ pub(crate) fn validate_transition_target_node(
 
         validate_transition_arguments_handles(
             program,
+            current_machine,
+            current_state,
+            value_env,
             arguments,
             state.name.as_str(),
             program.state_parameters(state),
@@ -80,6 +93,9 @@ pub(crate) fn validate_transition_target_node(
 
         validate_transition_arguments_handles(
             program,
+            current_machine,
+            current_state,
+            value_env,
             arguments,
             &state.name,
             program.state_parameters(state),
@@ -89,8 +105,12 @@ pub(crate) fn validate_transition_target_node(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn validate_transition_arguments_handles(
     program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: Option<&State>,
+    value_env: &ValueEnv,
     arguments: &[ExpressionHandle],
     target_name: &str,
     parameters: &[StateParameter],
@@ -99,6 +119,9 @@ fn validate_transition_arguments_handles(
 ) {
     validate_call_arguments_handles(
         program,
+        current_machine,
+        current_state,
+        value_env,
         arguments,
         target_name,
         parameters,

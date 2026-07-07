@@ -1,0 +1,17 @@
+// The SAFE side of the shared-result-slot boundary: a computing value-machine called twice in
+// one state whose results are bound to locals and combined in one expression is materialized
+// eagerly and is correct (unlike storing each result straight to a field, which is rejected --
+// see fail canary calls/shared_value_call_slot_rejected). Two DISTINCT results (dbl(3)=6,
+// dbl(4)=8) must both survive: 6*100+8 == 608. If the slot were shared, both would read 8
+// (808 != 608) and the guard would take the false arm.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; sum: i32 in Wrapping; }
+machine Main::dbl(&self, x: i32 in Wrapping) -> i32 in Wrapping { let r: i32 in Wrapping = x * 2; transition { _ -> r } }
+machine Main::main(&mut self) {
+    let p: i32 in Wrapping = self.dbl(3);
+    let q: i32 in Wrapping = self.dbl(4);
+    self.sum = p * 100 + q;
+    transition self.sum == 608 { true -> ok() _ -> bad() }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

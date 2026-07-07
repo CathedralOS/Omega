@@ -57,6 +57,7 @@ pub enum MachineInstructionKind {
     WireRepeatedScalarVarintRead,
     RuntimeFrameIndexedBinaryWrite,
     RuntimeFrameBaseIndexedBinaryWrite,
+    RuntimeMachineIndexedBinaryWrite,
     RuntimeMachineStringWrite,
     RuntimeMachineBoundedBufferWrite,
     RuntimeMachineBoundedBufferSourceAppend,
@@ -79,11 +80,19 @@ pub enum MachineInstructionKind {
     RuntimeStorageCopyFromRuntimeFrameFixedIndexedToRuntimePointee,
     RuntimeStorageCopyFromRuntimeFrameIndexedToRuntimePointee,
     RuntimeStorageCopyFromRuntimeMachineIndexed,
+    RuntimeStorageCopyToRuntimeMachineIndexed,
+    RuntimeStorageCopyMachineIndexedToMachineIndexed,
     RuntimeStorageCopyToRuntimePointee,
     RuntimeStorageCopyFromRuntimePointeeToRuntimeFrame,
     DispatchStateWrite,
     ReturnRegisterIntegerWrite,
     RuntimeStorageCopyToReturnRegister,
+    /// Entry prologue: store an incoming argument register into the entry
+    /// parameter's frame slot (the calling plan's inbound direction).
+    EntryArgumentRegisterWrite,
+    /// Entry prologue: bind `args: &[u8]` as a slice descriptor over the
+    /// entry-argument spill.
+    EntryArgumentsSliceDescriptorWrite,
     DispatchTerminate,
     DispatchCaseLeave,
     HostCallSequence,

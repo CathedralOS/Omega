@@ -1,0 +1,32 @@
+// A runtime slice PARAM `.len` read into a LOCAL `usize` binding in a value
+// position (`let n = s.len`). The `.len` place resolver reports the descriptor's
+// low 4-byte len word (the i32-assignable convention), so a wider 8-byte `usize`
+// slot failed the exact-size copy and the write was DROPPED -- the local read 0
+// (a silent miscompile; the field-assign `self.count = s.len` worked only because
+// an i32 count matched the 4-byte word). The descriptor holds the full 8-byte
+// len, so it is now read at the target's width. `s` views a fixed `[i32; 6]`, so
+// `n == 6` must take the true arm -> exit 6.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 6];
+}
+
+machine Main::main(&mut self) {
+    let s: &[i32] = self.arr.as_slice();
+    transition { _ -> measure(s) }
+
+    state measure(&mut self, s: &[i32]) {
+        let n: usize = s.len;
+        transition n == 6 {
+            true -> matched()
+            false -> unmatched()
+        }
+    }
+
+    state matched(&mut self) { self.console.exit_process(6); }
+    state unmatched(&mut self) { self.console.exit_process(0); }
+}

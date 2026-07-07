@@ -15,12 +15,12 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data VersionedMessage {
+data VersionedMessage {
     version v1 {
         0: counter: i32;
     }
 
-    reserved 0;
+    retired 0;
     1: counter: u32;
 }
 
@@ -37,7 +37,7 @@ data Main {
 machine Main::main(&mut self) {
     let msg: VersionedSample = VersionedSample { counter: 7 };
 
-    VersionedMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    VersionedMessage::encode(&msg, &mut self.buffer, &mut self.written);
 
     transition self.written == 3 {
         true -> check_bytes()

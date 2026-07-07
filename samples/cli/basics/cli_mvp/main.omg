@@ -1,0 +1,21 @@
+// The minimal Omega program -- "hello world". `main` prints a line through the std
+// console boundary and exits cleanly. This is the simplest end-to-end smoke test
+// (frontend + codegen + host console) and the runnable baseline behind every other
+// sample. Annotated so the samples harness value-asserts it (runs + checks the
+// exit), not just compiles it.
+// Expected exit: 0.
+// Expected output contains: Hello, Omega.
+
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("Hello, Omega.");
+    self.console.write_line("[press Enter to close]");
+    self.console.read_line(&mut self.pause);
+    self.console.exit_process(0);
+}

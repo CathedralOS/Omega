@@ -1,0 +1,18 @@
+// NO SILENT FALL-THROUGH (settled 2026-07-02): a dispatch with no `_` arm
+// must provably cover every case. A lone `true ->` arm falls through when
+// the guard is false -- before the rule, the process exited with a leftover
+// register value (probed: garbage, value-dependent).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    x: i32;
+}
+machine Main::main(&mut self) {
+    self.x = 5;
+    transition self.x == 3 {
+        true -> good()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+}

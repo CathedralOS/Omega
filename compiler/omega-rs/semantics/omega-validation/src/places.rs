@@ -1,7 +1,10 @@
 use crate::locals::WritableRoots;
+use crate::struct_literals::data_declares_field;
 use omega_core::diagnostics::Diagnostic;
 use omega_typed_trees::TypedTrees;
+use omega_typed_trees::data::DataDefinition;
 use omega_typed_trees::expression::{ExpressionHandle, ExpressionNode};
+use omega_typed_trees::machine::Machine;
 use omega_typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 pub(crate) fn validate_assignment_target_handle(
@@ -9,12 +12,32 @@ pub(crate) fn validate_assignment_target_handle(
     target: ExpressionHandle,
     writable_roots: &WritableRoots<'_, '_>,
     diagnostics: &mut Vec<Diagnostic>,
-    machine_name: &str,
+    machine: &Machine,
     state_name: &str,
 ) {
+    let machine_name = machine.name.as_str();
     if !is_mutable_place_handle(program, target) {
         diagnostics.push(Diagnostic::error(format!(
             "machine `{machine_name}` state `{state_name}` assignment target must be a named place"
+        )));
+        return;
+    }
+
+    // A direct `self.<field>` target must name an actual field of the machine's
+    // attached data. An unknown field (a typo) gets a clear "no field" error instead
+    // of falling through to the "not mutable" message, which cannot tell a
+    // nonexistent field from a real-but-immutable one. Scoped to the DIRECT
+    // `self.<field>` shape (checked against the top-level data fields, which is
+    // exactly the set writable via `self.<field>`); nested `self.a.b` and bare locals
+    // are left to the existing writable-roots check.
+    if let Some(field_name) = direct_self_field_member(program, target)
+        && let Some(data) = machine_attached_data(program, machine)
+        && !data_declares_field(program, data, field_name)
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{machine_name}` state `{state_name}` assignment: data `{}` has no field \
+             `{field_name}` (check the spelling of the field name)",
+            data.name.as_str()
         )));
         return;
     }
@@ -24,8 +47,14 @@ pub(crate) fn validate_assignment_target_handle(
     };
 
     if !writable_roots.contains(root_name) {
+        // The writable set cannot distinguish a nonexistent root (a typo) from a real
+        // but non-mutable one, so append a conditional typo hint -- correct whatever
+        // the cause. (A full "data X has no field Y" check is the separate
+        // unknown-field validation-gap TASK.)
         diagnostics.push(Diagnostic::error(format!(
-            "machine `{machine_name}` state `{state_name}` assignment cannot write `{root_name}` because it is not mutable in this state"
+            "machine `{machine_name}` state `{state_name}` assignment cannot write `{root_name}` \
+             because it is not mutable in this state (if `{root_name}` is undeclared -- a typo -- \
+             no such field or local exists)"
         )));
     }
 }
@@ -68,6 +97,56 @@ fn expression_root_name_handle(program: &TypedTrees, expression: ExpressionHandl
     }
 }
 
+/// The field name of a DIRECT `self.<field>` place, whether it lowered as a
+/// `Member(Name([self]), field)` or a two-segment `Name([self, field])` path.
+/// `None` for anything deeper (`self.a.b`), a bare local, or a non-`self` receiver.
+pub(crate) fn direct_self_field_member(program: &TypedTrees, target: ExpressionHandle) -> Option<&str> {
+    match program.expression_table.expression(target) {
+        ExpressionNode::Member(member) => {
+            let ExpressionNode::Name(path) =
+                program.expression_table.expression(member.receiver)
+            else {
+                return None;
+            };
+            let receiver = program.expression_table.name_path_members(path.members);
+            (receiver.len() == 1 && receiver[0].as_str() == "self")
+                .then(|| member.member.as_str())
+        }
+        ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            (members.len() == 2 && members[0].as_str() == "self")
+                .then(|| members[1].as_str())
+        }
+        _ => None,
+    }
+}
+
+/// The machine's attached-data `DataDefinition`, resolved by name. `None` for a
+/// machine with no attached data (a free machine) or an unresolvable data name.
+pub(crate) fn machine_attached_data<'a>(
+    program: &'a TypedTrees,
+    machine: &Machine,
+) -> Option<&'a DataDefinition> {
+    let attached = machine.attached_data.as_ref()?;
+    // VERSIONED data (`Counter::v1`) has version-specific fields that a naive
+    // top-level field list does not capture (a cross-version field like `timestamp`
+    // is legally reachable but not in this version's `data_members`). Skip the
+    // unknown-field check for it -- leave those to the version-access / writable-roots
+    // diagnostics -- rather than mis-report "no field".
+    if attached
+        .as_str()
+        .rsplit("::")
+        .next()
+        .is_some_and(omega_core::versioning::is_version_selector)
+    {
+        return None;
+    }
+    program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == attached.as_str())
+}
+
 /// The DECLARED type of a simple place argument: a bare local/parameter name
 /// (`msg`) or an attached-data field (`self.buffer`), through the `&mut`
 /// marker. `None` for shapes this scope cannot type (those re-resolve during
@@ -86,7 +165,7 @@ pub(crate) fn declared_place_type(
 /// Like [`declared_place_type`] but returns the place's type reference WITHOUT
 /// unwrapping the `Constrained`/`Reference` shells -- callers that need the
 /// arithmetic domain (decision 17) read it from this raw handle.
-pub(crate) fn declared_place_type_raw(
+pub fn declared_place_type_raw(
     program: &TypedTrees,
     current_machine: &omega_typed_trees::machine::Machine,
     current_state: Option<&omega_typed_trees::state::State>,
@@ -97,30 +176,7 @@ pub(crate) fn declared_place_type_raw(
         handle = *inner;
     }
 
-    let members: Vec<String> = match program.expression_table.expression(handle) {
-        ExpressionNode::Name(path) => program
-            .expression_table
-            .name_path_members(path.members)
-            .iter()
-            .map(|member| member.as_str().to_owned())
-            .collect(),
-        ExpressionNode::Member(member) => {
-            let ExpressionNode::Name(receiver) =
-                program.expression_table.expression(member.receiver)
-            else {
-                return None;
-            };
-            let mut names: Vec<String> = program
-                .expression_table
-                .name_path_members(receiver.members)
-                .iter()
-                .map(|name| name.as_str().to_owned())
-                .collect();
-            names.push(member.member.as_str().to_owned());
-            names
-        }
-        _ => return None,
-    };
+    let members: Vec<String> = collect_member_path(program, handle)?;
 
     match members.as_slice() {
         [name] => {
@@ -188,8 +244,91 @@ pub(crate) fn declared_place_type_raw(
                 .find(|data| data.name == *name)?;
             data_field_or_payload_type(program, data, field_name)
         }
+        // A NESTED place, 3+ members (`self.p.x`, `self.a.inner.x`, or a
+        // FIELD-stored enum payload's `self.m.dx` -- a destructure arm lowers
+        // the payload binding onto the receiver field's path): walk each hop
+        // through its struct/sum definition so the last hop's declared type --
+        // domain and range intact -- reaches the decision-17 exact check. This
+        // used to return None, which silently EXEMPTED nested-field arithmetic
+        // from the overflow obligation (it wrapped).
+        path if path.len() >= 3 => {
+            resolve_nested_member_path(program, current_machine, current_state, path)
+        }
         _ => None,
     }
+}
+
+/// Collect a place expression's member path (`self.p.x` -> ["self","p","x"]),
+/// descending NESTED `Member` receivers. `None` for non-name shapes (indexed
+/// receivers, calls) -- those re-resolve during instruction selection.
+fn collect_member_path(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<Vec<String>> {
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Name(path) => Some(
+            program
+                .expression_table
+                .name_path_members(path.members)
+                .iter()
+                .map(|member| member.as_str().to_owned())
+                .collect(),
+        ),
+        ExpressionNode::Member(member) => {
+            let mut names = collect_member_path(program, member.receiver)?;
+            names.push(member.member.as_str().to_owned());
+            Some(names)
+        }
+        _ => None,
+    }
+}
+
+/// Resolve a 3+-member place by walking each hop through its struct/sum type:
+/// the root is `self` (the machine's attached data) or a local/parameter of
+/// data type; every intermediate hop must land on a Named data definition; the
+/// LAST hop returns the field/payload type reference RAW (constraints intact)
+/// so callers read the arithmetic domain (decision 17) and range refinement.
+fn resolve_nested_member_path(
+    program: &TypedTrees,
+    current_machine: &omega_typed_trees::machine::Machine,
+    current_state: Option<&omega_typed_trees::state::State>,
+    path: &[String],
+) -> Option<TypeReferenceHandle> {
+    let (root, rest) = path.split_first()?;
+    let mut current_data = if root == "self" {
+        let attached = current_machine.attached_data.as_ref()?;
+        program
+            .data_definitions()
+            .iter()
+            .find(|data| data.name == *attached)?
+    } else {
+        let receiver_type = local_or_parameter_type(program, current_state, root)?;
+        data_definition_for_type(program, receiver_type)?
+    };
+    let (last, intermediates) = rest.split_last()?;
+    for hop in intermediates {
+        let hop_type = data_field_or_payload_type(program, current_data, hop)?;
+        current_data = data_definition_for_type(program, hop_type)?;
+    }
+    data_field_or_payload_type(program, current_data, last)
+}
+
+/// The data/sum definition behind a type reference (through `&`/`in Domain`
+/// shells). `None` for primitives, arrays, and unknown names.
+fn data_definition_for_type(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<&omega_typed_trees::data::DataDefinition> {
+    let unwrapped = unwrapped_type_reference(program, type_reference)?;
+    let TypeReferenceNode::Named { name, .. } =
+        program.type_reference_table.type_reference(unwrapped)
+    else {
+        return None;
+    };
+    program
+        .data_definitions()
+        .iter()
+        .find(|data| data.name == *name)
 }
 
 /// Resolve a bare local-data or state-parameter name to its declared type.
@@ -249,7 +388,35 @@ fn data_field_or_payload_type(
 
 /// Unwrap reference and constraint shells so the structural type underneath
 /// (`[u8; N]`, `usize`, a data name) is inspectable.
-pub(crate) fn unwrapped_type_reference(
+/// The declared ELEMENT type of an indexed assignment target (`self.xs[i]`,
+/// `buf[k]`), unwrapped like [`declared_place_type`]. `collect_member_path`
+/// stops at an `Indexed` node, so `declared_place_type` returns `None` for an
+/// indexed place -- which used to EXEMPT indexed-element stores from the
+/// cross-class / narrowing / nominal store checks (a `bool` silently stored as
+/// `1` into an `[i32; N]` element). This resolves the collection's `[T; N]` /
+/// `[T]` type and hands back `T` so those checks see the real slot type.
+/// `None` for a non-indexed target, an unresolvable collection, or a collection
+/// that is not an array/slice.
+pub(crate) fn declared_indexed_element_type(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: Option<&omega_typed_trees::state::State>,
+    target: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
+        return None;
+    };
+    let collection_type =
+        declared_place_type(program, current_machine, current_state, indexed.collection)?;
+    let element_type = match program.type_reference_table.type_reference(collection_type) {
+        TypeReferenceNode::FixedArray { element_type, .. }
+        | TypeReferenceNode::Slice { element_type } => *element_type,
+        _ => return None,
+    };
+    unwrapped_type_reference(program, element_type)
+}
+
+pub fn unwrapped_type_reference(
     program: &TypedTrees,
     type_reference: TypeReferenceHandle,
 ) -> Option<TypeReferenceHandle> {

@@ -1,0 +1,37 @@
+// NATIVE fs Metadata::readonly (Rust Metadata::permissions().readonly()). Creates
+// a file, chmods it to read-only (0o444), then stat's it and decodes st_mode
+// (u16 @4) by byte-assembly; the owner-write bit (0o200 = 128) must be clear.
+// Exercises the stat op + runtime bitwise |, <<, and & on real macOS syscalls.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    readonly_mode: u32;
+    fd: i32;
+    rc: i32;
+    st_mode: i32;
+    write_bit: i32;
+    n: i64;
+    buffer: [u8; 144];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.readonly_mode = 292;   // 0o444
+    self.fd = self.fs.create("/tmp/omega_ro.txt", self.mode);
+    self.n = self.fs.write(self.fd, "x");
+    self.n = self.fs.close(self.fd);
+    self.rc = self.fs.set_permissions("/tmp/omega_ro.txt", self.readonly_mode);
+    self.rc = self.fs.read_metadata("/tmp/omega_ro.txt", &mut self.buffer);
+    self.n = self.fs.remove("/tmp/omega_ro.txt");
+    transition self.rc == 0 { true -> decode() _ -> fail() }
+    state decode(&mut self) {
+        self.st_mode = (self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8);
+        self.write_bit = self.st_mode & 128;   // owner-write (S_IWUSR)
+        transition self.write_bit == 0 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: chmod 0o444 -> Metadata readonly (write bit clear)\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: metadata readonly\n"); }
+}

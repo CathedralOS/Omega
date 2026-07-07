@@ -1,0 +1,42 @@
+// Whole-array VALUE copy: assigning one owned array field to another (`self.b = self.a`)
+// copies the contents, so mutating an element of the destination must NOT touch the source.
+// The check discriminates both ways: the source array keeps its originals (5, 6, 7) AND the
+// destination holds the mutated first element with the rest copied (99, 6, 7). Exits 70.
+//
+// This is the array counterpart of the struct value-copy locked in
+// structs/runtime_array_element_struct_copy_exit. The interpreter (the differential oracle)
+// previously ALIASED this (shared the backing element cells) while native deep-copied; the
+// fix deep-clones a Value::Array on assignment/`let` ONLY when the target type is an owned
+// [T; N] (a slice &[T] stays a shared view), so this now verifies interp==native.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: [i32; 3] in Wrapping;
+    b: [i32; 3] in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.a[0] = 5;
+    self.a[1] = 6;
+    self.a[2] = 7;
+    self.b = self.a; // whole-array value copy
+    self.b[0] = 99;  // mutate the copy's first element
+    transition self.a[0] == 5
+            && self.a[1] == 6
+            && self.a[2] == 7
+            && self.b[0] == 99
+            && self.b[1] == 6
+            && self.b[2] == 7 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(self.a[0]); // surface the aliased source value on regression
+    }
+}

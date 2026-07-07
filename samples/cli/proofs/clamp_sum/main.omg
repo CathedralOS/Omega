@@ -1,0 +1,46 @@
+// Clamp a series of raw sensor readings into a valid band and sum the results.
+// Each reading is clamped to [0, 60] via the standard idiom `max(lo, min(v, hi))`,
+// which is why this sample exercises the `min` AND `max` builtins together (the
+// first sample to use both). For readings [80, -5, 50, 200, 30] the clamped values
+// are [60, 0, 50, 60, 30], summing to 200. Walks the slice with the shrinking-
+// window recursion (`s[1..]`), reading `s[0]` under the `s.len > 0` guard so the
+// index is discharged in the same transition. The accumulator is `in Wrapping`,
+// DECLARED: the recursion runs over a slice of unknown length, so no ceiling on
+// the running sum is provable (each clamped step is bounded, the count is not).
+// Expected exit: 200.
+
+use omega::language::std::console;
+
+data Clamper {
+    values: [i32 in Wrapping; 5];
+}
+
+// Wrapping DECLARED: the accumulator sums an unbounded number of clamped steps.
+machine Clamper::clamp_sum(&mut self, s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping {
+    transition s.len > 0 {
+        true -> clamp_sum(s[1..], acc + max(0, min(s[0], 60)))
+        false -> (acc)
+    }
+}
+
+data Main {
+    console: Console;
+    clamper: Clamper;
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("clamp_sum: clamp readings [80, -5, 50, 200, 30] to [0, 60] and sum them");
+    self.clamper.values[0] = 80;
+    self.clamper.values[1] = -5;
+    self.clamper.values[2] = 50;
+    self.clamper.values[3] = 200;
+    self.clamper.values[4] = 30;
+
+    let s: &[i32 in Wrapping] = self.clamper.values.as_slice();
+    let total: i32 = self.clamper.clamp_sum(s, 0);
+    self.console.write_line("result: the clamped sum, 200 for these readings (the exit code)");
+    self.console.write_line("[press Enter to close]");
+    self.console.read_line(&mut self.pause);
+    self.console.exit_process(total);
+}

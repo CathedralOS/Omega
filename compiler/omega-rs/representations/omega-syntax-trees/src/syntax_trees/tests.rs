@@ -43,7 +43,7 @@ fn syntax_trees_collect_state_expression_and_type_payloads() {
     syntax_trees.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("Main"),
         attached_data: None,
-        abi: None,
+        boundary: false,
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
         terminates: false,
@@ -78,7 +78,7 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
     file.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
         attached_data: None,
-        abi: None,
+        boundary: false,
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
         terminates: false,
@@ -135,7 +135,7 @@ fn syntax_trees_extend_from_preserves_statement_call_arguments() {
     file.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
         attached_data: None,
-        abi: None,
+        boundary: false,
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
         terminates: false,
@@ -240,7 +240,7 @@ fn syntax_trees_extend_from_preserves_nested_expression_argument_spans() {
     file.push_root_item(Item::Machine(Machine {
         name: Identifier::generated("main"),
         attached_data: None,
-        abi: None,
+        boundary: false,
         type_parameters: HandleSpan::empty(),
         satisfies: HandleSpan::empty(),
         terminates: false,

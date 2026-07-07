@@ -376,6 +376,48 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_indexed_binary_write(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => aarch64::encode_runtime_machine_indexed_binary_write(
+            runtime_value_operands,
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
+        Architecture::X86_64 => x86_64::encode_runtime_machine_indexed_binary_write(
+            runtime_value_operands,
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
+    }
+}
+
 pub fn encode_runtime_machine_indexed_integer_write(
     architecture: Architecture,
     base_byte_offset: usize,
@@ -952,6 +994,7 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     architecture: Architecture,
     base_byte_offset: usize,
     index_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -962,13 +1005,101 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
             aarch64::encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
                 base_byte_offset,
                 index_offset,
+                index_region,
                 element_byte_size,
                 field_byte_offset,
                 target_offset,
                 byte_count,
             )
         }
-        Architecture::X86_64 => unsupported_x86_64_encoding(),
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
+                base_byte_offset,
+                index_offset,
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            )
+        }
+    }
+}
+
+pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
+    architecture: Architecture,
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    source_offset: usize,
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => {
+            if source_region != omega_target_operations::RuntimeStorageRegion::Machine {
+                return Err(Diagnostic::error(
+                    "aarch64 cannot write a machine indexed element from a frame-resident                      source yet; use a machine field temp",
+                ));
+            }
+            aarch64::encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
+                source_offset,
+                base_byte_offset,
+                index_offset,
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+                byte_count,
+            )
+        }
+        Architecture::X86_64 => {
+            x86_64::encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
+                source_region,
+                source_offset,
+                base_byte_offset,
+                index_offset,
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+                byte_count,
+            )
+        }
+    }
+}
+
+pub fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+    architecture: Architecture,
+    source_base_byte_offset: usize,
+    source_index_offset: usize,
+    source_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_element_byte_size: usize,
+    source_field_byte_offset: usize,
+    target_base_byte_offset: usize,
+    target_index_offset: usize,
+    target_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_element_byte_size: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "aarch64 cannot encode a dual runtime-indexed copy (`arr[i] = arr[j]`) yet;              use a field temp",
+        )),
+        Architecture::X86_64 => x86_64::encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+            source_base_byte_offset,
+            source_index_offset,
+            source_index_region,
+            source_element_byte_size,
+            source_field_byte_offset,
+            target_base_byte_offset,
+            target_index_offset,
+            target_index_region,
+            target_element_byte_size,
+            target_field_byte_offset,
+            byte_count,
+        ),
     }
 }
 

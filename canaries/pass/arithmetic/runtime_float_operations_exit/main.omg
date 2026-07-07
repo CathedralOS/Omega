@@ -1,0 +1,93 @@
+// Float (f64 + f32) arithmetic, comparison, casts, LOCAL float arith, and
+// NESTED-field float arith -- all computed at runtime and checked against exact
+// (integer-valued) constants so equality is precise. Locks float codegen as a
+// regression guard (native + interpreter must agree):
+//   * f64 add / mul / div
+//   * f64 <-> i32 casts (truncation toward zero)
+//   * f32 add
+//   * f64 arith through a NESTED struct field
+//   * f64 arith on a LOCAL
+//
+// All correct -> exit 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Point {
+    x: f64;
+    y: f64;
+}
+
+data Main {
+    console: Console;
+    a: f64;
+    b: f64;
+    sum: f64;
+    product: f64;
+    quotient: f64;
+    truncated: i32 in Trapping;
+    widened: f64;
+    f: f32;
+    g: f32;
+    fsum: f32;
+    point: Point;
+    nested_sum: f64;
+    local_sum: f64;
+}
+
+machine Main::main(&mut self) {
+    self.a = 3.0;
+    self.b = 4.0;
+    self.sum = self.a + self.b;          // 7.0
+    self.product = self.a * self.b;      // 12.0
+    self.quotient = 15.0 / self.a;       // 5.0
+    self.truncated = 7.9 as i32 in Trapping;   // 7 (truncate toward zero)
+    self.widened = 9 as f64;             // 9.0
+
+    self.f = 3.0;
+    self.g = 4.0;
+    self.fsum = self.f + self.g;         // 7.0 (f32)
+
+    self.point.x = 2.0;
+    self.point.y = 5.0;
+    self.nested_sum = self.point.x + self.point.y;   // 7.0
+
+    let l: f64 = 6.0;
+    let r: f64 = 1.0;
+    self.local_sum = l + r;              // 7.0 (local arith)
+
+    transition self.sum == 7.0 {
+        true -> c_product()
+        _ -> bad()
+    }
+
+    state c_product(&mut self) {
+        transition self.product == 12.0 { true -> c_quotient() _ -> bad() }
+    }
+    state c_quotient(&mut self) {
+        transition self.quotient == 5.0 { true -> c_trunc() _ -> bad() }
+    }
+    state c_trunc(&mut self) {
+        transition self.truncated == 7 { true -> c_widen() _ -> bad() }
+    }
+    state c_widen(&mut self) {
+        transition self.widened == 9.0 { true -> c_f32() _ -> bad() }
+    }
+    state c_f32(&mut self) {
+        transition self.fsum == 7.0 { true -> c_nested() _ -> bad() }
+    }
+    state c_nested(&mut self) {
+        transition self.nested_sum == 7.0 { true -> c_local() _ -> bad() }
+    }
+    state c_local(&mut self) {
+        transition self.local_sum == 7.0 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

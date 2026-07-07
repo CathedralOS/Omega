@@ -1,0 +1,14 @@
+// `==` / `!=` on array operands (`self.xs == self.ys`) has no synthesized
+// element-wise equality, so it reached the backend as a multi-byte runtime
+// compare it cannot encode ("cannot load N-byte runtime operands"). Rejected at
+// check now with a precise message (element-wise array equality is a possible
+// future feature). Struct `==` (structural) and String `==` stay valid.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; xs: [i32; 3]; ys: [i32; 3]; }
+machine Main::main(&mut self) {
+    self.xs = [1, 2, 3];
+    self.ys = [1, 2, 3];
+    transition self.xs == self.ys { true -> same() _ -> diff() }
+    state same(&mut self) { self.console.exit_process(1); }
+    state diff(&mut self) { self.console.exit_process(2); }
+}

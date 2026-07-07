@@ -9,15 +9,41 @@ use omega_target_operations::{
     StateGuardOperator,
 };
 
+pub fn vtable_call_sequence_width<T: InstructionOperandLike>(
+    architecture: Architecture,
+    operands: &[T],
+    index: i64,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => x86_64::win64_vtable_call_width(operands, index),
+    }
+}
+
 pub fn host_call_sequence_width<T: InstructionOperandLike>(
     architecture: Architecture,
     operation_key: HostOperationKey,
     operands: &[T],
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => aarch64::host_call_sequence_width_from_operands(
-            operands.iter().map(aarch64_call_operand),
-        ),
+        Architecture::Aarch64 => {
+            let base = aarch64::host_call_sequence_width_from_operands(
+                operands.iter().map(aarch64_call_operand),
+            );
+            // A deref-result op (errno) emits one extra `ldr w0,[x0]` (4 bytes)
+            // between the BL and the result store; keep the layout width in
+            // lockstep with the encoder + the data-address relocation offset.
+            // A stack-mode op (`open_create`) brackets the call with `sub sp` +
+            // `str [sp]` + `add sp` = 12 bytes beyond counting the mode immediate
+            // as a register arg (same lockstep discipline).
+            let deref = if operation_key.dereferences_result() { 4 } else { 0 };
+            let stack_mode = if operation_key.passes_trailing_mode_on_stack() {
+                12
+            } else {
+                0
+            };
+            base + deref + stack_mode
+        }
         Architecture::X86_64 => x86_64::host_call_sequence_width(operation_key, operands),
     }
 }
@@ -69,6 +95,26 @@ pub fn runtime_storage_copy_to_return_register_width(
         Architecture::X86_64 => {
             x86_64::runtime_storage_copy_to_return_register_width(byte_offset, byte_size)
         }
+    }
+}
+
+/// Width of the entry prologue's argument-register store (x86_64 only; the
+/// aarch64 encoder rejects the instruction with a clear diagnostic, so its
+/// width is never consumed -- 0 keeps the layout honest until an aarch64 entry
+/// stub exists).
+pub fn entry_argument_register_write_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => x86_64::entry_argument_register_write_width(),
+    }
+}
+
+/// Width of the entry prologue's `args: &[u8]` descriptor write (x86_64 only;
+/// aarch64 rejects at encode, so 0 keeps the layout honest).
+pub fn entry_arguments_slice_descriptor_write_width(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => x86_64::entry_arguments_slice_descriptor_write_width(),
     }
 }
 
@@ -776,6 +822,47 @@ pub fn runtime_frame_base_indexed_binary_write_width(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_machine_indexed_binary_write_width(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => aarch64::runtime_machine_indexed_binary_write_width(
+            runtime_value_operands,
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
+        Architecture::X86_64 => {
+            let _ = (base_byte_offset, index_offset, element_byte_size, field_byte_offset);
+            x86_64::runtime_machine_indexed_binary_write_width(
+                runtime_value_operands,
+                index_region,
+                byte_size,
+                left,
+                operator,
+                right,
+            )
+        }
+    }
+}
+
 /// Byte offset of the left value operand within a frame-base-indexed binary
 /// write (i.e. the length of the target-address-computation prefix).
 pub fn runtime_frame_base_indexed_binary_left_operand_offset(
@@ -1051,6 +1138,7 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_o
 pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
     architecture: Architecture,
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
@@ -1058,12 +1146,13 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
         Architecture::Aarch64 => {
             aarch64::runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
                 base_byte_offset,
+                index_region,
                 element_byte_size,
                 field_byte_offset,
             )
         }
         Architecture::X86_64 => {
-            let _ = (base_byte_offset, element_byte_size, field_byte_offset);
+            let _ = (base_byte_offset, index_region, element_byte_size, field_byte_offset);
             0
         }
     }
@@ -1223,6 +1312,8 @@ pub fn runtime_text_line_read_width(
             HostBindingMechanism::Syscall { number, .. } => {
                 aarch64::runtime_text_line_read_syscall_width(byte_capacity, *number)
             }
+            // read_line is never vtable-bound; 0 = the refuse-to-emit convention.
+            HostBindingMechanism::VtableSlot { .. } => 0,
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
@@ -1239,6 +1330,7 @@ pub fn runtime_text_line_read_width(
                     x86_64::runtime_text_line_read_syscall_width()
                 }
             }
+            HostBindingMechanism::VtableSlot { .. } => 0,
         },
     }
 }
@@ -1255,6 +1347,7 @@ pub fn runtime_text_line_read_target_address_offset(
             HostBindingMechanism::Syscall { number, .. } => {
                 aarch64::runtime_text_line_read_syscall_target_address_offset(*number)
             }
+            HostBindingMechanism::VtableSlot { .. } => 0,
         },
         Architecture::X86_64 => match binding {
             HostBindingMechanism::Import { .. } => {
@@ -1263,6 +1356,7 @@ pub fn runtime_text_line_read_target_address_offset(
             HostBindingMechanism::Syscall { .. } => {
                 x86_64::runtime_text_line_read_syscall_target_imm_offset()
             }
+            HostBindingMechanism::VtableSlot { .. } => 0,
         },
     }
 }
@@ -1491,6 +1585,7 @@ pub fn runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee_width(
 pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
     architecture: Architecture,
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -1500,13 +1595,110 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_widt
         Architecture::Aarch64 => {
             aarch64::runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
                 base_byte_offset,
+                index_region,
                 element_byte_size,
                 field_byte_offset,
                 target_offset,
                 byte_count,
             )
         }
-        Architecture::X86_64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width()
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
+    architecture: Architecture,
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    source_offset: usize,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
+                source_offset,
+                base_byte_offset,
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+                byte_count,
+            )
+        }
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
+                source_region,
+            )
+        }
+    }
+}
+
+/// aarch64 SOURCE-adrp offset inside the store (for the relocation planner).
+pub fn runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
+    architecture: Architecture,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            aarch64::runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
+                base_byte_offset,
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+            )
+        }
+        Architecture::X86_64 => {
+            let _ = (base_byte_offset, index_region, element_byte_size, field_byte_offset);
+            0
+        }
+    }
+}
+
+/// The machine-base relocation offset inside the FRAME-SOURCE variant of the
+/// write half (the second `mov r15,imm64`). x86_64 only.
+pub fn runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset(
+    architecture: Architecture,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset()
+        }
+    }
+}
+
+pub fn runtime_storage_copy_machine_indexed_to_machine_indexed_width(
+    architecture: Architecture,
+) -> usize {
+    match architecture {
+        // aarch64 has no dual-indexed-copy encoder yet; emission rejects the
+        // instruction with a clean diagnostic before any bytes are placed, so
+        // the width is never consumed.
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_machine_indexed_to_machine_indexed_width()
+        }
+    }
+}
+
+/// The second machine-base relocation offset inside the dual-indexed copy (the
+/// write part's `mov r15, imm64` immediate). x86_64 only, like the encoder.
+pub fn runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset(
+    architecture: Architecture,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset()
+        }
     }
 }
 

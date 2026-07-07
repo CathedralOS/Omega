@@ -465,6 +465,36 @@ pub(super) fn encode_runtime_frame_base_indexed_binary_write(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
+pub(super) fn encode_runtime_machine_indexed_binary_write(
+    input: MachineEmissionContext<'_>,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    validate_runtime_value_home(input, left)?;
+    validate_runtime_value_home(input, right)?;
+    architecture::encode_runtime_machine_indexed_binary_write(
+        input.target.architecture,
+        input.assigned_target_operations,
+        base_byte_offset,
+        index_region,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+        left,
+        operator,
+        right,
+    )
+}
+
 pub(super) fn encode_runtime_machine_string_write(
     input: MachineEmissionContext<'_>,
     byte_offset: usize,
@@ -834,6 +864,7 @@ pub(super) fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtim
     input: MachineEmissionContext<'_>,
     base_byte_offset: usize,
     index_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -843,9 +874,64 @@ pub(super) fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtim
         input.target.architecture,
         base_byte_offset,
         index_offset,
+        index_region,
         element_byte_size,
         field_byte_offset,
         target_offset,
+        byte_count,
+    )
+}
+
+pub(super) fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
+    input: MachineEmissionContext<'_>,
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    source_offset: usize,
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
+        input.target.architecture,
+        source_region,
+        source_offset,
+        base_byte_offset,
+        index_offset,
+        index_region,
+        element_byte_size,
+        field_byte_offset,
+        byte_count,
+    )
+}
+
+pub(super) fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+    input: MachineEmissionContext<'_>,
+    source_base_byte_offset: usize,
+    source_index_offset: usize,
+    source_index_region: omega_target_operations::RuntimeStorageRegion,
+    source_element_byte_size: usize,
+    source_field_byte_offset: usize,
+    target_base_byte_offset: usize,
+    target_index_offset: usize,
+    target_index_region: omega_target_operations::RuntimeStorageRegion,
+    target_element_byte_size: usize,
+    target_field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+        input.target.architecture,
+        source_base_byte_offset,
+        source_index_offset,
+        source_index_region,
+        source_element_byte_size,
+        source_field_byte_offset,
+        target_base_byte_offset,
+        target_index_offset,
+        target_index_region,
+        target_element_byte_size,
+        target_field_byte_offset,
         byte_count,
     )
 }

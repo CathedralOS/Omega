@@ -1,0 +1,5 @@
+// Casting an array to a numeric type (`self.xs as i32`) silently reinterpreted the
+// array's bytes as a number. `as` converts between scalar types only. Rejected now.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; xs: [i32; 3]; }
+machine Main::main(&mut self) { self.xs = [1, 2, 3]; let n: i32 = self.xs as i32; self.console.exit_process(n); }

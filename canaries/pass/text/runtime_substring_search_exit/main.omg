@@ -1,0 +1,87 @@
+// Naive substring search -- find a needle in a haystack, the basis of text matching,
+// grep, and parsing, and a text operation not covered elsewhere (the text canaries do
+// carrier ops, concat, itoa/atoi, hashing, palindrome -- none FIND a pattern). For each
+// start position i in [0, hay.len - ndl.len], compare the needle byte-by-byte; the first
+// full match wins. Searching "world" in "hello world" rejects i=0..5 (mismatch on the
+// first byte) and matches at i=6 -> exit 70.
+//
+// KEY: a carrier index must be guarded against `.len` DIRECTLY (`k < self.hay.len`), the
+// way an FNV loop indexes -- copying the length into a field first (`hlen = hay.len;
+// k < hlen`) loses the carrier-length connection and the bound cannot be proven. The
+// flat index `i + j` is formed into a field `k` (a computed index is refused in a
+// subscript), then bounds-guarded.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 16]::Utf8 when valid_utf8(self) {}
+domain [u8; 8]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    hay: [u8; 16] in Utf8;
+    ndl: [u8; 8] in Utf8;
+    lim: i32 in Wrapping; // last start position to try = hay.len - ndl.len
+    i: i32 in Wrapping;   // haystack start
+    j: i32 in Wrapping;   // needle offset
+    k: i32 in Wrapping;   // i + j
+    hb: u8;
+    nb: u8;
+    found: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.hay = "hello world";
+    self.ndl = "world";
+    self.lim = self.hay.len - self.ndl.len;
+    self.found = 0 - 1; // -1 = not found
+    self.i = 0;
+    transition { _ -> outer() }
+
+    state outer(&mut self) {
+        transition self.i >= 0 && self.i <= self.lim { true -> inner_init() _ -> verify() }
+    }
+    state inner_init(&mut self) {
+        self.j = 0;
+        transition { _ -> inner() }
+    }
+    state inner(&mut self) {
+        // needle exhausted with no mismatch => a full match at i
+        transition self.j >= 0 && self.j < self.ndl.len { true -> compare() _ -> full_match() }
+    }
+    state compare(&mut self) {
+        self.k = self.i + self.j;
+        transition self.k >= 0 && self.k < self.hay.len { true -> compare_read() _ -> bad() }
+    }
+    state compare_read(&mut self) {
+        self.hb = self.hay[self.k];
+        self.nb = self.ndl[self.j];
+        transition self.hb == self.nb { true -> next_j() _ -> outer_next() }
+    }
+    state next_j(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> inner() }
+    }
+    state full_match(&mut self) {
+        self.found = self.i;
+        transition { _ -> verify() }
+    }
+    state outer_next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> outer() }
+    }
+
+    state verify(&mut self) {
+        transition self.found == 6 { true -> good() _ -> wrong() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(self.found); // surface the (wrong) position
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

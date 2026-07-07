@@ -29,6 +29,7 @@ mod runtime_dispatch_blockers;
 mod runtime_text_blockers;
 mod selected_instruction_queries;
 mod semantic_scope;
+mod shared_value_call_slot_blockers;
 mod state_call_blockers;
 mod state_codegen_blockers;
 mod state_guard_blockers;

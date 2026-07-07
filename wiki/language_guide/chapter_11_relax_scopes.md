@@ -2,6 +2,18 @@
 
 Most invariant-preserving updates should use temporary values.
 
+> **Relax is the consistency point for CROSS-FIELD invariants (settled 2026-07-05).**
+> A data type's cross-field invariants (`start <= end`) live in its default domain
+> (see [Chapter 7](chapter_7_types_constraints_invariants.md)); a bare single-field
+> store that would break one is rejected. To make such an update you either construct
+> a valid whole (init-syntax) or enter a `relax` scope that suspends the obligation
+> and re-proves it at scope exit. The load-bearing soundness condition is
+> **EXCLUSIVITY**: while a value is relaxed, nothing may observe it as still-in-domain
+> — no alias, no method call, no read that assumes the invariant — until scope exit
+> re-establishes it; otherwise a broken invariant leaks out as valid. *The
+> checked-tree pass that marks the relaxed place, verifies exclusivity, and restores
+> the obligation at scope exit is not yet built.*
+
 ```omega
 machine Body::set_mass(
     &mut self,

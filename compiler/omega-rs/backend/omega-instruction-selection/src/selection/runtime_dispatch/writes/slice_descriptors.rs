@@ -1,3 +1,4 @@
+use super::super::text_writes::string_literal_data_handle;
 use crate::InstructionSelectionInput;
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
@@ -98,6 +99,10 @@ fn emit_runtime_frame_slot_runtime_subslice_descriptor_write_in_table(
             value_source_key,
             expressions,
             range.start,
+            // The START lowers through `WriteRuntimeFrameIndexedAddressToRuntimeFrame`,
+            // whose index has no region field (implicitly the frame), so a machine
+            // field start is not lowerable -- frame-only.
+            false,
         ) {
             Some(start) => start,
             None => return false,
@@ -112,6 +117,9 @@ fn emit_runtime_frame_slot_runtime_subslice_descriptor_write_in_table(
             value_source_key,
             expressions,
             range.end,
+            // The END rides in a region-tagged `Storage` operand of a `Subtract`,
+            // so a machine FIELD end (`path[0..self.k]`) is lowerable.
+            true,
         ) {
             // An inclusive end (`a..=b`) is the exclusive end `b + 1`; folding
             // it here keeps every emission path on half-open ranges. A RUNTIME
@@ -150,13 +158,19 @@ fn emit_runtime_frame_slot_runtime_subslice_descriptor_write_in_table(
 }
 
 /// Resolve one subslice range bound to a lowerable operand: a literal integer
-/// or a pointer-sized runtime value in a frame slot.
+/// or a pointer-sized runtime value living in storage. A RuntimeFrame bound (a
+/// `usize` param/local) is always lowerable; a Machine-region bound (a `usize`
+/// machine FIELD such as `self.k`) is lowerable only where the consuming
+/// instruction reads through a region-tagged operand -- the END of the range
+/// (`allow_machine_region`), not the START (whose indexed-address instruction
+/// has a frame-only index field).
 fn resolve_subslice_bound(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     value_source_key: StateKey,
     expressions: &ExpressionTable,
     bound: ExpressionHandle,
+    allow_machine_region: bool,
 ) -> Option<SubsliceBound> {
     if let ExpressionNode::Integer(value) = expressions.expression(bound) {
         return usize::try_from(*value).ok().map(SubsliceBound::Literal);
@@ -169,8 +183,9 @@ fn resolve_subslice_bound(
         bound,
     )?;
     let len_size = input.runtime_abi.slice_descriptor().len_size();
-    (place.region == RuntimeStorageRegion::RuntimeFrame && place.byte_count == len_size)
-        .then_some(SubsliceBound::Slot(place))
+    let region_ok = place.region == RuntimeStorageRegion::RuntimeFrame
+        || (allow_machine_region && place.region == RuntimeStorageRegion::Machine);
+    (region_ok && place.byte_count == len_size).then_some(SubsliceBound::Slot(place))
 }
 
 /// Resolve a subslice base expression down to its runtime descriptor frame slot,
@@ -373,8 +388,10 @@ fn emit_runtime_descriptor_subslice(
     };
     let bound_operand = |bound: &SubsliceBound| match bound {
         SubsliceBound::Literal(value) => RuntimeValueOperand::Immediate(*value as i64),
+        // A bound Slot reads through its own region (frame param/local or a
+        // Machine-region field END like `self.k`); the operand is region-tagged.
         SubsliceBound::Slot(place) => RuntimeValueOperand::Storage {
-            region: RuntimeStorageRegion::RuntimeFrame,
+            region: place.region,
             byte_offset: place.byte_offset,
             byte_size: place.byte_count,
         },
@@ -475,6 +492,31 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
 ) -> bool {
     if slot.byte_size != input.runtime_abi.slice_descriptor_size() {
         return false;
+    }
+
+    // A bare STRING / byte-slice LITERAL (`"hello"` passed as a slice argument or
+    // bound to a `&[u8]` slot): its bytes live in a rodata data object with no frame
+    // place, so the subslice/as_slice strategies below all miss it and the descriptor
+    // slot would keep its zero bytes -- an EMPTY slice (ptr 0, len 0). Write the full
+    // `{ptr -> rodata, len}` descriptor in one shot with `WriteRuntimeFrameString`
+    // (the same instruction a string local/field initializer uses). Every consumer of
+    // this seam -- transition-edge args, value-call leaves, straight-line branches,
+    // preludes -- gets the fix here. (TASKS_FS.md step 14: the forwarded-slice-length
+    // bug; unblocks passing a slice literal as a machine-call argument.)
+    if let Some(literal) = expressions.string_literal_value(value) {
+        let data = string_literal_data_handle(input, value_source_key, statement_index, &literal);
+        if data.is_valid() {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteRuntimeFrameString {
+                    byte_offset: slot.byte_offset,
+                    data,
+                    byte_length: literal.len(),
+                },
+                source_key: value_source_key,
+                source_statement: statement_index,
+            });
+            return true;
+        }
     }
 
     if emit_runtime_frame_slot_literal_subslice_descriptor_write_in_table(

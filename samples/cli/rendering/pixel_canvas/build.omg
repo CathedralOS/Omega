@@ -1,0 +1,11 @@
+// pixel_canvas build sketch. Needs only stdout + process.exit.
+
+target windows_x64 {
+    boundary omega::host::contracts
+    boundary omega::host::targets::windows
+}
+
+target linux_x64 {
+    boundary omega::host::contracts
+    boundary omega::host::targets::linux
+}

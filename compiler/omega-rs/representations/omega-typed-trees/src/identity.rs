@@ -139,9 +139,6 @@ pub fn count_identity_storage(typed_trees: &TypedTrees) -> IdentityStorageCounts
 
     for machine in typed_trees.machines() {
         count_declaration_name(&machine.name, &mut counts);
-        if machine.abi.is_some() {
-            counts.string_literals += 1;
-        }
         for parameter in typed_trees.machine_type_parameters(machine) {
             count_declaration_name(&parameter.name, &mut counts);
         }

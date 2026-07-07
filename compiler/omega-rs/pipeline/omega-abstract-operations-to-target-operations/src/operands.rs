@@ -58,6 +58,13 @@ fn translate_operand_kind(
             byte_offset: *byte_offset,
             byte_count: *byte_count,
         },
+        omega_abstract_operations::InstructionOperandKind::RuntimeStorageAddress {
+            region,
+            byte_offset,
+        } => InstructionOperandKind::RuntimeStorageAddress {
+            region: *region,
+            byte_offset: *byte_offset,
+        },
         omega_abstract_operations::InstructionOperandKind::ImmediateInteger(value) => {
             InstructionOperandKind::ImmediateInteger(*value)
         }

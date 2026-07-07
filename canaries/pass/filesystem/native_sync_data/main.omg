@@ -1,0 +1,39 @@
+// NATIVE fs sync_data (Rust File::sync_data) via _fsync (darwin has no
+// fdatasync, so sync_data maps to fsync -- as Rust's own std does there). Creates
+// a file, writes 17 bytes, flushes with sync_data (rc must be 0), then confirms
+// the bytes survived by seeking to the end (size == 17). Exercises the
+// value-returning sync_data op end-to-end on real macOS syscalls.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    zero_off: i64;
+    seek_end: i32;
+    fd: i32;
+    n: i64;
+    rc: i32;
+    size: i64;
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.zero_off = 0;
+    self.seek_end = 2;
+    self.fd = self.fs.create("/tmp/omega_sync_data.txt", self.mode);
+    transition self.fd >= 0 { true -> wrote() _ -> fail() }
+    state wrote(&mut self) {
+        self.n = self.fs.write(self.fd, "durable payload!!");
+        self.rc = self.fs.sync_data(self.fd);
+        self.size = self.fs.seek(self.fd, self.zero_off, self.seek_end);
+        self.n = self.fs.close(self.fd);
+        self.n = self.fs.remove("/tmp/omega_sync_data.txt");
+        transition self.rc == 0 { true -> checksize() _ -> fail() }
+    }
+    state checksize(&mut self) {
+        transition self.size == 17 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: sync_data flushes 17 bytes (rc=0, size=17)\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: sync_data\n"); }
+}

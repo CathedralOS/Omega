@@ -19,7 +19,13 @@ pub enum Value {
     Int(i64),
     Bool(bool),
     Float(f64),
-    Str(Rc<RefCell<String>>),
+    /// Text: a `&[u8]` view, a string literal, OR an owned `[u8; N]` carrier. Stored as raw
+    /// BYTES (not a Rust `String`) because Omega text is `&[u8]` -- bytes that need only be
+    /// valid Utf8 at domain boundaries, not at every intermediate step. Bytes (vs a UTF-8
+    /// String) let a carrier be byte-indexed and byte-WRITTEN (`out[i] = ch`) directly. The
+    /// runtime length is the vec length; a carrier's static capacity `N` is a compile-time
+    /// bound the native side enforces and the interpreter does not need to track.
+    Str(Rc<RefCell<Vec<u8>>>),
     /// A struct / data record / machine instance. Fields are addressed by name so the
     /// interpreter can resolve `self.field` without depending on backend layout. Each
     /// field is its own cell (so `&mut self.field` aliases correctly).
@@ -53,6 +59,12 @@ impl Value {
     }
 
     pub fn str(value: impl Into<String>) -> Value {
+        Value::Str(Rc::new(RefCell::new(value.into().into_bytes())))
+    }
+
+    /// Construct text directly from raw bytes (carrier byte content that need not be valid
+    /// UTF-8 mid-computation).
+    pub fn bytes(value: impl Into<Vec<u8>>) -> Value {
         Value::Str(Rc::new(RefCell::new(value.into())))
     }
 
@@ -77,6 +89,54 @@ impl Value {
             Value::Float(value) => Some(*value),
             Value::Int(value) => Some(*value as f64),
             _ => None,
+        }
+    }
+
+    /// Clone with VALUE SEMANTICS: a `Struct`/`Enum`/`Array` gets FRESH element cells (a deep
+    /// copy), so mutating a field of the copy does NOT alias the original. A `Ref` is preserved
+    /// (it shares the referent cell -- a reference aliases by design), and scalars/strings use
+    /// the ordinary derived clone. The derived `Clone` is SHALLOW (it `Rc::clone`s the field
+    /// cells, sharing them), which is correct for `&mut` aliasing but WRONG for a value-semantic
+    /// copy like `self.f = self.arr[1]; self.f.x = 50` -- that must not touch `arr[1]`. Used by
+    /// the evaluator at every value-semantic copy site (assignment, `let` initializer).
+    pub fn deep_clone(&self) -> Value {
+        match self {
+            Value::Struct {
+                type_symbol,
+                type_name,
+                fields,
+            } => Value::Struct {
+                type_symbol: *type_symbol,
+                type_name: type_name.clone(),
+                fields: fields
+                    .iter()
+                    .map(|(name, cell)| (name.clone(), cell.borrow().deep_clone().cell()))
+                    .collect(),
+            },
+            Value::Enum {
+                variant_name,
+                payload,
+            } => Value::Enum {
+                variant_name: variant_name.clone(),
+                payload: payload
+                    .iter()
+                    .map(|(name, cell)| (name.clone(), cell.borrow().deep_clone().cell()))
+                    .collect(),
+            },
+            Value::Array(elements) => Value::Array(
+                elements
+                    .iter()
+                    .map(|cell| cell.borrow().deep_clone().cell())
+                    .collect(),
+            ),
+            // Scalars keep their value; a `Str` keeps its shared buffer (status quo -- not the
+            // subject of this fix); a `Ref` MUST keep sharing the referent cell.
+            Value::Unit
+            | Value::Int(_)
+            | Value::Bool(_)
+            | Value::Float(_)
+            | Value::Str(_)
+            | Value::Ref(_) => self.clone(),
         }
     }
 

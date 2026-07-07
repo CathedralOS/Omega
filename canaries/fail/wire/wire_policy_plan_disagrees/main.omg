@@ -1,0 +1,55 @@
+// FAIL canary (mint arc rung 2b): the authored plan is LOAD-BEARING -- a
+// `CompactBinary::plan` that frames every field LengthPrefixed (the schema's
+// scalars must be Varint) is a COMPILE ERROR naming both sides, never a
+// silent re-framing of the bytes.
+data Message {
+    0: counter: u32;
+    1: flag: bool;
+}
+
+data FieldKind { case Scalar; case Text; case Nested; case Repeated; }
+data SchemaField { size: i64 [0..=4096]; align: i64 [1..=16]; number: i64; kind: FieldKind; }
+data Schema { fields: [SchemaField; 32]; field_count: i64 [0..=32]; }
+data FieldPlan {
+    case At(offset: i64);
+    case Bits(container: i64, container_width: i64, lsb: i64, width: i64);
+    case Varint(tag: i64);
+    case LengthPrefixed(tag: i64);
+}
+data Plan { fields: [FieldPlan; 32]; entry_count: i64; size_fixed: i64; size_is_dynamic: bool; align: i64; }
+
+data CompactBinary {
+    plans: [FieldPlan; 32];
+    index: i64 in Wrapping;
+    tag: i64;
+}
+machine CompactBinary::plan(&mut self, schema: Schema) -> Plan {
+    self.index = 0;
+    transition { _ -> fill(schema) }
+
+    state fill(&mut self, schema: Schema) {
+        transition self.index >= 0 && self.index < 32 && self.index < schema.field_count {
+            true -> put_wrong(schema)
+            _ -> done(schema)
+        }
+    }
+    state put_wrong(&mut self, schema: Schema) {
+        self.tag = schema.fields[self.index].number;
+        // WRONG on purpose: scalars must be Varint.
+        self.plans[self.index] = FieldPlan::LengthPrefixed { tag: self.tag };
+        self.index = self.index + 1;
+        transition { _ -> fill(schema) }
+    }
+    state done(&mut self, schema: Schema) -> Plan {
+        Plan {
+            fields: self.plans,
+            entry_count: schema.field_count as i64,
+            size_fixed: 0,
+            size_is_dynamic: true,
+            align: 1,
+        }
+    }
+}
+
+data Main { }
+machine Main::main(&mut self) { }

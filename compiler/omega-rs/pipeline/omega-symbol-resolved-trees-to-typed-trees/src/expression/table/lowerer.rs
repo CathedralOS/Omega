@@ -272,7 +272,11 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         }
 
         // No DECLARED domain matches: a `Type::Case` path is an implicit
-        // case domain (decision 11), lowered to the tag-equality compare.
+        // case domain (decision 11), lowered to the tag-equality compare. Guard
+        // against a CROSS-TYPE case test (`color in Direction::North`) first -- it
+        // would otherwise compare tags across unrelated enums (the membership
+        // sibling of the cross-enum `==` check).
+        self.reject_cross_type_case_membership(membership.value, membership.domain)?;
         let value = self.lower(membership.value)?;
         if let Some(lowered) =
             lower_case_membership_expression(program, self.source, self.target, value, membership.domain)

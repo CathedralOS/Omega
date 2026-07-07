@@ -1,0 +1,5 @@
+// window_demo is a REAL windowed application: the GUI subsystem keeps Windows from
+// attaching a console box (PE Subsystem 2).
+machine build(b: &mut Build) {
+    b.subsystem = Subsystem::Gui;
+}

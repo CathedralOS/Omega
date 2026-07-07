@@ -1,0 +1,36 @@
+// NATIVE ERGONOMIC WRAPPER — step 14 COMPLETE (2026-07-08). Exercises the SHIPPED
+// Rust-parity `Filesystem::write_all`/`read_all`/`remove` on real macOS, through a
+// value-call to the `Filesystem` sub-machine (`fs: Filesystem`, a DIFFERENT data
+// type reached via a field). All 5 layers now land: (1/1b) aliased-literal operand
+// resolution for the forwarded `path`/`bytes`; (2) LocalData host-call collection +
+// (3) LocalStorage emission for the wrapper's `let fd=create; let n=write(fd,bytes);
+// let rc=close(fd)` chain; (4) boundary-call-result LOCAL slots; (5) alias-aware
+// scalar/address arg resolution for the forwarded `count`/`buffer` params. Round-
+// trips "hello" via write_all -> read_all (buffer[0]=='h') and removes the file.
+// The ergonomic std::fs API is now native, not just the raw FilesystemHost seam.
+
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: Filesystem;
+    out: FilesystemHost;
+    wrote: UnitResult;
+    got: IoResult;
+    gone: UnitResult;
+    cap: usize;
+    n: i64;
+    first: u8;
+    buffer: [u8; 16];
+}
+
+machine Main::main(&mut self) {
+    self.cap = 16;
+    self.wrote = self.fs.write_all("/tmp/omega_wrapper.txt", "hello");
+    self.got = self.fs.read_all("/tmp/omega_wrapper.txt", &mut self.buffer, self.cap);
+    self.gone = self.fs.remove("/tmp/omega_wrapper.txt");
+    self.first = self.buffer[0];
+    transition self.first == 104 { true -> good() _ -> fail() }
+    state good(&mut self) { self.n = self.out.write(1, "PASS: ergonomic Filesystem::write_all + read_all round-trip\n"); }
+    state fail(&mut self) { self.n = self.out.write(1, "FAIL: ergonomic wrapper round-trip\n"); }
+}

@@ -1,0 +1,18 @@
+// NO SILENT FALL-THROUGH: a value match without a default arm cannot cover
+// an integer subject; the dispatch needs `_`.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    x: i32;
+}
+machine Main::main(&mut self) {
+    self.x = 5;
+    transition self.x {
+        1 -> one()
+        2 -> two()
+    }
+    state one(&mut self) { self.console.exit_process(1); }
+    state two(&mut self) { self.console.exit_process(2); }
+}

@@ -29,6 +29,9 @@ impl ContractExpressionEvaluator<'_, '_> {
                     BinaryOperator::Multiply => left.checked_mul(right),
                     BinaryOperator::Subtract => left.checked_sub(right),
                     BinaryOperator::And
+                    | BinaryOperator::BitwiseAnd
+                    | BinaryOperator::BitwiseOr
+                    | BinaryOperator::BitwiseXor
                     | BinaryOperator::Equal
                     | BinaryOperator::Greater
                     | BinaryOperator::GreaterOrEqual

@@ -1,0 +1,23 @@
+// RUN canary (decision 17 + S4 requires-seeding precision). A ONE-sided
+// `requires x < 100` bounds only x's HIGH end; the value `x + 1` proves EXACT
+// (no `Wrapping`) because the operand's env interval is intersected with its
+// declared type range -- `[None, 99] ∩ i32 = [i32::MIN, 99]`, so `x + 1` lands in
+// `[i32::MIN + 1, 100]`, provably within i32. Before that intersection the low end
+// stayed unbounded and this was (over-)rejected. The genuinely-overflowing
+// direction (`requires x > 0 { x + 1 }`, high end unbounded) is still rejected.
+//
+// inc(41) = 42; main exits 42.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+
+machine Main::inc(&mut self, x: i32) -> i32
+    requires x < 100
+{
+    x + 1
+}
+
+machine Main::main(&mut self) {
+    let result: i32 = self.inc(41);
+    self.console.exit_process(result);
+}

@@ -1,9 +1,10 @@
 domain [u8]::Utf8 when valid_utf8(self) {
 }
 
-// Chapter 18 "Host Providers": a target can map a boundary trait's machines to a
-// raw syscall surface via `host <target> provides <Trait> { ... }`. This provider
-// metadata syntax is documented but not yet parsed.
+// Chapter 18 "Host Providers": a target maps a boundary trait's machines to a
+// mechanism via `host <target> provides <Trait> { method -> <Binding> }`. The RHS
+// is a case construction of the compiler-known, closed `Binding` sum (extern
+// brief §12.1): `Syscall(n)`, `DllImport("module", "symbol")`, or `VtableSlot(n)`.
 
 boundary trait Console {
     machine write_line(text: &[u8] in Utf8)
@@ -12,7 +13,7 @@ boundary trait Console {
 }
 
 host linux_aarch64 provides Console {
-    write_line -> syscall 64;
+    write_line -> Syscall(64);
 }
 
 data Main {

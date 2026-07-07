@@ -1,0 +1,114 @@
+// The Omega standard filesystem RAW BOUNDARY — the per-OS seam beneath `std::fs`
+// (= Rust's `std::sys`). This is the SINGLE canonical declaration of the
+// `FilesystemHost` boundary trait and the `Path` byte-domain: the ergonomic
+// `omega::language::std::filesystem` wrapper imports it, and every filesystem
+// canary/sample obtains it via `use omega::language::std::filesystem_host;`
+// rather than re-declaring the trait inline.
+//
+// Each op is VALUE-RETURNING (its syscall result: fd / byte count / rc, negative
+// on error). Human method names only — the ugly libc spellings (_creat/_unlink/
+// _lseek) live ONLY in the per-target binding tables (libSystem imports on darwin,
+// syscalls on linux, kernel32 on windows). The wrapper is written ONCE and
+// portable; each OS supplies only this raw seam.
+
+// A filesystem path: NUL-free bytes (the POSIX C-string invariant). Deliberately
+// not `Utf8`: POSIX paths are arbitrary nul-free bytes; Windows re-encodes at the
+// boundary. `no_nul` is a compiler-recognized byte predicate.
+domain [u8]::Path when no_nul(self) {
+}
+
+boundary trait FilesystemHost {
+    machine create(path: &[u8] in Path, mode: i32) -> i32;
+    machine open(path: &[u8] in Path, flags: i32) -> i32;
+    // The CREATING open: `open(path, flags, mode)` with O_CREAT (Rust
+    // `File::create_new` / `OpenOptions.create`). `flags` carries the access mode
+    // + O_CREAT (512) [+ O_EXCL (2048) for create-new] [+ O_TRUNC (1024)]; `mode`
+    // is the create permission bits. Returns the new fd, or -1. NOTE: native
+    // lowering is pending (the variadic `mode` needs stack marshalling, D8-open);
+    // fully modeled in the interpreter today.
+    machine open_create(path: &[u8] in Path, flags: i32, mode: i32) -> i32;
+    machine read(fd: i32, buffer: &mut [u8], count: usize) -> i64;
+    machine write(fd: i32, bytes: &[u8]) -> i64;
+    // Positioned I/O (Rust `FileExt::read_at`/`write_at`): read/write at an
+    // absolute `offset` WITHOUT moving the descriptor's cursor. `_pread`/`_pwrite`.
+    machine read_at(fd: i32, buffer: &mut [u8], count: usize, offset: i64) -> i64;
+    machine write_at(fd: i32, bytes: &[u8], offset: i64) -> i64;
+    machine close(fd: i32) -> i32;
+    machine remove(path: &[u8] in Path) -> i32;
+    machine seek(fd: i32, offset: i64, whence: i32) -> i64;
+    machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
+    machine remove_dir(path: &[u8] in Path) -> i32;
+    // Open `name` RELATIVE to the open directory `dirfd` (Rust's `openat`, the
+    // `*at` family used by `remove_dir_all` etc.). The name is a TRUSTED relative
+    // component -- a directory-listing entry is `no_nul` by construction -- so it
+    // is a PLAIN `&[u8]`, NOT `in Path`: this is exactly what lets a name extracted
+    // from `read_dir` flow straight into `open_at`/`unlink_at` with no domain
+    // re-proof. Path-joining (`dirfd`'s path + "/" + name) happens in the OS
+    // (native `openat`) / the interpreter's virtual FS, never built in Omega.
+    // Returns the new fd, or -1.
+    machine open_at(dirfd: i32, name: &[u8], flags: i32) -> i32;
+    // Remove `name` RELATIVE to `dirfd` (Rust's `unlinkat`). `flags` = 0 removes a
+    // FILE (unlink); AT_REMOVEDIR (0x80 = 128 on darwin) removes an EMPTY DIRECTORY
+    // (rmdir). Same trusted-plain-name basis as `open_at`. Returns 0, or -1.
+    machine unlink_at(dirfd: i32, name: &[u8], flags: i32) -> i32;
+    machine set_permissions(path: &[u8] in Path, mode: u32) -> i32;
+    machine set_file_permissions(fd: i32, mode: u32) -> i32;
+    machine rename(from: &[u8] in Path, to: &[u8] in Path) -> i32;
+    machine hard_link(original: &[u8] in Path, link: &[u8] in Path) -> i32;
+    machine symlink(target: &[u8] in Path, link: &[u8] in Path) -> i32;
+    machine read_link(path: &[u8] in Path, buffer: &mut [u8], count: usize) -> i64;
+    // Resolve `path` to its canonical absolute form (following every symlink) into
+    // `buffer` (must be >= PATH_MAX = 1024), NUL-terminated (Rust `fs::canonicalize`
+    // -> `realpath`). Returns the resolved-buffer pointer as an i64 (non-zero) on
+    // success, or 0 (NULL) on error — a success FLAG, not a byte count.
+    machine canonicalize(path: &[u8] in Path, buffer: &mut [u8]) -> i64;
+    // Read directory entries (Rust `fs::read_dir`) into `buffer` as packed
+    // darwin dirent records — on darwin arm64 this is `___getdirentries64`
+    // (classic `getdirentries` is unavailable with 64-bit inodes). `position`
+    // is an in/out kernel cursor: pass the same `&mut i64` across calls; a
+    // return of 0 means end of directory. Records: d_reclen u16 @16,
+    // d_namlen u16 @18, d_type u8 @20, d_name @21; advance by d_reclen. Walking
+    // them needs runtime-indexed buffer reads (see TASKS_FS.md step 13).
+    machine read_dir(fd: i32, buffer: &mut [u8], count: usize, position: &mut i64) -> i64;
+    // Fill `buffer` (>= 144 bytes) with the path's `struct stat` record (Rust
+    // `fs::metadata`). The Omega layer reads st_size/st_mode back out.
+    machine read_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
+    // Like `read_metadata` but for an OPEN descriptor, via `fstat` (Rust
+    // `File::metadata`). Reads the real mode/size/times without moving the cursor.
+    machine read_file_metadata(fd: i32, buffer: &mut [u8]) -> i32;
+    // Like `read_metadata` but via `lstat` — does NOT follow a final symlink, so
+    // a symlink reports its own record (st_mode file-type S_IFLNK). Rust
+    // `fs::symlink_metadata`.
+    machine read_symlink_metadata(path: &[u8] in Path, buffer: &mut [u8]) -> i32;
+    machine set_len(fd: i32, length: i64) -> i32;
+    // Set an open file's access + modification timestamps (Rust `File::set_times`)
+    // via `futimens`. `times` is a caller buffer holding two packed `struct timespec`
+    // (atime then mtime, {tv_sec i64, tv_nsec i64} each; whole-second precision).
+    machine set_file_times(fd: i32, times: &mut [u8]) -> i32;
+    machine sync(fd: i32) -> i32;
+    // Flush a file's DATA (Rust `File::sync_data`); on darwin this is `fsync` (no
+    // `fdatasync`), so it shares the `sync` lowering.
+    machine sync_data(fd: i32) -> i32;
+    // Duplicate an open descriptor onto a fresh fd sharing the same open file
+    // (Rust `File::try_clone` -> `dup`). Returns the new fd, or -1 on error.
+    machine duplicate(fd: i32) -> i32;
+    // Apply or remove an advisory whole-file lock (Rust `File::lock`/
+    // `lock_shared`/`try_lock`/`unlock` -> `flock`). `operation` is a bitmask:
+    // LOCK_SH=1 (shared), LOCK_EX=2 (exclusive), LOCK_NB=4 (non-blocking),
+    // LOCK_UN=8 (release). Returns 0, or -1 (errno EWOULDBLOCK when a
+    // non-blocking acquire is contended).
+    machine lock_file(fd: i32, operation: i32) -> i32;
+    // Change a file's owner/group by path, following symlinks (Rust
+    // `os::unix::fs::chown` -> `chown`). A uid or gid of -1 leaves that component
+    // unchanged. Returns 0, or -1 (errno EPERM when not permitted).
+    machine change_owner(path: &[u8] in Path, uid: i32, gid: i32) -> i32;
+    // Like `change_owner` but does NOT follow a final symlink (Rust
+    // `os::unix::fs::lchown` -> `lchown`).
+    machine change_owner_no_follow(path: &[u8] in Path, uid: i32, gid: i32) -> i32;
+    // Change owner/group by open descriptor (Rust `os::unix::fs::fchown` ->
+    // `fchown`). Same -1 = unchanged convention.
+    machine change_file_owner(fd: i32, uid: i32, gid: i32) -> i32;
+    // Read the thread-local errno (darwin `___error()` -> `&errno`, dereferenced
+    // in the lowering). Call it immediately after a raw op returned negative.
+    machine errno() -> i32;
+}

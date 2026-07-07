@@ -1,0 +1,102 @@
+// Running min/max/range over a stream of float readings -- the everyday shape
+// of sensor telemetry (thermostat, ADC, gauge). It exercises the numeric
+// intrinsics that `vector_distance` does NOT drive directly: `min` and `max`
+// applied straight to floats (there they only appear via the abs/clamp
+// desugar), and `clamp` with FLOAT bounds (there it clamps an int). The running
+// extremes fold the "is this bigger/smaller?" branch into the builtin, so the
+// scan body has no per-element guard of its own.
+//
+//   lo = hi = nums[0]
+//   for i in 1..N: lo = min(lo, nums[i]); hi = max(hi, nums[i])
+//   range = hi - lo;  banded = clamp(hi, 0, 25)
+//
+// Over [20.5, 18.0, 24.5, 22.0, 19.5, 26.0]: lo = 18, hi = 26, range = 8, and
+// clamp(26, 0, 25) pins the peak down to 25 (a real clamp, not an identity).
+// The exit code sums both so a miscompile in EITHER the min/max fold or the
+// float clamp changes it: range + banded = 8 + 25 = 33.
+// Expected exit: 33.
+
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    nums: [f64; 6];
+    i: i32 [0..=6];
+    cur: f64;
+    lo: f64;
+    hi: f64;
+    range: f64;
+    banded: f64;
+    total: f64;
+    result: i32;
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("sensor_min_max: track running min/max/range over [20.5, 18, 24.5, 22, 19.5, 26]");
+    self.nums[0] = 20.5;
+    self.nums[1] = 18.0;
+    self.nums[2] = 24.5;
+    self.nums[3] = 22.0;
+    self.nums[4] = 19.5;
+    self.nums[5] = 26.0;
+
+    // Seed both extremes with the first reading, then fold in the rest.
+    self.lo = self.nums[0];
+    self.hi = self.nums[0];
+    self.i = 1;
+
+    transition {
+        _ -> step()
+    }
+
+    // Loop head: fold readings until every element has been visited.
+    state step(&mut self) {
+        transition self.i < 6 {
+            true -> body()
+            _ -> done()
+        }
+    }
+
+    // The extremes update unconditionally: `min`/`max` ARE the branch, applied
+    // straight to floats (the minsd/maxsd path, not an abs/clamp desugar).
+    state body(&mut self) {
+        self.cur = self.nums[self.i];
+        self.lo = min(self.lo, self.cur);
+        self.hi = max(self.hi, self.cur);
+        transition {
+            _ -> advance()
+        }
+    }
+
+    // Re-guard before the increment: the `i < 6` fact on the DIRECT edge into
+    // `bump` proves `i + 1` stays within [0..=6] -- fully Exact, no domain.
+    state advance(&mut self) {
+        transition self.i < 6 {
+            true -> bump()
+            _ -> step()
+        }
+    }
+
+    state bump(&mut self) {
+        self.i = self.i + 1;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state done(&mut self) {
+        // range = hi - lo = 26 - 18 = 8.
+        self.range = self.hi - self.lo;
+        // A float clamp with float bounds: clamp(26, 0, 25) = 25 (clamps down).
+        self.banded = clamp(self.hi, 0.0, 25.0);
+        // Sum both so the exit reflects the min/max fold AND the float clamp.
+        self.total = self.range + self.banded;
+        self.result = self.total as i32;
+
+        self.console.write_line("result: range(8) + clamp(peak,0,25)=25 -> 33 (the exit code)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(self.result);
+    }
+}

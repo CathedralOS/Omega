@@ -18,7 +18,10 @@ boundary trait Console {
 }
 
 data S [copy, zero_init] {
-    total: i32;
+    // Wrapping DECLARED: an unbounded counter increment is overflow-capable and
+    // the nested-field exact check now enforces the decision-17 obligation
+    // (no silent wrap). 5 increments never actually wrap.
+    total: i32 in Wrapping;
 }
 
 data Main {

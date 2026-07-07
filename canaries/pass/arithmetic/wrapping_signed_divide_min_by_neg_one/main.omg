@@ -1,0 +1,31 @@
+// RUN CANARY (exit 70) + interpreter differential. Wrapping SIGNED divide/modulo
+// of TYPE_MIN by -1. x86 `idiv` raises #DE (integer-overflow trap) for this
+// corner, so the Wrapping domain MUST guard it and produce the WRAPPED result:
+//   INT_MIN / -1 = 2147483648 -> wraps to INT_MIN (== the dividend)
+//   INT_MIN % -1 = 0
+// Before the guard the native binary CRASHED with STATUS_INTEGER_OVERFLOW
+// (0xC0000095); the interpreter always wrapped correctly. exit 72 = the divide
+// did not wrap to INT_MIN; 73 = the modulo was not 0.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; x: i32 in Wrapping; y: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.x = 0 - 2147483647;
+    self.x = self.x - 1;       // INT_MIN = -2147483648
+    self.y = 0 - 1;            // -1
+    let q: i32 in Wrapping = self.x / self.y;   // INT_MIN / -1 -> INT_MIN
+    let r: i32 in Wrapping = self.x % self.y;   // INT_MIN % -1 -> 0
+    transition q == self.x {   // q wrapped to INT_MIN (== x)
+        true  -> check_mod(r)
+        false -> div_wrong()
+    }
+    state check_mod(&mut self, r: i32 in Wrapping) {
+        transition r == 0 {
+            true  -> good()
+            false -> mod_wrong()
+        }
+    }
+    state good(&mut self)      { self.console.exit_process(70); }
+    state div_wrong(&mut self) { self.console.exit_process(72); }
+    state mod_wrong(&mut self) { self.console.exit_process(73); }
+}

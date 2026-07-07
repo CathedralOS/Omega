@@ -1,0 +1,1657 @@
+// The Omega standard filesystem surface — a serious, ergonomic `std::fs` with
+// parity to Rust's `std::fs`, but Omega idioms rather than Rust ones:
+//   - paths are a BYTE DOMAIN (`&[u8] in Path`), not a language `String`;
+//   - results are bespoke `data` case enums, not `Result<T, E>` (an Err in Rust
+//     is usually a bespoke enum anyway — we skip the wrapper);
+//   - the open-file handle `File` is ZII: a zero-initialized handle is Closed;
+//   - HUMAN method names only — no legacy C abbreviations (creat/unlink/stat).
+//
+// TWO LAYERS (= Rust's `std::fs` over `std::sys`):
+//   - `Filesystem` — the ergonomic capability users hold. Its machines hide
+//     flags/mode/fd behind `File` + the result enums.
+//   - `FilesystemHost` — the raw, VALUE-RETURNING per-OS boundary (each op
+//     returns its syscall result: fd / byte count / rc, negative on error). Its
+//     per-target lowering (libSystem imports on darwin, syscalls on linux,
+//     kernel32 on windows) lives in the calling-convention tables. The wrapper
+//     is written ONCE and portable; each OS supplies only the raw seam.
+
+// The RAW BOUNDARY (`FilesystemHost`) and the `Path` byte-domain are the single
+// canonical declaration in the sibling std module; this ergonomic layer imports
+// them (rather than re-declaring the trait) and builds `File`/result enums on top.
+use omega::language::std::filesystem_host;
+
+// An open file handle. ZII: a zero-initialized `File` is Closed. `[copy]` lets
+// it pass by value into read/write/close.
+data File [copy, zero_init] {
+    fd: i32;
+}
+
+// The category of an I/O failure (Rust `std::io::ErrorKind`). First case is the
+// ZII zero case = `Other` (an unclassified/unknown errno). Grown as more errno
+// values get mapped; today covers the common file-op failures. Defined before
+// the result enums because their `Error` case carries an `ErrorKind`.
+data ErrorKind {
+    case Other;
+    case NotFound;         // ENOENT (2)
+    case PermissionDenied; // EACCES (13)
+    case AlreadyExists;    // EEXIST (17)
+    case BadDescriptor;    // EBADF  (9)
+    case IsADirectory;     // EISDIR (21)
+    case WouldBlock;       // EWOULDBLOCK/EAGAIN (35) — a non-blocking op is contended
+}
+
+// Bespoke result enums (Rust's `io::Result<T>`, whose Err is `io::Error` — here
+// its `ErrorKind`). First case = the ZII zero case = the error, so an untouched
+// result reads as failure (`Error { kind: Other }`), never spurious success. The
+// wrapper machines fill `kind` by classifying errno at the point of failure
+// (`self.last_error()`), so a failed result self-describes — no separate call.
+data OpenResult {
+    case Error(kind: ErrorKind);
+    case Ok(file: File);
+}
+data IoResult {
+    case Error(kind: ErrorKind);
+    case Ok(count: usize);
+}
+// A directory's composition summary (`read_dir_stats`). `entries` is the total
+// child count (excluding "." and ".."); `subdirs` counts children with dirent
+// type DT_DIR, `files` those with DT_REG. `entries - subdirs - files` are the
+// other types (symlinks, fifos, …). On a filesystem that reports DT_UNKNOWN,
+// `subdirs`/`files` undercount (see D-readdir).
+data DirStats [copy, zero_init] {
+    entries: usize;
+    subdirs: usize;
+    files: usize;
+}
+data DirStatsResult {
+    case Error(kind: ErrorKind);
+    case Ok(stats: DirStats);
+}
+// A single directory entry (Rust `std::fs::DirEntry`). `name` is the NUL-padded
+// file name copied out of the dirent record (max 255 bytes; `name_len` is the
+// true length); `is_dir`/`is_file` come from the dirent `d_type` (DT_DIR/DT_REG).
+// Self-contained (`[copy]`, the name embedded) so it outlives the read buffer.
+data DirEntry [copy, zero_init] {
+    name: [u8; 256];
+    name_len: usize;
+    is_dir: bool;
+    is_file: bool;
+}
+// The three-way result of `read_dir_nth` (Rust's `ReadDir` iterator yields
+// `Option<io::Result<DirEntry>>`): `Ok` an entry, `End` past the last entry, or a
+// read `Error`.
+data DirEntryResult {
+    case Error(kind: ErrorKind);
+    case End;
+    case Ok(entry: DirEntry);
+}
+// The three-way answer of `read_dir_is_empty` (Rust `read_dir(path)?.next().is_none()`
+// -> `io::Result<bool>`): `Empty` (no children), `NonEmpty` (has at least one), or a
+// read `Error`.
+data EmptyResult {
+    case Error(kind: ErrorKind);
+    case Empty;
+    case NonEmpty;
+}
+data UnitResult {
+    case Error(kind: ErrorKind);
+    case Ok;
+}
+
+// The three-way answer of `try_exists` (Rust `Path::try_exists` ->
+// `io::Result<bool>`): unlike `exists() -> bool`, a genuine I/O error (e.g. a
+// permission-denied ancestor) is `Error`, distinct from a definite `No`
+// (NotFound). ZII zero = `Error { kind: Other }`.
+data ExistsResult {
+    case Error(kind: ErrorKind);
+    case No;
+    case Yes;
+}
+
+// The answer of a non-blocking lock attempt (Rust `File::try_lock` ->
+// `io::Result<bool>`): `Acquired` (got the lock), `WouldBlock` (another holder
+// has it — Rust's `Ok(false)`), or a genuine `Error`. ZII zero = `Error`.
+data TryLockResult {
+    case Error(kind: ErrorKind);
+    case WouldBlock;
+    case Acquired;
+}
+
+// How to open an existing file (Rust `std::fs::OpenOptions`). A ZII-default
+// `OpenOptions` (all false) opens read-only. These flags cover EXISTING-file
+// opens (read / write / read+write / append / truncate); the creating flags
+// (`create`/`create_new` = O_CREAT/O_EXCL) need `open`'s variadic `mode`
+// argument, which is not yet marshalled on arm64 — use `create` for the common
+// create-and-truncate case until that lands (see TASKS_FS.md step 7-open).
+data OpenOptions [copy, zero_init] {
+    read: bool;
+    write: bool;
+    append: bool;
+    truncate: bool;
+    // `create` = create the file if it does not exist (O_CREAT); `create_new` =
+    // create it and FAIL if it already exists (O_CREAT|O_EXCL, atomic). Both go
+    // through the creating `open_create` seam with a default mode (0o666, minus
+    // the process umask on native). `create_new` implies `create`.
+    create: bool;
+    create_new: bool;
+}
+
+// A file's permission bits (Rust `std::fs::Permissions`). `mode` is the POSIX
+// octal mode (e.g. 0o644 = 420 = rw-r--r--, 0o444 = 292 = read-only).
+data Permissions [copy, zero_init] {
+    mode: u32;
+}
+
+// Rust `Permissions::readonly()` — true when the owner-write bit (0o200 = 128)
+// is clear.
+machine Permissions::readonly(&self) -> bool {
+    (self.mode & 128) == 0
+}
+
+// Rust `Permissions::set_readonly(bool)` — clear the write bits (owner/group/
+// other, 0o222 = 146) to make read-only, or set them to make writable. The
+// masks stay within the 9 permission bits (0o777 = 511; 511 ^ 146 = 365 keeps
+// read+execute while clearing write).
+machine Permissions::set_readonly(&mut self, readonly: bool) {
+    transition readonly { true -> lock() _ -> unlock() }
+    state lock(&mut self) { self.mode = self.mode & 365; }
+    state unlock(&mut self) { self.mode = self.mode | 146; }
+}
+
+// File metadata (Rust `std::fs::Metadata`). `len` is the size in bytes; `is_dir`
+// distinguishes a directory from a regular file; `mode` is the raw `st_mode`
+// (format bits + permission bits); `modified_secs` is the last-modification time
+// as whole seconds since the Unix epoch (`st_mtime`). All decoded from the
+// darwin `stat` record (`st_size`@96, `st_mode`@4, `st_mtimespec.tv_sec`@48).
+data Metadata [copy, zero_init] {
+    len: i64;
+    is_dir: bool;
+    is_symlink: bool;
+    mode: u32;
+    nlink: u64;
+    ino: u64;
+    dev: u64;
+    uid: u32;
+    gid: u32;
+    rdev: u64;
+    blocks: u64;
+    blksize: u64;
+    modified_secs: i64;
+    accessed_secs: i64;
+    created_secs: i64;
+    changed_secs: i64;
+}
+
+// Rust `Metadata::is_file` — a REGULAR file specifically (S_IFREG). Checks the
+// st_mode format bits directly (mode & S_IFMT == S_IFREG) rather than `!is_dir &&
+// !is_symlink`, so a special file (char/block device, fifo, socket) is correctly
+// NOT a regular file. `S_IFMT = 0o170000 = 61440`, `S_IFREG = 0o100000 = 32768`.
+machine Metadata::is_file(&self) -> bool {
+    (self.mode & 61440) == 32768
+}
+
+// Rust `os::unix::fs::FileTypeExt` — the special (non-regular, non-dir, non-link)
+// file types, decoded from the same st_mode format bits (mode & S_IFMT).
+// S_IFCHR = 0o020000 = 8192, S_IFBLK = 0o060000 = 24576, S_IFIFO = 0o010000 =
+// 4096, S_IFSOCK = 0o140000 = 49152.
+machine Metadata::is_char_device(&self) -> bool {
+    (self.mode & 61440) == 8192
+}
+machine Metadata::is_block_device(&self) -> bool {
+    (self.mode & 61440) == 24576
+}
+machine Metadata::is_fifo(&self) -> bool {
+    (self.mode & 61440) == 4096
+}
+machine Metadata::is_socket(&self) -> bool {
+    (self.mode & 61440) == 49152
+}
+
+// Rust `Metadata::permissions().readonly()` — true when the owner-write bit
+// (0o200 = 128) is clear in the permission bits.
+machine Metadata::readonly(&self) -> bool {
+    (self.mode & 128) == 0
+}
+
+// Rust `Metadata::permissions()` — the permission bits (low 9 of `st_mode`,
+// masked with 0o777 = 511) as a `Permissions`.
+machine Metadata::permissions(&self) -> Permissions {
+    Permissions { mode: self.mode & 511 }
+}
+
+// Rust `os::unix::fs::MetadataExt::nlink()` — the hard-link count (`st_nlink`). A
+// fresh regular file is 1; each additional `hard_link` to the same inode adds one.
+machine Metadata::nlink(&self) -> u64 {
+    self.nlink
+}
+
+// Rust `os::unix::fs::MetadataExt::ino()` — the inode number (`st_ino`). Two hard
+// links to the same file share it (the identity of the underlying inode).
+machine Metadata::ino(&self) -> u64 {
+    self.ino
+}
+
+// Rust `os::unix::fs::MetadataExt::dev()` — the device id (`st_dev`). The `(dev,
+// ino)` pair is a file's identity: two paths name the same file iff both match.
+machine Metadata::dev(&self) -> u64 {
+    self.dev
+}
+
+// Rust `os::unix::fs::MetadataExt::ctime()` — the last status-change time
+// (`st_ctime`): when the inode metadata last changed (chmod, rename, link, …).
+// Distinct from `modified()` (content) and `created()` (birth).
+machine Metadata::changed(&self) -> i64 {
+    self.changed_secs
+}
+
+// Rust `os::unix::fs::MetadataExt::uid()` — the owning user id (`st_uid`).
+machine Metadata::uid(&self) -> u32 {
+    self.uid
+}
+
+// Rust `os::unix::fs::MetadataExt::gid()` — the owning group id (`st_gid`).
+machine Metadata::gid(&self) -> u32 {
+    self.gid
+}
+
+// Rust `os::unix::fs::MetadataExt::rdev()` — the device id THIS file represents
+// (`st_rdev`), nonzero only for a device special file; 0 for a regular file/dir.
+machine Metadata::rdev(&self) -> u64 {
+    self.rdev
+}
+
+// Rust `os::unix::fs::MetadataExt::blocks()` — the number of 512-byte blocks
+// allocated to the file (`st_blocks`); may be less than `len`/512 for a sparse file.
+machine Metadata::blocks(&self) -> u64 {
+    self.blocks
+}
+
+// Rust `os::unix::fs::MetadataExt::blksize()` — the filesystem's preferred I/O
+// block size (`st_blksize`), e.g. 4096.
+machine Metadata::blksize(&self) -> u64 {
+    self.blksize
+}
+
+// Rust `Metadata::modified()` — the last-modification time. Rust returns a
+// `SystemTime`; Omega returns whole seconds since the Unix epoch (`st_mtime`).
+machine Metadata::modified(&self) -> i64 {
+    self.modified_secs
+}
+
+// Rust `Metadata::accessed()` — the last-access time (`st_atime`).
+machine Metadata::accessed(&self) -> i64 {
+    self.accessed_secs
+}
+
+// Rust `Metadata::created()` — the creation (birth) time (`st_birthtime`, which
+// darwin records; on platforms without it this field is unavailable).
+machine Metadata::created(&self) -> i64 {
+    self.created_secs
+}
+data MetadataResult {
+    case Error(kind: ErrorKind);
+    case Ok(meta: Metadata);
+}
+
+// `FilesystemHost` (the RAW, VALUE-RETURNING per-OS boundary) is declared once in
+// `omega::language::std::filesystem_host`, imported at the top of this file.
+
+// The ergonomic capability. Holds the raw host plus the portable flag/mode
+// constants it applies (staged in fields). `stat_buf` is scratch for the 144-byte
+// darwin `struct stat` that `metadata_path` fills and decodes.
+data Filesystem {
+    host: FilesystemHost;
+    create_mode: i32;
+    dir_mode: i32;
+    read_flags: i32;
+    stat_buf: [u8; 144];
+    // Scratch for the two `struct timespec` (atime then mtime) that `set_times`
+    // builds and hands to `futimens`.
+    times_buf: [u8; 32];
+    // Scratch for `create_dir_all`'s per-position best-effort mkdir result
+    // (`walk` ignores it -- an already-present ancestor is fine).
+    walk_rc: i32;
+    // Scratch for the STAT-based query host-call result. Held in a FIELD + consumed
+    // by TERMINAL VALUE COMPLETION (`self.stat_rc == 0` as the machine's final value),
+    // NOT a `transition` guard: an inlined value-call's transition GUARD is scheduled
+    // before the callee's entry body (the read_metadata store), so the guard reads
+    // the pre-store ZII value (confirmed at the instruction level, TASKS_FS.md). A
+    // terminal expression has no such guard and is evaluated after the entry, so the
+    // STAT queries observe the result.
+    stat_rc: i32;
+    // `last_error`: the captured errno and its classified ErrorKind. Produced by a
+    // `match` TERMINAL (errno -> nullary ErrorKind), NOT a transition-guard chain,
+    // for the same value-call guard-ordering reason as the STAT queries. This is
+    // within the workaround's ceiling: all ErrorKind cases are payload-free, so the
+    // match desugars to branchless tag arithmetic. (A payload-CARRYING result enum --
+    // e.g. UnitResult::Error{kind} -- cannot use this: the arithmetic desugar would
+    // need `Add` on the data type, which is undeclared. Those await the deep fix.)
+    err_code: i32;
+    err_kind: ErrorKind;
+    // Scratch for `read_dir_count`: one buffer of packed darwin `dirent` records
+    // plus the runtime-indexed cursor that walks them by `d_reclen`.
+    dir_buf: [u8; 512];
+    rd_off: usize in Wrapping;
+    rd_total: usize in Wrapping;
+    rd_count: i32 in Wrapping;
+    rd_position: i64;
+    rd_idx: usize in Wrapping;
+    rd_lo: u8;
+    rd_hi: u8;
+    rd_lou: usize in Wrapping;
+    rd_hiu: usize in Wrapping;
+    rd_reclen: usize in Wrapping;
+    // `read_dir_stats`: the record's `d_type` byte + the per-type tallies.
+    rd_dtype: u8;
+    rd_dirs: i32 in Wrapping;
+    rd_files: i32 in Wrapping;
+    // `read_dir_nth`: record cursor, the target record index (n + 2, skipping
+    // "." and ".."), the extracted name buffer + its copy cursor.
+    rd_recno: usize in Wrapping;
+    rd_target: usize in Wrapping;
+    rd_namlen: usize in Wrapping;
+    rd_j: usize in Wrapping;
+    rd_ridx: usize in Wrapping;
+    rd_nb: u8;
+    entry_name: [u8; 256];
+    // `read_dir_nth` holds the fd-walk result across the descriptor close;
+    // `remove_dir_all` (`rda`) threads the child fd + per-op rc.
+    rdn_result: DirEntryResult;
+    rda_sub: i32;
+    rda_rc: i32;
+    rda_n: i64;
+}
+
+// Create (or truncate) a file for writing, returning an open `File`.
+machine Filesystem::create(&mut self, path: &[u8] in Path) -> OpenResult {
+    self.create_mode = 420;
+    let fd: i32 = self.host.create(path, self.create_mode);
+    transition fd >= 0 { true -> ok(fd) _ -> err() }
+    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
+}
+
+// Atomically create a NEW file, failing if it already exists (Rust
+// `File::create_new`). O_RDWR|O_CREAT|O_EXCL (2|512|2048 = 2562), mode 0o666
+// (438). An existing path yields `Error { kind: AlreadyExists }`.
+machine Filesystem::create_new(&mut self, path: &[u8] in Path) -> OpenResult {
+    self.create_mode = 438;
+    let fd: i32 = self.host.open_create(path, 2562, self.create_mode);
+    transition fd >= 0 { true -> ok(fd) _ -> err() }
+    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
+}
+
+// Open an existing file for reading.
+machine Filesystem::open(&mut self, path: &[u8] in Path) -> OpenResult {
+    self.read_flags = 0;
+    let fd: i32 = self.host.open(path, self.read_flags);
+    transition fd >= 0 { true -> ok(fd) _ -> err() }
+    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
+}
+
+// Open an existing file with explicit `OpenOptions` (Rust
+// `OpenOptions::open`). Composes the POSIX access mode + O_APPEND/O_TRUNC bits
+// from the option flags, then calls the raw `open`. Access mode: read+write
+// (or read+append) -> O_RDWR(2); write/append only -> O_WRONLY(1); otherwise
+// O_RDONLY(0). append -> O_APPEND(8); truncate -> O_TRUNC(1024). No O_CREAT:
+// opening a missing path fails (POSIX ENOENT), matching Rust without `.create`.
+// The flag math is BRANCH-FREE and purely bitwise: Omega's exact-arithmetic
+// proof obligation (decision 17) rejects `*`/`+` on `bool as i32` (it can't
+// prove the {0,1} range), but `&`/`|`/`^`/`<<` carry no overflow obligation.
+// `wbit` = writable (write OR append); access mode is the mutually-exclusive
+// O_WRONLY(1)/O_RDWR(2) pair selected by `read`, then O_APPEND(8)/O_TRUNC(1024)
+// OR'd in.
+machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult {
+    let wbit: i32 = (options.write as i32) | (options.append as i32);
+    let rbit: i32 = options.read as i32;
+    let wronly: i32 = wbit & (rbit ^ 1);
+    let rdwr: i32 = (wbit & rbit) << 1;
+    let append_flag: i32 = (options.append as i32) << 3;
+    let truncate_flag: i32 = (options.truncate as i32) << 10;
+    // Creating opens: O_CREAT (512 = 1<<9) when `create` OR `create_new`; O_EXCL
+    // (2048 = 1<<11) only for `create_new`. Routed through the `open_create`
+    // seam, which SUBSUMES `open` (with no O_CREAT it behaves exactly like it),
+    // so existing-file opens are unchanged. Default create mode 0o666 (438).
+    let creating: i32 = (options.create as i32) | (options.create_new as i32);
+    let creat_flag: i32 = creating << 9;
+    let excl_flag: i32 = (options.create_new as i32) << 11;
+    let flags: i32 = wronly | rdwr | append_flag | truncate_flag | creat_flag | excl_flag;
+    self.create_mode = 438;
+    let fd: i32 = self.host.open_create(path, flags, self.create_mode);
+    transition fd >= 0 { true -> ok(fd) _ -> err() }
+    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
+}
+
+// Open an existing file for appending (Rust `OpenOptions::new().append(true)`).
+// Writes land at end-of-file; opening a missing path fails (no O_CREAT).
+// O_WRONLY(1) | O_APPEND(8) = 9.
+machine Filesystem::append(&mut self, path: &[u8] in Path) -> OpenResult {
+    let flags: i32 = 9;
+    let fd: i32 = self.host.open(path, flags);
+    transition fd >= 0 { true -> ok(fd) _ -> err() }
+    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
+}
+
+// Read up to `count` bytes into `buffer`; returns the number read (0 = EOF).
+machine Filesystem::read(&mut self, file: File, buffer: &mut [u8], count: usize) -> IoResult {
+    let n: i64 = self.host.read(file.fd, buffer, count);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+// Write `bytes`; returns the number written.
+machine Filesystem::write(&mut self, file: File, bytes: &[u8]) -> IoResult {
+    let n: i64 = self.host.write(file.fd, bytes);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+// Read up to `count` bytes at absolute `offset` WITHOUT moving the cursor (Rust
+// `FileExt::read_at`) — a positioned read, so concurrent readers each track their
+// own offset. Returns the number read (0 = EOF at/after `offset`).
+machine Filesystem::read_at(&mut self, file: File, buffer: &mut [u8], count: usize, offset: i64) -> IoResult {
+    let n: i64 = self.host.read_at(file.fd, buffer, count, offset);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+// Write `bytes` at absolute `offset` WITHOUT moving the cursor (Rust
+// `FileExt::write_at`) — a positioned write; a gap past end-of-file is zero-filled.
+machine Filesystem::write_at(&mut self, file: File, bytes: &[u8], offset: i64) -> IoResult {
+    let n: i64 = self.host.write_at(file.fd, bytes, offset);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+// Close a file handle, returning the raw rc (0 on success).
+machine Filesystem::close(&mut self, file: File) -> i32 {
+    self.host.close(file.fd)
+}
+
+// Write an entire buffer to a path in one shot (Rust `std::fs::write`): create
+// (or truncate) the file, write all the bytes, and close — no `File` handle
+// leaks to the caller. All three raw ops run in the entry: on a create failure
+// the fd is negative, so the subsequent write/close no-op with errors and the
+// `n >= 0` guard reports Error. Success requires the write to have returned a
+// non-negative count.
+machine Filesystem::write_all(&mut self, path: &[u8] in Path, bytes: &[u8]) -> UnitResult {
+    self.create_mode = 420;
+    let fd: i32 = self.host.create(path, self.create_mode);
+    let n: i64 = self.host.write(fd, bytes);
+    let rc: i32 = self.host.close(fd);
+    transition n >= 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Read a whole file into `buffer` in one shot (Rust `std::fs::read`): open the
+// path read-only, read up to `count` bytes, and close — returning the number
+// read. (Rust returns a freshly-grown `Vec`; Omega fills a caller buffer to
+// avoid an allocation in the std surface — pass a buffer at least as large as
+// the file, sized via `metadata().len`.) Like `write_all`, all raw ops run in
+// the entry so an open failure flows to Error via the `n >= 0` guard.
+machine Filesystem::read_all(&mut self, path: &[u8] in Path, buffer: &mut [u8], count: usize) -> IoResult {
+    self.read_flags = 0;
+    let fd: i32 = self.host.open(path, self.read_flags);
+    let n: i64 = self.host.read(fd, buffer, count);
+    let rc: i32 = self.host.close(fd);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+// Copy the contents of `from` to `to` (Rust `std::fs::copy`), returning the
+// number of bytes copied. Uses a caller-provided scratch `buffer` (Rust
+// allocates; Omega stays allocation-free — size it to the file via
+// `metadata_path`; a source larger than `cap` is copied only up to `cap`).
+//
+// The bytes are written with the WRITE-THEN-TRUNCATE idiom: write the whole
+// buffer then `set_len(n)` to drop the trailing scratch bytes. This keeps the
+// whole op in the ENTRY (no state threads the buffer — the interpreter does not
+// yet carry a `&[u8]` across a state transition; see TASKS_FS.md "copy"), at the
+// cost of two documented differences from Rust: (1) it writes `cap` bytes then
+// truncates, and (2) on a source-open failure it still creates an empty `to`.
+// A faithful version (branch after the read; write only `buffer[0..n]`) lands
+// once the interpreter threads slices through states.
+machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: usize) -> IoResult {
+    self.read_flags = 0;
+    self.create_mode = 420;
+    let src: i32 = self.host.open(from, self.read_flags);
+    let n: i64 = self.host.read(src, buffer, cap);
+    let closed_src: i32 = self.host.close(src);
+    let dst: i32 = self.host.create(to, self.create_mode);
+    let written: i64 = self.host.write(dst, buffer);
+    let truncated: i32 = self.host.set_len(dst, n);
+    let closed_dst: i32 = self.host.close(dst);
+    // Preserve the source's permission bits (Rust `fs::copy` copies the mode).
+    // `stat` the source (it exists -- we just read it) and decode st_mode's
+    // permission bits (low 9, & 0o777 = 511), then `chmod` the destination.
+    let statrc: i32 = self.host.read_metadata(from, &mut self.stat_buf);
+    let mode: u32 = ((self.stat_buf[4] as u32) | ((self.stat_buf[5] as u32) << 8)) & 511;
+    let chmodded: i32 = self.host.set_permissions(to, mode);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+// Does a path exist? (Rust `Path::exists` = `metadata().is_ok()`.) Faithfully
+// STAT-based: `stat` needs no read permission on the file itself (only search
+// permission on the parent dirs), so this is true even for a present-but-unreadable
+// (chmod-0) file — matching Rust. (An earlier version open-probed and wrongly
+// reported false for such a file.)
+machine Filesystem::exists(&mut self, path: &[u8] in Path) -> bool {
+    self.stat_rc = self.host.read_metadata(path, &mut self.stat_buf);
+    self.stat_rc == 0
+}
+
+// Does a path exist, distinguishing a definite No from a genuine I/O error (Rust
+// `Path::try_exists`)? Also STAT-based (agrees with `exists`): `Yes` if `stat`
+// succeeds, `No` only when it fails with ENOENT, otherwise `Error(kind)`. A
+// present-but-unreadable file is `Yes` (stat needs no read perm); `Error` is
+// reserved for a real failure such as an unsearchable ancestor directory (EACCES on
+// a parent) — surfaced, not silently reported as absent.
+machine Filesystem::try_exists(&mut self, path: &[u8] in Path) -> ExistsResult {
+    let rc: i32 = self.host.read_metadata(path, &mut self.stat_buf);
+    transition rc == 0 { true -> present() _ -> absent() }
+    state present(&mut self) -> ExistsResult { ExistsResult::Yes }
+    state absent(&mut self) -> ExistsResult {
+        let code: i32 = self.host.errno();
+        transition code == 2 { true -> no() _ -> other() }
+    }
+    state no(&mut self) -> ExistsResult { ExistsResult::No }
+    state other(&mut self) -> ExistsResult { let kind: ErrorKind = self.last_error(); ExistsResult::Error { kind: kind } }
+}
+
+// Metadata of a PATH (Rust `std::fs::metadata`), the path-based counterpart to
+// `metadata(file)`. Unlike the open+seek approach this uses `stat`, so it works
+// on DIRECTORIES too (no read permission / open needed): it decodes `st_size`
+// (byte size) and `st_mode` (kind) straight out of the kernel's stat record.
+// The field reads are byte-assembly (little-endian) since Omega has no
+// C-struct-layout `repr` yet; `st_size` is an i64 at offset 96, `st_mode` a u16
+// at offset 4, and a directory is `(st_mode & S_IFMT) == S_IFDIR`
+// (0o170000 = 61440, 0o040000 = 16384).
+machine Filesystem::metadata_path(&mut self, path: &[u8] in Path) -> MetadataResult {
+    let rc: i32 = self.host.read_metadata(path, &mut self.stat_buf);
+    transition rc == 0 { true -> decode() _ -> err() }
+    state decode(&mut self) -> MetadataResult {
+        let len: i64 = (self.stat_buf[96] as i64)
+            | ((self.stat_buf[97] as i64) << 8)
+            | ((self.stat_buf[98] as i64) << 16)
+            | ((self.stat_buf[99] as i64) << 24)
+            | ((self.stat_buf[100] as i64) << 32)
+            | ((self.stat_buf[101] as i64) << 40)
+            | ((self.stat_buf[102] as i64) << 48)
+            | ((self.stat_buf[103] as i64) << 56);
+        let mode: i32 = (self.stat_buf[4] as i32) | ((self.stat_buf[5] as i32) << 8);
+        let nlink: u64 = (self.stat_buf[6] as u64) | ((self.stat_buf[7] as u64) << 8);
+        let ino: u64 = (self.stat_buf[8] as u64)
+            | ((self.stat_buf[9] as u64) << 8)
+            | ((self.stat_buf[10] as u64) << 16)
+            | ((self.stat_buf[11] as u64) << 24)
+            | ((self.stat_buf[12] as u64) << 32)
+            | ((self.stat_buf[13] as u64) << 40)
+            | ((self.stat_buf[14] as u64) << 48)
+            | ((self.stat_buf[15] as u64) << 56);
+        let uid: u32 = (self.stat_buf[16] as u32)
+            | ((self.stat_buf[17] as u32) << 8)
+            | ((self.stat_buf[18] as u32) << 16)
+            | ((self.stat_buf[19] as u32) << 24);
+        let gid: u32 = (self.stat_buf[20] as u32)
+            | ((self.stat_buf[21] as u32) << 8)
+            | ((self.stat_buf[22] as u32) << 16)
+            | ((self.stat_buf[23] as u32) << 24);
+        let dev: u64 = (self.stat_buf[0] as u64)
+            | ((self.stat_buf[1] as u64) << 8)
+            | ((self.stat_buf[2] as u64) << 16)
+            | ((self.stat_buf[3] as u64) << 24);
+        let rdev: u64 = (self.stat_buf[24] as u64)
+            | ((self.stat_buf[25] as u64) << 8)
+            | ((self.stat_buf[26] as u64) << 16)
+            | ((self.stat_buf[27] as u64) << 24);
+        let ctime: i64 = (self.stat_buf[64] as i64)
+            | ((self.stat_buf[65] as i64) << 8)
+            | ((self.stat_buf[66] as i64) << 16)
+            | ((self.stat_buf[67] as i64) << 24)
+            | ((self.stat_buf[68] as i64) << 32)
+            | ((self.stat_buf[69] as i64) << 40)
+            | ((self.stat_buf[70] as i64) << 48)
+            | ((self.stat_buf[71] as i64) << 56);
+        let blocks: u64 = (self.stat_buf[104] as u64)
+            | ((self.stat_buf[105] as u64) << 8)
+            | ((self.stat_buf[106] as u64) << 16)
+            | ((self.stat_buf[107] as u64) << 24)
+            | ((self.stat_buf[108] as u64) << 32)
+            | ((self.stat_buf[109] as u64) << 40)
+            | ((self.stat_buf[110] as u64) << 48)
+            | ((self.stat_buf[111] as u64) << 56);
+        let blksize: u64 = (self.stat_buf[112] as u64)
+            | ((self.stat_buf[113] as u64) << 8)
+            | ((self.stat_buf[114] as u64) << 16)
+            | ((self.stat_buf[115] as u64) << 24);
+        let is_dir: bool = (mode & 61440) == 16384;
+        let mtime: i64 = (self.stat_buf[48] as i64)
+            | ((self.stat_buf[49] as i64) << 8)
+            | ((self.stat_buf[50] as i64) << 16)
+            | ((self.stat_buf[51] as i64) << 24)
+            | ((self.stat_buf[52] as i64) << 32)
+            | ((self.stat_buf[53] as i64) << 40)
+            | ((self.stat_buf[54] as i64) << 48)
+            | ((self.stat_buf[55] as i64) << 56);
+        let atime: i64 = (self.stat_buf[32] as i64)
+            | ((self.stat_buf[33] as i64) << 8)
+            | ((self.stat_buf[34] as i64) << 16)
+            | ((self.stat_buf[35] as i64) << 24)
+            | ((self.stat_buf[36] as i64) << 32)
+            | ((self.stat_buf[37] as i64) << 40)
+            | ((self.stat_buf[38] as i64) << 48)
+            | ((self.stat_buf[39] as i64) << 56);
+        let btime: i64 = (self.stat_buf[80] as i64)
+            | ((self.stat_buf[81] as i64) << 8)
+            | ((self.stat_buf[82] as i64) << 16)
+            | ((self.stat_buf[83] as i64) << 24)
+            | ((self.stat_buf[84] as i64) << 32)
+            | ((self.stat_buf[85] as i64) << 40)
+            | ((self.stat_buf[86] as i64) << 48)
+            | ((self.stat_buf[87] as i64) << 56);
+        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: false, mode: mode as u32, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime } }
+    }
+    state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
+}
+
+// Rust `fs::symlink_metadata` — metadata of the path ITSELF, not following a
+// final symlink (via `lstat`). Same byte-decode as `metadata_path`, but a symlink
+// reports `is_symlink` true (st_mode file-type S_IFLNK = 0o120000 = 40960) and so
+// `is_file()` false. For a non-symlink it is identical to `metadata_path`.
+machine Filesystem::symlink_metadata(&mut self, path: &[u8] in Path) -> MetadataResult {
+    let rc: i32 = self.host.read_symlink_metadata(path, &mut self.stat_buf);
+    transition rc == 0 { true -> decode() _ -> err() }
+    state decode(&mut self) -> MetadataResult {
+        let len: i64 = (self.stat_buf[96] as i64)
+            | ((self.stat_buf[97] as i64) << 8)
+            | ((self.stat_buf[98] as i64) << 16)
+            | ((self.stat_buf[99] as i64) << 24)
+            | ((self.stat_buf[100] as i64) << 32)
+            | ((self.stat_buf[101] as i64) << 40)
+            | ((self.stat_buf[102] as i64) << 48)
+            | ((self.stat_buf[103] as i64) << 56);
+        let mode: i32 = (self.stat_buf[4] as i32) | ((self.stat_buf[5] as i32) << 8);
+        let nlink: u64 = (self.stat_buf[6] as u64) | ((self.stat_buf[7] as u64) << 8);
+        let ino: u64 = (self.stat_buf[8] as u64)
+            | ((self.stat_buf[9] as u64) << 8)
+            | ((self.stat_buf[10] as u64) << 16)
+            | ((self.stat_buf[11] as u64) << 24)
+            | ((self.stat_buf[12] as u64) << 32)
+            | ((self.stat_buf[13] as u64) << 40)
+            | ((self.stat_buf[14] as u64) << 48)
+            | ((self.stat_buf[15] as u64) << 56);
+        let uid: u32 = (self.stat_buf[16] as u32)
+            | ((self.stat_buf[17] as u32) << 8)
+            | ((self.stat_buf[18] as u32) << 16)
+            | ((self.stat_buf[19] as u32) << 24);
+        let gid: u32 = (self.stat_buf[20] as u32)
+            | ((self.stat_buf[21] as u32) << 8)
+            | ((self.stat_buf[22] as u32) << 16)
+            | ((self.stat_buf[23] as u32) << 24);
+        let dev: u64 = (self.stat_buf[0] as u64)
+            | ((self.stat_buf[1] as u64) << 8)
+            | ((self.stat_buf[2] as u64) << 16)
+            | ((self.stat_buf[3] as u64) << 24);
+        let rdev: u64 = (self.stat_buf[24] as u64)
+            | ((self.stat_buf[25] as u64) << 8)
+            | ((self.stat_buf[26] as u64) << 16)
+            | ((self.stat_buf[27] as u64) << 24);
+        let ctime: i64 = (self.stat_buf[64] as i64)
+            | ((self.stat_buf[65] as i64) << 8)
+            | ((self.stat_buf[66] as i64) << 16)
+            | ((self.stat_buf[67] as i64) << 24)
+            | ((self.stat_buf[68] as i64) << 32)
+            | ((self.stat_buf[69] as i64) << 40)
+            | ((self.stat_buf[70] as i64) << 48)
+            | ((self.stat_buf[71] as i64) << 56);
+        let blocks: u64 = (self.stat_buf[104] as u64)
+            | ((self.stat_buf[105] as u64) << 8)
+            | ((self.stat_buf[106] as u64) << 16)
+            | ((self.stat_buf[107] as u64) << 24)
+            | ((self.stat_buf[108] as u64) << 32)
+            | ((self.stat_buf[109] as u64) << 40)
+            | ((self.stat_buf[110] as u64) << 48)
+            | ((self.stat_buf[111] as u64) << 56);
+        let blksize: u64 = (self.stat_buf[112] as u64)
+            | ((self.stat_buf[113] as u64) << 8)
+            | ((self.stat_buf[114] as u64) << 16)
+            | ((self.stat_buf[115] as u64) << 24);
+        let is_dir: bool = (mode & 61440) == 16384;
+        let is_symlink: bool = (mode & 61440) == 40960;
+        let mtime: i64 = (self.stat_buf[48] as i64)
+            | ((self.stat_buf[49] as i64) << 8)
+            | ((self.stat_buf[50] as i64) << 16)
+            | ((self.stat_buf[51] as i64) << 24)
+            | ((self.stat_buf[52] as i64) << 32)
+            | ((self.stat_buf[53] as i64) << 40)
+            | ((self.stat_buf[54] as i64) << 48)
+            | ((self.stat_buf[55] as i64) << 56);
+        let atime: i64 = (self.stat_buf[32] as i64)
+            | ((self.stat_buf[33] as i64) << 8)
+            | ((self.stat_buf[34] as i64) << 16)
+            | ((self.stat_buf[35] as i64) << 24)
+            | ((self.stat_buf[36] as i64) << 32)
+            | ((self.stat_buf[37] as i64) << 40)
+            | ((self.stat_buf[38] as i64) << 48)
+            | ((self.stat_buf[39] as i64) << 56);
+        let btime: i64 = (self.stat_buf[80] as i64)
+            | ((self.stat_buf[81] as i64) << 8)
+            | ((self.stat_buf[82] as i64) << 16)
+            | ((self.stat_buf[83] as i64) << 24)
+            | ((self.stat_buf[84] as i64) << 32)
+            | ((self.stat_buf[85] as i64) << 40)
+            | ((self.stat_buf[86] as i64) << 48)
+            | ((self.stat_buf[87] as i64) << 56);
+        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: is_symlink, mode: mode as u32, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime } }
+    }
+    state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
+}
+
+// Remove a file.
+machine Filesystem::remove(&mut self, path: &[u8] in Path) -> UnitResult {
+    let rc: i32 = self.host.remove(path);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Classify the most recent failure as an `ErrorKind` (Rust `io::Error::kind`).
+// Reads the thread-local errno via the raw seam and maps the common file-op
+// codes; call it IMMEDIATELY after an op returned an Error/negative value,
+// before any other host call (errno is only valid right after the failure).
+machine Filesystem::last_error(&mut self) -> ErrorKind {
+    // errno -> ErrorKind via a value-yielding `match` TERMINAL (assigned to a field,
+    // then returned). EPERM (1) and EACCES (13) both surface as PermissionDenied.
+    // Match desugars to branchless arithmetic over `code == pattern` (all ErrorKind
+    // cases are payload-free -> tag arithmetic), so it observes the real errno
+    // host-call result; a transition-guard chain read the pre-store ZII zero in an
+    // inlined value-call (see TASKS_FS.md "terminal-value completion").
+    self.err_code = self.host.errno();
+    self.err_kind = match self.err_code {
+        2 -> ErrorKind::NotFound,
+        13 -> ErrorKind::PermissionDenied,
+        1 -> ErrorKind::PermissionDenied,
+        17 -> ErrorKind::AlreadyExists,
+        9 -> ErrorKind::BadDescriptor,
+        21 -> ErrorKind::IsADirectory,
+        35 -> ErrorKind::WouldBlock,
+        _ -> ErrorKind::Other
+    };
+    self.err_kind
+}
+
+// Create a directory.
+machine Filesystem::create_dir(&mut self, path: &[u8] in Path) -> UnitResult {
+    self.dir_mode = 493;
+    let rc: i32 = self.host.create_dir(path, self.dir_mode);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Remove an empty directory.
+machine Filesystem::remove_dir(&mut self, path: &[u8] in Path) -> UnitResult {
+    let rc: i32 = self.host.remove_dir(path);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Recursively create a directory and all of its missing parents (Rust
+// `std::fs::create_dir_all`). Walks the path from index 1 (a leading '/' names
+// the always-present root), creating each ancestor prefix `path[0..i]` at every
+// '/' separator, then the whole path. The subslice `path[0..i]` inherits the
+// `Path` (`no_nul`) domain (per-byte, subslice-preserving) and is discharged in
+// bounds by the dominating `i < path.len` guard.
+//
+// JUDGEMENT CALL (recorded in TASKS_FS.md): intermediate ancestor creates are
+// BEST-EFFORT -- an already-present ancestor (EEXIST) is expected and ignored,
+// and any other intermediate error resurfaces at the LEAF create rather than
+// being reported per-ancestor. The leaf decides the result: Ok on success, Ok on
+// AlreadyExists (the target dir is already present -- Rust returns Ok too), else
+// the mapped `ErrorKind`. Faithful for the common cases; a mid-path hard failure
+// (e.g. a component that is a file) surfaces as the leaf's error.
+machine Filesystem::create_dir_all(&mut self, path: &[u8] in Path) -> UnitResult {
+    self.dir_mode = 493;
+    transition { _ -> self.mkall_walk(path, 1) }
+}
+
+// Climbing-index walk: at each position create the ancestor prefix (via the
+// value-call helper `mkall_step`, which guards the bound internally), then
+// recurse in the ENTRY -- the only shape the `Nat::BoundedDistance` decreases
+// proof accepts. `path`'s domain survives the interleaved `mkall_step` call
+// because a SHARED parameter's declared domain is invariant (checker grant).
+machine Filesystem::mkall_walk(&mut self, path: &[u8] in Path, i: usize)
+terminates {
+    decreases (i, path.len) -> Nat::BoundedDistance;
+}
+-> UnitResult
+{
+    self.walk_rc = self.mkall_step(path, i);
+    transition i < path.len {
+        true -> self.mkall_walk(path, i + 1)
+        false -> self.mkall_leaf(path)
+    }
+    state mkall_leaf(&mut self, path: &[u8] in Path) -> UnitResult {
+        let rc: i32 = self.host.create_dir(path, self.dir_mode);
+        transition rc == 0 { true -> ok() _ -> exists_ok() }
+    }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state exists_ok(&mut self) -> UnitResult {
+        // AlreadyExists (the target dir is already present) is success for
+        // create_dir_all; any other error is surfaced.
+        let code: i32 = self.host.errno();
+        transition code == 17 { true -> ok() _ -> mkall_error() }
+    }
+    state mkall_error(&mut self) -> UnitResult {
+        let kind: ErrorKind = self.last_error();
+        UnitResult::Error { kind: kind }
+    }
+}
+
+// Create the ancestor prefix `path[0..i]` iff position i is a '/' separator.
+// Guards `i < path.len` INTERNALLY so the caller's recursion needs no
+// pre-established bound. Returns the `create_dir` rc (best-effort; ignored).
+machine Filesystem::mkall_step(&mut self, path: &[u8] in Path, i: usize) -> i32 {
+    transition i < path.len {
+        true -> self.mkall_at(path, i)
+        false -> mkall_noop()
+    }
+    state mkall_at(&mut self, path: &[u8] in Path, i: usize) -> i32 {
+        transition path[i] == 47 {
+            true -> self.mkall_mk(path, i)
+            false -> mkall_noop()
+        }
+    }
+    state mkall_mk(&mut self, path: &[u8] in Path, i: usize) -> i32 {
+        self.host.create_dir(path[0..i], self.dir_mode)
+    }
+    state mkall_noop(&mut self) -> i32 { 0 }
+}
+
+// List a directory and return its entry COUNT (Rust `fs::read_dir(path)?.count()`,
+// excluding "." and ".."). Opens the directory, fills ONE buffer of packed darwin
+// `dirent` records via the raw `read_dir` op, then walks them with a
+// runtime-indexed cursor over the little-endian `d_reclen` at record offset +16
+// (the same record layout as `___getdirentries64`, identical on both engines),
+// advancing until the filled byte count. The `d_off < 480` dominating guard keeps
+// each header read provably in bounds of the 512-byte buffer.
+//
+// JUDGEMENT CALL (recorded in TASKS_FS.md as D-readdir): counts the entries of a
+// SINGLE `read_dir` fill -- a 512-byte buffer holds a typical directory; a
+// directory with more entries than fit is undercounted (a single `getdirentries`,
+// not a drain-to-empty loop). "." and ".." are the first two records of every real
+// directory, so the child count is `records - 2`. A first, self-contained rung of
+// the `read_dir` iteration surface (name extraction / a `DirEntry` cursor and the
+// multi-fill drain build on this walk).
+machine Filesystem::read_dir_count(&mut self, path: &[u8] in Path) -> IoResult {
+    self.read_flags = 0;
+    self.rd_position = 0;
+    self.rd_off = 0;
+    self.rd_count = 0;
+    let dfd: i32 = self.host.open(path, self.read_flags);
+    transition dfd >= 0 { true -> rd_read(dfd) _ -> rd_err() }
+    state rd_read(&mut self, dfd: i32) -> IoResult {
+        let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
+        let closed: i32 = self.host.close(dfd);
+        self.rd_total = total as usize in Wrapping;
+        transition total > 0 { true -> rd_walk() _ -> rd_empty() }
+    }
+    state rd_walk(&mut self) -> IoResult {
+        transition self.rd_off < 480 { true -> rd_body() _ -> rd_done() }
+    }
+    state rd_body(&mut self) -> IoResult {
+        // d_reclen: little-endian u16 at record offset + 16 (RUNTIME-indexed reads).
+        self.rd_idx = self.rd_off + 16;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 17;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = self.rd_lo as usize in Wrapping;
+        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
+        self.rd_count = self.rd_count + 1;
+        self.rd_off = self.rd_off + self.rd_reclen;
+        transition self.rd_off < self.rd_total { true -> rd_walk() _ -> rd_done() }
+    }
+    state rd_empty(&mut self) -> IoResult { IoResult::Ok { count: 0 } }
+    state rd_done(&mut self) -> IoResult {
+        // Every real directory yields "." and ".." first, so children = records - 2.
+        transition self.rd_count > 2 { true -> rd_ok() _ -> rd_empty() }
+    }
+    state rd_ok(&mut self) -> IoResult {
+        self.rd_lou = (self.rd_count - 2) as usize in Wrapping;
+        IoResult::Ok { count: self.rd_lou }
+    }
+    state rd_err(&mut self) -> IoResult {
+        let kind: ErrorKind = self.last_error();
+        IoResult::Error { kind: kind }
+    }
+}
+
+// Summarize a directory's composition in ONE walk (`DirStats { entries, subdirs,
+// files }`) -- the type-aware companion to `read_dir_count`. Same single-fill
+// dirent walk, additionally reading each record's `d_type` byte at offset +20
+// (within the `off < 480` bound, so the read is provably in the 512-byte buffer)
+// and tallying DT_DIR (4) vs DT_REG (8). "." and ".." are DT_DIR, so the child
+// counts subtract 2 from both `entries` and `subdirs`. Same single-fill /
+// DT_UNKNOWN caveats as `read_dir_count` (D-readdir). Establishes the `d_type`
+// dispatch that a `DirEntry` cursor and `remove_dir_all` (recurse into subdirs,
+// unlink files) will reuse.
+machine Filesystem::read_dir_stats(&mut self, path: &[u8] in Path) -> DirStatsResult {
+    self.read_flags = 0;
+    self.rd_position = 0;
+    self.rd_off = 0;
+    self.rd_count = 0;
+    self.rd_dirs = 0;
+    self.rd_files = 0;
+    let dfd: i32 = self.host.open(path, self.read_flags);
+    transition dfd >= 0 { true -> rds_read(dfd) _ -> rds_err() }
+    state rds_read(&mut self, dfd: i32) -> DirStatsResult {
+        let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
+        let closed: i32 = self.host.close(dfd);
+        self.rd_total = total as usize in Wrapping;
+        transition total > 0 { true -> rds_walk() _ -> rds_empty() }
+    }
+    state rds_walk(&mut self) -> DirStatsResult {
+        transition self.rd_off < 480 { true -> rds_body() _ -> rds_done() }
+    }
+    state rds_body(&mut self) -> DirStatsResult {
+        self.rd_idx = self.rd_off + 16;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 17;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = self.rd_lo as usize in Wrapping;
+        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
+        self.rd_idx = self.rd_off + 20;
+        self.rd_dtype = self.dir_buf[self.rd_idx];
+        self.rd_count = self.rd_count + 1;
+        self.rd_off = self.rd_off + self.rd_reclen;
+        transition self.rd_dtype == 4 { true -> rds_dir() _ -> rds_maybe_file() }
+    }
+    state rds_dir(&mut self) -> DirStatsResult {
+        self.rd_dirs = self.rd_dirs + 1;
+        transition self.rd_off < self.rd_total { true -> rds_walk() _ -> rds_done() }
+    }
+    state rds_maybe_file(&mut self) -> DirStatsResult {
+        transition self.rd_dtype == 8 { true -> rds_file() _ -> rds_cont() }
+    }
+    state rds_file(&mut self) -> DirStatsResult {
+        self.rd_files = self.rd_files + 1;
+        transition self.rd_off < self.rd_total { true -> rds_walk() _ -> rds_done() }
+    }
+    state rds_cont(&mut self) -> DirStatsResult {
+        transition self.rd_off < self.rd_total { true -> rds_walk() _ -> rds_done() }
+    }
+    state rds_done(&mut self) -> DirStatsResult {
+        transition self.rd_count > 2 { true -> rds_ok() _ -> rds_empty() }
+    }
+    state rds_ok(&mut self) -> DirStatsResult {
+        DirStatsResult::Ok { stats: DirStats {
+            entries: (self.rd_count - 2) as usize in Wrapping,
+            subdirs: (self.rd_dirs - 2) as usize in Wrapping,
+            files: self.rd_files as usize in Wrapping,
+        } }
+    }
+    state rds_empty(&mut self) -> DirStatsResult {
+        DirStatsResult::Ok { stats: DirStats { entries: 0, subdirs: 0, files: 0 } }
+    }
+    state rds_err(&mut self) -> DirStatsResult {
+        let kind: ErrorKind = self.last_error();
+        DirStatsResult::Error { kind: kind }
+    }
+}
+
+// Fetch the N-th CHILD directory entry as a `DirEntry` (Rust's `ReadDir` iterator,
+// indexed): `read_dir_nth(path, 0)` is the first child, `1` the second, … . The
+// caller loops n = 0, 1, 2, … until `End`. Walks the single-fill dirent buffer to
+// record index `n + 2` (skipping "." and ".."), then EXTRACTS the name by copying
+// `dir_buf[off+21+j]` into the entry's `[u8; 256]` name field with a field-cursor
+// loop (the `ridx < 512` guard keeps each read in the buffer; `j < 255` keeps each
+// write in the name field), and reads the `d_type` for `is_dir`/`is_file`.
+//
+// JUDGEMENT CALL (D-readdir extends): single `read_dir` fill (a directory larger
+// than the 512-byte buffer is iterable only up to what one `getdirentries` returns);
+// a name longer than 255 bytes is truncated (`name_len` is the copied length). "."
+// and ".." are the first two records of every real directory, so child n is record
+// n + 2. This is the name-bearing rung `remove_dir_all` (recurse subdirs / unlink
+// files by name) builds on.
+machine Filesystem::read_dir_nth(&mut self, path: &[u8] in Path, n: usize) -> DirEntryResult {
+    self.read_flags = 0;
+    self.rd_position = 0;
+    self.rd_off = 0;
+    self.rd_recno = 0;
+    self.rd_target = (n as usize in Wrapping) + 2;
+    let dfd: i32 = self.host.open(path, self.read_flags);
+    transition dfd >= 0 { true -> rdn_read(dfd) _ -> rdn_err() }
+    state rdn_read(&mut self, dfd: i32) -> DirEntryResult {
+        let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
+        let closed: i32 = self.host.close(dfd);
+        self.rd_total = total as usize in Wrapping;
+        transition total > 0 { true -> rdn_walk() _ -> rdn_end() }
+    }
+    state rdn_walk(&mut self) -> DirEntryResult {
+        transition self.rd_off < 480 { true -> rdn_at() _ -> rdn_end() }
+    }
+    state rdn_at(&mut self) -> DirEntryResult {
+        transition self.rd_recno == self.rd_target { true -> rdn_extract() _ -> rdn_advance() }
+    }
+    state rdn_advance(&mut self) -> DirEntryResult {
+        self.rd_idx = self.rd_off + 16;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 17;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = self.rd_lo as usize in Wrapping;
+        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
+        self.rd_recno = self.rd_recno + 1;
+        self.rd_off = self.rd_off + self.rd_reclen;
+        transition self.rd_off < self.rd_total { true -> rdn_walk() _ -> rdn_end() }
+    }
+    state rdn_extract(&mut self) -> DirEntryResult {
+        self.rd_idx = self.rd_off + 18;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 19;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = self.rd_lo as usize in Wrapping;
+        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_namlen = (self.rd_hiu << 8) | self.rd_lou;
+        self.rd_idx = self.rd_off + 20;
+        self.rd_dtype = self.dir_buf[self.rd_idx];
+        self.rd_j = 0;
+        transition { _ -> rdn_copy() }
+    }
+    state rdn_copy(&mut self) -> DirEntryResult {
+        transition self.rd_j < self.rd_namlen { true -> rdn_cap() _ -> rdn_build() }
+    }
+    state rdn_cap(&mut self) -> DirEntryResult {
+        transition self.rd_j < 255 { true -> rdn_cbyte() _ -> rdn_build() }
+    }
+    state rdn_cbyte(&mut self) -> DirEntryResult {
+        self.rd_ridx = self.rd_off + 21 + self.rd_j;
+        transition self.rd_ridx < 512 { true -> rdn_cdo() _ -> rdn_build() }
+    }
+    state rdn_cdo(&mut self) -> DirEntryResult {
+        self.rd_nb = self.dir_buf[self.rd_ridx];
+        self.entry_name[self.rd_j] = self.rd_nb;
+        self.rd_j = self.rd_j + 1;
+        transition { _ -> rdn_copy() }
+    }
+    state rdn_build(&mut self) -> DirEntryResult {
+        transition self.rd_dtype == 4 { true -> rdn_ok_dir() _ -> rdn_maybe_file() }
+    }
+    state rdn_ok_dir(&mut self) -> DirEntryResult {
+        DirEntryResult::Ok { entry: DirEntry {
+            name: self.entry_name,
+            name_len: self.rd_j,
+            is_dir: true,
+            is_file: false,
+        } }
+    }
+    state rdn_maybe_file(&mut self) -> DirEntryResult {
+        transition self.rd_dtype == 8 { true -> rdn_ok_file() _ -> rdn_ok_other() }
+    }
+    state rdn_ok_file(&mut self) -> DirEntryResult {
+        DirEntryResult::Ok { entry: DirEntry {
+            name: self.entry_name,
+            name_len: self.rd_j,
+            is_dir: false,
+            is_file: true,
+        } }
+    }
+    state rdn_ok_other(&mut self) -> DirEntryResult {
+        DirEntryResult::Ok { entry: DirEntry {
+            name: self.entry_name,
+            name_len: self.rd_j,
+            is_dir: false,
+            is_file: false,
+        } }
+    }
+    state rdn_end(&mut self) -> DirEntryResult { DirEntryResult::End }
+    state rdn_err(&mut self) -> DirEntryResult {
+        let kind: ErrorKind = self.last_error();
+        DirEntryResult::Error { kind: kind }
+    }
+}
+
+// Is a directory empty (Rust `read_dir(path)?.next().is_none()`)? Composes
+// `read_dir_nth(path, 0)`: `End` (no first child) => `Empty`, a first entry =>
+// `NonEmpty`, a read failure => `Error`. Commonly the guard before `remove_dir`
+// (which requires an empty directory).
+machine Filesystem::read_dir_is_empty(&mut self, path: &[u8] in Path) -> EmptyResult {
+    let first: DirEntryResult = self.read_dir_nth(path, 0);
+    transition first {
+        DirEntryResult::End -> rdie_empty()
+        DirEntryResult::Ok { entry } -> rdie_non()
+        DirEntryResult::Error { kind } -> rdie_err(kind)
+    }
+    state rdie_empty(&mut self) -> EmptyResult { EmptyResult::Empty }
+    state rdie_non(&mut self) -> EmptyResult { EmptyResult::NonEmpty }
+    state rdie_err(&mut self, kind: ErrorKind) -> EmptyResult { EmptyResult::Error { kind: kind } }
+}
+
+// Fetch the N-th CHILD entry as a `DirEntry`, reading an ALREADY-OPEN directory fd
+// (the caller OWNS `dfd`; it is not closed here). Skips "." and ".." (records 0,1)
+// to record n+2 and copies the name into the entry's field. This is the fd-based
+// core `remove_dir_all` drains through (it re-reads the same fd after each removal).
+// NOTE: the dirent walk here duplicates `read_dir_nth`'s (which opens+closes a
+// path); a future refactor should route `read_dir_nth` through this fd core.
+machine Filesystem::read_dir_entry_fd(&mut self, dfd: i32, n: usize) -> DirEntryResult {
+    self.rd_position = 0;
+    self.rd_off = 0;
+    self.rd_recno = 0;
+    self.rd_target = (n as usize in Wrapping) + 2;
+    let total: i64 = self.host.read_dir(dfd, &mut self.dir_buf, 512, &mut self.rd_position);
+    self.rd_total = total as usize in Wrapping;
+    transition total > 0 { true -> rdef_walk() _ -> rdef_end() }
+    state rdef_walk(&mut self) -> DirEntryResult {
+        transition self.rd_off < 480 { true -> rdef_at() _ -> rdef_end() }
+    }
+    state rdef_at(&mut self) -> DirEntryResult {
+        transition self.rd_recno == self.rd_target { true -> rdef_extract() _ -> rdef_advance() }
+    }
+    state rdef_advance(&mut self) -> DirEntryResult {
+        self.rd_idx = self.rd_off + 16;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 17;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = self.rd_lo as usize in Wrapping;
+        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_reclen = (self.rd_hiu << 8) | self.rd_lou;
+        self.rd_recno = self.rd_recno + 1;
+        self.rd_off = self.rd_off + self.rd_reclen;
+        transition self.rd_off < self.rd_total { true -> rdef_walk() _ -> rdef_end() }
+    }
+    state rdef_extract(&mut self) -> DirEntryResult {
+        self.rd_idx = self.rd_off + 18;
+        self.rd_lo = self.dir_buf[self.rd_idx];
+        self.rd_idx = self.rd_off + 19;
+        self.rd_hi = self.dir_buf[self.rd_idx];
+        self.rd_lou = self.rd_lo as usize in Wrapping;
+        self.rd_hiu = self.rd_hi as usize in Wrapping;
+        self.rd_namlen = (self.rd_hiu << 8) | self.rd_lou;
+        self.rd_idx = self.rd_off + 20;
+        self.rd_dtype = self.dir_buf[self.rd_idx];
+        self.rd_j = 0;
+        transition { _ -> rdef_copy() }
+    }
+    state rdef_copy(&mut self) -> DirEntryResult {
+        transition self.rd_j < self.rd_namlen { true -> rdef_cap() _ -> rdef_build() }
+    }
+    state rdef_cap(&mut self) -> DirEntryResult {
+        transition self.rd_j < 255 { true -> rdef_cbyte() _ -> rdef_build() }
+    }
+    state rdef_cbyte(&mut self) -> DirEntryResult {
+        self.rd_ridx = self.rd_off + 21 + self.rd_j;
+        transition self.rd_ridx < 512 { true -> rdef_cdo() _ -> rdef_build() }
+    }
+    state rdef_cdo(&mut self) -> DirEntryResult {
+        self.rd_nb = self.dir_buf[self.rd_ridx];
+        self.entry_name[self.rd_j] = self.rd_nb;
+        self.rd_j = self.rd_j + 1;
+        transition { _ -> rdef_copy() }
+    }
+    state rdef_build(&mut self) -> DirEntryResult {
+        transition self.rd_dtype == 4 { true -> rdef_ok_dir() _ -> rdef_maybe_file() }
+    }
+    state rdef_ok_dir(&mut self) -> DirEntryResult {
+        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: self.rd_j, is_dir: true, is_file: false } }
+    }
+    state rdef_maybe_file(&mut self) -> DirEntryResult {
+        transition self.rd_dtype == 8 { true -> rdef_ok_file() _ -> rdef_ok_other() }
+    }
+    state rdef_ok_file(&mut self) -> DirEntryResult {
+        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: self.rd_j, is_dir: false, is_file: true } }
+    }
+    state rdef_ok_other(&mut self) -> DirEntryResult {
+        DirEntryResult::Ok { entry: DirEntry { name: self.entry_name, name_len: self.rd_j, is_dir: false, is_file: false } }
+    }
+    state rdef_end(&mut self) -> DirEntryResult { DirEntryResult::End }
+}
+
+// Recursively remove a directory and ALL of its contents (Rust
+// `std::fs::remove_dir_all`). The `*at` route: never build a child path in Omega.
+// Open the dir, DRAIN it (repeatedly remove the first child until empty), then
+// `remove_dir` the now-empty dir. Draining recurses into subdirectories via
+// `open_at` (fd-relative), so no path construction and no name-domain proof.
+//
+// JUDGEMENT CALL (D-rda): a single `fuel` budget (4096) bounds TOTAL operations
+// (every removal + every descent costs 1) since a filesystem tree has no static
+// depth/breadth bound — a tree needing > 4096 ops returns an Error rather than
+// looping forever (Rust trusts finiteness; Omega must prove termination). The
+// re-read-first-child drain dodges the shared `dir_buf`-vs-recursion clobber: each
+// step re-reads the fd fresh, and the entry NAME rides a by-value `DirEntry` param
+// so a nested drain cannot overwrite it.
+machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> UnitResult {
+    self.read_flags = 0;
+    let dfd: i32 = self.host.open(path, self.read_flags);
+    transition dfd >= 0 { true -> rda_run(dfd, path) _ -> rda_err(path) }
+    state rda_run(&mut self, dfd: i32, path: &[u8] in Path) -> UnitResult {
+        self.rda_rc = self.rda(dfd, 4096);
+        self.rda_n = self.host.close(dfd) as i64;
+        transition self.rda_rc == 0 { true -> rda_rmdir(path) _ -> rda_err(path) }
+    }
+    state rda_rmdir(&mut self, path: &[u8] in Path) -> UnitResult {
+        let rc: i32 = self.host.remove_dir(path);
+        transition rc == 0 { true -> rda_ok() _ -> rda_err(path) }
+    }
+    state rda_ok(&mut self) -> UnitResult { UnitResult::Ok }
+    // `path` is threaded in (unused) so the shared-param domain grant re-establishes
+    // `path in Path` here after the drain value-call's conservative invalidation.
+    state rda_err(&mut self, path: &[u8] in Path) -> UnitResult {
+        let kind: ErrorKind = self.last_error();
+        UnitResult::Error { kind: kind }
+    }
+}
+
+// Drain every child of the open directory `dfd` (files unlinked, subdirs emptied +
+// removed), fuel-bounded. Returns 0 on success, -1 on error/fuel-exhaustion. Each
+// recursion (a fresh first-child removal, OR a descent into a subdir) costs 1 fuel.
+machine Filesystem::rda(&mut self, dfd: i32, fuel: usize)
+terminates {
+    decreases fuel;
+}
+-> i32
+{
+    transition fuel > 0 { true -> rda_first(dfd, fuel) _ -> rda_out() }
+    state rda_first(&mut self, dfd: i32, fuel: usize) -> i32 {
+        self.rdn_result = self.read_dir_entry_fd(dfd, 0);
+        transition self.rdn_result {
+            DirEntryResult::End -> rda_empty()
+            DirEntryResult::Ok { entry } -> rda_dispatch(dfd, fuel, entry)
+            DirEntryResult::Error { kind } -> rda_readerr()
+        }
+    }
+    state rda_dispatch(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
+        transition entry.name_len < 256 {
+            true -> rda_kind(dfd, fuel, entry)
+            false -> rda_readerr()
+        }
+    }
+    state rda_kind(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
+        transition entry.is_dir {
+            true -> rda_open_sub(dfd, fuel, entry)
+            false -> rda_unlink_file(dfd, fuel, entry)
+        }
+    }
+    state rda_unlink_file(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
+        self.rda_rc = self.host.unlink_at(dfd, entry.name[0..entry.name_len], 0);
+        transition self.rda_rc == 0 { true -> rda_continue(dfd, fuel) _ -> rda_readerr() }
+    }
+    state rda_open_sub(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
+        self.rda_sub = self.host.open_at(dfd, entry.name[0..entry.name_len], self.read_flags);
+        // Thread the sub fd as a BY-VALUE param so a nested drain cannot clobber it.
+        transition self.rda_sub >= 0 { true -> rda_recurse(dfd, fuel, self.rda_sub) _ -> rda_readerr() }
+    }
+    state rda_recurse(&mut self, dfd: i32, fuel: usize, sub: i32) -> i32 {
+        // DEPTH recursion (decreases fuel; fuel > 0 held from the entry guard).
+        self.rda_rc = self.rda(sub, fuel - 1);
+        self.rda_n = self.host.close(sub) as i64;
+        transition self.rda_rc == 0 { true -> rda_rmfirst(dfd, fuel) _ -> rda_readerr() }
+    }
+    // The subdir is now empty and is STILL the parent's FIRST child (every sibling
+    // ordered before it was removed before we descended). RE-READ to extract its
+    // name FRESH and remove it (AT_REMOVEDIR = 128) -- never relying on the
+    // pre-recursion `entry`, whose shared name array the nested drain overwrote.
+    state rda_rmfirst(&mut self, dfd: i32, fuel: usize) -> i32 {
+        self.rdn_result = self.read_dir_entry_fd(dfd, 0);
+        transition self.rdn_result {
+            DirEntryResult::Ok { entry } -> rda_rmfirst_do(dfd, fuel, entry)
+            DirEntryResult::End -> rda_continue(dfd, fuel)
+            DirEntryResult::Error { kind } -> rda_readerr()
+        }
+    }
+    state rda_rmfirst_do(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
+        transition entry.name_len < 256 {
+            true -> rda_rmfirst_go(dfd, fuel, entry)
+            false -> rda_readerr()
+        }
+    }
+    state rda_rmfirst_go(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
+        self.rda_rc = self.host.unlink_at(dfd, entry.name[0..entry.name_len], 128);
+        transition self.rda_rc == 0 { true -> rda_continue(dfd, fuel) _ -> rda_readerr() }
+    }
+    state rda_continue(&mut self, dfd: i32, fuel: usize) -> i32 {
+        // DRAIN recursion (decreases fuel): remove the NEXT first child.
+        transition fuel > 1 {
+            true -> rda_more(dfd, fuel)
+            false -> rda_out()
+        }
+    }
+    state rda_more(&mut self, dfd: i32, fuel: usize) -> i32 {
+        self.rda_rc = self.rda(dfd, fuel - 1);
+        transition { _ -> rda_return() }
+    }
+    state rda_return(&mut self) -> i32 { self.rda_rc }
+    state rda_empty(&mut self) -> i32 { 0 }
+    state rda_out(&mut self) -> i32 { -1 }
+    state rda_readerr(&mut self) -> i32 { -1 }
+}
+
+// Set a path's permission bits (Rust `std::fs::set_permissions`). A subsequent
+// write-open of a path whose owner-write bit was cleared fails with
+// `PermissionDenied` (EACCES).
+machine Filesystem::set_permissions(&mut self, path: &[u8] in Path, perms: Permissions) -> UnitResult {
+    let rc: i32 = self.host.set_permissions(path, perms.mode);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Create a symbolic link `link` pointing at `target` (Rust
+// `std::os::unix::fs::symlink`). Fails with `AlreadyExists` if `link` is taken.
+machine Filesystem::symlink(&mut self, target: &[u8] in Path, link: &[u8] in Path) -> UnitResult {
+    let rc: i32 = self.host.symlink(target, link);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Read a symbolic link's target into `buffer` (Rust `std::fs::read_link`),
+// returning the number of target bytes written. (Rust returns a fresh `PathBuf`;
+// Omega fills a caller buffer to stay allocation-free — size it via
+// `metadata_path(link).len` or a generous fixed buffer.)
+machine Filesystem::read_link(&mut self, path: &[u8] in Path, buffer: &mut [u8], count: usize) -> IoResult {
+    let n: i64 = self.host.read_link(path, buffer, count);
+    transition n >= 0 { true -> ok(n) _ -> err() }
+    state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
+    state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }
+}
+
+// Resolve a path to its canonical absolute form, following every symlink (Rust
+// `std::fs::canonicalize`). On `Ok` the NUL-terminated absolute path is in
+// `buffer` (provide >= 1024 bytes); Rust returns a fresh `PathBuf`, Omega fills a
+// caller buffer to stay allocation-free. The buffer stays a valid `Path` (a
+// NUL-terminated C string) so it can be fed straight back into another fs op. The
+// raw call returns the resolved pointer as a success flag (non-zero), not a count.
+machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u8]) -> UnitResult {
+    let rc: i64 = self.host.canonicalize(path, buffer);
+    transition rc != 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Set an OPEN file's permission bits (Rust `File::set_permissions`), the fd-based
+// counterpart to `set_permissions`. Uses `fchmod`, so it needs no path.
+machine Filesystem::set_file_permissions(&mut self, file: File, perms: Permissions) -> UnitResult {
+    let rc: i32 = self.host.set_file_permissions(file.fd, perms.mode);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Move/rename a path.
+machine Filesystem::rename(&mut self, from: &[u8] in Path, to: &[u8] in Path) -> UnitResult {
+    let rc: i32 = self.host.rename(from, to);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Create a hard link `link` referring to the same file as `original` (Rust
+// `std::fs::hard_link`). Both names then refer to one inode; removing one leaves
+// the other. Fails with `AlreadyExists` if `link` is taken, `NotFound` if
+// `original` is absent.
+machine Filesystem::hard_link(&mut self, original: &[u8] in Path, link: &[u8] in Path) -> UnitResult {
+    let rc: i32 = self.host.hard_link(original, link);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Truncate or extend an open file to `length` bytes (Rust `File::set_len`).
+machine Filesystem::set_len(&mut self, file: File, length: i64) -> UnitResult {
+    let rc: i32 = self.host.set_len(file.fd, length);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Set an open file's access + modification times (Rust `File::set_times`). Builds
+// the two `struct timespec` (atime @0, mtime @16; each {tv_sec i64, tv_nsec i64})
+// little-endian into `times_buf` and calls `futimens`. Whole-second precision:
+// `tv_nsec` stays 0 (the zeroed scratch). Each byte is `x as u8 in Wrapping` (the
+// low 8 bits of the shifted second) — the branch-free byte-decompose idiom.
+machine Filesystem::set_times(&mut self, file: File, accessed: i64, modified: i64) -> UnitResult {
+    self.times_buf[0] = accessed as u8 in Wrapping;
+    self.times_buf[1] = (accessed >> 8) as u8 in Wrapping;
+    self.times_buf[2] = (accessed >> 16) as u8 in Wrapping;
+    self.times_buf[3] = (accessed >> 24) as u8 in Wrapping;
+    self.times_buf[4] = (accessed >> 32) as u8 in Wrapping;
+    self.times_buf[5] = (accessed >> 40) as u8 in Wrapping;
+    self.times_buf[6] = (accessed >> 48) as u8 in Wrapping;
+    self.times_buf[7] = (accessed >> 56) as u8 in Wrapping;
+    self.times_buf[16] = modified as u8 in Wrapping;
+    self.times_buf[17] = (modified >> 8) as u8 in Wrapping;
+    self.times_buf[18] = (modified >> 16) as u8 in Wrapping;
+    self.times_buf[19] = (modified >> 24) as u8 in Wrapping;
+    self.times_buf[20] = (modified >> 32) as u8 in Wrapping;
+    self.times_buf[21] = (modified >> 40) as u8 in Wrapping;
+    self.times_buf[22] = (modified >> 48) as u8 in Wrapping;
+    self.times_buf[23] = (modified >> 56) as u8 in Wrapping;
+    let rc: i32 = self.host.set_file_times(file.fd, &mut self.times_buf);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Flush all buffered data + metadata to durable storage (Rust `File::sync_all`).
+machine Filesystem::sync(&mut self, file: File) -> UnitResult {
+    let rc: i32 = self.host.sync(file.fd);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Flush a file's DATA to durable storage (Rust `File::sync_data`) -- like
+// `sync`/`sync_all` but may skip metadata the reader doesn't need. On darwin
+// there is no `fdatasync`, so this maps to `fsync` (as Rust's own std does).
+machine Filesystem::sync_data(&mut self, file: File) -> UnitResult {
+    let rc: i32 = self.host.sync_data(file.fd);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Duplicate an open file handle (Rust `File::try_clone`): the new `File` refers to
+// the same underlying open file (natively via `dup`, sharing the file offset). On
+// `Ok` the caller gets a second independent `File` to close separately.
+machine Filesystem::try_clone(&mut self, file: File) -> OpenResult {
+    let fd: i32 = self.host.duplicate(file.fd);
+    transition fd >= 0 { true -> ok(fd) _ -> err() }
+    state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
+    state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
+}
+
+// Advisory whole-file locking (Rust `File::lock`/`lock_shared`/`try_lock`/
+// `try_lock_shared`/`unlock` -> POSIX `flock`). Advisory = only other `flock`
+// users cooperate; the OS does not enforce it against unaware writers. The lock
+// is on the open file description, so an independent `open` of the same path is
+// a distinct holder that can contend. `operation` bit values: LOCK_SH=1,
+// LOCK_EX=2, LOCK_NB=4, LOCK_UN=8.
+
+// Take an EXCLUSIVE lock, blocking until it is available (Rust `File::lock`).
+machine Filesystem::lock(&mut self, file: File) -> UnitResult {
+    let rc: i32 = self.host.lock_file(file.fd, 2); // LOCK_EX
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Take a SHARED lock, blocking until available (Rust `File::lock_shared`).
+machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
+    let rc: i32 = self.host.lock_file(file.fd, 1); // LOCK_SH
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Try to take an EXCLUSIVE lock WITHOUT blocking (Rust `File::try_lock`).
+// `WouldBlock` (errno EWOULDBLOCK) means another holder has it — distinct from a
+// real `Error`, mirroring Rust's `Ok(false)` vs `Err`.
+machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
+    let rc: i32 = self.host.lock_file(file.fd, 6); // LOCK_EX | LOCK_NB
+    transition rc == 0 { true -> acquired() _ -> contended() }
+    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
+    state contended(&mut self) -> TryLockResult {
+        let code: i32 = self.host.errno();
+        transition code == 35 { true -> would_block() _ -> failed() }
+    }
+    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
+    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = self.last_error(); TryLockResult::Error { kind: kind } }
+}
+
+// Try to take a SHARED lock WITHOUT blocking (Rust `File::try_lock_shared`).
+machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
+    let rc: i32 = self.host.lock_file(file.fd, 5); // LOCK_SH | LOCK_NB
+    transition rc == 0 { true -> acquired() _ -> contended() }
+    state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
+    state contended(&mut self) -> TryLockResult {
+        let code: i32 = self.host.errno();
+        transition code == 35 { true -> would_block() _ -> failed() }
+    }
+    state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
+    state failed(&mut self) -> TryLockResult { let kind: ErrorKind = self.last_error(); TryLockResult::Error { kind: kind } }
+}
+
+// Release any lock held on this file (Rust `File::unlock`).
+machine Filesystem::unlock(&mut self, file: File) -> UnitResult {
+    let rc: i32 = self.host.lock_file(file.fd, 8); // LOCK_UN
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Ownership (Rust `std::os::unix::fs::{chown, lchown, fchown}`). uid/gid of -1
+// leaves that component unchanged. Changing ownership generally requires
+// privilege (a normal user gets `PermissionDenied`); a no-op change to the
+// current owner succeeds.
+
+// Change a path's owner/group, following symlinks (Rust `chown`).
+machine Filesystem::set_owner(&mut self, path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult {
+    let rc: i32 = self.host.change_owner(path, uid, gid);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Change a path's owner/group WITHOUT following a final symlink (Rust `lchown`).
+machine Filesystem::set_owner_no_follow(&mut self, path: &[u8] in Path, uid: i32, gid: i32) -> UnitResult {
+    let rc: i32 = self.host.change_owner_no_follow(path, uid, gid);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Change an open file's owner/group by descriptor (Rust `fchown`).
+machine Filesystem::set_file_owner(&mut self, file: File, uid: i32, gid: i32) -> UnitResult {
+    let rc: i32 = self.host.change_file_owner(file.fd, uid, gid);
+    transition rc == 0 { true -> ok() _ -> err() }
+    state ok(&mut self) -> UnitResult { UnitResult::Ok }
+    state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
+}
+
+// Metadata of an open file (Rust `File::metadata`). Uses `fstat` on the
+// descriptor, so it reports the REAL `mode`/`len`/times (not the seek-based
+// approximation it used before) and never moves the cursor. Same byte-decode as
+// `metadata_path`; an open `File` follows to a regular file, so `is_symlink` is
+// false and `is_dir` comes from `st_mode`.
+machine Filesystem::metadata(&mut self, file: File) -> MetadataResult {
+    let rc: i32 = self.host.read_file_metadata(file.fd, &mut self.stat_buf);
+    transition rc == 0 { true -> decode() _ -> err() }
+    state decode(&mut self) -> MetadataResult {
+        let len: i64 = (self.stat_buf[96] as i64)
+            | ((self.stat_buf[97] as i64) << 8)
+            | ((self.stat_buf[98] as i64) << 16)
+            | ((self.stat_buf[99] as i64) << 24)
+            | ((self.stat_buf[100] as i64) << 32)
+            | ((self.stat_buf[101] as i64) << 40)
+            | ((self.stat_buf[102] as i64) << 48)
+            | ((self.stat_buf[103] as i64) << 56);
+        let mode: i32 = (self.stat_buf[4] as i32) | ((self.stat_buf[5] as i32) << 8);
+        let nlink: u64 = (self.stat_buf[6] as u64) | ((self.stat_buf[7] as u64) << 8);
+        let ino: u64 = (self.stat_buf[8] as u64)
+            | ((self.stat_buf[9] as u64) << 8)
+            | ((self.stat_buf[10] as u64) << 16)
+            | ((self.stat_buf[11] as u64) << 24)
+            | ((self.stat_buf[12] as u64) << 32)
+            | ((self.stat_buf[13] as u64) << 40)
+            | ((self.stat_buf[14] as u64) << 48)
+            | ((self.stat_buf[15] as u64) << 56);
+        let uid: u32 = (self.stat_buf[16] as u32)
+            | ((self.stat_buf[17] as u32) << 8)
+            | ((self.stat_buf[18] as u32) << 16)
+            | ((self.stat_buf[19] as u32) << 24);
+        let gid: u32 = (self.stat_buf[20] as u32)
+            | ((self.stat_buf[21] as u32) << 8)
+            | ((self.stat_buf[22] as u32) << 16)
+            | ((self.stat_buf[23] as u32) << 24);
+        let dev: u64 = (self.stat_buf[0] as u64)
+            | ((self.stat_buf[1] as u64) << 8)
+            | ((self.stat_buf[2] as u64) << 16)
+            | ((self.stat_buf[3] as u64) << 24);
+        let rdev: u64 = (self.stat_buf[24] as u64)
+            | ((self.stat_buf[25] as u64) << 8)
+            | ((self.stat_buf[26] as u64) << 16)
+            | ((self.stat_buf[27] as u64) << 24);
+        let ctime: i64 = (self.stat_buf[64] as i64)
+            | ((self.stat_buf[65] as i64) << 8)
+            | ((self.stat_buf[66] as i64) << 16)
+            | ((self.stat_buf[67] as i64) << 24)
+            | ((self.stat_buf[68] as i64) << 32)
+            | ((self.stat_buf[69] as i64) << 40)
+            | ((self.stat_buf[70] as i64) << 48)
+            | ((self.stat_buf[71] as i64) << 56);
+        let blocks: u64 = (self.stat_buf[104] as u64)
+            | ((self.stat_buf[105] as u64) << 8)
+            | ((self.stat_buf[106] as u64) << 16)
+            | ((self.stat_buf[107] as u64) << 24)
+            | ((self.stat_buf[108] as u64) << 32)
+            | ((self.stat_buf[109] as u64) << 40)
+            | ((self.stat_buf[110] as u64) << 48)
+            | ((self.stat_buf[111] as u64) << 56);
+        let blksize: u64 = (self.stat_buf[112] as u64)
+            | ((self.stat_buf[113] as u64) << 8)
+            | ((self.stat_buf[114] as u64) << 16)
+            | ((self.stat_buf[115] as u64) << 24);
+        let is_dir: bool = (mode & 61440) == 16384;
+        let mtime: i64 = (self.stat_buf[48] as i64)
+            | ((self.stat_buf[49] as i64) << 8)
+            | ((self.stat_buf[50] as i64) << 16)
+            | ((self.stat_buf[51] as i64) << 24)
+            | ((self.stat_buf[52] as i64) << 32)
+            | ((self.stat_buf[53] as i64) << 40)
+            | ((self.stat_buf[54] as i64) << 48)
+            | ((self.stat_buf[55] as i64) << 56);
+        let atime: i64 = (self.stat_buf[32] as i64)
+            | ((self.stat_buf[33] as i64) << 8)
+            | ((self.stat_buf[34] as i64) << 16)
+            | ((self.stat_buf[35] as i64) << 24)
+            | ((self.stat_buf[36] as i64) << 32)
+            | ((self.stat_buf[37] as i64) << 40)
+            | ((self.stat_buf[38] as i64) << 48)
+            | ((self.stat_buf[39] as i64) << 56);
+        let btime: i64 = (self.stat_buf[80] as i64)
+            | ((self.stat_buf[81] as i64) << 8)
+            | ((self.stat_buf[82] as i64) << 16)
+            | ((self.stat_buf[83] as i64) << 24)
+            | ((self.stat_buf[84] as i64) << 32)
+            | ((self.stat_buf[85] as i64) << 40)
+            | ((self.stat_buf[86] as i64) << 48)
+            | ((self.stat_buf[87] as i64) << 56);
+        MetadataResult::Ok { meta: Metadata { len: len, is_dir: is_dir, is_symlink: false, mode: mode as u32, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime } }
+    }
+    state err(&mut self) -> MetadataResult { let kind: ErrorKind = self.last_error(); MetadataResult::Error { kind: kind } }
+}

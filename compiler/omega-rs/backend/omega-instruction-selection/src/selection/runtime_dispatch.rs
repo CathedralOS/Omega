@@ -199,12 +199,139 @@ fn entry_machine_field_initial_value(
     None
 }
 
+/// Emit the ENTRY PROLOGUE's argument unmarshal: one register store per declared
+/// entry parameter, mapping the parameter's frame slot (in declaration = offset
+/// order) to the platform's incoming argument register (MS-x64: RCX, RDX, R8,
+/// R9). This is the calling plan's INBOUND direction -- how a UEFI
+/// `main(image_handle, system_table)` receives the firmware handoff. Emitted
+/// FIRST at the entry (before the field-default writes) because the argument
+/// registers are volatile. `&mut self` takes no frame slot (the machine's static
+/// storage), so declared non-self parameters map 1:1 to the argument registers.
+/// Parameters past the fourth would arrive on the stack -- not implemented; they
+/// stay unpopulated exactly as ALL entry parameters were before this stub, and
+/// the x86_64 encoder rejects an explicit 5th register index.
+fn select_entry_argument_register_writes(
+    input: &InstructionSelectionInput<'_>,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    // THE BYTES HANDOFF -- `run(&self, args: &[u8])`: when the entry's sole
+    // declared parameter is a byte slice, the prologue SPILLS the platform's
+    // four argument registers into the reserved spill region and binds `args`
+    // as a {ptr -> spill, len 32} view over them. The handoff is FOREIGN BYTES;
+    // the program casts/mints what it trusts (UEFI: bytes 0..8 = ImageHandle
+    // from RCX, 8..16 = SystemTable* from RDX).
+    if input.runtime_storage.entry_argument_spill_size > 0 {
+        let spill_base = input.runtime_storage.entry_argument_spill_base;
+        let descriptor_offset = input
+            .runtime_storage
+            .frame_slots
+            .iter()
+            .find_map(|(_, slot)| {
+                (matches!(
+                    slot.kind,
+                    omega_runtime_storage::RuntimeFrameSlotKind::Parameter
+                ) && slot.source_key == input.entry_key)
+                .then_some(slot.byte_offset)
+            });
+        let Some(descriptor_offset) = descriptor_offset else {
+            return;
+        };
+        for index in 0..4u8 {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteEntryArgumentRegister {
+                    argument_index: index,
+                    byte_offset: spill_base + usize::from(index) * 8,
+                },
+                source_key: input.entry_key,
+                source_statement: 0,
+            });
+        }
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor {
+                descriptor_offset,
+                spill_offset: spill_base,
+                byte_length: input.runtime_storage.entry_argument_spill_size,
+            },
+            source_key: input.entry_key,
+            source_statement: 0,
+        });
+        return;
+    }
+
+    // TYPED entry parameters: each declared non-self parameter receives its
+    // argument register directly (`main(handle: addr, table: addr)`).
+    let mut parameter_slots: Vec<(usize, usize)> = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .filter_map(|(_, slot)| {
+            // EXACT key match (segment included): case-payload bindings are
+            // Parameter slots in LATER SEGMENTS of the entry state and are NOT
+            // platform entry arguments.
+            (matches!(
+                slot.kind,
+                omega_runtime_storage::RuntimeFrameSlotKind::Parameter
+            ) && slot.source_key == input.entry_key)
+            .then_some((slot.byte_offset, slot.byte_size))
+        })
+        .collect();
+    parameter_slots.sort_unstable();
+
+    // THE STRUCT-SHAPED HANDOFF (ladder step 3, boundary machines): a BOUNDARY
+    // entry whose sole declared parameter is a multi-word struct receives the
+    // platform's argument registers SPREAD across its 8-byte chunks --
+    // `boundary machine Main::run(&self, handoff: EfiHandoff)` binds RCX to
+    // handoff.handle (+0) and RDX to handoff.table (+8). This is the boundary
+    // contract's shape-over-arrival-bytes, NOT general MS-x64 struct passing
+    // (which passes large aggregates by pointer; there is no caller here --
+    // the platform hands registers, the declaration shapes them).
+    let entry_is_boundary = input
+        .program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == input.entry_key.machine)
+        .is_some_and(|machine| machine.boundary);
+    if entry_is_boundary
+        && let [(byte_offset, byte_size)] = parameter_slots.as_slice()
+        && *byte_size > 8
+        && *byte_size % 8 == 0
+        && *byte_size <= 32
+    {
+        for index in 0..(*byte_size / 8) {
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteEntryArgumentRegister {
+                    argument_index: index as u8,
+                    byte_offset: *byte_offset + index * 8,
+                },
+                source_key: input.entry_key,
+                source_statement: 0,
+            });
+        }
+        return;
+    }
+
+    for (index, (byte_offset, _)) in parameter_slots.into_iter().enumerate().take(4) {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteEntryArgumentRegister {
+                argument_index: index as u8,
+                byte_offset,
+            },
+            source_key: input.entry_key,
+            source_statement: 0,
+        });
+    }
+}
+
 pub(super) fn select_runtime_dispatch_loop_instructions(
     input: &InstructionSelectionInput<'_>,
     operands: &mut Arena<InstructionOperand>,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
+    // The entry prologue's argument unmarshal runs FIRST (the incoming argument
+    // registers are volatile; anything else emitted here may clobber them).
+    select_entry_argument_register_writes(input, selected_instructions);
+
     // Initialize the entry machine's data-field defaults (`data Main { x: i32 = 5 }`)
     // before the dispatch loop, so a field starts at its declared value rather than
     // zero. Runs once at program entry.
@@ -288,7 +415,7 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
 
                 // The synthesized wire encoder/decoder calls surface as
                 // unresolved state calls (no real machine exists for
-                // `Schema::encode_wire` / `Schema::decode_wire`); lower them
+                // `Schema::encode` / `Schema::decode`); lower them
                 // into their append/read sequences before the state-call
                 // machinery skips them.
                 if super::wire_encode::select_wire_encode_call(
@@ -352,20 +479,51 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                         );
                     }
 
-                    select_runtime_dispatch_local_initializer_write(
+                    // A local initialized by a HOST CALL (`let n = self.host.write(
+                    // fd, bytes)`, the ergonomic-wrapper shape) must emit the CALL
+                    // itself — its result operand (argument[0], the synthesized local
+                    // Name from collection) writes into the local's slot. Routing it
+                    // through the value-only local-initializer write and `continue`-ing
+                    // would SILENTLY DROP it (file created, never written). This is the
+                    // local-target sibling of the field-target host-call emission below
+                    // (~line 631). host_call_for_statement is None for a non-host-call
+                    // `let`, so those keep the value-write path.
+                    if let Some(host_call) = host_call_for_statement(
                         input,
-                        dispatch_case.dispatch_index,
                         operation.source_key,
                         operation.statement_index,
-                        runtime_aliases.bindings(),
-                        &runtime_alias_expressions,
-                        &mut local_initializer_expressions,
-                        &mut local_initializer_mutable_expressions,
-                        &mut local_initializer_segment_expressions,
-                        &mut runtime_static_values,
-                        runtime_value_operands,
-                        selected_instructions,
-                    );
+                    ) {
+                        let alias_bindings = runtime_aliases.bindings();
+                        let alias_context = (!alias_bindings.is_empty()).then_some(
+                            RuntimeAliasResolutionContext {
+                                aliases: alias_bindings,
+                                alias_expressions: &runtime_alias_expressions,
+                            },
+                        );
+                        select_host_call(
+                            input,
+                            host_call,
+                            Some(dispatch_case.dispatch_index),
+                            alias_context,
+                            operands,
+                            selected_instructions,
+                        );
+                    } else {
+                        select_runtime_dispatch_local_initializer_write(
+                            input,
+                            dispatch_case.dispatch_index,
+                            operation.source_key,
+                            operation.statement_index,
+                            runtime_aliases.bindings(),
+                            &runtime_alias_expressions,
+                            &mut local_initializer_expressions,
+                            &mut local_initializer_mutable_expressions,
+                            &mut local_initializer_segment_expressions,
+                            &mut runtime_static_values,
+                            runtime_value_operands,
+                            selected_instructions,
+                        );
+                    }
 
                     // Case B: fire AFTER the local initializer write so the
                     // callee's frame slot is populated before the expansion reads it.

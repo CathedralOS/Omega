@@ -1,0 +1,35 @@
+// NATIVE fs directory ops (Rust create_dir / remove_dir) via _mkdir/_rmdir.
+// Creates a directory, creates + writes a file INSIDE it (proving the dir is
+// real), removes the file, then removes the directory. Prints PASS. NOT
+// registered in ACTIVE_PASS_CANARIES yet (canary_suite.rs is hot).
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    dir_mode: i32;
+    file_mode: i32;
+    fd: i32;
+    n: i64;
+    rc: i32;
+}
+
+machine Main::main(&mut self) {
+    self.dir_mode = 493;
+    self.file_mode = 420;
+    self.rc = self.fs.create_dir("/tmp/omega_fsdir", self.dir_mode);
+    transition self.rc == 0 { true -> made() _ -> fail() }
+    state made(&mut self) {
+        self.fd = self.fs.create("/tmp/omega_fsdir/inside.txt", self.file_mode);
+        transition self.fd >= 0 { true -> wrote() _ -> fail() }
+    }
+    state wrote(&mut self) {
+        self.n = self.fs.write(self.fd, "hi");
+        self.n = self.fs.close(self.fd);
+        self.rc = self.fs.remove("/tmp/omega_fsdir/inside.txt");
+        self.rc = self.fs.remove_dir("/tmp/omega_fsdir");
+        transition self.rc == 0 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: create_dir + nested file + remove_dir\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: directory ops\n"); }
+}

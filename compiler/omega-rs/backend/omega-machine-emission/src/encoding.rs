@@ -539,6 +539,28 @@ pub(super) fn encode_machine_instruction_bytes(
             *operator,
             *right,
         ),
+        SelectedInstructionKind::WriteRuntimeMachineIndexedBinary {
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        } => runtime_storage::encode_runtime_machine_indexed_binary_write(
+            input,
+            *base_byte_offset,
+            *index_region,
+            *index_offset,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_size,
+            *left,
+            *operator,
+            *right,
+        ),
         SelectedInstructionKind::WriteRuntimeMachineString {
             byte_offset,
             byte_length,
@@ -839,6 +861,7 @@ pub(super) fn encode_machine_instruction_bytes(
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
             base_byte_offset,
             index_offset,
+            index_region,
             element_byte_size,
             field_byte_offset,
             target_offset,
@@ -848,9 +871,56 @@ pub(super) fn encode_machine_instruction_bytes(
             input,
             *base_byte_offset,
             *index_offset,
+            *index_region,
             *element_byte_size,
             *field_byte_offset,
             *target_offset,
+            *byte_count,
+        ),
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
+            source_region,
+            source_offset,
+            base_byte_offset,
+            index_offset,
+            index_region,
+            element_byte_size,
+            field_byte_offset,
+            byte_count,
+        } => runtime_storage::encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
+            input,
+            *source_region,
+            *source_offset,
+            *base_byte_offset,
+            *index_offset,
+            *index_region,
+            *element_byte_size,
+            *field_byte_offset,
+            *byte_count,
+        ),
+        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
+            source_base_byte_offset,
+            source_index_offset,
+            source_index_region,
+            source_element_byte_size,
+            source_field_byte_offset,
+            target_base_byte_offset,
+            target_index_offset,
+            target_index_region,
+            target_element_byte_size,
+            target_field_byte_offset,
+            byte_count,
+        } => runtime_storage::encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+            input,
+            *source_base_byte_offset,
+            *source_index_offset,
+            *source_index_region,
+            *source_element_byte_size,
+            *source_field_byte_offset,
+            *target_base_byte_offset,
+            *target_index_offset,
+            *target_index_region,
+            *target_element_byte_size,
+            *target_field_byte_offset,
             *byte_count,
         ),
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
@@ -867,6 +937,7 @@ pub(super) fn encode_machine_instruction_bytes(
             *byte_count,
         ),
         SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+            target_region: _,
             pointer_byte_offset,
             field_byte_offset,
             target_offset,
@@ -888,6 +959,8 @@ pub(super) fn encode_machine_instruction_bytes(
         | SelectedInstructionKind::SetDispatchState { .. }
         | SelectedInstructionKind::WriteReturnRegisterInteger { .. }
         | SelectedInstructionKind::CopyRuntimeStorageToReturnRegister { .. }
+        | SelectedInstructionKind::WriteEntryArgumentRegister { .. }
+        | SelectedInstructionKind::WriteEntryArgumentsSliceDescriptor { .. }
         | SelectedInstructionKind::TerminateDispatch
         | SelectedInstructionKind::LeaveDispatchCase
         | SelectedInstructionKind::LeaveDispatchLoop

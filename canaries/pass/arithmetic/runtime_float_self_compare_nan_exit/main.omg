@@ -1,0 +1,29 @@
+// The canonical isNaN idiom: `f != f` is TRUE exactly when f is NaN (IEEE),
+// and `f == f` is FALSE. This was silently miscompiled by the untyped
+// reflexive fold (`x != x -> false` structurally) until the fold was
+// TYPE-GATED (2026-07-02): float self-compares now lower to the real
+// ucomis* runtime compare, whose NaN parity handling the sibling canary
+// runtime_float_nan_comparison_exit pins for distinct operands.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    f: f64;
+}
+machine Main::main(&mut self) {
+    self.f = 0.0 / 0.0;
+    transition self.f != self.f {
+        true -> check_eq()
+        false -> bad()
+    }
+    state check_eq(&mut self) {
+        // NaN == NaN must be FALSE.
+        transition self.f == self.f {
+            true -> bad()
+            false -> good()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

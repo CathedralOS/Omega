@@ -1,6 +1,6 @@
 use super::{SymbolKind, SymbolNameRef};
 
-pub const BUILTIN_TYPE_COUNT: usize = 27;
+pub const BUILTIN_TYPE_COUNT: usize = 28;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinType {
@@ -37,15 +37,20 @@ impl BuiltinType {
 pub enum BuiltinFunction {
     Max,
     Min,
+    /// `sqrt(x)`: a UNARY float intrinsic. It reuses the binary float
+    /// value-write path with both operands set to `x` (the encoder's Sqrt
+    /// arm reads the first SSE register only).
+    Sqrt,
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 2;
+    pub const COUNT: usize = 3;
 
     pub fn name(self) -> &'static str {
         match self {
             Self::Max => "max",
             Self::Min => "min",
+            Self::Sqrt => "sqrt",
         }
     }
 
@@ -53,6 +58,7 @@ impl BuiltinFunction {
         match self {
             Self::Max => 0,
             Self::Min => 1,
+            Self::Sqrt => 2,
         }
     }
 }
@@ -70,6 +76,11 @@ pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_
         (SymbolKind::BuiltinType, SymbolNameRef::Static("u32")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("u64")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("usize")),
+        // `addr` -- a pointer-width ADDRESS type, distinct from `usize`/counts
+        // (index_count_and_address_model brief: address and count are separate
+        // axes). Naive pointer-width for now (rides the 8-byte path); the
+        // in-region/aligned capability discipline is a later rung.
+        (SymbolKind::BuiltinType, SymbolNameRef::Static("addr")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("f32")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("f64")),
         (SymbolKind::BuiltinType, SymbolNameRef::Static("String")),
@@ -115,6 +126,10 @@ pub fn builtin_function_symbols() -> [(SymbolKind, SymbolNameRef<'static>); Buil
         (
             SymbolKind::BuiltinFunction,
             SymbolNameRef::Static(BuiltinFunction::Min.name()),
+        ),
+        (
+            SymbolKind::BuiltinFunction,
+            SymbolNameRef::Static(BuiltinFunction::Sqrt.name()),
         ),
     ]
 }

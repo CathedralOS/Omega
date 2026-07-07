@@ -170,6 +170,9 @@ fn binary_operator_spelling(operator: BinaryOperator) -> Option<OperatorSpelling
         BinaryOperator::Greater => OperatorSpelling::Greater,
         BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
         BinaryOperator::And
+        | BinaryOperator::BitwiseAnd
+        | BinaryOperator::BitwiseOr
+        | BinaryOperator::BitwiseXor
         | BinaryOperator::Or
         | BinaryOperator::ShiftLeft
         | BinaryOperator::ShiftRight => return None,

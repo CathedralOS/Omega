@@ -1,0 +1,16 @@
+// Testing an enum value's membership in a case of a DIFFERENT enum (`self.c in
+// Direction::North` for `c: Color`) lowered to a raw TAG test across unrelated
+// types: Color::Red and Direction::North both tag 0, so it spuriously read TRUE
+// (confirmed miscompile, exit 1). The membership sibling of the cross-enum `==`
+// hole. Rejected at the case-membership lowering now. Same-enum membership
+// (`self.c in Color::Red`, incl. transition match-arm desugars) stays valid.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Color { case Red; case Green; }
+data Direction { case North; case South; }
+data Main { console: Console; c: Color; }
+machine Main::main(&mut self) {
+    self.c = Color::Red;
+    transition self.c in Direction::North { true -> hit() _ -> miss() }
+    state hit(&mut self) { self.console.exit_process(1); }
+    state miss(&mut self) { self.console.exit_process(2); }
+}

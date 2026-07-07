@@ -1,7 +1,7 @@
 // Chapter 20 (Wire Protocols): wire versions name distinct protocol eras, so
 // declaring the same version twice in one schema is rejected.
 
-wire data CounterMessage {
+data CounterMessage {
     version v1 {
         0: counter: i32;
     }
@@ -10,7 +10,7 @@ wire data CounterMessage {
         0: counter: i64;
     }
 
-    reserved 0;
+    retired 0;
     1: counter: i64;
 }
 

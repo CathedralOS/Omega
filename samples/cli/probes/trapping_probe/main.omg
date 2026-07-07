@@ -1,0 +1,20 @@
+// THE EXPLICIT TRAPPING SAMPLE -- the one place in samples/ where `in Trapping`
+// is the feature under test, not a convenience. Everywhere else the corpus
+// posture is: PROVE bounds (Exact, no annotation) or DECLARE wrap semantics
+// (`in Wrapping`). Trapping means: this arithmetic is allowed to be partial,
+// and overflowing it ABORTS the process at the faulting instruction.
+//
+// x = i32::MAX, then x + 1 -> the emitted add is followed by an overflow check
+// that executes ud2, so the process dies with STATUS_ILLEGAL_INSTRUCTION
+// (0xC000001D) and the final exit_process(70) is NEVER reached. The companion
+// canary (arithmetic/runtime_trapping_overflow_traps) runs this shape and
+// asserts the process did NOT exit 70. This sample deliberately carries no
+// exit annotation for the harness: it cannot exit cleanly by design.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; x: i32 in Trapping; }
+machine Main::main(&mut self) {
+    self.x = 2147483647;
+    self.x = self.x + 1;
+    // unreachable: the increment above traps.
+    self.console.exit_process(70);
+}

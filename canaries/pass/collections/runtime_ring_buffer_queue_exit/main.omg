@@ -1,0 +1,116 @@
+// A FIFO ring-buffer queue -- the backbone of schedulers, BFS frontiers, and I/O
+// buffering, and the LIFO stack's counterpart. A fixed [i32;4] backing array with a
+// `head`/`tail` that advance modulo the capacity (the wrap done explicitly: index+1,
+// then reset to 0 at the end) and a `count` guarding against over/underflow. The test
+// interleaves to force the tail (and later the head) to wrap mid-stream: enqueue 1..4
+// (fills, tail wraps to 0), dequeue 2, enqueue 5,6 (tail wraps again), dequeue the rest.
+// Each dequeue is checked against a running `expect` counter, so the canary fails loudly
+// (exits the wrong value) if FIFO order is ever violated. All 1..6 in order -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    buf: [i32; 4] in Wrapping;
+    head: i32 in Wrapping;   // next dequeue slot
+    tail: i32 in Wrapping;   // next enqueue slot
+    count: i32 in Wrapping;  // live elements
+    nv: i32 in Wrapping;     // next value to enqueue (1, 2, 3, ...)
+    expect: i32 in Wrapping; // next value FIFO order must yield
+    v: i32 in Wrapping;      // last dequeued value
+    phase: i32 in Wrapping;  // which interleaved phase to resume into
+}
+
+machine Main::main(&mut self) {
+    self.head = 0;
+    self.tail = 0;
+    self.count = 0;
+    self.nv = 1;
+    self.expect = 1;
+    transition { _ -> fill_a() }
+
+    // Phase 0: enqueue 1..4 (fills the buffer, tail wraps to 0).
+    state fill_a(&mut self) {
+        self.phase = 0;
+        transition self.nv <= 4 { true -> enq() _ -> drain_a() }
+    }
+    // Phase 1: dequeue two (head advances).
+    state drain_a(&mut self) {
+        self.phase = 1;
+        transition self.expect <= 2 { true -> deq() _ -> fill_b() }
+    }
+    // Phase 2: enqueue 5,6 into the freed slots (tail wraps again).
+    state fill_b(&mut self) {
+        self.phase = 2;
+        transition self.nv <= 6 { true -> enq() _ -> drain_b() }
+    }
+    // Phase 3: drain the rest.
+    state drain_b(&mut self) {
+        self.phase = 3;
+        transition self.count > 0 { true -> deq() _ -> verify() }
+    }
+
+    // enqueue self.nv
+    state enq(&mut self) {
+        transition self.count >= 0 && self.count < 4 { true -> enq_at() _ -> bad() }
+    }
+    state enq_at(&mut self) {
+        transition self.tail >= 0 && self.tail < 4 { true -> enq_write() _ -> bad() }
+    }
+    state enq_write(&mut self) {
+        self.buf[self.tail] = self.nv;
+        self.tail = self.tail + 1;
+        self.count = self.count + 1;
+        self.nv = self.nv + 1;
+        transition self.tail >= 4 { true -> enq_wrap() _ -> resume() }
+    }
+    state enq_wrap(&mut self) {
+        self.tail = 0;
+        transition { _ -> resume() }
+    }
+
+    // dequeue into self.v, checking FIFO order against self.expect
+    state deq(&mut self) {
+        transition self.head >= 0 && self.head < 4 { true -> deq_read() _ -> bad() }
+    }
+    state deq_read(&mut self) {
+        self.v = self.buf[self.head];
+        transition self.v == self.expect { true -> deq_adv() _ -> wrong() }
+    }
+    state deq_adv(&mut self) {
+        self.head = self.head + 1;
+        self.count = self.count - 1;
+        self.expect = self.expect + 1;
+        transition self.head >= 4 { true -> deq_wrap() _ -> resume() }
+    }
+    state deq_wrap(&mut self) {
+        self.head = 0;
+        transition { _ -> resume() }
+    }
+
+    // route back to the phase loop that called enq/deq
+    state resume(&mut self) {
+        transition self.phase == 0 { true -> fill_a() _ -> resume_1() }
+    }
+    state resume_1(&mut self) {
+        transition self.phase == 1 { true -> drain_a() _ -> resume_2() }
+    }
+    state resume_2(&mut self) {
+        transition self.phase == 2 { true -> fill_b() _ -> drain_b() }
+    }
+
+    state verify(&mut self) {
+        // dequeued 1,2,3,4,5,6 in order -> expect advanced to 7
+        transition self.expect == 7 { true -> good() _ -> wrong() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(self.expect); // surface where FIFO order broke
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

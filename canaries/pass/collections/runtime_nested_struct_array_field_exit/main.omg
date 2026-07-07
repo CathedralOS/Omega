@@ -1,0 +1,48 @@
+// Nested data: a struct field that is an ARRAY OF STRUCTS (`self.g.pts[k].x`), const-indexed,
+// with the sub-fields written and then READ AS BINARY OPERANDS in an accumulation. Exercises the
+// full path self -> g (struct) -> pts (array) -> [k] (struct) -> x/y (scalar), native==interp.
+//
+// BOUNDARY (documented gap, NOT exercised here): `arr[i].field` with a RUNTIME index `i` used as a
+// binary operand is refused (see memory array-of-structs-indexing). This canary uses CONST indices,
+// the working subset -- it locks that const-indexed array-of-structs field arithmetic works.
+//
+// Sum = pts[0].x + pts[1].x + pts[2].x + pts[2].y = 20 + 30 + 18 + 2 = 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Pt {
+    x: i32 in Wrapping;
+    y: i32 in Wrapping;
+}
+
+data Grid {
+    pts: [Pt; 3];
+    tag: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    g: Grid;
+    s: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.g.pts[0].x = 20;
+    self.g.pts[1].x = 30;
+    self.g.pts[2].x = 18;
+    self.g.pts[2].y = 2;
+    self.s = self.g.pts[0].x + self.g.pts[1].x;
+    self.s = self.s + self.g.pts[2].x;
+    self.s = self.s + self.g.pts[2].y;
+    transition self.s == 70 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(self.s);
+    }
+}

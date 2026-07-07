@@ -233,24 +233,68 @@ fn scan_construction_field_domains(
                     type_name.as_str(),
                     case_name.as_ref().map(|name| name.as_str()),
                     field.name.as_str(),
-                ) && !value_proves_domain(
-                    program,
-                    facts,
-                    state_flow,
-                    statement_index,
-                    field.value,
-                    domain_symbol,
                 ) {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "construction of `{}` field `{}` is not proven in domain `{}`; \
-                         a field declared `in {}` requires every construction value to be \
-                         established in that domain (construct with a literal the domain's \
-                         classifier accepts, or a value already proven in the domain)",
-                        type_name.as_str(),
-                        field.name.as_str(),
-                        symbol_name(program, domain_symbol),
-                        symbol_name(program, domain_symbol),
-                    )));
+                    // (a) The constructed value must be established in the domain.
+                    if !value_proves_domain(
+                        program,
+                        facts,
+                        state_flow,
+                        statement_index,
+                        field.value,
+                        domain_symbol,
+                    ) {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "construction of `{}` field `{}` is not proven in domain `{}`; \
+                             a field declared `in {}` requires every construction value to be \
+                             established in that domain (construct with a literal the domain's \
+                             classifier accepts, or a value already proven in the domain)",
+                            type_name.as_str(),
+                            field.name.as_str(),
+                            symbol_name(program, domain_symbol),
+                            symbol_name(program, domain_symbol),
+                        )));
+                    }
+                    // (b) CAPACITY: a bounded `[u8; N]` text carrier field must not be
+                    // constructed with a value longer than N -- the construction parallel
+                    // of the assignment length-fits check (1b). A too-long literal would
+                    // otherwise overflow the field's inline storage. Only fires for a
+                    // domain-carrying `[u8; N]` field (view carriers have no capacity).
+                    if let Some(machine) = program
+                        .machines()
+                        .iter()
+                        .find(|machine| machine.symbol == state_flow.machine_symbol)
+                        && let Some(field_type) = construction_field_type_by_name(
+                            program,
+                            type_name.as_str(),
+                            case_name.as_ref().map(|name| name.as_str()),
+                            field.name.as_str(),
+                        )
+                        && let Some(capacity) =
+                            crate::field_domain::type_reference_fixed_array_capacity(
+                                program, field_type,
+                            )
+                    {
+                        match static_max_byte_length(program, machine, field.value) {
+                            Some(max_length) if max_length <= capacity => {}
+                            Some(max_length) => diagnostics.push(Diagnostic::error(format!(
+                                "construction of `{}` field `{}` supplies a value up to \
+                                 {max_length} byte(s), exceeding the {capacity}-byte capacity of \
+                                 its `[u8; {capacity}]` carrier; a bounded text carrier requires \
+                                 every write to provably fit",
+                                type_name.as_str(),
+                                field.name.as_str(),
+                            ))),
+                            None => diagnostics.push(Diagnostic::error(format!(
+                                "cannot bound the maximum byte length of the value constructing \
+                                 `{}` field `{}`; a bounded `[u8; {capacity}]` text carrier \
+                                 requires a write whose length is statically bounded (a literal, \
+                                 a concatenation of bounded operands, or another bounded carrier) \
+                                 so it provably fits",
+                                type_name.as_str(),
+                                field.name.as_str(),
+                            ))),
+                        }
+                    }
                 }
                 scan_construction_field_domains(
                     program,
@@ -414,6 +458,26 @@ fn construction_field_domain_symbol(
 
 /// The declared type of a constructed field (a case PAYLOAD field for the named
 /// variant, else a record/common FIELD member).
+/// The declared type of a constructed field, resolved from the type NAME (looks
+/// the definition up, then delegates to [`construction_field_type`]). Used by the
+/// construction-position capacity check, mirroring how
+/// `construction_field_domain_symbol` resolves the field's domain.
+fn construction_field_type_by_name(
+    program: &omega_typed_trees::TypedTrees,
+    type_name: &str,
+    case_name: Option<&str>,
+    field_name: &str,
+) -> Option<TypeReferenceHandle> {
+    let data_definition = program
+        .data_definitions()
+        .iter()
+        .find(|definition| definition.name.as_str() == type_name)?;
+    if data_definition.type_parameters.count() > 0 {
+        return None;
+    }
+    construction_field_type(program, data_definition, case_name, field_name)
+}
+
 fn construction_field_type(
     program: &omega_typed_trees::TypedTrees,
     data_definition: &omega_typed_trees::data::DataDefinition,

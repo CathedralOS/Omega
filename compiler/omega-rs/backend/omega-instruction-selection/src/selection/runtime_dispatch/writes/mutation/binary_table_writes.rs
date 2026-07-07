@@ -276,10 +276,19 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
                 binary.right,
             ),
             ExpressionNode::Call(call) => {
-                let operator = builtin_runtime_call_operator_in_table(input, call)?;
-                let left = expressions.expression_handle_at_offset(call.arguments, 0);
-                let right = expressions.expression_handle_at_offset(call.arguments, 1);
-                (operator, None, left, right)
+                // `sqrt(x)` (a unary builtin) rides the binary float path with
+                // BOTH operands = x; the encoder's Sqrt arm reads xmm0 only.
+                if let Some(operator) =
+                    super::operators::builtin_runtime_unary_call_operator_in_table(input, call)
+                {
+                    let x = expressions.expression_handle_at_offset(call.arguments, 0);
+                    (operator, None, x, x)
+                } else {
+                    let operator = builtin_runtime_call_operator_in_table(input, call)?;
+                    let left = expressions.expression_handle_at_offset(call.arguments, 0);
+                    let right = expressions.expression_handle_at_offset(call.arguments, 1);
+                    (operator, None, left, right)
+                }
             }
             _ => return None,
         };
@@ -687,10 +696,19 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_bin
                 binary.right,
             ),
             ExpressionNode::Call(call) => {
-                let operator = builtin_runtime_call_operator_in_table(input, call)?;
-                let left = expressions.expression_handle_at_offset(call.arguments, 0);
-                let right = expressions.expression_handle_at_offset(call.arguments, 1);
-                (operator, None, left, right)
+                // `sqrt(x)` (a unary builtin) rides the binary float path with
+                // BOTH operands = x; the encoder's Sqrt arm reads xmm0 only.
+                if let Some(operator) =
+                    super::operators::builtin_runtime_unary_call_operator_in_table(input, call)
+                {
+                    let x = expressions.expression_handle_at_offset(call.arguments, 0);
+                    (operator, None, x, x)
+                } else {
+                    let operator = builtin_runtime_call_operator_in_table(input, call)?;
+                    let left = expressions.expression_handle_at_offset(call.arguments, 0);
+                    let right = expressions.expression_handle_at_offset(call.arguments, 1);
+                    (operator, None, left, right)
+                }
             }
             _ => return None,
         };
@@ -855,18 +873,9 @@ fn narrow_f32_literal_operands(
 }
 
 /// Byte size of a scalar primitive, or `None` for non-scalar (e.g. `String`).
+/// Delegates to the single source of truth on `PrimitiveType`.
 fn scalar_primitive_byte_size(primitive: PrimitiveType) -> Option<usize> {
-    match primitive {
-        PrimitiveType::Bool | PrimitiveType::I8 | PrimitiveType::U8 => Some(1),
-        PrimitiveType::I16 | PrimitiveType::U16 => Some(2),
-        PrimitiveType::F32 | PrimitiveType::I32 | PrimitiveType::U32 => Some(4),
-        PrimitiveType::F64
-        | PrimitiveType::I64
-        | PrimitiveType::U64
-        | PrimitiveType::Usize
-        | PrimitiveType::Isize => Some(8),
-        PrimitiveType::String => None,
-    }
+    primitive.scalar_byte_size()
 }
 
 /// A numeric `as` cast assigned to a storage place (`self.n = self.a as i32`):
@@ -996,7 +1005,11 @@ fn build_runtime_convert_write(
 
     let target_byte_size = scalar_primitive_byte_size(target_primitive)?;
     let source_byte_size = scalar_primitive_byte_size(source_primitive)?;
-    if !matches!(target_byte_size, 1 | 4 | 8) || !matches!(source_byte_size, 1 | 4 | 8) {
+    // The convert encoder handles 1/2/4/8-byte integer widths: a 2-byte source is
+    // movzx/movsx-extended like a 1-byte one, and a 2-byte target stores through
+    // the 0x66-prefixed word form (same pipeline as 16-bit arithmetic). 16-byte+
+    // and unmapped widths are still unsupported.
+    if !matches!(target_byte_size, 1 | 2 | 4 | 8) || !matches!(source_byte_size, 1 | 2 | 4 | 8) {
         return None;
     }
 

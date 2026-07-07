@@ -92,6 +92,17 @@ fn selected_instruction_name(
             ..
         } => format!("atomic compare_exchange {target_region:?}[{target_offset}] ({byte_size}B)"),
         TargetOperationKind::EnterFunction => "enter function".to_owned(),
+        TargetOperationKind::WriteEntryArgumentRegister {
+            argument_index,
+            byte_offset,
+        } => format!("entry prologue: arg register #{argument_index} -> Frame[{byte_offset}]"),
+        TargetOperationKind::WriteEntryArgumentsSliceDescriptor {
+            descriptor_offset,
+            spill_offset,
+            byte_length,
+        } => format!(
+            "entry prologue: args descriptor Frame[{descriptor_offset}] = {{ptr Frame[{spill_offset}], len {byte_length}}}"
+        ),
         TargetOperationKind::EnterDispatchLoop {
             entry_dispatch_index,
             terminal_dispatch_index,
@@ -700,6 +711,23 @@ fn selected_instruction_name(
                 runtime_value_operand_name(backend_plan, *right),
             )
         }
+        SelectedInstructionKind::WriteRuntimeMachineIndexedBinary {
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        } => {
+            format!(
+                "write runtime-machine indexed binary machine@{base_byte_offset} index({index_region:?})@{index_offset} elem {element_byte_size} field +{field_byte_offset} bytes {byte_size} {} {operator:?} {}",
+                runtime_value_operand_name(backend_plan, *left),
+                runtime_value_operand_name(backend_plan, *right),
+            )
+        }
         SelectedInstructionKind::WriteRuntimeMachineString {
             byte_offset,
             data,
@@ -972,6 +1000,7 @@ fn selected_instruction_name(
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
             base_byte_offset,
             index_offset,
+            index_region,
             element_byte_size,
             field_byte_offset,
             target_region,
@@ -981,7 +1010,40 @@ fn selected_instruction_name(
             let target_symbol =
                 storage_region_symbol_name(*target_region, backend_plan.entry_machine_name());
             format!(
-                "copy runtime-machine indexed base@{base_byte_offset} index@{index_offset} elem {element_byte_size} field +{field_byte_offset} -> {target_symbol}@{target_offset} bytes {byte_count}"
+                "copy runtime-machine indexed base@{base_byte_offset} index@{index_offset}({index_region:?}) elem {element_byte_size} field +{field_byte_offset} -> {target_symbol}@{target_offset} bytes {byte_count}"
+            )
+        }
+        SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
+            source_region,
+            source_offset,
+            base_byte_offset,
+            index_offset,
+            index_region,
+            element_byte_size,
+            field_byte_offset,
+            byte_count,
+        } => {
+            let source_symbol =
+                storage_region_symbol_name(*source_region, backend_plan.entry_machine_name());
+            format!(
+                "copy runtime storage {source_symbol}@{source_offset} -> runtime-machine indexed base@{base_byte_offset} index@{index_offset}({index_region:?}) elem {element_byte_size} field +{field_byte_offset} bytes {byte_count}"
+            )
+        }
+        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
+            source_base_byte_offset,
+            source_index_offset,
+            source_index_region,
+            source_element_byte_size,
+            source_field_byte_offset,
+            target_base_byte_offset,
+            target_index_offset,
+            target_index_region,
+            target_element_byte_size,
+            target_field_byte_offset,
+            byte_count,
+        } => {
+            format!(
+                "copy runtime-machine indexed base@{source_base_byte_offset} index@{source_index_offset}({source_index_region:?}) elem {source_element_byte_size} field +{source_field_byte_offset} -> runtime-machine indexed base@{target_base_byte_offset} index@{target_index_offset}({target_index_region:?}) elem {target_element_byte_size} field +{target_field_byte_offset} bytes {byte_count}"
             )
         }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
@@ -998,6 +1060,7 @@ fn selected_instruction_name(
             )
         }
         SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+            target_region: _,
             pointer_byte_offset,
             field_byte_offset,
             target_offset,

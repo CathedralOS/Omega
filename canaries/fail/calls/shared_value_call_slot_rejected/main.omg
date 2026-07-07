@@ -1,0 +1,14 @@
+// SILENT MISCOMPILE STOPGAP: a pure computing value-machine (returns a `let`-bound local,
+// writes no field) called 2+ times as a value in ONE state used to make every call site read
+// the LAST result -- the callee's internal `let` slot is allocated once per caller state and
+// reused across the inlined call sites. Native emission now rejects the shape instead of
+// miscompiling it. Sound workaround: one such value-call per state (compute, transition, repeat).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; f: i32 in Wrapping; g: i32 in Wrapping; }
+machine Main::dbl(&self, x: i32 in Wrapping) -> i32 in Wrapping { let r: i32 in Wrapping = x * 2; transition { _ -> r } }
+machine Main::main(&mut self) {
+    self.f = self.dbl(5);
+    self.g = self.dbl(6);
+    transition { _ -> done() }
+    state done(&mut self) { self.console.exit_process(self.f); }
+}

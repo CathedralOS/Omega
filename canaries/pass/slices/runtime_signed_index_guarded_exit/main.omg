@@ -1,0 +1,62 @@
+// Signed indices are NOT banned -- they are allowed when the `0 <= i` half of the
+// index obligation is PROVEN. Here `j` is a SIGNED i32 decreasing counter (a
+// decreasing counter must be signed: it relies on running below 0 to terminate),
+// and its `j >= 0` loop guard establishes the lower bound while the
+// decreasing-counter loop invariant establishes the upper bound (j < 4). So
+// `nums[self.j]` proves with both halves and the program runs.
+//
+//   sum = nums[3] + nums[2] + nums[1] + nums[0] = 4 + 3 + 2 + 1 = 10.  Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 4] in Trapping;
+    j: i32 in Trapping;
+    sum: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.nums[0] = 1;
+    self.nums[1] = 2;
+    self.nums[2] = 3;
+    self.nums[3] = 4;
+    self.j = 3;
+    self.sum = 0;
+
+    transition {
+        _ -> loop_()
+    }
+
+    state loop_(&mut self) {
+        transition self.j >= 0 {
+            true -> body()
+            _ -> done()
+        }
+    }
+
+    state body(&mut self) {
+        self.sum = self.sum + self.nums[self.j];
+        self.j = self.j - 1;
+        transition {
+            _ -> loop_()
+        }
+    }
+
+    state done(&mut self) {
+        transition self.sum == 10 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

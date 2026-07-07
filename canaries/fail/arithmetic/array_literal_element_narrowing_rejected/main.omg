@@ -1,0 +1,24 @@
+// FAIL canary: decision-17 checks at the ARRAY-LITERAL element boundary. An array
+// literal element that does not fit the array's element type -- `[300, 0, 0]` into
+// a `[i8; 3]` -- is a narrowing store, and a cross-class element (`[true, 0, 0]`)
+// is a class mismatch. Both were SILENT MISCOMPILES: the assignment class/narrow
+// guards only see the ARRAY target (not a scalar primitive), so element values
+// slipped -- `300` truncated to `44`, `true` stored as `1`. Each element is now
+// checked against the element type, the array-literal complement of the scalar
+// store and struct-construction obligations. In-range elements and explicit `as`
+// casts stay fine.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a: [i8 in Wrapping; 3];
+}
+
+machine Main::main(&mut self) {
+    self.a = [300, 0, 0]; // element 300 does not fit i8 -- narrowing, not provably in range
+    let code: i32 = self.a[0] as i32;
+    self.console.exit_process(code);
+}

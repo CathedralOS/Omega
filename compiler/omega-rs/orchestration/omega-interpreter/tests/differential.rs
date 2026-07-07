@@ -27,6 +27,26 @@ use std::process::{Command, Stdio};
 /// `output.status.code() == Some(N)`).
 const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_chained_field_mutation_exit", 70),
+    ("arithmetic/runtime_comparison_signedness_exit", 70),
+    ("arithmetic/runtime_shift_signedness_exit", 70),
+    ("arithmetic/runtime_shift_in_guard_exit", 70),
+    ("arithmetic/runtime_cast_in_guard_exit", 70),
+    ("arithmetic/runtime_parenthesized_guard_subjects_exit", 70),
+    ("arithmetic/runtime_and_of_or_guard_exit", 70),
+    ("arithmetic/runtime_negated_boolean_nesting_guard_exit", 70),
+    ("arithmetic/runtime_guard_feature_composition_exit", 70),
+    ("arithmetic/runtime_saturating_narrow_add_sub_exit", 70),
+    ("arithmetic/runtime_unsigned_high_bit_u32_ops_exit", 70),
+    ("arithmetic/runtime_integer_casts_exit", 70),
+    ("arithmetic/runtime_mixed_width_sign_exit", 70),
+    ("arithmetic/runtime_saturating_narrow_divide_exit", 70),
+    ("arithmetic/runtime_narrow_signed_divide_guard_exit", 70),
+    ("arithmetic/runtime_narrow_signed_guard_ops_exit", 70),
+    ("arithmetic/runtime_narrow_signed_wrap_boundaries_exit", 70),
+    ("arithmetic/runtime_domain_boundaries_exit", 70),
+    ("arithmetic/runtime_float_compare_cast_exit", 70),
+    ("arithmetic/runtime_i64_divide_modulo_exit", 70),
+    ("arithmetic/runtime_float_operations_exit", 70),
     ("arithmetic/runtime_comparison_guard_signedness_exit", 70),
     ("arithmetic/runtime_comparison_value_signedness_exit", 70),
     ("arithmetic/runtime_copy_then_read_exit", 70),
@@ -35,23 +55,61 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_i64_full_width_exit", 70),
     ("arithmetic/runtime_inferred_multipath_return_exit", 70),
     ("arithmetic/runtime_inferred_return_range_exit", 70),
+    ("arithmetic/runtime_fnv1a_hash_exit", 70),
     ("arithmetic/runtime_min_max_clamp_narrowing_exit", 70),
+    ("arithmetic/runtime_float_running_min_max_fold_exit", 70),
     ("arithmetic/runtime_min_max_signedness_exit", 70),
     ("arithmetic/runtime_modulo_div_narrowing_exit", 70),
+    ("calls/runtime_min_max_guard_subject_hoist_exit", 70),
+    ("calls/runtime_min_guard_true_false_pair_exit", 70),
     ("arithmetic/runtime_payload_range_narrowing_exit", 70),
     ("arithmetic/runtime_provable_field_construction_exit", 70),
     ("arithmetic/runtime_signed_division_exit", 70),
+    ("arithmetic/runtime_shift_right_signedness", 70),
+    ("arithmetic/const_fold_cast_signedness", 70),
+    ("arithmetic/wrapping_signed_divide_min_by_neg_one", 70),
+    ("arithmetic/saturating_signed_divide_min_by_neg_one", 70),
+    ("arithmetic/saturating_multiply_overflow_both_signs", 70),
+    ("arithmetic/f32_field_store_rounding", 70),
+    ("arithmetic/f32_transition_arg_rounding", 70),
+    ("arithmetic/int_transition_arg_width_wrap", 70),
+    ("arithmetic/array_element_write_width_domain", 70),
+    ("arithmetic/struct_literal_field_coercion", 70),
     ("arithmetic/runtime_struct_field_range_narrowing_exit", 70),
-    ("arithmetic/runtime_transition_arg_false_arm_narrowing_exit", 70),
+    (
+        "arithmetic/runtime_transition_arg_false_arm_narrowing_exit",
+        70,
+    ),
     ("arithmetic/runtime_transition_arg_guard_narrowing_exit", 70),
+    ("arithmetic/runtime_transition_value_guard_narrowing_exit", 42),
+    ("arithmetic/runtime_requires_one_sided_bound_exit", 42),
     ("arithmetic/runtime_transition_arg_saturating_exit", 70),
     ("arithmetic/runtime_unsigned_division_exit", 70),
+    ("arithmetic/runtime_float_negative_ops_exit", 70),
+    ("arithmetic/runtime_float32_array_conversion_exit", 70),
+    ("arithmetic/runtime_signed_modulo_shift_edges_exit", 70),
+    ("arithmetic/runtime_unsigned_high_comparison_exit", 70),
+    ("arithmetic/runtime_bitwise_high_ops_exit", 70),
+    ("arithmetic/runtime_cast_sign_zero_extension_exit", 70),
+    ("arithmetic/runtime_i64_signed_arithmetic_exit", 70),
+    ("arithmetic/runtime_saturating_domain_exit", 70),
+    ("arithmetic/runtime_float_nan_comparison_exit", 70),
+    ("arithmetic/runtime_gcd_euclid_exit", 70),
+    ("arithmetic/runtime_monte_carlo_pi_exit", 70),
+    ("arithmetic/runtime_newton_sqrt_exit", 70),
     ("arithmetic/runtime_unsigned_modulo_call_argument_exit", 70),
     ("arithmetic/runtime_unsigned_modulo_cast_operand_exit", 70),
     (
         "borrow/runtime_view_linked_input_unrelated_ref_write_exit",
         70,
     ),
+    ("calls/runtime_option_value_call_exit", 70),
+    ("calls/runtime_struct_value_call_exit", 70),
+    ("calls/runtime_value_call_composition_exit", 70),
+    ("calls/runtime_struct_by_value_param_exit", 70),
+    ("calls/runtime_computed_transition_args_exit", 70),
+    ("calls/runtime_value_call_to_array_element_exit", 70),
+    ("calls/runtime_cross_machine_substate_name_exit", 70),
     (
         "calls/runtime_alias_indexed_read_through_transition_exit",
         70,
@@ -61,6 +119,11 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         70,
     ),
     ("calls/runtime_assignment_call_post_mutation_value_exit", 70),
+    ("calls/runtime_value_call_return_types_exit", 70),
+    ("calls/runtime_contained_machine_exit", 70),
+    ("calls/runtime_value_call_struct_literal_arms_exit", 70),
+    ("calls/runtime_value_call_self_field_enum_match_exit", 70),
+    ("calls/runtime_value_call_struct_result_to_target_exit", 70),
     ("calls/runtime_call_in_inlined_substate_exit", 70),
     ("calls/runtime_call_result_after_splice_mutation_exit", 70),
     (
@@ -73,12 +136,31 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/transition_arg_local_from_embedded_call_exit", 70),
     ("calls/value_call_embedded_in_binary_exit", 70),
     ("calls/runtime_value_call_slice_view_element_arg_exit", 70),
-    ("control_flow/no_payload_case_variant_after_payload_dispatch_exit", 70),
+    (
+        "control_flow/no_payload_case_variant_after_payload_dispatch_exit",
+        70,
+    ),
     ("control_flow/case_payload_shared_field_name_exit", 70),
-    ("control_flow/runtime_captured_local_remutated_field_exit", 70),
+    ("control_flow/sum_mixed_width_payload_layout", 70),
+    ("control_flow/sum_field_storage_roundtrip", 70),
+    ("control_flow/runtime_linear_search_early_exit", 70),
+    ("control_flow/runtime_entry_return_field_exit", 200),
+    ("control_flow/runtime_multi_field_payload_arith_exit", 70),
+    ("control_flow/runtime_nested_loop_grid_sum_exit", 70),
+    (
+        "control_flow/runtime_captured_local_remutated_field_exit",
+        70,
+    ),
+    (
+        "control_flow/runtime_composite_initializer_local_arg_exit",
+        70,
+    ),
+    ("control_flow/runtime_loop_patterns_exit", 70),
     ("calls/runtime_called_machine_loop_search_exit", 70),
     ("calls/runtime_dispatch_binary_call_argument_exit", 70),
     ("calls/runtime_exit_code_exit", 70),
+    ("host/runtime_sleep_exit", 70),
+    ("host/runtime_write_no_newline_exit", 70),
     ("calls/runtime_explicit_discard_executes_exit", 70),
     ("calls/runtime_free_machine_looping_value_call_exit", 70),
     ("calls/runtime_free_machine_struct_arg_exit", 70),
@@ -150,6 +232,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         "calls/runtime_two_string_call_results_through_reference_fields_exit",
         194,
     ),
+    ("calls/runtime_slice_length_field_exit", 5),
     ("calls/runtime_value_call_single_execution_exit", 70),
     ("calls/runtime_value_call_slice_len_guard_exit", 70),
     ("calls/value_call_sequential_result_slots_exit", 70),
@@ -159,9 +242,101 @@ const RUN_CANARIES: &[(&str, i32)] = &[
         70,
     ),
     ("calls/runtime_value_position_branching_call_exit", 70),
+    ("calls/runtime_value_call_let_combine_exit", 70),
     ("calls/runtime_value_transition_unsigned_guard_exit", 70),
     ("collections/runtime_fixed_vec_round_trip_exit", 70),
+    ("collections/runtime_write_first_loop_index_exit", 70),
+    ("collections/runtime_loop_counter_init_hoisted_exit", 70),
+    ("collections/runtime_nested_loop_fill_exit", 70),
+    ("collections/runtime_computed_array_fill_via_temp_exit", 70),
+    ("collections/runtime_computed_indexed_write_exit", 70),
+    ("collections/runtime_indexed_guard_true_false_pair_exit", 70),
+    ("collections/runtime_indexed_field_local_operand_exit", 70),
+    ("collections/runtime_indexed_local_bitwise_exit", 70),
+    ("collections/runtime_indexed_local_compare_exit", 70),
+    ("collections/runtime_indexed_rmw_loop_exit", 70),
+    ("collections/runtime_indexed_reduction_loop_exit", 70),
+    ("collections/runtime_array_max_and_sum_exit", 70),
+    ("generics/runtime_generic_record_instance_exit", 70),
+    ("generics/runtime_generic_two_instantiations_exit", 30),
+    ("generics/runtime_generic_domain_instantiations_exit", 42),
+    ("generics/runtime_generic_let_local_instantiations_exit", 30),
+    ("generics/runtime_nested_generic_instantiations_exit", 30),
+    ("generics/runtime_generic_enum_payload_exit", 70),
+    ("generics/runtime_generic_value_call_exit", 70),
+    ("generics/runtime_generic_value_call_agreeing_exit", 70),
+    ("generics/runtime_generic_param_position_inference_exit", 70),
+    ("host/runtime_tick_count_monotonic_exit", 70),
+    ("host/runtime_user32_key_state_exit", 70),
+    ("host/runtime_tick_paced_marquee_exit", 0),
+    ("host/runtime_gui_memory_dc_blit_exit", 70),
+    ("host/runtime_gui_window_blit_exit", 70),
+    ("host/runtime_gui_window_lifecycle_exit", 70),
+    ("arithmetic/runtime_nested_payload_range_narrowing_exit", 70),
+    ("arithmetic/runtime_guard_proven_counter_exit", 70),
+    ("arithmetic/runtime_guard_narrowed_transition_arg_exit", 70),
+    ("collections/runtime_indexed_guard_subject_exit", 70),
+    ("collections/runtime_array_min_max_builtin_exit", 70),
+    ("collections/runtime_dual_indexed_comparison_guard_exit", 70),
+    ("collections/runtime_rule90_automaton_exit", 70),
+    ("collections/runtime_whole_array_value_copy_exit", 70),
+    ("collections/runtime_nested_array_const_index_exit", 70),
+    ("collections/runtime_row_const_column_write_exit", 70),
+    ("collections/runtime_indexed_read_then_guard_exit", 70),
+    ("collections/std_option_runtime_match_exit", 70),
+    ("collections/runtime_indexed_struct_write_loop_exit", 70),
+    ("collections/runtime_struct_field_temp_arith_exit", 70),
+    ("collections/runtime_two_indexed_reads_binary_exit", 70),
+    ("collections/runtime_enum_grid_scan_exit", 70),
+    ("collections/runtime_nested_struct_array_field_exit", 70),
+    ("collections/runtime_binary_search_exit", 70),
+    ("collections/runtime_2d_transpose_exit", 70),
+    ("collections/runtime_bubble_sort_exit", 70),
+    ("collections/runtime_rpn_evaluator_exit", 70),
+    ("collections/runtime_ring_buffer_queue_exit", 70),
+    ("collections/runtime_matrix_multiply_exit", 70),
+    ("collections/runtime_hash_table_exit", 70),
+    ("collections/runtime_bfs_traversal_exit", 70),
+    ("collections/runtime_coin_change_dp_exit", 70),
+    ("collections/runtime_nqueens_backtracking_exit", 70),
+    ("collections/runtime_maze_pathfind_exit", 70),
+    ("collections/runtime_activity_selection_greedy_exit", 70),
+    ("collections/runtime_indexed_through_guard_chain_exit", 70),
+    ("collections/runtime_two_pointer_palindrome_exit", 70),
     ("comptime/runtime_const_array_length_exit", 70),
+    ("layouts/runtime_plan_laid_value_field_exit", 70),
+    ("layouts/runtime_plan_laid_value_by_value_param_exit", 70),
+    ("collections/runtime_dual_indexed_guard_compare_exit", 70),
+    (
+        "collections/runtime_cross_array_indexed_guard_compare_exit",
+        70,
+    ),
+    ("collections/runtime_dual_indexed_guard_equality_exit", 70),
+    ("collections/runtime_dual_indexed_copy_exit", 50),
+    ("collections/runtime_dual_indexed_copy_in_loop_exit", 70),
+    (
+        "collections/runtime_indexed_write_frame_local_source_exit",
+        70,
+    ),
+    ("collections/runtime_indexed_local_copy_chain_exit", 70),
+    (
+        "collections/runtime_inplace_reverse_local_temp_exit",
+        70,
+    ),
+    ("control_flow/runtime_captured_local_swap_exit", 70),
+    ("calls/runtime_same_type_contained_direct_fields_exit", 70),
+    ("calls/runtime_shared_ref_param_member_exit", 42),
+    ("collections/runtime_palindrome_two_pointer_exit", 70),
+    ("collections/runtime_bracket_matcher_stack_exit", 70),
+    ("collections/runtime_argmax_index_exit", 70),
+    ("control_flow/runtime_sum_field_store_payload_exit", 70),
+    ("arithmetic/runtime_float_self_compare_nan_exit", 70),
+    ("arithmetic/runtime_abs_desugar_exit", 70),
+    ("arithmetic/runtime_sqrt_builtin_exit", 70),
+    ("arithmetic/runtime_clamp_desugar_exit", 70),
+    ("arithmetic/runtime_clamp_narrowing_exit", 100),
+    ("arithmetic/runtime_negative_float_to_int_exit", 70),
+    ("arithmetic/runtime_float_min_max_abs_clamp_exit", 70),
     ("comptime/runtime_const_array_length_transitive_exit", 70),
     ("comptime/runtime_const_array_length_bare_call_arm_exit", 70),
     ("borrow/runtime_view_of_view_chain_exit", 70),
@@ -215,6 +390,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("control_flow/runtime_straight_line_terminal_local_exit", 70),
     ("control_flow/runtime_tuple_transition_exit", 22),
     ("data/case_membership_union_guard_exit", 70),
+    ("data/runtime_struct_value_copy_exit", 70),
+    ("data/runtime_deep_nested_field_exit", 70),
     ("data/case_membership_value_exit", 70),
     ("data/runtime_case_membership_mixed_shape_exit", 70),
     ("data/match_exhaustive_by_case_union_domain", 70),
@@ -308,33 +485,72 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("expressions/arithmetic_domain_saturating_div_mod_exit", 70),
     ("expressions/runtime_guard_divide_modulo_exit", 70),
     ("expressions/runtime_guard_negative_arithmetic_exit", 70),
-    ("expressions/runtime_guard_divide_modulo_signedness_exit", 70),
+    (
+        "expressions/runtime_guard_divide_modulo_signedness_exit",
+        70,
+    ),
     ("expressions/arithmetic_domain_saturating_mul_exit", 70),
-    ("expressions/arithmetic_domain_saturating_const_fold_exit", 70),
-    ("expressions/arithmetic_domain_return_range_proven_exact_exit", 70),
-    ("expressions/arithmetic_domain_saturating_mul_signed_exit", 70),
+    (
+        "expressions/arithmetic_domain_saturating_const_fold_exit",
+        70,
+    ),
+    (
+        "expressions/arithmetic_domain_return_range_proven_exact_exit",
+        70,
+    ),
+    (
+        "expressions/arithmetic_domain_saturating_mul_signed_exit",
+        70,
+    ),
     ("expressions/arithmetic_domain_trapping_mul_exit", 70),
     ("expressions/arithmetic_domain_trapping_div_exit", 70),
     ("expressions/arithmetic_domain_saturating_signed_exit", 70),
     ("expressions/arithmetic_domain_trapping_exit", 70),
     ("expressions/arithmetic_domain_cast_exit", 70),
     ("expressions/arithmetic_domain_range_proven_exact_exit", 70),
-    ("expressions/arithmetic_domain_requires_proven_exact_exit", 70),
+    (
+        "expressions/arithmetic_domain_requires_proven_exact_exit",
+        70,
+    ),
     ("expressions/f32_field_binary_to_local_cast", 70),
     ("expressions/f32_deep_chain_binary", 70),
     ("expressions/f32_to_f64_local_cast", 70),
     ("expressions/runtime_float_place_comparison_exit", 70),
     ("expressions/runtime_literal_source_cast_exit", 70),
+    ("expressions/runtime_enum_match_breadth_exit", 70),
+    ("expressions/runtime_flat_boolean_logic_exit", 70),
     ("expressions/runtime_match_value_exit", 70),
     ("expressions/runtime_numeric_cast_exit", 70),
+    ("expressions/runtime_16bit_cast_exit", 70),
     ("operators/compound_assignment_exit", 70),
     ("operators/integer_literal_suffix_exit", 70),
     ("operators/runtime_shift_operators_exit", 70),
+    ("operators/runtime_bitwise_operators_exit", 70),
+    ("operators/runtime_bitwise_guard_exit", 70),
+    ("operators/runtime_xorshift_prng_exit", 70),
+    ("operators/runtime_popcount_loop_exit", 70),
     ("operators/unary_negation_exit", 70),
     (
         "slices/runtime_dispatch_mutable_slice_element_write_exit",
         31,
     ),
+    ("slices/runtime_array_indexed_read_exit", 70),
+    ("slices/runtime_indexed_write_const_read_exit", 70),
+    ("slices/runtime_indexed_struct_field_write_exit", 70),
+    ("slices/runtime_indexed_rmw_temp_exit", 70),
+    ("slices/runtime_indexed_write_adjacent_field_exit", 70),
+    ("slices/runtime_join_meet_bound_exit", 70),
+    ("slices/runtime_array_indexed_loop_exit", 70),
+    ("slices/runtime_decreasing_index_exit", 70),
+    ("slices/runtime_slice_indexed_read_exit", 70),
+    ("slices/runtime_array_adjacent_index_exit", 70),
+    ("slices/runtime_nested_decreasing_index_exit", 70),
+    ("slices/runtime_narrow_widen_cast_exit", 70),
+    ("slices/runtime_signed_index_guarded_exit", 70),
+    ("slices/runtime_two_pointer_sum_exit", 70),
+    ("slices/runtime_two_pointer_reverse_exit", 70),
+    ("slices/runtime_branched_index_bound_exit", 70),
+    ("slices/runtime_indexed_array_write_exit", 70),
     ("slices/runtime_frame_array_slice_parameter_alias_exit", 72),
     ("slices/runtime_local_slice_len_comparison_value_exit", 191),
     ("slices/runtime_mutable_slice_element_write_exit", 21),
@@ -349,6 +565,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("slices/runtime_slice_index_copy_exit", 51),
     ("slices/runtime_slice_index_read_dispatch_exit", 43),
     ("slices/runtime_slice_index_read_exit", 41),
+    ("slices/runtime_indexed_read_operand_exit", 70),
     ("slices/runtime_subslice_len_exit", 70),
     ("slices/runtime_machine_field_subslice_arg_index_exit", 70),
     ("slices/runtime_slice_index_transition_exit", 111),
@@ -370,6 +587,19 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("slices/runtime_subslice_param_inclusive_end_exit", 70),
     ("slices/runtime_subslice_range_len_exit", 203),
     ("slices/runtime_subslice_range_pointer_exit", 205),
+    ("slices/runtime_field_array_element_value_operand_exit", 70),
+    ("slices/runtime_local_aggregate_into_let_exit", 70),
+    ("structs/runtime_nested_struct_construction_exit", 70),
+    ("structs/runtime_nested_struct_state_machine_exit", 70),
+    ("structs/runtime_entity_component_exit", 70),
+    ("structs/runtime_particle_system_exit", 70),
+    ("structs/runtime_nested_struct_value_semantics_exit", 70),
+    ("structs/runtime_array_element_struct_copy_exit", 70),
+    ("structs/runtime_enum_struct_payload_exit", 70),
+    ("structs/runtime_nested_field_accumulate_loop_exit", 70),
+    ("structs/runtime_enum_classify_dispatch_exit", 70),
+    ("errors/runtime_result_match_exit", 70),
+    ("structs/runtime_struct_array_literal_exit", 70),
     ("storage/runtime_dispatch_helper_local_alias_add_exit", 181),
     (
         "storage/runtime_dispatch_local_index_binary_write_exit",
@@ -395,7 +625,29 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("storage/runtime_slice_alias_indexed_field_write_exit", 201),
     ("termination/runtime_shrinking_slice_recursion_exit", 70),
     ("text/runtime_bounded_carrier_alias_concat_exit", 70),
+    ("text/runtime_bounded_carrier_byte_index_exit", 70),
+    ("text/runtime_carrier_indexed_read_exit", 70),
+    ("text/runtime_decimal_to_number_exit", 70),
+    ("text/runtime_number_to_decimal_exit", 70),
+    ("text/runtime_carrier_indexed_write_exit", 70),
+    ("text/runtime_mandelbrot_render_exit", 70),
+    ("text/runtime_carrier_indexed_read_operand_exit", 70),
+    ("text/runtime_carrier_cipher_exit", 70),
+    ("text/runtime_carrier_indexed_const_write_exit", 70),
+    ("text/runtime_carrier_len_guard_exit", 70),
+    ("text/runtime_carrier_fnv_loop_exit", 70),
+    ("text/runtime_carrier_itoa_exit", 70),
+    ("text/runtime_substring_search_exit", 70),
+    ("text/runtime_binary_format_exit", 70),
+    ("text/runtime_run_length_encode_exit", 70),
+    ("text/runtime_base64_encode_exit", 70),
+    ("text/runtime_crc32_exit", 70),
+    ("text/runtime_string_palindrome_exit", 70),
+    ("text/runtime_bounded_carrier_byte_write_exit", 70),
+    ("text/runtime_carrier_byte_write_width_coercion", 70),
     ("text/runtime_bounded_carrier_concat_exit", 70),
+    ("text/runtime_bounded_carrier_length_exit", 10),
+    ("text/runtime_bounded_carrier_length_field_exit", 10),
     ("text/runtime_bounded_carrier_local_source_concat_exit", 70),
     ("text/runtime_bounded_carrier_pointee_guard_exit", 70),
     ("text/runtime_bounded_carrier_slice_field_write_exit", 70),
@@ -469,6 +721,11 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("types/runtime_i16_signed_arith_exit", 70),
     ("types/runtime_isize_signed_arith_exit", 70),
     ("types/runtime_u8_field_arith_exit", 70),
+    ("types/runtime_addr_field_exit", 88),
+    ("text/runtime_utf16_literal_exit", 70),
+    ("collections/runtime_case_array_element_write_exit", 36),
+    ("wire/runtime_wire_policy_authored_plan_exit", 70),
+    ("wire/runtime_wire_policy_authored_nested_exit", 70),
     ("types/runtime_u16_field_arith_exit", 70),
     ("versioning/runtime_version_migration_exit", 70),
     ("versioning/runtime_versioned_era_query_exit", 70),
@@ -510,6 +767,14 @@ const RUN_CANARIES: &[(&str, i32)] = &[
 ///
 /// `(relative path under canaries/pass, reason for exclusion)`.
 const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
+    (
+        "targets/entry_run_args_bytes",
+        "NATIVE-ONLY: the entry prologue binds `args: &[u8]` over the spilled platform argument registers; the interpreter has no entry-argument notion yet",
+    ),
+    (
+        "arithmetic/runtime_trapping_overflow_traps",
+        "the suite asserts the process DIES (a negative crash status from the ud2 trap, assert_ne 70); there is no clean exit code for the differential to match",
+    ),
     (
         "dungeon/runtime_ordered_room_dispatch_loop_exit",
         "suite feeds stdin (b\"east\\n\"); differential harness runs with empty stdin, so the recorded exit code 135 does not apply",
@@ -806,7 +1071,7 @@ fn interpreter_matches_native_on_supported_canaries() {
 /// the interpreter and native agree there too.
 #[test]
 fn interpreter_matches_native_on_cli_mvp_sample() {
-    let main_path = repo_root().join("samples").join("cli_mvp").join("main.omg");
+    let main_path = cli_sample("basics/cli_mvp");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "cli_mvp compile failed:\n{}",
@@ -845,7 +1110,7 @@ fn interpreter_matches_native_on_cli_mvp_sample() {
 /// checksum, so it pins interpreter==native agreement on a deep dispatch tree.
 #[test]
 fn interpreter_matches_native_on_game_of_life_sample() {
-    let main_path = repo_root().join("samples").join("game_of_life").join("main.omg");
+    let main_path = cli_sample("simulation/game_of_life");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "game_of_life compile failed:\n{}",
@@ -867,7 +1132,10 @@ fn interpreter_matches_native_on_game_of_life_sample() {
         "game_of_life exit code: interp {} != native {native_code}",
         outcome.exit_code
     );
-    assert_eq!(native_code, 70, "game_of_life should exit 70 (block is a still-life)");
+    assert_eq!(
+        native_code, 70,
+        "game_of_life should exit 70 (block is a still-life)"
+    );
 }
 
 /// Bouncing ball: 1D integer-position ball in [0,9], starting at pos=0 vel=3, 8 steps.
@@ -875,10 +1143,7 @@ fn interpreter_matches_native_on_game_of_life_sample() {
 /// After 8 steps: pos=6, exit=6+64=70. Exercises inequality guards and vel sign flip.
 #[test]
 fn interpreter_matches_native_on_bouncing_ball_sample() {
-    let main_path = repo_root()
-        .join("samples")
-        .join("bouncing_ball")
-        .join("main.omg");
+    let main_path = cli_sample("rendering/bouncing_ball");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "bouncing_ball compile failed:\n{}",
@@ -911,10 +1176,7 @@ fn interpreter_matches_native_on_bouncing_ball_sample() {
 /// not traverse) -- the binary then read garbage. Exit 70.
 #[test]
 fn interpreter_matches_native_on_dual_accumulator_sample() {
-    let main_path = repo_root()
-        .join("samples")
-        .join("dual_accumulator_recursion")
-        .join("main.omg");
+    let main_path = cli_sample("probes/dual_accumulator_recursion");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "dual_accumulator_recursion compile failed:\n{}",
@@ -959,10 +1221,7 @@ fn interpreter_matches_native_on_dual_accumulator_sample() {
 /// behavior and detect any regression or accidental fix.
 #[test]
 fn interpreter_matches_native_on_stack_vm_sample() {
-    let main_path = repo_root()
-        .join("samples")
-        .join("stack_vm")
-        .join("main.omg");
+    let main_path = cli_sample("interpreters/stack_vm");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "stack_vm compile failed:\n{}",
@@ -1026,10 +1285,7 @@ fn interpreter_matches_native_on_stack_vm_sample() {
 /// native exit code to detect accidental fixes or regressions.
 #[test]
 fn interpreter_matches_native_on_account_ledger_sample() {
-    let main_path = repo_root()
-        .join("samples")
-        .join("account_ledger")
-        .join("main.omg");
+    let main_path = cli_sample("systems/account_ledger");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "account_ledger compile failed:\n{}",
@@ -1080,10 +1336,7 @@ fn interpreter_matches_native_on_account_ledger_sample() {
 /// shows up as exit 71..76 (wrong slot written) rather than the correct exit 70.
 #[test]
 fn interpreter_matches_native_on_insertion_sort_sample() {
-    let main_path = repo_root()
-        .join("samples")
-        .join("insertion_sort")
-        .join("main.omg");
+    let main_path = cli_sample("algorithms/insertion_sort");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "insertion_sort compile failed:\n{}",
@@ -1124,10 +1377,7 @@ const DUNGEON_SCRIPT: &[u8] = b"north\r\nnorth\r\nnorth\r\nnorth\r\nquit\r\n";
 /// against the interpreter only -- see `interpreter_matches_native_on_dungeon_sample`.
 #[test]
 fn interpreter_dungeon_renders_depth_correct_rooms() {
-    let main_path = repo_root()
-        .join("samples")
-        .join("dungeon_crawler_cli")
-        .join("main.omg");
+    let main_path = cli_sample("games/dungeon_crawler_cli");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "dungeon compile to checked failed:\n{}",
@@ -1189,10 +1439,7 @@ fn interpreter_dungeon_renders_depth_correct_rooms() {
 /// first `should_carve` guard, so R03+ rendered the shallow description).
 #[test]
 fn interpreter_matches_native_on_dungeon_sample() {
-    let main_path = repo_root()
-        .join("samples")
-        .join("dungeon_crawler_cli")
-        .join("main.omg");
+    let main_path = cli_sample("games/dungeon_crawler_cli");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
             "dungeon compile to checked failed:\n{}",
@@ -1325,6 +1572,10 @@ fn repo_root() -> PathBuf {
         .nth(4)
         .expect("interpreter crate should live under compiler/orchestration/omega-interpreter")
         .to_path_buf()
+}
+
+fn cli_sample(path: &str) -> PathBuf {
+    repo_root().join("samples/cli").join(path).join("main.omg")
 }
 
 fn pass_canary(path: &str) -> PathBuf {

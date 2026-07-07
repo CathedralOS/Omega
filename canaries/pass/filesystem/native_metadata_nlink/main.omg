@@ -1,0 +1,43 @@
+// NATIVE MetadataExt::nlink via stat (Rust os::unix::fs::MetadataExt::nlink).
+// Creates a file (link count 1), decodes st_nlink (u16 @6) == 1, hard-links it to
+// a second name, then re-stats the ORIGINAL and confirms st_nlink is now 2 (both
+// names share one inode). Proves the nlink field decodes from the real stat
+// record on macOS syscalls.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    fd: i32;
+    rc: i32;
+    nlink1: i32;
+    nlink2: i32;
+    n: i64;
+    buffer: [u8; 144];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.fd = self.fs.create("/tmp/omega_nlink.txt", self.mode);
+    self.n = self.fs.write(self.fd, "hi");
+    self.n = self.fs.close(self.fd);
+    // defensive: clear a stale link from a prior failed run (rc ignored)
+    self.n = self.fs.remove("/tmp/omega_nlink_2.txt");
+    self.rc = self.fs.read_metadata("/tmp/omega_nlink.txt", &mut self.buffer);
+    self.nlink1 = (self.buffer[6] as i32) | ((self.buffer[7] as i32) << 8);
+    self.rc = self.fs.hard_link("/tmp/omega_nlink.txt", "/tmp/omega_nlink_2.txt");
+    transition self.rc == 0 { true -> stat2() _ -> fail() }
+    state stat2(&mut self) {
+        self.rc = self.fs.read_metadata("/tmp/omega_nlink.txt", &mut self.buffer);
+        self.nlink2 = (self.buffer[6] as i32) | ((self.buffer[7] as i32) << 8);
+        self.n = self.fs.remove("/tmp/omega_nlink_2.txt");
+        self.n = self.fs.remove("/tmp/omega_nlink.txt");
+        transition self.nlink1 == 1 { true -> check2() _ -> fail() }
+    }
+    state check2(&mut self) {
+        transition self.nlink2 == 2 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: nlink 1 -> 2 after hard_link\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: nlink\n"); }
+}

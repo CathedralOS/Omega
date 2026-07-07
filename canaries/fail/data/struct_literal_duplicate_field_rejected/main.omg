@@ -1,0 +1,8 @@
+// A field named more than once in a struct literal is ambiguous -- only the
+// FIRST value is stored, the rest silently dropped (`Point { x: 1, x: 2 }` kept
+// x == 1). Rejected now, mirroring the duplicate-member rejection on the data
+// DECLARATION.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Point { x: i32; y: i32; }
+data Main { console: Console; }
+machine Main::main(&mut self) { let p: Point = Point { x: 1, x: 2, y: 3 }; let r: i32 = p.x; self.console.exit_process(r); }

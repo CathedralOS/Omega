@@ -300,7 +300,7 @@ impl SyntaxTrees {
         Machine {
             name: machine.name.clone(),
             attached_data: machine.attached_data.clone(),
-            abi: machine.abi.clone(),
+            boundary: machine.boundary,
             type_parameters: self.copy_type_parameter_span(other, machine.type_parameters),
             satisfies: self.copy_item_identifier_span(other, machine.satisfies),
             terminates: machine.terminates,
@@ -520,8 +520,7 @@ impl SyntaxTrees {
             other.items.host_provider_mappings(span),
             |_this, mapping| HostProviderMapping {
                 machine: mapping.machine.clone(),
-                kind: mapping.kind,
-                value: mapping.value,
+                binding: mapping.binding.clone(),
             },
             |this, mapping| this.items.append_host_provider_mapping(mapping),
         )

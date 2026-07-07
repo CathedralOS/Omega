@@ -1,0 +1,84 @@
+// Numeric OUTPUT: rendering an integer to decimal TEXT (itoa) -- a fundamental
+// serious-app capability (printing computed numbers, not just exit codes). A
+// round-trip: build n = 12345 at RUNTIME (a loop accumulates 5 x 2469 so the value
+// is not const-folded), then convert it back to the 5-digit decimal string "12345"
+// and assert the carrier equals it. Exercises runtime divide/modulo, computed
+// carrier byte writes, and the carrier-vs-literal compare. Exits 70.
+//
+// NOTE the byte is computed into a u8 FIELD first (`byte = ch as u8`) and THEN
+// written (`out[p] = byte`): a CAST value written directly into a runtime-indexed
+// carrier (`out[p] = ch as u8`) is refused ("needs runtime value lowering") -- the
+// value-operand gap for a computed value into an indexed target. The field hop is
+// the sound workaround.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 5]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    out: [u8; 5] in Utf8;
+    n: u32 in Wrapping;
+    place: u32 in Wrapping;
+    d: u32 in Wrapping;
+    ch: u32 in Wrapping;
+    byte: u8 in Wrapping;
+    i: u32 in Wrapping;
+    p: usize;
+}
+
+machine Main::main(&mut self) {
+    self.out = "XXXXX";
+    self.n = 0;
+    self.i = 0;
+    transition { _ -> build() }
+
+    // Build n = 12345 at runtime (5 x 2469) so the conversion runs on a real value.
+    state build(&mut self) {
+        transition self.i < 5 { true -> build_step() _ -> itoa_init() }
+    }
+    state build_step(&mut self) {
+        self.n = self.n + 2469;
+        self.i = self.i + 1;
+        transition { _ -> build() }
+    }
+
+    // Convert: for each place (10000, 1000, 100, 10, 1) write the digit char.
+    state itoa_init(&mut self) {
+        self.place = 10000;
+        self.p = 0;
+        transition { _ -> itoa_loop() }
+    }
+    state itoa_loop(&mut self) {
+        transition self.p < 5 { true -> digit_div() _ -> check() }
+    }
+    state digit_div(&mut self) {
+        self.d = self.n / self.place;
+        transition { _ -> digit_mod() }
+    }
+    state digit_mod(&mut self) {
+        self.d = self.d % 10;
+        transition { _ -> digit_write() }
+    }
+    state digit_write(&mut self) {
+        self.ch = self.d + 48;
+        self.byte = self.ch as u8 in Wrapping;
+        self.out[self.p] = self.byte;
+        self.place = self.place / 10;
+        self.p = self.p + 1;
+        transition { _ -> itoa_loop() }
+    }
+
+    state check(&mut self) {
+        transition self.out == "12345" { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

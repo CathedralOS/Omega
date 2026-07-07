@@ -1,0 +1,76 @@
+// The entity/particle-list pattern: an array of structs `[Monster; N]` updated by a
+// runtime-indexed loop -- the shape every simulation and game needs. Each pass reads
+// a field of `monsters[i]`, transforms it, and writes it back.
+//
+// Note the field-temp idiom: `monsters[i].hp` reads and writes DIRECTLY (into/out of
+// a scalar field), but using `monsters[i].hp` as an ARITHMETIC OPERAND (e.g.
+// `monsters[i].hp - 10` in one expression) is not yet lowerable -- so the update
+// copies the field into a scalar (`scratch`), does the arithmetic there, and writes
+// `scratch` back. Direct indexed read, direct indexed write, and the counter loop all
+// lower natively.
+//
+// Four monsters take 10 damage each (30->20, 12->2, 25->15, 8->-2 under `Wrapping`),
+// then their HP is summed: 20 + 2 + 15 + (-2) = 35. Exit: 35.
+// Expected exit: 35.
+
+boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
+    machine exit_process(return_code: i32);
+}
+
+data Monster {
+    hp: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    monsters: [Monster; 4];
+    i: i32 in Wrapping;
+    scratch: i32 in Wrapping;
+    total: i32 in Wrapping;
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("entity_list: [Monster; 4] -- deal 10 damage to each, then sum HP");
+    self.monsters[0].hp = 30;
+    self.monsters[1].hp = 12;
+    self.monsters[2].hp = 25;
+    self.monsters[3].hp = 8;
+    self.i = 0;
+    transition { _ -> damage_loop() }
+
+    state damage_loop(&mut self) {
+        transition self.i < 4 { true -> damage_one() _ -> sum_start() }
+    }
+    state damage_one(&mut self) {
+        self.scratch = self.monsters[self.i].hp; // direct indexed read into a scalar
+        self.scratch = self.scratch - 10;        // arithmetic on the scalar field
+        self.monsters[self.i].hp = self.scratch; // direct indexed write-back
+        self.i = self.i + 1;
+        transition { _ -> damage_loop() }
+    }
+
+    state sum_start(&mut self) {
+        self.i = 0;
+        self.total = 0;
+        transition { _ -> sum_loop() }
+    }
+    state sum_loop(&mut self) {
+        transition self.i < 4 { true -> sum_one() _ -> done() }
+    }
+    state sum_one(&mut self) {
+        self.scratch = self.monsters[self.i].hp;
+        self.total = self.total + self.scratch;
+        self.i = self.i + 1;
+        transition { _ -> sum_loop() }
+    }
+
+    state done(&mut self) {
+        self.console.write_line("result: total remaining HP is the exit code (35)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(self.total);
+    }
+}

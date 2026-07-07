@@ -1,5 +1,5 @@
 //! Selection of the synthesized wire encoder call (chapter 20, wire stage
-//! 2a): `Schema::encode_wire(&value, &mut out, &mut written)` lowers into a
+//! 2a): `Schema::encode(&value, &mut out, &mut written)` lowers into a
 //! straight-line sequence of wire-append operations -- zero the cursor, emit
 //! the CURRENT era discriminator varint, then per field in field-number order
 //! a field-number varint (compile-time bytes) and a value varint (runtime
@@ -35,7 +35,7 @@ use omega_checked_trees::expression::{ExpressionHandle, ExpressionNode, Expressi
 use omega_checked_trees::statement::StatementNode;
 use omega_control_flow::StateKey;
 use omega_core::symbols::SymbolHandle;
-use omega_checked_trees::wire::{WireFieldEncoding, WireMember, wire_varint_bytes};
+use omega_checked_trees::wire::{WireFieldEncoding, WireMember, WirePlacement, wire_varint_bytes};
 
 use super::storage_places::{RuntimeStoragePlace, resolve_runtime_storage_place_in_table};
 
@@ -56,7 +56,11 @@ enum WireFieldContent {
     },
     /// A nested message: the child's fields in field-number order, staged
     /// through the wire scratch region before the length-prefixed replay.
-    Nested { children: Vec<WireFieldAppend> },
+    Nested {
+        /// The child schema (its own plan supplies the child tags).
+        schema: SymbolHandle,
+        children: Vec<WireFieldAppend>,
+    },
     /// A repeated field: `min(count, max_count)` packed element varints,
     /// staged through the wire scratch region (guarded appends, one per
     /// unrolled element index) before the length-prefixed replay.
@@ -68,7 +72,7 @@ enum WireFieldContent {
     },
 }
 
-/// Lower a recognized `encode_wire` call statement; `true` when the statement
+/// Lower a recognized `encode` call statement; `true` when the statement
 /// produced its append sequence (the emission planner checks for the wire
 /// appends when it exempts the call from the unlowered-call blockers).
 pub(super) fn select_wire_encode_call(
@@ -187,8 +191,38 @@ pub(super) fn select_wire_encode_call(
         });
     }
 
-    for field in &fields {
-        for byte in wire_varint_bytes(field.number as u64) {
+    // MINT ARC RUNG 2a: the derived wire plan drives the tag bytes. The plan
+    // pass mirrors this walk exactly, so per-field agreement is asserted; a
+    // schema WITHOUT a plan (the pass was more conservative than the codec)
+    // falls back to the schema walk unchanged. Nested CHILD tags remain
+    // schema-driven in this rung (each child schema carries its own plan,
+    // exercised when it is encoded top-level).
+    let plan = input.program.wire_schema_plan(schema.symbol);
+    if let Some(placements) = plan {
+        let agrees = placements.len() == fields.len()
+            && placements.iter().zip(fields.iter()).all(|(placement, field)| {
+                let field_is_varint = matches!(
+                    field.content,
+                    WireFieldContent::Direct {
+                        encoding: WireFieldEncoding::Scalar(_),
+                        ..
+                    }
+                );
+                placement.tag() == field.number
+                    && matches!(placement, WirePlacement::Varint { .. }) == field_is_varint
+            });
+        if !agrees {
+            debug_assert!(false, "derived wire plan disagrees with the schema walk");
+            return false;
+        }
+    }
+
+    for (field_index, field) in fields.iter().enumerate() {
+        let tag = plan
+            .and_then(|placements| placements.get(field_index))
+            .map(|placement| placement.tag())
+            .unwrap_or(field.number);
+        for byte in wire_varint_bytes(tag as u64) {
             push(SelectedInstructionKind::AppendWireLiteralByte {
                 out_region: out_place.region,
                 out_offset: out_place.byte_offset,
@@ -292,7 +326,29 @@ pub(super) fn select_wire_encode_call(
                     written_offset: written_place.byte_offset,
                 });
             }
-            WireFieldContent::Nested { children } => {
+            WireFieldContent::Nested {
+                schema: child_schema,
+                children,
+            } => {
+                // RUNG 2c: the CHILD schema's own plan supplies the child
+                // tags -- same agreement discipline as the top level (children
+                // are scalar-only by collection's gate, so every placement
+                // must be a Varint at the child's number).
+                let child_plan = input.program.wire_schema_plan(*child_schema);
+                if let Some(placements) = child_plan {
+                    let agrees = placements.len() == children.len()
+                        && placements.iter().zip(children.iter()).all(|(placement, child)| {
+                            placement.tag() == child.number
+                                && matches!(placement, WirePlacement::Varint { .. })
+                        });
+                    if !agrees {
+                        debug_assert!(
+                            false,
+                            "derived child wire plan disagrees with the schema walk"
+                        );
+                        return false;
+                    }
+                }
                 // The planner reserved the wire scratch from the same
                 // worst-case math validation budgeted with; if the staging
                 // buffer cannot hold this child's worst case, the plan
@@ -335,8 +391,12 @@ pub(super) fn select_wire_encode_call(
                     byte_size: 8,
                     value: 0,
                 });
-                for child in children {
-                    for byte in wire_varint_bytes(child.number as u64) {
+                for (child_index, child) in children.iter().enumerate() {
+                    let child_tag = child_plan
+                        .and_then(|placements| placements.get(child_index))
+                        .map(|placement| placement.tag())
+                        .unwrap_or(child.number);
+                    for byte in wire_varint_bytes(child_tag as u64) {
                         push(SelectedInstructionKind::AppendWireLiteralByte {
                             out_region: RuntimeStorageRegion::RuntimeFrame,
                             out_offset: staging_offset,
@@ -498,7 +558,10 @@ fn collect_field_appends(
             }
             fields.push(WireFieldAppend {
                 number: field.number,
-                content: WireFieldContent::Nested { children },
+                content: WireFieldContent::Nested {
+                    schema: child.symbol,
+                    children,
+                },
             });
             continue;
         }

@@ -1,0 +1,24 @@
+// The sound pattern for filling an array with COMPUTED values in a write-first loop. Native
+// emission cannot yet store a computed expression straight into a runtime-indexed element
+// (`arr[i] = i * 10` -> "needs runtime value lowering"), but a computed value written to a field
+// then copied to the element works (a field source is machine-resident). Combines the write-first
+// loop-invariant bound with the field-source indexed write. Fills [0,10,20,30,40], sums to 100,
+// self-checks. Differential: native == interp.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; arr: [i32 in Wrapping; 5]; j: i32 in Wrapping; tmp: i32 in Wrapping; sum: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.j = 0;
+    transition { _ -> fill() }
+    state fill(&mut self) {
+        self.tmp = self.j * 10;
+        self.arr[self.j] = self.tmp;
+        self.j = self.j + 1;
+        transition self.j < 5 { true -> fill() _ -> tally() }
+    }
+    state tally(&mut self) {
+        self.sum = self.arr[0] + self.arr[1] + self.arr[2] + self.arr[3] + self.arr[4];
+        transition self.sum == 100 { true -> ok() _ -> bad() }
+    }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

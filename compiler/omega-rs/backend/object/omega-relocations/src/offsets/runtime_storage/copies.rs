@@ -49,13 +49,18 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_ad
                 base_byte_offset,
             )
         }
-        Architecture::X86_64 => 8,
+        // Start of the `mov r10,imm64` runtime-frame base (the second 10-byte
+        // `mov`); the relocation planner adds the +2 immediate offset itself.
+        // (Only used for a frame-resident index, which the x86_64 encoder does
+        // not emit yet.)
+        Architecture::X86_64 => 10,
     }
 }
 
 pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
     architecture: Architecture,
     base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> usize {
@@ -64,11 +69,66 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_indexed_target_address_o
             omega_instruction_selection::runtime_storage_copy_from_runtime_machine_indexed_target_address_offset(
                 architecture,
                 base_byte_offset,
+                index_region,
                 element_byte_size,
                 field_byte_offset,
             )
         }
-        Architecture::X86_64 => 8,
+        // Start of the second `mov r15,imm64` (the target base), which follows
+        // the 34-byte source-address sequence (10+7+7+3+7); the relocation
+        // planner adds the +2 immediate offset itself.
+        Architecture::X86_64 => 34,
+    }
+}
+
+/// aarch64: byte offset of the SOURCE adrp (`adrp x20`) inside the store-side
+/// `machine[i] = <machine source>` — the machine page-pair for the source value.
+/// (x86_64 uses its own frame-source layout; unused there.)
+pub(crate) fn runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
+    architecture: Architecture,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => {
+            omega_instruction_selection::runtime_storage_copy_to_runtime_machine_indexed_source_address_offset(
+                architecture,
+                base_byte_offset,
+                index_region,
+                element_byte_size,
+                field_byte_offset,
+            )
+        }
+        Architecture::X86_64 => 0,
+    }
+}
+
+/// Start of the WRITE part's `mov r15,imm64` inside the dual-indexed copy
+/// (`arr[i] = arr[j]`) -- the second machine-base relocation; the relocation
+/// planner adds the +2 immediate offset itself. x86_64 only (aarch64 has no
+/// dual-indexed encoder; emission rejects the instruction first).
+pub(crate) fn runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset(
+    architecture: Architecture,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        // The 34-byte read part (10+7+7+3+7) precedes it.
+        Architecture::X86_64 => 34,
+    }
+}
+
+/// Start of the second `mov r15,imm64` (the machine base) inside the
+/// FRAME-SOURCE variant of the storage->machine-indexed write; the relocation
+/// planner adds the +2 immediate offset itself. x86_64 only.
+pub(crate) fn runtime_storage_copy_to_runtime_machine_indexed_frame_source_machine_base_offset(
+    architecture: Architecture,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        // mov r15,imm64 (10) + load rax (7) precede it.
+        Architecture::X86_64 => 17,
     }
 }
 

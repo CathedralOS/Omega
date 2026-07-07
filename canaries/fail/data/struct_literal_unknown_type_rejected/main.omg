@@ -1,0 +1,5 @@
+// A struct literal naming an UNDEFINED type (`Nonexistent { a: 1 }`) used to
+// compile silently. Rejected now as an unknown data type.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) { let x: i32 = Nonexistent { a: 1 }; self.console.exit_process(0); }

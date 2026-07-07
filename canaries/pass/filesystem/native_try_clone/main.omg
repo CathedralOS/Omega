@@ -1,0 +1,49 @@
+// NATIVE fs try_clone via dup (Rust File::try_clone). Creates a file with
+// "hello", opens it read-only (fd1), DUPLICATES the descriptor (fd2), then CLOSES
+// fd1 and reads through fd2. Because dup shares the underlying open file, the
+// clone stays valid after the original is closed and reads the 5 bytes from the
+// shared offset (0). Proves the dup op lowers and runs on real macOS syscalls.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    rdonly: i32;
+    cap: usize;
+    fd1: i32;
+    fd2: i32;
+    n: i64;
+    got: i64;
+    first: u8;
+    buffer: [u8; 64];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.rdonly = 0;
+    self.cap = 64;
+    self.fd1 = self.fs.create("/tmp/omega_dup.txt", self.mode);
+    self.n = self.fs.write(self.fd1, "hello");
+    self.n = self.fs.close(self.fd1);
+    self.fd1 = self.fs.open("/tmp/omega_dup.txt", self.rdonly);
+    transition self.fd1 >= 0 { true -> dupit() _ -> fail() }
+    state dupit(&mut self) {
+        self.fd2 = self.fs.duplicate(self.fd1);
+        // close the ORIGINAL; the clone must stay valid (shared open file)
+        self.n = self.fs.close(self.fd1);
+        transition self.fd2 >= 0 { true -> readit() _ -> fail() }
+    }
+    state readit(&mut self) {
+        self.got = self.fs.read(self.fd2, &mut self.buffer, self.cap);
+        self.n = self.fs.close(self.fd2);
+        self.n = self.fs.remove("/tmp/omega_dup.txt");
+        self.first = self.buffer[0];
+        transition self.got == 5 { true -> checkbyte() _ -> fail() }
+    }
+    state checkbyte(&mut self) {
+        transition self.first == 104 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: try_clone (dup) reads 5 bytes through the clone after closing the original\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: try_clone\n"); }
+}

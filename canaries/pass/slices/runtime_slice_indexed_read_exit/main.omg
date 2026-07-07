@@ -1,0 +1,56 @@
+// Reading a `&[T]` slice element by a RUNTIME index: `s[self.i]` where `s` is a
+// borrowed slice (`self.nums.as_slice()`) and `self.i` is a runtime field. Like
+// the inline-array read, this was a silent miscompile (the read emitted nothing
+// and the target kept its zero value); the machine-indexed read encoder now
+// covers it. Reads two runtime indices and self-checks. (Constant indices on a
+// slice already worked.)
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 4];
+    i: i32 in Trapping;
+    a: i32;
+    b: i32;
+}
+
+machine Main::main(&mut self) {
+    self.nums[0] = 10;
+    self.nums[1] = 20;
+    self.nums[2] = 30;
+    self.nums[3] = 40;
+
+    transition {
+        _ -> compute()
+    }
+
+    state compute(&mut self) {
+        let s: &[i32] = self.nums.as_slice();
+        self.i = 1;
+        self.a = s[self.i]; // 20
+        self.i = 3;
+        self.b = s[self.i]; // 40
+        transition self.a == 20 {
+            true -> check_b()
+            _ -> bad()
+        }
+    }
+
+    state check_b(&mut self) {
+        transition self.b == 40 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -1,0 +1,49 @@
+// A let-local whose initializer is a COMPOSITE expression (binary / unary / a cast,
+// possibly reading a prior local or field), then forwarded as a transition ARGUMENT.
+// The dispatch-arg fold (`resolve_prior_local_initializers_in_table`) re-materializes
+// the initializer in the TARGET state; if it does not recurse into the composite to
+// resolve the inner local, that local dangles into a frame where it has no slot and
+// reads 0. Cast/Binary/Unary arms were missing (fixed b0e1afd0 + the Unary follow-up).
+//
+// Covers:
+//   - binary inner-let:        let s = x + 100      (x a prior let)   -> 105
+//   - unary inner-let:         let nb = !b          (b a prior let)   -> true
+//   - field-read let in binary: let af = a + 1      (a = self.v)      -> 42
+// Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    v: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    let x: i32 in Trapping = 5;
+    let s: i32 in Trapping = x + 100;
+
+    let b: bool = false;
+    let nb: bool = !b;
+
+    self.v = 41;
+    let a: i32 in Trapping = self.v;
+    let af: i32 in Trapping = a + 1;
+
+    transition s == 105 { true -> check_unary(nb, af) _ -> bad() }
+
+    state check_unary(&mut self, nb: bool, af: i32 in Trapping) {
+        transition nb { true -> check_field(af) _ -> bad() }
+    }
+    state check_field(&mut self, af: i32 in Trapping) {
+        transition af == 42 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

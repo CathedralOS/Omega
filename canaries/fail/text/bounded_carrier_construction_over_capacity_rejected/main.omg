@@ -1,0 +1,28 @@
+// The CONSTRUCTION-position parallel of bounded_carrier_growth_overflow_rejected.
+// A bounded `[u8; N] in Utf8` text carrier field also has its length-fits guard
+// enforced when the field is established by brace CONSTRUCTION (`T { f: X }`), not
+// only by assignment. Here `Holder { label: "hello" }` supplies 5 bytes to a
+// `[u8; 4]` carrier -- it used to compile silently and overflow the field's inline
+// storage (a write past the array's bounds into adjacent fields). The construction
+// walk (scan_construction_field_domains) previously checked only the DOMAIN half
+// (valid UTF-8), never the CAPACITY half.
+domain [u8; 4]::Utf8 when valid_utf8(self) {
+}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Holder {
+    label: [u8; 4] in Utf8;
+}
+
+data Main {
+    console: Console;
+    holder: Holder;
+}
+
+machine Main::main(&mut self) {
+    self.holder = Holder { label: "hello" }; // 5 bytes into [u8; 4] -- must be rejected
+    self.console.exit_process(70);
+}

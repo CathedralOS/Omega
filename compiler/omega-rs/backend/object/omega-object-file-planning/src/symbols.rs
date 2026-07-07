@@ -66,7 +66,11 @@ pub(super) fn insert_object_symbols(
                     size: 0,
                     kind: SymbolKind::Import,
                 }),
-                HostBindingMechanism::Syscall { .. } => None,
+                // Syscalls and vtable calls have no import symbol: the callee
+                // address is a number (syscall) or read from the receiver at
+                // call time (vtable).
+                HostBindingMechanism::Syscall { .. }
+                | HostBindingMechanism::VtableSlot { .. } => None,
             }
         }));
 

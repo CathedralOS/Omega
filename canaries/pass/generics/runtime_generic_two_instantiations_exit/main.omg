@@ -1,0 +1,22 @@
+// GENERICS PHASE 1: two DISTINCT instantiations of one generic data type
+// coexist in a single program with native field access on BOTH -- the
+// per-instance monomorphization that replaces the layout builder's one-slot
+// poison. `Box<i32>` and `Box<bool>` are pre-resolution desugared into
+// distinct concrete records (`data Box<i32> { value: i32 }` and
+// `data Box<bool> { value: bool }`, the T substituted), so resolution, typing,
+// and the native layout builder see ordinary records. Reads 30 from the i32
+// instance and true from the bool instance; exits 30.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Box<T> { value: T; }
+data Main { console: Console; bi: Box<i32>; bb: Box<bool>; r: i32; }
+machine Main::main(&mut self) {
+    self.bi.value = 30;
+    self.bb.value = true;
+    self.r = self.bi.value;
+    transition self.bb.value == true {
+        true -> ok()
+        false -> bad()
+    }
+    state ok(&mut self) { self.console.exit_process(self.r); }
+    state bad(&mut self) { self.console.exit_process(99); }
+}

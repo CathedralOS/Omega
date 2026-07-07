@@ -1,0 +1,141 @@
+// An open-addressing hash table with linear probing -- the foundational associative
+// structure (a map / dictionary) every serious program needs, and the last major data
+// structure beyond the linear stack/queue/array set. Parallel keys/vals/used arrays of
+// capacity 8; insert hashes `k % 8` and probes forward (wrapping at the end) past
+// occupied non-matching slots; lookup repeats the probe to find the value. The inserted
+// keys 6,14,7,15 are chosen to COLLIDE (6 and 14 at slot 6; 7 and 15 at slot 7) and to
+// force a WRAP (7 probes 7 -> 0). Looking all four back sums their values 60+61+62+63 =
+// 246 -> exit 70.
+//
+// Two sound workarounds the current compiler needs, both documented:
+//  - an index bound is lost crossing into the access state, so `i < 4` is re-guarded at
+//    each `ins[i]`/`inv[i]` read (the bubble_sort idiom);
+//  - a runtime-indexed ARRAY value can't be a guard SUBJECT directly (`used[s] == 1`),
+//    so the slot's `used`/`keys` are read into fields first, then guarded.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    keys: [i32; 8] in Wrapping;
+    vals: [i32; 8] in Wrapping;
+    used: [i32; 8] in Wrapping; // 0 = empty, 1 = occupied
+    ins: [i32; 4] in Wrapping;  // keys to insert
+    inv: [i32; 4] in Wrapping;  // their values
+    i: i32 in Wrapping;
+    s: i32 in Wrapping;         // probe slot
+    k: i32 in Wrapping;         // current key
+    v: i32 in Wrapping;         // current value
+    us: i32 in Wrapping;        // used[s] read into a field
+    ks: i32 in Wrapping;        // keys[s] read into a field
+    sum: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.keys = [0, 0, 0, 0, 0, 0, 0, 0];
+    self.vals = [0, 0, 0, 0, 0, 0, 0, 0];
+    self.used = [0, 0, 0, 0, 0, 0, 0, 0];
+    self.ins = [6, 14, 7, 15];
+    self.inv = [60, 61, 62, 63];
+    self.sum = 0;
+    self.i = 0;
+    transition { _ -> ins_loop() }
+
+    // --- INSERT phase: hash, probe forward past occupied non-matching slots, store ---
+    state ins_loop(&mut self) {
+        transition self.i >= 0 && self.i < 4 { true -> ins_start() _ -> look_init() }
+    }
+    state ins_start(&mut self) {
+        transition self.i >= 0 && self.i < 4 { true -> ins_read() _ -> bad() }
+    }
+    state ins_read(&mut self) {
+        self.k = self.ins[self.i];
+        self.v = self.inv[self.i];
+        self.s = self.k % 8;
+        transition { _ -> ins_probe() }
+    }
+    state ins_probe(&mut self) {
+        transition self.s >= 0 && self.s < 8 { true -> ins_load() _ -> bad() }
+    }
+    state ins_load(&mut self) {
+        self.us = self.used[self.s];
+        self.ks = self.keys[self.s];
+        transition { _ -> ins_check() }
+    }
+    state ins_check(&mut self) {
+        transition self.us == 1 && self.ks != self.k { true -> ins_step() _ -> ins_store() }
+    }
+    state ins_step(&mut self) {
+        self.s = self.s + 1;
+        transition self.s >= 8 { true -> ins_wrap() _ -> ins_probe() }
+    }
+    state ins_wrap(&mut self) {
+        self.s = 0;
+        transition { _ -> ins_probe() }
+    }
+    state ins_store(&mut self) {
+        self.keys[self.s] = self.k;
+        self.vals[self.s] = self.v;
+        self.used[self.s] = 1;
+        self.i = self.i + 1;
+        transition { _ -> ins_loop() }
+    }
+
+    // --- LOOKUP phase: same probe, accumulate the found values ---
+    state look_init(&mut self) {
+        self.i = 0;
+        transition { _ -> look_loop() }
+    }
+    state look_loop(&mut self) {
+        transition self.i >= 0 && self.i < 4 { true -> look_start() _ -> verify() }
+    }
+    state look_start(&mut self) {
+        transition self.i >= 0 && self.i < 4 { true -> look_read() _ -> bad() }
+    }
+    state look_read(&mut self) {
+        self.k = self.ins[self.i];
+        self.s = self.k % 8;
+        transition { _ -> look_probe() }
+    }
+    state look_probe(&mut self) {
+        transition self.s >= 0 && self.s < 8 { true -> look_load() _ -> bad() }
+    }
+    state look_load(&mut self) {
+        self.us = self.used[self.s];
+        self.ks = self.keys[self.s];
+        transition { _ -> look_check() }
+    }
+    state look_check(&mut self) {
+        transition self.us == 1 { true -> look_match() _ -> bad() }
+    }
+    state look_match(&mut self) {
+        transition self.ks == self.k { true -> look_hit() _ -> look_step() }
+    }
+    state look_step(&mut self) {
+        self.s = self.s + 1;
+        transition self.s >= 8 { true -> look_wrap() _ -> look_probe() }
+    }
+    state look_wrap(&mut self) {
+        self.s = 0;
+        transition { _ -> look_probe() }
+    }
+    state look_hit(&mut self) {
+        self.sum = self.sum + self.vals[self.s];
+        self.i = self.i + 1;
+        transition { _ -> look_loop() }
+    }
+
+    state verify(&mut self) {
+        transition self.sum == 246 { true -> good() _ -> wrong() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(self.sum); // surface the wrong sum on regression
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

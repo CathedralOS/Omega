@@ -1,0 +1,45 @@
+// Euclidean magnitude with the `sqrt` intrinsic over floats: for a classic
+// 3-4-5 right triangle, |(3, 4)| = sqrt(3*3 + 4*4) = sqrt(25) = 5. The legs
+// come from `abs` (distance is direction-agnostic, so a negative delta gives
+// the same length), and the result is pinned into a display band with
+// `clamp` -- so the sample exercises all three numeric intrinsics AND float
+// min/max (abs/clamp desugar to them) together in one realistic computation.
+// Exits with the magnitude as its code.
+// Expected exit: 5.
+
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    dx: f64;
+    dy: f64;
+    ax: f64;
+    ay: f64;
+    mag: f64;
+    magi: i32;
+    shown: i32;
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("vector_distance: |(-3, 4)| = sqrt(dx*dx + dy*dy) = 5");
+
+    // Direction-agnostic legs: |dx|, |dy| (a negative delta has the same length).
+    self.dx = 0.0 - 3.0;
+    self.dy = 4.0;
+    self.ax = abs(self.dx);
+    self.ay = abs(self.dy);
+
+    // Magnitude = sqrt(ax*ax + ay*ay) = sqrt(9 + 16) = sqrt(25) = 5.
+    self.mag = sqrt(self.ax * self.ax + self.ay * self.ay);
+    self.magi = self.mag as i32;
+
+    // A clamped display value (the magnitude pinned to a [0, 255] band, as a
+    // colour or coordinate would be): clamp(5, 0, 255) = 5.
+    self.shown = clamp(self.magi, 0, 255);
+
+    self.console.write_line("result: the magnitude, 5 for a 3-4-5 triangle (the exit code)");
+    self.console.write_line("[press Enter to close]");
+    self.console.read_line(&mut self.pause);
+    self.console.exit_process(self.shown);
+}

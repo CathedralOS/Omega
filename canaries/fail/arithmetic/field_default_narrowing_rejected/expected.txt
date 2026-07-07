@@ -1,0 +1,1 @@
+narrowing store in data `Main` field `b` default may not fit `i8`

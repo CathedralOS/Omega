@@ -1,0 +1,104 @@
+// A bouncing ball animated in place on one console line -- the first demo of timed
+// animation, paced by the Clock.sleep host op. Each frame clears a 40-wide line,
+// draws the ball 'O' at its position, prints a carriage return (cursor to column 0)
+// + the line WITHOUT a newline (so the next frame overwrites it), then sleeps. The
+// ball bounces left<->right. Pure compute + stdout + sleep; no new features beyond
+// the just-added Clock.sleep.
+// Expected exit: 0.
+// Expected output contains: O
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 40]::Utf8 when valid_utf8(self) {}
+domain [u8; 1]::Utf8 when valid_utf8(self) {}
+
+data Main {
+    console: Console;
+    line: [u8; 40] in Utf8;
+    cr: [u8; 1] in Utf8;
+    p: i32 [0..=40];     // ball column; each move is re-guarded so +1/-1 stays in range
+    dir: i32;            // -1 or +1; only compared, never fed to ranged arithmetic
+    frame: i32 [0..=50]; // guard-proven Exact frame counter
+    x: i32 [0..=40];     // guard-proven Exact clear counter
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("bouncing_console: a ball 'O' bouncing along one console line for 50 timed frames");
+    self.line = "                                        ";
+    self.cr = "X";
+    self.cr[0] = 13;
+    self.p = 0;
+    self.dir = 1;
+    self.frame = 0;
+    transition { _ -> frame_loop() }
+
+    state frame_loop(&mut self) {
+        transition self.frame < 50 { true -> clear_init() _ -> finish() }
+    }
+    state clear_init(&mut self) { self.x = 0; transition { _ -> clear_loop() } }
+    state clear_loop(&mut self) {
+        transition self.x >= 0 && self.x < 40 { true -> clear_cell() _ -> place() }
+    }
+    state clear_cell(&mut self) {
+        self.line[self.x] = 32;
+        self.x = self.x + 1;
+        transition { _ -> clear_loop() }
+    }
+    state place(&mut self) {
+        transition self.p >= 0 && self.p < 40 { true -> set_ball() _ -> bad() }
+    }
+    state set_ball(&mut self) {
+        self.line[self.p] = 79;
+        transition { _ -> emit() }
+    }
+    // The host calls kill arithmetic facts, so the counter updates move behind
+    // re-guards: `frame < 50` proves the frame increment, and the movement step
+    // branches on `dir` so each direction's re-guard proves its own +1 / -1 --
+    // fully Exact, no domain.
+    state emit(&mut self) {
+        self.console.write(self.cr);
+        self.console.write(self.line);
+        self.console.sleep(25);
+        transition self.frame < 50 { true -> frame_bump() _ -> finish() }
+    }
+    state frame_bump(&mut self) {
+        self.frame = self.frame + 1;
+        transition self.dir == 1 { true -> move_right_guard() _ -> move_left_guard() }
+    }
+    state move_right_guard(&mut self) {
+        transition self.p >= 0 && self.p < 40 { true -> move_right() _ -> bad() }
+    }
+    state move_right(&mut self) {
+        self.p = self.p + 1;
+        transition { _ -> bounce_hi() }
+    }
+    state move_left_guard(&mut self) {
+        transition self.p >= 1 && self.p < 41 { true -> move_left() _ -> bad() }
+    }
+    state move_left(&mut self) {
+        self.p = self.p - 1;
+        transition { _ -> bounce_hi() }
+    }
+    state bounce_hi(&mut self) {
+        transition self.p >= 39 { true -> flip_down() _ -> bounce_lo() }
+    }
+    state flip_down(&mut self) { self.dir = 0 - 1; transition { _ -> frame_loop() } }
+    state bounce_lo(&mut self) {
+        transition self.p <= 0 { true -> flip_up() _ -> frame_loop() }
+    }
+    state flip_up(&mut self) { self.dir = 1; transition { _ -> frame_loop() } }
+
+    state finish(&mut self) {
+        self.console.write_line("done: 50 frames of line-bounce animation complete (exit 0)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(0);
+    }
+    state bad(&mut self) {
+        self.console.write_line("FAIL: ball position left the [0,40) range guard (exit 1)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(1);
+    }
+}

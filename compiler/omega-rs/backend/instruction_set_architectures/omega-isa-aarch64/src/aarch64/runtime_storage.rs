@@ -6,7 +6,8 @@ use omega_target_operations::{
 use super::primitives::{
     append_add_x_constant, append_unsigned_immediate, append_unsigned_immediate_padded,
     append_unsigned_immediate_w_padded, encode_add_page_offset_placeholder, encode_add_x_register,
-    encode_adrp_placeholder, encode_and_x_register, encode_casal, encode_cbz_x, encode_float_add,
+    encode_adrp_placeholder, encode_and_x_register, encode_casal, encode_cbz_x, encode_eor_x_register,
+    encode_float_add,
     encode_ldaddal_discard,
     encode_float_compare, encode_load_byte_w_post_increment, encode_subs_x_immediate,
     encode_unconditional_branch,
@@ -1385,6 +1386,24 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     Ok(bytes)
 }
 
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_indexed_binary_write(
+    _runtime_value_operands: &impl RuntimeValueOperandSource,
+    _base_byte_offset: usize,
+    _index_region: omega_target_operations::RuntimeStorageRegion,
+    _index_offset: usize,
+    _element_byte_size: usize,
+    _field_byte_offset: usize,
+    _byte_size: usize,
+    _left: RuntimeValueOperandHandle,
+    _operator: StateGuardOperator,
+    _right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    Err(Diagnostic::error(
+        "aarch64 encoder does not yet support a machine-indexed binary write".to_string(),
+    ))
+}
+
 pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
     source_offset: usize,
     descriptor_offset: usize,
@@ -1649,6 +1668,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee
 pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage(
     base_byte_offset: usize,
     index_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
@@ -1657,6 +1677,7 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     let mut bytes = Vec::with_capacity(
         super::widths::runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_width(
             base_byte_offset,
+            index_region,
             element_byte_size,
             field_byte_offset,
             target_offset,
@@ -1666,7 +1687,7 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     append_runtime_machine_index_target_address(
         &mut bytes,
         base_byte_offset,
-        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        index_region,
         index_offset,
         element_byte_size,
         field_byte_offset,
@@ -1678,6 +1699,57 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
     for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
         append_load_data_from_x_offset(&mut bytes, 17, 16, offset, chunk_size, 26)?;
         append_store_data_to_x_offset(&mut bytes, 17, 20, offset, chunk_size, 19)?;
+        Ok(())
+    })?;
+
+    Ok(bytes)
+}
+
+/// Write-side mirror of
+/// [`encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`].
+/// x86_64-only for now; aarch64 emits nothing real.
+/// Write `machine[index] = <machine-storage source>` — the store-side mirror of
+/// `encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`.
+/// Computes the ELEMENT address (base + index*scale + field) into x16 exactly as
+/// the read does, computes the SOURCE address (machine region + `source_offset`)
+/// into x20, then LOADs from the source (x20) and STOREs into the element (x16) --
+/// the load/store bases are swapped relative to the read. `source_region` is
+/// Machine-only (the instruction-selection dispatch rejects a frame source), so
+/// both x16's index base and x20's source share the machine region.
+pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
+    source_offset: usize,
+    base_byte_offset: usize,
+    index_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage_width(
+            source_offset,
+            base_byte_offset,
+            index_region,
+            element_byte_size,
+            field_byte_offset,
+            byte_count,
+        ),
+    );
+    append_runtime_machine_index_target_address(
+        &mut bytes,
+        base_byte_offset,
+        index_region,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    bytes.extend(encode_adrp_placeholder(20));
+    bytes.extend(encode_add_page_offset_placeholder(20));
+    append_add_constant_to_x_register(&mut bytes, 20, source_offset)?;
+
+    for_each_runtime_copy_chunk(0, 0, byte_count, |offset, chunk_size| {
+        append_load_data_from_x_offset(&mut bytes, 17, 20, offset, chunk_size, 26)?;
+        append_store_data_to_x_offset(&mut bytes, 17, 16, offset, chunk_size, 19)?;
         Ok(())
     })?;
 
@@ -2402,15 +2474,26 @@ fn append_runtime_binary_operation(
                 right_register,
             ));
         }
-        StateGuardOperator::And => {
+        // Logical `&&`/`||` over 0/1 booleans AND the bitwise `&`/`|`/`^`
+        // operators all lower to the register-form AND/ORR/EOR (a single
+        // instruction; the store truncates to the target width for narrow
+        // operands, and bitwise ops are width-independent on x-registers).
+        StateGuardOperator::And | StateGuardOperator::BitwiseAnd => {
             bytes.extend(encode_and_x_register(
                 destination_register,
                 destination_register,
                 right_register,
             ));
         }
-        StateGuardOperator::Or => {
+        StateGuardOperator::Or | StateGuardOperator::BitwiseOr => {
             bytes.extend(encode_orr_x_register(
+                destination_register,
+                destination_register,
+                right_register,
+            ));
+        }
+        StateGuardOperator::BitwiseXor => {
+            bytes.extend(encode_eor_x_register(
                 destination_register,
                 destination_register,
                 right_register,
@@ -2676,6 +2759,26 @@ fn runtime_binary_operation_byte_size(
 ) -> usize {
     if is_comparison_operator(operator) {
         runtime_binary_compare_byte_size(operands, left, right)
+    } else if matches!(
+        operator,
+        StateGuardOperator::Divide
+            | StateGuardOperator::Modulo
+            | StateGuardOperator::DivideUnsigned
+            | StateGuardOperator::ModuloUnsigned
+            | StateGuardOperator::ShiftLeft
+            | StateGuardOperator::ShiftRight
+            | StateGuardOperator::ShiftRightLogical
+    ) {
+        // Non-modular ops must run at the OPERAND width, not a hardcoded 64-bit:
+        // a 64-bit sdiv/asr on a narrow i32 (loaded without a sign-extended top
+        // half) reads the sign/high bit wrong. Sizing to the shifted/divided VALUE
+        // (left, else the other operand) picks the narrow (W-register) form so an
+        // i32 sign bit is honored -- mirrors the x86_64 backend. Both W/X encodings
+        // are the same fixed length here, so relocation offsets are unaffected. Two
+        // immediates carry no width, so fall back to the declared target width.
+        runtime_value_operand_value_byte_size(operands, left)
+            .or_else(|| runtime_value_operand_value_byte_size(operands, right))
+            .unwrap_or(target_byte_size)
     } else {
         target_byte_size
     }

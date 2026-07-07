@@ -1,0 +1,99 @@
+// NATIVE end-to-end std::fs WORKFLOW sample — a realistic sequence exercising the
+// raw seam COHESIVELY on real macOS syscalls (per-op canaries test each in
+// isolation; this proves they compose). The workflow:
+//   1. create_dir a working directory
+//   2. create + write "hello world" (11 bytes) + close a file in it
+//   3. stat it -> assert S_IFREG (regular file) and st_size == 11
+//   4. hard_link it to a second name
+//   5. rename the link to a third name
+//   6. open the renamed file, flock it (LOCK_EX), read it back (11 bytes, 'h'),
+//      unlock, close
+//   7. chmod the original read-only -> re-stat asserts the write bits are cleared
+//   8. remove both files + the directory
+// Prints PASS iff every step's rc/decoded field matches.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    dir_mode: i32;
+    ro_mode: u32;
+    rdonly: i32;
+    cap: usize;
+    fd: i32;
+    rc: i32;
+    fmt: i32;
+    size: i32;
+    wbits: i32;
+    first: u8;
+    discard: i32;
+    n: i64;
+    buffer: [u8; 144];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;      // 0o644
+    self.dir_mode = 493;  // 0o755
+    self.ro_mode = 292;   // 0o444
+    self.rdonly = 0;
+    self.cap = 144;
+    // 1. working directory
+    self.rc = self.fs.create_dir("/tmp/omega_wf", self.dir_mode);
+    transition self.rc == 0 { true -> makefile() _ -> fail() }
+    state makefile(&mut self) {
+        // 2. create + write + close
+        self.fd = self.fs.create("/tmp/omega_wf/a.txt", self.mode);
+        self.n = self.fs.write(self.fd, "hello world");
+        self.discard = self.fs.close(self.fd);
+        // 3. stat: regular file, size 11
+        self.rc = self.fs.read_metadata("/tmp/omega_wf/a.txt", &mut self.buffer);
+        transition self.rc == 0 { true -> checktype() _ -> fail() }
+    }
+    state checktype(&mut self) {
+        self.fmt = ((self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8)) & 61440;
+        transition self.fmt == 32768 { true -> checksize() _ -> fail() }
+    }
+    state checksize(&mut self) {
+        self.size = self.buffer[96] as i32; // st_size low byte (11 < 256)
+        transition self.size == 11 { true -> link() _ -> fail() }
+    }
+    state link(&mut self) {
+        // 4. hard link, then 5. rename it
+        self.rc = self.fs.hard_link("/tmp/omega_wf/a.txt", "/tmp/omega_wf/b.txt");
+        transition self.rc == 0 { true -> renameit() _ -> fail() }
+    }
+    state renameit(&mut self) {
+        self.rc = self.fs.rename("/tmp/omega_wf/b.txt", "/tmp/omega_wf/c.txt");
+        transition self.rc == 0 { true -> lockread() _ -> fail() }
+    }
+    state lockread(&mut self) {
+        // 6. open, flock, read back, unlock, close
+        self.fd = self.fs.open("/tmp/omega_wf/c.txt", self.rdonly);
+        self.rc = self.fs.lock_file(self.fd, 2); // LOCK_EX
+        self.n = self.fs.read(self.fd, &mut self.buffer, self.cap);
+        self.first = self.buffer[0];
+        self.discard = self.fs.lock_file(self.fd, 8); // LOCK_UN
+        self.discard = self.fs.close(self.fd);
+        transition self.first == 104 { true -> chmod() _ -> fail() }
+    }
+    state chmod(&mut self) {
+        // 7. chmod read-only, re-stat, assert write bits cleared
+        self.rc = self.fs.set_permissions("/tmp/omega_wf/a.txt", self.ro_mode);
+        self.rc = self.fs.read_metadata("/tmp/omega_wf/a.txt", &mut self.buffer);
+        transition self.rc == 0 { true -> checkro() _ -> fail() }
+    }
+    state checkro(&mut self) {
+        self.wbits = ((self.buffer[4] as i32) | ((self.buffer[5] as i32) << 8)) & 146; // 0o222
+        transition self.wbits == 0 { true -> cleanup() _ -> fail() }
+    }
+    state cleanup(&mut self) {
+        // 8. remove everything
+        self.discard = self.fs.remove("/tmp/omega_wf/a.txt");
+        self.discard = self.fs.remove("/tmp/omega_wf/c.txt");
+        self.rc = self.fs.remove_dir("/tmp/omega_wf");
+        transition self.rc == 0 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: fs workflow (mkdir/create/write/stat/link/rename/flock/read/chmod/cleanup)\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: fs workflow\n"); }
+}

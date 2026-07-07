@@ -1,1 +1,1 @@
-wire data `CounterMessage` field `header` references unknown type `MissingHeader`
+data `CounterMessage` field `header` references unknown type `MissingHeader`

@@ -1,0 +1,36 @@
+// A 2D array (`[[i32; 2]; 2]`): const-indexed reads and writes both work, native==interp. Fill
+// all four cells and sum them (1+2+3+4 = 10), discriminating each cell. Exit 70 iff the sum is 10.
+//
+// NOTE (documented gap, NOT exercised here): a 2D array indexed by a RUNTIME COLUMN --
+// `grid[anything][i]` where `i` is a runtime value -- is not yet supported: the READ is cleanly
+// refused, but the WRITE silently NO-OPS (see memory nested-runtime-indexed-write-gap). A runtime
+// ROW with a const column (`grid[i][0]`) does work. This canary stays in the working const subset.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    grid: [[i32; 2]; 2] in Wrapping;
+    s: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.grid[0][0] = 1;
+    self.grid[0][1] = 2;
+    self.grid[1][0] = 3;
+    self.grid[1][1] = 4;
+    self.s = self.grid[0][0] + self.grid[0][1];
+    self.s = self.s + self.grid[1][0];
+    self.s = self.s + self.grid[1][1];
+    transition self.s == 10 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(self.s);
+    }
+}

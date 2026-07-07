@@ -62,6 +62,35 @@ pub(super) fn pack_fields_at(
     )
 }
 
+/// Place `fields` at PRE-VALIDATED plan offsets (plan-laid value types,
+/// layouts L4). The caller has checked arity; the plan pipeline validated
+/// bounds, overlap, and alignment, so this is pure transcription -- the plan
+/// dictates placement, the packer never second-guesses it.
+pub(super) fn place_fields_by_plan(
+    field_storage: &mut Arena<FieldLayout>,
+    fields: impl IntoIterator<Item = PlannedField>,
+    offsets: &[usize],
+    layout: TypeLayout,
+) -> (HandleSpan<FieldLayout>, TypeLayout) {
+    let mut next = 0usize;
+    let placed_fields = field_storage.insert_many(fields.into_iter().map(|field| {
+        let offset = offsets[next];
+        next += 1;
+
+        FieldLayout {
+            symbol: field.symbol,
+            name: field.name,
+            offset,
+            type_symbol: field.type_symbol,
+            type_name: field.type_name,
+            type_descriptor: field.type_descriptor,
+            layout: field.layout,
+        }
+    }));
+
+    (placed_fields, layout)
+}
+
 fn align_to(value: usize, alignment: usize) -> usize {
     if alignment == 0 {
         value

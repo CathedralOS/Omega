@@ -1,0 +1,39 @@
+// RUN CANARY (exit 70) + interpreter differential. A sum value STORED in a field
+// (`self.stored = Msg::Pong { y, z }`) then READ and dispatched across a machine
+// call must carry its TAG and PAYLOAD intact through the storage round-trip: the
+// Pong arm fires (not Ping), and both payload fields read back (y=10, z=20).
+// Distinct from the construct-and-immediately-dispatch sum canaries -- this pins
+// the sum representation surviving a field store + field read. exit 71 = wrong
+// variant dispatched (tag corrupted); 72 = a payload field read the wrong value.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
+data Main { console: Console; stored: Msg; }
+
+machine Main::main(&mut self) {
+    self.stored = Msg::Pong { y: 10, z: 20 };
+    self.dispatch();
+}
+
+machine Main::dispatch(&mut self) {
+    transition self.stored {
+        Msg::Pong { y, z } -> chk(y, z)
+        Msg::Ping { x } -> bad()
+        _ -> bad()
+    }
+    state chk(&mut self, y: i32, z: i32) {
+        transition y == 10 {
+            true -> chk2(z)
+            _ -> wrong()
+        }
+    }
+    state chk2(&mut self, z: i32) {
+        transition z == 20 {
+            true -> good()
+            _ -> wrong()
+        }
+    }
+    state good(&mut self)  { self.console.exit_process(70); }
+    state wrong(&mut self) { self.console.exit_process(72); }
+    state bad(&mut self)   { self.console.exit_process(71); }
+}

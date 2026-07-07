@@ -1,0 +1,80 @@
+// Bubble sort over a 6-element array -- a fundamental algorithm, self-checking. The
+// adjacent index `j + 1` is a COMPUTED index (refused directly in a subscript), so it is
+// computed into a field `jp` first; the two elements are read into fields and compared
+// (a direct `arr[j] > arr[j+1]` guard is the two-runtime-operand gap), and the swap writes
+// the read values back. The inner bound `5 - i` (a computed value, fine -- only a computed
+// INDEX is refused) shrinks each outer pass. Sorts [5,2,8,1,9,3] -> [1,2,3,5,8,9] and
+// self-checks four cells -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    arr: [i32; 6] in Trapping;
+    i: i32 in Trapping;
+    j: i32 in Trapping;
+    lim: i32 in Trapping;
+    jp: i32 in Trapping;
+    vj: i32 in Trapping;
+    vk: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.arr = [5, 2, 8, 1, 9, 3];
+    self.i = 0;
+    transition { _ -> outer() }
+
+    state outer(&mut self) {
+        transition self.i < 5 { true -> inner_init() _ -> verify() }
+    }
+    state inner_init(&mut self) {
+        self.lim = 5 - self.i; // last `lim` elements are already in place
+        self.j = 0;
+        transition { _ -> inner() }
+    }
+    state inner(&mut self) {
+        transition self.j >= 0 && self.j < self.lim { true -> compare() _ -> outer_next() }
+    }
+    state compare(&mut self) {
+        self.jp = self.j + 1;
+        transition self.j >= 0 && self.j < 6 && self.jp >= 0 && self.jp < 6 {
+            true -> read()
+            _ -> bad()
+        }
+    }
+    state read(&mut self) {
+        self.vj = self.arr[self.j];
+        self.vk = self.arr[self.jp];
+        transition self.vj > self.vk { true -> swap() _ -> inner_next() }
+    }
+    state swap(&mut self) {
+        self.arr[self.j] = self.vk;
+        self.arr[self.jp] = self.vj;
+        transition { _ -> inner_next() }
+    }
+    state inner_next(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> inner() }
+    }
+    state outer_next(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> outer() }
+    }
+
+    state verify(&mut self) {
+        transition self.arr[0] == 1 && self.arr[2] == 3 && self.arr[4] == 8 && self.arr[5] == 9 {
+            true -> good()
+            _ -> wrong()
+        }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(71);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

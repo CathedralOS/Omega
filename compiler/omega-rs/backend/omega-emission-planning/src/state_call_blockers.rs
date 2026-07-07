@@ -136,7 +136,7 @@ fn collect_unresolved_state_call_blockers(
 }
 
 /// A statement that lowered into the wire append/read families is the
-/// synthesized `Schema::encode_wire` / `Schema::decode_wire` call, not an
+/// synthesized `Schema::encode` / `Schema::decode` call, not an
 /// unresolved state call.
 fn unresolved_call_is_wire_encode(
     input: &EmissionPlanningInput<'_>,

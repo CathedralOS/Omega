@@ -1,0 +1,62 @@
+// Greatest common divisor by Euclid's algorithm: repeatedly replace (a, b) with
+// (b, a mod b) until b is 0; a is then the GCD. gcd(48, 36) = 12. Two-and-a-half
+// millennia old and still the standard way to reduce a fraction. Showcases the
+// modulo operator over a self-transition loop (the divisor b is a live runtime
+// value, not a constant). The step's three-way swap goes through a `tmp` FIELD
+// rather than a `let` local on purpose -- see euclid_gcd's note below.
+//
+// (A `let r = self.state.a % self.state.b; self.state.a = self.state.b;
+// self.state.b = r;` form currently miscompiles: the let-local is inline-folded
+// back to `a % b` at its use, after `a` was reassigned. A `tmp` field is read from
+// its slot, so it is correct. The fold bug is filed separately; probe-verified STILL LIVE 2026-07-01.)
+// Expected exit: 12.
+
+use omega::language::std::console;
+
+// Wrapping DECLARED: the gcd remainder chain divides by a live runtime value
+// (`a % b`), and a runtime divisor feeds no range fact yet -- the values are
+// honestly declared unbounded rather than convenience-trapped.
+data Euclid [copy, zero_init] {
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    tmp: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    state: Euclid;
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("euclid_gcd: Euclid's algorithm on (48, 36) via the remainder loop");
+    self.state.a = 48;
+    self.state.b = 36;
+
+    transition {
+        _ -> step()
+    }
+
+    state step(&mut self) {
+        transition self.state.b == 0 {
+            true -> done()
+            _ -> reduce()
+        }
+    }
+
+    state reduce(&mut self) {
+        self.state.tmp = self.state.a % self.state.b;
+        self.state.a = self.state.b;
+        self.state.b = self.state.tmp;
+        transition {
+            _ -> step()
+        }
+    }
+
+    state done(&mut self) {
+        self.console.write_line("result: the GCD, 12 for (48, 36) (the exit code)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(self.state.a);
+    }
+}

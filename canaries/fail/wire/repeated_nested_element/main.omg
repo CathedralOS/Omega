@@ -7,12 +7,12 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data Point {
+data Point {
     0: x: i32;
     1: y: i32;
 }
 
-wire data Polygon {
+data Polygon {
     0: points: [Point; 3];
 }
 
@@ -42,7 +42,7 @@ machine Main::main(&mut self) {
         points_count: 3
     };
 
-    Polygon::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    Polygon::encode(&msg, &mut self.buffer, &mut self.written);
 
     self.console.exit_process(70);
 }

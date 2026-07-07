@@ -1,0 +1,156 @@
+// A bubble-sort VISUALIZER: eight values drawn as horizontal bars (a row of '#' whose
+// length is the value), re-rendered in place after every pass so you watch the array
+// settle from jumbled into an ascending staircase. The first ALGORITHM-in-motion sample
+// that mutates a data array on screen (binary_search_viz only narrows a range; this
+// actually reorders storage). Sort logic is the proven bubble_sort canary: the adjacent
+// index `j+1` computed into a field `jp` (a computed index is refused in a subscript),
+// the two elements read into fields and compared (a direct `arr[j] > arr[j+1]` guard is
+// the two-runtime-operand gap), the swap writing the read values back. Pure compute +
+// stdout + Clock.sleep; no new compiler features.
+// Expected exit: 0.
+// Expected output contains: #
+use omega::language::std::console;
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 8]::Utf8 when valid_utf8(self) {}
+domain [u8; 3]::Utf8 when valid_utf8(self) {}
+
+// FULLY EXACT -- no overflow domain anywhere: every counter carries a range and
+// every increment is guard-proven on its DIRECT incoming edge (re-guard hops added
+// where the loop-head guard sits several states upstream). The element values
+// (vj/vk/val) are plain i32: they are only copied and compared, never used in
+// arithmetic, so they carry no obligation.
+data Main {
+    console: Console;
+    arr: [i32; 8];
+    home: [u8; 3] in Utf8;
+    line: [u8; 8] in Utf8;
+    i: i32 [0..=7];    // outer pass
+    j: i32 [0..=7];    // inner index
+    lim: i32;          // inner bound (shrinks each pass; folds bounded from i's range)
+    jp: i32 [0..=8];   // j + 1 (folds bounded from j's range)
+    vj: i32;           // arr[j]
+    vk: i32;           // arr[jp]
+    ry: i32 [0..=8];   // render row
+    cx: i32 [0..=8];   // render column
+    val: i32;          // bar length for the current row
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("sort_visualizer: bubble sort animated as bars settling into a staircase");
+    self.arr = [5, 2, 8, 1, 7, 3, 6, 4];
+    self.home = "XXX";
+    self.home[0] = 27;
+    self.home[1] = 91;
+    self.home[2] = 72;
+    self.line = "        ";
+    self.i = 0;
+    transition { _ -> show() }
+
+    // --- render the array as bars, in place ---
+    state show(&mut self) {
+        self.console.write(self.home);
+        self.ry = 0;
+        transition { _ -> show_row() }
+    }
+    state show_row(&mut self) {
+        transition self.ry >= 0 && self.ry < 8 { true -> show_col_init() _ -> show_done() }
+    }
+    state show_col_init(&mut self) {
+        self.val = self.arr[self.ry];
+        self.cx = 0;
+        transition { _ -> show_col() }
+    }
+    state show_col(&mut self) {
+        transition self.cx >= 0 && self.cx < 8 { true -> show_cell() _ -> emit_row() }
+    }
+    state show_cell(&mut self) {
+        transition self.cx < self.val { true -> cell_bar() _ -> cell_gap() }
+    }
+    // The two cell arms join in cell_next, whose single re-guarded edge proves the
+    // increment (cx < 8 always holds here -- the show_col guard admitted it -- so
+    // the else arm is unreachable).
+    state cell_bar(&mut self) {
+        self.line[self.cx] = 35; // '#'
+        transition { _ -> cell_next() }
+    }
+    state cell_gap(&mut self) {
+        self.line[self.cx] = 32; // ' '
+        transition { _ -> cell_next() }
+    }
+    state cell_next(&mut self) {
+        transition self.cx < 8 { true -> cell_bump() _ -> emit_row() }
+    }
+    state cell_bump(&mut self) {
+        self.cx = self.cx + 1;
+        transition { _ -> show_col() }
+    }
+    // write_line is a CALL, so re-guard `ry < 8` afterwards to carry the bound on
+    // the direct edge into the increment (ry < 8 always holds inside the row loop).
+    state emit_row(&mut self) {
+        self.console.write_line(self.line);
+        transition self.ry < 8 { true -> row_bump() _ -> show_done() }
+    }
+    state row_bump(&mut self) {
+        self.ry = self.ry + 1;
+        transition { _ -> show_row() }
+    }
+    state show_done(&mut self) {
+        self.console.sleep(180);
+        transition { _ -> step() }
+    }
+
+    // --- one bubble-sort pass, then loop back to re-render ---
+    state step(&mut self) {
+        transition self.i < 7 { true -> inner_init() _ -> finish() }
+    }
+    state inner_init(&mut self) {
+        self.lim = 7 - self.i;
+        self.j = 0;
+        transition { _ -> inner() }
+    }
+    state inner(&mut self) {
+        transition self.j >= 0 && self.j < self.lim { true -> compare() _ -> outer_next() }
+    }
+    state compare(&mut self) {
+        self.jp = self.j + 1;
+        transition self.j >= 0 && self.j < 8 && self.jp >= 0 && self.jp < 8 {
+            true -> read()
+            _ -> finish()
+        }
+    }
+    state read(&mut self) {
+        self.vj = self.arr[self.j];
+        self.vk = self.arr[self.jp];
+        transition self.vj > self.vk { true -> swap() _ -> inner_next() }
+    }
+    state swap(&mut self) {
+        self.arr[self.j] = self.vk;
+        self.arr[self.jp] = self.vj;
+        transition { _ -> inner_next() }
+    }
+    // Re-guard hops: the increments' direct edges must carry the bound (j < lim
+    // <= 7 and i < 7 always hold here, so the else arms are unreachable).
+    state inner_next(&mut self) {
+        transition self.j < 7 { true -> inner_bump() _ -> finish() }
+    }
+    state inner_bump(&mut self) {
+        self.j = self.j + 1;
+        transition { _ -> inner() }
+    }
+    state outer_next(&mut self) {
+        transition self.i < 7 { true -> outer_bump() _ -> finish() }
+    }
+    state outer_bump(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> show() }
+    }
+
+    state finish(&mut self) {
+        self.console.write_line("PASS: 7 bubble-sort passes rendered, array sorted (exit 0)");
+        self.console.write_line("[press Enter to close]");
+        self.console.read_line(&mut self.pause);
+        self.console.exit_process(0);
+    }
+}

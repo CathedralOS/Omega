@@ -1,0 +1,67 @@
+// STRING PALINDROME via two pointers -- exercises the full bounds stack end to end:
+//   * two-pointer convergence under the guard `i < j` (i rises from 0, j falls
+//     from len-1, both unsigned so `0 <= i,j` is free by type);
+//   * the relational chain proves `text[i]`: `i <= j` (from `i < j`) and the
+//     decreasing pointer's invariant `j < len` give `i <= j < len`, so `i < len`;
+//   * `text[j]` proves directly from `j < len` (its loop invariant);
+//   * the two carrier bytes are read into locals and compared in the guard (a
+//     guard comparing two RUNTIME-INDEXED reads directly is a separate codegen
+//     gap; the local-temp form is the clean, explicit idiom that works today).
+//
+// "ABCBA" is a palindrome -> every mirror pair matches -> exit 70.
+
+domain [u8]::Utf8 when valid_utf8(self) {}
+domain [u8; 5]::Utf8 when valid_utf8(self) {}
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    text: [u8; 5] in Utf8;
+    i: u64 in Wrapping;
+    j: u64 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.text = "ABCBA";
+    self.i = 0;
+    self.j = 4;
+
+    transition {
+        _ -> loop_()
+    }
+
+    state loop_(&mut self) {
+        transition self.i < self.j {
+            true -> compare()
+            _ -> palindrome()
+        }
+    }
+
+    state compare(&mut self) {
+        let left: u8 = self.text[self.i];    // proves via  i <= j < len
+        let right: u8 = self.text[self.j];   // proves via  j < len (invariant)
+        transition left == right {
+            true -> advance()
+            _ -> not_palindrome()
+        }
+    }
+
+    state advance(&mut self) {
+        self.i = self.i + 1;
+        self.j = self.j - 1;
+        transition {
+            _ -> loop_()
+        }
+    }
+
+    state palindrome(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state not_palindrome(&mut self) {
+        self.console.exit_process(71);
+    }
+}

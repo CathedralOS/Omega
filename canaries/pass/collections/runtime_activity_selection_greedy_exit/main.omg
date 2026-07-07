@@ -1,0 +1,56 @@
+// Activity selection by a GREEDY strategy -- locally-optimal choice, the last of the major
+// algorithmic paradigms (after search, sort, graph, dynamic programming, backtracking, and
+// numerical methods). Given activities sorted by finish time, repeatedly take the next one
+// that starts no earlier than the last chosen one's finish: that greedy rule is provably
+// optimal for the maximum set of mutually non-overlapping activities. Here six activities
+// (already sorted by end) yield 3: (0,2), (3,5), (5,8). A running `last_end` is the only
+// state; each start is read into a field before the comparison. Exits 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    starts: [i32; 6] in Wrapping;
+    ends: [i32; 6] in Wrapping; // sorted ascending
+    i: i32 in Wrapping;
+    s: i32 in Wrapping;        // starts[i]
+    last_end: i32 in Wrapping; // finish time of the last chosen activity (-1 = none)
+    count: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.starts = [0, 1, 3, 4, 5, 7];
+    self.ends = [2, 3, 5, 6, 8, 9];
+    self.i = 0;
+    self.last_end = 0 - 1;
+    self.count = 0;
+    transition { _ -> loop() }
+
+    state loop(&mut self) {
+        transition self.i >= 0 && self.i < 6 { true -> check() _ -> verify() }
+    }
+    state check(&mut self) {
+        self.s = self.starts[self.i];
+        transition self.s >= self.last_end { true -> pick() _ -> next_i() }
+    }
+    state pick(&mut self) {
+        self.last_end = self.ends[self.i];
+        self.count = self.count + 1;
+        transition { _ -> next_i() }
+    }
+    state next_i(&mut self) {
+        self.i = self.i + 1;
+        transition { _ -> loop() }
+    }
+
+    state verify(&mut self) {
+        transition self.count == 3 { true -> good() _ -> wrong() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(self.count); // surface the wrong count
+    }
+}

@@ -1,0 +1,85 @@
+// Classify a UTF-8 byte by its high bits -- the natural home for shifts and casts
+// used DIRECTLY in transition guards (both recently supported). A UTF-8 byte's
+// shape is entirely in its leading bits:
+//   0xxxxxxx  ASCII               (`b >> 7 == 0`)
+//   10xxxxxx  continuation byte   (`b >> 6 == 0b10`)
+//   110xxxxx  2-byte sequence lead(`b >> 5 == 0b110`)
+//   1110xxxx  3-byte sequence lead(`b >> 4 == 0b1110`)
+// Each classifier is an unsigned `>>` in a guard SUBJECT. A separate sanity check
+// uses a CAST in a guard subject: a byte with its high bit set is NEGATIVE when
+// reinterpreted as `i8` (`(b as i8) < 0`), so it must NOT be ASCII.
+//
+// The sample classifies 0xE2 (11100010), the lead byte of a 3-byte sequence (e.g.
+// the start of `€`), and exits with its class code 3.
+// Expected exit: 3.
+
+boundary trait Console {
+    machine write_line(text: String);
+    machine read_line(out_line: &mut String);
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    byte: u8 in Wrapping;
+    pause: String;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("utf8_byte_class: classify a byte by its leading bits using shift/cast guards");
+    self.byte = 226; // 0xE2 = 11100010, a 3-byte-sequence lead
+
+    // High bit clear -> ASCII (0xxxxxxx). Unsigned `>>` in a guard subject.
+    transition self.byte >> 7 == 0 { true -> ascii() _ -> high_bit_set() }
+
+    // Every non-ASCII byte has its high bit set: as an i8 it is negative. A CAST
+    // in a guard subject confirms the branch we are on before classifying further.
+    state high_bit_set(&mut self) {
+        transition self.byte as i8 < 0 { true -> multibyte() _ -> unreachable() }
+    }
+
+    // 10xxxxxx is a continuation byte; otherwise it is a sequence lead.
+    state multibyte(&mut self) {
+        transition self.byte >> 6 == 2 { true -> continuation() _ -> lead() }
+    }
+
+    // 1110xxxx leads a 3-byte sequence; otherwise 110xxxxx leads a 2-byte one.
+    state lead(&mut self) {
+        transition self.byte >> 4 == 14 { true -> lead3() _ -> lead2() }
+    }
+
+    state ascii(&mut self) {
+        self.console.write_line("class: ASCII (0xxxxxxx) -- exit 1");
+        transition { _ -> done1() }
+    }
+    state continuation(&mut self) {
+        self.console.write_line("class: continuation byte (10xxxxxx) -- exit 4");
+        transition { _ -> done4() }
+    }
+    state lead2(&mut self) {
+        self.console.write_line("class: 2-byte sequence lead (110xxxxx) -- exit 2");
+        transition { _ -> done2() }
+    }
+    state lead3(&mut self) {
+        self.console.write_line("class: 3-byte sequence lead (1110xxxx) -- exit 3");
+        transition { _ -> done3() }
+    }
+    state unreachable(&mut self) {
+        // A high-bit-set byte that is non-negative as i8 is impossible; guard the
+        // dispatch anyway (no silent fall-through) and report the contradiction.
+        self.console.write_line("class: IMPOSSIBLE -- high bit set but non-negative as i8 -- exit 99");
+        transition { _ -> done99() }
+    }
+
+    state done1(&mut self) { transition { _ -> finish1() } }
+    state done2(&mut self) { transition { _ -> finish2() } }
+    state done3(&mut self) { transition { _ -> finish3() } }
+    state done4(&mut self) { transition { _ -> finish4() } }
+    state done99(&mut self) { transition { _ -> finish99() } }
+
+    state finish1(&mut self) { self.console.write_line("[press Enter to close]"); self.console.read_line(&mut self.pause); self.console.exit_process(1); }
+    state finish2(&mut self) { self.console.write_line("[press Enter to close]"); self.console.read_line(&mut self.pause); self.console.exit_process(2); }
+    state finish3(&mut self) { self.console.write_line("[press Enter to close]"); self.console.read_line(&mut self.pause); self.console.exit_process(3); }
+    state finish4(&mut self) { self.console.write_line("[press Enter to close]"); self.console.read_line(&mut self.pause); self.console.exit_process(4); }
+    state finish99(&mut self) { self.console.write_line("[press Enter to close]"); self.console.read_line(&mut self.pause); self.console.exit_process(99); }
+}

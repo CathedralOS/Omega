@@ -1,0 +1,19 @@
+// NaN comparison: IEEE says every comparison with NaN is false EXCEPT `!=` (true).
+// Native `ucomis*` reports NaN via the parity flag; the guard's failure jcc must honor
+// it (a `jp` parity branch), else 4 of the 6 operators take the wrong arm. Each check
+// below advances only on the IEEE-correct outcome; any wrong arm falls to `bad` (71).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; z: f64; nan: f64; g: f64; }
+machine Main::main(&mut self) {
+    self.z = 0.0;
+    self.nan = self.z / self.z;
+    self.g = 5.0;
+    transition self.nan != self.g { true -> check_eq() _ -> bad() }
+    state check_eq(&mut self) { transition self.nan == self.g { true -> bad() _ -> check_lt() } }
+    state check_lt(&mut self) { transition self.nan <  self.g { true -> bad() _ -> check_le() } }
+    state check_le(&mut self) { transition self.nan <= self.g { true -> bad() _ -> check_gt() } }
+    state check_gt(&mut self) { transition self.nan >  self.g { true -> bad() _ -> check_ge() } }
+    state check_ge(&mut self) { transition self.nan >= self.g { true -> bad() _ -> ok() } }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

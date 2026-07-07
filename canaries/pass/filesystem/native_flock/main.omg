@@ -1,0 +1,60 @@
+// NATIVE advisory file locking via `flock` (Rust File::lock/try_lock/unlock) on
+// real macOS syscalls, through the RAW seam (the ergonomic wrapper's native
+// lowering is a separate track). flock locks are held on the OPEN FILE
+// DESCRIPTION, so two independent `open`s of the same path are DISTINCT holders
+// that contend — even within one process. The scenario:
+//   1. open fd1, LOCK_EX (2)            -> 0   (exclusive lock taken)
+//   2. open fd2 (independent), LOCK_EX|LOCK_NB (6) -> -1, errno EWOULDBLOCK (35)
+//   3. fd1 LOCK_UN (8)                  -> 0   (release)
+//   4. fd2 LOCK_EX|LOCK_NB (6)          -> 0   (now uncontended, acquired)
+// Prints PASS iff all four rc/errno match. Proves flock lowers + contends for real.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    rdonly: i32;
+    fd1: i32;
+    fd2: i32;
+    rc: i32;
+    code: i32;
+    discard: i32;
+    n: i64;
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.rdonly = 0;
+    self.fd1 = self.fs.create("/tmp/omega_flock.txt", self.mode);
+    self.n = self.fs.close(self.fd1);
+    // 1: exclusive lock on fd1
+    self.fd1 = self.fs.open("/tmp/omega_flock.txt", self.rdonly);
+    self.rc = self.fs.lock_file(self.fd1, 2); // LOCK_EX
+    transition self.rc == 0 { true -> contend() _ -> fail() }
+    state contend(&mut self) {
+        // 2: independent fd2, non-blocking exclusive -> EWOULDBLOCK
+        self.fd2 = self.fs.open("/tmp/omega_flock.txt", self.rdonly);
+        self.rc = self.fs.lock_file(self.fd2, 6); // LOCK_EX | LOCK_NB
+        transition self.rc < 0 { true -> checkerrno() _ -> fail() }
+    }
+    state checkerrno(&mut self) {
+        self.code = self.fs.errno();
+        transition self.code == 35 { true -> release() _ -> fail() }
+    }
+    state release(&mut self) {
+        // 3: release fd1, then 4: fd2 non-blocking acquire now succeeds
+        self.rc = self.fs.lock_file(self.fd1, 8); // LOCK_UN
+        transition self.rc == 0 { true -> reacquire() _ -> fail() }
+    }
+    state reacquire(&mut self) {
+        self.rc = self.fs.lock_file(self.fd2, 6); // LOCK_EX | LOCK_NB
+        self.discard = self.fs.lock_file(self.fd2, 8); // LOCK_UN
+        self.discard = self.fs.close(self.fd1);
+        self.discard = self.fs.close(self.fd2);
+        self.discard = self.fs.remove("/tmp/omega_flock.txt");
+        transition self.rc == 0 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: flock LOCK_EX contends (EWOULDBLOCK), releases, reacquires\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: native flock\n"); }
+}

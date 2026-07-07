@@ -1,1 +1,1 @@
-wire data `CounterMessage` field `retry_count` reuses reserved field number 3
+data `CounterMessage` field `retry_count` reuses retired identity number 3

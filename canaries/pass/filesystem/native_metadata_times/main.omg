@@ -1,0 +1,67 @@
+// NATIVE fs Metadata times (Rust Metadata::accessed/modified/created). Creates a
+// file, stat's it, and decodes st_atimespec.tv_sec (@32), st_mtimespec.tv_sec
+// (@48), and st_birthtimespec.tv_sec (@80) by i64 byte-assembly. A just-created
+// file has all three as real recent timestamps (> 1_000_000_000, i.e. after
+// 2001). Exercises the stat op + three independent i64 byte-assemblies on real
+// macOS syscalls.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    floor: i64;
+    fd: i32;
+    rc: i32;
+    atime: i64;
+    mtime: i64;
+    btime: i64;
+    n: i64;
+    buffer: [u8; 144];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.floor = 1000000000;
+    self.fd = self.fs.create("/tmp/omega_times.txt", self.mode);
+    self.n = self.fs.write(self.fd, "t");
+    self.n = self.fs.close(self.fd);
+    self.rc = self.fs.read_metadata("/tmp/omega_times.txt", &mut self.buffer);
+    self.n = self.fs.remove("/tmp/omega_times.txt");
+    transition self.rc == 0 { true -> decode() _ -> fail() }
+    state decode(&mut self) {
+        self.atime = (self.buffer[32] as i64)
+            | ((self.buffer[33] as i64) << 8)
+            | ((self.buffer[34] as i64) << 16)
+            | ((self.buffer[35] as i64) << 24)
+            | ((self.buffer[36] as i64) << 32)
+            | ((self.buffer[37] as i64) << 40)
+            | ((self.buffer[38] as i64) << 48)
+            | ((self.buffer[39] as i64) << 56);
+        self.mtime = (self.buffer[48] as i64)
+            | ((self.buffer[49] as i64) << 8)
+            | ((self.buffer[50] as i64) << 16)
+            | ((self.buffer[51] as i64) << 24)
+            | ((self.buffer[52] as i64) << 32)
+            | ((self.buffer[53] as i64) << 40)
+            | ((self.buffer[54] as i64) << 48)
+            | ((self.buffer[55] as i64) << 56);
+        self.btime = (self.buffer[80] as i64)
+            | ((self.buffer[81] as i64) << 8)
+            | ((self.buffer[82] as i64) << 16)
+            | ((self.buffer[83] as i64) << 24)
+            | ((self.buffer[84] as i64) << 32)
+            | ((self.buffer[85] as i64) << 40)
+            | ((self.buffer[86] as i64) << 48)
+            | ((self.buffer[87] as i64) << 56);
+        transition self.atime > self.floor { true -> checkm() _ -> fail() }
+    }
+    state checkm(&mut self) {
+        transition self.mtime > self.floor { true -> checkb() _ -> fail() }
+    }
+    state checkb(&mut self) {
+        transition self.btime > self.floor { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: stat decodes real atime/mtime/birthtime\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: metadata times\n"); }
+}

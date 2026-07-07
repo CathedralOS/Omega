@@ -25,12 +25,12 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data RoomHeader {
+data RoomHeader {
     0: room_id: u32;
     1: kind: i32;
 }
 
-wire data RoomMessage {
+data RoomMessage {
     0: header: RoomHeader;
     1: depth: i32;
 }
@@ -45,12 +45,19 @@ data RoomMessageValue {
     depth: i32;
 }
 
+// The decode verdict: a dispatchable enum, not a forgettable flag. Invalid
+// is the ZII zero case, so an untouched verdict reads as failure.
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+
 data Main {
     console: Console;
     buffer: [u8; 64];
     written: usize;
     read: usize;
-    ok: bool;
+    verdict: WireVerdict;
 }
 
 machine Main::main(&mut self) {
@@ -62,7 +69,7 @@ machine Main::main(&mut self) {
         depth: 0 - 64
     };
 
-    RoomMessage::encode_wire(&msg, &mut self.buffer, &mut self.written);
+    RoomMessage::encode(&msg, &mut self.buffer, &mut self.written);
 
     let decoded: RoomMessageValue = RoomMessageValue {
         header: RoomHeaderValue {
@@ -72,9 +79,9 @@ machine Main::main(&mut self) {
         depth: 0
     };
 
-    RoomMessage::decode_wire(&mut decoded, &self.buffer, &mut self.read, &mut self.ok);
+    RoomMessage::decode(&mut decoded, &self.buffer, &mut self.read, &mut self.verdict);
 
-    let matches: bool = self.ok
+    let matches: bool = self.verdict == WireVerdict::Sound
         && self.written == 10
         && self.read == 10
         && decoded.header.room_id == 300

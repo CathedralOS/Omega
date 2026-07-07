@@ -111,7 +111,6 @@ pub enum ItemSnapshot {
     Machine {
         name: IdentifierSnapshot,
         attached_data: Option<IdentifierSnapshot>,
-        abi: Option<String>,
         type_parameters: Vec<TypeParameterSnapshot>,
         terminates: bool,
         decreases: Vec<ExpressionSnapshot>,
@@ -252,7 +251,12 @@ pub struct TargetHostSettingSnapshot {
 pub struct HostProviderMappingSnapshot {
     pub machine: IdentifierSnapshot,
     pub kind: &'static str,
+    /// Syscall number / VtableSlot index (0 for DllImport).
     pub value: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub module: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub symbol: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -635,12 +639,25 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                 .items
                 .host_provider_mappings(value.mappings)
                 .iter()
-                .map(|mapping| HostProviderMappingSnapshot {
-                    machine: snapshot_identifier(&mapping.machine),
-                    kind: match mapping.kind {
-                        HostProviderMappingKind::Syscall => "syscall",
-                    },
-                    value: mapping.value,
+                .map(|mapping| {
+                    let (kind, value, module, symbol) = match &mapping.binding {
+                        HostProviderMappingKind::Syscall { number } => {
+                            ("syscall", *number, None, None)
+                        }
+                        HostProviderMappingKind::VtableSlot { index } => {
+                            ("vtable_slot", *index, None, None)
+                        }
+                        HostProviderMappingKind::DllImport { module, symbol } => {
+                            ("dll_import", 0, Some(module.clone()), Some(symbol.clone()))
+                        }
+                    };
+                    HostProviderMappingSnapshot {
+                        machine: snapshot_identifier(&mapping.machine),
+                        kind,
+                        value,
+                        module,
+                        symbol,
+                    }
                 })
                 .collect(),
         },
@@ -654,7 +671,6 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
         Item::Machine(value) => ItemSnapshot::Machine {
             name: snapshot_identifier(&value.name),
             attached_data: value.attached_data.as_ref().map(snapshot_identifier),
-            abi: value.abi.clone(),
             type_parameters: syntax_trees
                 .items
                 .type_parameters(value.type_parameters)
@@ -1372,6 +1388,9 @@ fn snapshot_binary_operator(operator: BinaryOperator) -> &'static str {
     match operator {
         BinaryOperator::Add => "add",
         BinaryOperator::And => "and",
+        BinaryOperator::BitwiseAnd => "bitwise_and",
+        BinaryOperator::BitwiseOr => "bitwise_or",
+        BinaryOperator::BitwiseXor => "bitwise_xor",
         BinaryOperator::Divide => "divide",
         BinaryOperator::Equal => "equal",
         BinaryOperator::Greater => "greater",

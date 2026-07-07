@@ -7,6 +7,7 @@ mod invariants;
 mod labels;
 mod lookup;
 mod lowerer;
+mod monomorphization;
 mod operators;
 mod validation;
 mod values;

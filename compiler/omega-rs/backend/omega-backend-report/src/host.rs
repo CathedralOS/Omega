@@ -98,6 +98,16 @@ fn write_host_binding(output: &mut String, binding: &HostBinding) {
                 binding.boundary_policy
             ));
         }
+        HostBindingMechanism::VtableSlot { index } => {
+            output.push_str(&format!(
+                "- {}.{} vtable slot {} boundary `{}`
+",
+                binding.operation_key.capability_name(),
+                binding.operation_key.operation_name(),
+                index,
+                binding.boundary_policy
+            ));
+        }
     }
 }
 

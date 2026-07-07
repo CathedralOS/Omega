@@ -1,0 +1,141 @@
+// Self-checking elementary cellular automaton (Wolfram Rule 90, next = left XOR right) on
+// an 8-cell grid seeded with a single centre cell. The live-cell counts of the first four
+// generations are 1, 2, 2, 4 (the Sierpinski triangle growing), summing to 9. This locks
+// the exact computation -- the sliding-window neighbourhood, the value-position rule shift
+// `(90 >> window) & 1`, plain-index array reads/writes, and the field-temp double buffer --
+// across native AND the interpreter oracle. The visual version is samples/cellular_automaton.
+// Exits 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    cells: [i32; 8] in Trapping;
+    next: [i32; 8] in Trapping;
+    g: i32 in Trapping;
+    acc: i32 in Trapping;
+    rp: i32 in Trapping;
+    op: i32 in Trapping;
+    window: i32 in Trapping;
+    cell: i32 in Trapping;
+    nv: i32 in Trapping;
+    x: i32 in Trapping;
+    cv: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.x = 0;
+    transition { _ -> zero_loop() }
+
+    state zero_loop(&mut self) {
+        transition self.x >= 0 && self.x < 8 { true -> zero_cell() _ -> seed() }
+    }
+    state zero_cell(&mut self) {
+        self.cells[self.x] = 0;
+        self.x = self.x + 1;
+        transition { _ -> zero_loop() }
+    }
+    state seed(&mut self) {
+        self.cells[4] = 1;
+        self.g = 0;
+        self.acc = 0;
+        transition { _ -> gen_loop() }
+    }
+
+    state gen_loop(&mut self) {
+        transition self.g < 4 { true -> count_init() _ -> check() }
+    }
+
+    // accumulate the live-cell count of the current generation
+    state count_init(&mut self) {
+        self.x = 0;
+        transition { _ -> count_loop() }
+    }
+    state count_loop(&mut self) {
+        transition self.x >= 0 && self.x < 8 { true -> count_add() _ -> scan_init() }
+    }
+    state count_add(&mut self) {
+        self.cv = self.cells[self.x];
+        self.acc = self.acc + self.cv;
+        self.x = self.x + 1;
+        transition { _ -> count_loop() }
+    }
+
+    // compute the next generation with a sliding 3-cell window (plain-index reads)
+    state scan_init(&mut self) {
+        self.window = 0;
+        self.rp = 0;
+        self.op = 0 - 1;
+        transition { _ -> scan_loop() }
+    }
+    state scan_loop(&mut self) {
+        transition self.rp >= 0 && self.rp <= 8 { true -> scan_read() _ -> copy_init() }
+    }
+    state scan_read(&mut self) {
+        transition self.rp < 8 { true -> scan_real() _ -> scan_border() }
+    }
+    state scan_real(&mut self) {
+        transition self.rp >= 0 && self.rp < 8 { true -> scan_got() _ -> bad() }
+    }
+    state scan_got(&mut self) {
+        self.cell = self.cells[self.rp];
+        transition { _ -> scan_update() }
+    }
+    state scan_border(&mut self) {
+        self.cell = 0;
+        transition { _ -> scan_update() }
+    }
+    state scan_update(&mut self) {
+        self.window = ((self.window << 1) | self.cell) & 7;
+        transition { _ -> scan_write() }
+    }
+    state scan_write(&mut self) {
+        transition self.op >= 0 && self.op < 8 { true -> scan_do() _ -> scan_advance() }
+    }
+    state scan_do(&mut self) {
+        self.nv = (90 >> self.window) & 1;
+        self.next[self.op] = self.nv;
+        transition { _ -> scan_advance() }
+    }
+    state scan_advance(&mut self) {
+        self.op = self.rp;
+        self.rp = self.rp + 1;
+        transition { _ -> scan_loop() }
+    }
+
+    // copy next -> cells via a field temp (direct cells[x]=next[x] is a dual-indexed gap)
+    state copy_init(&mut self) {
+        self.x = 0;
+        transition { _ -> copy_loop() }
+    }
+    state copy_loop(&mut self) {
+        transition self.x >= 0 && self.x < 8 { true -> copy_cell() _ -> advance() }
+    }
+    state copy_cell(&mut self) {
+        self.cv = self.next[self.x];
+        transition self.x >= 0 && self.x < 8 { true -> copy_put() _ -> bad() }
+    }
+    state copy_put(&mut self) {
+        self.cells[self.x] = self.cv;
+        self.x = self.x + 1;
+        transition { _ -> copy_loop() }
+    }
+    state advance(&mut self) {
+        self.g = self.g + 1;
+        transition { _ -> gen_loop() }
+    }
+
+    state check(&mut self) {
+        transition self.acc == 9 { true -> good() _ -> report() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state report(&mut self) {
+        self.console.exit_process(self.acc); // surface the wrong sum if it ever regresses
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

@@ -1,0 +1,47 @@
+// NATIVE fs append (Rust OpenOptions::append) — no new raw op: `open` already
+// takes flags. Writes "AAA", closes, reopens with O_WRONLY|O_APPEND (0x9),
+// writes "BBB", then reads back the whole file expecting 6 bytes ("AAABBB").
+// Proves `open` handles write/append flags, not just O_RDONLY. Prints PASS.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    append_flags: i32;
+    read_flags: i32;
+    cap: usize;
+    fd: i32;
+    n: i64;
+    rn: i64;
+    buffer: [u8; 64];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.append_flags = 9;
+    self.read_flags = 0;
+    self.cap = 64;
+    self.fd = self.fs.create("/tmp/omega_app.txt", self.mode);
+    transition self.fd >= 0 { true -> first() _ -> fail() }
+    state first(&mut self) {
+        self.n = self.fs.write(self.fd, "AAA");
+        self.n = self.fs.close(self.fd);
+        self.fd = self.fs.open("/tmp/omega_app.txt", self.append_flags);
+        transition self.fd >= 0 { true -> second() _ -> fail() }
+    }
+    state second(&mut self) {
+        self.n = self.fs.write(self.fd, "BBB");
+        self.n = self.fs.close(self.fd);
+        self.fd = self.fs.open("/tmp/omega_app.txt", self.read_flags);
+        transition self.fd >= 0 { true -> rd() _ -> fail() }
+    }
+    state rd(&mut self) {
+        self.rn = self.fs.read(self.fd, &mut self.buffer, self.cap);
+        self.n = self.fs.close(self.fd);
+        self.n = self.fs.remove("/tmp/omega_app.txt");
+        transition self.rn == 6 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: append via O_APPEND grows file to 6 bytes\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: append\n"); }
+}

@@ -1,0 +1,21 @@
+// Negative float -> int cast truncates TOWARD ZERO (cvttsd2si): -3.7 as i32 = -3,
+// -100.0 as i32 = -100. Native must match the interpreter. Exits via a guard on
+// the results (a positive code) so the check is robust to how a shell reports a
+// negative process exit code.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: f64; b: f64; ra: i32; rb: i32; }
+machine Main::main(&mut self) {
+    self.a = 0.0 - 3.7;
+    self.b = 0.0 - 100.0;
+    self.ra = self.a as i32;
+    self.rb = self.b as i32;
+    transition self.ra == (0 - 3) {
+        true -> check_b()
+        false -> bad()
+    }
+    state check_b(&mut self) {
+        transition self.rb == (0 - 100) { true -> good() false -> bad() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

@@ -1,5 +1,6 @@
 use crate::name::lower_name;
 use omega_core::arena::HandleSpan;
+use omega_symbol_resolved_trees::name::DiagnosticName;
 use omega_core::diagnostics::Diagnostic;
 use omega_core::symbols::SymbolHandle;
 use omega_symbol_resolved_trees::expression::{
@@ -80,6 +81,85 @@ fn lower_expression_node_into_table(
             )
         }
         syntax::expression::ExpressionNode::Call(call) => {
+            // `abs(x)` desugars to `max(x, 0 - x)` -- absolute value with ZERO
+            // new backend/interp machinery (min/max are binary builtins). The
+            // reservation is narrow: only a receiver-less single-argument
+            // `abs` is intercepted (a method call `foo.abs()` keeps its
+            // receiver and is untouched). Sound across domains: Wrapping
+            // abs(MIN)=MIN; Exact abs(MIN) fires the `0 - x` overflow proof
+            // (|MIN| is unrepresentable). `x` becomes a SHARED subtree, so a
+            // call argument (side effects / a single result slot) would run
+            // twice -- rejected with a bind-to-a-local diagnostic.
+            if !call.receiver.is_valid()
+                && call.target.as_str() == "abs"
+                && call.arguments.count() == 1
+            {
+                let argument_handle =
+                    syntax_trees.expressions.expression_handles(call.arguments)[0];
+                if matches!(
+                    syntax_trees.expressions.expression(argument_handle),
+                    syntax::expression::ExpressionNode::Call(_)
+                ) {
+                    return Err(Diagnostic::error(
+                        "abs(...) duplicates its argument, so a call argument would run twice; \
+                         bind it to a local first (`let v = f(); abs(v)`)",
+                    ));
+                }
+                let x = lower_expression_into_table(syntax_trees, expressions, argument_handle)?;
+                let zero = expressions.insert(ExpressionNode::Integer(0));
+                let negated = expressions.insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: zero,
+                    operator: BinaryOperator::Subtract,
+                    right: x,
+                }));
+                let arguments = expressions.reserve_expression_handles(2);
+                expressions.set_expression_handle_at_offset(arguments, 0, x);
+                expressions.set_expression_handle_at_offset(arguments, 1, negated);
+                return Ok(expressions.insert(ExpressionNode::Call(TableCallExpression {
+                    receiver: ExpressionHandle::invalid(),
+                    target_symbol: SymbolHandle::invalid(),
+                    target: DiagnosticName::new("max", call.target.source_span()),
+                    arguments,
+                })));
+            }
+            // `clamp(x, lo, hi)` desugars to `min(max(x, lo), hi)` -- also
+            // pure min/max reuse. Each argument appears EXACTLY ONCE (no
+            // shared subtree), so a call argument is safe here (no double-eval
+            // reject needed, unlike abs). Same narrow reservation: receiver-
+            // less, exactly three arguments.
+            if !call.receiver.is_valid()
+                && call.target.as_str() == "clamp"
+                && call.arguments.count() == 3
+            {
+                let argument_handles = syntax_trees
+                    .expressions
+                    .expression_handles(call.arguments)
+                    .to_vec();
+                let x = lower_expression_into_table(syntax_trees, expressions, argument_handles[0])?;
+                let lo =
+                    lower_expression_into_table(syntax_trees, expressions, argument_handles[1])?;
+                let hi =
+                    lower_expression_into_table(syntax_trees, expressions, argument_handles[2])?;
+                let max_arguments = expressions.reserve_expression_handles(2);
+                expressions.set_expression_handle_at_offset(max_arguments, 0, x);
+                expressions.set_expression_handle_at_offset(max_arguments, 1, lo);
+                let max_call = expressions.insert(ExpressionNode::Call(TableCallExpression {
+                    receiver: ExpressionHandle::invalid(),
+                    target_symbol: SymbolHandle::invalid(),
+                    target: DiagnosticName::new("max", call.target.source_span()),
+                    arguments: max_arguments,
+                }));
+                let min_arguments = expressions.reserve_expression_handles(2);
+                expressions.set_expression_handle_at_offset(min_arguments, 0, max_call);
+                expressions.set_expression_handle_at_offset(min_arguments, 1, hi);
+                return Ok(expressions.insert(ExpressionNode::Call(TableCallExpression {
+                    receiver: ExpressionHandle::invalid(),
+                    target_symbol: SymbolHandle::invalid(),
+                    target: DiagnosticName::new("min", call.target.source_span()),
+                    arguments: min_arguments,
+                })));
+            }
+
             let receiver = if call.receiver.is_valid() {
                 lower_expression_into_table(syntax_trees, expressions, call.receiver)?
             } else {
@@ -336,6 +416,9 @@ fn lower_binary_operator(operator: syntax::expression::BinaryOperator) -> Binary
     match operator {
         syntax::expression::BinaryOperator::Add => BinaryOperator::Add,
         syntax::expression::BinaryOperator::And => BinaryOperator::And,
+        syntax::expression::BinaryOperator::BitwiseAnd => BinaryOperator::BitwiseAnd,
+        syntax::expression::BinaryOperator::BitwiseOr => BinaryOperator::BitwiseOr,
+        syntax::expression::BinaryOperator::BitwiseXor => BinaryOperator::BitwiseXor,
         syntax::expression::BinaryOperator::Divide => BinaryOperator::Divide,
         syntax::expression::BinaryOperator::Equal => BinaryOperator::Equal,
         syntax::expression::BinaryOperator::Greater => BinaryOperator::Greater,

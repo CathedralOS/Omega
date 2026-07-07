@@ -1,0 +1,84 @@
+// Coin-change minimisation by DYNAMIC PROGRAMMING -- a new algorithmic PARADIGM beyond the
+// search/sort/graph set. dp[a] = the fewest coins summing to amount a, built bottom-up:
+// dp[0] = 0, and for each amount a and each coin c <= a, relax dp[a] toward 1 + dp[a-c].
+// With coins {1,3,4} the minimum for 6 is 2 (3+3), so dp[6] == 2. The subproblem index
+// a-c is a computed value formed into a field (a computed index is refused in a subscript),
+// and the two dp reads are taken into fields before the comparison. Exits 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    coins: [i32; 3] in Wrapping;
+    dp: [i32; 7] in Wrapping;  // dp[0..6]; 99 = "infinity"
+    a: i32 in Wrapping;
+    ci: i32 in Wrapping;
+    c: i32 in Wrapping;
+    ac: i32 in Wrapping;       // a - c (the subproblem)
+    d1: i32 in Wrapping;       // dp[a-c]
+    cur: i32 in Wrapping;      // dp[a]
+    cand: i32 in Wrapping;     // 1 + dp[a-c]
+    r: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.coins = [1, 3, 4];
+    self.dp = [0, 99, 99, 99, 99, 99, 99];
+    self.a = 1;
+    transition { _ -> a_loop() }
+
+    state a_loop(&mut self) {
+        transition self.a >= 1 && self.a <= 6 { true -> coin_init() _ -> verify() }
+    }
+    state coin_init(&mut self) {
+        self.ci = 0;
+        transition { _ -> coin_loop() }
+    }
+    state coin_loop(&mut self) {
+        transition self.ci >= 0 && self.ci < 3 { true -> try_coin() _ -> a_next() }
+    }
+    state try_coin(&mut self) {
+        self.c = self.coins[self.ci];
+        transition self.c <= self.a { true -> relax_guard() _ -> next_ci() }
+    }
+    state relax_guard(&mut self) {
+        self.ac = self.a - self.c;
+        transition self.ac >= 0 && self.ac < 7 && self.a >= 0 && self.a < 7 {
+            true -> relax_read()
+            _ -> bad()
+        }
+    }
+    state relax_read(&mut self) {
+        self.d1 = self.dp[self.ac];
+        self.cur = self.dp[self.a];
+        self.cand = self.d1 + 1;
+        transition self.cand < self.cur { true -> update() _ -> next_ci() }
+    }
+    state update(&mut self) {
+        self.dp[self.a] = self.cand;
+        transition { _ -> next_ci() }
+    }
+    state next_ci(&mut self) {
+        self.ci = self.ci + 1;
+        transition { _ -> coin_loop() }
+    }
+    state a_next(&mut self) {
+        self.a = self.a + 1;
+        transition { _ -> a_loop() }
+    }
+
+    state verify(&mut self) {
+        self.r = self.dp[6];
+        transition self.r == 2 { true -> good() _ -> wrong() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(self.r); // surface dp[6] on regression
+    }
+    state bad(&mut self) {
+        self.console.exit_process(1);
+    }
+}

@@ -7,6 +7,15 @@ pub(super) fn lower_binary_operator(
     match operator {
         resolved::expression::BinaryOperator::Add => typed::expression::BinaryOperator::Add,
         resolved::expression::BinaryOperator::And => typed::expression::BinaryOperator::And,
+        resolved::expression::BinaryOperator::BitwiseAnd => {
+            typed::expression::BinaryOperator::BitwiseAnd
+        }
+        resolved::expression::BinaryOperator::BitwiseOr => {
+            typed::expression::BinaryOperator::BitwiseOr
+        }
+        resolved::expression::BinaryOperator::BitwiseXor => {
+            typed::expression::BinaryOperator::BitwiseXor
+        }
         resolved::expression::BinaryOperator::Divide => typed::expression::BinaryOperator::Divide,
         resolved::expression::BinaryOperator::Equal => typed::expression::BinaryOperator::Equal,
         resolved::expression::BinaryOperator::Greater => typed::expression::BinaryOperator::Greater,

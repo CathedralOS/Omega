@@ -1,0 +1,1 @@
+indexes a `String` value (`s[i]`), but the text

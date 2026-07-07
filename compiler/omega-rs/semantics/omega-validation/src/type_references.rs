@@ -464,6 +464,21 @@ fn validate_type_constraints_node(
                 }
             }
             TypeConstraintNode::Named(_) => {}
+            // The OmegaLayout FAMILY (`[u8; N] in OmegaLayout<Save>`; ch20
+            // "grammars are layout policies"): compiler-known, never declared.
+            // The refinement records what the bytes hold -- the carrier stays a
+            // plain byte array (see the layout builder's carrier exclusion).
+            TypeConstraintNode::Domain(name)
+                if omega_typed_trees::wire::is_layout_domain_name(name.as_str()) =>
+            {
+                validate_layout_domain_constraint(
+                    program,
+                    base_type,
+                    name.as_str(),
+                    diagnostics,
+                    &owner,
+                );
+            }
             // A declared encoding domain on a carrier (`[u8] in Utf8`; ch8). It
             // must reference a `domain ...::Name` declaration -- this rejects
             // typos (`in Utf8x`) and is what distinguishes a domain from a
@@ -477,7 +492,7 @@ fn validate_type_constraints_node(
                     )));
                 }
             }
-            TypeConstraintNode::Range { .. } => {
+            TypeConstraintNode::Range { minimum, maximum } => {
                 let Some(primitive_type) = primitive_type else {
                     continue;
                 };
@@ -487,12 +502,100 @@ fn validate_type_constraints_node(
                         "{owner} uses `range` on `{}`, but `range` is only valid on numeric types",
                         primitive_type.name()
                     )));
+                } else if let (Some(low), Some(high)) = (
+                    crate::arithmetic_domains::literal_i64(program, *minimum),
+                    crate::arithmetic_domains::literal_i64(program, *maximum),
+                ) && low > high
+                {
+                    // An inverted range `[10..=5]` is the empty set -- no value can
+                    // satisfy it -- yet it silently disabled range checking (every
+                    // value "passed" the malformed bound). Reject it at the declaration.
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} declares an inverted range `[{low}..={high}]`: the low bound \
+                         exceeds the high bound, so no value can satisfy it",
+                    )));
                 }
             }
             // An arithmetic overflow domain (`Wrapping`/`Saturating`/`Trapping`)
             // is only meaningful on integer primitives. (Stricter integer-only
             // validation can be added when the domains gain distinct codegen.)
             TypeConstraintNode::ArithmeticDomain(_) => {}
+        }
+    }
+}
+
+/// Validate one `OmegaLayout` instance in constraint position (ch20 §7,
+/// domain entry = MINTS ONLY). A layout domain is a fact about bytes that a
+/// mint (validate) or an encoder makes true -- it rides BORROWED VIEWS
+/// (`&[u8] in OmegaLayout<Save>`, the mint-result payload spelling). It is
+/// NEVER declared on owned storage: a stored `[u8; N]` is zero bytes at ZII,
+/// so a declared refinement would be a trivially-claimed membership -- false
+/// until the first encode. (Contrast `[u8; N] in Utf8`, whose zero state
+/// `{len: 0}` is genuinely valid and whose write ops preserve the invariant.)
+fn validate_layout_domain_constraint(
+    program: &TypedTrees,
+    base_type: TypeReferenceHandle,
+    name: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+    owner: &TypeReferenceOwner<'_>,
+) {
+    let Some((schema_name, grammar)) = omega_typed_trees::wire::layout_domain_arguments(name)
+    else {
+        return;
+    };
+
+    // Owned stored bytes: rejected outright (mints-only). Borrowed views
+    // (`&[u8]`, `&[u8; N]`) are the legal carrier.
+    match program.type_reference_table.type_reference(base_type) {
+        TypeReferenceNode::FixedArray { .. } => {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} declares `in {name}` on owned stored bytes; a layout domain is a \
+                 fact about bytes ESTABLISHED by validate/encode, never declared on storage \
+                 (a zeroed buffer holds no valid encoding). Hold the value (`{schema_name}`) \
+                 and encode at the edge, or carry the fact on a borrowed view \
+                 (`&[u8] in {name}`)"
+            )));
+            return;
+        }
+        TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => {}
+        _ => {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} uses `in {name}` on `{}`, but a layout domain lives on a borrowed \
+                 byte view (`&[u8] in OmegaLayout<{schema_name}>`)",
+                type_reference_label(program, base_type)
+            )));
+            return;
+        }
+    }
+    if let Some(grammar) = grammar {
+        diagnostics.push(Diagnostic::error(format!(
+            "{owner} names the `{grammar}` grammar explicitly, but `Derived` is the default \
+             and the only implemented grammar of `OmegaLayout` (an explicit `Packed` \
+             parameter is not implemented yet)"
+        )));
+        return;
+    }
+    if !program
+        .wire_schemas()
+        .iter()
+        .any(|schema| schema.name.as_str() == schema_name)
+    {
+        let is_plain_data = program
+            .data_definitions()
+            .iter()
+            .any(|data| data.name.as_str() == schema_name);
+        if is_plain_data {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} uses `in OmegaLayout<{schema_name}>`, but data `{schema_name}` has \
+                 no identity numbers; the packed grammar of an unnumbered schema is not \
+                 implemented yet -- number the fields (`1: name: type;`) for the derived \
+                 tagged grammar"
+            )));
+        } else {
+            diagnostics.push(Diagnostic::error(format!(
+                "{owner} uses `in OmegaLayout<{schema_name}>`, but no data definition named \
+                 `{schema_name}` exists"
+            )));
         }
     }
 }

@@ -68,6 +68,25 @@ impl RuntimeStaticValues {
         self.overflow.retain(|(existing, _)| existing != target);
     }
 
+    /// Forget every recorded constant for a whole place subtree -- every key
+    /// that `starts_with(prefix)`. Used after a RUNTIME-indexed write `arr[i] =
+    /// ..` (non-constant index), which can land on ANY element of `arr`: each
+    /// sibling `arr[k]` constant is now potentially stale, so the entire
+    /// collection must fall back to live storage.
+    fn invalidate_prefix(&mut self, prefix: &PlaceKey) {
+        for slot in self
+            .inline
+            .iter_mut()
+            .take(self.len.min(INLINE_RUNTIME_STATIC_VALUE_COUNT))
+        {
+            if matches!(slot, Some((existing, _)) if existing.starts_with(prefix)) {
+                *slot = None;
+            }
+        }
+        self.overflow
+            .retain(|(existing, _)| !existing.starts_with(prefix));
+    }
+
     fn set(&mut self, target: PlaceKey, value: i64) {
         if let Some((_, existing_value)) = self
             .iter_mut()
@@ -266,11 +285,63 @@ fn resolve_runtime_resolved_static_integer_value(
     }
 }
 
+/// If writing `target` touches an element of an array through a NON-constant
+/// index -- `arr[i]` OR `arr[i].field` (a field of an indexed element) OR a
+/// deeper path over it -- return that array's `PlaceKey`. A runtime-indexed write
+/// can land on any element, so every recorded constant for the whole array is
+/// stale and must be voided. A CONSTANT-index write (`arr[2]`, `arr[2].field`) is
+/// keyable precisely and handled by the normal single-place set/invalidate
+/// (returns `None`).
+fn runtime_indexed_write_collection(target: &Expression) -> Option<PlaceKey> {
+    match target {
+        Expression::Mutable(inner) => runtime_indexed_write_collection(inner),
+        Expression::Indexed(indexed) => {
+            if matches!(indexed.index, Expression::Integer(_)) {
+                return None;
+            }
+            PlaceKey::from_expression(&indexed.collection)
+        }
+        // A field (or deeper) of an indexed element keeps the index in the
+        // RECEIVER: `arr[i].field` is `Member(Indexed(arr[i]), field)`. Walk in.
+        Expression::Member(member) => runtime_indexed_write_collection(&member.receiver),
+        _ => None,
+    }
+}
+
+/// Handle-table variant of [`runtime_indexed_write_collection`].
+fn runtime_indexed_write_collection_in_table(
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+) -> Option<PlaceKey> {
+    match expressions.expression(target) {
+        ExpressionNode::Mutable(inner) => {
+            runtime_indexed_write_collection_in_table(expressions, *inner)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            if matches!(expressions.expression(indexed.index), ExpressionNode::Integer(_)) {
+                return None;
+            }
+            PlaceKey::from_expression_handle(expressions, indexed.collection)
+        }
+        ExpressionNode::Member(member) => {
+            runtime_indexed_write_collection_in_table(expressions, member.receiver)
+        }
+        _ => None,
+    }
+}
+
 pub(super) fn set_runtime_static_value(
     static_values: &mut RuntimeStaticValues,
     target: Expression,
     value: i64,
 ) {
+    // A runtime-indexed write records no precise constant; it instead voids the
+    // whole collection (it changed an unknown element).
+    if let Some(collection) = runtime_indexed_write_collection(&target) {
+        static_values.invalidate_prefix(&collection);
+        return;
+    }
+
     let Some(target) = PlaceKey::from_expression(&strip_mutable_expression(target)) else {
         return;
     };
@@ -284,6 +355,11 @@ pub(super) fn set_runtime_static_value_in_table(
     target: ExpressionHandle,
     value: i64,
 ) {
+    if let Some(collection) = runtime_indexed_write_collection_in_table(expressions, target) {
+        static_values.invalidate_prefix(&collection);
+        return;
+    }
+
     let Some(target) = PlaceKey::from_expression_handle(expressions, target) else {
         return;
     };
@@ -299,9 +375,31 @@ pub(super) fn invalidate_runtime_static_value_in_table(
     expressions: &ExpressionTable,
     target: ExpressionHandle,
 ) {
+    if let Some(collection) = runtime_indexed_write_collection_in_table(expressions, target) {
+        static_values.invalidate_prefix(&collection);
+        return;
+    }
+
     let Some(target) = PlaceKey::from_expression_handle(expressions, target) else {
         return;
     };
 
     static_values.invalidate(&target);
+}
+
+/// If `target` is a runtime-indexed write `arr[i]` (non-constant index), void
+/// every folded constant for the whole collection `arr` -- the write can land on
+/// any element, so each sibling `arr[k]` constant is now stale. No-op for
+/// non-indexed and const-indexed targets (those keep precise per-place tracking
+/// via set/invalidate). Safe to call up front, before the value is resolved: at
+/// runtime the RHS read precedes the write, so a same-array read still sees the
+/// pre-write value from live storage. Calling it once at the mutation-write
+/// entry covers every indexed sub-path (frame/machine copy, indexed integer).
+pub(super) fn invalidate_runtime_static_collection_for_indexed_write(
+    static_values: &mut RuntimeStaticValues,
+    target: &Expression,
+) {
+    if let Some(collection) = runtime_indexed_write_collection(target) {
+        static_values.invalidate_prefix(&collection);
+    }
 }

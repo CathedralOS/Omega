@@ -270,10 +270,7 @@ pub(crate) fn validate_arithmetic_domains(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Interval {
-    if !expression.is_valid() {
-        return Interval::UNBOUNDED;
-    }
-    analyze(
+    validate_value_range(
         program,
         machine,
         state,
@@ -283,7 +280,40 @@ pub(crate) fn validate_arithmetic_domains(
         owner,
         diagnostics,
     )
-    .interval
+    .0
+}
+
+/// Like [`validate_arithmetic_domains`] but also returns the expression's source
+/// integer primitive (the `None`-for-unknown result). The narrowing check needs
+/// it: a value produced by a typed source is ALWAYS within that type's range (a
+/// `u32 in Wrapping` sum is a u32 even when its mathematical interval spills past
+/// `u32`), so the sound value range is `interval ∩ primitive_range(source)` --
+/// intersecting keeps a flow-proven tighter interval while clamping a
+/// domain-wrapped over-approximation back to the type.
+pub(crate) fn validate_value_range(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    env: &ValueEnv,
+    target_primitive: Option<PrimitiveType>,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (Interval, Option<PrimitiveType>) {
+    if !expression.is_valid() {
+        return (Interval::UNBOUNDED, None);
+    }
+    let analysis = analyze(
+        program,
+        machine,
+        state,
+        expression,
+        env,
+        target_primitive,
+        owner,
+        diagnostics,
+    );
+    (analysis.interval, analysis.primitive)
 }
 
 /// The straight-line place path an expression denotes (`self.v`, `count`), for
@@ -543,6 +573,111 @@ fn pair(left: Option<i64>, right: Option<i64>, op: fn(i64, i64) -> Option<i64>) 
     }
 }
 
+/// Decision 17 at a VALUE-BINDING boundary (`self.f = v`, `let x: T = v`): a
+/// value whose proven range does not fit the destination integer type is a
+/// SILENT NARROWING (truncation). Storing a wider value into a narrower slot is
+/// the same proof obligation as an overflowing `+` -- prove it fits or opt into
+/// an explicit `as` cast. Flagged ONLY when the source interval is fully bounded
+/// AND provably escapes the target range: an unbounded end (a call result, a
+/// param, a `u64` high) stays permissive, exactly as exact arithmetic leaves
+/// unbounded unknowns unchecked. A `Cast` re-ranges to the target (its interval
+/// is the target's own range), so `v as i32` always fits -- the escape hatch.
+/// Signedness falls out for free: `i32 -> u32` is caught on the negative half,
+/// `u32 -> i32` on the upper half. `target` is `None` (non-primitive or
+/// non-integer destination) => nothing to prove.
+pub(crate) fn check_narrowing_assignment(
+    target: Option<PrimitiveType>,
+    value: Interval,
+    source: Option<PrimitiveType>,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(primitive) = target else {
+        return;
+    };
+    let Some(range) = primitive_range(primitive) else {
+        return;
+    };
+    // The value produced by a typed source is always WITHIN that type's range
+    // (even a `Wrapping`/`Saturating` result), so intersect the mathematical
+    // interval with the source type's range: a flow-proven `[7, 7]` survives
+    // (tighter than the type), while a domain-wrapped over-approximation is
+    // clamped back to the source type -- which, if it fits the target, is no
+    // narrowing at all.
+    let effective = match source.and_then(primitive_range) {
+        Some(source_range) => value.intersect(source_range),
+        None => value,
+    };
+    // Only a fully-bounded source can be PROVEN out of range; leave an unbounded
+    // (unknown) end permissive rather than turn "unknown" into a spurious error.
+    if effective.low().is_some() && effective.high().is_some() && !range.contains(effective) {
+        diagnostics.push(Diagnostic::error(format!(
+            "narrowing store in {owner} may not fit `{}`: the value is not provably \
+             in range (decision 17 -- a narrowing store is a proof obligation, like exact \
+             arithmetic). Truncate explicitly with an `as` cast, or constrain the source's \
+             range.",
+            primitive_name(primitive),
+        )));
+    }
+}
+
+/// Report the decision-17 narrowing-store obligation for a `value` flowing into a
+/// `target` scalar slot: analyze the value's interval (honoring the flow facts in
+/// `env`) and flag it if it may not fit the target's width. The value's OWN
+/// arithmetic obligations are reported by the normal statement walk, so they go to
+/// a THROWAWAY buffer here -- only the narrowing check contributes to `diagnostics`.
+/// SINGLE SOURCE OF TRUTH for the "does this value fit its typed scalar slot?"
+/// obligation, shared by every store position: call/transition arguments,
+/// struct-literal field construction, and array-literal elements. Pass the
+/// statement `value_env` for flow-sensitive positions, or `&ValueEnv::new()` where
+/// no per-statement env is threaded (construction).
+pub(crate) fn check_value_narrowing(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    value: ExpressionHandle,
+    target: PrimitiveType,
+    env: &ValueEnv,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut throwaway = Vec::new();
+    let (interval, source) =
+        validate_value_range(program, machine, state, value, env, Some(target), owner, &mut throwaway);
+    if throwaway.is_empty() {
+        check_narrowing_assignment(Some(target), interval, source, owner, diagnostics);
+    }
+}
+
+/// Narrowing check for a data field DEFAULT (`b: i8 = 300`), which is always a
+/// literal/const. Machine-free: an integer literal contributes its exact interval,
+/// checked against the field's target type via the shared `check_narrowing_assignment`
+/// core. A non-integer-literal default (a `const` name, a computed expression) is left
+/// to the value's own analysis and skipped here -- so this only ever rejects the
+/// unambiguous literal-out-of-range case.
+pub(crate) fn check_literal_default_narrowing(
+    program: &TypedTrees,
+    value: ExpressionHandle,
+    target: PrimitiveType,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut node = program.expression_table.expression(value);
+    while let ExpressionNode::Mutable(inner) = node {
+        node = program.expression_table.expression(*inner);
+    }
+    let ExpressionNode::Integer(literal) = node else {
+        return;
+    };
+    check_narrowing_assignment(
+        Some(target),
+        Interval::constant(*literal),
+        None,
+        owner,
+        diagnostics,
+    );
+}
+
 /// The representable range of an integer primitive. `None` for non-integers
 /// (`bool`/`f32`/`f64`/`String`) and for `u64`/`usize` whose maximum exceeds
 /// `i64` (their high end is left unbounded -- an over-approximation that still
@@ -556,7 +691,7 @@ fn primitive_range(primitive: PrimitiveType) -> Option<Interval> {
         PrimitiveType::I32 => (Some(i32::MIN as i64), Some(i32::MAX as i64)),
         PrimitiveType::U32 => (Some(0), Some(u32::MAX as i64)),
         PrimitiveType::I64 | PrimitiveType::Isize => (Some(i64::MIN), Some(i64::MAX)),
-        PrimitiveType::U64 | PrimitiveType::Usize => (Some(0), None),
+        PrimitiveType::U64 | PrimitiveType::Usize | PrimitiveType::Addr => (Some(0), None),
         PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
             return None;
         }
@@ -564,7 +699,146 @@ fn primitive_range(primitive: PrimitiveType) -> Option<Interval> {
     Some(Interval { low, high })
 }
 
-fn is_arithmetic(operator: BinaryOperator) -> bool {
+/// The integer value of a literal operand (through a `Mutable` wrapper), or `None`
+/// when the operand is not a plain integer literal.
+fn integer_literal_value(program: &TypedTrees, value: ExpressionHandle) -> Option<i64> {
+    let mut node = program.expression_table.expression(value);
+    while let ExpressionNode::Mutable(inner) = node {
+        node = program.expression_table.expression(*inner);
+    }
+    match node {
+        ExpressionNode::Integer(literal) => Some(*literal),
+        _ => None,
+    }
+}
+
+/// Reject a comparison (`==`/`!=`/`<`/`<=`/`>`/`>=`) between an integer-typed value
+/// and an integer LITERAL outside that type's range: `self.b == 300` for a `u8` `b`
+/// silently TRUNCATED the literal to the operand width (`300 & 0xFF == 44`) and
+/// compared `b == 44` -- a confirmed miscompile (native took the `== 44` branch).
+/// A literal compared against a value must be a representable value of that value's
+/// type. Fires only when one operand resolves to an integer primitive and the other
+/// is an integer literal outside its range; two-place, float/bool/text, and in-range
+/// pairings are skipped. Sibling of the decision-17 narrowing obligation for stores.
+pub(crate) fn report_out_of_range_comparison_literal(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    operator: BinaryOperator,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    if !matches!(
+        operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+    ) {
+        return false;
+    }
+    for (typed_operand, literal_operand) in [(left, right), (right, left)] {
+        let Some(primitive) =
+            crate::places::declared_place_type(program, machine, state, typed_operand)
+                .and_then(|type_reference| program.primitive_type_reference(type_reference))
+        else {
+            continue;
+        };
+        let Some(range) = primitive_range(primitive) else {
+            continue;
+        };
+        let Some(literal) = integer_literal_value(program, literal_operand) else {
+            continue;
+        };
+        let in_range = range.low().is_none_or(|low| literal >= low)
+            && range.high().is_none_or(|high| literal <= high);
+        if !in_range {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` state `{}` compares a `{}` value against `{literal}`, which is out of \
+                 range for `{}` -- the comparison would silently truncate the literal to the \
+                 operand width; compare an in-range value or widen the value with an `as` cast",
+                machine.name.as_str(),
+                state.map(|state| state.name.as_str()).unwrap_or(""),
+                primitive.name(),
+                primitive.name(),
+            )));
+            return true;
+        }
+    }
+    false
+}
+
+/// Reject a COMPARISON (`==`/`!=`/`<`/`<=`/`>`/`>=`) or BITWISE (`&`/`|`/`^`)
+/// operation between two integer places of DIFFERENT primitive types
+/// (`self.i8 == self.i32`, `self.u32 | self.u8`): the backend performs it at the
+/// NARROWER operand's width, silently truncating the wider one -- `i8(44) == i32(300)`
+/// reads TRUE (`300 & 0xFF == 44`) and `u32(256) | u8(1)` reads `1` not `257` (both
+/// confirmed native). Two integer operands must be the SAME type; convert one with an
+/// `as` cast. Fires only when BOTH operands resolve to integer primitives
+/// (`primitive_range` is `Some`) that differ. NOT arithmetic (`+ - * / %`, whose
+/// mismatch is caught by the decision-17 overflow obligation) nor SHIFT (whose right
+/// operand is a bit COUNT, not a width-matched value). A literal operand (no declared
+/// place type -- handled by the out-of-range check), a float/bool/text operand, and
+/// same-type operands are all skipped. Sibling of
+/// `report_out_of_range_comparison_literal`.
+pub(crate) fn report_mismatched_width_operands(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: Option<&State>,
+    operator: BinaryOperator,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> bool {
+    if !matches!(
+        operator,
+        BinaryOperator::Equal
+            | BinaryOperator::NotEqual
+            | BinaryOperator::Less
+            | BinaryOperator::LessOrEqual
+            | BinaryOperator::Greater
+            | BinaryOperator::GreaterOrEqual
+            | BinaryOperator::BitwiseAnd
+            | BinaryOperator::BitwiseOr
+            | BinaryOperator::BitwiseXor
+    ) {
+        return false;
+    }
+    let operand_integer = |operand| {
+        crate::places::declared_place_type(program, machine, state, operand)
+            .and_then(|type_reference| program.primitive_type_reference(type_reference))
+            .filter(|primitive| primitive_range(*primitive).is_some())
+    };
+    let (Some(left_primitive), Some(right_primitive)) =
+        (operand_integer(left), operand_integer(right))
+    else {
+        return false;
+    };
+    if left_primitive == right_primitive {
+        return false;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{}` applies `{operator:?}` to a `{}` value and a `{}` value -- the \
+         operands have different integer types and the operation would silently truncate the wider \
+         one to the narrower width; convert one with an `as` cast so both are the same type",
+        machine.name.as_str(),
+        state.map(|state| state.name.as_str()).unwrap_or(""),
+        left_primitive.name(),
+        right_primitive.name(),
+    )));
+    true
+}
+
+/// The operators whose result is genuine integer arithmetic and can therefore
+/// exceed the `{0, 1}` range even when the operands are bools (bool feeds in as
+/// its 0/1 value). Excludes bitwise `& | ^` (which preserve `{0, 1}` for `{0, 1}`
+/// operands) and comparison/logical ops (which yield a bool). Used both for the
+/// overflow analysis here and, via `expression_types`, to classify an arithmetic
+/// result as numeric for the cross-class store check.
+pub(crate) fn is_arithmetic(operator: BinaryOperator) -> bool {
     matches!(
         operator,
         BinaryOperator::Add
@@ -642,6 +916,27 @@ fn analyze(
                 };
             }
 
+            // A divisor that is PROVABLY zero (a literal `0`, or a value the prover
+            // has pinned to exactly 0) always traps -- the interpreter traps on
+            // div/mod-by-zero in every domain, and native `idiv` faults -- so it is
+            // dead-wrong code, rejected here like an out-of-range literal. This is
+            // the constant case only: a divisor that MIGHT be zero (an interval that
+            // merely straddles 0) stays a runtime concern, not a compile error.
+            if matches!(operator, BinaryOperator::Divide | BinaryOperator::Modulo)
+                && right.interval.low == Some(0)
+                && right.interval.high == Some(0)
+            {
+                let operation = if operator == BinaryOperator::Divide {
+                    "division"
+                } else {
+                    "remainder"
+                };
+                diagnostics.push(Diagnostic::error(format!(
+                    "{operation} by zero in {owner}: the divisor is provably zero, which always \
+                     traps at runtime. Remove the operation or use a nonzero divisor."
+                )));
+            }
+
             // S2: a binary mixing two different explicit domains is illegal.
             if let (Some(left_domain), Some(right_domain)) = (left.domain, right.domain)
                 && left_domain != right_domain
@@ -706,13 +1001,32 @@ fn analyze(
                 && let Some(range) = primitive_range(primitive)
                 && !range.contains(interval)
             {
+                // When an operand is a value-machine CALL, "constrain the operands'
+                // range" is unactionable at the call site -- the fix is to annotate
+                // the CALLEE's return type. Name it so the user knows where to look.
+                let call_hint = overflow_operand_value_call_target(program, machine, binary.left)
+                    .or_else(|| {
+                        overflow_operand_value_call_target(program, machine, binary.right)
+                    })
+                    .map(|target| {
+                        format!(
+                            " Here the operand `{target}(..)` is a value-machine call whose \
+                             return range is unproven -- annotate its return type with a range or \
+                             domain (e.g. `-> {} in Wrapping`).",
+                            primitive_name(primitive)
+                        )
+                    })
+                    .unwrap_or_default();
                 diagnostics.push(Diagnostic::error(format!(
                     "exact arithmetic in {owner} may overflow `{}`: the operands are not provably \
                      in range (decision 17 -- exact arithmetic is a proof obligation). Widen with \
-                     an `as` cast to a larger type, constrain the operands' range, or opt into a \
-                     defined-overflow domain (`{} in Wrapping`/`Saturating`/`Trapping`).",
+                     an `as` cast to a larger type, constrain the operands' range (bound a \
+                     parameter with a `requires` clause, or narrow a value with a dominating \
+                     guard), or opt into a defined-overflow domain \
+                     (`{} in Wrapping`/`Saturating`/`Trapping`).{}",
                     primitive_name(primitive),
                     primitive_name(primitive),
+                    call_hint,
                 )));
             }
 
@@ -841,10 +1155,17 @@ fn analyze(
                     .unwrap_or(Interval::UNBOUNDED);
                 // Narrowest sound interval: a value PROVEN on this path (flow env)
                 // wins; else a declared `[min..max]` range constraint (S4); else
-                // the full type width.
+                // the full type width. A proven interval is INTERSECTED with the
+                // type range, because a typed value is ALWAYS within its type even
+                // when the proof only bounds ONE end -- a one-sided `requires x <
+                // 100` gives the env `[None, 99]`, and `[None, 99] ∩ i32 = [i32::MIN,
+                // 99]` keeps the type's low end so `x + 1` proves Exact (a Wrapping-
+                // spilled interval is likewise clamped back to the type). The same
+                // intersect-with-source-type keystone the narrowing store uses.
                 let interval = place_path(program, expression)
                     .and_then(|path| env.get(&path))
                     .or_else(|| range_constraint_interval(program, handle))
+                    .map(|proven| proven.intersect(type_range))
                     .unwrap_or(type_range);
                 // Atomic integer types (AtomicU32, ...) have hardware wrap-around
                 // semantics, so their arithmetic is Wrapping, not Exact -- a
@@ -897,6 +1218,27 @@ pub(crate) fn range_constraint_interval(
 /// data as the caller, with a state named after the call target) are resolved;
 /// an external receiver, an ambiguous match, or no match returns `None` (no
 /// narrowing). Soundness rests on uniqueness: bail rather than guess.
+/// If `operand` is a value-machine call resolving to a self/sibling machine with an
+/// INTEGER return type, return the call's target name (for the decision-17 overflow
+/// hint). `None` for non-calls, builtins/external-receiver calls (unresolved), and
+/// non-integer returns -- so the hint only fires where "annotate the callee's return"
+/// is the actionable fix.
+fn overflow_operand_value_call_target(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    operand: ExpressionHandle,
+) -> Option<String> {
+    let ExpressionNode::Call(call) = program.expression_table.expression(operand) else {
+        return None;
+    };
+    let call = call.clone();
+    let return_type = call_return_type(program, current_machine, &call)?;
+    program
+        .primitive_type_reference(return_type)
+        .filter(|primitive| primitive.accepts_integer_literal())
+        .map(|_| call.target.as_str().to_string())
+}
+
 fn call_return_type(
     program: &TypedTrees,
     current_machine: &Machine,
@@ -1120,26 +1462,56 @@ pub(crate) fn validate_return_value_range(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    if range_constraint_interval(program, state.return_type).is_none() {
+    let return_primitive = program.primitive_type_reference(state.return_type);
+    if range_constraint_interval(program, state.return_type).is_some() {
+        // Range-constrained return: analyze (emitting any overflow obligation, as
+        // before), enforce the declared `[a..=b]`, and -- on a clean value -- the
+        // narrowing store obligation too. A value proven within `[a..=b]` already
+        // fits the type, so the narrowing check adds no rejection here; it is
+        // present only for uniformity with the unconstrained branch.
+        let before = diagnostics.len();
+        let (interval, source) = validate_value_range(
+            program,
+            machine,
+            Some(state),
+            return_expression,
+            env,
+            return_primitive,
+            owner,
+            diagnostics,
+        );
+        if diagnostics.len() == before {
+            check_narrowing_assignment(return_primitive, interval, source, owner, diagnostics);
+        }
+        enforce_declared_return_range(program, state.return_type, interval, owner, diagnostics);
         return;
     }
-    let interval = validate_arithmetic_domains(
+    // Unconstrained return: analyze into the REAL diagnostics, emitting any exact-
+    // arithmetic overflow obligation just like every other value-binding boundary
+    // (`_ -> (x + y)` with full-range Exact operands would otherwise wrap silently).
+    // On a clean value, add the narrowing store obligation too -- a value that fits
+    // its source type but not the return type (`-> i8 { _ -> (300) }`) is a silent
+    // truncation.
+    let before = diagnostics.len();
+    let (interval, source) = validate_value_range(
         program,
         machine,
         Some(state),
         return_expression,
         env,
-        program.primitive_type_reference(state.return_type),
+        return_primitive,
         owner,
         diagnostics,
     );
-    enforce_declared_return_range(program, state.return_type, interval, owner, diagnostics);
+    if diagnostics.len() == before {
+        check_narrowing_assignment(return_primitive, interval, source, owner, diagnostics);
+    }
 }
 
 /// A type-constraint range bound as an i64, when it is a literal integer (the
 /// common case, `[0..100]`). Non-literal bounds are not narrowed (the caller
 /// falls back to the full type range -- sound).
-fn literal_i64(program: &TypedTrees, expression: ExpressionHandle) -> Option<i64> {
+pub(crate) fn literal_i64(program: &TypedTrees, expression: ExpressionHandle) -> Option<i64> {
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(value) => Some(*value),
         _ => None,
@@ -1170,6 +1542,7 @@ fn primitive_name(primitive: PrimitiveType) -> &'static str {
         PrimitiveType::U64 => "u64",
         PrimitiveType::Isize => "isize",
         PrimitiveType::Usize => "usize",
+        PrimitiveType::Addr => "addr",
         PrimitiveType::Bool => "bool",
         PrimitiveType::F32 => "f32",
         PrimitiveType::F64 => "f64",

@@ -1,0 +1,6 @@
+// Casting a struct to a numeric type (`self.p as i32`) silently reinterpreted the
+// struct's bytes as a number. `as` converts between scalar types only. Rejected now.
+boundary trait Console { machine exit_process(return_code: i32); }
+data P { x: i32; y: i32; }
+data Main { console: Console; p: P; }
+machine Main::main(&mut self) { self.p = P { x: 7, y: 9 }; let n: i32 = self.p as i32; self.console.exit_process(n); }

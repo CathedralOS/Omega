@@ -1,0 +1,73 @@
+// Monte Carlo estimation of pi -- a real numerical-integration technique driving home that
+// the xorshift PRNG (locked by operators/runtime_xorshift_prng_exit) is a usable building
+// block. Throw 64 random points into the [0,100) x [0,100) square (each coordinate a fresh
+// xorshift32 draw mod 100); the fraction landing inside the quarter circle of radius 100
+// (px*px + py*py < 100*100) approximates pi/4. Fully deterministic from seed 1: exactly 53
+// of 64 land inside, so the estimate 400*inside/64 = 331 (i.e. pi ~= 3.31). Both the count
+// and the scaled estimate are checked -> exit 70.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    state: u32 in Wrapping;  // xorshift state
+    sc: u32 in Wrapping;     // shift scratch
+    px: u32 in Wrapping;
+    py: u32 in Wrapping;
+    d: u32 in Wrapping;      // px*px + py*py
+    inside: i32 in Wrapping; // points within the quarter circle
+    est: i32 in Wrapping;    // 100 * pi estimate
+    n: i32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.state = 1;
+    self.inside = 0;
+    self.n = 0;
+    transition { _ -> loop() }
+
+    state loop(&mut self) {
+        transition self.n < 64 { true -> draw() _ -> verify() }
+    }
+    state draw(&mut self) {
+        // a fresh xorshift32 draw for px
+        self.sc = self.state << 13;
+        self.state = self.state ^ self.sc;
+        self.sc = self.state >> 17;
+        self.state = self.state ^ self.sc;
+        self.sc = self.state << 5;
+        self.state = self.state ^ self.sc;
+        self.px = self.state % 100;
+        // and another for py
+        self.sc = self.state << 13;
+        self.state = self.state ^ self.sc;
+        self.sc = self.state >> 17;
+        self.state = self.state ^ self.sc;
+        self.sc = self.state << 5;
+        self.state = self.state ^ self.sc;
+        self.py = self.state % 100;
+        // inside the quarter circle?
+        self.d = self.px * self.px + self.py * self.py;
+        transition self.d < 10000 { true -> hit() _ -> miss() }
+    }
+    state hit(&mut self) {
+        self.inside = self.inside + 1;
+        self.n = self.n + 1;
+        transition { _ -> loop() }
+    }
+    state miss(&mut self) {
+        self.n = self.n + 1;
+        transition { _ -> loop() }
+    }
+    state verify(&mut self) {
+        self.est = 400 * self.inside / 64; // 4 * inside / N, scaled by 100
+        transition self.inside == 53 && self.est == 331 { true -> good() _ -> wrong() }
+    }
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state wrong(&mut self) {
+        self.console.exit_process(self.inside); // surface the count on regression
+    }
+}

@@ -1,0 +1,6 @@
+// Returning an ARRAY from a scalar-return machine (`-> i32 { self.xs }`) used to
+// compile silently. The shape check now covers the return position.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; xs: [i32; 3]; }
+machine Main::get(&mut self) -> i32 { self.xs }
+machine Main::main(&mut self) { self.console.exit_process(0); }

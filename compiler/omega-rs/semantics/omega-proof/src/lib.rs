@@ -665,7 +665,7 @@ mod tests {
         syntax_trees.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("main"),
             attached_data: None,
-            abi: None,
+            boundary: false,
             type_parameters: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             terminates: false,
@@ -711,7 +711,7 @@ mod tests {
         syntax_trees.push_root_item(Item::Machine(Machine {
             name: Identifier::generated("distinct_indices"),
             attached_data: None,
-            abi: None,
+            boundary: false,
             type_parameters: HandleSpan::empty(),
             satisfies: HandleSpan::empty(),
             terminates: false,

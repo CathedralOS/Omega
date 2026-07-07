@@ -1,0 +1,1 @@
+different integer types and the operation would silently truncate

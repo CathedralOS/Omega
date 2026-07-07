@@ -1,0 +1,39 @@
+// NATIVE MetadataExt::blocks/blksize via stat (Rust os::unix::fs::MetadataExt).
+// st_blksize (@112) is the filesystem's preferred I/O block size -- a real,
+// nonzero value (typically 4096). st_blocks (@104) is the 512-byte block count.
+// Proves both fields decode from the real stat record on macOS. (blksize is the
+// robust assertion; blocks is filesystem-dependent, so it is only decoded.)
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    fd: i32;
+    rc: i32;
+    blksize: i32;
+    blocks: i64;
+    n: i64;
+    buffer: [u8; 144];
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.fd = self.fs.create("/tmp/omega_blocks.txt", self.mode);
+    self.n = self.fs.write(self.fd, "some content here");
+    self.n = self.fs.close(self.fd);
+    self.rc = self.fs.read_metadata("/tmp/omega_blocks.txt", &mut self.buffer);
+    self.blksize = (self.buffer[112] as i32) | ((self.buffer[113] as i32) << 8) | ((self.buffer[114] as i32) << 16) | ((self.buffer[115] as i32) << 24);
+    self.blocks = (self.buffer[104] as i64)
+        | ((self.buffer[105] as i64) << 8)
+        | ((self.buffer[106] as i64) << 16)
+        | ((self.buffer[107] as i64) << 24)
+        | ((self.buffer[108] as i64) << 32)
+        | ((self.buffer[109] as i64) << 40)
+        | ((self.buffer[110] as i64) << 48)
+        | ((self.buffer[111] as i64) << 56);
+    self.n = self.fs.remove("/tmp/omega_blocks.txt");
+    transition self.blksize > 0 { true -> good() _ -> fail() }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: st_blksize decodes a nonzero preferred I/O size\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: blocks/blksize\n"); }
+}

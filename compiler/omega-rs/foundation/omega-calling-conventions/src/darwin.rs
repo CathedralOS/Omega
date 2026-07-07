@@ -4,16 +4,55 @@ use crate::{
 };
 
 pub(crate) fn populate(plan: &mut HostAbiPlan) {
+    let policy: std::sync::Arc<str> = "omega::host::targets::darwin".into();
     plan.boundary_policies.insert(HostBoundaryPolicy {
-        path: "omega::host::targets::darwin".into(),
+        path: std::sync::Arc::clone(&policy),
         checked: true,
     });
 
     plan.bindings.insert_many([
-        darwin_import("Stdin", "read", "_read"),
-        darwin_import("Stdout", "write", "_write"),
-        darwin_import("Stderr", "write", "_write"),
-        darwin_import("Process", "exit", "_exit"),
+        darwin_import("Stdin", "read", "_read", &policy),
+        darwin_import("Stdout", "write", "_write", &policy),
+        darwin_import("Stderr", "write", "_write", &policy),
+        darwin_import("Process", "exit", "_exit", &policy),
+        darwin_import("Filesystem", "open", "_open", &policy),
+        darwin_import("Filesystem", "creat", "_creat", &policy),
+        darwin_import("Filesystem", "read", "_read", &policy),
+        darwin_import("Filesystem", "write", "_write", &policy),
+        darwin_import("Filesystem", "pread", "_pread", &policy),
+        darwin_import("Filesystem", "pwrite", "_pwrite", &policy),
+        darwin_import("Filesystem", "close", "_close", &policy),
+        darwin_import("Filesystem", "unlink", "_unlink", &policy),
+        darwin_import("Filesystem", "lseek", "_lseek", &policy),
+        darwin_import("Filesystem", "mkdir", "_mkdir", &policy),
+        darwin_import("Filesystem", "rmdir", "_rmdir", &policy),
+        darwin_import("Filesystem", "openat", "_openat", &policy),
+        darwin_import("Filesystem", "unlinkat", "_unlinkat", &policy),
+        darwin_import("Filesystem", "chmod", "_chmod", &policy),
+        darwin_import("Filesystem", "fchmod", "_fchmod", &policy),
+        darwin_import("Filesystem", "rename", "_rename", &policy),
+        darwin_import("Filesystem", "link", "_link", &policy),
+        darwin_import("Filesystem", "symlink", "_symlink", &policy),
+        darwin_import("Filesystem", "readlink", "_readlink", &policy),
+        darwin_import("Filesystem", "getdirentries64", "___getdirentries64", &policy),
+        darwin_import("Filesystem", "stat", "_stat", &policy),
+        darwin_import("Filesystem", "fstat", "_fstat", &policy),
+        darwin_import("Filesystem", "lstat", "_lstat", &policy),
+        darwin_import("Filesystem", "realpath", "_realpath", &policy),
+        darwin_import("Filesystem", "ftruncate", "_ftruncate", &policy),
+        darwin_import("Filesystem", "futimens", "_futimens", &policy),
+        darwin_import("Filesystem", "fsync", "_fsync", &policy),
+        darwin_import("Filesystem", "dup", "_dup", &policy),
+        darwin_import("Filesystem", "flock", "_flock", &policy),
+        darwin_import("Filesystem", "chown", "_chown", &policy),
+        darwin_import("Filesystem", "lchown", "_lchown", &policy),
+        darwin_import("Filesystem", "fchown", "_fchown", &policy),
+        // The creating `open` (variadic `mode`). NATIVE lowering PENDING (the mode
+        // must be stack-marshalled -- see D8-open); the import + lowering are
+        // wired so only the operand arm + encoder remain. The interpreter models
+        // `open_create` fully today.
+        darwin_import("Filesystem", "open_create", "_open", &policy),
+        darwin_import("Filesystem", "read_errno", "___error", &policy),
     ]);
 
     insert_platform_lowering(
@@ -66,15 +105,279 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         [host_operation("Process", "exit")],
         PlatformCallData::None,
     );
+    // std::fs — the RAW, VALUE-RETURNING boundary layer (each op returns its
+    // syscall result: fd / byte count / rc; a thin Omega layer wraps these into
+    // File/result enums). HUMAN method names (create/open/read/write/close/
+    // remove) — NO legacy C abbreviations in the Omega surface; the ugly libc
+    // spellings (`_creat`,`_unlink`) live only in the binding symbols above.
+    // Registered under the raw trait `FilesystemHost` (not `*`) so `write`/`read`
+    // win the exact-platform lookup over Console's wildcard `write`. All marshal
+    // declared args straight through (PlatformCallData::None); the value-returning
+    // result store is driven by `HostOperationKey::returns_value()`.
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "open",
+        [host_operation("Filesystem", "open")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "create",
+        [host_operation("Filesystem", "creat")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "read",
+        [host_operation("Filesystem", "read")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "write",
+        [host_operation("Filesystem", "write")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "read_at",
+        [host_operation("Filesystem", "pread")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "write_at",
+        [host_operation("Filesystem", "pwrite")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "close",
+        [host_operation("Filesystem", "close")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "remove",
+        [host_operation("Filesystem", "unlink")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "seek",
+        [host_operation("Filesystem", "lseek")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "create_dir",
+        [host_operation("Filesystem", "mkdir")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "remove_dir",
+        [host_operation("Filesystem", "rmdir")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "open_at",
+        [host_operation("Filesystem", "openat")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "unlink_at",
+        [host_operation("Filesystem", "unlinkat")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "set_permissions",
+        [host_operation("Filesystem", "chmod")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "set_file_permissions",
+        [host_operation("Filesystem", "fchmod")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "rename",
+        [host_operation("Filesystem", "rename")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "hard_link",
+        [host_operation("Filesystem", "link")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "symlink",
+        [host_operation("Filesystem", "symlink")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "read_link",
+        [host_operation("Filesystem", "readlink")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "read_dir",
+        [host_operation("Filesystem", "getdirentries64")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "read_metadata",
+        [host_operation("Filesystem", "stat")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "read_file_metadata",
+        [host_operation("Filesystem", "fstat")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "read_symlink_metadata",
+        [host_operation("Filesystem", "lstat")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "canonicalize",
+        [host_operation("Filesystem", "realpath")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "set_len",
+        [host_operation("Filesystem", "ftruncate")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "set_file_times",
+        [host_operation("Filesystem", "futimens")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "sync",
+        [host_operation("Filesystem", "fsync")],
+        PlatformCallData::None,
+    );
+    // `sync_data` (Rust `File::sync_data`) maps to `fsync` on darwin -- the same op
+    // as `sync`. (macOS has no `fdatasync`; Rust itself falls back to fsync there.)
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "sync_data",
+        [host_operation("Filesystem", "fsync")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "duplicate",
+        [host_operation("Filesystem", "dup")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "lock_file",
+        [host_operation("Filesystem", "flock")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "change_owner",
+        [host_operation("Filesystem", "chown")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "change_owner_no_follow",
+        [host_operation("Filesystem", "lchown")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "change_file_owner",
+        [host_operation("Filesystem", "fchown")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "open_create",
+        [host_operation("Filesystem", "open_create")],
+        PlatformCallData::None,
+    );
+    // errno accessor: `___error()` returns `&errno`; the value-returning lowering
+    // derefs the returned pointer once (see `dereferences_result`) so the stored
+    // result is the errno integer, not the pointer. No args.
+    insert_platform_lowering(
+        plan,
+        "FilesystemHost",
+        "errno",
+        [host_operation("Filesystem", "read_errno")],
+        PlatformCallData::None,
+    );
 }
 
-fn darwin_import(capability: &str, operation: &str, symbol: &str) -> HostBinding {
+fn darwin_import(
+    capability: &str,
+    operation: &str,
+    symbol: &str,
+    policy: &std::sync::Arc<str>,
+) -> HostBinding {
     HostBinding {
         operation_key: crate::HostOperationKey::from_names(capability, operation),
         mechanism: HostBindingMechanism::Import {
             library: "libSystem.B.dylib".into(),
             symbol: symbol.into(),
         },
-        boundary_policy: "omega::host::targets::darwin".into(),
+        boundary_policy: std::sync::Arc::clone(policy),
     }
 }

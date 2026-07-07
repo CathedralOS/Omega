@@ -194,6 +194,9 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         // runtime-length slice, including the self-recursive `decreases … Length`
         // shape where source slot == target slot): one seam covers every
         // descriptor-construction strategy.
+        // NOTE: a bare STRING / byte-slice LITERAL argument (`forward("hello")`) is
+        // handled INSIDE emit_runtime_frame_slot_slice_descriptor_write_in_table above
+        // (the shared seam), so it no longer needs a strategy here.
         if emit_runtime_frame_slot_slice_descriptor_write_in_table(
             input,
             source_dispatch_index,
@@ -306,6 +309,7 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         {
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::CopyRuntimePointeeToRuntimeFrame {
+                    target_region: RuntimeStorageRegion::RuntimeFrame,
                     pointer_byte_offset: pointee.pointer_byte_offset,
                     field_byte_offset: pointee.field_byte_offset,
                     target_offset: slot.byte_offset,
@@ -1383,6 +1387,87 @@ fn resolve_prior_local_initializers_in_table(
                 expression
             } else {
                 expressions.insert(ExpressionNode::Mutable(resolved))
+            }
+        }
+        ExpressionNode::Binary(binary) => {
+            // Same as the cast case below: a binary operand may be a prior let-local
+            // (`let s = x + 100`). Fold both sides so an inner local resolves rather
+            // than dangling into the target frame (mirrors the leaf path's Binary arm;
+            // the inner Name arm keeps its capture/block-fold protection, so a
+            // reassigned-field operand still copies its slot).
+            let left = resolve_prior_local_initializers_in_table(
+                input,
+                source_key,
+                statement_index,
+                expressions,
+                binary.left,
+            );
+            let right = resolve_prior_local_initializers_in_table(
+                input,
+                source_key,
+                statement_index,
+                expressions,
+                binary.right,
+            );
+            if left == binary.left && right == binary.right {
+                expression
+            } else {
+                expressions.insert(ExpressionNode::Binary(
+                    omega_checked_trees::expression::TableBinaryExpression {
+                        left,
+                        operator: binary.operator,
+                        right,
+                    },
+                ))
+            }
+        }
+        ExpressionNode::Unary(unary) => {
+            // Same root as the Cast/Binary arms: a unary operand may be a prior
+            // let-local (`let nb = !b`). Fold the operand so the inner local resolves
+            // rather than dangling into the target frame.
+            let operand = resolve_prior_local_initializers_in_table(
+                input,
+                source_key,
+                statement_index,
+                expressions,
+                unary.operand,
+            );
+            if operand == unary.operand {
+                expression
+            } else {
+                expressions.insert(ExpressionNode::Unary(
+                    omega_checked_trees::expression::TableUnaryExpression {
+                        operator: unary.operator,
+                        operand,
+                    },
+                ))
+            }
+        }
+        ExpressionNode::Cast(cast) => {
+            // A cast's inner value may be a prior let-local (`let bw = b8 as i32`).
+            // When the whole `let` is folded into a forwarded argument, the inner
+            // local must be resolved too -- otherwise the cast is re-materialized in
+            // the TARGET state where the source local has no slot and reads 0. Recurse
+            // into the cast value (mirrors the leaf path's `resolve_leaf_caller_local_
+            // initializer_names` Cast arm); the inner Name arm still applies its
+            // capture/block-fold protection.
+            let value = resolve_prior_local_initializers_in_table(
+                input,
+                source_key,
+                statement_index,
+                expressions,
+                cast.value,
+            );
+            if value == cast.value {
+                expression
+            } else {
+                expressions.insert(ExpressionNode::Cast(
+                    omega_checked_trees::expression::TableCastExpression {
+                        value,
+                        target_type: cast.target_type,
+                        domain: cast.domain,
+                    },
+                ))
             }
         }
         _ => expression,

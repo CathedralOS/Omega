@@ -29,8 +29,9 @@ use omega_runtime_dispatch_loop::{
     RuntimeDispatchLoopContext, build_runtime_dispatch_loop_plan_with_workers,
 };
 use omega_runtime_storage::{
-    RuntimeStorageContext, build_runtime_storage_plan_with_workers, reserve_wire_nested_scratch,
-    runtime_frame_storage_alignment, runtime_frame_storage_size,
+    RuntimeStorageContext, build_runtime_storage_plan_with_workers,
+    reserve_entry_argument_spill, reserve_wire_nested_scratch, runtime_frame_storage_alignment,
+    runtime_frame_storage_size,
 };
 use omega_runtime_text::build_runtime_text_plan;
 use omega_state_calls::{
@@ -52,14 +53,27 @@ use std::sync::Arc;
 pub(super) fn build_backend_plan_from_control_flow_with_workers(
     program: Arc<CheckedTrees>,
     target: NativeTarget,
+    freestanding: bool,
+    provides_rows: &[omega_calling_conventions::ProvidesRow],
     control_flow: Arc<ControlFlowPlan>,
     workers: WorkerPoolHandle,
 ) -> Result<BackendPlan, Diagnostic> {
     let entry_point = resolve_backend_entry_point(&program)?;
     let mut phase_timings = Arena::new();
+    // A freestanding (no-host) target -- `subsystem efi_application` -- trusts no
+    // host boundary packages: EMPTY ABI plan, so no bindings, no platform
+    // lowerings, and (downstream) no import thunks. Absence = denial.
     let host_abi = record_backend_phase(&mut phase_timings, "host abi", || {
-        build_host_abi_plan(target)
-    });
+        if freestanding {
+            // provides-sourced bindings (extern brief §12): the program
+            // AUTHORED its platform surface; the rows become bindings +
+            // call lowerings (VtableSlot for UEFI protocols).
+            omega_calling_conventions::build_freestanding_abi_plan(target, provides_rows)
+        } else {
+            Ok(build_host_abi_plan(target))
+        }
+    })
+    .map_err(Diagnostic::error)?;
     let host_abi = Arc::new(host_abi);
     let host_call_program = Arc::clone(&program);
     let layout_program = Arc::clone(&program);
@@ -247,6 +261,11 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     // replaying it (length varint + copy) into the caller's out buffer, and
     // the decoder keeps the sub-region end bound in the same slots.
     reserve_wire_nested_scratch(&mut backend_plan.runtime_storage, &program);
+    // Reserve the entry-argument spill (the bytes handoff `run(&self, args:
+    // &[u8])`) ABOVE every other reservation -- args's slice descriptor points
+    // at the spilled registers for the program's whole life, so nothing may
+    // reuse those bytes.
+    reserve_entry_argument_spill(&mut backend_plan.runtime_storage, backend_plan.entry_key);
     // Observability: dump the absolute frame-slot layout (which logical slot lives
     // at which runtime byte offset) to stderr when OMEGA_DUMP_SLOTS is set. Inert
     // by default -- env unset is zero output and zero behavior change. Mirrors the

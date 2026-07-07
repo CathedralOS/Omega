@@ -1,0 +1,18 @@
+// Comparing two DIFFERENT data types with `==` (`self.p == self.q` for `p: P`,
+// `q: Q`) silently expanded to a POSITIONAL field compare (`p.x == q.x && ..`),
+// reading Q's bytes as if they were a P, and ran to a garbage bool. Structural
+// equality is synthesized from ONE resolved type name, so the mismatch is caught
+// at the expansion site now (before lowering). Same-type `==` stays valid.
+trait Equatable { machine equals(&self, other: &Self) -> bool; }
+boundary trait Console { machine exit_process(return_code: i32); }
+data P { x: i32; y: i32; }
+data Q { a: i32; b: i32; }
+P satisfies Equatable;
+Q satisfies Equatable;
+data Main { console: Console; p: P; q: Q; }
+machine Main::main(&mut self) {
+    self.p = P { x: 1, y: 2 };
+    self.q = Q { a: 1, b: 2 };
+    let mismatched: bool = self.p == self.q;
+    self.console.exit_process(0);
+}

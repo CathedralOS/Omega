@@ -1,0 +1,62 @@
+// Two-pointer palindrome check -- a real algorithm built on the now-verified
+// dual runtime-indexed guard compare (`arr[lo] == arr[hi]`, both indices runtime
+// values). lo scans inward from the front, hi from the back; each step compares
+// the pair and advances. The input [1, 2, 3, 4, 1] is NOT a palindrome: the
+// outer pair matches (1 == 1) so the loop advances once, then the next pair
+// (arr[1]=2 vs arr[3]=4) MISMATCHES. Correctly detecting that mismatch exits 70;
+// wrongly concluding "palindrome" (a compare that read the wrong element and
+// missed 2 != 4) exits 71. The compound guard proves both indices in [0, 5) so
+// the inner reads are in bounds; `Wrapping` on the pointers frees the +1/-1 from
+// an overflow obligation (the guard bounds them at runtime).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    arr: [i32; 5];
+    lo: i32 in Wrapping;
+    hi: i32 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.arr[0] = 1;
+    self.arr[1] = 2;
+    self.arr[2] = 3;
+    self.arr[3] = 4;
+    self.arr[4] = 1;
+    self.lo = 0;
+    self.hi = 4;
+
+    transition {
+        _ -> loop_head()
+    }
+
+    // Continue while the pointers have not crossed; the bound conjuncts prove the
+    // inner reads are in range.
+    state loop_head(&mut self) {
+        transition self.lo >= 0 && self.hi >= 0 && self.lo < 5 && self.hi < 5 && self.lo < self.hi {
+            true -> compare()
+            _ -> all_same()
+        }
+    }
+
+    // The dual runtime-indexed guard compare.
+    state compare(&mut self) {
+        transition self.arr[self.lo] == self.arr[self.hi] {
+            true -> advance()
+            false -> found_diff()
+        }
+    }
+
+    state advance(&mut self) {
+        self.lo = self.lo + 1;
+        self.hi = self.hi - 1;
+        transition {
+            _ -> loop_head()
+        }
+    }
+
+    // Correct: the 2 != 4 pair was detected.
+    state found_diff(&mut self) { self.console.exit_process(70); }
+    // Wrong: the loop crossed without catching the mismatch.
+    state all_same(&mut self) { self.console.exit_process(71); }
+}

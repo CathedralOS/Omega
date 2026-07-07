@@ -1,0 +1,1 @@
+narrowing store in machine `Main::main` state `main` assignment may not fit `i8`

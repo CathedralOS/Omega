@@ -1,0 +1,35 @@
+// Array-of-CASE element construction -- the shape the case-vocabulary layout
+// Plan needs (`plan.fields[i] = FieldPlan::At { offset, width }`, the
+// plan-walking deriver's foundation). Writes a case value at a CONST index and
+// at a RUNTIME index, then payload-matches both back: At{8,4} at [0] gives 12,
+// At{16,8} at [2] gives 24, exit 36. Native must match the interpreter (the
+// interpreter is the L0 build-time engine, so this also gates the structured
+// Plan work).
+boundary trait Console { machine exit_process(return_code: i32); }
+data FieldPlan {
+    case At(offset: i64, width: i64);
+    case Skip;
+}
+data Main { console: Console; plans: [FieldPlan; 4]; i: i64 [0..=3]; a: i64 in Wrapping; b: i64 in Wrapping; r: i32; }
+machine Main::main(&mut self) {
+    self.plans[0] = FieldPlan::At { offset: 8, width: 4 };
+    self.i = 2;
+    self.plans[self.i] = FieldPlan::At { offset: 16, width: 8 };
+    transition self.plans[0] {
+        FieldPlan::At { offset, width } -> first(offset + width)
+        FieldPlan::Skip -> bad()
+    }
+    state first(&mut self, v: i64) {
+        self.a = v;
+        transition self.plans[2] {
+            FieldPlan::At { offset, width } -> second(offset + width)
+            FieldPlan::Skip -> bad()
+        }
+    }
+    state second(&mut self, v: i64) {
+        self.b = v;
+        self.r = (self.a + self.b) as i32;
+        self.console.exit_process(self.r);
+    }
+    state bad(&mut self) { self.console.exit_process(99); }
+}

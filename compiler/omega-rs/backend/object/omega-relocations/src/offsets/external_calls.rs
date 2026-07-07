@@ -16,6 +16,27 @@ pub(crate) fn external_call_relocation_offset<T: InstructionOperandLike>(
         return selected_text_offset + site.byte_offset;
     }
 
+    // AArch64 value-returning layout is `[args (operands[1..])] [BL] [result
+    // store]`, so the branch sits after the ARGS only — the result operand[0]
+    // is stored after the call, not marshalled before it. A stack-mode op
+    // (`open_create`) inserts `sub sp` + `str [sp]` (8 bytes) between the register
+    // args and the `BL` (the `add sp` is AFTER the BL, so it does not shift it),
+    // beyond counting the mode immediate as a register arg.
+    if architecture == Architecture::Aarch64 && operation_key.returns_value() {
+        let stack_mode_bytes = if operation_key.passes_trailing_mode_on_stack() {
+            8
+        } else {
+            0
+        };
+        return selected_text_offset
+            + operands
+                .iter()
+                .skip(1)
+                .map(|operand| omega_instruction_selection::operand_width(architecture, operand))
+                .sum::<usize>()
+            + stack_mode_bytes;
+    }
+
     let operand_bytes = operands
         .iter()
         .map(|operand| omega_instruction_selection::operand_width(architecture, operand))

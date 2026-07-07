@@ -8,6 +8,7 @@ use omega_typed_trees as typed;
 
 pub(crate) fn lower_state(
     lowerer: &mut Lowerer,
+    attached_data: Option<&resolved::name::DiagnosticName>,
     state: &resolved::state::State,
 ) -> Result<typed::state::State, Diagnostic> {
     let mut typed_state = typed::state::State {
@@ -37,7 +38,7 @@ pub(crate) fn lower_state(
         .statements
         .statements(state.statement_nodes)
     {
-        let statement = lower_statement_node(lowerer, statement)?;
+        let statement = lower_statement_node(lowerer, attached_data, state, statement)?;
         lowerer
             .typed_trees
             .statement_table

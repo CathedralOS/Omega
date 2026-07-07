@@ -1,0 +1,100 @@
+// NESTED decreasing loops, both SIGNED i32 counters (a decreasing counter must be
+// signed -- it relies on running below 0 to terminate against a `>= 0` guard).
+// The INNER counter `j` (2..0) indexes `nums` inside the inner body: proving
+// `nums[j]` needs the inner loop's invariant `j < 3` (upper, via DOMINANCE-based
+// back edges so the inner body is not swallowed by the outer loop) AND `j >= 0`
+// (lower, from the inner `j >= 0` guard). The OUTER counter `i` (3..0) indexes
+// `nums` in an OUTER-loop state (`outer_body`), where its `i >= 0` guard reaches
+// directly -- a signed decreasing counter's non-negativity does NOT propagate
+// into a nested inner loop (the incoming-guard walk stops at the inner join), so
+// `nums[self.i]` lives where the guard dominates it.
+//
+//   outer_body adds nums[i] once per outer iter: nums[3..0] = 4+3+2+1 = 10
+//   inner adds nums[j] each inner iter, 3 per outer iter, 4 outer iters:
+//     4 * (nums[2]+nums[1]+nums[0]) = 4 * 6 = 24
+//   total = 10 + 24 = 34.  Exits 70.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    nums: [i32; 4] in Trapping;
+    i: i32 in Trapping;
+    j: i32 in Trapping;
+    acc: i32 in Trapping;
+}
+
+machine Main::main(&mut self) {
+    self.nums[0] = 1;
+    self.nums[1] = 2;
+    self.nums[2] = 3;
+    self.nums[3] = 4;
+    self.i = 3;
+    self.acc = 0;
+
+    transition {
+        _ -> outer()
+    }
+
+    state outer(&mut self) {
+        transition self.i >= 0 {
+            true -> outer_body()
+            _ -> done()
+        }
+    }
+
+    // Outer-counter access lives here: `i >= 0` (from the outer guard, single
+    // predecessor) and `i < 4` (the outer decreasing-counter invariant) both hold.
+    state outer_body(&mut self) {
+        self.acc = self.acc + self.nums[self.i];
+        transition {
+            _ -> inner_init()
+        }
+    }
+
+    state inner_init(&mut self) {
+        self.j = 2;
+        transition {
+            _ -> inner()
+        }
+    }
+
+    state inner(&mut self) {
+        transition self.j >= 0 {
+            true -> ibody()
+            _ -> outer_next()
+        }
+    }
+
+    state ibody(&mut self) {
+        self.acc = self.acc + self.nums[self.j];
+        self.j = self.j - 1;
+        transition {
+            _ -> inner()
+        }
+    }
+
+    state outer_next(&mut self) {
+        self.i = self.i - 1;
+        transition {
+            _ -> outer()
+        }
+    }
+
+    state done(&mut self) {
+        transition self.acc == 34 {
+            true -> good()
+            _ -> bad()
+        }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

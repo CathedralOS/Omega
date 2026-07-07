@@ -1,1 +1,1 @@
-machine `Counter::touch::v1` state `touch` assignment cannot write `timestamp` because it is not mutable in this state
+machine `Counter::touch::v1` state `touch` assignment cannot write `timestamp` because it is not mutable in this state (if `timestamp` is undeclared -- a typo -- no such field or local exists)

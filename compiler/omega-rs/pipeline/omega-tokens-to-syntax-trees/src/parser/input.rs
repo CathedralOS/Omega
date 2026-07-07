@@ -14,10 +14,26 @@ mod literals;
 
 pub(super) type ParseResult<'tokens, 'source, T> = Result<(T, Input<'tokens, 'source>), ParseError>;
 
+/// The most levels of `(`/`[` nesting the recursive-descent parser walks into
+/// before it rejects the input as too deeply nested. The parser recurses once
+/// per level at each of its two choke points (`parse_expression_handle_in` and
+/// `parse_type_reference_handle`), so unbounded nesting overflows the native
+/// stack on pathological-but-parseable input (e.g. `((((...))))`). This bound
+/// converts that crash into a clean diagnostic; it sits far above any nesting a
+/// real program reaches, yet far below the depth that would exhaust the large
+/// stack the pipeline runs on (see `compile`), so the guard -- not a crash --
+/// is always what fires first.
+pub(super) const MAX_NESTING_DEPTH: u16 = 1024;
+
 #[derive(Clone, Copy)]
 pub(super) struct Input<'tokens, 'source> {
     pub(super) source_id: SourceId,
     pub(super) tokens: &'tokens [Token<'source>],
+    /// Current `(`/`[` nesting depth, carried by value through the parse so the
+    /// choke points can bound it. Reconstructions that merely ADVANCE the token
+    /// cursor (`advanced`) preserve it; a fresh `new` (top-level item / guard
+    /// boundary) resets it to 0, giving each independent construct its own budget.
+    depth: u16,
 }
 
 impl<'tokens, 'source> Input<'tokens, 'source> {
@@ -25,7 +41,43 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         Self {
             source_id,
             tokens: skip_non_semantic_tokens(tokens),
+            depth: 0,
         }
+    }
+
+    /// Reconstruct the cursor over `tokens` while PRESERVING the nesting depth.
+    /// Use for every reconstruction that only advances within the same construct
+    /// (token consumption, splits) so accumulated depth is not lost.
+    fn advanced(&self, tokens: &'tokens [Token<'source>]) -> Self {
+        Self {
+            source_id: self.source_id,
+            tokens: skip_non_semantic_tokens(tokens),
+            depth: self.depth,
+        }
+    }
+
+    pub(super) fn depth(&self) -> u16 {
+        self.depth
+    }
+
+    /// Enter one more level of nesting, rejecting input that exceeds
+    /// [`MAX_NESTING_DEPTH`] before it can overflow the parser's stack. Called at
+    /// the recursion choke points; pair with [`Self::with_depth`] to restore the
+    /// outer depth on exit so sibling expressions do not accumulate.
+    pub(super) fn deepen(self) -> Result<Self, ParseError> {
+        if self.depth >= MAX_NESTING_DEPTH {
+            return Err(self.error_here(format!(
+                "expression or type nesting is too deep (exceeds the maximum of {MAX_NESTING_DEPTH} levels)"
+            )));
+        }
+        Ok(Self {
+            depth: self.depth + 1,
+            ..self
+        })
+    }
+
+    pub(super) fn with_depth(self, depth: u16) -> Self {
+        Self { depth, ..self }
     }
 
     pub(super) fn source_span(&self, token: &Token<'_>) -> SourceSpan {
@@ -43,7 +95,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
 
     pub(super) fn expect_token(self) -> Result<(&'tokens Token<'source>, Self), ParseError> {
         match self.tokens.split_first() {
-            Some((token, rest)) => Ok((token, Self::new(self.source_id, rest))),
+            Some((token, rest)) => Ok((token, self.advanced(rest))),
             None => Err(diagnostics::unexpected_eof(self, "token")),
         }
     }
@@ -72,6 +124,39 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         } else {
             Err(diagnostics::expected(self, token, format!("`{label}`")))
         }
+    }
+
+    /// True when `self` begins with a `(` whose matching `)` group contains a
+    /// TOP-LEVEL comma -- i.e. a real tuple/pattern list `(a, b)`, as opposed to
+    /// a single parenthesized expression `(a + b)`. Scans only within the leading
+    /// group (stops at its matching `)`); a comma nested in a further `(`/`[`/`{`
+    /// does not count. Used to disambiguate a transition guard SUBJECT starting
+    /// with `(`: a top-level comma means a tuple of subjects, no comma means a
+    /// parenthesized expression to route through the general expression parser.
+    pub(super) fn leading_paren_group_has_top_level_comma(&self) -> bool {
+        let mut paren = 0usize;
+        let mut bracket = 0usize;
+        let mut brace = 0usize;
+        for token in self.tokens {
+            match token.punctuation() {
+                Some(PunctuationKind::LeftParen) => paren += 1,
+                Some(PunctuationKind::RightParen) => {
+                    paren = paren.saturating_sub(1);
+                    if paren == 0 {
+                        return false;
+                    }
+                }
+                Some(PunctuationKind::LeftBracket) => bracket += 1,
+                Some(PunctuationKind::RightBracket) => bracket = bracket.saturating_sub(1),
+                Some(PunctuationKind::LeftBrace) => brace += 1,
+                Some(PunctuationKind::RightBrace) => brace = brace.saturating_sub(1),
+                Some(PunctuationKind::Comma) if paren == 1 && bracket == 0 && brace == 0 => {
+                    return true;
+                }
+                _ => {}
+            }
+        }
+        false
     }
 
     pub(super) fn take_contextual(self, name: &str) -> Result<Self, ParseError> {
@@ -144,10 +229,54 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         })
     }
 
+    /// True when the input leads with a bare identifier IMMEDIATELY followed by
+    /// the contextual keyword `name` -- a 2-token peek for identifier-led items
+    /// like `<target> provides <Trait> { ... }` (extern brief §3), which have no
+    /// leading keyword to dispatch on. Consumes nothing.
+    /// True when the input leads with the contextual keyword `name` IMMEDIATELY
+    /// followed (past trivia) by a string literal -- the prefixed-string shape
+    /// (`utf16"..."`). A bare identifier followed by a string literal is never
+    /// otherwise valid, so the peek cannot shadow user code. Consumes nothing.
+    pub(super) fn at_contextual_then_string(&self, name: &str) -> bool {
+        let Some((first, rest)) = self.tokens.split_first() else {
+            return false;
+        };
+        if !(matches!(first.kind, TokenKind::Identifier) && first.lexeme.as_str() == name) {
+            return false;
+        }
+        skip_non_semantic_tokens(rest)
+            .first()
+            .is_some_and(|token| token.kind == TokenKind::StringLiteral)
+    }
+
+    pub(super) fn at_identifier_then_contextual(&self, name: &str) -> bool {
+        // `self.tokens[0]` is semantic (leading trivia was skipped in `new`), but
+        // trivia between it and the next token is retained, so skip past it before
+        // peeking the SECOND semantic token.
+        let Some((first, rest)) = self.tokens.split_first() else {
+            return false;
+        };
+        if first.kind != TokenKind::Identifier {
+            return false;
+        }
+        skip_non_semantic_tokens(rest).first().is_some_and(|token| {
+            matches!(token.kind, TokenKind::Identifier | TokenKind::Keyword(_))
+                && token.lexeme.as_str() == name
+        })
+    }
+
     pub(super) fn at_name_like(&self) -> bool {
         self.tokens
             .first()
             .is_some_and(is_identifier_token_for_parser)
+    }
+
+    /// Whether the next token is an integer literal (the identity-number
+    /// prefix of a numbered data field, `N: name: Type;`).
+    pub(super) fn at_integer(&self) -> bool {
+        self.tokens
+            .first()
+            .is_some_and(|token| token.integer_literal_kind().is_some())
     }
 
     pub(super) fn has_newline_before(self, later: Self) -> bool {
@@ -195,10 +324,7 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
         let split_index =
             find_top_level_punctuation(self, delimiter).ok_or_else(|| self.error_here(message))?;
         let (prefix_tokens, rest_tokens) = self.tokens.split_at(split_index);
-        Ok((
-            Self::new(self.source_id, prefix_tokens),
-            Self::new(self.source_id, rest_tokens),
-        ))
+        Ok((self.advanced(prefix_tokens), self.advanced(rest_tokens)))
     }
 
     pub(super) fn skip_braced_block(self) -> Result<(usize, Self), ParseError> {

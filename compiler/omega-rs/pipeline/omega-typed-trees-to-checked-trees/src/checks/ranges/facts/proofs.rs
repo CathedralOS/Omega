@@ -59,6 +59,28 @@ impl RangeFacts<'_> {
             .any(|(known_index, upper_bound)| known_index == index && *upper_bound <= length)
     }
 
+    /// Drop every proven upper bound for `index` -- it is STALE once `index` is
+    /// reassigned (the field/local now holds a different value). Without this a
+    /// loosening reassignment (`j = j + 1`, which should weaken `j < 4` to
+    /// `j < 5`) would keep the old tighter bound via `prove_index_upper_bound`'s
+    /// min-merge, so an access AFTER the mutation (`arr[j]` with `j` now possibly
+    /// out of range) would wrongly prove. Called on every assignment to the
+    /// target's name; the new bound, if any, is then re-derived from the value.
+    pub(in crate::checks::ranges) fn forget_index_upper_bound(&mut self, index: &str) {
+        self.proven_index_upper_bounds
+            .retain(|(known_index, _)| known_index != index);
+    }
+
+    /// The tightest (smallest) proven EXCLUSIVE upper bound for `index`, if any.
+    /// Used to carry a bound across `field = otherfield + const`.
+    pub(in crate::checks::ranges) fn proven_index_upper_bound(&self, index: &str) -> Option<i64> {
+        self.proven_index_upper_bounds
+            .iter()
+            .filter(|(known_index, _)| known_index == index)
+            .map(|(_, upper_bound)| *upper_bound)
+            .min()
+    }
+
     pub(in crate::checks::ranges) fn index_value_is_proven(
         &self,
         collection: &str,
@@ -77,6 +99,24 @@ impl RangeFacts<'_> {
             .any(|length| index < length)
     }
 
+    /// Records that `name` is provably `>= 0`.
+    pub(in crate::checks::ranges) fn prove_non_negative(&mut self, name: String) {
+        if !self.proven_non_negatives.iter().any(|known| known == &name) {
+            self.proven_non_negatives.push(name);
+        }
+    }
+
+    pub(in crate::checks::ranges) fn non_negative_is_proven(&self, name: &str) -> bool {
+        self.proven_non_negatives.iter().any(|known| known == name)
+    }
+
+    /// Drops the `>= 0` fact for `name` -- STALE once `name` is reassigned (the
+    /// new value may be negative). The per-state re-seed (a `>= 0` guard) restores
+    /// it where it still holds.
+    pub(in crate::checks::ranges) fn forget_non_negative(&mut self, name: &str) {
+        self.proven_non_negatives.retain(|known| known != name);
+    }
+
     pub(in crate::checks::ranges) fn prove_at_most(&mut self, lower: String, upper: String) {
         if !self
             .proven_orderings
@@ -91,6 +131,51 @@ impl RangeFacts<'_> {
         self.proven_orderings
             .iter()
             .any(|(known_lower, known_upper)| known_lower == lower && known_upper == upper)
+    }
+
+    /// Proves `index < length` by chaining an ordering with a bound: if
+    /// `index <= j` (an `at_most` fact, e.g. from a two-pointer loop guard
+    /// `index < j`) and `j` has a proven exclusive upper bound `<= length`, then
+    /// `index <= j < length`, so `index < length`. One level of chaining --
+    /// enough for the palindrome / two-pointer case where the increasing pointer
+    /// is bounded only relative to the decreasing pointer (which carries the loop
+    /// invariant). Sound because `at_most` is seeded from `<`/`<=` guards and
+    /// dropped on reassignment, so it reflects a fact live at the access.
+    pub(in crate::checks::ranges) fn index_upper_bound_is_proven_via_ordering(
+        &self,
+        index: &str,
+        length: usize,
+    ) -> bool {
+        self.proven_orderings
+            .iter()
+            .filter(|(lower, _)| lower == index)
+            .any(|(_, upper)| self.index_upper_bound_is_proven(upper, length))
+    }
+
+    /// Proves `index >= 0` by chaining an ordering with non-negativity: if `x <= index`
+    /// (an `at_most` fact, e.g. from a two-pointer guard `x < index`) and `x` is proven
+    /// non-negative, then `index >= x >= 0`. The symmetric counterpart of
+    /// `index_upper_bound_is_proven_via_ordering` -- it carries the DECREASING pointer's
+    /// lower bound from the INCREASING pointer that sits below it (the palindrome /
+    /// two-pointer case where `j` runs down but stays `> i >= 0`). Sound because
+    /// `at_most` is seeded from `<`/`<=` guards and dropped on reassignment, so it
+    /// reflects a relation live at the access.
+    pub(in crate::checks::ranges) fn non_negative_is_proven_via_ordering(
+        &self,
+        index: &str,
+    ) -> bool {
+        self.proven_orderings
+            .iter()
+            .filter(|(_, upper)| upper == index)
+            .any(|(lower, _)| self.non_negative_is_proven(lower))
+    }
+
+    /// Drops every ordering naming `name` -- STALE once `name` is reassigned (the
+    /// `i <= j` relation no longer holds for the new value). A `<`/`<=` guard
+    /// re-establishes it where it still holds.
+    pub(in crate::checks::ranges) fn forget_orderings(&mut self, name: &str) {
+        self.proven_orderings
+            .retain(|(lower, upper)| lower != name && upper != name);
     }
 
     pub(in crate::checks::ranges) fn prove_range_bound(

@@ -7,11 +7,11 @@ boundary trait Console {
     machine exit_process(return_code: i32);
 }
 
-wire data PacketHeader {
+data PacketHeader {
     0: parent: Packet;
 }
 
-wire data Packet {
+data Packet {
     0: header: PacketHeader;
     1: depth: i32;
 }

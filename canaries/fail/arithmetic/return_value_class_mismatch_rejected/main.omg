@@ -1,0 +1,24 @@
+// FAIL canary: a cross-CLASS transition-VALUE return -- `_ -> (true)` returning a
+// bool from an `-> i32` machine -- is rejected at type-check. This was a SILENT
+// MISCOMPILE (returned true as 1): the TERMINAL `{ true }` return form is caught by
+// the general shape gate, but the transition-value form (`transition { _ -> (expr)
+// }`) went through the range/overflow/narrowing checks only, never a class check.
+// The 8th and final "value into a typed slot" position; now every store position
+// enforces the shared cross-class guard.
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+}
+
+machine Main::produce(&mut self) -> i32 {
+    transition { _ -> (true) } // bool returned from an i32 machine -- would return 1
+}
+
+machine Main::main(&mut self) {
+    let r: i32 = self.produce();
+    self.console.exit_process(r);
+}

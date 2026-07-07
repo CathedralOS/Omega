@@ -1,0 +1,1 @@
+stores a boolean into a `i32` place, which holds a numeric value

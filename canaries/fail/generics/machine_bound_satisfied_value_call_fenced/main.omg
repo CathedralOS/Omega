@@ -1,0 +1,36 @@
+// Decision-13 value-position complement, RE-PURPOSED as a fence canary: the
+// type-parameter BOUNDS here are all SATISFIED (a `[copy]` data type and a
+// scalar primitive), so no bound diagnostic may fire -- but a VALUE-position
+// call to a generic machine is rejected by the monomorphization fence (the
+// result slot is never materialized natively; it silently yielded 0 while the
+// interpreter returned the real value). The expected fragment is the FENCE
+// error; a bounds violation would produce a different diagnostic (still
+// covered by machine_bound_violated_at_call).
+
+data Light [copy] {
+    weight: i32;
+}
+
+data Main {
+    l: Light;
+    n: i32;
+    result: i32;
+}
+
+machine Main::pick<T [copy]>(&self, x: &T) -> i32 {
+    7
+}
+
+machine pick_free<T [copy]>(x: &T) -> i32 {
+    42
+}
+
+machine Main::main(&mut self) {
+    // Value-position call with a [copy] data type -- must compile.
+    let a: i32 = self.pick(&self.l);
+    // Value-position call with a scalar primitive -- must compile.
+    let b: i32 = self.pick(&self.n);
+    // Value-position call to a free machine -- must compile.
+    let c: i32 = pick_free(&self.l);
+    self.result = a;
+}

@@ -1,0 +1,35 @@
+// NATIVE fs set_len (Rust File::set_len) via _ftruncate. Writes 20 bytes,
+// truncates to 5, then seeks to end to confirm the size is 5. Prints PASS.
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    new_len: i64;
+    zero_off: i64;
+    seek_end: i32;
+    fd: i32;
+    n: i64;
+    rc: i32;
+    size: i64;
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.new_len = 5;
+    self.zero_off = 0;
+    self.seek_end = 2;
+    self.fd = self.fs.create("/tmp/omega_trunc.txt", self.mode);
+    transition self.fd >= 0 { true -> wrote() _ -> fail() }
+    state wrote(&mut self) {
+        self.n = self.fs.write(self.fd, "twenty-byte content!");
+        self.rc = self.fs.set_len(self.fd, self.new_len);
+        self.size = self.fs.seek(self.fd, self.zero_off, self.seek_end);
+        self.n = self.fs.close(self.fd);
+        self.n = self.fs.remove("/tmp/omega_trunc.txt");
+        transition self.size == 5 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: set_len truncates 20 -> 5 bytes\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: set_len\n"); }
+}

@@ -321,6 +321,9 @@ pub fn encode_runtime_text_line_read(
                     *number_register,
                     *supervisor_call,
                 ),
+                HostBindingMechanism::VtableSlot { .. } => Err(Diagnostic::error(
+                    "read_line cannot be vtable-bound",
+                )),
             }
         }
         Architecture::X86_64 => match binding {
@@ -346,17 +349,14 @@ pub fn encode_runtime_text_line_read(
                     )
                 }
             }
+            HostBindingMechanism::VtableSlot { .. } => Err(Diagnostic::error(
+                "read_line cannot be vtable-bound",
+            )),
         },
     }
 }
 
 fn unsupported_x86_64_encoding() -> Result<Vec<u8>, Diagnostic> {
-    Err(Diagnostic::error(
-        "X86_64 runtime text encoding is not implemented",
-    ))
-}
-
-fn unsupported_x86_64_runtime_text_storage_compare_encoding() -> Result<[u8; 84], Diagnostic> {
     Err(Diagnostic::error(
         "X86_64 runtime text encoding is not implemented",
     ))

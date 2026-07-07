@@ -6,6 +6,17 @@ They are not runtime tags, wrapper types, hidden storage, or a second object
 model. A domain names a meaningful semantic state that the compiler can prove
 for a value.
 
+> **Every data type has a DEFAULT DOMAIN (settled 2026-07-05).** The invariants a
+> `data` type "always has" are its default domain — the one domain that is always in
+> scope for the value and travels with it everywhere, so it need not be named or
+> tracked. Named domains like `Player::New` or `Quantity::Additive` are **subdomains**
+> refining that base with tighter invariants, operators, or facts, selected at a mint
+> point (`as`) when provable. This is why a per-field constraint and a domain are the
+> *same* mechanism (see [Chapter 7](chapter_7_types_constraints_invariants.md)):
+> single-field constraints are standing invariants of the default domain; cross-field
+> invariants live there too but are reached only via construction or a [`relax`
+> scope](chapter_11_relax_scopes.md). *Settled model; not yet implemented.*
+
 ```omega
 data Player {
     health: i32;
@@ -82,6 +93,98 @@ machine Game::start_game(&mut self)
     requires self in Game::NewGame
     ensures self in Game::Playing
 {
+}
+```
+
+## Establishing A Domain — `as`, With All Facts Proven
+
+A value is *in* a domain only where the compiler can prove the domain's
+predicate holds. Membership is a discharged proof obligation, never a runtime
+tag or an unbacked claim. A value comes to carry a domain in exactly three
+ways, and no others:
+
+- **Constant.** A compile-time-known value whose facts the compiler checks
+  directly: a literal `"hello"` is provably `Utf8`; `0` is provably `[0..=100]`.
+- **Flow.** A dominating guard narrows a value: in the `true` arm of
+  `transition level <= 100`, `level` carries `[0..=100]` (Chapter 9). The guard
+  *is* the proof.
+- **`as`.** The explicit minter, for a fact that holds here but is not evident
+  from the type. `value as T in D` is licensed **only when the prover discharges
+  every invariant of `D` at that exact point**. If it cannot, it is a compile
+  error — you restructure (add the guards that establish the fact) until the
+  proof exists.
+
+There is no unsafe cast and no "assert, on me" escape. `as` never asserts a
+fact it has not proven, so a value never carries a domain that was not
+established. This applies to **every** domain — ranges, encodings, layouts,
+behaviour policies alike.
+
+Establishing a domain over *runtime* data is therefore ordinary code, not a
+compiler builtin. To turn untrusted bytes into `&[u8] in Utf8` you write a
+machine that reads the bytes, guards that each unit is valid, and casts in the
+arm where the whole sequence is proven:
+
+```omega
+data Utf8Scan {
+    case NotText;
+    case Text(view: &[u8] in Utf8);
+}
+
+machine Scanner::scan(&mut self, bytes: &[u8]) -> Utf8Scan {
+    self.i = 0;
+    transition { _ -> step(bytes) }
+
+    state step(&mut self, bytes: &[u8]) -> Utf8Scan {
+        transition self.i < bytes.len {
+            true -> check(bytes)
+            _    -> (Utf8Scan::Text { view: bytes as &[u8] in Utf8 })  // all units proven
+        }
+    }
+    state check(&mut self, bytes: &[u8]) -> Utf8Scan {
+        transition bytes[self.i] < 128 {                               // the invariant, guarded
+            true  -> next(bytes)
+            false -> (Utf8Scan::NotText)
+        }
+    }
+    state next(&mut self, bytes: &[u8]) -> Utf8Scan {
+        self.i = self.i + 1;
+        transition { _ -> step(bytes) }
+    }
+}
+```
+
+> **Surface status (2026-07-04).** This example illustrates the settled *model*.
+> The explicit `as`-mint to an **arithmetic** domain works today
+> (`x as u8 in Saturating`; see `expressions/arithmetic_domain_cast_exit`). The
+> `as`-mint to a **reference/encoding/layout** domain shown here
+> (`bytes as &[u8] in Utf8`) is the recast surface that is **not yet
+> implemented** — it is the pending work in the mint arc (`as` + the
+> invariant-prover's reach). The shape above is the intended spelling, not
+> currently compilable.
+
+The compiler generates none of this — and generates nothing at all for domain
+membership. Its only job is to accept or reject the `as`, by asking whether the
+domain's invariants are proven at that point. The reach of that prover is the
+ceiling on what can be minted: a fact the prover cannot yet discharge (a
+whole-buffer property established across a loop) simply cannot be cast until the
+prover grows to reach it. This is the anti-serde principle at its end — the only
+path from raw bytes to a trusted fact is a proof the machine actually checked.
+
+If you want a `Valid | Invalid`-style result, you declare that sum type yourself
+(`Utf8Scan` above); there is no built-in verdict type and no generated codec.
+
+### Declarations And The Zero Value
+
+The one place a domain appears without a written `as` is a declaration —
+`x: T in D`, or a `data` field `f: T in D`. The cast is implicit there, but it
+is still checked: the compiler proves the **ZII default** (the zero value)
+satisfies `D`. A domain that excludes its zero value therefore cannot be
+default-declared.
+
+```omega
+data Config {
+    level: u8 [0..=100];    // ok: the ZII default 0 is in [0..=100]
+    // rank: u8 [1..=9];    // COMPILE ERROR: ZII 0 is not in [1..=9] -- nothing proves the default
 }
 ```
 
@@ -180,33 +283,42 @@ This is an ordered match like Rust's `match`: earlier arms win. That means
 overlapping domain patterns are allowed in ordinary value matching because the
 source order is part of the program.
 
-## Classifiers
+## Sub-Domains
 
-Domains that participate in domain patterns should provide a cheap classifier
-with `when` when possible.
+A domain is *only* its invariant facts — there is no separate classifier clause
+(there is no `when` keyword). A domain that participates in matching just gets
+tested by evaluating its body; when the body's leading fact is a cheap field
+compare, that test *is* cheap, with nothing extra to declare.
+
+Refinement is expressed structurally, by nesting the name: `A::B::C` is a
+**sub-domain** of `A::B`, and its body auto-includes the parent's facts.
 
 ```omega
-domain Game::Playing
-    when self.phase == GamePhase.Playing
-{
-    self.winner == None;
-}
+domain Game::Playing             { self.phase == GamePhase.Playing; self.winner == None; }
+domain Game::Playing::RoundStart { self.turn == 1; }
+// RoundStart ≡ { self in Game::Playing; self.turn == 1 } — the parent facts are inherited
+```
 
-domain Game::Finished
-    when self.phase == GamePhase.Finished
-{
-    self.winner != None || self.turns == 9;
+Membership is a lattice and the name is the edge. This subsumes what a `when`
+classifier used to do, for free: to test a sub-domain the compiler tests the
+parent first, so a cheap parent (`phase == Playing`) gives a tag-switch and an
+expensive one (a byte scan) is paid honestly — the cost follows the facts, not a
+keyword.
+
+```omega
+match game {
+    Game::Playing::RoundStart -> opening()   // tests Playing, then turn == 1
+    Game::Playing             -> mid()
+    Game::Finished            -> over()
 }
 ```
 
-The `when` clause is the classifier. The domain body is the full set of proof
-facts for that domain.
-For a domain pattern such as `Game::Playing`, the compiler may lower the match
-through the classifier, such as `game.phase`, instead of rechecking every body
-fact.
+`A::B::C` is single-parent (one name path). A domain that refines two unrelated
+parents still writes the explicit intersection in its body (`self in X & Y`) —
+the name path is for the common refinement chain, `&` for the DAG cases.
 
-If a domain has no classifier, a domain pattern may still be executable when
-all of the domain body's facts are pure, finite, and runtime-checkable:
+A domain pattern is executable when its body's facts are pure, finite, and
+runtime-checkable:
 
 ```omega
 if player in Player::Dead {
@@ -214,21 +326,39 @@ if player in Player::Dead {
 }
 ```
 
-This lowers to the domain body's comparisons and updates the true branch with
-`player in Player::Dead`. Domains with quantifiers, opaque proof calls, or
-non-executable facts cannot be used as runtime checks unless they expose an
-explicit executable classifier or checker.
+This lowers to the body's comparisons and narrows the true branch with `player
+in Player::Dead`. Domains with quantifiers, opaque proof calls, or
+non-executable facts cannot be used as runtime checks.
 
-For classified domains, the compiler checks classifier facts:
+For domain matches the compiler checks:
 
 - A non-wildcard match over a known domain union must be exhaustive.
-- Classifiers should be mutually exclusive when the program relies on
-  unordered domain-union reasoning.
+- Bodies must be mutually exclusive when the program relies on unordered
+  domain-union reasoning (a sub-domain is never mutually exclusive with its
+  parent — order it before the parent).
 - Each arm receives the facts from the selected domain.
 - Each transition target must accept the facts established by its arm.
 
-The compiler may infer simple classifiers later, but explicit `when` clauses
-are the reliable source-level mechanism.
+### Named Predicates (horizontal reuse)
+
+Sub-domains reuse facts *vertically* (a refinement chain). To reuse a fact
+*horizontally* — a shared condition across unrelated domains — name a pure
+bool-returning machine and call it. There is no separate `predicate` binder; a
+predicate is just a terse machine:
+
+```omega
+machine in_span(g: Game) -> bool = g.turn in 1..=9;   // reusable condition, no identity
+
+domain Game::Playing { self.phase == GamePhase.Playing; in_span(self); }
+domain Game::Sudden  { self.phase == GamePhase.Playing; in_span(self); self.turn == 9; }
+```
+
+The distinction: a **sub-domain** is a named membership set with identity (you
+`match` / `as` / `require` it); a **named predicate** is an anonymous reusable
+condition with no identity (a helper like `in_bounds`). Use the first for a
+meaningful state, the second for a shared fact-bundle. They compose — a
+sub-domain body may call named predicates, and a predicate may reference
+membership.
 
 ## Overlap And Intersections
 
@@ -263,7 +393,7 @@ match password {
 
 Here `Password::Secure` wins when both domains hold because it appears first.
 If source code needs an unordered, exhaustive split of a known domain union,
-the domains must still be distinguishable by mutually exclusive classifiers.
+the domains must still be distinguishable by mutually exclusive bodies.
 
 ## Domain-Sensitive Operators
 
@@ -408,14 +538,55 @@ exist, and `String`/`Bytes` are not among them:
 &[u8]   in Utf8           // text view, zero-copy
 Vec<u8> in Utf8           // owned text (needs the allocator)
 [u8; N] in Utf8           // fixed text buffer
-
-// Encodings are validity domains over the byte container. (`[u8]` is the
-// surface spelling of `Slice<u8>`, which is the nominal carrier the domain
-// binds to -- the same move as `domain i32::Degrees`, one generic level up.)
-domain Slice<u8>::Utf8  when valid_utf8(self)      { /* facts decode relies on */ }
-domain Slice<u8>::Ascii when all_below(self, 0x80) { self in Slice<u8>::Utf8; }
-domain Slice<u8>::NoNul when no_interior_nul(self) { }
 ```
+
+**Encodings are ordinary library code — the compiler has ZERO encoding
+intrinsics (settled 2026-07-05).** `Utf8` is no more special than `Ascii`,
+`Utf16`, or Shift-JIS; each is a validity *domain* over the byte container,
+defined in `core`, with no compiler privilege. There is no blessed `valid_utf8`
+primitive. A domain's body **is** its predicate; the compiler's only string
+job is turning quoted text into bytes (copy source bytes + byte-level escapes;
+no codepoint synthesis, ASCII-transparent source). Litmus: delete every encoding
+from the library and the compiler must still lex and parse — it just can't
+establish `in <encoding>` on anything, which is correct.
+
+Simple, *per-element* encodings are a boolean expression directly; a *sequence*
+property like UTF-8 is a pure, terminating machine over the bytes (see the
+recogniser below):
+
+```omega
+domain Slice<u8>::Ascii { all_below(self, 0x80) }   // per-element predicate (library code)
+domain Slice<u8>::NoNul { no_interior_nul(self) }   // per-element predicate
+domain Slice<u8>::Utf8  { utf8_ok(self) }           // sequence recogniser (below)
+```
+
+`utf8_ok` is an ordinary machine, not a builtin. Recursion is banned (a machine
+self-call is a stack call), so a sequence walk is a **state machine that narrows
+the slice** — slicing over indexing, no index variable:
+
+```omega
+machine utf8_ok(b: &[u8]) -> bool {
+    transition { _ -> scan(b) }
+    state scan(b: &[u8]) {
+        transition {
+            b.len == 0          -> accept()
+            b[0] < 0x80         -> scan(b[1..])                            // ASCII
+            b[0] in 0xC2..=0xDF && b.len >= 2 && cont(b[1]) -> scan(b[2..]) // 2-byte
+            // 3-/4-byte arms; E0/ED/F0/F4 tighten cont(b[1]) to a lead-specific
+            // range to exclude overlong/surrogate encodings
+            _                   -> reject()
+        }
+    }
+    state accept() -> bool { true }
+    state reject() -> bool { false }
+}
+machine cont(x: u8) -> bool { x in 0x80..=0xBF }
+```
+
+The bytes' bounds fall out of the arm guards (`b.len == 0` + the `b.len >= k`
+checks), so the walk is memory-safe by the ordinary array-access proofs. The
+same machine evaluates over a literal at compile time (to discharge an `as`) and
+runs at runtime to establish membership — one definition, no separate spec.
 
 Host and ABI boundaries then ask for the domain they actually need, with no
 bespoke type per case:
@@ -462,8 +633,8 @@ The hard part is not the surface idea; it is proving sequence-wide invariants
 over runtime text, which is why this is staged rather than a single
 byte-by-byte predicate everywhere:
 
-- validate the encoding ONCE at the ingest boundary (the `when valid_utf8`
-  classifier/checker), establishing `in Utf8` as a fact;
+- validate the encoding ONCE at the ingest boundary (running the `utf8_ok`
+  recogniser), establishing `in Utf8` as a fact;
 - carry that fact; never re-scan;
 - prove a small set of *preservation* lemmas as operator contracts (concat
   preserves `Utf8`; boundary-`slice` preserves it) so downstream code keeps the
@@ -533,7 +704,7 @@ never from the transport:
 
 A package may declare a domain over a type it does not own. This is the
 analog of Rust's extension traits: downstream code names its own validity
-classes over upstream data (`domain Entity::Quarantined when ...` in a policy
+classes over upstream data (`domain Entity::Quarantined { ... }` in a policy
 package, over a core `Entity`).
 
 Working rules:
@@ -585,7 +756,11 @@ Working interpretation:
 - Domains are type-scoped named proof predicates.
 - Domains classify values that satisfy the type's data and field invariants.
 - A domain body may not contradict the invariants of the type it classifies.
-- `when` is a cheap, pure classifier, not the whole invariant.
+- There is no `when` classifier keyword; a domain is only its invariant facts.
+- `Type::A::B` is a sub-domain of `Type::A` — its body auto-includes the parent's
+  facts (single-parent; use `self in X & Y` for the DAG case).
+- A named predicate is a pure bool machine, called from domain bodies for
+  horizontal fact reuse (no separate `predicate` binder).
 - `requires x in Type::Domain` is a caller obligation.
 - `ensures x in Type::Domain` is a callee guarantee.
 - `x in Type::A | Type::B` is a domain union.

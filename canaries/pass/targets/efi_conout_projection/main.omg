@@ -1,0 +1,34 @@
+// LADDER STEP 4 (BOOT-VERIFIED 2026-07-04): FOREIGN-MEMORY PROJECTION through
+// a reference-typed boundary param. `table: &EfiSystemTable` arrives in RDX
+// (a pointer the boundary vouches for); `table.con_out` DEREFERENCES it and
+// reads the field at +64 (CopyRuntimePointeeToRuntimeFrame -- pointee
+// frame@8 +64). Under QEMU/OVMF this returned 5: the live SystemTable's
+// ConOut pointer is nonzero. Guarded by the KEYSTONE REFUSAL: flat member
+// folds through reference roots are refused everywhere (a site without a
+// pointee arm is a clean blocker, never a silent frame-garbage read).
+// EfiSystemTable is field-explicit so con_out lands at +64 under
+// sequential-with-alignment placement (the EFI spec's C layout).
+data EfiSystemTable {
+    hdr_signature: u64;
+    hdr_revision: u32;
+    hdr_header_size: u32;
+    hdr_crc: u32;
+    hdr_reserved: u32;
+    firmware_vendor: addr;
+    firmware_revision: u32;
+    fw_pad: u32;
+    console_in_handle: addr;
+    con_in: addr;
+    console_out_handle: addr;
+    con_out: addr;
+}
+data Main { }
+boundary machine Main::run(&self, handle: addr, table: &EfiSystemTable) -> i32 {
+    let seen: addr = table.con_out;
+    transition seen == 0 {
+        true -> missing()
+        false -> present()
+    }
+    state missing(&self) -> i32 { transition { _ -> (4) } }
+    state present(&self) -> i32 { transition { _ -> (5) } }
+}

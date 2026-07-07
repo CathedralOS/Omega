@@ -1,0 +1,1 @@
+declares an inverted range `[10..=5]`: the low bound exceeds the high bound, so no value can satisfy it

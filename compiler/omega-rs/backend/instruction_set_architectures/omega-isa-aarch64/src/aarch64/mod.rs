@@ -31,6 +31,150 @@ pub fn encode_host_call_sequence_from_operands(
     Ok(bytes)
 }
 
+/// A VALUE-RETURNING host call: `operands[0]` is the result storage place, the
+/// rest are the call arguments. Marshal the args into x0.., branch-link to the
+/// callee (relocated to the import symbol), then store the return register into
+/// the result place — `str w0` for a 4-byte result (an `i32` fd/rc; the sign is
+/// preserved so a negative `-errno` reads back correctly), `str x0` for 8 bytes
+/// (an `i64` byte count). Mirrors x86_64's `encode_win64_import_call(.., true)`.
+/// The total width equals the non-returning form: the result operand's scalar
+/// width (adrp+add+ldr = 12) is the same as its store (adrp+add+str = 12).
+pub fn encode_host_call_sequence_value_returning_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all: Vec<Aarch64CallOperand> = operands.collect();
+    let Some((result, args)) = all.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 value-returning host call has no result storage operand",
+        ));
+    };
+    let RuntimeScalarInteger {
+        byte_offset,
+        byte_count,
+    } = *result
+    else {
+        return Err(Diagnostic::error(
+            "AArch64 value-returning host call result place did not lower to a runtime scalar",
+        ));
+    };
+    let mut bytes = Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()));
+    append_call_operands(&mut bytes, args.iter().copied())?;
+    bytes.extend(encode_branch_link_placeholder());
+    // Result store: x16 <- result region base (adrp/add relocated), then store
+    // the return register at the field's offset.
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    if byte_count >= 8 {
+        bytes.extend(encode_store_x_to_x(0, 16, byte_offset)?);
+    } else {
+        bytes.extend(encode_store_w_to_x(0, 16, byte_offset, byte_count)?);
+    }
+    Ok(bytes)
+}
+
+/// A value-returning host call whose callee returns a POINTER to the real
+/// result (darwin `___error()` -> `&errno`). Identical to
+/// `encode_host_call_sequence_value_returning_from_operands` except that, right
+/// after the `BL`, it derefs the return register once with `ldr w0,[x0]`
+/// (0xB9400000) so the stored value is `*x0` (the errno int), not the pointer.
+/// The single extra 4-byte load is why `dereferences_result` adds 4 to both the
+/// call-sequence width and the result-store data-address relocation offset — the
+/// store now sits 4 bytes later. `read_errno` takes no args, so the `BL`
+/// relocation (which precedes the load) is unaffected.
+pub fn encode_host_call_sequence_value_returning_deref_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all: Vec<Aarch64CallOperand> = operands.collect();
+    let Some((result, args)) = all.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 deref host call has no result storage operand",
+        ));
+    };
+    let RuntimeScalarInteger {
+        byte_offset,
+        byte_count,
+    } = *result
+    else {
+        return Err(Diagnostic::error(
+            "AArch64 deref host call result place did not lower to a runtime scalar",
+        ));
+    };
+    let mut bytes =
+        Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()) + 4);
+    append_call_operands(&mut bytes, args.iter().copied())?;
+    bytes.extend(encode_branch_link_placeholder());
+    // Deref the returned pointer: `ldr w0, [x0]` (load errno through &errno).
+    bytes.extend(encode_instruction(0xB940_0000));
+    // Result store: x16 <- result region base (adrp/add relocated), then store.
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    if byte_count >= 8 {
+        bytes.extend(encode_store_x_to_x(0, 16, byte_offset)?);
+    } else {
+        bytes.extend(encode_store_w_to_x(0, 16, byte_offset, byte_count)?);
+    }
+    Ok(bytes)
+}
+
+/// A value-returning host call whose TRAILING argument (a `mode`) is passed on the
+/// STACK, not a register — darwin `open(path, flags, ...)` reads the create `mode`
+/// via `va_arg`, and Apple arm64 places variadic args at `[sp,#0]`. The register
+/// args (`path` -> x0, `flags` -> x1) marshal normally; then the call is bracketed
+/// by `sub sp,sp,#16` … `str w9,[sp]` … `bl` … `add sp,sp,#16`. The `mode` must be
+/// a compile-time immediate (materialized into the caller-saved w9, no relocation
+/// of its own). The +12 (sub+str+add) is why `passes_trailing_mode_on_stack` adds
+/// 12 to the width + result-store relocation and 8 to the `BL` relocation (the add
+/// sits AFTER the BL) — MUST stay in lockstep with those sites.
+pub fn encode_host_call_sequence_value_returning_open_create_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all: Vec<Aarch64CallOperand> = operands.collect();
+    let Some((result, args)) = all.split_first() else {
+        return Err(Diagnostic::error(
+            "AArch64 open_create host call has no result storage operand",
+        ));
+    };
+    let RuntimeScalarInteger {
+        byte_offset,
+        byte_count,
+    } = *result
+    else {
+        return Err(Diagnostic::error(
+            "AArch64 open_create result place did not lower to a runtime scalar",
+        ));
+    };
+    // args = [path, flags, mode]; the trailing `mode` is the stack-passed variadic.
+    let Some((mode_operand, register_args)) = args.split_last() else {
+        return Err(Diagnostic::error(
+            "AArch64 open_create host call is missing its mode argument",
+        ));
+    };
+    let ImmediateInteger(mode) = *mode_operand else {
+        return Err(Diagnostic::error(
+            "AArch64 open_create mode must be a compile-time immediate (variadic stack marshalling)",
+        ));
+    };
+    let mut bytes =
+        Vec::with_capacity(host_call_sequence_width_from_operands(all.iter().copied()) + 12);
+    // `path` -> x0, `flags` -> x1 (the named register args).
+    append_call_operands(&mut bytes, register_args.iter().copied())?;
+    // `mode` -> [sp,#0]: reserve a 16-byte-aligned slot, materialize into w9, store.
+    bytes.extend(encode_instruction(0xD100_43FF)); // sub sp, sp, #16
+    append_immediate(&mut bytes, 9, mode)?; // movz w9, #mode (+ movk if wide)
+    bytes.extend(encode_instruction(0xB900_03E9)); // str w9, [sp]
+    bytes.extend(encode_branch_link_placeholder());
+    bytes.extend(encode_instruction(0x9100_43FF)); // add sp, sp, #16
+    // Result store: x16 <- result region base (adrp/add relocated), then store.
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    if byte_count >= 8 {
+        bytes.extend(encode_store_x_to_x(0, 16, byte_offset)?);
+    } else {
+        bytes.extend(encode_store_w_to_x(0, 16, byte_offset, byte_count)?);
+    }
+    Ok(bytes)
+}
+
 pub fn encode_syscall_sequence(
     operands: &[Aarch64CallOperand],
     syscall_number: u32,
@@ -165,10 +309,41 @@ fn append_call_operands(
                 bytes.extend(encode_load_x_from_x(next_register, next_register, 8)?);
                 next_register += 1;
             }
-            RuntimeScalarInteger { byte_offset } => {
+            RuntimeScalarInteger {
+                byte_offset,
+                byte_count,
+            } => {
                 bytes.extend(encode_adrp_placeholder(next_register));
                 bytes.extend(encode_add_page_offset_placeholder(next_register));
-                bytes.extend(encode_load_x_from_x(
+                // Load the scalar at its OWN width (LDR x for an 8-byte i64/usize,
+                // LDR w for a 4-byte i32) -- matching the result-store side, which
+                // already stores at byte_count. A u64 load needs an 8-aligned offset;
+                // a 4-byte scalar's slot is only 4-aligned, so at a large data-region
+                // offset (e.g. a field after a big wrapper struct, offset 1396 = 4- but
+                // not 8-aligned) the u64 load had no single-instruction encoding and
+                // errored. The sized load keeps the alignment at byte_count, so it is
+                // always one direct instruction and the operand width stays 12
+                // (adrp + add + load) -- no lockstep width change. The register's low
+                // byte_count bytes carry the value the callee reads (a 32-bit arg reads
+                // Wn); the sized load also drops the stray high bytes the u64 load read.
+                if *byte_count >= 8 {
+                    bytes.extend(encode_load_x_from_x(next_register, next_register, *byte_offset)?);
+                } else {
+                    bytes.extend(encode_load_w_from_x(
+                        next_register,
+                        next_register,
+                        *byte_offset,
+                        *byte_count,
+                    )?);
+                }
+                next_register += 1;
+            }
+            RuntimeStorageAddress { byte_offset } => {
+                // The place's ADDRESS: adrp/add to the region base (relocated),
+                // then add the field offset. No load — the pointer is the arg.
+                bytes.extend(encode_adrp_placeholder(next_register));
+                bytes.extend(encode_add_page_offset_placeholder(next_register));
+                bytes.extend(encode_add_x_immediate(
                     next_register,
                     next_register,
                     *byte_offset,
