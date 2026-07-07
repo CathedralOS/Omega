@@ -24,7 +24,8 @@ use super::primitives::{
     encode_conditional_branch_higher_or_same, encode_conditional_branch_lower,
     encode_conditional_branch_lower_or_same, encode_conditional_branch_not_equal,
     encode_load_w_from_x, encode_load_x_from_x, encode_asrv_w_register, encode_asrv_x_register,
-    encode_lslv_x_register, encode_lsrv_x_register, encode_move_x_register, encode_movz_w,
+    encode_lslv_x_register, encode_lsrv_x_register, encode_move_x_register, encode_movz,
+    encode_movz_w,
     encode_msub_w_register, encode_msub_x_register, encode_mul_x_register, encode_orr_x_register,
     encode_sdiv_w_register, encode_sdiv_x_register, encode_store_w_to_x, encode_store_w17_to_x16,
     encode_store_x_to_x, encode_store_x17_to_x16, encode_sub_x_register, encode_udiv_w_register,
@@ -597,27 +598,15 @@ pub fn encode_runtime_storage_binary_write(
             domain,
             ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
         );
-    if saturating_or_trapping
+    // SIGNED Saturating div/mod need the TYPE_MIN / -1 fixup (see
+    // append_saturating_signed_divide_modulo). Unsigned div/mod never overflow, and
+    // Trapping div/mod ride aarch64 `sdiv` (which does not fault), so both fall
+    // through to the normal path below.
+    let saturating_signed_divide_modulo = domain == ArithmeticDomain::Saturating
         && matches!(
             operator,
-            StateGuardOperator::Divide
-                | StateGuardOperator::Modulo
-                | StateGuardOperator::DivideUnsigned
-                | StateGuardOperator::ModuloUnsigned
-        )
-        && domain == ArithmeticDomain::Saturating
-    {
-        // Mirrors x86_64: integer division only overflows at TYPE_MIN / -1, which
-        // needs a dedicated pre-check that is not implemented yet. (Trapping
-        // div/mod falls through to the normal path below: aarch64 SDIV does not
-        // fault on overflow, but this matches the x86 note's intent that Trapping
-        // div is handled by the hardware path.)
-        return Err(Diagnostic::error(
-            "saturating divide/modulo is not implemented yet on aarch64 (integer division \
-             only overflows at the type minimum divided by -1)"
-                .to_owned(),
-        ));
-    }
+            StateGuardOperator::Divide | StateGuardOperator::Modulo
+        );
     let mut bytes = Vec::with_capacity(runtime_storage_binary_write_width(
         runtime_value_operands,
         target_offset,
@@ -661,6 +650,13 @@ pub fn encode_runtime_storage_binary_write(
             operator,
             byte_size,
             target_signed,
+        )?;
+    } else if saturating_signed_divide_modulo {
+        // TYPE_MIN / -1 fixup for signed Saturating div/mod (result left in x17).
+        append_saturating_signed_divide_modulo(
+            &mut bytes,
+            byte_size,
+            matches!(operator, StateGuardOperator::Modulo),
         )?;
     } else {
         append_runtime_binary_operation(
@@ -836,6 +832,81 @@ fn append_saturating_trapping_arithmetic(
         }
         _ => unreachable!("only Saturating/Trapping reach this helper"),
     }
+    Ok(())
+}
+
+/// SATURATING SIGNED divide/modulo (dividend x17, divisor x26, result x17; scratch x9).
+/// Integer division overflows ONLY at TYPE_MIN / -1 — and unlike x86 `idiv`, aarch64
+/// `sdiv` does not trap there (it returns TYPE_MIN, the WRAPPED value) nor on divide-by-
+/// zero (returns 0). So Saturating only needs to fix the single `divisor == -1` corner:
+/// `a % -1 == 0`, and `a / -1 == -a` clamped so TYPE_MIN saturates to TYPE_MAX instead of
+/// wrapping to TYPE_MIN. Every other divisor (including 0) goes through the normal
+/// `sdiv`/`sdiv`+`msub`. Operands are sign-extended to 64 bits first so the exact result
+/// of a <=32-bit op lives in the low word and truncates correctly on store. Unsigned
+/// saturating div/mod never overflow and never reach here (the normal path handles them).
+fn append_saturating_signed_divide_modulo(
+    bytes: &mut Vec<u8>,
+    byte_size: usize,
+    want_remainder: bool,
+) -> Result<(), Diagnostic> {
+    if !matches!(byte_size, 1 | 2 | 4) {
+        // 64-bit saturating div would need TYPE_MIN detection that `neg`/`mul -1`
+        // cannot signal at the full width (it wraps); not needed by any live sample.
+        return Err(Diagnostic::error(
+            "saturating divide/modulo on 64-bit integers is not implemented yet on aarch64"
+                .to_owned(),
+        ));
+    }
+    let signed_max = ((1i128 << (8 * byte_size - 1)) - 1) as u64;
+
+    // The `divisor == -1` fixup block.
+    let mut special: Vec<u8> = Vec::new();
+    if want_remainder {
+        // a % -1 == 0.
+        special.extend(encode_movz(17, 0));
+    } else {
+        // a / -1 == -a: multiply by the -1 still sitting in x9, then clamp a
+        // TYPE_MIN result (-a == TYPE_MAX+1) down to TYPE_MAX.
+        special.extend(encode_mul_x_register(17, 17, 9));
+        append_unsigned_immediate_padded(&mut special, 9, signed_max);
+        special.extend(encode_compare_x_register(17, 9));
+        special.extend(encode_conditional_branch_less_or_equal(8)?); // <= MAX -> keep
+        special.extend(encode_move_x_register(17, 9)); // else clamp to MAX
+    }
+
+    // The normal path (every divisor except -1).
+    let mut normal: Vec<u8> = Vec::new();
+    if want_remainder {
+        normal.extend(encode_sdiv_x_register(9, 17, 26)); // q = a / b
+        normal.extend(encode_msub_x_register(17, 9, 26, 17)); // a - q*b
+    } else {
+        normal.extend(encode_sdiv_x_register(17, 17, 26));
+    }
+
+    // Sign-extend both operands to 64 bits.
+    match byte_size {
+        1 => {
+            bytes.extend(encode_sign_extend_byte_to_x(17, 17));
+            bytes.extend(encode_sign_extend_byte_to_x(26, 26));
+        }
+        2 => {
+            bytes.extend(encode_sign_extend_halfword_to_x(17, 17));
+            bytes.extend(encode_sign_extend_halfword_to_x(26, 26));
+        }
+        _ => {
+            bytes.extend(encode_sign_extend_word_to_x(17, 17));
+            bytes.extend(encode_sign_extend_word_to_x(26, 26));
+        }
+    }
+    // x9 = -1; branch to `normal` unless the divisor is exactly -1.
+    append_unsigned_immediate_padded(bytes, 9, u64::MAX);
+    bytes.extend(encode_compare_x_register(26, 9));
+    bytes.extend(encode_conditional_branch_not_equal(
+        (8 + special.len()) as isize,
+    )?);
+    bytes.extend(special);
+    bytes.extend(encode_unconditional_branch((4 + normal.len()) as isize)?);
+    bytes.extend(normal);
     Ok(())
 }
 

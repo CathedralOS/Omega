@@ -553,6 +553,18 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
     natively: window_demo (auto-exit) + window_app (interactive).** Native harness 79/79.
     Remaining: `image_viewer` (#61 large-offset STORE + it's human-interactive + needs .bmp
     files), `windowed_calculator` (#62 saturating div/mod, has Input via the new #60).
+    ⚑ **fire 27: saturating divide/modulo DONE (#62) → `samples/gui/windowed_calculator` RUNS
+    NATIVELY. THREE of four gui samples now run natively.** aarch64 `sdiv` doesn't trap at
+    TYPE_MIN/-1 (wraps) nor on div-by-zero (0, like the existing aarch64 divide), so the
+    Saturating fixup only guards `divisor == -1`: `a % -1 == 0`; `a / -1 == -a` clamped so
+    `i32::MIN` saturates to `i32::MAX` (append_saturating_signed_divide_modulo + a matching
+    width fn; unsigned + Trapping fall through to the normal sdiv path). PROVEN:
+    `saturating_divide_native_exits_7` (23/5=4, 23%5=3, i32::MIN/-1=i32::MAX, i32::MIN%-1=0,
+    10/-1=-10) + the UNTOUCHED windowed_calculator compiles AND renders natively without
+    crashing (`sample_windowed_calculator_renders_natively`). Native harness 81/81.
+    **ONLY `image_viewer` remains** — needs #61 (large-offset scalar STORE, a #59 sibling at
+    offset ~33108) AND it's human-interactive (waits for a window close) AND reads img*.bmp
+    from disk at runtime. That's the last gui sample; the loop continues on #61.
     ---
     Historical (fire 16): `canaries/pass/objc/native_gui_loop` is `samples/gui/window_demo`'s shape running
     natively end-to-end: NSApp + NSWindow + NSImageView content view + `makeKeyAndOrderFront:`,
