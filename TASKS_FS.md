@@ -48,7 +48,14 @@ are the differential oracle. Value-position `match` desugars to tag arithmetic;
   target is table work).
 
 **Native ergonomic wrapper:** scalar/tag AND payload results work on windows_x64
-end-to-end — `filesystem/windows_wrapper_results_exit` runs write_all→Ok,
+end-to-end. SECOND WAVE (2026-07-07, `filesystem/windows_wrapper_breadth_exit`):
+WRAPPER rename (the two-path import call now resolves each path PER ARGUMENT
+through the alias chain -- param-forwarded literals had no encodable sequence),
+append (flag word 9 is darwin==msvcrt portable), read_all, remove. Still fenced
+on windows: copy/exists/remove_dir_all (set_len/read_metadata/read_dir rows) and
+create_dir_all's DEEP walk (runtime SUBSLICE paths need a NUL-terminated scratch
+copy -- the runtime-path extension, a concrete next windows-seam item). First
+wave detail — `filesystem/windows_wrapper_results_exit` runs write_all→Ok,
 create_dir×2→AlreadyExists, open→Ok{File} destructured and USED, close, remove→Ok,
 remove missing→NotFound. Discipline established: host results captured into
 FIELDS in the machine entry (`self.file_fd = file.fd`; a `let` folds back to the
