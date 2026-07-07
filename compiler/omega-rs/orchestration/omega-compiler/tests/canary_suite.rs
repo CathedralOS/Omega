@@ -22835,6 +22835,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/unconstrained_payload_arithmetic",
     "arithmetic/bounded_assignment_unproven",
     "arithmetic/wrapping_target_plain_operands_rejected",
+    "calls/unresolved_value_call_rejected",
+    "calls/unresolved_receiver_method_rejected",
     "arithmetic/nested_field_exact_overflow_rejected",
     "arithmetic/zii_range_excludes_zero_rejected",
     "arithmetic/guard_invalidated_by_prior_write_rejected",

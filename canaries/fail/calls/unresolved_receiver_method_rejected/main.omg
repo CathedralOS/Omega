@@ -1,0 +1,25 @@
+// A method value-call on a receiver whose type declares NO such machine used
+// to silently bind 0 (the dungeon's `existing_index.is_some()` never stacked
+// items). Now a compile error.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Tally {
+    count: i32;
+}
+machine Tally::total(&self) -> i32 {
+    transition { _ -> (self.count) }
+}
+data Main {
+    console: Console;
+    tally: Tally;
+}
+machine Main::main(&mut self) {
+    let t: i32 = self.tally.grand_total();
+    transition t == 0 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}
