@@ -27,13 +27,22 @@ representation machinery behind a deliberate boundary.
 
 ## KEYSTONE COMPLETENESS GAP CATALOG — CLEARED 2026-07-06
 
-All seven de-Trapping-sweep items closed (detail in git history + memory
-[[decision-17-arithmetic-domains-s1]] / [[guard-narrowing-keystone]]). Remaining
-prover conservatisms are by-design, each with a loud reject + workaround:
-DIFFERING-but-compatible funnel guards on the PROOF side accept only structural
-equivalence (validation's env join handles the general case; make the checker
-join per-guard candidate ranges if a real program needs it), and env facts are
-per-state (no interprocedural ranges).
+All seven de-Trapping-sweep items closed, PLUS the sweep's WALL: array-ELEMENT
+ranges (`cells: [i32 [0..=7]; N]`) landed the same day — write-enforced (const +
+runtime index), ZII-checked (0 must be in the element range), read-narrowed
+(indexed reads carry the range into arithmetic; the cells[rp]-dataflow shape
+proves). Detail in git history + memory [[decision-17-arithmetic-domains-s1]] /
+[[guard-narrowing-keystone]]. Remaining prover conservatisms are by-design, each
+with a loud reject + workaround: DIFFERING-but-compatible funnel guards on the
+PROOF side accept only structural equivalence (validation's env join handles the
+general case; make the checker join per-guard candidate ranges if a real program
+needs it), and env facts are per-state (no interprocedural ranges).
+
+- **[ ] Re-convert the 14 partially-Wrapping samples with element ranges.** The
+  de-Trapping sweep left 14 samples honest-Wrapping on array-element dataflow
+  (cellular_automaton, grid CAs) because element ranges didn't exist. They do
+  now — declare `[T [a..=b]; N]`, drop the Wrapping, re-verify differentially.
+  A parallel-agent sweep candidate (mechanical, per-sample, canary-guarded).
 
 **Abort-as-effect (#65) design sketch (chat, NOT settled):** every trap-capable
 site (`in Trapping`, future assert/panic) carries an `abort` effect threaded to

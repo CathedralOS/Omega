@@ -1,0 +1,16 @@
+// Element-range WRITE enforcement (const index): `cells: [i32 [0..=7]; 4]`
+// must reject `self.cells[2] = 100` -- before the indexed-target obligation,
+// element ranges were completely unenforced (the declaration was a lie).
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    cells: [i32 [0..=7]; 4];
+}
+
+machine Main::main(&mut self) {
+    self.cells[2] = 100;
+    self.console.exit_process(1);
+}

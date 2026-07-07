@@ -520,17 +520,31 @@ pub(crate) fn declared_indexed_element_type(
     current_state: Option<&omega_typed_trees::state::State>,
     target: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
+    declared_indexed_element_type_raw(program, current_machine, current_state, target)
+        .and_then(|element_type| unwrapped_type_reference(program, element_type))
+}
+
+/// [`declared_indexed_element_type`] WITHOUT the final unwrap: the element's
+/// declared type with its constraint shells INTACT, so a range-refined element
+/// (`[i32 [0..=7]; N]`) keeps its `[0..=7]` for the operand analysis and the
+/// arithmetic-domain resolution (the same raw-vs-unwrapped pair convention as
+/// `declared_place_type_raw`).
+pub(crate) fn declared_indexed_element_type_raw(
+    program: &TypedTrees,
+    current_machine: &Machine,
+    current_state: Option<&omega_typed_trees::state::State>,
+    target: ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
     let ExpressionNode::Indexed(indexed) = program.expression_table.expression(target) else {
         return None;
     };
     let collection_type =
         declared_place_type(program, current_machine, current_state, indexed.collection)?;
-    let element_type = match program.type_reference_table.type_reference(collection_type) {
+    match program.type_reference_table.type_reference(collection_type) {
         TypeReferenceNode::FixedArray { element_type, .. }
-        | TypeReferenceNode::Slice { element_type } => *element_type,
-        _ => return None,
-    };
-    unwrapped_type_reference(program, element_type)
+        | TypeReferenceNode::Slice { element_type } => Some(*element_type),
+        _ => None,
+    }
 }
 
 pub fn unwrapped_type_reference(

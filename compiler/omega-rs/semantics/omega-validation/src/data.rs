@@ -145,11 +145,53 @@ pub(crate) fn validate_zero_reachable_field_ranges(
                         field.name.as_str(),
                     )));
                 }
+                // A FIXED-ARRAY field's ELEMENT range is the same invariant one
+                // level down: ZII zeroes every element, so an element range
+                // excluding 0 (`cells: [i32 [1..=7]; 4]`) is violated by the
+                // initial state before the first write.
+                if let Some(element_type) =
+                    fixed_array_element_type(program, field.type_reference)
+                    && let Some(interval) = crate::arithmetic_domains::range_constraint_interval(
+                        program,
+                        element_type,
+                    )
+                    && (interval.low().is_some_and(|low| low > 0)
+                        || interval.high().is_some_and(|high| high < 0))
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "field `{}` of `{name}` declares an array ELEMENT range that excludes \
+                         0, but `{name}` is zero-initialized (every element starts 0): a read \
+                         before the first write would trust a bound the actual value 0 \
+                         violates. Include 0 in the element range",
+                        field.name.as_str(),
+                    )));
+                }
                 if let Some(inner) = embedded_data_name(program, field.type_reference) {
                     queue.push(inner);
                 }
             }
         }
+    }
+}
+
+/// The ELEMENT type of a fixed-array field (through constraint shells,
+/// recursing nested arrays): `[i32 [0..=7]; 4]` -> the constrained `i32`.
+/// `None` for non-array types.
+fn fixed_array_element_type(
+    program: &TypedTrees,
+    type_reference: TypeReferenceHandle,
+) -> Option<TypeReferenceHandle> {
+    if !type_reference.is_valid() {
+        return None;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            fixed_array_element_type(program, *base_type)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => Some(
+            fixed_array_element_type(program, *element_type).unwrap_or(*element_type),
+        ),
+        _ => None,
     }
 }
 
