@@ -62,12 +62,16 @@ canaries `calls/runtime_value_call_same_callee_sites_exit` +
 `calls/runtime_value_call_shared_slot_straight_line_exit`). Still-broken
 positions: (a) a scalar/bool user value-call as a GUARD SUBJECT is silently
 ALWAYS-TRUE (designed-false probe re-confirmed; any sound fence forces
-corpus-wide bind-to-local rewrites incl. the dungeon — POLICY Q for Zach);
-(b) a scalar/bool user value-call as a direct TRANSITION ARGUMENT delivered 0
-(or the paired arg's result) — now a CLEAN ERROR (validator
-`reject_scalar_value_call_arguments`, scoped by `call_return_type` so
-builtins/strings/enums stay accepted — enum + string args verified
-delivering; fail canary `calls/transition_arg_scalar_value_call_rejected`).
+corpus-wide bind-to-local rewrites incl. the dungeon — POLICY Q for Zach).
+(b) TRANSITION-ARGUMENT value calls are FIXED (2026-07-07 deep fix — the
+one-day stopgap is retired): TransitionArgument leaf captures defer past the
+callee's spliced body ops; leaf expansions pair with their own call op by
+(role, call_ordinal) — a LOAD-BEARING tightening for all value-call shapes;
+delivery pairs the Nth Call-typed argument with the Nth call record by rank
+(name-verified so builtin `.unwrap()` args don't consume a rank). Pass
+canaries `calls/runtime_value_call_transition_args_exit` +
+`..._straight_line_exit` pin call+literal / same-callee / different-callee /
+guard-free shapes.
 
 **Contained-machine same-type aliasing FENCED (2026-07-07).** Method dispatch
 resolves the receiver region by TYPE (first matching field), so
