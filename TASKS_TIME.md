@@ -503,8 +503,15 @@ boundary trait TimeHost {
    `NanosecondsResult { Ok(nanoseconds) }`, which cannot be unit-accurate for
    three units. `saturating_as_*` twins wait on u64-magnitude literals in
    TERMINAL-return position (a D14 gate position + consumer, not yet blessed).
-   REMAINING rung-3 surface: `checked_multiply` / `divide` — then rung 4
-   (TimeHost seam + virtual interp clock) is next.
+   FIRE H (2026-07-07): `checked_multiply` (division-free
+   32-bit-split overflow detection) + `divide` (Overflow doubles as the
+   divisor-0 signal; safe-divisor bump `d + (d == 0)` keeps the eager entry
+   fault-free; subsecond remainder redistributes) — differential-verified,
+   **RUNG 3 (Duration pure-value core) COMPLETE**. Interp div/mod/shift-right
+   now honor the unsigned-u64 witness (extends the fire-E comparison fix;
+   min/max face stays filed). NEW face filed in TASKS.md: post-entry-state
+   LETS in an inlined value callee misdeliver natively (entry-only discipline
+   dodges it). Rung 4 (TimeHost seam + virtual interp clock) is NEXT.
 4. [ ] **`TimeHost` seam + interpreter support** (`time_host.omg`, D12):
    virtual-clock interpreter implementations for the five value ops;
    interpreter canaries asserting EXACT values (monotonicity across a virtual

@@ -3614,15 +3614,18 @@ impl<'program> Evaluator<'program> {
                         .ok_or_else(|| Halt::Trap("logical operand not boolean".to_owned()));
                 }
                 let right = self.eval_expression(binary.right, frame)?;
-                let unsigned_compare = matches!(
+                let unsigned_operands = matches!(
                     binary.operator,
                     BinaryOperator::Less
                         | BinaryOperator::LessOrEqual
                         | BinaryOperator::Greater
                         | BinaryOperator::GreaterOrEqual
+                        | BinaryOperator::Divide
+                        | BinaryOperator::Modulo
+                        | BinaryOperator::ShiftRight
                 ) && (self.expression_is_unsigned64(binary.left, frame)
                     || self.expression_is_unsigned64(binary.right, frame));
-                self.eval_binary(binary.operator, left, right, unsigned_compare)
+                self.eval_binary(binary.operator, left, right, unsigned_operands)
             }
             ExpressionNode::Call(call) => self.eval_call_expression(handle, &call, frame),
             ExpressionNode::Cast(cast) => {
@@ -4768,7 +4771,7 @@ impl<'program> Evaluator<'program> {
         operator: BinaryOperator,
         left: Value,
         right: Value,
-        unsigned_compare: bool,
+        unsigned_operands: bool,
     ) -> EvalResult<Value> {
         use BinaryOperator::*;
 
@@ -4821,7 +4824,7 @@ impl<'program> Evaluator<'program> {
         // traps on `Enum - Enum`.
         let l = self.arithmetic_operand_int(&left)?;
         let r = self.arithmetic_operand_int(&right)?;
-        self.eval_int_binary(operator, l, r, unsigned_compare)
+        self.eval_int_binary(operator, l, r, unsigned_operands)
     }
 
     fn eval_int_binary(
@@ -4829,7 +4832,7 @@ impl<'program> Evaluator<'program> {
         operator: BinaryOperator,
         l: i64,
         r: i64,
-        unsigned_compare: bool,
+        unsigned_operands: bool,
     ) -> EvalResult<Value> {
         use BinaryOperator::*;
         Ok(match operator {
@@ -4840,23 +4843,34 @@ impl<'program> Evaluator<'program> {
                 if r == 0 {
                     return trap("integer division by zero");
                 }
-                Value::Int(l.wrapping_div(r))
+                if unsigned_operands {
+                    Value::Int(((l as u64).wrapping_div(r as u64)) as i64)
+                } else {
+                    Value::Int(l.wrapping_div(r))
+                }
             }
             Modulo => {
                 if r == 0 {
                     return trap("integer modulo by zero");
                 }
-                Value::Int(l.wrapping_rem(r))
+                if unsigned_operands {
+                    Value::Int(((l as u64).wrapping_rem(r as u64)) as i64)
+                } else {
+                    Value::Int(l.wrapping_rem(r))
+                }
             }
             ShiftLeft => Value::Int(l.wrapping_shl(r as u32)),
+            // Logical (unsigned) shift when the operand is u64-classed;
+            // arithmetic shift otherwise.
+            ShiftRight if unsigned_operands => Value::Int(((l as u64).wrapping_shr(r as u32)) as i64),
             ShiftRight => Value::Int(l.wrapping_shr(r as u32)),
             BitwiseAnd => Value::Int(l & r),
             BitwiseOr => Value::Int(l | r),
             BitwiseXor => Value::Int(l ^ r),
-            Less if unsigned_compare => Value::Bool((l as u64) < (r as u64)),
-            LessOrEqual if unsigned_compare => Value::Bool((l as u64) <= (r as u64)),
-            Greater if unsigned_compare => Value::Bool((l as u64) > (r as u64)),
-            GreaterOrEqual if unsigned_compare => Value::Bool((l as u64) >= (r as u64)),
+            Less if unsigned_operands => Value::Bool((l as u64) < (r as u64)),
+            LessOrEqual if unsigned_operands => Value::Bool((l as u64) <= (r as u64)),
+            Greater if unsigned_operands => Value::Bool((l as u64) > (r as u64)),
+            GreaterOrEqual if unsigned_operands => Value::Bool((l as u64) >= (r as u64)),
             Less => Value::Bool(l < r),
             LessOrEqual => Value::Bool(l <= r),
             Greater => Value::Bool(l > r),
