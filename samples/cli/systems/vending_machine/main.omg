@@ -1,0 +1,104 @@
+// vending_machine: a coin-and-change vending flow written in the VALUE-CALL
+// style the compiler now supports end to end (all shapes below are also
+// pinned by discriminating canaries; this sample keeps them exercised as
+// ordinary user code):
+//   - a value call directly in a GUARD subject   (price_of(1) == 50)
+//   - value calls as TRANSITION ARGUMENTS         (report(price_of(0), price_of(2)))
+//   - the SAME callee at multiple sites per state (a = price_of(0); b = price_of(1))
+//   - a dispatch-bodied STRUCT result to a FIELD  (self.change = make_change(...))
+//   - side effects in the callee's ENTRY body     (sales_count bump -- arm-state
+//     effects are a compile error by design; the entry runs exactly once)
+//
+// Menu: item 0 = 35, item 1 = 50, item 2 = 65. Buy item 2 with 100:
+// change = 1 quarter + remainder 10. Checksum exit:
+//   35 + 50 - 65 + 1*40 + 10 - 20 + sales_count(3) + 17 = 70
+// Expected exit: 70.
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Change {
+    quarters: i32 in Wrapping;
+    remainder: i32 in Wrapping;
+}
+
+data Main {
+    console: Console;
+    sales_count: i32 in Wrapping;
+    a: i32 in Wrapping;
+    b: i32 in Wrapping;
+    change: Change;
+    sum: i32 in Wrapping;
+}
+
+// A value machine with a runtime-selected arm ladder. The sales_count bump
+// lives in the ENTRY: it runs once per call no matter which arm is selected.
+machine Main::price_of(&mut self, item: i32 in Wrapping) -> i32 {
+    self.sales_count = self.sales_count + 1;
+    transition item == 0 {
+        true -> cheap()
+        _ -> upper(item)
+    }
+    state cheap(&mut self) -> i32 { 35 }
+    state upper(&mut self, item: i32 in Wrapping) {
+        transition item == 1 {
+            true -> mid()
+            _ -> dear()
+        }
+    }
+    state mid(&mut self) -> i32 { 50 }
+    state dear(&mut self) -> i32 { 65 }
+}
+
+// A dispatch-bodied STRUCT result: quarters greedily, arms are PURE (bare
+// constructor terminals) -- the sound shape for value-position arms.
+machine Main::make_change(&self, paid: i32 in Wrapping, price: i32 in Wrapping) -> Change {
+    let owed: i32 in Wrapping = paid - price;
+    transition owed >= 25 {
+        true -> coin(owed)
+        _ -> rest(owed)
+    }
+    state coin(&self, owed: i32 in Wrapping) -> Change {
+        Change { quarters: 1, remainder: owed - 25 }
+    }
+    state rest(&self, owed: i32 in Wrapping) -> Change {
+        Change { quarters: 0, remainder: owed }
+    }
+}
+
+machine Main::main(&mut self) {
+    // Same callee, two sites in one state: each site keeps ITS call's result.
+    self.a = self.price_of(0);
+    self.b = self.price_of(1);
+
+    // A value call directly in the guard subject.
+    transition self.price_of(1) == 50 { true -> buy() _ -> bad(90) }
+
+    state buy(&mut self) {
+        // Struct result delivered straight into a field.
+        self.change = self.make_change(100, 65);
+        transition self.change.quarters == 1 { true -> chk_rem() _ -> bad(91) }
+    }
+
+    state chk_rem(&mut self) {
+        transition self.change.remainder == 10 { true -> handoff() _ -> bad(92) }
+    }
+
+    state handoff(&mut self) {
+        // Value calls as transition arguments (different + repeated callees).
+        transition self.a == 35 { true -> report(self.make_change(100, 55), 17) _ -> bad(93) }
+    }
+
+    state report(&mut self, extra: Change, bonus: i32 in Wrapping) {
+        // 35 + 50 - 65 + 40 + 10 - 20 + 3 + 17 = 70
+        self.sum = self.a + self.b - 65
+            + self.change.quarters * 40
+            + self.change.remainder
+            - extra.remainder
+            + self.sales_count
+            + bonus;
+        transition self.sum == 70 { true -> good() _ -> bad(94) }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
