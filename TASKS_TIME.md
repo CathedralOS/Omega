@@ -431,10 +431,16 @@ boundary trait TimeHost {
    (`system_time_now() > from_unix_seconds(1_767_225_600)`).
 6. [ ] **Wrapper completion** — `Instant`/`SystemTime`/`Time` machines over the
    seam, entry-capture pattern, calibration guard (O2).
-7. [ ] **Kill `Console::sleep` (D16).** Remove the entry from
-   `std/console.omg`; migrate the 11 samples + `runtime_sleep_exit` onto a
-   clock capability; exit codes / expected outputs unchanged; re-green
-   samples_compile by A/B diff. Deprecation fallback only if a face resists.
+7. [x] **Kill `Console::sleep` (D16) — DONE 2026-07-06, killed OUTRIGHT (no
+   deprecation needed).** Entry removed from `std/console.omg`; the 11 samples
+   + `runtime_sleep_exit` migrated onto inline `boundary trait Clock` + a
+   `clock` field (plain `Clock` name coexists fine with the std console import
+   — the old `Clock2` spelling was unnecessary caution). VERIFIED:
+   samples_compile A/B-clean (only the 4 documented pre-existing Windows-host
+   failures; all 11 migrated samples run with correct exits + output
+   assertions); canary_suite 626 pass / 1 fail, the 1 being the pre-existing
+   `build_machine_wrong_arity` missing-files red (never committed to git —
+   fs-thread issue, task chip spawned), `runtime_sleep_exit` green.
 8. [ ] **Sample** — `samples/cli/systems/elapsed_timer`: measure a real
    workload with `Instant`, print milliseconds, exit code proves the
    elapsed-≥-sleep chain (the stopwatch sample stays simulated-tick).
