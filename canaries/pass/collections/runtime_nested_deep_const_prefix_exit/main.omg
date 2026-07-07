@@ -1,0 +1,67 @@
+// Deep const-prefix faces (`cube[1][1][k]`, TWO const levels below the
+// runtime index): the name path cannot carry stacked element indices --
+// `storage_path_len` refuses them (member_index only returns the OUTERMOST,
+// silently aliasing `cube[1]`) and the machine-indexed resolver peels const
+// Indexed layers, biasing the base per level
+// (resolve_machine_owned_collection_with_const_prefix_in_table).
+// Also pins the ALIAS landmine shape: unit-length inner arrays make level
+// element sizes EQUAL ([[i32;1];4] element = 4 bytes = i32), so the
+// outermost-index-swallow would have read/written weird[1][0][k] silently --
+// the consumer byte gate could not catch it. Validates written elements AND
+// would-be-alias victims. Exit 1 on success.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    cube: [[[i32; 2]; 2]; 2];
+    weird: [[[i32; 1]; 4]; 2];
+    k: usize [0..=1];
+    z: usize [0..=0];
+    got: i32;
+}
+machine Main::main(&mut self) {
+    self.cube[1][1][0] = 30;
+    self.cube[1][1][1] = 40;
+    self.k = 1;
+    self.cube[1][1][self.k] = 99;
+    self.got = self.cube[1][1][1];
+    transition self.got == 99 {
+        true -> wr_neighbor()
+        false -> no()
+    }
+    state wr_neighbor(&mut self) {
+        self.got = self.cube[1][1][0];
+        transition self.got == 30 {
+            true -> alias_shape()
+            false -> no()
+        }
+    }
+    state alias_shape(&mut self) {
+        self.weird[1][0][0] = 5;
+        self.weird[1][2][0] = 7;
+        self.z = 0;
+        self.got = self.weird[1][2][self.z];
+        transition self.got == 7 {
+            true -> alias_write()
+            false -> no()
+        }
+    }
+    state alias_write(&mut self) {
+        self.weird[1][2][self.z] = 8;
+        self.got = self.weird[1][0][0];
+        transition self.got == 5 {
+            true -> alias_readback()
+            false -> no()
+        }
+    }
+    state alias_readback(&mut self) {
+        self.got = self.weird[1][2][0];
+        transition self.got == 8 {
+            true -> yes()
+            false -> no()
+        }
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

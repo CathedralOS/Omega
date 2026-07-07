@@ -2,8 +2,8 @@
 // b runtime): the const leaf rides the suffix walk ABOVE the runtime level
 // (walk boundary = the runtime `Indexed` node), the const prefix folds into
 // the collection resolution. Read AND write faces, neighbor-validated.
-// (`cube[1][1][k]` -- TWO const levels BELOW the runtime index -- still a
-// clean error: the name-path collection resolution carries one root index.)
+// (`cube[1][1][k]` -- TWO const levels BELOW the runtime index -- lowers via
+// const-prefix peeling; pinned by runtime_nested_deep_const_prefix_exit.)
 boundary trait Console {
     machine exit_process(return_code: i32);
 }

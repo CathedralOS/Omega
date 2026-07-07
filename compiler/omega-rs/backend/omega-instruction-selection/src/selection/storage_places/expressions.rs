@@ -130,6 +130,19 @@ fn storage_path_len(table: &ExpressionTable, expression: ExpressionHandle) -> Op
             let ExpressionNode::Integer(_) = table.expression(indexed.index) else {
                 return None;
             };
+            // A STACKED index (`cube[1][1]` -- an Indexed whose collection is
+            // itself Indexed) cannot ride a name path: each member carries ONE
+            // element index, and `member_index` returns the OUTERMOST one,
+            // silently swallowing the inner -- the path would alias `cube[1]`.
+            // Refuse, so callers fall to resolvers that bias the base per level
+            // (`resolve_machine_owned_collection_with_const_prefix_in_table`).
+            let mut collection = indexed.collection;
+            while let ExpressionNode::Mutable(inner) = table.expression(collection) {
+                collection = *inner;
+            }
+            if matches!(table.expression(collection), ExpressionNode::Indexed(_)) {
+                return None;
+            }
             storage_path_len(table, indexed.collection)
         }
         ExpressionNode::Member(member) => storage_path_len(table, member.receiver)?.checked_add(1),

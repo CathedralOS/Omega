@@ -4078,6 +4078,41 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Deep const-prefix (`cube[1][1][k]`) + the stacked-index alias landmine
+// (unit-length inner arrays, where the byte gate can't catch the swallow).
+#[test]
+fn runtime_nested_deep_const_prefix_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_nested_deep_const_prefix_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-nested-deep-const-prefix-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested deep const-prefix canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested deep const-prefix canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `cube[1][1][k]` read+write and the unit-length alias shape (`weird[1][2][z]`) to hit the right elements and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // DUAL-indexed copy with BOTH indices FRAME-resident params.
 #[test]
 fn runtime_dual_frame_index_copy_exit_canary_runs() {
