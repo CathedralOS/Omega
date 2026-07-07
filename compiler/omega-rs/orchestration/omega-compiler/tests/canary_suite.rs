@@ -3101,6 +3101,43 @@ fn runtime_expression_range_bound_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Machine-collection element-field RMW at a RUNTIME index under a dominating
+// guard: `cells[k].v = cells[k].v + 1` with `v: [0..=9]` and `cells[k].v < 9`.
+// The hoisted field-typed read + the guard + the machine-indexed write
+// compose. cells[2].v: 4 -> 5 -> exit 1.
+#[test]
+fn runtime_indexed_struct_field_rmw_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_indexed_struct_field_rmw_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-idx-sf-rmw-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed struct field rmw canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed struct field rmw canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `cells[k].v = cells[k].v + 1` (4 -> 5) to store through the          element field and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // An array-of-structs element FIELD as a BINARY OPERAND
 // (`self.x = self.cells[self.k].v + 5`): the member-over-indexed hoist + the
 // field-typed temp + the machine-indexed materialization compose. -> exit 1.

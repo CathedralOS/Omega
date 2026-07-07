@@ -1774,6 +1774,22 @@ pub(super) fn resolve_runtime_machine_indexed_target_in_table(
     expression: ExpressionHandle,
 ) -> Option<RuntimeMachineIndexedTarget> {
     let indexed = indexed_target_path_in_table(expressions, expression)?;
+    // SHADOWING gate: the machine-owned resolver matches the collection NAME
+    // against the machine's fields, so a by-value PARAM/LOCAL array that
+    // shadows a machine field (`pick(arr: [i32; 3])` beside `self.arr`) would
+    // silently alias the machine's storage. A collection that resolves to a
+    // FRAME place is frame-resident -- never machine-indexed.
+    if runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        indexed.collection,
+    )
+    .is_some()
+    {
+        return None;
+    }
     let collection = resolve_machine_owned_collection_in_table(
         &input.layouts,
         input.entry_key.machine,
