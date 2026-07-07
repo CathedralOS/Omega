@@ -1,0 +1,18 @@
+// A computed index with NO provable bound must stay a CLEAN ERROR: k is a
+// SIGNED i32 in Trapping (non-Exact domain, so no enforced range; no
+// dominating guard). The auto-hoist mints the temp, but the index prover has
+// no facts under either label -- and the diagnostic names the USER's spelling
+// (`self.k + 1`), not the synthesized temp.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    arr: [i32; 5] in Trapping;
+    k: i32 in Trapping;
+    acc: i32 in Trapping;
+}
+machine Main::main(&mut self) {
+    self.arr = [1, 20, 30, 40, 50];
+    self.k = self.arr[0];
+    self.acc = self.acc + self.arr[self.k + 1];
+    self.console.exit_process(self.acc);
+}

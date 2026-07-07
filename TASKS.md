@@ -472,20 +472,24 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >   required). `arr[i]=arr[j]` both-runtime bare-source: CLOSED (re-verified live
 >   2026-07-07 -- bare indexed read AND bare local into a runtime-indexed target
 >   both value-validate native==interp; pinned by the runtime_dual_*_copy_exit
->   canaries). Computed-index `arr[k+1]`: the LET-TEMP idiom LANDED 2026-07-07 —
->   `let m: usize [1..=4] = self.k + 1; self.arr[m]` lowers on every face (read,
->   write target, guard subject, backward offset via dominating guard; canary
->   runtime_let_bound_computed_index_exit). Two pieces: state-storage keeps the
->   local's slot when a COMPUTED-value initializer is consumed as a runtime
->   index, and simplify does NOT fold a computed binding back into an index
->   position (simplify_index_expression -- folding re-created `arr[k+1]`).
->   Remaining rung: the AUTO-HOIST for the DIRECT `arr[k+1]` spelling (rewrite
->   to a hoisted range-typed let at the statement.rs hoist layer; mind the two
->   hoist scope gates in array-of-structs-indexing memory -- value positions
->   only, self-field collections only, plus write-TARGET handling this time).
->   The direct spelling stays a clean error meanwhile (checker index_is_computed
->   + backend blocker both hold). Still open: u64 literals > i64::MAX (i128
->   refactor). Fenced (safe) but block real programs. One-fence-per-fire.
+>   canaries). Computed-index `arr[k+1]`: CLOSED 2026-07-07 (both the let-temp
+>   idiom AND the direct spelling). The direct-spelling AUTO-HOIST lands as
+>   four pieces: (1) syntax->resolved `hoist_index` rewrites `arr[<binary>]`
+>   (value positions AND write targets via hoist_target_computed_indices;
+>   operands gated to self-field/param/literal -- a LOCAL operand stays
+>   fenced), (2) the typed layer types the temp from the place operand's BASE
+>   scalar + a range SYNTHESIZED by interval arithmetic over Exact declared
+>   ranges (store-enforced at the temp's initializer, so unguarded `k - 1`
+>   still rejects with the actionable decision-17 message), (3) state-storage
+>   slot carve-out + simplify index no-fold (the let-temp pieces), (4) the
+>   index prover consults guard facts under a `__hoist_` temp's INITIALIZER
+>   label (sound: the synthesized let is ADJACENT to its use), so the explicit
+>   `k + 1 >= 0 && k + 1 < N` guard idiom works -- and cannot-prove diagnostics
+>   name the USER's spelling. Canaries: runtime_computed_index_direct_exit,
+>   runtime_guarded_computed_index_operand_exit (graduated from the old fail
+>   canary), runtime_let_bound_computed_index_exit, fail/computed_index_
+>   unproven_rejected. Still open: u64 literals > i64::MAX (i128 refactor).
+>   Fenced (safe) but block real programs. One-fence-per-fire.
 >
 > **Mint arc remainder (library-grade; the boot path used the boundary-vouch
 > shortcut):**

@@ -172,6 +172,36 @@ fn with_attribution(message: String, attribution: Option<&str>) -> String {
     }
 }
 
+/// The display label of a hoisted computed-index temp's INITIALIZER (`__hoist_0`
+/// -> "self.k + 1"), found by name among the state's `let` statements. `None`
+/// when `index_label` is not a reserved `__hoist_` name or has no initializer.
+fn hoist_temp_initializer_label(
+    program: &omega_typed_trees::TypedTrees,
+    state: &State,
+    index_label: &str,
+) -> Option<String> {
+    if !index_label.starts_with("__hoist_") {
+        return None;
+    }
+    program
+        .statement_table
+        .statements(state.statement_nodes)
+        .iter()
+        .find_map(|statement| match statement {
+            omega_typed_trees::statement::StatementNode::LocalData(local_data)
+                if local_data.name.as_str() == index_label
+                    && local_data.initial_value.is_valid() =>
+            {
+                Some(
+                    program
+                        .expression_table
+                        .display_name(local_data.initial_value),
+                )
+            }
+            _ => None,
+        })
+}
+
 /// True if `index` is a runtime COMPUTED expression (`k + 1`, `2 * i`, `-k`, or a cast of
 /// one) rather than a place (`k`, `self.k`) or a constant. Only checked on the non-const
 /// path -- constant folding has already reduced `arr[2 + 3]` to `arr[5]`, so a Binary that
@@ -245,29 +275,56 @@ fn check_known_length_index(
                 // bound, low >= 0 the lower.
                 let declared_range =
                     expression_enforced_declared_range(program, machine, state, index);
+                // A hoisted computed-index temp (`__hoist_N`, the
+                // compiler-reserved prefix) is assigned by its synthesized
+                // `let` IMMEDIATELY before the indexing statement -- no user
+                // statement can intervene -- so guard facts about its
+                // INITIALIZER's label (`self.k + 1`) describe the temp's
+                // value: consult them under that label too, making the
+                // explicit `k + 1 >= 0 && k + 1 < N` guard idiom bound the
+                // hoisted index. Scoped to the reserved prefix: a USER local
+                // may see writes between its `let` and its use, where the
+                // initializer-label fact would describe a DIFFERENT value.
+                let initializer_label =
+                    hoist_temp_initializer_label(program, state, &index_label);
+                let initializer_label = initializer_label.as_deref();
                 let upper_bound_proven = facts
                     .index_is_proven(&collection_label, &index_label)
                     || facts.index_upper_bound_is_proven(&index_label, length)
                     || facts.index_upper_bound_is_proven_via_ordering(&index_label, length)
                     || declared_range.is_some_and(|(_, high)| {
                         i64::try_from(length).is_ok_and(|length| high < length)
+                    })
+                    || initializer_label.is_some_and(|label| {
+                        facts.index_is_proven(&collection_label, label)
+                            || facts.index_upper_bound_is_proven(label, length)
+                            || facts.index_upper_bound_is_proven_via_ordering(label, length)
                     });
                 let lower_bound_proven = expression_is_unsigned_integer(
                     program, machine, state, index,
                 ) || facts.non_negative_is_proven(&index_label)
                     || facts.non_negative_is_proven_via_ordering(&index_label)
-                    || declared_range.is_some_and(|(low, _)| low >= 0);
+                    || declared_range.is_some_and(|(low, _)| low >= 0)
+                    || initializer_label.is_some_and(|label| {
+                        facts.non_negative_is_proven(label)
+                            || facts.non_negative_is_proven_via_ordering(label)
+                    });
                 if upper_bound_proven && lower_bound_proven {
                     return;
                 }
-                // Tailor the diagnostic to the half that is missing.
+                // Tailor the diagnostic to the half that is missing, naming
+                // the user's spelling when the index is a hoisted temp.
+                let shown_label = initializer_label.unwrap_or(&index_label);
                 let message = if !upper_bound_proven {
                     format!(
                         "cannot prove index `{}` is within length {}",
-                        index_label, length
+                        shown_label, length
                     )
                 } else {
-                    format!("cannot prove index `{}` is non-negative (>= 0)", index_label)
+                    format!(
+                        "cannot prove index `{}` is non-negative (>= 0)",
+                        shown_label
+                    )
                 };
                 diagnostics.push(Diagnostic::error(with_attribution(message, attribution)));
                 return;

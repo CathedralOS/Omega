@@ -44,6 +44,12 @@ pub(crate) struct Lowerer {
     /// this to materialize such reads into `let` temps, which lower through the
     /// boot-verified pointee path. Overwritten at each state's lowering.
     pub(crate) reference_struct_parameters: Vec<String>,
+    /// ALL of the current state's parameter names -- the computed-index hoist
+    /// gate uses this to tell a typeable bare-Name operand (a param, whose
+    /// declared type the typed layer resolves via `parameter_type`) from a
+    /// LOCAL (untypeable at the hoist-temp layer; hoisting would mint a Unit
+    /// temp and a confusing layout error). Overwritten at each state.
+    pub(crate) current_state_parameter_names: Vec<String>,
     /// Whether the machine currently being lowered is a BOUNDARY machine. Only
     /// boundary params are REAL pointer slots (the entry hand-off vouches
     /// them); a non-boundary `&Struct` param is a call-site ALIAS slot sharing
@@ -68,6 +74,7 @@ impl Lowerer {
             sources,
             hoist_counter: 0,
             reference_struct_parameters: Vec::new(),
+            current_state_parameter_names: Vec::new(),
             current_machine_is_boundary: false,
             match_subject_temps: std::collections::HashMap::new(),
         }

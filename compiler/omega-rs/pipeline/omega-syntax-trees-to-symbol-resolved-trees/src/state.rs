@@ -54,8 +54,15 @@ fn lower_state_parts(
         // be pointee-materialized.
         Vec::new()
     };
+    lowerer.current_state_parameter_names = lowerer
+        .symbol_resolved_trees
+        .state_parameters(parameters)
+        .iter()
+        .map(|parameter| parameter.name.as_str().to_string())
+        .collect();
     let statements = lower_state_statements(lowerer, syntax_trees, statements)?;
     lowerer.reference_struct_parameters = Vec::new();
+    lowerer.current_state_parameter_names = Vec::new();
 
     Ok(State {
         symbol: SymbolHandle::invalid(),
