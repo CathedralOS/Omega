@@ -135,6 +135,20 @@ remove→Ok, remove(missing)→Error{NotFound}. Three finds along the way:
    `file_fd` scratch field (a param MEMBER is not a marshallable host arg; a
    let folds back to the member).
 
+**Value-call deferral: TWO MORE ordering faces CLOSED (2026-07-07).**
+Chasing the stale-common-bytes sibling surfaced worse bugs first:
+(a) a callee-entry FIELD WRITE (`self.flag = alive; transition self.flag`)
+is a spliced Mutation op — neither LocalStorage nor HostCall — so the
+Case-B deferral never saw it and the inline guard read ZII false (wrong arm,
+silently, even single-call); Mutation ops now defer + fire like the other
+two kinds. (b) TWO calls to the SAME callee splice indistinguishable ops
+(same source_key + callee statement indices); the defer/fire scans counted
+call 2's ops as call 1's remainder, firing call 1's leaf AFTER call 2's
+stores — all four scans now stop at the CONTIGUOUS spliced run's end.
+The original stale-bytes concern does NOT reproduce with ordering correct
+(bare-Dead-after-Alive{hp:9} reads hp 0); all three behaviors pinned by
+`calls/runtime_value_call_entry_field_write_exit`.
+
 **Leaf-path #38 collision CLOSED (2026-07-07):** the value-call leaf
 terminal's per-field decomposition (branches/mutation.rs) now tags payload
 fields with the constructed variant (`case_payload_field_variant_tag`, was

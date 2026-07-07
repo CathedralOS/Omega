@@ -19275,6 +19275,59 @@ fn windows_fs_raw_roundtrip_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The callee-entry FIELD WRITE deferral face + same-callee-twice firing:
+// `machine make(alive) { self.flag = alive; transition self.flag {..} }`
+// called TWICE. (a) The spliced entry Mutation is neither LocalStorage nor
+// HostCall, so the Case-B deferral never saw it -- the inline guard was
+// emitted BEFORE the field write and read ZII false (wrong arm, silently,
+// even single-call). (b) Two calls to the SAME callee splice
+// indistinguishable ops; the fire scans now stop at the CONTIGUOUS run's
+// end, else call 1's leaf fired after call 2's stores and read call 2's
+// flag. Also pins decision 7: the second (bare Dead) result's unnamed
+// common field reads 0, not call 1's hp=9 through the reused slot.
+#[test]
+fn runtime_value_call_entry_field_write_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_value_call_entry_field_write_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("entry-field-write canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (Alive{{hp:9}} then bare Dead with hp 0), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-entry-field-write-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("entry-field-write canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("entry-field-write canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected both same-callee calls to guard on THEIR OWN entry field write \
+         (exit 70), got {:?} (71/73 = a guard read the wrong flag; 74 = stale hp \
+         through the reused slot)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // SHARED-NAME payload fields across variants through a value-call leaf
 // terminal: `amount` in Deposit(amount) AND Transfer(to, amount). The
 // leaf-path per-field decomposition passed case_variant: None, so `amount`
@@ -22467,6 +22520,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_captured_local_swap_exit",
     "calls/runtime_same_type_contained_direct_fields_exit",
     "calls/runtime_shared_ref_param_member_exit",
+    "calls/runtime_value_call_entry_field_write_exit",
     "calls/runtime_value_call_shared_payload_name_exit",
     "calls/runtime_value_call_struct_payload_cast_field_exit",
     "filesystem/windows_raw_roundtrip_exit",

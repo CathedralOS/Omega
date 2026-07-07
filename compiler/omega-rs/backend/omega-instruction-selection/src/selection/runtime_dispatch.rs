@@ -546,17 +546,22 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                                 if target_key != operation.source_key {
                                     return None;
                                 }
-                                // Only fire if no more callee-body locals follow for
-                                // this same callee (target_key).
+                                // Only fire if no more callee-body ops (locals,
+                                // host calls, field mutations) follow for this
+                                // same callee (target_key).
                                 let has_more = operations
                                     .iter()
-                                    .skip(operation_index + 1)
-                                    .any(|later| {
+                                        .skip(operation_index + 1)
+                                        .take_while(|later| later.source_key == target_key)
+                                        .any(|later| {
                                         matches!(
                                             later.kind,
                                             RuntimeDispatchBodyOperationKind::LocalStorage {
                                                 ..
-                                            }
+                                            } | RuntimeDispatchBodyOperationKind::HostCall
+                                                | RuntimeDispatchBodyOperationKind::Mutation {
+                                                    ..
+                                                }
                                         ) && later.source_key == target_key
                                     });
                                 if has_more { None } else { Some(deferred_index) }
@@ -603,6 +608,64 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                     selected_instructions,
                 );
 
+                // A deferred value-call leaf whose callee's LAST body op is a
+                // MUTATION (`machine make(alive) { self.flag = alive;
+                // transition self.flag {..} }`) fires HERE, after the spliced
+                // field write above -- the Mutation analogue of the Case-B
+                // LocalStorage/HostCall firing blocks. Without it the inline
+                // guard was emitted at the StateCall, BEFORE the write, and
+                // read the field's ZII zero (wrong arm, silently).
+                if matches!(
+                    operation.kind,
+                    RuntimeDispatchBodyOperationKind::Mutation { .. }
+                ) {
+                    let deferred_indices_to_fire: Vec<usize> = deferred_leaf_operations
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(deferred_index, deferred)| {
+                            let target_key = state_call_target_key(deferred)?;
+                            if target_key != operation.source_key {
+                                return None;
+                            }
+                            let has_more = operations
+                                .iter()
+                                    .skip(operation_index + 1)
+                                    .take_while(|later| later.source_key == target_key)
+                                    .any(|later| {
+                                    matches!(
+                                        later.kind,
+                                        RuntimeDispatchBodyOperationKind::LocalStorage { .. }
+                                            | RuntimeDispatchBodyOperationKind::HostCall
+                                            | RuntimeDispatchBodyOperationKind::Mutation { .. }
+                                    ) && later.source_key == target_key
+                                });
+                            if has_more { None } else { Some(deferred_index) }
+                        })
+                        .collect();
+                    for deferred_index in deferred_indices_to_fire.into_iter().rev() {
+                        let deferred = deferred_leaf_operations.remove(deferred_index);
+                        select_runtime_straight_line_branch_expansions_for_operation(
+                            input,
+                            dispatch_case.dispatch_index,
+                            &deferred,
+                            &mut straight_line_expansion_cursor,
+                            &mut straight_line_selection_scratch,
+                            operands,
+                            runtime_value_operands,
+                            selected_instructions,
+                        );
+                        select_runtime_leaf_branch_expansions_for_operation(
+                            input,
+                            dispatch_case.dispatch_index,
+                            &deferred,
+                            &mut leaf_expansion_cursor,
+                            &mut leaf_selection_scratch,
+                            runtime_value_operands,
+                            selected_instructions,
+                        );
+                    }
+                }
+
                 select_runtime_branch_preludes_for_operation(
                     input,
                     dispatch_case.dispatch_index,
@@ -638,24 +701,30 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                             ) && later.source_key == operation.source_key
                                 && later.statement_index == operation.statement_index
                         });
-                    // Case B: callee-body LocalStorage ops spliced in from the
-                    // inlined callee (source_key == target_key of this StateCall),
-                    // OR a callee-body HostCall (`let rc = self.host.close(..)`): a
-                    // host-call `let` emits a HostCall op, never a LocalStorage op
-                    // (collection.rs continues after the HostCall), so its result
-                    // store into the callee slot would otherwise be missed and this
-                    // StateCall's inline guard emitted BEFORE the store, reading the
-                    // slot's ZII zero (deep-fix bug #1, TASKS_FS.md).
+                    // Case B: callee-body ops spliced in from the inlined callee
+                    // (source_key == target_key of this StateCall): a LocalStorage
+                    // (`let` binding), a HostCall (`let rc = self.host.close(..)`
+                    // -- a host-call `let` emits a HostCall op, never LocalStorage),
+                    // OR a MUTATION (`self.flag = alive`, the callee entry's field
+                    // write). In each case the callee's store must precede this
+                    // StateCall's inline guard, which otherwise reads the ZII zero
+                    // (deep-fix bug #1 / the field-write face, TASKS_FS.md).
+                    // Scoped to the CONTIGUOUS spliced run: a SECOND call to the
+                    // same callee splices indistinguishable ops later in the
+                    // body, and counting those made call 1's leaf fire after
+                    // call 2's stores (call 1's guard then read call 2's state).
                     let has_callee_local = state_call_target_key(operation).is_some_and(
                         |target_key| {
                             operations
                                 .iter()
                                 .skip(operation_index + 1)
+                                .take_while(|later| later.source_key == target_key)
                                 .any(|later| {
                                     matches!(
                                         later.kind,
                                         RuntimeDispatchBodyOperationKind::LocalStorage { .. }
                                             | RuntimeDispatchBodyOperationKind::HostCall
+                                            | RuntimeDispatchBodyOperationKind::Mutation { .. }
                                     ) && later.source_key == target_key
                                 })
                         },
@@ -754,12 +823,14 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
                             }
                             let has_more = operations
                                 .iter()
-                                .skip(operation_index + 1)
-                                .any(|later| {
+                                    .skip(operation_index + 1)
+                                    .take_while(|later| later.source_key == target_key)
+                                    .any(|later| {
                                     matches!(
                                         later.kind,
                                         RuntimeDispatchBodyOperationKind::LocalStorage { .. }
                                             | RuntimeDispatchBodyOperationKind::HostCall
+                                            | RuntimeDispatchBodyOperationKind::Mutation { .. }
                                     ) && later.source_key == target_key
                                 });
                             if has_more { None } else { Some(deferred_index) }

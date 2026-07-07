@@ -1,0 +1,47 @@
+// RUN CANARY (exit 70). mixed-shape case construction through the SAME value callee, twice.
+// Call 1 -> Alive { hp: 9 } (names the common field). Call 2 -> bare Dead:
+// frozen decision 7 zeroes unnamed common fields on construction, so the
+// second result's hp MUST be 0 -- if the leaf delivery writes only the tag
+// and the reused call-result slot still holds 9, native reads stale hp.
+// exit 70 = both right; 71 = first tag; 72 = first hp; 73 = second tag;
+// 74 = second hp STALE (the bug).
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Shaped {
+    hp: i32;
+    case Alive;
+    case Dead;
+}
+
+data Probe { flag: bool; }
+
+machine Probe::make(&mut self, alive: bool) -> Shaped {
+    self.flag = alive;
+    transition self.flag { true -> mk_alive() _ -> mk_dead() }
+    state mk_alive(&mut self) -> Shaped { Shaped::Alive { hp: 9 } }
+    state mk_dead(&mut self) -> Shaped { Shaped::Dead }
+}
+
+data Main {
+    console: Console;
+    probe: Probe;
+    first: Shaped;
+    second: Shaped;
+}
+
+machine Main::main(&mut self) {
+    self.first = self.probe.make(true);
+    self.second = self.probe.make(false);
+    transition self.first { Shaped::Alive -> check_first_hp() _ -> bad(71) }
+    state check_first_hp(&mut self) {
+        transition self.first.hp == 9 { true -> check_second() _ -> bad(72) }
+    }
+    state check_second(&mut self) {
+        transition self.second { Shaped::Dead -> check_second_hp() _ -> bad(73) }
+    }
+    state check_second_hp(&mut self) {
+        transition self.second.hp == 0 { true -> good() _ -> bad(74) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
