@@ -396,6 +396,63 @@ pub(super) fn select_host_operation_operands(
                 _ => HandleSpan::empty(),
             }
         }
+        (HostCapability::CoreGraphics, HostOperation::ColorSpaceRgb) => {
+            // `space = color_space_rgb() -> _CGColorSpaceCreateDeviceRGB()`. NO args;
+            // just the result place (ptr in x0). operand[0] alone.
+            match first_scalar_argument_operand(input, host_call, dispatch_index) {
+                Some(result) => operands.insert_many([operand(result)]),
+                None => HandleSpan::empty(),
+            }
+        }
+        (HostCapability::CoreGraphics, HostOperation::BitmapContext) => {
+            // `ctx = bitmap_context(data, w, h, bpc, stride, space, info) ->
+            // _CGBitmapContextCreate(...)`. SEVEN args → x0–x6: operand[1] is the
+            // framebuffer POINTER (address of the `[i32;N]` field), the rest are
+            // integer/pointer scalars. Result (CGContextRef) in x0.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let data = address_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            let w = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 2);
+            let h = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 3);
+            let bpc = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 4);
+            let stride = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 5);
+            let space = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 6);
+            let info = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 7);
+            match (result, data, w, h, bpc, stride, space, info) {
+                (
+                    Some(result),
+                    Some(data),
+                    Some(w),
+                    Some(h),
+                    Some(bpc),
+                    Some(stride),
+                    Some(space),
+                    Some(info),
+                ) => operands.insert_many([
+                    operand(result),
+                    operand(data),
+                    operand(w),
+                    operand(h),
+                    operand(bpc),
+                    operand(stride),
+                    operand(space),
+                    operand(info),
+                ]),
+                _ => HandleSpan::empty(),
+            }
+        }
+        (
+            HostCapability::CoreGraphics,
+            HostOperation::BitmapContextImage | HostOperation::ImageWidth,
+        ) => {
+            // `img = bitmap_context_image(ctx)` / `w = image_width(img)`: one
+            // pointer arg (→ x0), result in x0. operand[0]=result, [1]=the ptr.
+            let result = first_scalar_argument_operand(input, host_call, dispatch_index);
+            let arg = scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, 1);
+            match (result, arg) {
+                (Some(result), Some(arg)) => operands.insert_many([operand(result), operand(arg)]),
+                _ => HandleSpan::empty(),
+            }
+        }
         (HostCapability::Filesystem, HostOperation::Sync) => {
             // Value-returning `rc = sync(fd) -> _fsync(fd)`. Same shape as
             // `close`: operand[0]=result place, [1]=fd; either unresolvable =>

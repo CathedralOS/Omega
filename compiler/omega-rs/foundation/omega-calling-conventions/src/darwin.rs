@@ -119,6 +119,12 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // run-verified proof that 4 doubles land in v0–v3.
         darwin_import("CoreGraphics", "rect_max_x", "_CGRectGetMaxX", &policy),
         darwin_import("CoreGraphics", "rect_max_y", "_CGRectGetMaxY", &policy),
+        // The blit path: framebuffer → CGImage via a bitmap context (all
+        // integer/pointer args, no stack spill — vs `CGImageCreate`'s 11).
+        darwin_import("CoreGraphics", "color_space_rgb", "_CGColorSpaceCreateDeviceRGB", &policy),
+        darwin_import("CoreGraphics", "bitmap_context", "_CGBitmapContextCreate", &policy),
+        darwin_import("CoreGraphics", "bitmap_context_image", "_CGBitmapContextCreateImage", &policy),
+        darwin_import("CoreGraphics", "image_width", "_CGImageGetWidth", &policy),
     ]);
 
     insert_platform_lowering(
@@ -537,6 +543,35 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "CoreGraphics",
         "rect_max_y",
         [host_operation("CoreGraphics", "rect_max_y")],
+        PlatformCallData::None,
+    );
+    // The blit path (all int/ptr args → registers, results in x0).
+    insert_platform_lowering(
+        plan,
+        "CoreGraphics",
+        "color_space_rgb",
+        [host_operation("CoreGraphics", "color_space_rgb")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "CoreGraphics",
+        "bitmap_context",
+        [host_operation("CoreGraphics", "bitmap_context")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "CoreGraphics",
+        "bitmap_context_image",
+        [host_operation("CoreGraphics", "bitmap_context_image")],
+        PlatformCallData::None,
+    );
+    insert_platform_lowering(
+        plan,
+        "CoreGraphics",
+        "image_width",
+        [host_operation("CoreGraphics", "image_width")],
         PlatformCallData::None,
     );
 }
