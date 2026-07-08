@@ -471,47 +471,75 @@ fn nested_machine_storage_offset(
         return None;
     }
     visited.push(machine_layout.symbol);
+    let offset = nested_field_span_storage_offset(
+        layouts,
+        machine_layout.fields,
+        target_machine,
+        target_attached_data,
+        base_offset,
+        visited,
+    );
+    visited.pop();
+    offset
+}
 
-    let Some(fields) = layouts.fields.span(machine_layout.fields) else {
-        visited.pop();
-        return None;
-    };
+/// Search a FIELD SPAN (a machine's or a nested data's fields) for the target
+/// machine's storage region, descending BOTH nested machine-typed fields (a
+/// contained sub-machine) AND nested plain-DATA fields (`p: PairD`). The data
+/// descent is what lets a NESTED receiver `self.p.a.method()` -- whose
+/// intermediate `p` is a plain record with no attached machine -- resolve the
+/// callee's `self` base; without it the by-type walk stopped at the first
+/// machine-typed hop. Cycle guard is on machine symbols only (plain data is
+/// acyclic by construction -- a by-value self-containing record has no finite
+/// layout).
+fn nested_field_span_storage_offset(
+    layouts: &LayoutPlan,
+    fields_span: omega_core::arena::HandleSpan<FieldLayout>,
+    target_machine: SymbolHandle,
+    target_attached_data: Option<&str>,
+    base_offset: usize,
+    visited: &mut Vec<SymbolHandle>,
+) -> Option<usize> {
+    let fields = layouts.fields.span(fields_span)?;
 
     for field in fields {
         let field_offset = base_offset + field.offset;
 
         if target_attached_data.is_some_and(|name| field.type_name.as_ref() == name) {
-            visited.pop();
             return Some(field_offset);
         }
 
-        let nested_machine_layout = field_machine_layout(layouts, field);
-
-        if nested_machine_layout
-            .is_some_and(|nested_machine_layout| nested_machine_layout.symbol == target_machine)
-        {
-            visited.pop();
-            return Some(field_offset);
-        }
-
-        let Some(nested_machine_layout) = nested_machine_layout else {
+        if let Some(nested_machine_layout) = field_machine_layout(layouts, field) {
+            if nested_machine_layout.symbol == target_machine {
+                return Some(field_offset);
+            }
+            if let Some(offset) = nested_machine_storage_offset(
+                layouts,
+                nested_machine_layout,
+                target_machine,
+                target_attached_data,
+                field_offset,
+                visited,
+            ) {
+                return Some(offset);
+            }
             continue;
-        };
+        }
 
-        if let Some(offset) = nested_machine_storage_offset(
-            layouts,
-            nested_machine_layout,
-            target_machine,
-            target_attached_data,
-            field_offset,
-            visited,
-        ) {
-            visited.pop();
+        if let Some(data_fields) = field_data_layout_fields(layouts, field)
+            && let Some(offset) = nested_field_span_storage_offset(
+                layouts,
+                data_fields,
+                target_machine,
+                target_attached_data,
+                field_offset,
+                visited,
+            )
+        {
             return Some(offset);
         }
     }
 
-    visited.pop();
     None
 }
 
@@ -531,4 +559,26 @@ fn field_machine_layout<'plan>(
                     .is_some_and(|attached_data| attached_data.as_str() == field.type_name.as_ref())
         })
         .map(|(_, machine_layout)| machine_layout)
+}
+
+/// The field span of a plain-DATA field's layout (`p: PairD` -> `PairD`'s
+/// record fields, or a case-bearing shape's common fields). `None` when the
+/// field is not a data type this plan lays out. Lets the storage walk descend
+/// nested records to reach a machine-attached leaf.
+fn field_data_layout_fields(
+    layouts: &LayoutPlan,
+    field: &FieldLayout,
+) -> Option<omega_core::arena::HandleSpan<FieldLayout>> {
+    let data_layout = layouts
+        .data_layouts
+        .iter()
+        .find(|(_, data_layout)| {
+            data_layout.symbol == field.type_symbol
+                || data_layout.name.as_str() == field.type_name.as_ref()
+        })
+        .map(|(_, data_layout)| data_layout)?;
+    match &data_layout.shape {
+        DataShape::Record { fields } => Some(*fields),
+        DataShape::Enum { common_fields, .. } => Some(*common_fields),
+    }
 }

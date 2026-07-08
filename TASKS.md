@@ -605,33 +605,38 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >     interp ran exit 7 (native then hit the unrelated effectful-value-arm
 >     fence, a probe artifact) -- so the symbol path WORKS. Inert while rung
 >     3 stays gated. Helpers unwrap only Named; extend to shells if needed.
->     RUNG 3 BLOCKED on TWO delivery gaps found the same tick (do NOT lift
->     until both close -- un-gating now = silent 0):
->       (D1) BACKEND type-walk cannot descend a plain-DATA intermediate.
->         `machine_storage_offset`/`nested_machine_storage_offset`
->         (instruction-selection machine_owned.rs) AND the rung-2a blocker's
->         `first_type_match_offset`/`receiver_path_offset` descend only via
->         `field_machine_layout` (MACHINE-typed fields). `self.p.a` with
->         `p: PairD` (plain data, NO attached machine) is undescendable ->
->         the callee's self-base is unresolvable. So a DATA-nested receiver
->         cannot DELIVER even with symbols resolved -- the rung-2a blocker
->         honestly fires "cannot prove". FIX: both walks must also descend
->         DataLayout (layouts.data_layouts, DataShape::Record{fields} /
->         Cases{common_fields}); this is the load-bearing backend change.
->         MACHINE-nested intermediates already descend -- likely the first
->         deliverable nested shape (untested; exotic to construct).
->       (D2) rung 1 walks the receiver only for VALUE-position calls
->         (CollectedStateCall.raw_receiver set on the two Call arms). A
->         STATEMENT-position nested call (`self.p.a.mutate();`) gets a
->         single-segment receiver_path (leaf name only) and would DODGE the
->         rung-2a blocker's nested branch (field_segments.len()==1 -> direct
->         branch -> receiver_name not a Main field -> skip). Extend rung 1 to
->         walk the receiver expression for STATEMENT-position calls too
->         before lifting rung 3.
->       RUNG 3 gate-lift is READY otherwise (helpers parked behind
->       #[allow(dead_code)]: places.rs nested_receiver_type_name + calls.rs
->       receiver_member_chain; the lift = `.or_else(chain walk)` on
->       receiver_type in validate_expression_call_bounds, self-rooted len>=3).
+>     RUNG 2a/D1 -- DATA-LAYOUT DESCENT (LANDED 2026-07-08). The storage
+>       walk `nested_machine_storage_offset` (instruction-selection
+>       machine_owned.rs) AND the rung-2a blocker's `first_type_match_offset`
+>       + `receiver_path_offset` now descend plain-DATA fields too (via
+>       `field_data_layout_fields` -> DataLayout Record{fields} /
+>       Enum{common_fields}), not just machine-typed fields. So a data-nested
+>       receiver's callee-self base resolves, and the blocker computes the
+>       receiver's TRUE offset accurately. KEEP THE TWO WALKS IN LOCKSTEP
+>       (identical field_data_layout_fields in both files, marked).
+>     RUNG 3 -- VALUE-POSITION gate LIFTED (LANDED 2026-07-08).
+>       validate_expression_call_bounds resolves a self-rooted len>=3 chain
+>       via nested_receiver_type_name. VERIFIED: canary
+>       references/runtime_nested_receiver_distinct_types_exit (self.p.a.get()
+>       + self.p.b.get(), distinct BoxI/CellI leaves) runs native==interp==9;
+>       canary fail/references/nested_receiver_same_type_aliasing_rejected
+>       (a: BoxI; b: BoxI) BLOCKS with the accurate "self.p.b lives at offset
+>       4 ... picks the first BoxI (offset 0) -- ANOTHER instance's storage".
+>     REMAINING -- D2: STATEMENT-position nested calls (`self.p.b.setto();`)
+>       are UNSUPPORTED but SOUND (loud-rejected -- probed nrs2.omg 2026-07-08:
+>       "state calls: Main::main.main statement N has unresolved state call
+>       through `b`"). They go through a SEPARATE validator `validate_call_node`
+>       (receiver is a NAME PATH, not an expression) which keys on
+>       `contained_type(leaf)` (None for a nested leaf) and falls through to a
+>       no-op `let _ = diagnostics;` (L294) -- but the state-call PLANNER then
+>       rejects the unresolved call, so no silent 0. To SUPPORT them: (i) the
+>       nested walk in validate_call_node, (ii) rung 1 to populate receiver_path
+>       for statement-position calls -- their control-flow op carries only the
+>       leaf Identifier, so the receiver PATH isn't at the state-call layer yet
+>       (thread it through the op), (iii) tighten the L294 fall-through to a
+>       clear diagnostic. Not a soundness item; an ergonomics follow-on.
+>     RUNG 4 STILL OPEN below (same-type sibling delivery via per-receiver
+>       scheduling); the rung-2a blocker keeps fencing those loudly.
 >     RUNG 4 (the deep fix): per-receiver-place state scheduling (a
 >     receiver discriminator alongside StateKey or a scheduled-state clone
 >     per receiver place, biasing the callee's storage resolution by the
