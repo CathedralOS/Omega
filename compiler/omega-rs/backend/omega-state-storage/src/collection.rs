@@ -431,6 +431,18 @@ fn local_data_requires_storage(
                     local_symbol,
                     local_name,
                 )
+                // ...or by an ASSIGNMENT value (`self.got = g[a][b]`): the
+                // same aggregate has no immediate form to fold into the
+                // indexed read, so the elided slot left the double-indexed
+                // resolvers nothing to index (the frame-2D machine-target
+                // face; the tree-route fold is guarded separately in the
+                // alias substitution).
+                || assignment_value_references_symbol(
+                    expressions,
+                    statement,
+                    local_symbol,
+                    local_name,
+                )
             })
     {
         return true;

@@ -1,13 +1,11 @@
 // FRAME-resident 2D arrays, both-runtime reads
-// (CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage, 2026-07-07): local
-// arrays in entry and PARAM states, and a by-value param array through a
-// value machine -- all let-consumer faces (the _in_table route). Also pins
-// the COLLECTION NO-FOLD: an aggregate-literal binding must not fold into an
-// indexed collection position (simplify_collection_expression -- the folded
-// literal has no place to index; the local keeps its slot). The
-// machine-field-target face (`self.got = g[a][b]`, the TREE route) stays a
-// LOUD blocker: the delegated-table slot lookup does not resolve locals --
-// the filed follow-up.
+// (CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage): local arrays in entry
+// and PARAM states via LET consumers, the MACHINE-FIELD target face
+// (`self.got = g2[a][b]` -- the tree route, which needs the aggregate slot
+// kept for assignment-value consumers AND the selection-layer alias guard:
+// an aggregate-literal alias must not substitute into an indexed collection
+// position, the third fold layer), and a by-value param array through a
+// value machine. All value-validated.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; got: i32; }
 machine Main::pick(&self, m: [[i32; 3]; 2], i: usize [0..=1], j: usize [0..=2]) -> i32 {
@@ -28,8 +26,8 @@ machine Main::main(&mut self) {
     }
     state machine_target_go(&mut self, a: usize [0..=1], b: usize [0..=2]) {
         let g2: [[i32; 3]; 2] = [[9, 8, 7], [6, 5, 4]];
-        let picked2: i32 = g2[a][b];
-        transition picked2 == 8 {
+        self.got = g2[a][b];
+        transition self.got == 8 {
             true -> param_face()
             false -> no()
         }

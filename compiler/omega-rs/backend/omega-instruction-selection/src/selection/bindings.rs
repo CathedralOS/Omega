@@ -250,12 +250,35 @@ pub(super) fn resolve_runtime_alias_binding(
             }
         }
         Expression::Indexed(indexed) => {
-            let collection = resolve_runtime_alias_binding(
+            // An aggregate-literal alias must NOT substitute into the
+            // COLLECTION position (`g[a][b]` -> `[[9, 8], [6, 5]][a][b]`):
+            // a literal has no place to index -- the indexed resolvers need
+            // the local's SLOT, which state-storage keeps for exactly these
+            // aggregates. The SELECTION-layer twin of state-values'
+            // `simplify_collection_expression` guard (the third fold layer).
+            let collection = if alias_for_path(
                 &indexed.collection,
                 source_key,
                 aliases,
-                alias_expressions,
-            );
+            )
+            .is_some_and(|alias| {
+                matches!(
+                    alias_expressions.expression(alias.expression),
+                    ExpressionNode::ArrayLiteral(_) | ExpressionNode::StructLiteral(_)
+                )
+            }) {
+                RuntimeResolvedExpression {
+                    source_key,
+                    expression: indexed.collection.clone(),
+                }
+            } else {
+                resolve_runtime_alias_binding(
+                    &indexed.collection,
+                    source_key,
+                    aliases,
+                    alias_expressions,
+                )
+            };
             let index = resolve_runtime_alias_binding(
                 &indexed.index,
                 source_key,
@@ -343,6 +366,25 @@ pub(super) fn resolve_runtime_alias_binding(
             expression: expression.clone(),
         },
     }
+}
+
+/// The alias binding a bare `Name` expression would substitute with, if any
+/// (`None` for non-Name expressions or unmatched names).
+fn alias_for_path<'aliases>(
+    expression: &Expression,
+    source_key: StateKey,
+    aliases: &'aliases [RuntimeAliasBinding],
+) -> Option<&'aliases RuntimeAliasBinding> {
+    let Expression::Name(path) = expression else {
+        return None;
+    };
+    if path.is_empty() {
+        return None;
+    }
+    aliases
+        .iter()
+        .rev()
+        .find(|alias| alias.source_key == source_key && alias_matches_path(alias, path))
 }
 
 pub(super) fn resolve_runtime_alias_binding_handle(
