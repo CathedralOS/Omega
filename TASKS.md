@@ -594,21 +594,44 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >     (multi-hop) paths hold a STRICT bar -- unprovable or mismatched
 >     offsets BLOCK loudly (direct fields keep the lenient skip: locals/
 >     params resolve by other routes).
->     RUNG 2b -- SYMBOL RESOLUTION nested member hop (NEXT): probe nr1.omg
->     proved the validation gate CANNOT lift first -- nested member/target
->     symbols come out INVALID (Symbol = parent/children/kind/name, NO type
->     info; child_or_attached_data_child_symbol_by_kinds hops Machine ->
->     attached data, but a member on a FIELD symbol has no children), so
->     the state-call plan records NO call and the value SILENTLY BINDS 0 --
->     blockers only see PLANNED calls. Fix in receivers.rs/lookup.rs
->     (syntax->symbol-resolved): field symbol -> declared type spelling
->     (from the data definitions; needs threading tree access into the
->     receiver resolution) -> top_level_symbol(Data) -> child field; the
->     call TARGET needs the same hop (call_target_for_attached_data with
->     the leaf field's type name).
->     RUNG 2c: verify resolve_state_call_target routes deliver with valid
->     nested symbols (machine_contains covers DIRECT fields only; the
->     type-name route or the target_symbol last-resort route must fire).
+>     RUNG 2b -- SYMBOL RESOLUTION nested member hop (NEXT). RECON SHARPENED
+>     2026-07-08 (nr1.omg debug bisect: `recv_name=a rsym_valid=false
+>     tsym_valid=false` -> the plan records NO call -> silent 0; the
+>     validation gate CANNOT lift first). The change is now MECHANICAL --
+>     three named edits, no deep-recursion threading:
+>       * The exact backend route that must fire:
+>         omega-state-calls collection.rs resolve_state_call_target LAST-
+>         RESORT branch (~L945, inside `if receiver_symbol.is_valid()`):
+>         `target_symbol.is_valid() && find state where state==target_symbol
+>         && segment_index==0` -> ContainedMachine + key. So rung 2b's job =
+>         stamp BOTH (i) the leaf Member.member_symbol -> the leaf FIELD
+>         symbol (makes receiver_symbol valid so we ENTER the L894 block)
+>         and (ii) the Call.target_symbol -> the callee STATE symbol. No
+>         machine_contains entry needed (it holds DIRECT fields only).
+>       * The type walk already half-exists: MachineScope::field_type_
+>         reference (scope.rs) resolves a DIRECT field's TypeReference on the
+>         attached data (hop 1). Hops 2+ need ALL data definitions -- present
+>         at the scope-BUILD site (statements.rs assign_statement_reference_
+>         symbols destructures `data_definitions` + `data_members` alongside
+>         the `machines.for_each_mut`; borrows are disjoint). Extend
+>         MachineScope with those + a `nested_leaf_type_name(chain)` walker
+>         (unwrap Reference/Constrained shells via the child_type_references
+>         table to read each hop's Named name).
+>       * WIRING POINT = the assign_* level, NOT the recursion. assign_call_
+>         symbol already takes `machine: &MachineScope`; assign_member_symbol
+>         needs the scope added (one sig + one caller in traversal.rs).
+>         Detect self-rooted len>=3 chain -> walk to leaf type name ->
+>         top_level_symbol(Data, leaf_owner) child lookup for the leaf field
+>         symbol + call_target_for_attached_data(leaf_type, method) for the
+>         target -> stamp both. Non-nested cases keep the existing recursion.
+>       NO SHORTCUT via pre-resolved types: typed-tree Member/Call nodes
+>       carry member_symbol/target_symbol only, no type_reference (checked
+>       2026-07-08); control-flow ContainedFlow carries type_name for DIRECT
+>       fields only. Field-type walk is unavoidable; do it ONCE here.
+>     RUNG 2c: verify resolve_state_call_target delivers with the L945 route
+>     firing (should need no change once 2b stamps both symbols); if the
+>     source machine differs from target, confirm receiver_path storage
+>     binding (rung 2a) still resolves the single-instance offset.
 >     RUNG 3 (validation gate lift -- LAST): helpers are already in-tree
 >     behind #[allow(dead_code)]: places.rs nested_receiver_type_name +
 >     calls.rs receiver_member_chain (type resolution VERIFIED -- nr1
