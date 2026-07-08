@@ -951,9 +951,10 @@ machine Time::system_time_now(&mut self) -> SystemTime {
 // honest total answer). `now().duration_since(start)` composition.
 // SINGLE-LEVEL body: the natural composition
 // (`self.now().duration_since(start)`) needs a value call on a LOCAL
-// receiver, which zeroes natively today (receiver resolution reaches FIELDS
-// only -- filed in TASKS.md). Until that lands, this inlines now()'s
-// normalization + the checked_duration_since borrow idiom over entry lets.
+// receiver -- a CLEAN COMPILE ERROR since 2026-07-09 (receiver resolution
+// reaches fields and state parameters only; the silent-zero flavor is
+// fenced). Until local receivers land, this inlines now()'s normalization +
+// the checked_duration_since borrow idiom over entry lets.
 //
 // Shares let names with `now()` deliberately: two same-named-let callees
 // from one caller state pinned the cross-callee collision (both flavors now

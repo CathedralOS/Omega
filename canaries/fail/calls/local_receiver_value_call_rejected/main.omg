@@ -1,0 +1,42 @@
+// A value call on a LET-bound LOCAL receiver must be a clean compile error:
+// receiver resolution reaches machine fields and state parameters only, and
+// the inlined-callee flavor silently zeroed before the fence (the Main-state
+// flavor hit the emission backstop). Field/self/parameter receivers are the
+// supported forms.
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Pair [copy, zero_init] { a: u64; b: u64; }
+
+machine Pair::total(&self) -> u64 {
+    let sum: u64 = self.a + self.b;
+    sum
+}
+
+data Wrapper { seed: u64; }
+
+machine Wrapper::make_pair(&mut self) -> Pair {
+    let left: u64 = self.seed + 40;
+    Pair { a: left, b: 2 }
+}
+
+machine Wrapper::compose(&mut self) -> u64 {
+    let p: Pair = self.make_pair();
+    let t: u64 = p.total();
+    t
+}
+
+data Main {
+    console: Console;
+    wrapper: Wrapper;
+    got: u64;
+}
+
+machine Main::main(&mut self) {
+    self.got = self.wrapper.compose();
+    transition self.got == 42 {
+        true -> good()
+        false -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(1); }
+}

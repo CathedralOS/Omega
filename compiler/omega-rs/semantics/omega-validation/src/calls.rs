@@ -1818,6 +1818,100 @@ fn validate_expression_call_bounds(
     let _ = writable_roots;
 }
 
+/// A value call on a LET-BOUND LOCAL receiver (`let p: Pair = ..; p.total()`)
+/// reads ZII natively: receiver resolution reaches machine FIELDS and state
+/// PARAMETERS only, so the callee's `self.field` reads bind to nothing and
+/// the result silently zeroes when the caller is itself an inlined value
+/// callee (Main-state spellings hit the emission backstop instead). Fence it
+/// loudly until local receiver resolution lands (TASKS.md "local-receiver
+/// value calls"). Field receivers, `self`, and state-parameter receivers are
+/// the supported (canaried) forms.
+pub(crate) fn report_local_receiver_value_call(
+    program: &TypedTrees,
+    machine: &Machine,
+    state_name: &str,
+    value: ExpressionHandle,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    if !value.is_valid() {
+        return;
+    }
+    let ExpressionNode::Call(call) = program.expression_table.expression(value) else {
+        return;
+    };
+    if !call.receiver.is_valid() {
+        return;
+    }
+    // BUILTIN view/operand methods (`view.bytes()`, `arr.as_slice()`, min/max
+    // shapes) compose on locals through the operand machinery -- the same
+    // exemption list as the nested-argument fence above.
+    if matches!(
+        call.target.as_str(),
+        "min" | "max" | "sqrt" | "as_slice" | "as_mut_slice" | "as_view" | "bytes"
+    ) {
+        return;
+    }
+    // Only a BARE single-member NAME receiver can be a local; `self.x` and
+    // deeper member paths route through the supported field machinery.
+    let ExpressionNode::Name(path) = program.expression_table.expression(call.receiver) else {
+        return;
+    };
+    let members = program.expression_table.name_path_members(path.members);
+    let [receiver_name] = members else {
+        return;
+    };
+    let receiver = receiver_name.as_str();
+    if receiver == "self" {
+        return;
+    }
+    // A state PARAMETER (whole-machine scope) is a supported receiver.
+    let is_parameter = program.machine_states(machine).iter().any(|state| {
+        program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| parameter.name.as_str() == receiver)
+    });
+    if is_parameter {
+        return;
+    }
+    // A machine FIELD read as a bare name cannot happen (fields spell
+    // `self.x`), but keep the check total: owned-data names pass through.
+    let is_field = program
+        .machine_owned_data(machine)
+        .iter()
+        .any(|owned| owned.name.as_str() == receiver);
+    if is_field {
+        return;
+    }
+    // A LOCAL-DATA binding anywhere in the machine (bindings are
+    // whole-machine scope).
+    let is_local = program.machine_states(machine).iter().any(|state| {
+        program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .any(|statement| {
+                matches!(
+                    statement,
+                    StatementNode::LocalData(local) if local.name.as_str() == receiver
+                )
+            })
+    });
+    if !is_local {
+        return;
+    }
+    diagnostics.push(Diagnostic::error(format!(
+        "machine `{}` state `{state_name}`: value call `{}.{}(..)` uses a LET-bound          local as its receiver, which reads ZII (zeroes) natively -- receiver          resolution reaches machine fields and state parameters only. Store the          value in a data field (`self.{} = {}; self.{}.{}(..)`) or pass it as a          state parameter.",
+        machine.name,
+        receiver,
+        call.target.as_str(),
+        receiver,
+        receiver,
+        receiver,
+        call.target.as_str(),
+    )));
+}
+
 /// A LET/ASSIGNMENT-bound value call whose ARGUMENT nests another machine call
 /// (`let out = self.double(self.inc(3))`) reads a garbage inner result: the
 /// inner callee's frame locals cannot materialize inside the outer call's
