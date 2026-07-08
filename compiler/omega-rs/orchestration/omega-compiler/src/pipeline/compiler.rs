@@ -94,6 +94,9 @@ fn extract_provides_rows(
                 HostProviderMappingKind::VtableSlot { index } => {
                     ProvidesBindingKind::VtableSlot { index: *index }
                 }
+                HostProviderMappingKind::Value { value } => {
+                    ProvidesBindingKind::Value { value: *value }
+                }
             };
             rows.push(ProvidesRow {
                 target_name: provider.target.as_str().to_owned(),

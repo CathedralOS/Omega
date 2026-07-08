@@ -304,10 +304,27 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    fields/literals live in the machine region and always resolve -- the
    raw-canary FIELD discipline was load-bearing all along). Catalog-wide
    face parked at pending/host/host_local_operand_dual_dispatch
-   (Filesystem.close repro; clean-but-misleading error). Remaining rungs:
-   value rows + layout maps (the settled design), std targets files,
-   WINDOWS_IMPORT_ROWS migration, the let-local dispatch face, interp
-   story for authored bindings.
+   (Filesystem.close repro; clean-but-misleading error). RUNG V1 LANDED
+   (2026-07-08): per-target VALUE rows parse and ride the row stream --
+   `O_CREATE -> 32768` (integer-led RHS, zero new grammar per the extern
+   brief; snapshot kind "value"). They are constants, NOT call bindings:
+   the ABI merge skips them BEFORE the operation-key checks (two value
+   rows must not trip the unknown-key collision -- pinned by the extended
+   host_provides_binding_forms canary, both inert-demo_target and
+   host-merged flavors probed). Whitespace-run defect fixed in the three
+   merge error messages (a python single-backslash heredoc landmine --
+   scripts writing Rust string continuations need `\`).
+   NEXT (V2/V3, the consumption half): boundary-trait const DECLARATIONS
+   (`const FilesystemHost::O_CREATE: i32;` declared, no initializer --
+   composes the settled static_root_and_constants type-scoped const with
+   the provides table) + typed->checked substitution of the SELECTED
+   target's value, clean error when the target provides no row. Then
+   layout maps, std targets files, WINDOWS_IMPORT_ROWS migration, the
+   let-local dispatch face, interp story for authored bindings.
+   ⚠️ BRIEF DRIFT noted (not touched -- freestanding thread's call): the
+   extern brief revised `VtableSlot(index)` to `VtableField(field)`
+   (field model, decided 2026-07-04) AFTER the parse landed; the
+   implemented sum still spells VtableSlot.
 3. [ ] **build.omg = CODE with granted capabilities — SETTLED (Zach, chat
    2026-07-07), now engineering.** No declarative asset list; build.omg runs
    INTERPRETED with a granted, scoped `Filesystem` capability (read: source

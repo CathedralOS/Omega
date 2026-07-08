@@ -850,6 +850,10 @@ pub enum ProvidesBindingKind {
     Syscall { number: i64 },
     DllImport { module: String, symbol: String },
     VtableSlot { index: i64 },
+    /// A per-target named CONSTANT (`O_CREATE -> 32768`): carried on the row
+    /// stream but never a call binding -- the const-resolution rung consumes
+    /// it; the ABI merge skips it.
+    Value { value: i64 },
 }
 
 /// The boundary-policy path provides-sourced bindings live under: the program
@@ -901,6 +905,12 @@ pub fn merge_provides_rows(
     // generalization is string-interned operation keys.
     let mut seen_unknown: Option<(String, String)> = None;
     for row in provides {
+        // VALUE rows are constants, not call mechanisms: skip them BEFORE the
+        // operation-key checks (their names are naturally outside the closed
+        // catalog and must not trip the unknown-key collision).
+        if matches!(row.binding, ProvidesBindingKind::Value { .. }) {
+            continue;
+        }
         let key = HostOperationKey::from_names(&row.trait_name, &row.method);
         // NOTE: compare the ENUM, not `capability_name()` -- Unknown renders
         // as "<unknown>", so the original string compare never fired and the
@@ -910,7 +920,9 @@ pub fn merge_provides_rows(
                 && (prior_trait != &row.trait_name || prior_method != &row.method)
             {
                 return Err(format!(
-                    "provides rows `{}::{}` and `{}::{}` both fall outside the closed                      operation catalog and would collide; string-keyed operations are                      not built yet",
+                    "provides rows `{}::{}` and `{}::{}` both fall outside the closed \
+                     operation catalog and would collide; string-keyed operations are \
+                     not built yet",
                     prior_trait, prior_method, row.trait_name, row.method
                 ));
             }
@@ -921,11 +933,14 @@ pub fn merge_provides_rows(
             .any(|(_, binding)| binding.operation_key == key)
         {
             return Err(format!(
-                "provides `{}::{}` collides with an existing binding for the same                  operation on this target -- authored rows extend the platform                  tables, they never override them",
+                "provides `{}::{}` collides with an existing binding for the same \
+                 operation on this target -- authored rows extend the platform \
+                 tables, they never override them",
                 row.trait_name, row.method
             ));
         }
         let mechanism = match &row.binding {
+            ProvidesBindingKind::Value { .. } => unreachable!("value rows skipped above"),
             ProvidesBindingKind::VtableSlot { index } => {
                 HostBindingMechanism::VtableSlot { index: *index }
             }
@@ -935,7 +950,8 @@ pub fn merge_provides_rows(
             },
             ProvidesBindingKind::Syscall { .. } => {
                 return Err(format!(
-                    "provides `{}::{}`: Syscall bindings from provides rows are not                      wired yet (no syscall lowering plan for authored rows)",
+                    "provides `{}::{}`: Syscall bindings from provides rows are not \
+                     wired yet (no syscall lowering plan for authored rows)",
                     row.trait_name, row.method
                 ));
             }

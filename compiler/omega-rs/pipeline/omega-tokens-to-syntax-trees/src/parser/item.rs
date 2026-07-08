@@ -440,6 +440,11 @@ fn parse_host_provider_definition<'tokens, 'source>(
 fn parse_host_provider_binding<'tokens, 'source>(
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, HostProviderMappingKind> {
+    // An INTEGER-led RHS is a per-target VALUE row (`O_CREATE -> 32768`),
+    // not a call mechanism -- the portable-values half of the provides table.
+    if let Ok((value, input)) = input.take_integer() {
+        return Ok((HostProviderMappingKind::Value { value }, input));
+    }
     let (case, input) = input.take_identifier()?;
     match case.as_str() {
         "Syscall" => {
@@ -464,7 +469,8 @@ fn parse_host_provider_binding<'tokens, 'source>(
         }
         other => Err(input.error_here(format!(
             "unknown `provides` binding `{other}`: the compiler-known Binding sum is \
-             `Syscall(n)`, `DllImport(\"module\", \"symbol\")`, or `VtableSlot(n)`"
+             `Syscall(n)`, `DllImport(\"module\", \"symbol\")`, or `VtableSlot(n)`; \
+             a per-target VALUE row is a bare integer (`O_CREATE -> 32768`)"
         ))),
     }
 }

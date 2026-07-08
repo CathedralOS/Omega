@@ -103,6 +103,11 @@ pub enum HostProviderMappingKind {
     /// COM/UEFI per-object dispatch: `-> VtableSlot(1)` (deref `this`, read the
     /// vtable pointer, read slot N, call at the declared convention).
     VtableSlot { index: i64 },
+    /// A per-target named CONSTANT, not a call mechanism: `O_CREATE -> 32768`
+    /// (portable-values settle, 2026-07-07 -- the libc-crate half of the Rust
+    /// split). The row supplies the number a boundary trait's declared const
+    /// resolves to on this target; it never lowers to a call.
+    Value { value: i64 },
 }
 
 impl Default for HostProviderMappingKind {
