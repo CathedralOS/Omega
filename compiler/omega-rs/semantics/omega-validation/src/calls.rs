@@ -1573,7 +1573,6 @@ fn fence_generic_value_callee(
 /// "second"]` for `self.p.second.stored()`). `None` for non-place receivers
 /// (calls, literals). Mirrors the state-call plan's `append_receiver_path`
 /// walk at the typed layer.
-#[allow(dead_code)] // rung-3 gate-lift consumer (parked): staircase in TASKS
 fn receiver_member_chain(
     program: &TypedTrees,
     receiver: omega_typed_trees::expression::ExpressionHandle,
@@ -1778,19 +1777,28 @@ fn validate_expression_call_bounds(
 
     let receiver_name = external_receiver_name.unwrap_or_default();
     // Direct field/local receivers resolve by bare name. A NESTED self-rooted
-    // member chain (`self.p.a.stored()`) TYPE-resolves via
-    // `crate::places::nested_receiver_type_name` + `receiver_member_chain`
-    // (kept below, verified) -- but do NOT un-gate it here yet. Symbol
-    // resolution now stamps the nested symbols (rung 2b, landed), so the call
-    // RESOLVES; the two blockers before this gate can lift are (i) the backend
-    // `machine_storage_offset` type-walk cannot descend a plain-DATA
-    // intermediate field (a `PairD` has no machine layout), so a data-nested
-    // receiver's callee-self storage is unresolvable -- a DELIVERY hole, not
-    // just resolution; and (ii) rung 1 walks the receiver only for
-    // VALUE-position calls, so a STATEMENT-position nested call carries a
-    // single-segment receiver_path and would dodge the rung-2a blocker.
-    // Un-gating now = possible silent 0. See the staircase in TASKS.
-    let receiver_type = machine_symbols.contained_type(receiver_name);
+    // VALUE-position member chain (`self.p.a.get()`) resolves by walking the
+    // chain's declared field types to the leaf type (receiver-place staircase,
+    // rung 3). The full arc is now sound: symbol resolution stamps the nested
+    // symbols (rung 2b) so the state-call plan records the call; the backend
+    // storage walk descends plain-DATA intermediates (rung 2a/D1) so the
+    // callee's `self` base resolves; and the emission-planning
+    // contained-receiver blocker rejects an ambiguous nested receiver (a
+    // same-type sibling that the by-type walk would misresolve) loudly instead
+    // of binding 0. STATEMENT-position nested calls are validated separately
+    // (`validate_call_node`) and remain unsupported -- see TASKS D2.
+    let receiver_type = machine_symbols.contained_type(receiver_name).or_else(|| {
+        let chain = receiver_member_chain(program, call.receiver)?;
+        if chain.len() < 3 || chain.first().map(String::as_str) != Some("self") {
+            return None;
+        }
+        crate::places::nested_receiver_type_name(
+            program,
+            current_machine,
+            Some(current_state),
+            &chain,
+        )
+    });
 
     // External machine receiver.
     if let Some(callee_machine) = receiver_type

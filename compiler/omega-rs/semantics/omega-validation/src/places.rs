@@ -436,7 +436,6 @@ fn resolve_nested_member_path(
 /// declared type so the attached machine lookup finds the method). `None`
 /// when any hop fails to land on a Named data field: those chains keep the
 /// existing unresolved-call error.
-#[allow(dead_code)] // rung-3 gate-lift consumer (parked): staircase in TASKS
 pub(crate) fn nested_receiver_type_name<'program>(
     program: &'program TypedTrees,
     current_machine: &omega_typed_trees::machine::Machine,

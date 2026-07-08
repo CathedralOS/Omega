@@ -1,9 +1,9 @@
 use crate::EmissionPlanningInput;
 use crate::blocker;
 use omega_backend_report_types::EmissionBlocker;
-use omega_core::arena::Arena;
+use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
-use omega_layout::{FieldLayout, LayoutPlan, MachineLayout};
+use omega_layout::{DataShape, FieldLayout, LayoutPlan, MachineLayout};
 
 /// Contained-machine method dispatch resolves the receiver's storage region by
 /// TYPE: `nested_machine_storage_offset` (instruction selection, machine_owned.rs)
@@ -161,17 +161,22 @@ fn receiver_path_offset(
     source_layout: &MachineLayout,
     field_segments: &[omega_checked_trees::name::Identifier],
 ) -> Option<usize> {
-    let mut layout = source_layout;
+    let mut fields_span = source_layout.fields;
     let mut offset = 0usize;
     for (position, segment) in field_segments.iter().enumerate() {
         let field = layouts
             .fields
-            .span(layout.fields)?
+            .span(fields_span)?
             .iter()
             .find(|field| field.name == *segment)?;
         offset += field.offset;
         if position + 1 < field_segments.len() {
-            layout = field_machine_layout(layouts, field)?;
+            // Descend the intermediate hop -- a contained sub-machine OR a plain
+            // nested record (`p: PairD`). Data descent matches the backend's
+            // storage walk so this prediction stays accurate.
+            fields_span = field_machine_layout(layouts, field)
+                .map(|machine_layout| machine_layout.fields)
+                .or_else(|| field_data_layout_fields(layouts, field))?;
         }
     }
     Some(offset)
@@ -199,8 +204,9 @@ fn machine_layout_by_symbol(
 /// Mirror of instruction selection's `nested_machine_storage_offset` FIELD WALK
 /// (machine_owned.rs): depth-first over the caller's fields, first match by the
 /// callee's attached-data type name (or by nested machine symbol), earlier
-/// fields' nested matches win over later direct matches. Keep the two in
-/// lockstep -- this predicts which offset the backend will resolve.
+/// fields' nested matches win over later direct matches. Descends both nested
+/// machine-typed fields AND plain-DATA fields -- KEEP IN LOCKSTEP with the
+/// backend walk; this predicts which offset the backend will resolve.
 fn first_type_match_offset(
     layouts: &LayoutPlan,
     machine_layout: &MachineLayout,
@@ -213,45 +219,66 @@ fn first_type_match_offset(
         return None;
     }
     visited.push(machine_layout.symbol);
+    let offset = first_type_match_offset_in_span(
+        layouts,
+        machine_layout.fields,
+        target_machine,
+        target_attached_data,
+        base_offset,
+        visited,
+    );
+    visited.pop();
+    offset
+}
 
-    let Some(fields) = layouts.fields.span(machine_layout.fields) else {
-        visited.pop();
-        return None;
-    };
+fn first_type_match_offset_in_span(
+    layouts: &LayoutPlan,
+    fields_span: HandleSpan<FieldLayout>,
+    target_machine: SymbolHandle,
+    target_attached_data: &str,
+    base_offset: usize,
+    visited: &mut Vec<SymbolHandle>,
+) -> Option<usize> {
+    let fields = layouts.fields.span(fields_span)?;
 
     for field in fields {
         let field_offset = base_offset + field.offset;
 
         if field.type_name.as_ref() == target_attached_data {
-            visited.pop();
             return Some(field_offset);
         }
 
-        let nested = field_machine_layout(layouts, field);
-
-        if nested.is_some_and(|nested| nested.symbol == target_machine) {
-            visited.pop();
-            return Some(field_offset);
-        }
-
-        let Some(nested) = nested else {
+        if let Some(nested) = field_machine_layout(layouts, field) {
+            if nested.symbol == target_machine {
+                return Some(field_offset);
+            }
+            if let Some(offset) = first_type_match_offset(
+                layouts,
+                nested,
+                target_machine,
+                target_attached_data,
+                field_offset,
+                visited,
+            ) {
+                return Some(offset);
+            }
             continue;
-        };
+        }
 
-        if let Some(offset) = first_type_match_offset(
-            layouts,
-            nested,
-            target_machine,
-            target_attached_data,
-            field_offset,
-            visited,
-        ) {
-            visited.pop();
+        if let Some(data_fields) = field_data_layout_fields(layouts, field)
+            && let Some(offset) = first_type_match_offset_in_span(
+                layouts,
+                data_fields,
+                target_machine,
+                target_attached_data,
+                field_offset,
+                visited,
+            )
+        {
             return Some(offset);
         }
     }
 
-    visited.pop();
     None
 }
 
@@ -271,4 +298,25 @@ fn field_machine_layout<'plan>(
                     .is_some_and(|attached_data| attached_data == field.type_name.as_ref())
         })
         .map(|(_, machine_layout)| machine_layout)
+}
+
+/// The field span of a plain-DATA field's layout (`p: PairD` -> `PairD`'s
+/// record fields / a case-bearing shape's common fields). KEEP IN LOCKSTEP with
+/// the identical helper in instruction selection's machine_owned.rs.
+fn field_data_layout_fields(
+    layouts: &LayoutPlan,
+    field: &FieldLayout,
+) -> Option<HandleSpan<FieldLayout>> {
+    let data_layout = layouts
+        .data_layouts
+        .iter()
+        .find(|(_, data_layout)| {
+            data_layout.symbol == field.type_symbol
+                || data_layout.name.as_str() == field.type_name.as_ref()
+        })
+        .map(|(_, data_layout)| data_layout)?;
+    match &data_layout.shape {
+        DataShape::Record { fields } => Some(*fields),
+        DataShape::Enum { common_fields, .. } => Some(*common_fields),
+    }
 }

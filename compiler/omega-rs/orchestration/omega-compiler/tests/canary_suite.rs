@@ -828,6 +828,34 @@ fn computed_host_arg_rejected_canary_is_rejected() {
 }
 
 #[test]
+fn nested_receiver_same_type_aliasing_rejected_canary_is_rejected() {
+    // Two same-type nested leaves (`a: BoxI; b: BoxI` in `PairD`): a method on
+    // `self.p.b` would resolve its `self` region by the by-type storage walk,
+    // which finds the FIRST BoxI (`a`) -- silently running on the wrong
+    // instance. The contained-receiver blocker computes `self.p.b`'s true offset
+    // (via the same plain-data descent the backend uses) and rejects the
+    // mismatch loudly instead of binding 0 (receiver-place staircase rung 2a).
+    // Delete when per-receiver scheduling (rung 4) lands.
+    let canary = fail_canary("references/nested_receiver_same_type_aliasing_rejected");
+    let diagnostics = match compile_canary_without_output(&canary) {
+        Ok(report) => panic!(
+            "expected same-type nested-receiver aliasing canary to reject, but it compiled: {}",
+            report.summary()
+        ),
+        Err(diagnostics) => diagnostics,
+    };
+    let combined = diagnostics
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        combined.contains("ANOTHER instance's storage") && combined.contains("self.p.b"),
+        "expected a 'would run on ANOTHER instance's storage' rejection naming self.p.b, got:\n{combined}"
+    );
+}
+
+#[test]
 fn exact_overflow_value_call_hint_canary_is_rejected() {
     // Exact arithmetic over a value-machine call with an unconstrained return is a
     // decision-17 overflow; the diagnostic must NAME the call and point at annotating
@@ -2116,6 +2144,44 @@ fn runtime_shared_ref_param_guard_exit_canary_runs() {
         output.status.code(),
         Some(1),
         "expected `transition r.c == 9` (r: &Pt, non-boundary) to read c and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// Nested VALUE-position receiver through a plain-DATA intermediate
+// (`self.p.a.get()`, `p: PairD`). The backend storage walk descends the record
+// to resolve each callee's `self` base; distinct leaf types (BoxI/CellI) so the
+// by-type walk hits the named instance. Receiver-place staircase rungs 2b/2a/3.
+#[test]
+fn runtime_nested_receiver_distinct_types_exit_canary_runs() {
+    let canary = pass_canary("references/runtime_nested_receiver_distinct_types_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-nested-receiver-distinct-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested-receiver distinct-types canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested-receiver distinct-types canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(9),
+        "expected self.p.a.get()==5 and self.p.b.get()==9 (nested receivers, \
+         distinct leaf types) to exit 9, got {:?}
 stderr:
 {}",
         output.status.code(),

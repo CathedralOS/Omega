@@ -1,0 +1,27 @@
+// Nested VALUE-position receiver through a plain-data intermediate: the leaf
+// method dispatches on `self.p.a` / `self.p.b` where `p: PairD` is a plain
+// record (no attached machine). The backend storage walk descends the record
+// to resolve each callee's `self` base (receiver-place staircase D1). The two
+// leaves are DISTINCT types (BoxI vs CellI), so the by-type walk finds exactly
+// the named instance -- no aliasing. a.value=5, b.slot=9; reads back 5 and 9,
+// exits with b's value.
+// Expected exit: 9
+boundary trait Console { machine exit_process(return_code: i32); }
+data BoxI { value: i32; }
+machine BoxI::get(&self) -> i32 { transition { _ -> (self.value) } }
+data CellI { slot: i32; }
+machine CellI::get(&self) -> i32 { transition { _ -> (self.slot) } }
+data PairD { a: BoxI; b: CellI; }
+data Main { console: Console; p: PairD; }
+machine Main::main(&mut self) {
+    self.p.a.value = 5;
+    self.p.b.slot = 9;
+    let x: i32 = self.p.a.get();
+    let y: i32 = self.p.b.get();
+    transition x == 5 {
+        true -> ck(y)
+        false -> bad()
+    }
+    state ck(&mut self, y: i32) { self.console.exit_process(y); }
+    state bad(&mut self) { self.console.exit_process(2); }
+}

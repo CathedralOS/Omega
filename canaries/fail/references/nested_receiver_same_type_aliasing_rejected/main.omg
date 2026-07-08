@@ -1,0 +1,24 @@
+// Two SAME-TYPE nested leaves (`a: BoxI; b: BoxI` inside PairD). A method on
+// `self.p.b` would resolve its `self` region by the by-TYPE storage walk, which
+// finds the FIRST BoxI (`a`) -- so the call would silently run on `a`'s
+// storage. The emission-planning contained-receiver blocker computes the true
+// offset of `self.p.b` (via the same data descent) and rejects the mismatch
+// loudly (rung 2a) rather than binding the wrong instance. Until per-receiver
+// scheduling lands (rung 4), give each instance a distinct type or add a
+// forwarding method.
+boundary trait Console { machine exit_process(return_code: i32); }
+data BoxI { value: i32; }
+machine BoxI::get(&self) -> i32 { transition { _ -> (self.value) } }
+data PairD { a: BoxI; b: BoxI; }
+data Main { console: Console; p: PairD; }
+machine Main::main(&mut self) {
+    self.p.a.value = 5;
+    self.p.b.value = 9;
+    let y: i32 = self.p.b.get();
+    transition y == 9 {
+        true -> ok()
+        false -> bad()
+    }
+    state ok(&self) { self.console.exit_process(1); }
+    state bad(&self) { self.console.exit_process(2); }
+}
