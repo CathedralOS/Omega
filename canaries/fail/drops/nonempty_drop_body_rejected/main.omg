@@ -1,0 +1,13 @@
+// A NON-EMPTY `drop` body is a CLEAN ERROR until drop lowering lands
+// (SETTLED, Zach chat 2026-07-07): drop bodies are not executed, so the
+// cleanup would be a SILENT NO-OP (unlock/close/flush that never runs).
+// Empty drop bodies -- the declared teardown-obligation shape -- stay valid
+// (the five drops/ pass canaries).
+data Guard { handle: i32; }
+machine Guard::drop(&mut self) {
+    self.handle = 0;
+}
+data Main { }
+machine Main::main(&mut self) {
+    let g: Guard = Guard { handle: 7 };
+}

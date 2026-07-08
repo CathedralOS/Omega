@@ -83,6 +83,27 @@ pub fn validate_program(program: &TypedTrees) -> Result<(), Vec<Diagnostic>> {
     for machine in program.machines() {
         let machine_symbols = MachineSymbols::build(program, machine, &mut diagnostics);
 
+        // Drop bodies are NOT executed yet (ch16's lowered drop edge is
+        // aspirational): a non-empty `drop` body would be a SILENT NO-OP --
+        // unlock/close/flush cleanup that never runs. FENCE it (settled,
+        // Zach 2026-07-07): a clean error until drop lowering lands as one
+        // ownership subsystem (drop timing needs its own design brief first
+        // -- Omega has no lexical scopes). EMPTY drop bodies (the declared
+        // teardown-obligation shape) stay valid.
+        if machine.name.as_str().ends_with("::drop")
+            && program.machine_states(machine).iter().any(|state| {
+                !program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .is_empty()
+            })
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "machine `{}` has a non-empty `drop` body, but drop bodies are not yet executed -- the cleanup would silently never run. Keep the `drop` machine empty (the teardown obligation is still tracked), or perform the cleanup explicitly before the value's last use.",
+                machine.name,
+            )));
+        }
+
         validate_contained_types(program, machine, &symbols, &mut diagnostics);
         validate_owned_data(program, machine, &symbols, &mut diagnostics);
         validate_version_scoped_target(program, machine, &mut diagnostics);
