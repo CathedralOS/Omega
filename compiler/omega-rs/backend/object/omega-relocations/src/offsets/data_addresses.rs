@@ -34,6 +34,16 @@ pub(crate) fn data_address_relocation_offset(
         return selected_text_offset + site.byte_offset;
     }
 
+    // AArch64 CONSTANT-RESULT layout `[imm64 (16, padded)] [adrp/add x16]
+    // [store]`: the result operand[0]'s page pair sits at a fixed 16. No
+    // other operand relocates (the immediate is inline; there is no call).
+    if architecture == Architecture::Aarch64
+        && let Some(operation_key) = operation_key
+        && operation_key.lowers_to_constant_result()
+    {
+        return selected_text_offset + 16;
+    }
+
     // AArch64 value-returning layout `[args (operands[1..])] [BL] [result
     // store]`: the result operand[0]'s adrp/add lands AFTER the args + the BL
     // (4 bytes); an arg's adrp/add lands after only the args before it (the

@@ -1405,6 +1405,26 @@ fn runtime_time_elapsed_since_exit_canary_runs() {
 }
 
 #[test]
+fn cross_darwin_time_host_compiles() {
+    // std::time rung 10: the darwin bindings lower from any host --
+    // clock_gettime_nsec_np with injected clockids (8 monotonic / 0 wall) +
+    // the three POSIX calibration constants as no-call constant results.
+    // COMPILE-ONLY (structural): native confirmation needs a Mac.
+    let canary = pass_canary("time/cross_darwin_time_host");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-darwin-time-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some("macos_arm64".into()),
+        write_output: true,
+    })
+    .expect("darwin time-host cross-compile should succeed");
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_checked_time_arith_exit_canary_runs() {
     // std::time rung 6 slice 3: Instant + SystemTime checked_add/
     // checked_subtract, exact values. 8 legs: carry/borrow Ok arms (non-ZII),

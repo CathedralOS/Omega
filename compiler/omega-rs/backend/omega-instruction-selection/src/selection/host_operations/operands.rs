@@ -202,16 +202,25 @@ pub(super) fn select_host_operation_operands(
             | HostOperation::MonotonicTicksPerSecond
             | HostOperation::WallClockRaw,
         ) => {
-            // Value-returning, ARGUMENT-FREE time reads (std::time rung 5). On
-            // windows these are OUT-PARAM imports (QueryPerformanceCounter/
-            // -Frequency write a LARGE_INTEGER, GetSystemTimePreciseAsFileTime
-            // a FILETIME): operand[0] is the u64 result place and that is the
-            // whole operand list (the read_errno shape); the architecture
-            // encoder brackets the call with the out-param stack slot.
+            // Value-returning, surface-ARGUMENT-FREE time reads (std::time
+            // rungs 5/10). The SHAPE is per-target row DATA, so the arm is
+            // data-driven: windows QPC/QPF/FILETIME are OUT-PARAM imports
+            // (data None -> [result] only; the x86_64 encoder brackets the
+            // call with the out-param stack slot); darwin's
+            // `clock_gettime_nsec_np` takes an injected clockid
+            // (ConstantArgument -> [result, imm]); darwin's frequency is the
+            // POSIX constant (ConstantResult -> [result, imm], no call).
             // Unresolvable result => no operands so the encoder hard-errors
             // rather than storing garbage.
             match first_scalar_argument_operand(input, host_call, dispatch_index) {
-                Some(result) => operands.insert_many([operand(result)]),
+                Some(result) => match host_call.data {
+                    PlatformCallData::ConstantArgument { value }
+                    | PlatformCallData::ConstantResult { value } => operands.insert_many([
+                        operand(result),
+                        operand(InstructionOperandKind::ImmediateInteger(value)),
+                    ]),
+                    _ => operands.insert_many([operand(result)]),
+                },
                 None => HandleSpan::empty(),
             }
         }

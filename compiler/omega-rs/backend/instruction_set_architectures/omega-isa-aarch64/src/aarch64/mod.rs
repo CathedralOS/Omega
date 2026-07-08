@@ -71,6 +71,43 @@ pub fn encode_host_call_sequence_value_returning_from_operands(
     Ok(bytes)
 }
 
+/// A CONSTANT-RESULT host op (`PlatformCallData::ConstantResult`; std::time's
+/// wall-clock calibration constants): NO call at all. operands[0] is the
+/// result place, operands[1] the constant. Materialize the imm64 into x0 with
+/// a FIXED-width movz+movk*3 (16 bytes -- padded so the width and the
+/// relocation offset are layout-constant), then the standard result store
+/// tail (adrp/add x16 relocated to the result region + store). Total width =
+/// 16 + 8 + store_data_offset_width; the result data-address site sits at 16.
+pub fn encode_host_call_sequence_constant_result_from_operands(
+    operands: impl Iterator<Item = Aarch64CallOperand> + Clone,
+) -> Result<Vec<u8>, Diagnostic> {
+    let all: Vec<Aarch64CallOperand> = operands.collect();
+    let Some(RuntimeScalarInteger {
+        byte_offset,
+        byte_count,
+    }) = all.first().copied()
+    else {
+        return Err(Diagnostic::error(
+            "AArch64 constant-result host op's result place did not lower to a runtime scalar",
+        ));
+    };
+    let Some(ImmediateInteger(value)) = all.get(1).copied() else {
+        return Err(Diagnostic::error(
+            "AArch64 constant-result host op did not lower its constant to an immediate operand",
+        ));
+    };
+    let mut bytes = Vec::with_capacity(constant_result_sequence_width(byte_offset, byte_count));
+    append_unsigned_immediate_padded(&mut bytes, 0, value as u64);
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_store_data_to_x_offset(&mut bytes, 0, 16, byte_offset, byte_count, 17)?;
+    debug_assert_eq!(
+        bytes.len(),
+        constant_result_sequence_width(byte_offset, byte_count)
+    );
+    Ok(bytes)
+}
+
 /// A value-returning host call whose callee returns a POINTER to the real
 /// result (darwin `___error()` -> `&errno`). Identical to
 /// `encode_host_call_sequence_value_returning_from_operands` except that, right

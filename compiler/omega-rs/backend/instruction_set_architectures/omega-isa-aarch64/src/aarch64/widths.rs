@@ -1039,6 +1039,13 @@ pub(in crate::aarch64) fn load_data_offset_width(byte_offset: usize, byte_size: 
     }
 }
 
+/// Width of `encode_host_call_sequence_constant_result_from_operands`:
+/// padded imm64 (16) + adrp/add (8) + the result store. MUST stay in
+/// lockstep with that encoder and the data-address relocation offset (16).
+pub fn constant_result_sequence_width(byte_offset: usize, byte_size: usize) -> usize {
+    16 + 8 + store_data_offset_width(byte_offset, byte_size)
+}
+
 pub(in crate::aarch64) fn store_data_offset_width(byte_offset: usize, byte_size: usize) -> usize {
     if data_offset_encodable(byte_offset, byte_size) {
         4

@@ -15,7 +15,9 @@ pub(super) fn collect_host_call_data(
         }
         PlatformCallData::MutableOutputBuffer { .. } => {}
         // A constant result contributes no data objects.
-        PlatformCallData::None | PlatformCallData::ConstantResult { .. } => {}
+        PlatformCallData::None
+        | PlatformCallData::ConstantResult { .. }
+        | PlatformCallData::ConstantArgument { .. } => {}
     }
 }
 

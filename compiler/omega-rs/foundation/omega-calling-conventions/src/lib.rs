@@ -47,12 +47,49 @@ impl HostOperationKey {
     /// and handled by the x86_64-specific relocation sites, so only the
     /// aarch64-reachable fs ops need to be recognized here.
     pub fn returns_value(self) -> bool {
+        // Clock is OP-AWARE: its value reads return, `sleep`/`sleep_poll` do
+        // not. (Capability-keyed only, the aarch64 routing sent the std::time
+        // reads to the NON-returning encoder and silently dropped results --
+        // TASKS_TIME.md rung 10 recon.)
         matches!(
             self.capability,
             HostCapability::Filesystem
                 | HostCapability::Math
                 | HostCapability::ObjectiveC
                 | HostCapability::CoreGraphics
+        ) || matches!(
+            (self.capability, self.operation),
+            (
+                HostCapability::Clock,
+                HostOperation::TickCount
+                    | HostOperation::MonotonicTicks
+                    | HostOperation::MonotonicTicksPerSecond
+                    | HostOperation::WallClockRaw
+                    | HostOperation::WallClockUnitsPerSecond
+                    | HostOperation::WallClockEpochOffsetSeconds
+            )
+        )
+    }
+
+    /// Whether this op lowers to a PER-TARGET CONSTANT result on the AARCH64
+    /// targets (no call at all: `PlatformCallData::ConstantResult` rows).
+    /// The aarch64 routing and width/relocation planners key their bespoke
+    /// no-call layout on this; x86_64 keys per-op in its own match (where
+    /// `monotonic_ticks_per_second` IS a call -- windows QPF). ⚠️ CAVEAT:
+    /// this is target-truth ONLY because aarch64 == darwin today (POSIX
+    /// frequency is the constant 10^9; linux_arm64 Clock rows are absent by
+    /// design). If linux_arm64 ever binds a CALL-shaped frequency, the
+    /// routing must become PlatformCallData-driven instead of keyed here
+    /// (noted in TASKS.md).
+    pub fn lowers_to_constant_result(self) -> bool {
+        matches!(
+            (self.capability, self.operation),
+            (
+                HostCapability::Clock,
+                HostOperation::MonotonicTicksPerSecond
+                    | HostOperation::WallClockUnitsPerSecond
+                    | HostOperation::WallClockEpochOffsetSeconds
+            )
         )
     }
 
@@ -743,6 +780,13 @@ pub enum PlatformCallData {
     /// materializes `mov rax, imm64` + the normal result store (std::time
     /// calibration constants: wall-clock units-per-second / epoch offset).
     ConstantResult {
+        value: i64,
+    },
+    /// The call takes a PER-TARGET CONSTANT leading argument the surface does
+    /// not pass: selection injects it as an immediate after the result
+    /// operand (darwin `clock_gettime_nsec_np`'s clockid -- CLOCK_UPTIME_RAW
+    /// for the monotonic read, CLOCK_REALTIME for the wall read).
+    ConstantArgument {
         value: i64,
     },
 }

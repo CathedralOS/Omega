@@ -51,6 +51,15 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
                 operands.iter().map(aarch64_call_operand),
             )
         }
+        // Constant-result ops have NO call (and no import relocation): the
+        // constant materializes into x0 and stores through the normal result
+        // tail. Checked before the plain value-returning arm (they share
+        // `returns_value()`).
+        Architecture::Aarch64 if operation_key.lowers_to_constant_result() => {
+            aarch64::encode_host_call_sequence_constant_result_from_operands(
+                operands.iter().map(aarch64_call_operand),
+            )
+        }
         Architecture::Aarch64 if operation_key.returns_value() => {
             aarch64::encode_host_call_sequence_value_returning_from_operands(
                 operands.iter().map(aarch64_call_operand),

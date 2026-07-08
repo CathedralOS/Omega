@@ -21,7 +21,9 @@ pub(crate) fn collect_host_call_runtime_text(
             collect_runtime_text_buffer(host_calls, host_call, plan, byte_capacity);
         }
         // A constant result carries no text.
-        PlatformCallData::None | PlatformCallData::ConstantResult { .. } => {}
+        PlatformCallData::None
+        | PlatformCallData::ConstantResult { .. }
+        | PlatformCallData::ConstantArgument { .. } => {}
     }
 }
 

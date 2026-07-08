@@ -150,6 +150,9 @@ fn write_platform_call_lowering(
         PlatformCallData::ConstantResult { value } => {
             output.push_str(&format!(" data constant_result value={value}"))
         }
+        PlatformCallData::ConstantArgument { value } => {
+            output.push_str(&format!(" data constant_argument value={value}"))
+        }
     }
     output.push('\n');
 }
