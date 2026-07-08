@@ -84,6 +84,7 @@ pub enum MachineInstructionKind {
     RuntimeStorageCopyToRuntimeMachineDoubleIndexed,
     RuntimeMachineDoubleIndexedIntegerWrite,
     RuntimeMachineDoubleIndexedBinaryWrite,
+    RuntimeStorageCopyFromRuntimeFrameBaseDoubleIndexed,
     RuntimeStorageCopyFromRuntimeFrameBaseIndexed,
     RuntimeStorageCopyToRuntimeMachineIndexed,
     RuntimeStorageCopyMachineIndexedToMachineIndexed,

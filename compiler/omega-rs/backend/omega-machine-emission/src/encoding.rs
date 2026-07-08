@@ -932,6 +932,27 @@ pub(super) fn encode_machine_instruction_bytes(
             *target_offset,
             *byte_count,
         ),
+        SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage {
+            base_byte_offset,
+            outer_index_offset,
+            outer_stride,
+            inner_index_offset,
+            inner_stride,
+            field_byte_offset,
+            target_offset,
+            byte_count,
+            ..
+        } => runtime_storage::encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
+            input,
+            *base_byte_offset,
+            *outer_index_offset,
+            *outer_stride,
+            *inner_index_offset,
+            *inner_stride,
+            *field_byte_offset,
+            *target_offset,
+            *byte_count,
+        ),
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed {
             source_region,
             source_offset,

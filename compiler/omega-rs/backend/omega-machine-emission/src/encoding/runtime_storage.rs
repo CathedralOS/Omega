@@ -978,6 +978,30 @@ pub(super) fn encode_runtime_storage_copy_to_runtime_machine_double_indexed_from
     )
 }
 
+pub(super) fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
+    input: MachineEmissionContext<'_>,
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    architecture::encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
+        input.target.architecture,
+        base_byte_offset,
+        outer_index_offset,
+        outer_stride,
+        inner_index_offset,
+        inner_stride,
+        field_byte_offset,
+        target_offset,
+        byte_count,
+    )
+}
+
 pub(super) fn encode_runtime_machine_double_indexed_integer_write(
     input: MachineEmissionContext<'_>,
     base_byte_offset: usize,

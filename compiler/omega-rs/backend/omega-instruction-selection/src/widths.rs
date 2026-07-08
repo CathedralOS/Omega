@@ -1892,6 +1892,29 @@ pub fn runtime_machine_double_indexed_binary_left_operand_offset(
     }
 }
 
+pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width(
+    architecture: Architecture,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width()
+        }
+    }
+}
+
+/// Target-region relocation start (pre-`+2`). x86_64 only.
+pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset(
+    architecture: Architecture,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset()
+        }
+    }
+}
+
 pub fn runtime_storage_copy_to_runtime_pointee_width(
     architecture: Architecture,
     source_offset: usize,
