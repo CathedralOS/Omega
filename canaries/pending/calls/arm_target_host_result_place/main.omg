@@ -1,17 +1,11 @@
-// PENDING repro (2026-07-07): a host-call RESULT let in a callee reached via
-// an ARM transition-target value call (`-> self.e1()`) has no frame slot in
-// the INLINING dispatch case -- probed place=None at the caller's case while
-// the slot exists under the callee's own case. Root:
-// branch_transition_target_key (omega-runtime-storage body.rs) resolves only
-// CONTAINED-object Nested receivers; self/sibling targets return None, so
-// the callee's locals are never storage-walked for the inlining case. This
-// is the real windows blocker behind deep create_dir_all (mkall_issue's rc).
-// A straight mirror of state-calls' self/sibling resolution FIXED the shapes
-// here but DESTABILIZED the suite (intermittent wrong-exit failures vs a
-// clean 692/0 baseline -- suspected frame-slot overlap from double-walking
-// callees that already own dispatch cases). The landable fix must scope the
-// walk to avoid double allocation (or key slots per inlining site) -- a
-// focused session with the frame-layout model in hand.
+// PENDING repro, REMAINING FLAVOR ONLY (2026-07-07b): the ARM-target result
+// place is FIXED and pinned (calls/runtime_arm_target_host_result_exit; the
+// earlier "destabilization" was attributed to the recorded parallel race by
+// three clean suite re-runs + a byte-identical emitted-code diff). What
+// STILL fails here is the `walk` leg: the same host-result callee reached
+// from a DECREASES/terminating machine's false arm -- the dispatched-walk
+// route resolves the result place differently (clean error). mkall_walk's
+// guard-lowering errors at inline depth are the second remaining frontier.
 // Shape ladder: (A) host-result let in a callee reached via an ARM
 // transition-target value call; (B) same via a decreases/terminates walk.
 use omega::language::std::filesystem_host;

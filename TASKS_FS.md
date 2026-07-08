@@ -91,19 +91,22 @@ but the failing operand is the RESULT, not the path -- probed
 `MKD: result=false path=true second=true` on BOTH mkdir sites:
 `first_scalar_argument_operand` cannot resolve the `let rc` result place in
 these deep sibling machines (pre-existing; the original wrapper hit the
-same). Next windows-seam item = that result-place resolution. ROOT FOUND
-2026-07-07 (fix attempted, REVERTED on evidence): minimal repro = a host
-RESULT let in a callee reached via an ARM transition-target value call
-(`-> self.e1()`); `branch_transition_target_key` (omega-runtime-storage
-body.rs) resolves only CONTAINED-object Nested receivers, so self/sibling
-targets are never storage-walked in the inlining case (probed: rc slot
-exists under the callee's own case, place=None under the caller's). A
-straight self/sibling mirror FIXED the repro shapes but destabilized the
-suite (intermittent wrong-exit runs vs a clean 692/0 baseline -- suspected
-frame-slot overlap from double-walking callees that already own dispatch
-cases). Landable fix = scope the walk against double allocation; repro
-parked at canaries/pending/calls/arm_target_host_result_place. Depth alone
-is NOT the trigger (a 3-deep statement-let ladder passes).
+same). Next windows-seam item = that result-place resolution. ARM-TARGET
+RESULT PLACE FIXED 2026-07-07b: `branch_transition_target_key`
+(omega-runtime-storage body.rs) now resolves SELF/sibling Nested targets
+(it only knew contained-object receivers, so `-> self.e1()` callees were
+never storage-walked in the inlining case). The prior-day revert was
+re-examined and the "destabilization" attributed to the recorded parallel
+temp-dir race: the suspect canary's emitted code is BYTE-IDENTICAL under
+the fix and three consecutive full-suite runs are clean. Pinned by
+`calls/runtime_arm_target_host_result_exit` (discriminating: ENOENT errno
+2 through the arm target, not ZII). LESSON: a varying-count intermittent
+suite failure + small-sample baseline is NOT evidence of a regression --
+diff the emitted code and re-run N times before reverting. REMAINING
+frontiers for deep create_dir_all (both clean errors, parked in
+canaries/pending/calls/arm_target_host_result_place): the DECREASES-walk
+flavor of the same result place, and mkall_walk's arm-guard lowering at
+inline depth.
 Flag for the macOS confirmation session: mkall behavior now matches the
 fence discipline. First
 wave detail — `filesystem/windows_wrapper_results_exit` runs write_all→Ok,
