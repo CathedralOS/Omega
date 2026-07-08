@@ -291,13 +291,23 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    unknown-key loud-collision check was DEAD (compared capability_name() to
    "Unknown" but it renders "<unknown>"); fail canary
    capabilities/host_provides_two_unknown_rejected pins the live merge on
-   every host (local_unchecked = host target). REMAINING for end-to-end
-   authored imports (the beeper probe: `beep -> DllImport("msvcrt.dll",
-   "abs")`): the RESULT-PLACE frame slot for `let m = self.beeper.beep(v)`
-   never resolves (first_scalar_argument_operand -> None; storage planning
-   doesn't allocate for Unknown-key host-call locals) — loud error today,
-   next rung. Then: value rows + layout maps (the settled design), std
-   targets files, WINDOWS_IMPORT_ROWS migration.
+   every host (local_unchecked = host target). RUNG 2 LANDED (2026-07-08):
+   authored imports work END TO END on hosted windows under the FIELD
+   discipline -- pass canary capabilities/windows_provides_import_exit
+   (`beep -> DllImport("msvcrt.dll","abs")`, abs(-42) -> 42,
+   windows-gated, NATIVE-ONLY: no interpreter provider for authored
+   bindings yet -- open question, relates to the build.omg real-fs
+   provider). The rung-1 "result-place frame slot" diagnosis was WRONG in
+   an instructive way: the miss is NOT provides-specific -- a host-call
+   operand that is a FRAME LOCAL fails whenever the statement is selected
+   under a duplicate dispatch context (slots are dispatch-keyed;
+   fields/literals live in the machine region and always resolve -- the
+   raw-canary FIELD discipline was load-bearing all along). Catalog-wide
+   face parked at pending/host/host_local_operand_dual_dispatch
+   (Filesystem.close repro; clean-but-misleading error). Remaining rungs:
+   value rows + layout maps (the settled design), std targets files,
+   WINDOWS_IMPORT_ROWS migration, the let-local dispatch face, interp
+   story for authored bindings.
 3. [ ] **build.omg = CODE with granted capabilities — SETTLED (Zach, chat
    2026-07-07), now engineering.** No declarative asset list; build.omg runs
    INTERPRETED with a granted, scoped `Filesystem` capability (read: source
