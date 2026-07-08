@@ -199,6 +199,10 @@ fn leaf_expansion_matches_operation(
         }
 }
 
+/// A machine is RE-ENTRANT when any of its states transitions back to its
+/// ENTRY state (the first StateFlow) -- the `terminates {{ decreases .. }}`
+/// walk shape (`true -> walk(path, i + 1)`). Ordinary forward state chains
+/// never target the entry, so they are not flagged.
 fn order_return_value_fallbacks_first(expansions: &mut [&RuntimeLeafBranchExpansion]) {
     expansions.sort_by_key(|expansion| {
         (
@@ -217,10 +221,32 @@ fn select_runtime_leaf_branch_expansion(
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     let guards = select_runtime_leaf_branch_guards(input, expansion, runtime_value_operands);
+    // The static summary runs on the BINDING-RESOLVED guard: an inline arm
+    // guard over a substituted literal (`"a/b/c".len > 0`) is statically
+    // decidable only after the caller's argument replaces the callee param.
+    let summary_bindings = input
+        .runtime_branching_calls
+        .leaf_bindings
+        .span(expansion.bindings)
+        .unwrap_or(&[]);
+    let mut summary_expressions =
+        omega_checked_trees::expression::ExpressionTable::with_expression_capacity(8);
+    let summary_guard = if expansion.resolved_guard.is_valid() {
+        let copied = summary_expressions
+            .copy_from(&input.runtime_branching_calls.expressions, expansion.resolved_guard);
+        crate::selection::bindings::resolve_leaf_binding_expression_handle(
+            &input.runtime_branching_calls.expressions,
+            &mut summary_expressions,
+            copied,
+            summary_bindings,
+        )
+    } else {
+        expansion.resolved_guard
+    };
     let static_summary = static_guard_conjunct_summary_in_table(
         input,
-        &input.runtime_branching_calls.expressions,
-        expansion.resolved_guard,
+        &summary_expressions,
+        summary_guard,
     );
     if static_summary.has_false {
         return;

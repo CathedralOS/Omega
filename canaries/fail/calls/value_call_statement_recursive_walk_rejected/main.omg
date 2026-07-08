@@ -1,0 +1,57 @@
+// An EFFECTFUL `terminates` walk reached through a STATEMENT call inside a
+// value-called machine's entry (`count` stores `self.r = self.walk(..)`,
+// and `count` itself is the user's value call) must be a clean compile
+// error (the reentrant-value-call blocker's TRANSITIVE face): the spliced
+// value route runs the walk's `self.bump(..)` at most once, not per
+// iteration -- probed 2026-07-07d, this shape compiled and delivered
+// count 0 where the interpreter counts 2. Note BOTH sites are rejected:
+// the inner `self.r = self.walk(..)` is itself a value call whose direct
+// target is the effectful walk.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; n: i32 in Wrapping; r: i32; }
+machine Main::walk(&mut self, path: &[u8], i: usize, acc: i32)
+terminates {
+    decreases (i, path.len) -> Nat::BoundedDistance;
+}
+-> i32
+{
+    self.bump(path, i);
+    transition i < path.len {
+        true -> walk(path, i + 1, acc)
+        false -> done(acc)
+    }
+    state done(&mut self, acc: i32) -> i32 { self.n }
+}
+machine Main::bump(&mut self, path: &[u8], i: usize) {
+    transition i < path.len {
+        true -> look(path, i)
+        false -> skip()
+    }
+    state look(&mut self, path: &[u8], i: usize) {
+        transition path[i] == 47 {
+            true -> hit()
+            false -> skip()
+        }
+    }
+    state hit(&mut self) {
+        self.n = self.n + 1;
+        transition { _ -> skip() }
+    }
+    state skip(&mut self) { }
+}
+machine Main::count(&mut self, path: &[u8]) -> i32 {
+    self.r = self.walk(path, 0, 0);
+    transition path.len > 0 {
+        true -> got()
+        false -> zero()
+    }
+    state got(&mut self) -> i32 { self.r }
+    state zero(&mut self) -> i32 { 0 }
+}
+machine Main::main(&mut self) {
+    self.n = 0;
+    let c: i32 = self.count("a/b/c");
+    transition c == 2 { true -> good() _ -> bad(71) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

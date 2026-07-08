@@ -1,0 +1,31 @@
+// An inline arm guard over a callee SLICE PARAM (`path.len > 3`) lowers once
+// leaf-binding resolution substitutes the caller's argument: with a literal
+// argument the guard folds statically (`"a/b/c".len` -> 5, ordered compare),
+// selecting exactly one arm per call site. Discriminating: two call sites
+// hit OPPOSITE arms of the same callee (5 > 3 picks big -> 2; 2 > 3 picks
+// small -> 1); before the folds this was an UnresolvedInlineArmGuard error.
+// The callee is NOT re-entrant (no `terminates` walk) so the inline route
+// is sound -- the re-entrant sibling is fenced (inline_recursive_walk_rejected).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::classify(&mut self, path: &[u8]) -> i32 {
+    transition path.len > 3 {
+        true -> big()
+        false -> small()
+    }
+    state big(&mut self) -> i32 { 2 }
+    state small(&mut self) -> i32 { 1 }
+}
+machine Main::main(&mut self) {
+    let a: i32 = self.classify("a/b/c");
+    let b: i32 = self.classify("ab");
+    transition a == 2 {
+        true -> check_b(b)
+        _ -> bad(71)
+    }
+    state check_b(&mut self, b: i32) {
+        transition b == 1 { true -> good() _ -> bad(72) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

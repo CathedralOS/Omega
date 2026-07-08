@@ -1,0 +1,50 @@
+// A `terminates` walk with an EFFECTFUL looped body (the `self.bump(..)`
+// entry call) as the DIRECT sibling target of a value call must be a clean
+// compile error (the reentrant-value-call blocker's DIRECT face): the
+// spliced value route runs body effects at most ONCE, not per iteration --
+// probed 2026-07-07d, this exact shape compiled and delivered count 0
+// where the interpreter counts 2. A promoted "passing" canary had masked
+// the face by expecting a result of 0, indistinguishable from ZII. PURE
+// loop-carried recursion stays accepted in value position
+// (calls/runtime_loop_accumulator_exit), as do contained-receiver walks
+// (the dual-accumulator sample); statement-position calls always work.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; n: i32 in Wrapping; r: i32; }
+machine Main::walk(&mut self, path: &[u8], i: usize, acc: i32)
+terminates {
+    decreases (i, path.len) -> Nat::BoundedDistance;
+}
+-> i32
+{
+    self.bump(path, i);
+    transition i < path.len {
+        true -> walk(path, i + 1, acc)
+        false -> done(acc)
+    }
+    state done(&mut self, acc: i32) -> i32 { self.n }
+}
+machine Main::bump(&mut self, path: &[u8], i: usize) {
+    transition i < path.len {
+        true -> look(path, i)
+        false -> skip()
+    }
+    state look(&mut self, path: &[u8], i: usize) {
+        transition path[i] == 47 {
+            true -> hit()
+            false -> skip()
+        }
+    }
+    state hit(&mut self) {
+        self.n = self.n + 1;
+        transition { _ -> skip() }
+    }
+    state skip(&mut self) { }
+}
+machine Main::main(&mut self) {
+    self.n = 0;
+    self.r = self.walk("a/b/c", 0, 0);
+    let c: i32 = self.r;
+    transition c == 2 { true -> good() _ -> bad(71) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

@@ -21017,6 +21017,55 @@ fn runtime_value_call_dispatch_results_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// An inline arm guard over a callee SLICE PARAM (`path.len > 3`) lowers via
+// leaf-binding resolution: the caller's LITERAL argument substitutes into the
+// guard, `.len` folds to the byte length, and the ordered comparison decides
+// each arm statically -- one arm per call site, and two sites hit OPPOSITE
+// arms of the same callee. The re-entrant sibling (arm targeting a
+// `terminates` walk) is fenced instead (calls/inline_recursive_walk_rejected):
+// these folds and that fence landed together and must stay together.
+#[test]
+fn runtime_value_call_literal_len_arm_guard_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_value_call_literal_len_arm_guard_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("literal-len arm-guard canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (opposite arms across two call sites), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-literal-len-arm-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("literal-len arm-guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("literal-len arm-guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected literal-len arm guards to select one arm per site (exit 70), got {:?} \
+         (71 = long-path site missed the big arm; 72 = short-path site missed small)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A scalar value-call compared to an integer literal DIRECTLY in a guard
 // subject discriminates (the historical always-true face): the syntax
 // lowering hoists the call into a shared let temp typed from the callee's
@@ -24321,6 +24370,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_call_dispatch_results_exit",
     "calls/runtime_value_call_entry_field_write_exit",
     "calls/runtime_value_call_guard_subject_exit",
+    "calls/runtime_value_call_literal_len_arm_guard_exit",
     "calls/runtime_value_call_nested_entry_call_exit",
     "calls/runtime_value_call_same_callee_sites_exit",
     "calls/runtime_two_site_struct_result_exit",
@@ -25222,6 +25272,9 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/guard_call_vs_call_rejected",
     "calls/value_call_effectful_arm_rejected",
     "calls/value_call_param_effect_arm_rejected",
+    "calls/inline_recursive_walk_rejected",
+    "calls/value_call_direct_recursive_walk_rejected",
+    "calls/value_call_statement_recursive_walk_rejected",
     "calls/terminal_return_type_mismatch_rejected",
     "collections/write_first_loop_bound_exceeds_capacity",
     "capabilities/duplicate_provider_declaration",

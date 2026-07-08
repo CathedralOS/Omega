@@ -55,14 +55,37 @@ pub(super) fn select_runtime_leaf_branch_guards(
         return Vec::new();
     }
 
+    // Resolve the guard through the expansion's PARAM BINDINGS first, exactly
+    // as the terminal-value writer does: an inline arm guard over a callee
+    // param (`path.len > 0` where `path` binds to the caller's literal) has
+    // no lowerable operand until the binding substitutes the caller's
+    // expression. With no bindings the copy is content-identical. NOTE: this
+    // must never exist without emission planning's reentrant-value-call
+    // blocker -- resolving these guards alone unfences the
+    // inline-recursive-walk silent miscompile (the trap mapped 2026-07-07c).
+    let bindings = input
+        .runtime_branching_calls
+        .leaf_bindings
+        .span(expansion.bindings)
+        .unwrap_or(&[]);
+    let mut resolved_expressions = ExpressionTable::with_expression_capacity(8);
+    let copied_guard = resolved_expressions
+        .copy_from(&input.runtime_branching_calls.expressions, expansion.resolved_guard);
+    let resolved_guard = crate::selection::bindings::resolve_leaf_binding_expression_handle(
+        &input.runtime_branching_calls.expressions,
+        &mut resolved_expressions,
+        copied_guard,
+        bindings,
+    );
+
     select_runtime_branch_guard_conjuncts_in_table(
         input,
         expansion.dispatch_index,
         expansion.source_key,
         Some(expansion.branch_key),
         expansion.statement_index,
-        &input.runtime_branching_calls.expressions,
-        expansion.resolved_guard,
+        &resolved_expressions,
+        resolved_guard,
         runtime_value_operands,
     )
 }
@@ -248,6 +271,10 @@ fn static_guard_truth_in_table(
     let operator = match binary.operator {
         BinaryOperator::Equal => StateGuardOperator::Equal,
         BinaryOperator::NotEqual => StateGuardOperator::NotEqual,
+        BinaryOperator::Greater => StateGuardOperator::Greater,
+        BinaryOperator::GreaterOrEqual => StateGuardOperator::GreaterOrEqual,
+        BinaryOperator::Less => StateGuardOperator::Less,
+        BinaryOperator::LessOrEqual => StateGuardOperator::LessOrEqual,
         _ => return None,
     };
     let left = enum_variant_value_in_table(&input.layouts, expressions, binary.left)
@@ -258,6 +285,10 @@ fn static_guard_truth_in_table(
     Some(match operator {
         StateGuardOperator::Equal => left == right,
         StateGuardOperator::NotEqual => left != right,
+        StateGuardOperator::Greater => left > right,
+        StateGuardOperator::GreaterOrEqual => left >= right,
+        StateGuardOperator::Less => left < right,
+        StateGuardOperator::LessOrEqual => left <= right,
         _ => return None,
     })
 }
@@ -1625,6 +1656,14 @@ fn static_guard_value_in_table(
             let mut receiver = member.receiver;
             while let ExpressionNode::Mutable(inner) = expressions.expression(receiver) {
                 receiver = *inner;
+            }
+            // `.len` of a substituted STRING literal folds to its byte length
+            // (`"a/b/c".len` -> 5): a binding-resolved inline arm guard over a
+            // callee's slice param compares the caller's literal length.
+            if member.member.as_str() == "len"
+                && let Some(value) = expressions.string_literal_value(receiver)
+            {
+                return i64::try_from(value.as_bytes().len()).ok();
             }
             let ExpressionNode::StructLiteral(struct_literal) = expressions.expression(receiver)
             else {
