@@ -557,7 +557,14 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >     stay behind the validation fence). Canary
 >     generics/runtime_container_method_instances_exit (Box<i32> + Box<bool>
 >     coexisting, stored() value-validated both engines -- the runtime
->     silent-0 is dead).
+>     silent-0 is dead). HARDENED 2026-07-08 (canary
+>     runtime_container_setter_matrix_exit): T-typed setters (&mut self),
+>     non-generic methods, cross-call state; fixes: the mentions-parameter
+>     walker recurses Constrained/FixedArray/Slice/Reference shells precisely
+>     (a parameter-free `in Wrapping` field refused the whole container --
+>     also WIDENS method-less Phase 1 to constrained fields), and the layout
+>     skip covers machines attached to template data that declare no type
+>     params of their own (Cell::touch_count).
 >     SLICE 2 -- FREE generic machines at MULTIPLE instantiations
 >     (`Main::id<T>` at i32 AND bool): needs typed-layer DISCOVERY (extend
 >     stage-1's return/param inference to collect per-call-site signatures

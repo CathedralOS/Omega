@@ -1918,6 +1918,40 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Container setter/getter/non-generic-method matrix over two instances.
+#[test]
+fn runtime_container_setter_matrix_exit_canary_runs() {
+    let canary = pass_canary("generics/runtime_container_setter_matrix_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-container-setter-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("container setter matrix canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("container setter matrix canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected Cell<i32>/Cell<bool> setter+getter+touch_count faces to exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Container instances: Box<i32> + Box<bool> with per-instance stored().
 #[test]
 fn runtime_container_method_instances_exit_canary_runs() {
