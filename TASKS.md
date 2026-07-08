@@ -571,14 +571,20 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >     at ANY genericity -- concrete `PairI/BoxI` fails identically. RECON
 >     2026-07-08: the SYMBOL resolution already recurses Member chains
 >     (receivers.rs); the real limit is the CALL-PLAN layer -- the state-call
->     plan's receiver is BARE-NAME-keyed (`machine_symbols.contained_type(
->     receiver_name)` in validation mirrors it; cf. the contained-machine
->     receiver_name threading). The feature = thread a receiver PLACE (member
->     chain -> storage offset) through the plan to the callee's self storage,
->     THEN extend receiver_declared_type_name to walk field types. Do NOT
->     relax the validation check first -- it guards exactly the lowering
->     limit (un-gating = silent 0). Workaround: a forwarding method on the
->     outer type.
+>     plan's receiver is BARE-NAME-keyed. DEEPENED 2026-07-08: the callee's
+>     self-storage offset comes from the TYPE-based machine_storage_offset
+>     walk (layout builder nested walk; receiver_name exists only for the
+>     MISMATCH fence) -- which is ALSO why contained-machine SAME-TYPE
+>     aliasing is fenced (two BoxI fields -> the walk finds the FIRST). ONE
+>     unified fix serves both: thread a receiver PLACE (ReceiverParts in
+>     omega-state-calls collection.rs keeps only the LEAF name/symbol today
+>     -> carry the member CHAIN -> resolve to a storage offset at selection,
+>     replacing the type walk for named receivers), then retire the
+>     contained-receiver blocker and extend receiver_declared_type_name.
+>     Do NOT relax the validation check first (un-gating = silent 0).
+>     Workaround: a forwarding method on the outer type. A dedicated fire:
+>     plan struct + collection + selection callee-self binding + two fences
+>     retired + canaries (nested receiver, same-type two-field aliasing).
 >     (b) a generic TEMPLATE method calling a method on a Generic-typed
 >     field (`Pair::first_stored<T>` calling `self.first.stored()` with
 >     `first: Box<T>`) -- the template's receiver type is a Generic node the
