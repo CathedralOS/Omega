@@ -394,6 +394,52 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
   relative; `create_dir_all` intermediates best-effort; raw boundary in its own
   std module; `read_dir` single 512-byte fill per call.
 
+## ⚠️ Portable-values FRONTIER IS DESIGN-GATED (mapped 2026-07-08, needs Zach)
+
+The provides/portable-values ladder reached the point where the remaining
+rungs are DESIGN decisions, not mechanical work. Two forks block the
+headline payoff (unfencing windows create_new/open_with):
+
+**Flag-migration plan (facts, fully scouted).** The wrapper hardcodes
+darwin flag words (O_CREAT=512, O_EXCL=2048, O_TRUNC=1024, O_APPEND=8,
+access=0x3). To migrate to `FilesystemHost::O_CREATE` per-target refs
+(V2 substitution already works) needs THREE coordinated pieces:
+(1) a bundled per-target flag provides module + injection — the
+`substitute_native_gui_provider` pattern (stages.rs) injects a bundled
+std module gated on a boundary trait, but it is NATIVE-ONLY (the
+interpreter's compile_to_checked keeps abstract traits), so flags need
+injection on BOTH paths; (2) wrapper literal->ref migration; (3)
+interpreter target-aware flag decode — the decode is in evaluator.rs
+`virtual_open_flags` + the `open_create` arm, hardcoding darwin bits
+(0x200/0x400/0x8/0x3, EXCL 2048); it MUST match whatever numerology the
+wrapper emits. ⚠️ LANDMINE: on a Windows host `host()` == `windows_x64`
+(Coff/X86_64/8/8), so compile-target-None already resolves to windows —
+migrating the wrapper without the interpreter flip breaks the
+windows_wrapper interp-oracle canaries immediately. The darwin O_CREAT
+0x200 == msvcrt O_TRUNC 0x200 collision means the interpreter CANNOT
+decode semantically from bits alone; it needs the target.
+🔷 DESIGN FORK (Zach): where do per-OS values live as the SINGLE source
+of truth -- a Rust const table (interpreter + native both read it) or the
+`.omg` provides rows (settled design says .omg, but then the interpreter
+must READ provides tables for flag decode, more machinery)? This is the
+crux; picking wrong duplicates the values (ZII "clear data-to-data"
+concern). NOT settled -> not built.
+
+**Silent typo hazard in provides target names (found 2026-07-08).** A
+`provides` block naming an UNKNOWN target (`windows_x86` typo) silently
+voids the whole block: an unreferenced value row = ZERO errors; a binding
+= a misleading "no native lowering" at the call, not "unknown target". A
+referenced value row IS caught (the V2 wrong-target error). 🔷 The clean
+fix ("unknown provides target = error") needs a canonical VALID-TARGET-
+NAME set, which is itself unsettled: `uefi_x64` (freestanding, 3 corpus
+uses) and `demo_target` (placeholder, host_provides_binding_forms) are
+NOT in `from_omega_target_name`, and freestanding provides labels are
+DECORATIVE (build_freestanding_abi_plan takes ALL rows, no target
+filter) -- plus freestanding-vs-hosted isn't known at the pre-resolution
+point where names are processed. So this touches freestanding target
+naming ([[first-boot-ladder]]/[[extern-binding-sum]] lane). Parked, not
+fenced unilaterally.
+
 ## Observations (not fs, flagged for Zach)
 
 - samples_compile on Windows hosts has exactly 4 PRE-EXISTING failures
