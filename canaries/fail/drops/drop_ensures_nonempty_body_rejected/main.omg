@@ -1,0 +1,29 @@
+// FAIL canary (was the ch16 "Relationship To Proofs" PASS canary): a drop
+// with an `ensures` backed by a NON-EMPTY body is the sharpest case of the
+// drop fence (settled, Zach 2026-07-07) -- the body never RUNS, so the
+// ensures would contribute a proof fact about cleanup that never happened
+// (`held == 0` claimed, never stored). Rejected until drop lowering lands;
+// the empty-body drops canaries (the declared-obligation shape, incl.
+// ensures-with-empty-body) stay green.
+
+data Lock {
+    held: i32;
+}
+
+domain Lock::Released {
+    self.held == 0;
+}
+
+machine Lock::drop(&mut self)
+ensures
+    self in Lock::Released
+{
+    self.held = 0;
+}
+
+data Main {
+}
+
+machine Main::main(&mut self) {
+    let l: Lock = Lock { held: 0 };
+}

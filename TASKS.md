@@ -871,11 +871,16 @@ exit.
     NON-EMPTY drop is a SILENT NO-OP (unlock/close/flush all do nothing, no error,
     no warning), and ch16's "lowered drop edge runs the cleanup" is aspirational.
     Soundness-adjacent, not mere dead-weight avoidance. SETTLED (Zach, chat
-    2026-07-07): option (a) — FENCE. A non-empty `drop` body becomes a clean
-    "drop bodies are not yet executed" compile error (the 5 existing drops
-    canaries have EMPTY bodies and stay green); full enforcement (drop lowering,
-    use-after-move, borrow mutability) stays DEFERRED as one subsystem,
-    "directionally correct" per Zach. Real fix = emit the drop-machine call at
+    2026-07-07): option (a) — FENCE. LANDED 2026-07-08 (omega-validation
+    machine walk; fail canaries drops/nonempty_drop_body_rejected +
+    drop_ensures_nonempty_body_rejected). NOTE a premise correction: ONE of
+    the five drops canaries (drop_ensures_domain_membership) had a NON-EMPTY
+    body backing an `ensures` — the sharpest case of the hazard (a proof fact
+    from cleanup that never runs), so it CONVERTED to the second fail canary
+    rather than staying green; the other four (empty bodies, incl.
+    ensures-with-empty-body) stay green as expected. Full enforcement (drop
+    lowering, use-after-move, borrow mutability) stays DEFERRED as one
+    subsystem, "directionally correct" per Zach. Real fix = emit the drop-machine call at
     the tracked state-exit point (reverse declaration order; skip on move-out per
     ch16's move-guard edges). PREREQ for the real fix: a DROP-TIMING design
     brief — Omega has no lexical scopes, so candidate drop points are
