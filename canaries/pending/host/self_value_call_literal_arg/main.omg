@@ -1,0 +1,47 @@
+// PENDING repro -- ROOT CAUSE re-diagnosed 2026-07-08 (two prior diagnoses
+// were wrong; recorded so the next fixer does not re-chase them):
+//
+// SYMPTOM: `self.raw.open(path, 0)` inside a SELF-value-called machine
+// (`self.doit(path)`) errors "host operation Filesystem.open has no encodable
+// call sequence" -- the path argument resolves to no operand. The SAME shape
+// via a CONTAINED-object value call (`self.fs.open(path)` in the std wrapper)
+// works, which is why the whole wrapper is green.
+//
+// WRONG diagnosis #1 (self-vs-contained): partially true but not the cause.
+// WRONG diagnosis #2 (result-local slot / unused result): the trigger LOOKS
+//   like "unused/discarded result" (a used result compiles), but that is a
+//   symptom, not the cause.
+//
+// ACTUAL ROOT CAUSE (traced): the path LITERAL passed to the value call has
+// NO data object at all (aliased_literal_data_object -> by_bytes_only == 0).
+// The static-string data-planning collectors key each literal to a
+// (source_key, statement); the value-call ALIAS BINDING resolution
+// (resolve_runtime_alias_binding_handle) resolves the param literal to the
+// CALLEE's source_key (doit's state) for a SELF value call, but the literal's
+// data object -- when it is collected at all -- is keyed to the CALLER's
+// statement, so the lookup by (callee_key, bytes) misses. For a CONTAINED
+// value call the binding resolves to the CALLER's key, so it matches. On top
+// of that, a DISCARDED / bound-but-unused value-call result lowers to a
+// LocalData whose `_`/unused local is NOT in state_storage.locals (or is
+// unrequired), so the local-initializer collector never visits its call
+// arguments even for the caller key. FIX (backend, not bounded): make the
+// value-call arg literal's data object and the binding resolution agree on a
+// source_key for BOTH receiver shapes, and collect call-initializer arg
+// literals regardless of result usage. Attempted a data-planning-only fix
+// (collect unrequired call-initializer literals); reverted -- insufficient
+// because of the key mismatch above.
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; raw: FilesystemHost; }
+machine Main::doit(&mut self, path: &[u8] in Path) -> i32 {
+    let fd: i32 = self.raw.open(path, 0);
+    transition fd >= 0 { true -> ok() _ -> ng() }
+    state ok(&mut self) -> i32 { 0 }
+    state ng(&mut self) -> i32 { 1 }
+}
+machine Main::main(&mut self) {
+    _ = self.doit("omega_absent.txt");
+    transition true { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

@@ -404,12 +404,20 @@ FOUND + FIXED: `set_permissions`/`set_file_permissions` passed `perms.mode`
 to resolve under some dispatch contexts -- exactly the hazard the wrapper's
 `file_fd` scratch field already documents for `file.fd`. They now capture
 into a new `perm_mode` field in the entry first (the established idiom).
-PARKED backend gap (pending/host/member_arg_dup_dispatch): a host-call
-ARGUMENT that is a value-call machine PARAM -- a `&[u8] in Path` slice param
-via a SELF value call, or a struct-param MEMBER under a duplicate dispatch
-context -- resolves to no operand (the selection leaf-binding isn't followed
-for host ARG operands the way it is for results). Real fix is backend;
-the wrapper idiom sidesteps it for now.
+PARKED backend gap (pending/host/self_value_call_literal_arg) -- ROOT CAUSE
+re-diagnosed 2026-07-08 (two earlier guesses were wrong): a path LITERAL
+passed to a SELF value call (`self.doit("lit")` -> `self.raw.open(path)`)
+gets NO data object that the callee's host call can find. The value-call
+ALIAS BINDING resolution keys the param literal to the CALLEE's source_key
+for a SELF call but to the CALLER's for a CONTAINED call, while the
+static-string collectors key the literal to the caller -- so the SELF-call
+lookup by (callee_key, bytes) misses. Compounded by discarded/unused
+results (`_ = f("lit")`) lowering to a LocalData whose local isn't in
+state_storage.locals, so the collector never visits its call args. A
+data-planning-only fix (collect unrequired call-initializer literals) was
+attempted and REVERTED -- insufficient without fixing the key agreement.
+Real fix is backend value-call arg handling; the std wrapper (contained
+receivers, used results) is unaffected, so this is latent, not blocking.
 
 ## ⚠️ Portable-values FRONTIER IS DESIGN-GATED (mapped 2026-07-08, needs Zach)
 
