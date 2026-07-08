@@ -427,12 +427,17 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 > ABI/boundary layer. The compiler-language backlog, by leverage:
 >
 > **Soundness (correctness-first):**
-> - **#37 guard-subject deref through entry ref-params** — CONFIRMED silent
->   wrong-read (`transition r.c == 0`, `r: &Struct` flat-folds `slot+field`, no
->   deref). Value/let/mutation routings deref correctly now; only guards miss it.
->   Needs a `StateGuardOperandStorage::Pointee` vertical slice (state-guards +
->   selection + a both-arch deref-compare encoder) OR a routed hard error.
->   Workaround proven (let-bind then guard). Dedicated fire, not loop-sized.
+> - **#37 guard-subject deref through entry ref-params — CLOSED (verified
+>   2026-07-07).** The ref-param-member HOIST (statement.rs
+>   is_reference_struct_parameter_member, boundary machines only) already
+>   materializes direct guard subjects / machine-target assignments /
+>   transition args through the boot-verified pointee path — pinned by
+>   targets/efi_ref_param_direct_faces (the dedicated suite test asserts
+>   pointee derefs in the report, no flat slot+field read). The NON-boundary
+>   flavor is correct by construction (alias slots share the caller's
+>   storage, flat fold reads the right value) — live-verified native==interp
+>   and pinned by references/runtime_shared_ref_param_guard_exit. No
+>   StateGuardOperandStorage::Pointee slice needed.
 > - **Backend miscompile fences** — a cluster of `clean error` gaps to complete:
 >   nested runtime-indexed access: CONST-level faces LANDED 2026-07-07 —
 >   `grid[1][j]`, `rows[2].data[j]` (read AND write, machine-field and frame-let

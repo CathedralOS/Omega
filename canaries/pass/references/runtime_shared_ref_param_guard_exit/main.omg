@@ -1,0 +1,26 @@
+// The NON-boundary flavor of task #37's guard face: `transition r.c == 9`
+// with `r: &Pt` in a non-boundary machine. Non-boundary &Struct params are
+// call-site ALIAS slots sharing the caller's storage, so the flat member
+// fold reads the RIGHT value (the boundary flavor instead pointee-hoists --
+// pinned by targets/efi_ref_param_direct_faces). Value-validated: c = 9 at
+// field offset 4; a garbage flat read of `a` (= 4, offset 0) would exit 2.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Pt { a: i32; c: i32; }
+data Main { console: Console; p: Pt; }
+machine Main::check(&self, r: &Pt) -> i32 {
+    transition r.c == 9 {
+        true -> (1)
+        false -> (2)
+    }
+}
+machine Main::main(&mut self) {
+    self.p.a = 4;
+    self.p.c = 9;
+    let got: i32 = self.check(&self.p);
+    transition got == 1 {
+        true -> yes()
+        false -> no()
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}
