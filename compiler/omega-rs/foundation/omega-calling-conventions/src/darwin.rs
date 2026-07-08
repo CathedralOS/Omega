@@ -139,6 +139,12 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // arm marshals a single arg into x0 for Win32 `Sleep`). `_poll` is in the
         // libSystem umbrella, so no new dylib.
         darwin_import("Clock", "sleep_poll", "_poll", &policy),
+        // std::time seam (TASKS_TIME.md rung 10): ONE symbol serves both the
+        // monotonic and wall reads; the clockid argument comes from each
+        // lowering row's ConstantArgument. The calibration ops are
+        // ConstantResult rows (no import at all): POSIX nanosecond units.
+        darwin_import("Clock", "monotonic_ticks", "_clock_gettime_nsec_np", &policy),
+        darwin_import("Clock", "wall_clock_raw", "_clock_gettime_nsec_np", &policy),
     ]);
 
     insert_platform_lowering(
@@ -621,6 +627,44 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
     // `Clock::sleep(milliseconds)` → the distinct `sleep_poll` op (poll-based
     // millisecond sleep). The `"*"` platform matches the sample's `clock.sleep(ms)`
     // boundary call regardless of the receiver type.
+    // std::time seam (rung 10): monotonic = CLOCK_UPTIME_RAW (8), wall =
+    // CLOCK_REALTIME (0), both through `clock_gettime_nsec_np` -- the
+    // lowering layer never does arithmetic (D11), units are POSIX 10^9.
+    insert_platform_lowering(
+        plan,
+        "*",
+        "monotonic_ticks",
+        [host_operation("Clock", "monotonic_ticks")],
+        PlatformCallData::ConstantArgument { value: 8 },
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "monotonic_ticks_per_second",
+        [host_operation("Clock", "monotonic_ticks_per_second")],
+        PlatformCallData::ConstantResult { value: 1000000000 },
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "wall_clock_raw",
+        [host_operation("Clock", "wall_clock_raw")],
+        PlatformCallData::ConstantArgument { value: 0 },
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "wall_clock_units_per_second",
+        [host_operation("Clock", "wall_clock_units_per_second")],
+        PlatformCallData::ConstantResult { value: 1000000000 },
+    );
+    insert_platform_lowering(
+        plan,
+        "*",
+        "wall_clock_epoch_offset_seconds",
+        [host_operation("Clock", "wall_clock_epoch_offset_seconds")],
+        PlatformCallData::ConstantResult { value: 0 },
+    );
     insert_platform_lowering(
         plan,
         "*",

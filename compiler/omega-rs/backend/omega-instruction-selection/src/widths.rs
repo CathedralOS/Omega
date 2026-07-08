@@ -27,6 +27,15 @@ pub fn host_call_sequence_width<T: InstructionOperandLike>(
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => {
+            // Constant-result ops (std::time calibration) have their own
+            // no-call layout; keyed here exactly as in the encoder routing.
+            if operation_key.lowers_to_constant_result()
+                && let Some((_, byte_offset, byte_count)) = operands
+                    .first()
+                    .and_then(InstructionOperandLike::runtime_scalar_integer)
+            {
+                return aarch64::constant_result_sequence_width(byte_offset, byte_count);
+            }
             let base = aarch64::host_call_sequence_width_from_operands(
                 operands.iter().map(aarch64_call_operand),
             );

@@ -1,0 +1,56 @@
+// std::time rung 4: the TimeHost seam over the interpreter's VIRTUAL clock,
+// EXACT values (D12): monotonic_ticks does not advance on read and `sleep(30)`
+// advances it by exactly 30; the calibration constants are 1000/1000/0; the
+// wall clock reads 2026-01-01T00:00:00Z + elapsed in milliseconds.
+// INTERPRETER-ONLY until rung 5 binds the ops natively (windows QPC/QPF +
+// GetSystemTimePreciseAsFileTime; native canaries then assert inequalities,
+// not exact values).
+// Expected exit: 70.
+use omega::language::std::time_host;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    host: TimeHost;
+    first_ticks: u64;
+    second_ticks: u64;
+    frequency: u64;
+    wall_raw: u64;
+    wall_units: u64;
+    wall_offset: u64;
+}
+
+machine Main::main(&mut self) {
+    self.first_ticks = self.host.monotonic_ticks();
+    self.host.sleep(30);
+    self.second_ticks = self.host.monotonic_ticks();
+    transition self.second_ticks == self.first_ticks + 30 {
+        true -> check_frequency()
+        false -> fail_delta()
+    }
+    state check_frequency(&mut self) {
+        self.frequency = self.host.monotonic_ticks_per_second();
+        transition self.frequency == 1000 { true -> check_wall() false -> fail_frequency() }
+    }
+    state check_wall(&mut self) {
+        self.wall_raw = self.host.wall_clock_raw();
+        transition self.wall_raw == 1767225600000 + self.second_ticks {
+            true -> check_wall_units()
+            false -> fail_wall()
+        }
+    }
+    state check_wall_units(&mut self) {
+        self.wall_units = self.host.wall_clock_units_per_second();
+        self.wall_offset = self.host.wall_clock_epoch_offset_seconds();
+        transition self.wall_units == 1000 && self.wall_offset == 0 {
+            true -> good()
+            false -> fail_wall_units()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_delta(&mut self) { self.console.exit_process(1); }
+    state fail_frequency(&mut self) { self.console.exit_process(2); }
+    state fail_wall(&mut self) { self.console.exit_process(3); }
+    state fail_wall_units(&mut self) { self.console.exit_process(4); }
+}
