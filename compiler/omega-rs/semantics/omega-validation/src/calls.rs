@@ -1573,7 +1573,7 @@ fn fence_generic_value_callee(
 /// "second"]` for `self.p.second.stored()`). `None` for non-place receivers
 /// (calls, literals). Mirrors the state-call plan's `append_receiver_path`
 /// walk at the typed layer.
-#[allow(dead_code)] // wired in when the nested-receiver gate lifts (staircase rung 3)
+#[allow(dead_code)] // rung-3 gate-lift consumer (parked): staircase in TASKS
 fn receiver_member_chain(
     program: &TypedTrees,
     receiver: omega_typed_trees::expression::ExpressionHandle,
@@ -1778,14 +1778,18 @@ fn validate_expression_call_bounds(
 
     let receiver_name = external_receiver_name.unwrap_or_default();
     // Direct field/local receivers resolve by bare name. A NESTED self-rooted
-    // member chain (`self.p.second.stored()`) TYPE-resolves via
+    // member chain (`self.p.a.stored()`) TYPE-resolves via
     // `crate::places::nested_receiver_type_name` + `receiver_member_chain`
-    // (kept below, verified) -- but do NOT un-gate it here until the
-    // backend delivers nested receivers: symbol resolution leaves nested
-    // member/target symbols INVALID, the state-call plan then records no
-    // call, and the value silently binds 0 (probed 2026-07-08, nr1.omg).
-    // Rung order: symbol-resolution member-type hop -> plan target
-    // resolution -> THEN this gate lifts (receiver-place staircase, TASKS).
+    // (kept below, verified) -- but do NOT un-gate it here yet. Symbol
+    // resolution now stamps the nested symbols (rung 2b, landed), so the call
+    // RESOLVES; the two blockers before this gate can lift are (i) the backend
+    // `machine_storage_offset` type-walk cannot descend a plain-DATA
+    // intermediate field (a `PairD` has no machine layout), so a data-nested
+    // receiver's callee-self storage is unresolvable -- a DELIVERY hole, not
+    // just resolution; and (ii) rung 1 walks the receiver only for
+    // VALUE-position calls, so a STATEMENT-position nested call carries a
+    // single-segment receiver_path and would dodge the rung-2a blocker.
+    // Un-gating now = possible silent 0. See the staircase in TASKS.
     let receiver_type = machine_symbols.contained_type(receiver_name);
 
     // External machine receiver.
