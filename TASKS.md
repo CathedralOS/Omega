@@ -438,98 +438,24 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >   storage, flat fold reads the right value) — live-verified native==interp
 >   and pinned by references/runtime_shared_ref_param_guard_exit. No
 >   StateGuardOperandStorage::Pointee slice needed.
-> - **Backend miscompile fences** — a cluster of `clean error` gaps to complete:
->   nested runtime-indexed access: CONST-level faces LANDED 2026-07-07 —
->   `grid[1][j]`, `rows[2].data[j]` (read AND write, machine-field and frame-let
->   consumers) and 3D runtime-MIDDLE `cube[1][b][0]` all lower, value-validated
->   native==interp. Three coordinated pieces: (1) `TableIndexedTargetPath.boundary`
->   + suffix-walk early-stop (the walk's collection-unresolvable sentinel only
->   worked when the boundary was the INNERMOST Indexed), (2) the splitter prefers
->   the RUNTIME index level when all inner levels are const, (3) root-element-index
->   ORDERING fix in `resolve_machine_owned_collection_in_table` (the root index was
->   applied AFTER the suffix walk at the LEAF's scale — `rows[2].data` resolved to
->   rows+2*4, not rows+2*8; a latent wrong-element landmine for ANY root-indexed
->   collection with a member suffix). Read fence now rejects only BOTH-RUNTIME
->   chains; write classifier unchanged (refuses the fast path; backend lowers or
->   the blocker reports loudly). Canaries: pass/collections/runtime_nested_const_
->   row_{indexed_read,struct_field_write}_exit + runtime_nested_middle_index_3d_
->   exit (all three in differential RUN_CANARIES); both-runtime rejection
->   re-pinned in the three rewritten fail canaries. Deep const prefixes
->   (`cube[1][1][k]`, 2+ const levels below the runtime index) CLOSED 2026-07-07:
->   `storage_path_len` REFUSES stacked element indices (member_index returned
->   only the OUTERMOST -- `cube[1][1]` silently aliased `cube[1]`; with
->   unit-length inner arrays the element sizes MATCH and the consumer byte gate
->   could not catch it, a silent wrong-address landmine) and the machine-indexed
->   resolver peels const Indexed layers, biasing the base per level
->   (resolve_machine_owned_collection_with_const_prefix_in_table). Canary
->   runtime_nested_deep_const_prefix_exit pins both faces + the alias shape.
->   BOTH-RUNTIME READS (`grid[i][j]`) LANDED 2026-07-07: a new
->   CopyRuntimeMachineDoubleIndexedToRuntimeStorage op (base + i*row_stride +
->   j*elem_stride; ~20-site recipe mirrored from the dual-indexed #38 op)
->   with resolve_runtime_machine_double_indexed_source_in_table + consumer
->   arms in storage_copy.rs (machine targets) and frame_slots.rs (let/frame
->   targets); x86_64 encoder covers all four index-region combinations (one
->   shared r10 frame-base reloc). Read fence relaxed ONLY for the exact wired
->   shape (directly-nested two-level self-field base -- the validation
->   predicate mirrors the resolver's gates); canary
->   runtime_double_indexed_read_exit (machine/let targets, frame/mixed
->   regions, const-prefix 3D) + fail canary triple_runtime_indexed_read_
->   rejected. WRITE TWINS LANDED same day: CopyRuntimeStorageToRuntimeMachine
->   DoubleIndexed (place source; the value loads into r14 BEFORE the base
->   register is biased) + WriteRuntimeMachineDoubleIndexedInteger (const
->   value); consumer block in mutation.rs after the single-index block; the
->   operand HOIST temp now types through nested-Indexed collections
->   (element-of-element descent in infer_hoist_temp_type), so `grid[i][j]+5`
->   operands work too. Canaries runtime_double_indexed_{write,operand}_exit
->   (write fail canary graduated). MEMBER faces LANDED same day: a member
->   chain BETWEEN the indices (`rows[i].data[j]`) rides field_byte_offset
->   (address arithmetic commutes -- resolver descends the row type through
->   the chain), and a member SUFFIX above the element (`boards[i][j].x`)
->   folds in via the boundary suffix walk; read AND write (shared resolver);
->   canary runtime_double_indexed_member_exit (both struct-field fail
->   canaries graduated). The nested-indexing matrix is now CLOSED on x86_64
->   except: direct RMW (`grid[i][j] = grid[i][j]+1` -- binary value into a
->   double-indexed target = LOUD error; let-temp idiom works), 3+ runtime
->   levels, local/param 2D arrays, aarch64 (encoder rejects cleanly). All
->   loud. TRANSITION-ARG operand hole CLOSED same day (found by the NEW
->   matrix_multiply sample, native 0 vs interp 189): indexed reads as binary
->   operands inside transition ARGS silently read 0 at EVERY index arity
->   (pre-existing). Fix = arg/value-target operand hoist in
->   lower_transition_target_node + the RUN-SPLICE (a later arm's hoisted lets
->   go BEFORE the dispatch run's first transition -- arm adjacency is
->   load-bearing for exhaustiveness AND dispatch grouping). Canary
->   runtime_indexed_operand_transition_arg_exit + the sample's documented
->   exit. Array-of-structs as a binary
->   operand: CLOSED (verified 2026-07-07 -- the Member-over-indexed operand HOIST
->   + machine-indexed copy closed the whole family without a dedicated operand
->   kind: `cells[i].x + 5`
->   left/right/both-operand, guard subject, guard-DOMINATED RMW (`cells[i].x ==
->   37` proves `+= 5` fits the bounded field -- guard refinement narrows INDEXED
->   places), indexed target from indexed operand, and the by-value-param face all
->   run value-validated native==interp. Canaries runtime_struct_field_operand_
->   {matrix,param}_exit pin them; the PATH-B "new value operand" plan is obsolete.
->   The field-temp idiom in samples/cli/collections/entity_list is no longer
->   required). `arr[i]=arr[j]` both-runtime bare-source: CLOSED (re-verified live
->   2026-07-07 -- bare indexed read AND bare local into a runtime-indexed target
->   both value-validate native==interp; pinned by the runtime_dual_*_copy_exit
->   canaries). Computed-index `arr[k+1]`: CLOSED 2026-07-07 (both the let-temp
->   idiom AND the direct spelling). The direct-spelling AUTO-HOIST lands as
->   four pieces: (1) syntax->resolved `hoist_index` rewrites `arr[<binary>]`
->   (value positions AND write targets via hoist_target_computed_indices;
->   operands gated to self-field/param/literal -- a LOCAL operand stays
->   fenced), (2) the typed layer types the temp from the place operand's BASE
->   scalar + a range SYNTHESIZED by interval arithmetic over Exact declared
->   ranges (store-enforced at the temp's initializer, so unguarded `k - 1`
->   still rejects with the actionable decision-17 message), (3) state-storage
->   slot carve-out + simplify index no-fold (the let-temp pieces), (4) the
->   index prover consults guard facts under a `__hoist_` temp's INITIALIZER
->   label (sound: the synthesized let is ADJACENT to its use), so the explicit
->   `k + 1 >= 0 && k + 1 < N` guard idiom works -- and cannot-prove diagnostics
->   name the USER's spelling. Canaries: runtime_computed_index_direct_exit,
->   runtime_guarded_computed_index_operand_exit (graduated from the old fail
->   canary), runtime_let_bound_computed_index_exit, fail/computed_index_
->   unproven_rejected. Still open: u64 literals > i64::MAX (i128 refactor).
->   Fenced (safe) but block real programs. One-fence-per-fire.
+> - **Nested/indexed access — CLOSED on x86_64 (2026-07-05..07; detail in
+>   memory nested-runtime-indexed-write-gap + computed-index-value-operand-gap
+>   + array-of-structs-indexing).** Everything lowers value-validated
+>   native==interp: const/runtime index mixes at any level, both-runtime
+>   `grid[i][j]` reads/writes/operands (the double-indexed op family),
+>   member-between (`rows[i].data[j]`) and member-suffix (`boards[i][j].x`)
+>   faces, computed indices (`arr[k+1]` auto-hoist + guard-fact bridging),
+>   array-of-structs operand matrix, transition-arg operands (+ the RUN-SPLICE:
+>   hoisted lets inside a dispatch run must precede the run head -- arm
+>   adjacency is load-bearing). Canaries pin every face; matrix_multiply
+>   sample (exit 189) exercises the family natively. STILL OPEN, all loud:
+>   - direct RMW `grid[i][j] = grid[i][j] + 1` (binary value into a
+>     double-indexed target; let-temp idiom works; needs the value-operand
+>     subsystem -- dedicated fire).
+>   - 3+ runtime index levels; local/param 2D arrays; aarch64 double-indexed
+>     encoders (clean rejections).
+>   - u64 literals > i64::MAX (i128 refactor; fenced clean).
+>   One-fence-per-fire.
 >
 > **Mint arc remainder (library-grade; the boot path used the boundary-vouch
 > shortcut):**
@@ -558,18 +484,14 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 > interp); layouts-ladder remainder (mint rung, Packed grammar, layout
 > plan-walking deriver).
 >
-> **value-CALL-in-guard SILENT MISCOMPILE (#40) — still open; 3rd stopgap shape
-> ruled out 2026-07-04.** A scalar/bool USER value-call directly in a guard subject
-> (`transition self.dbl(5)==11`) silently takes the true arm (not materialized).
-> The full fix is deep (gated on effectful-subject evaluation semantics — a Zach
-> design call). A coincidentally-passing discriminating value-call guard is full
-> of corpus examples (BOTH dungeon binaries included), so ANY sound stopgap forces
-> rewriting all of them to bind-to-local -- a POLICY decision + an invasive
-> migration, not an autonomous tick. SURFACE TO ZACH: "should a scalar/bool
-> value-call directly in a guard subject be a hard error until the backend
-> materializes it?" If yes = a mechanical validator gate + corpus sweep; if no =
-> the silent miscompile waits for the deep effectful-semantics fix. Stop
-> re-attempting the stopgap solo. Memory value-call-in-guard-always-true.
+> **value-CALL-in-guard (#40) — CLOSED for the integer-comparison face
+> (2026-07-07; re-verified live 2026-07-07 with fresh probes: `transition
+> self.dbl(5) == 10` and `== 11` both DISCRIMINATE, native==interp).** The
+> frontend hoist (hoist_scalar_value_call_comparison) materializes the call
+> into a shared let temp; non-exhaustive dispatch is a compile error. Remaining
+> open flavors (clean/loud, per memory runtime-conditional-value-primitive):
+> enum method matching bare `self`; nested value-call ARG (bind to a local).
+> Memory value-call-in-guard-always-true has the full position matrix.
 >
 > **GENERICS / MONOMORPHIZATION -- phased plan (recon a87aee3d, 2026-07-04).**
 > Today: type-check-only. Stage-1 monomorphization (typed-trees-to-checked-trees/
