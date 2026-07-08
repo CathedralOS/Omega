@@ -6530,6 +6530,134 @@ pub fn encode_runtime_machine_indexed_binary_write(
     Ok(bytes)
 }
 
+/// Prologue width of the double-indexed binary write (the left operand starts
+/// here): mov r14,imm64 (10) [+ mov r10,imm64 (10) if any frame index]
+/// + mov r15d (7) + mov r11d (7) + imul r15 (7) + imul r11 (7)
+/// + add r14,r15 (3) + add r14,r11 (3).
+pub fn runtime_machine_double_indexed_binary_left_operand_offset(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    if double_indexed_any_frame(outer_index_region, inner_index_region) {
+        54
+    } else {
+        44
+    }
+}
+
+pub fn runtime_machine_double_indexed_binary_write_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    runtime_machine_double_indexed_binary_left_operand_offset(
+        outer_index_region,
+        inner_index_region,
+    ) + runtime_value_operand_width(runtime_value_operands, left)
+        + 2 // push r10
+        + runtime_value_operand_width(runtime_value_operands, right)
+        + 3 // mov r11, r10
+        + 2 // pop r10
+        + runtime_binary_operation_width(operator, byte_size)
+        + 7.max(store_width(byte_size))
+}
+
+/// Binary value into a BOTH-RUNTIME nested target (`grid[i][j] = a OP b`):
+/// r14 = base + outer*outer_stride + inner*inner_stride, computed FIRST with
+/// BOTH indices loaded before r14 is biased (the r14-before-bias key), then
+/// the exact operand-evaluation tail of the single-index sibling -- operand
+/// evaluation clobbers r15/r10/r11 but never r14.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_double_indexed_binary_write(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    for region in [outer_index_region, inner_index_region] {
+        if !matches!(
+            region,
+            omega_target_operations::RuntimeStorageRegion::Machine
+                | omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        ) {
+            return Err(Diagnostic::error(
+                "X86_64 MVP encoder cannot write a double-indexed binary with this index region yet",
+            ));
+        }
+    }
+    let outer_displacement = disp32(outer_index_offset)?;
+    let inner_displacement = disp32(inner_index_offset)?;
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    let mut bytes = Vec::with_capacity(runtime_machine_double_indexed_binary_write_width(
+        runtime_value_operands,
+        outer_index_region,
+        inner_index_region,
+        byte_size,
+        left,
+        operator,
+        right,
+    ));
+    // r14 = machine base (imm64 at +2, relocated to the machine symbol).
+    append_mov_r14_imm64(&mut bytes, 0);
+    if double_indexed_any_frame(outer_index_region, inner_index_region) {
+        // r10 = frame base (imm64 at +12), shared by both frame index loads;
+        // r10 is operand-evaluation scratch, free until then.
+        append_mov_r10_imm64(&mut bytes, 0);
+    }
+    // r15d = outer index; r11d = inner index -- BOTH loaded while r14 is
+    // still the unbiased machine base.
+    if outer_index_region == frame {
+        bytes.extend([0x45, 0x8b, 0xba]); // mov r15d, [r10+disp32]
+    } else {
+        bytes.extend([0x45, 0x8b, 0xbe]); // mov r15d, [r14+disp32]
+    }
+    bytes.extend(outer_displacement.to_le_bytes());
+    if inner_index_region == frame {
+        bytes.extend([0x45, 0x8b, 0x9a]); // mov r11d, [r10+disp32]
+    } else {
+        bytes.extend([0x45, 0x8b, 0x9e]); // mov r11d, [r14+disp32]
+    }
+    bytes.extend(inner_displacement.to_le_bytes());
+    append_imul_r15_imm32(&mut bytes, element_scale(outer_stride)?);
+    bytes.extend([0x4d, 0x69, 0xdb]); // imul r11, r11, imm32
+    bytes.extend(element_scale(inner_stride)?.to_le_bytes());
+    append_add_r14_r15(&mut bytes);
+    append_add_r14_r11(&mut bytes);
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_machine_double_indexed_binary_left_operand_offset(
+            outer_index_region,
+            inner_index_region,
+        )
+    );
+    // Operand evaluation + op + store: identical to the single-index tail.
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, left)?;
+    append_push_r10(&mut bytes);
+    append_runtime_value_operand(runtime_value_operands, &mut bytes, Reg64::R10, right)?;
+    append_mov_reg_reg(&mut bytes, Reg64::R11, Reg64::R10); // right -> r11
+    append_pop_r10(&mut bytes); // restore left -> r10
+    append_runtime_binary_operation(
+        &mut bytes,
+        operator,
+        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+    )?;
+    append_store_r10_to_r14(&mut bytes, base_byte_offset + field_byte_offset, byte_size)?;
+    Ok(bytes)
+}
+
 pub fn runtime_storage_copy_width(
     source_offset: usize,
     target_offset: usize,

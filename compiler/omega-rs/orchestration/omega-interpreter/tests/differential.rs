@@ -821,6 +821,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_double_indexed_member_exit", 1),
     ("references/runtime_shared_ref_param_guard_exit", 1),
     ("collections/runtime_indexed_operand_transition_arg_exit", 1),
+    ("collections/runtime_double_indexed_rmw_exit", 1),
     ("collections/runtime_let_bound_computed_index_exit", 1),
     ("collections/runtime_computed_index_direct_exit", 1),
     ("collections/runtime_guarded_computed_index_operand_exit", 30),

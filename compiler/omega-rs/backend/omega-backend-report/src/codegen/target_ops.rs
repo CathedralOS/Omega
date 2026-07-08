@@ -711,6 +711,24 @@ fn selected_instruction_name(
                 runtime_value_operand_name(backend_plan, *right),
             )
         }
+        SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedBinary {
+            base_byte_offset,
+            outer_index_offset,
+            outer_index_region,
+            outer_stride,
+            inner_index_offset,
+            inner_index_region,
+            inner_stride,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        } => {
+            format!(
+                "write binary {left:?} {operator:?} {right:?} ({byte_size}b) -> runtime-machine double-indexed base@{base_byte_offset} outer@{outer_index_offset}({outer_index_region:?})*{outer_stride} inner@{inner_index_offset}({inner_index_region:?})*{inner_stride} field +{field_byte_offset}"
+            )
+        }
         SelectedInstructionKind::WriteRuntimeMachineIndexedBinary {
             base_byte_offset,
             index_region,

@@ -509,6 +509,23 @@ pub enum AbstractOperationKind {
         operator: StateGuardOperator,
         right: AbstractValueOperandHandle,
     },
+    /// Binary value into a BOTH-RUNTIME nested target (`grid[i][j] = a OP b`,
+    /// the direct-RMW face after the assignment-value hoist slots the read):
+    /// the double-indexed sibling of `WriteRuntimeMachineIndexedBinary`.
+    WriteRuntimeMachineDoubleIndexedBinary {
+        base_byte_offset: usize,
+        outer_index_offset: usize,
+        outer_index_region: RuntimeStorageRegion,
+        outer_stride: usize,
+        inner_index_offset: usize,
+        inner_index_region: RuntimeStorageRegion,
+        inner_stride: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+        left: AbstractValueOperandHandle,
+        operator: StateGuardOperator,
+        right: AbstractValueOperandHandle,
+    },
     WriteRuntimeMachineString {
         byte_offset: usize,
         data: AbstractDataObjectHandle,

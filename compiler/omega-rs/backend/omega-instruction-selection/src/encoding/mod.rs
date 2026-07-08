@@ -62,6 +62,7 @@ pub use runtime_storage::{
     encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage,
     encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage,
     encode_runtime_machine_double_indexed_integer_write,
+    encode_runtime_machine_double_indexed_binary_write,
     encode_runtime_storage_copy_machine_indexed_to_machine_indexed,
     encode_runtime_storage_copy_to_runtime_pointee, encode_runtime_storage_value_compare_bytes,
     encode_runtime_value_compare,

@@ -125,6 +125,7 @@ fn state_value_has_planned_storage_write(
                         | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineIndexedBinary { .. }
+                        | SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedBinary { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineString { .. }
                         | SelectedInstructionKind::WriteRuntimeMachineBoundedBuffer { .. }
                         | SelectedInstructionKind::WriteRuntimeFrameString { .. }
