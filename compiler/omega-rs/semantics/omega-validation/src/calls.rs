@@ -1259,6 +1259,10 @@ fn scan_expression_calls(
     // `true`/`false` are single-segment `Name` nodes here, so they are skipped. The
     // allow-list is deliberately GENEROUS -- an unrecognised valid form only
     // UNDER-rejects (misses a typo), never falsely rejects a real name.
+    if let ExpressionNode::Name(path) = program.expression_table.expression(expression) {
+        let mm: Vec<String> = program.expression_table.name_path_members(path.members).iter().map(|m| m.as_str().to_owned()).collect();
+        eprintln!("TWOSEG members={:?} head_valid={} sym_valid={}", mm, path.head_symbol.is_valid(), path.symbol.is_valid());
+    }
     if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
         && let [only] = program.expression_table.name_path_members(path.members)
     {
@@ -1275,6 +1279,30 @@ fn scan_expression_calls(
                 state.name.as_str(),
             )));
         }
+    }
+    // Unknown TWO-segment path (`Type::Case`, `Trait::NAME`): the sibling of the
+    // bare-name check above. A LEGITIMATE qualified case (`Signal::Green`) or a
+    // substituted const/provides-value resolves to a valid symbol before this
+    // stage; an unresolved `Scope::tail` -- a bogus case (`Signal::Blue`), a
+    // provides value missing on the selected target, or a typo -- keeps BOTH the
+    // head and leaf symbols invalid and would silently read 0 (ZII) in value
+    // position (native AND interpreter agree, so the differential cannot catch
+    // it). Reject exactly that shape: both symbols unresolved.
+    if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
+        && let [scope, tail] = program.expression_table.name_path_members(path.members)
+        && !path.head_symbol.is_valid()
+        && !path.symbol.is_valid()
+    {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` state `{}` uses `{}::{}`, which resolves to no case, \
+             constant, or per-target value -- it would silently read 0 (ZII). \
+             Check the spelling (and, for a per-target value, that the selected \
+             target's provides table declares it)",
+            machine.name.as_str(),
+            state.name.as_str(),
+            scope.as_str(),
+            tail.as_str(),
+        )));
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::Call(call) => {
