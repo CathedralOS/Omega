@@ -872,6 +872,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
 /// `(relative path under canaries/pass, reason for exclusion)`.
 const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
     (
+        "capabilities/windows_provides_import_exit",
+        "NATIVE-ONLY (windows-gated run test): an AUTHORED provides import (msvcrt abs through the program's own DllImport row) -- the interpreter has no provider for authored bindings yet (open item, TASKS_FS provides thread)",
+    ),
+    (
         "time/runtime_time_host_native_exit",
         "NATIVE-ONLY (windows-gated run test): asserts the WINDOWS calibration constants (10^7 / 11_644_473_600) and real-clock inequalities; the interpreter's virtual clock reports 1000/0 and exits 3 by design (its exact values are pinned by time/runtime_time_host_virtual_exit)",
     ),

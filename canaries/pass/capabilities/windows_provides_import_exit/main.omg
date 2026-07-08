@@ -1,0 +1,24 @@
+// AUTHORED provides import, END TO END on hosted windows_x64 (extern brief
+// §12, hosted-consumption rung 2): the program binds its own boundary trait
+// method to a DLL import -- `beep -> DllImport("msvcrt.dll", "abs")` -- and
+// the call rides the GENERAL value-returning Win64 import encoder with the
+// import table naming the BINDING's DLL (msvcrt.dll, never the KERNEL32
+// catalog default). Discriminating: abs(-42) must deliver 42 through the
+// result place (ZII would read 0 -> exit 71). FIELD-store discipline
+// throughout (self.v arg, self.m result): host-call operands that are frame
+// LOCALS fail under multi-dispatch selection (the parked
+// pending/host/host_local_operand_dual_dispatch face -- catalog ops too).
+// NATIVE-ONLY: the interpreter has no provider for authored bindings.
+boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Beeper { machine beep(value: i32) -> i32; }
+data Main { console: Console; beeper: Beeper; m: i32; v: i32; }
+windows_x64 provides Beeper {
+    beep -> DllImport("msvcrt.dll", "abs")
+}
+machine Main::main(&mut self) {
+    self.v = 0 - 42;
+    self.m = self.beeper.beep(self.v);
+    transition self.m == 42 { true -> good() _ -> bad(71) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

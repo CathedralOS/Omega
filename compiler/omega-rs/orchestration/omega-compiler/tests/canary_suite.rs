@@ -20479,6 +20479,47 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// An AUTHORED provides import end to end (hosted-consumption rung 2): the
+// program's own `windows_x64 provides Beeper { beep -> DllImport("msvcrt.dll",
+// "abs") }` row binds, the import table names msvcrt.dll (the binding, not
+// the KERNEL32 catalog default), and abs(-42) delivers 42 through the result
+// place (ZII would exit 71). NATIVE-ONLY: no interpreter provider exists for
+// authored bindings, so unlike its neighbors this test runs no interp oracle.
+#[cfg(windows)]
+#[test]
+fn windows_provides_import_exit_canary_runs() {
+    let canary = pass_canary("capabilities/windows_provides_import_exit");
+    let main_path = canary.join("main.omg");
+
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-provides-import-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("authored provides import canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("authored provides import canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the authored msvcrt abs import to deliver 42 (exit 70), got {:?}          (71 = result place read ZII or wrong DLL resolved)
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // ERGONOMIC-wrapper breadth on windows_x64, second wave: WRAPPER rename (the
 // two-path import call resolves each path PER ARGUMENT through the alias
 // chain -- param-forwarded literals had no encodable sequence before),
@@ -24435,6 +24476,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/acquires_filesystem_authority",
     "capabilities/stores_capability",
     "capabilities/host_provides_binding_forms",
+    "capabilities/windows_provides_import_exit",
     "targets/efi_freestanding_skeleton",
     "targets/efi_entry_arguments",
     "targets/entry_run_args_bytes",

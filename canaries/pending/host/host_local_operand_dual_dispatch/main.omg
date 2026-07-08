@@ -1,0 +1,22 @@
+// PENDING repro (2026-07-08, found while probing authored provides imports):
+// a host-call operand that is a FRAME LOCAL fails when the statement is
+// selected under MULTIPLE dispatch contexts -- frame slots are keyed per
+// dispatch_index, the duplicate context resolves no slot, and that
+// empty-operand instruction still reaches the zero-width gate. CLEAN error
+// today ("host operation Filesystem.close has no encodable call sequence: a
+// host-call argument must be a simple value" -- misleading: `rc` IS simple,
+// the SLOT is missing in the duplicate context). CATALOG-WIDE, not
+// provides-specific: this exact file uses Filesystem.close. Fields and
+// literals resolve under every dispatch (machine region is not
+// dispatch-keyed), which is why the raw-canary FIELD discipline never hit
+// it. Fix candidates: allocate host-call operand slots per selecting
+// dispatch, or skip emission of the non-scheduled duplicate's instruction.
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; host: FilesystemHost; }
+machine Main::main(&mut self) {
+    let rc: i32 = self.host.close(9999);
+    transition rc == 0 { true -> good() _ -> bad(71) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
