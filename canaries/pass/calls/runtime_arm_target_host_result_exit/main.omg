@@ -1,0 +1,36 @@
+// A host-call RESULT `let` in a callee reached via an ARM transition-target
+// value call (`true -> self.e1()`) resolves its frame slot in the INLINING
+// dispatch case: branch_transition_target_key now resolves SELF/sibling
+// Nested targets (it only knew contained-object receivers, so the callee's
+// body was never storage-walked for the caller's case and the host op had
+// no encodable call sequence). DISCRIMINATING: a failed open sets errno to
+// ENOENT first, so the arm-target-fetched errno must be 2, not ZII 0.
+// exit 70 = errno 2 via both depths; 71 = still-open file; 72/73 = wrong errno.
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; host: FilesystemHost; fd: i32; a: i32; b: i32; }
+machine Main::e1(&mut self) -> i32 {
+    let rc: i32 = self.host.errno();
+    rc
+}
+machine Main::e2(&mut self, k: i32) -> i32 {
+    transition k > 0 {
+        true -> self.e1()
+        false -> zero()
+    }
+    state zero(&mut self) -> i32 { 0 }
+}
+machine Main::main(&mut self) {
+    self.fd = self.host.open("omega_arm_target_missing.txt", 0);
+    transition self.fd < 0 { true -> fetch() _ -> bad(71) }
+    state fetch(&mut self) {
+        self.a = self.e2(1);
+        transition self.a == 2 { true -> fetch_deep() _ -> bad(72) }
+    }
+    state fetch_deep(&mut self) {
+        self.b = self.e2(1);
+        transition self.b == 2 { true -> good() _ -> bad(73) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

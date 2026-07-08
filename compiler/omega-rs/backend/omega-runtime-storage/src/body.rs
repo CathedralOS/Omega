@@ -772,11 +772,62 @@ fn branch_transition_target_key(
         PlannedTransitionTarget::Nested {
             receiver_symbol,
             state_symbol,
+            receiver,
             ..
         } => {
             let machine = context
                 .control_flow
                 .machine_by_symbol(current_state.machine)?;
+            // A SELF/sibling-machine target (`-> self.e1()`, e1 a machine on
+            // the SAME attached data): resolve within the current machine's
+            // states, then across sibling attached machines -- mirrors
+            // state-calls' runtime_transition_target. Without this arm the
+            // target key resolved to None, the arm-target callee's body was
+            // never storage-walked for the inlining dispatch case, and its
+            // locals (a host-call result `let rc`) had no frame slot there --
+            // "host operation has no encodable call sequence" on every deep
+            // wrapper walk. (An earlier landing was reverted on suite noise
+            // that three clean re-runs + a byte-identical emitted-code diff
+            // later attributed to the recorded parallel temp-dir race.)
+            if *receiver_symbol == machine.symbol || receiver.as_str() == "self" {
+                let own_state = context
+                    .control_flow
+                    .states
+                    .span(machine.states)
+                    .and_then(|states| {
+                        states.iter().find(|candidate| {
+                            state_symbol.is_valid() && candidate.key.state == *state_symbol
+                        })
+                    })
+                    .map(|target_state| target_state.key);
+                if own_state.is_some() {
+                    return own_state;
+                }
+                let attached = machine.attached_data.as_ref().map(|data| data.as_str());
+                return context
+                    .control_flow
+                    .machines
+                    .iter()
+                    .filter(|(_, sibling)| {
+                        sibling.symbol != machine.symbol
+                            && attached.is_some()
+                            && sibling.attached_data.as_ref().map(|data| data.as_str())
+                                == attached
+                    })
+                    .find_map(|(_, sibling)| {
+                        context
+                            .control_flow
+                            .states
+                            .span(sibling.states)
+                            .and_then(|states| {
+                                states.iter().find(|candidate| {
+                                    state_symbol.is_valid()
+                                        && candidate.key.state == *state_symbol
+                                })
+                            })
+                            .map(|target_state| target_state.key)
+                    });
+            }
             context
                 .control_flow
                 .machine_contains(machine)
