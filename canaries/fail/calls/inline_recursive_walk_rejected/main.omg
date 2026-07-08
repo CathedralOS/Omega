@@ -1,22 +1,15 @@
-// PENDING repro (2026-07-07c): a value call to a machine whose arm targets a
-// RECURSIVE (decreases) machine with an effectful statement call in its
-// entry. TODAY: a clean UnresolvedInlineArmGuard error (the inline arm
-// guard's `path.len > 0` subject never gets leaf-binding resolution).
-// ⚠️ DO NOT fix the guard resolution alone: binding-resolving the leaf
-// guards + folding literal `.len` + ordered static comparisons (all probed,
-// all individually correct) makes this COMPILE and then run SILENTLY WRONG
-// natively -- the recursive callee's entry effects never execute through
-// the inline route (count = 0; interp counts 2). The guard pieces must land
-// TOGETHER with a fence (or the real call-with-return) for inline-branching
-// value calls whose transitive arm target is a terminates/recursive machine
-// -- the dispatch-specialization wall, precisely. The probed fold edits:
-// (1) leaf guards + static summary through
-//     resolve_leaf_binding_expression_handle;
-// (2) static_guard_value_in_table: literal `.len` -> byte length;
-// (3) static_guard_truth_in_table: ordered comparison operators.
-// The mkall_walk frontier distilled: a DECREASES machine with a slice-len
-// arm guard (`i < path.len`), reached as an arm transition-target value call.
-// Counts separators in "a/b/c" -> expect 2 -> exit 70.
+// A value call to a machine whose ARM targets an EFFECTFUL RECURSIVE
+// (`terminates`) machine must be a clean compile error (the
+// reentrant-value-call blocker's arm-target face): the inline-branching
+// route cannot loop, so the walk's per-iteration `self.bump(..)` silently
+// never executes (native counted 0 separators; the interpreter counted 2
+// -- the 2026-07-07c trap). The fence landed TOGETHER with the
+// leaf-binding guard folds that made this composition compile at all;
+// neither piece may ship without the other. Siblings pin the DIRECT and
+// STATEMENT faces (value_call_direct/-statement_recursive_walk_rejected);
+// pure loop-carried recursion stays accepted
+// (calls/runtime_loop_accumulator_exit). The real fix is dispatch
+// specialization (call-with-return), which would replace this fence.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; n: i32 in Wrapping; }
 machine Main::walk(&mut self, path: &[u8], i: usize, acc: i32)

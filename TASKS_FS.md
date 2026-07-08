@@ -102,20 +102,51 @@ the fix and three consecutive full-suite runs are clean. Pinned by
 `calls/runtime_arm_target_host_result_exit` (discriminating: ENOENT errno
 2 through the arm target, not ZII). LESSON: a varying-count intermittent
 suite failure + small-sample baseline is NOT evidence of a regression --
-diff the emitted code and re-run N times before reverting. REMAINING
-frontiers for deep create_dir_all (both clean errors, parked under
-canaries/pending/calls/): the DECREASES-walk flavor of the same result
-place (arm_target_host_result_place), and the inline-recursive-walk
-composition (inline_recursive_walk_consumer). ⚠️ The second one is a TRAP
-mapped 2026-07-07c: the arm-guard lowering pieces (leaf-binding-resolved
-guards, literal `.len` fold, ordered static comparisons) are each correct
-but UNFENCE a silent miscompile -- with guards resolving, the composition
-compiles and the RECURSIVE callee's entry effects never run through the
-inline route (count 0 vs interp 2). Those pieces must land TOGETHER with a
-fence for inline-branching value calls whose transitive arm target is a
-terminates/recursive machine (or with real call-with-return -- the
-dispatch-specialization feature). Exact fold edits recorded in the pending
-repro header.
+diff the emitted code and re-run N times before reverting.
+BOTH REMAINING FRONTIERS RESOLVED 2026-07-07d (pending/calls/ is empty),
+and the probing mapped the wall PRECISELY:
+⚠️ a VALUE call that reaches -- through the SPLICED continuum
+(self/sibling/free receivers; contained receivers dispatch for real) --
+a RE-ENTRANT machine (transition back to its own ENTRY, `SelfTarget`
+included) whose looped body carries EFFECTS (any outgoing call, host
+call, MachineOwned/param mutation, or sibling Nested arm) is silently
+wrong: spliced body ops run at most ONCE, not per iteration
+(`self.r = self.walk("a/b/c",0,0)` with a `self.bump(..)` entry call
+delivered count 0 natively vs interp 2 -- as DIRECT sibling callee, as
+STATEMENT call inside a value-called machine, and as ARM target). Two
+shapes stay GREEN and are canary-pinned: PURE loop-carried recursion in
+value position (`calls/runtime_loop_accumulator_exit`,
+dual-accumulator) and CONTAINED-receiver walks (`self.r.sum(..)` = a
+real dispatch; fence skips the contained target itself but still walks
+its spliced interior). A retracted same-day promotion is the cautionary
+tale: the decreases-walk repro "delivered" only because its expected
+result was 0 == ZII -- beware result-0 canaries proving delivery.
+LANDED as one package: the arm-guard lowering pieces
+(leaf-binding-resolved guards + static summary, literal `.len` fold,
+ordered static comparisons in guards.rs/leaf.rs) TOGETHER with
+`reentrant_value_call_blockers.rs` (emission planning): from every
+value-position call's target, walk spliced-route edges transitively --
+state-call records (NO reachable filter: arm-reached machines keep
+interiors marked unreachable) PLUS Nested transition-target edges
+(`Nested.state_symbol` names the target's ENTRY-STATE symbol, resolved
+across machines like `branch_transition_target_key`) -- and reject on
+the first re-entrant + effectful machine. One deduped diagnostic per
+call site. Statement-position calls to the same walks keep working.
+Fail canaries pin all three faces:
+`calls/inline_recursive_walk_rejected` (arm),
+`calls/value_call_direct_recursive_walk_rejected` (direct),
+`calls/value_call_statement_recursive_walk_rejected` (transitive);
+the folds' positive shape -- two call sites hitting OPPOSITE arms of a
+callee guarded by `path.len > 3` over substituted literals -- is pinned
+by `calls/runtime_value_call_literal_len_arm_guard_exit` (differential).
+CONSEQUENCE: deep create_dir_all on windows now hits the honest fence
+(`fs.create_dir_all(..)` is contained, but its interior splices the
+effectful re-entrant `mkall_walk`); the remaining route is dispatch
+specialization / call-with-return -- the feature that also lifts the
+effectful-arm fence and the match all-arms caveat. ⚠️ macOS session:
+darwin wrapper canaries that VALUE-call remove_dir_all/create_dir_all
+may now hit this fence -- that is the fence working; restructure to
+statement calls or park behind call-with-return.
 Flag for the macOS confirmation session: mkall behavior now matches the
 fence discipline. First
 wave detail — `filesystem/windows_wrapper_results_exit` runs write_all→Ok,

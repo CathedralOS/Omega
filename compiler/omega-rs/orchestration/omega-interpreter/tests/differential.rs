@@ -787,6 +787,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_value_call_dispatch_results_exit", 70),
     ("calls/runtime_value_call_entry_field_write_exit", 70),
     ("calls/runtime_value_call_guard_subject_exit", 70),
+    ("calls/runtime_value_call_literal_len_arm_guard_exit", 70),
     ("calls/runtime_value_call_nested_entry_call_exit", 70),
     ("calls/runtime_cross_callee_division_exit", 70),
     ("calls/runtime_cross_callee_let_names_exit", 70),
