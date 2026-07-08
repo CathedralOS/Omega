@@ -430,6 +430,28 @@ fn resolve_nested_member_path(
     data_field_or_payload_type(program, current_data, last)
 }
 
+/// The declared type NAME behind a `self.a.b` nested member chain -- the
+/// value-call receiver resolution (calls.rs) dispatches nested method
+/// receivers through it (`self.p.second.stored()` resolves to `second`'s
+/// declared type so the attached machine lookup finds the method). `None`
+/// when any hop fails to land on a Named data field: those chains keep the
+/// existing unresolved-call error.
+#[allow(dead_code)] // wired in when the nested-receiver gate lifts (staircase rung 3)
+pub(crate) fn nested_receiver_type_name<'program>(
+    program: &'program TypedTrees,
+    current_machine: &omega_typed_trees::machine::Machine,
+    current_state: Option<&omega_typed_trees::state::State>,
+    path: &[String],
+) -> Option<&'program str> {
+    let type_reference =
+        resolve_nested_member_path(program, current_machine, current_state, path)?;
+    let unwrapped = unwrapped_type_reference(program, type_reference)?;
+    match program.type_reference_table.type_reference(unwrapped) {
+        TypeReferenceNode::Named { name, .. } => Some(name.as_str()),
+        _ => None,
+    }
+}
+
 /// The data/sum definition behind a type reference (through `&`/`in Domain`
 /// shells). `None` for primitives, arrays, and unknown names.
 fn data_definition_for_type(
