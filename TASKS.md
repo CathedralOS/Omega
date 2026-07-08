@@ -122,6 +122,25 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   NON-ZII arm incl. an is_less_than designed-FALSE — the ZII-coinciding arms of
   runtime_duration_core_exit pass under both correct and buggy emission, the
   owner's "passing canary IS the bug" lesson).
+- **[x] LOCAL-receiver value calls FENCED 2026-07-09 (was: silent ZII zero).**
+  `let p: Pair = ..; p.total()` inside an INLINED value callee silently zeroed
+  (receiver resolution reaches machine FIELDS and state PARAMETERS only);
+  Main-state spellings hit the emission backstop. Now a clean validation error
+  (omega-validation/src/calls.rs `report_local_receiver_value_call`, wired at
+  both bound-value sinks; builtin view methods exempt -- same list as the
+  nested-arg fence). PROBED SUPPORTED: `self`, field receivers, and by-value
+  STATE-PARAMETER receivers (param probe green natively). Fail canary
+  calls/local_receiver_value_call_rejected. The deep fix (resolve receivers to
+  local slots) stays open with the receiver-offset work; time.omg
+  elapsed_since keeps its single-level body until then.
+- **[x] The `build_machine_wrong_arity` missing-files red is RESOLVED
+  2026-07-09.** The suite's FAIL_CANARIES list referenced a canary whose files
+  were never committed (2026-07-06, another thread) -- it panicked the fail
+  suite BEFORE later entries, masking validation of every new fail canary
+  since. Reconstructed from its name: a build machine with an extra parameter
+  must produce the build-time arity error ("takes 2 argument(s); the
+  build-time position supplied 1"). With it, canary_suite is FULLY GREEN
+  (694/0) for the first time.
 - **[ ] Folded-binary left operand loses the UNSIGNED marker: `(a / b) % c` on u64
   runs SIGNED idiv/modulo natively (2026-07-07, seen in Time::now lowering; the
   inner divide selected DivideUnsigned but the outer modulo stayed signed
