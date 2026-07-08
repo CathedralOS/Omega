@@ -276,6 +276,28 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    semantics. File shape: `std/targets/<target>.omg` (target def) +
    `std/targets/<target>/<subsystem>.provides.omg`. Unblocks windows
    `metadata_path`, `create_new`/`open_with`, file_journal.
+   RUNG 1 LANDED (hosted provides consumption): authored rows MERGE into the
+   hosted plan when their target resolves to the COMPILE target (additive;
+   colliding with a built-in binding = loud error; `demo_target` and other
+   targets' rows stay inert — the filter is LOAD-BEARING, the old code
+   ignored provider targets entirely). Import LIBRARIES now ride the binding
+   end-to-end (SymbolPlan.import_library -> FinalImageImport.library ->
+   PeImportThunk.library; the PE catalog lookup is the empty-string fallback;
+   unit test pins binding-beats-catalog). HostCall.has_result records whether
+   argument[0] is the prepended RESULT place (the two result collectors set
+   it) — selection's Unknown arm marshals result + declared args on that
+   signal; a VOID authored import call is fenced at planning (it would
+   misread its first arg as the result place). Fixed in passing: the
+   unknown-key loud-collision check was DEAD (compared capability_name() to
+   "Unknown" but it renders "<unknown>"); fail canary
+   capabilities/host_provides_two_unknown_rejected pins the live merge on
+   every host (local_unchecked = host target). REMAINING for end-to-end
+   authored imports (the beeper probe: `beep -> DllImport("msvcrt.dll",
+   "abs")`): the RESULT-PLACE frame slot for `let m = self.beeper.beep(v)`
+   never resolves (first_scalar_argument_operand -> None; storage planning
+   doesn't allocate for Unknown-key host-call locals) — loud error today,
+   next rung. Then: value rows + layout maps (the settled design), std
+   targets files, WINDOWS_IMPORT_ROWS migration.
 3. [ ] **build.omg = CODE with granted capabilities — SETTLED (Zach, chat
    2026-07-07), now engineering.** No declarative asset list; build.omg runs
    INTERPRETED with a granted, scoped `Filesystem` capability (read: source

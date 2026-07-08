@@ -160,6 +160,7 @@ fn merge_host_call_plan(target: &mut HostCallPlan, source: HostCallPlan) {
             data: call.data,
             operations,
             arguments,
+            has_result: call.has_result,
         });
     }
 }

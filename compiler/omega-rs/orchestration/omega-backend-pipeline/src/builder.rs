@@ -70,7 +70,24 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             // call lowerings (VtableSlot for UEFI protocols).
             omega_calling_conventions::build_freestanding_abi_plan(target, provides_rows)
         } else {
-            Ok(build_host_abi_plan(target))
+            // HOSTED targets consume authored `provides` rows too: they
+            // EXTEND the built-in platform tables (additive; colliding
+            // with a built-in operation is a loud error, never a silent
+            // override). Only rows whose target identifier resolves to
+            // THIS compile target apply -- `demo_target provides ...` and
+            // other targets' tables stay inert, exactly as before hosted
+            // consumption existed.
+            let target_rows: Vec<_> = provides_rows
+                .iter()
+                .filter(|row| {
+                    NativeTarget::from_omega_target_name(Some(&row.target_name))
+                        .is_ok_and(|row_target| row_target == target)
+                })
+                .cloned()
+                .collect();
+            let mut plan = build_host_abi_plan(target);
+            omega_calling_conventions::merge_provides_rows(&mut plan, &target_rows)?;
+            Ok(plan)
         }
     })
     .map_err(Diagnostic::error)?;

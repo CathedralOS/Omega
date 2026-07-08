@@ -1,0 +1,25 @@
+// HOSTED provides consumption (extern brief §12, rung 1): authored rows now
+// MERGE into the built-in platform tables when their target names the compile
+// target (`local_unchecked` resolves to the HOST on every machine, so this
+// canary exercises the merge everywhere). Two provides rows whose names both
+// fall OUTSIDE the closed operation catalog would silently share the
+// (Unknown, Unknown) key, so the merge collides loudly instead -- the string-
+// keyed operation generalization is the recorded debt. One unknown row is
+// fine (the beeper probe shape); two distinct ones are not.
+boundary trait Beeper {
+    machine beep(value: i32) -> i32;
+    machine boop(value: i32) -> i32;
+}
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; beeper: Beeper; }
+local_unchecked provides Beeper {
+    beep -> DllImport("msvcrt.dll", "abs");
+    boop -> DllImport("msvcrt.dll", "labs")
+}
+machine Main::main(&mut self) {
+    let a: i32 = self.beeper.beep(1);
+    let b: i32 = self.beeper.boop(2);
+    transition a == b { true -> same() _ -> differ() }
+    state same(&mut self) { self.console.exit_process(70); }
+    state differ(&mut self) { self.console.exit_process(71); }
+}

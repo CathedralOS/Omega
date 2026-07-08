@@ -7,6 +7,10 @@ use omega_image::{FinalImage, FinalImageLayout, FinalImageSection};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PeImportThunk {
     pub(crate) symbol: String,
+    /// Library the import's binding named; empty = per-target catalog lookup
+    /// (the historical path for populate-table rows written before the
+    /// library rode the binding).
+    pub(crate) library: String,
     pub(crate) text_offset: usize,
 }
 
@@ -20,12 +24,12 @@ pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<PeImportThunk
                 .symbol_table
                 .symbols
                 .is_valid(import.symbol_handle)
-                .then_some(import.symbol_handle)
+                .then_some((import.symbol_handle, import.library.clone()))
         })
         .collect::<Vec<_>>();
     let mut thunks = Vec::new();
 
-    for symbol_handle in imports {
+    for (symbol_handle, library) in imports {
         let symbol = image.symbol_table.symbols.get(symbol_handle).name.clone();
         let text_offset = image.memory.text.len();
         image.memory.text.extend([0xff, 0x25, 0, 0, 0, 0]);
@@ -37,6 +41,7 @@ pub(crate) fn install_import_thunks(image: &mut FinalImage) -> Vec<PeImportThunk
 
         thunks.push(PeImportThunk {
             symbol,
+            library,
             text_offset,
         });
     }
@@ -79,10 +84,17 @@ pub(crate) fn build_import_table(imports: &[PeImportThunk], rdata_rva: u32) -> P
     //   [dll names][hint/name entries]
     // `iat_rvas` is returned in the INPUT thunk order (patch_import_thunks zips
     // it against the same slice).
-    let mut libraries: Vec<(&'static str, Vec<usize>)> = Vec::new();
+    let mut libraries: Vec<(&str, Vec<usize>)> = Vec::new();
     for (index, import) in imports.iter().enumerate() {
-        let library = omega_calling_conventions::windows_import_library(&import.symbol)
-            .unwrap_or("KERNEL32.dll");
+        // The binding's own library wins; the per-target catalog is the
+        // fallback for thunks written without one (default KERNEL32.dll --
+        // the historical single-DLL behavior for symbols outside the catalog).
+        let library = if import.library.is_empty() {
+            omega_calling_conventions::windows_import_library(&import.symbol)
+                .unwrap_or("KERNEL32.dll")
+        } else {
+            import.library.as_str()
+        };
         match libraries.iter_mut().find(|(name, _)| *name == library) {
             Some((_, members)) => members.push(index),
             None => libraries.push((library, vec![index])),
@@ -221,10 +233,12 @@ mod tests {
         let thunks = vec![
             PeImportThunk {
                 symbol: "ExitProcess".to_owned(),
+                library: String::new(),
                 text_offset: 0,
             },
             PeImportThunk {
                 symbol: "GetStdHandle".to_owned(),
+                library: String::new(),
                 text_offset: 6,
             },
         ];
@@ -234,5 +248,30 @@ mod tests {
         assert_eq!(table.import_directory_rva, 0x3000);
         assert!(table.import_directory_size > 0);
         assert!(table.iat_size > 0);
+    }
+
+    #[test]
+    fn binding_carried_library_beats_the_catalog() {
+        // A provides-authored import names its own DLL; the catalog would
+        // otherwise file `abs` under the KERNEL32 default.
+        let thunks = vec![PeImportThunk {
+            symbol: "abs".to_owned(),
+            library: "msvcrt.dll".to_owned(),
+            text_offset: 0,
+        }];
+        let table = build_import_table(&thunks, 0x3000);
+        let bytes = &table.bytes;
+        assert!(
+            bytes
+                .windows(b"msvcrt.dll".len())
+                .any(|window| window == b"msvcrt.dll"),
+            "import table should name the binding's DLL"
+        );
+        assert!(
+            !bytes
+                .windows(b"KERNEL32.dll".len())
+                .any(|window| window == b"KERNEL32.dll"),
+            "catalog default must not leak in when the binding names a library"
+        );
     }
 }

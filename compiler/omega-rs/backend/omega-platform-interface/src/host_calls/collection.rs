@@ -205,6 +205,7 @@ fn collect_assignment_result_host_lowering(
         data: lowering.data,
         operations,
         arguments: argument_span,
+        has_result: true,
     });
     Ok(())
 }
@@ -310,6 +311,7 @@ fn collect_local_result_host_lowering(
         data: lowering.data,
         operations,
         arguments: argument_span,
+        has_result: true,
     });
     Ok(())
 }
@@ -375,6 +377,7 @@ fn collect_call_host_lowering(
         data: lowering.data,
         operations,
         arguments,
+        has_result: false,
     });
     Ok(())
 }

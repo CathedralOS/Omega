@@ -1007,6 +1007,11 @@ pub fn encode_host_call_sequence<T: InstructionOperandLike>(
         (HostCapability::Filesystem, _) => {
             encode_win64_import_call(operands, true, operation_key.dereferences_result())
         }
+        // Provides-AUTHORED ops (extern brief §12): outside the closed catalog
+        // the key is (Unknown, Unknown), and the op only reaches encoding when
+        // its authored DllImport binding exists -- ride the same general
+        // value-returning import call as the Filesystem/Gui rows.
+        (HostCapability::Unknown, _) => encode_win64_import_call(operands, true, false),
         _ => Err(Diagnostic::error(format!(
             "X86_64 host operation {}.{} is not implemented",
             operation_key.capability_name(),
@@ -1950,6 +1955,10 @@ fn host_call_relocation_sites<T: InstructionOperandLike>(
             // Value-returning general import calls; read_errno's deref shifts
             // the result-store site by 2 (mirrors the encode arm).
             win64_import_call_relocation_sites(operands, true, operation_key.dereferences_result())
+        }
+        (HostCapability::Unknown, _) => {
+            // Provides-authored imports (mirrors the encode arm).
+            win64_import_call_relocation_sites(operands, true, false)
         }
         (
             HostCapability::Stdout | HostCapability::Stderr,

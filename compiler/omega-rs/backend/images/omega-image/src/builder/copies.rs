@@ -29,8 +29,9 @@ pub(super) fn copy_object_imports(image: &mut FinalImage, object: &ObjectPlan) {
             .symbols
             .iter()
             .filter(|(_, symbol)| symbol.kind == SymbolKind::Import)
-            .map(|(symbol_handle, _)| FinalImageImport {
+            .map(|(symbol_handle, symbol)| FinalImageImport {
                 symbol_handle: final_image_symbol_handle(symbol_handle),
+                library: symbol.import_library.clone(),
             }),
     );
 }

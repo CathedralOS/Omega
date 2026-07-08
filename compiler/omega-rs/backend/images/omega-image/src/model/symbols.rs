@@ -75,6 +75,8 @@ pub enum FinalImageSection {
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct FinalImageImport {
     pub symbol_handle: FinalImageSymbolHandle,
+    /// Library the import's binding named; empty = per-target catalog lookup.
+    pub library: String,
 }
 
 #[cfg(test)]

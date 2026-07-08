@@ -834,6 +834,12 @@ pub fn build_host_abi_plan(target: NativeTarget) -> HostAbiPlan {
 /// brief's Binding sum): `<target> provides <Trait> { <method> -> <Binding> }`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProvidesRow {
+    /// The target identifier the `provides` block named (`windows_x64` in
+    /// `windows_x64 provides Beeper { .. }`). Hosted merges only consume rows
+    /// whose name resolves to the COMPILE target; freestanding programs
+    /// consume every row (their target naming rides the target-block
+    /// redesign).
+    pub target_name: String,
     pub trait_name: String,
     pub method: String,
     pub binding: ProvidesBindingKind,
@@ -861,13 +867,32 @@ pub fn build_freestanding_abi_plan(
         platform_call_lowerings: Arena::new(),
         boundary_policies: Arena::new(),
     };
+    merge_provides_rows(&mut plan, provides)?;
+    Ok(plan)
+}
+
+/// Append authored `provides` rows to an ABI plan. For a FREESTANDING target
+/// the plan starts empty (the rows ARE the platform surface); for a HOSTED
+/// target the rows EXTEND the built-in tables. Additive only: a row whose
+/// operation key collides with an existing binding is a loud error, never a
+/// silent override -- built-ins keep their meaning, and the same rule catches
+/// two provides rows for one method. Built-in lowerings also stay ahead of the
+/// provides wildcard rows in table order, and exact platform matches beat
+/// `"*"`, so an authored method NAME shared with a built-in state cannot
+/// shadow it.
+pub fn merge_provides_rows(
+    plan: &mut HostAbiPlan,
+    provides: &[ProvidesRow],
+) -> Result<(), String> {
     if provides.is_empty() {
-        return Ok(plan);
+        return Ok(());
     }
-    plan.boundary_policies.insert(HostBoundaryPolicy {
-        path: PROVIDES_BOUNDARY_POLICY.into(),
-        checked: true,
-    });
+    if !plan.allows_boundary_policy(PROVIDES_BOUNDARY_POLICY) {
+        plan.boundary_policies.insert(HostBoundaryPolicy {
+            path: PROVIDES_BOUNDARY_POLICY.into(),
+            checked: true,
+        });
+    }
 
     // KNOWN DEBT: HostOperationKey is a CLOSED enum pair; provides names
     // outside the catalog map to (Unknown, Unknown). One such row is fine --
@@ -877,7 +902,10 @@ pub fn build_freestanding_abi_plan(
     let mut seen_unknown: Option<(String, String)> = None;
     for row in provides {
         let key = HostOperationKey::from_names(&row.trait_name, &row.method);
-        if key.capability_name() == "Unknown" {
+        // NOTE: compare the ENUM, not `capability_name()` -- Unknown renders
+        // as "<unknown>", so the original string compare never fired and the
+        // loud-collision debt check was dead.
+        if key.capability == HostCapability::Unknown {
             if let Some((prior_trait, prior_method)) = &seen_unknown
                 && (prior_trait != &row.trait_name || prior_method != &row.method)
             {
@@ -887,6 +915,15 @@ pub fn build_freestanding_abi_plan(
                 ));
             }
             seen_unknown = Some((row.trait_name.clone(), row.method.clone()));
+        } else if plan
+            .bindings
+            .iter()
+            .any(|(_, binding)| binding.operation_key == key)
+        {
+            return Err(format!(
+                "provides `{}::{}` collides with an existing binding for the same                  operation on this target -- authored rows extend the platform                  tables, they never override them",
+                row.trait_name, row.method
+            ));
         }
         let mechanism = match &row.binding {
             ProvidesBindingKind::VtableSlot { index } => {
@@ -898,7 +935,7 @@ pub fn build_freestanding_abi_plan(
             },
             ProvidesBindingKind::Syscall { .. } => {
                 return Err(format!(
-                    "provides `{}::{}`: Syscall bindings on a freestanding target are not                      wired yet (no syscall plan without a host)",
+                    "provides `{}::{}`: Syscall bindings from provides rows are not                      wired yet (no syscall lowering plan for authored rows)",
                     row.trait_name, row.method
                 ));
             }
@@ -911,14 +948,14 @@ pub fn build_freestanding_abi_plan(
         // The call-site lowering: the receiver's boundary-trait name is the
         // platform, the method name is the state; one operation per call.
         insert_platform_lowering(
-            &mut plan,
+            plan,
             "*",
             &row.method,
             [host_operation(&row.trait_name, &row.method)],
             PlatformCallData::None,
         );
     }
-    Ok(plan)
+    Ok(())
 }
 
 impl HostAbiPlan {
