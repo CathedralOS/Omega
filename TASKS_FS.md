@@ -263,15 +263,36 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
 1. [ ] **macOS runtime confirmation + promotion** (needs a Mac): run
    `canaries/run/filesystem/wrapper_metadata_repro` (expect PASS, len 5), promote
    result-asserting wrapper canaries into `native_filesystem_canaries`.
-2. [ ] **Portable per-OS VALUES design — talk to Zach before building.** One
-   portable wrapper, per-OS value tables: open-flag words (darwin O_CREAT 0x200 =
-   msvcrt O_TRUNC → the windows `open_create` lowering is REMOVED as a data-loss
-   fence; `create_new`/`open_with` would silently truncate) and stat-record
-   offsets (wrapper's byte-decode hardcodes darwin `struct stat`; windows
-   `_stat64`/linux `statx` differ) — blocks windows-native `metadata_path`.
-3. [ ] **build.omg asset copying — DESIGN Q for Zach** (declarative `Build` asset
-   list the compiler copies at emit? build.omg must describe, never do).
-   Interim: exes fall back to `../imgN.bmp`.
+2. [ ] **Portable per-OS VALUES — SETTLED (Zach, chat 2026-07-07), now
+   engineering.** The Rust split, mapped onto our settled Binding-sum provides
+   tables: (a) per-target `provides` files carry named VALUES (flag words) next
+   to the binding rows — the portable wrapper asks for `Filesystem.O_CREATE`,
+   the target's table supplies the number (fixes: darwin O_CREAT 0x200 = msvcrt
+   O_TRUNC, why windows `open_create` is a data-loss fence today); (b) stat
+   decode leaves portable code entirely — the provides row carries a declarative
+   LAYOUT MAP (field -> offset/width) the SEAM applies, normalizing into ONE
+   Omega-defined `Metadata` record ("raw ops return ints" becomes "raw ops
+   return ints or a defined record"). Interp reads the same tables for virtual
+   semantics. File shape: `std/targets/<target>.omg` (target def) +
+   `std/targets/<target>/<subsystem>.provides.omg`. Unblocks windows
+   `metadata_path`, `create_new`/`open_with`, file_journal.
+3. [ ] **build.omg = CODE with granted capabilities — SETTLED (Zach, chat
+   2026-07-07), now engineering.** No declarative asset list; build.omg runs
+   INTERPRETED with a granted, scoped `Filesystem` capability (read: source
+   tree; write: build dir) and copies assets itself — "this is the whole point
+   of making the build system code." The old "describe, never do" framing is
+   RETIRED: capability grants ARE the audit surface. Engineering rung: a
+   REAL-fs interpreter provider (today's is virtual-only) + grant plumbing +
+   path scoping. Native fences are irrelevant here (interp is
+   reference-complete — deep create_dir_all works interpreted). Also settled:
+   build.omg is the home for define-LIKE constant statements (immutable
+   bindings; never C++ define/undefine mutability) and for TARGET SELECTION —
+   it picks a std target file (or `host`), possibly composes a custom one from
+   existing mechanisms. NOTED (Zach): the accepted-target set is still
+   ultimately closed by the compiler — architectures, object formats, binding
+   mechanisms need codegen; build.omg composes OS personalities from that
+   closed set, it cannot mint new architectures. Interim until the rung lands:
+   exes fall back to `../imgN.bmp`.
 4. [ ] Windows ops without msvcrt equivalents → Win32 calls (stat family first,
    after #2's design).
 5. [ ] Title-bar context-menu Close → outbound WndProc entry stubs (§12.4).

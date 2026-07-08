@@ -870,13 +870,19 @@ exit.
     exits 42 never fired; the program reached its normal path and exited 70. So a
     NON-EMPTY drop is a SILENT NO-OP (unlock/close/flush all do nothing, no error,
     no warning), and ch16's "lowered drop edge runs the cleanup" is aspirational.
-    Soundness-adjacent, not mere dead-weight avoidance. DECISION for Zach (not
-    fenced unilaterally): until drop lowering lands, either (a) FENCE — a type
-    with a non-empty `drop` body is a compile error/warn (the 5 existing drops
-    canaries have EMPTY bodies and stay green), or (b) accept + mark ch16
-    aspirational. Real fix = emit the drop-machine call at the tracked state-exit
-    point (reverse declaration order; skip on move-out per ch16's move-guard
-    edges). See memory drop-bodies-not-executed.
+    Soundness-adjacent, not mere dead-weight avoidance. SETTLED (Zach, chat
+    2026-07-07): option (a) — FENCE. A non-empty `drop` body becomes a clean
+    "drop bodies are not yet executed" compile error (the 5 existing drops
+    canaries have EMPTY bodies and stay green); full enforcement (drop lowering,
+    use-after-move, borrow mutability) stays DEFERRED as one subsystem,
+    "directionally correct" per Zach. Real fix = emit the drop-machine call at
+    the tracked state-exit point (reverse declaration order; skip on move-out per
+    ch16's move-guard edges). PREREQ for the real fix: a DROP-TIMING design
+    brief — Omega has no lexical scopes, so candidate drop points are
+    state-transition boundaries vs machine completion; Rust's scope-exit model
+    doesn't transfer directly, though the explicit finite state graph makes
+    use-after-move dataflow cleaner than Rust's inferred CFG. See memory
+    drop-bodies-not-executed.
   - SIBLING (probe 2026-07-04): use-after-move is NOT rejected either. ch2 line 20
     states "After a move, the old binding is no longer usable," but
     `let g = Guard{..}; self.sink(move g); let x = g.handle;` COMPILES clean --
