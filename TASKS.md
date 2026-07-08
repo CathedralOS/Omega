@@ -622,19 +622,31 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >       canary fail/references/nested_receiver_same_type_aliasing_rejected
 >       (a: BoxI; b: BoxI) BLOCKS with the accurate "self.p.b lives at offset
 >       4 ... picks the first BoxI (offset 0) -- ANOTHER instance's storage".
+>       DEPTH: 3-level nesting (self.o.mid.leaf.get()) also works
+>       native==interp==6 (probe nr3lvl.omg 2026-07-08) -- the walker +
+>       backend descent are arbitrary-depth. Covered by the mechanism; no
+>       separate canary (2-level pins it).
 >     REMAINING -- D2: STATEMENT-position nested calls (`self.p.b.setto();`)
->       are UNSUPPORTED but SOUND (loud-rejected -- probed nrs2.omg 2026-07-08:
->       "state calls: Main::main.main statement N has unresolved state call
->       through `b`"). They go through a SEPARATE validator `validate_call_node`
->       (receiver is a NAME PATH, not an expression) which keys on
->       `contained_type(leaf)` (None for a nested leaf) and falls through to a
->       no-op `let _ = diagnostics;` (L294) -- but the state-call PLANNER then
->       rejects the unresolved call, so no silent 0. To SUPPORT them: (i) the
->       nested walk in validate_call_node, (ii) rung 1 to populate receiver_path
->       for statement-position calls -- their control-flow op carries only the
->       leaf Identifier, so the receiver PATH isn't at the state-call layer yet
->       (thread it through the op), (iii) tighten the L294 fall-through to a
->       clear diagnostic. Not a soundness item; an ergonomics follow-on.
+>       are UNSUPPORTED but SOUND (loud-rejected: state-call planner emits
+>       "unresolved state call through `b`"). SHARPENED 2026-07-08 (STMTDBG
+>       in collection.rs Call arm: `rsym_valid=false tsym_valid=false`): the
+>       statement-call op carries NEITHER symbol. Statement calls resolve via
+>       a SEPARATE path -- symbols/statements/routing.rs Statement::Call arm:
+>       `resolve_state_scoped_members(call.receiver NAME PATH)` for the
+>       receiver + `resolve_call_target_symbol` for the target. rung 2b only
+>       touched EXPRESSION-call resolution, so nested statement receivers stay
+>       invalid. KEY ASYMMETRY: at symbol-resolution the statement call HAS
+>       the full path (statement_path_members = ["self","p","b"]), but the
+>       control-flow OP flattens it to the leaf Identifier "b". So the fix is
+>       NOT one-sided: (i) nested walk in routing.rs (mirror rung 2b: stamp
+>       leaf receiver_symbol + target via leaf type) AND (ii) thread the
+>       receiver PATH into the statement-call control-flow op so rung 1 can
+>       populate receiver_path and the rung-2a blocker fences same-type
+>       statement siblings. (i) ALONE = silent aliasing miscompile for
+>       statement-position same-type siblings (they'd resolve via the L945
+>       last-resort route but dodge the blocker). Must land (i)+(ii)
+>       TOGETHER. Also: tighten validate_call_node's L294 no-op fall-through.
+>       Multi-layer -- a dedicated fire, not inline with the value arc.
 >     RUNG 4 STILL OPEN below (same-type sibling delivery via per-receiver
 >       scheduling); the rung-2a blocker keeps fencing those loudly.
 >     RUNG 4 (the deep fix): per-receiver-place state scheduling (a
