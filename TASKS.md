@@ -568,12 +568,17 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >     PROBED LIMITS (2026-07-08, both LOUD -- the existence check catches
 >     them; ergonomics features, not soundness holes):
 >     (a) NESTED member receivers (`self.p.second.stored()`) do not resolve
->     at ANY genericity -- concrete `PairI/BoxI` fails identically; the
->     value-call receiver resolution handles one member level
->     (receiver_declared_type_name is bare-name-keyed; the fix = walk the
->     member chain's field types). Workaround: none needed often (bind the
->     inner struct? -- no by-value struct locals for methods; realistically
->     restructure or add a forwarding method).
+>     at ANY genericity -- concrete `PairI/BoxI` fails identically. RECON
+>     2026-07-08: the SYMBOL resolution already recurses Member chains
+>     (receivers.rs); the real limit is the CALL-PLAN layer -- the state-call
+>     plan's receiver is BARE-NAME-keyed (`machine_symbols.contained_type(
+>     receiver_name)` in validation mirrors it; cf. the contained-machine
+>     receiver_name threading). The feature = thread a receiver PLACE (member
+>     chain -> storage offset) through the plan to the callee's self storage,
+>     THEN extend receiver_declared_type_name to walk field types. Do NOT
+>     relax the validation check first -- it guards exactly the lowering
+>     limit (un-gating = silent 0). Workaround: a forwarding method on the
+>     outer type.
 >     (b) a generic TEMPLATE method calling a method on a Generic-typed
 >     field (`Pair::first_stored<T>` calling `self.first.stored()` with
 >     `first: Box<T>`) -- the template's receiver type is a Generic node the
