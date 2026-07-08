@@ -141,13 +141,37 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   must produce the build-time arity error ("takes 2 argument(s); the
   build-time position supplied 1"). With it, canary_suite is FULLY GREEN
   (694/0) for the first time.
-- **[ ] Folded-binary left operand loses the UNSIGNED marker: `(a / b) % c` on u64
+- **[ ] Folded-binary left operand loses the UNSIGNED marker: `(a / b) % c`
   runs SIGNED idiv/modulo natively (2026-07-07, seen in Time::now lowering; the
   inner divide selected DivideUnsigned but the outer modulo stayed signed
-  `Modulo`).** Semantically wrong only for msb-set u64 values (unreachable for real
-  clock frequencies; interp honors the unsigned witness) — [[signedness-codegen-gap]]
-  family. Fix = signedness resolution must consult the folded BINARY operand's
-  declared type, not just direct storage operands.
+  `Modulo`).** Semantically wrong for msb-set values ([[signedness-codegen-gap]]
+  family). ATTEMPTED + REVERTED 2026-07-08: adding a `Binary` recursion arm to
+  `resolve_runtime_storage_is_signed_in_table` (storage_places.rs, mirroring
+  `signedness_adjusted_operator`'s left-then-right probe) was INEFFECTIVE on the
+  real runtime path -- a u32 repro `(self.a / self.b) % 100` with a runtime
+  high-bit `self.a` still ran signed. HYPOTHESIS: the inner divide's result is
+  materialized into an intermediate SLOT before the modulo, so the modulo's left
+  operand is a storage PLACE (which resolves to the temp's type), not a `Binary`
+  node -- so the Binary recursion never fires. NEXT: find where the transition/
+  call-argument modulo gets its operand slot + that slot's declared type (is the
+  divide-result temp typed unsigned?); the fix likely belongs at the temp's type
+  assignment or the operand-slot signedness read, not the expression recursion.
+  ⚠️ VERIFICATION LANDMINES (cost a full tick 2026-07-08 -- heed them):
+    (1) `exit_process(NEGATIVE i32)` reports as shell exit 127 (a signed modulo
+        of a high-bit value yields a negative remainder -> the 127 is the
+        artifact, not a crash). ALWAYS exit a POSITIVE small value; assert via a
+        `transition result == EXPECTED` on a POSITIVE expected, or add a bias.
+    (2) CONST operands get folded: `self.a = 4000000000; (self.a/1) % 100` can
+        const-fold to the correct 0 at compile time, MASKING the runtime signed
+        bug. Use operands the folder cannot see through (host input, or values
+        not const-propagated) to force the runtime opcode.
+    (3) The GUARD-SUBJECT path (`transition ((a/b)%c) == k`) is a SEPARATE
+        signedness resolution from the operand-only (arg-materialization) path;
+        a fix to one need not cover the other -- probe both.
+    (4) u64 literals > i64::MAX are rejected, so msb-set u64 needs runtime
+        construction (`let z: u64 in Wrapping = 0; z - 1` = u64::MAX); u32 with a
+        high-bit literal (`3000000000`) is far easier and exercises the same
+        signed/unsigned split. Interp is flaky/slow on these arg shapes (124).
 - **[x] Cross-callee LET-NAME collision — BOTH flavors FIXED (2026-07-09).** Two
   different callees with same-named lets value-called from ONE caller state:
   - Mutation-fallback flavor: the substituted callee terminal resolved with the
