@@ -315,6 +315,16 @@ data Filesystem {
     // Scratch for `create_dir_all`'s per-position best-effort mkdir result
     // (`walk` ignores it -- an already-present ancestor is fine).
     walk_rc: i32;
+    // Best-effort result scratch for the prefix copy walk (mirrors walk_rc).
+    copy_rc: i32;
+    // NUL-terminated scratch for `create_dir_all`'s ancestor prefixes: a
+    // runtime SUBSLICE of the path param has no NUL for the native C call,
+    // so each prefix is copied here with a trailing NUL and passed as a
+    // literal-start subslice of this fixed array (the open_at/unlink_at
+    // name idiom -- the base pointer is a valid C string; the interpreter
+    // sees the same exact bytes). Prefixes of 255+ bytes skip their
+    // best-effort mkdir (D-cda).
+    mkall_scratch: [u8; 256];
     // Scratch for the STAT-based query host-call result. Held in a FIELD + consumed
     // by TERMINAL VALUE COMPLETION (`self.stat_rc == 0` as the machine's final value),
     // NOT a `transition` guard: an inlined value-call's transition GUARD is scheduled
@@ -902,11 +912,90 @@ machine Filesystem::mkall_step(&mut self, path: &[u8] in Path, i: usize) -> i32 
         }
     }
     state mkall_mk(&mut self, path: &[u8] in Path, i: usize) -> i32 {
-        // let-bound, never a bare terminal host call (see Filesystem::close).
-        let rc: i32 = self.host.create_dir(path[0..i], self.dir_mode);
-        rc
+        // The prefix must reach the native call NUL-TERMINATED: the copy
+        // walk below fills the scratch and issues the mkdir. Oversized
+        // prefixes skip their best-effort create (D-cda).
+        transition i < 255 {
+            true -> self.mkall_copy(path, i, 0)
+            false -> mkall_noop()
+        }
     }
     state mkall_noop(&mut self) -> i32 { 0 }
+}
+
+// Prefix copy walk: ENTRY-recursion (the only shape the decreases proof
+// accepts), mirroring mkall_walk exactly -- the per-byte work happens in a
+// STATEMENT-position sibling call (real dispatch, so its internal guard
+// chain selects arms correctly; value-call arm effects would be a compile
+// error by design). The byte writer also lays the C-string NUL at j == i,
+// so the mkdir fires on a complete prefix.
+machine Filesystem::mkall_copy(&mut self, path: &[u8] in Path, i: usize, j: usize)
+terminates {
+    decreases (j, i) -> Nat::BoundedDistance;
+}
+-> i32
+{
+    self.mkall_put(path, i, j);
+    transition j < i {
+        true -> mkall_copy(path, i, j + 1)
+        false -> self.mkall_issue(i)
+    }
+}
+
+// One byte of the prefix copy, every index guarded in ITS OWN chain
+// (cross-state facts do not travel to contract provers or index checks):
+// writes `path[j]` while j < i, and the NUL exactly at j == i. Out-of-range
+// steps (oversized prefixes) are no-ops -- the mkdir is best-effort (D-cda).
+machine Filesystem::mkall_put(&mut self, path: &[u8] in Path, i: usize, j: usize) {
+    transition j < i {
+        true -> put_byte(path, i, j)
+        false -> put_nul(j)
+    }
+    state put_byte(&mut self, path: &[u8] in Path, i: usize, j: usize) {
+        transition j < path.len {
+            true -> put_byte_bounded(path, j)
+            false -> put_done()
+        }
+    }
+    state put_byte_bounded(&mut self, path: &[u8] in Path, j: usize) {
+        transition j < 255 {
+            true -> put_byte_write(path, j)
+            false -> put_done()
+        }
+    }
+    state put_byte_write(&mut self, path: &[u8] in Path, j: usize) {
+        self.mkall_scratch[j] = path[j];
+        transition { _ -> put_done() }
+    }
+    state put_nul(&mut self, j: usize) {
+        transition j < 255 {
+            true -> put_nul_write(j)
+            false -> put_done()
+        }
+    }
+    state put_nul_write(&mut self, j: usize) {
+        self.mkall_scratch[j] = 0;
+        transition { _ -> put_done() }
+    }
+    state put_done(&mut self) { }
+}
+
+// The mkdir on the NUL-terminated scratch prefix. The host call lives in a
+// GUARDED chain of THIS machine's states -- reached only under i < 255, so
+// the subslice is in bounds; called as a transition-target value call whose
+// arms hold no effects beyond this machine's own dispatch (statement-shape
+// sibling of mkall_step's original mkall_mk).
+machine Filesystem::mkall_issue(&mut self, i: usize) -> i32 {
+    transition i < 255 {
+        true -> issue_mk(i)
+        false -> issue_skip()
+    }
+    state issue_mk(&mut self, i: usize) -> i32 {
+        // let-bound, never a bare terminal host call (see Filesystem::close).
+        let rc: i32 = self.host.create_dir_name(self.mkall_scratch[0..i], self.dir_mode);
+        rc
+    }
+    state issue_skip(&mut self) -> i32 { 0 }
 }
 
 // List a directory and return its entry COUNT (Rust `fs::read_dir(path)?.count()`,
