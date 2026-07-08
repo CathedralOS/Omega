@@ -394,6 +394,23 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
   relative; `create_dir_all` intermediates best-effort; raw boundary in its own
   std module; `read_dir` single 512-byte fill per call.
 
+## Wrapper dark-method coverage + a parked backend gap (2026-07-08)
+
+Audited the 55 Filesystem wrapper methods for canary coverage; wrote
+`filesystem/windows_wrapper_dark_methods_exit` (differential) exercising
+create/sync/try_clone(dup)/set_permissions -- all previously untested.
+FOUND + FIXED: `set_permissions`/`set_file_permissions` passed `perms.mode`
+(a member of a by-value struct param) DIRECTLY to chmod/fchmod, which fails
+to resolve under some dispatch contexts -- exactly the hazard the wrapper's
+`file_fd` scratch field already documents for `file.fd`. They now capture
+into a new `perm_mode` field in the entry first (the established idiom).
+PARKED backend gap (pending/host/member_arg_dup_dispatch): a host-call
+ARGUMENT that is a value-call machine PARAM -- a `&[u8] in Path` slice param
+via a SELF value call, or a struct-param MEMBER under a duplicate dispatch
+context -- resolves to no operand (the selection leaf-binding isn't followed
+for host ARG operands the way it is for results). Real fix is backend;
+the wrapper idiom sidesteps it for now.
+
 ## ⚠️ Portable-values FRONTIER IS DESIGN-GATED (mapped 2026-07-08, needs Zach)
 
 The provides/portable-values ladder reached the point where the remaining
