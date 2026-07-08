@@ -1,0 +1,65 @@
+// PENDING repro (2026-07-07c): a value call to a machine whose arm targets a
+// RECURSIVE (decreases) machine with an effectful statement call in its
+// entry. TODAY: a clean UnresolvedInlineArmGuard error (the inline arm
+// guard's `path.len > 0` subject never gets leaf-binding resolution).
+// ⚠️ DO NOT fix the guard resolution alone: binding-resolving the leaf
+// guards + folding literal `.len` + ordered static comparisons (all probed,
+// all individually correct) makes this COMPILE and then run SILENTLY WRONG
+// natively -- the recursive callee's entry effects never execute through
+// the inline route (count = 0; interp counts 2). The guard pieces must land
+// TOGETHER with a fence (or the real call-with-return) for inline-branching
+// value calls whose transitive arm target is a terminates/recursive machine
+// -- the dispatch-specialization wall, precisely. The probed fold edits:
+// (1) leaf guards + static summary through
+//     resolve_leaf_binding_expression_handle;
+// (2) static_guard_value_in_table: literal `.len` -> byte length;
+// (3) static_guard_truth_in_table: ordered comparison operators.
+// The mkall_walk frontier distilled: a DECREASES machine with a slice-len
+// arm guard (`i < path.len`), reached as an arm transition-target value call.
+// Counts separators in "a/b/c" -> expect 2 -> exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; n: i32 in Wrapping; }
+machine Main::walk(&mut self, path: &[u8], i: usize, acc: i32)
+terminates {
+    decreases (i, path.len) -> Nat::BoundedDistance;
+}
+-> i32
+{
+    self.bump(path, i);
+    transition i < path.len {
+        true -> walk(path, i + 1, acc)
+        false -> done(acc)
+    }
+    state done(&mut self, acc: i32) -> i32 { self.n }
+}
+machine Main::bump(&mut self, path: &[u8], i: usize) {
+    transition i < path.len {
+        true -> look(path, i)
+        false -> skip()
+    }
+    state look(&mut self, path: &[u8], i: usize) {
+        transition path[i] == 47 {
+            true -> hit()
+            false -> skip()
+        }
+    }
+    state hit(&mut self) {
+        self.n = self.n + 1;
+        transition { _ -> skip() }
+    }
+    state skip(&mut self) { }
+}
+machine Main::count(&mut self, path: &[u8]) -> i32 {
+    transition path.len > 0 {
+        true -> self.walk(path, 0, 0)
+        false -> zero()
+    }
+    state zero(&mut self) -> i32 { 0 }
+}
+machine Main::main(&mut self) {
+    self.n = 0;
+    let c: i32 = self.count("a/b/c");
+    transition c == 2 { true -> good() _ -> bad(71) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

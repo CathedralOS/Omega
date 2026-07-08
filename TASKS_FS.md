@@ -103,10 +103,19 @@ the fix and three consecutive full-suite runs are clean. Pinned by
 2 through the arm target, not ZII). LESSON: a varying-count intermittent
 suite failure + small-sample baseline is NOT evidence of a regression --
 diff the emitted code and re-run N times before reverting. REMAINING
-frontiers for deep create_dir_all (both clean errors, parked in
-canaries/pending/calls/arm_target_host_result_place): the DECREASES-walk
-flavor of the same result place, and mkall_walk's arm-guard lowering at
-inline depth.
+frontiers for deep create_dir_all (both clean errors, parked under
+canaries/pending/calls/): the DECREASES-walk flavor of the same result
+place (arm_target_host_result_place), and the inline-recursive-walk
+composition (inline_recursive_walk_consumer). ⚠️ The second one is a TRAP
+mapped 2026-07-07c: the arm-guard lowering pieces (leaf-binding-resolved
+guards, literal `.len` fold, ordered static comparisons) are each correct
+but UNFENCE a silent miscompile -- with guards resolving, the composition
+compiles and the RECURSIVE callee's entry effects never run through the
+inline route (count 0 vs interp 2). Those pieces must land TOGETHER with a
+fence for inline-branching value calls whose transitive arm target is a
+terminates/recursive machine (or with real call-with-return -- the
+dispatch-specialization feature). Exact fold edits recorded in the pending
+repro header.
 Flag for the macOS confirmation session: mkall behavior now matches the
 fence discipline. First
 wave detail — `filesystem/windows_wrapper_results_exit` runs write_all→Ok,
