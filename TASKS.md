@@ -541,14 +541,29 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >   - **Phase 1 -- generic DATA, scalar T -- DONE (75c445a49).** REMAINING Phase-1:
 >     composite ARGS (`Box<[i32;4]>`, `Box<&T>`, range-bounded) still fall through.
 >   - **Phase 3 -- NESTED generic data -- DONE 2026-07-03.**
->   - **Phase 2 -- generic MACHINES**: synthesize one Machine per instantiation
->     (copy states, substitute T); value-call targets rewrite to the synthetic
->     symbol; StateKey.machine carries it automatically; the fence becomes a
->     no-op. Canary: `machine id<T>(x:T)->T` called at i32 + bool. STATE VERIFIED
->     2026-07-03: `id<T>` at BOTH i32 and bool is cleanly FENCED today, NOT a
->     silent poison. Phase 2 = machine deep-clone-per-instantiation at the typed
->     layer (fresh symbol, substitute, retarget each value-call site) -- a real
->     multi-file slice, not a fence-flip.
+>   - **Phase 2 -- generic MACHINES (EXECUTION PLAN, recon 2026-07-08):** two
+>     slices, both at the PRE-RESOLUTION syntax layer following
+>     generic_instances.rs (Phase 1/3's home -- synthesize + substitute +
+>     slug-rewrite; copy_machine/copy_state/copy_type_reference exist in
+>     syntax_trees.rs).
+>     SLICE 1 -- CONTAINER METHODS (discovery-free; fixes the silent-0
+>     container bullet below): when generic_instances.rs synthesizes a data
+>     instance (`Box<i32>`), ALSO clone every machine attached to the generic
+>     data (`Box::stored<T>` -> `Box<i32>::stored`, receiver data name
+>     rewritten to the synthetic record, T substituted in the copied states
+>     via a substitution-aware copy_type_reference). The value call
+>     `self.b.stored()` then resolves against the CONCRETE instance machine
+>     -- no inference needed (the field's data spelling IS the
+>     instantiation). Canary: Box<i32> + Box<bool> coexisting, stored() at
+>     both, value-validated (kills the runtime silent-0).
+>     SLICE 2 -- FREE generic machines at MULTIPLE instantiations
+>     (`Main::id<T>` at i32 AND bool): needs typed-layer DISCOVERY (extend
+>     stage-1's return/param inference to collect per-call-site signatures
+>     instead of conflict-flagging) feeding a synthesis pass -- either
+>     re-run-the-frontend with syntax clones (phase-ordering problem) or
+>     typed-layer deep clone. DEFER until slice 1 proves the substitution
+>     copy; single-instantiation free machines already work via stage-1
+>     in-place substitution, and multi-instantiation stays cleanly fenced.
 >   - **CONTAINERS (generic data + attached method) -- valid-but-unimplemented;
 >     silent-0 at RUNTIME.** The CORRECT method syntax is T-on-METHOD:
 >     `machine Box::stored<T>(&self)->T`. With it, `Box::stored<T>` used as
