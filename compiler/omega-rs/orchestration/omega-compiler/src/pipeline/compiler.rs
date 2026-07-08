@@ -96,6 +96,7 @@ fn extract_provides_rows(
                 }
             };
             rows.push(ProvidesRow {
+                target_name: provider.target.as_str().to_owned(),
                 trait_name: trait_name.clone(),
                 method: mapping.machine.as_str().to_owned(),
                 binding,

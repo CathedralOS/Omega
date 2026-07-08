@@ -1,6 +1,7 @@
 use crate::EmissionPlanningInput;
 use crate::contained_receiver_blockers::collect_contained_receiver_blockers;
 use crate::host_argument_blockers::collect_host_argument_blockers;
+use crate::authored_import_blockers::collect_authored_import_blockers;
 use crate::reentrant_value_call_blockers::collect_reentrant_value_call_blockers;
 use crate::value_call_arm_effect_blockers::collect_value_call_arm_effect_blockers;
 use crate::host_binding_blockers::collect_host_binding_blockers;
@@ -77,6 +78,7 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
     collect_contained_receiver_blockers(input, &mut blockers);
     collect_value_call_arm_effect_blockers(input, &mut blockers);
     collect_reentrant_value_call_blockers(input, &mut blockers);
+    collect_authored_import_blockers(input, &mut blockers);
     collect_state_call_blockers(
         input,
         &state_schedule,

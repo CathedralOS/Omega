@@ -76,6 +76,12 @@ pub struct HostCall {
     pub data: PlatformCallData,
     pub operations: HandleSpan<LoweredHostOperation>,
     pub arguments: HandleSpan<HostCallArgument>,
+    /// True when the call's RESULT PLACE was prepended as argument[0] (the
+    /// assignment / let-initializer collectors). Catalog ops key result
+    /// handling per operation; provides-AUTHORED ops (Unknown key) have no
+    /// bespoke arm, so this flag is selection's only signal that argument[0]
+    /// is a writable place rather than the first declared argument.
+    pub has_result: bool,
 }
 
 impl Default for HostCall {
@@ -88,6 +94,7 @@ impl Default for HostCall {
             data: PlatformCallData::None,
             operations: HandleSpan::empty(),
             arguments: HandleSpan::empty(),
+            has_result: false,
         }
     }
 }

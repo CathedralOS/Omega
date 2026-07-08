@@ -22,6 +22,7 @@ use omega_target_operations::{InstructionPlan, TargetDataPlan};
 mod builder;
 mod contained_receiver_blockers;
 mod descriptor_argument_blockers;
+mod authored_import_blockers;
 mod reentrant_value_call_blockers;
 mod value_call_arm_effect_blockers;
 mod guard_expression_support;

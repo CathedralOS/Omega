@@ -36,6 +36,7 @@ pub(super) fn insert_object_symbols(
         offset: entry_function.byte_offset,
         size: entry_function.byte_count,
         kind: SymbolKind::Function,
+        import_library: String::new(),
     });
     object_plan.layout.symbols.insert(SymbolPlan {
         name: machine_storage_symbol_name(&main_layout.name),
@@ -43,6 +44,7 @@ pub(super) fn insert_object_symbols(
         offset: 0,
         size: main_layout.layout.size,
         kind: SymbolKind::Object,
+        import_library: String::new(),
     });
     if input.runtime_frame_size > 0 {
         object_plan.layout.symbols.insert(SymbolPlan {
@@ -51,6 +53,7 @@ pub(super) fn insert_object_symbols(
             offset: runtime_frame_offset,
             size: input.runtime_frame_size,
             kind: SymbolKind::Object,
+            import_library: String::new(),
         });
     }
 
@@ -59,12 +62,13 @@ pub(super) fn insert_object_symbols(
         .symbols
         .insert_many(input.host_abi.bindings.iter().filter_map(|(_, binding)| {
             match &binding.mechanism {
-                HostBindingMechanism::Import { symbol, .. } => Some(SymbolPlan {
+                HostBindingMechanism::Import { library, symbol } => Some(SymbolPlan {
                     name: symbol.to_string(),
                     section: SymbolSection::None,
                     offset: 0,
                     size: 0,
                     kind: SymbolKind::Import,
+                    import_library: library.to_string(),
                 }),
                 // Syscalls and vtable calls have no import symbol: the callee
                 // address is a number (syscall) or read from the receiver at
@@ -86,6 +90,7 @@ pub(super) fn insert_object_symbols(
                 offset: data_object.offset,
                 size: bytes.len(),
                 kind: SymbolKind::Object,
+                import_library: String::new(),
             })
         }));
 }

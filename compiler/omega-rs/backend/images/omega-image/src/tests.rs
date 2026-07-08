@@ -34,6 +34,7 @@ fn builds_final_image_from_object_symbols_imports_and_relocations() {
         offset: 4,
         size: 4,
         kind: SymbolKind::Function,
+        import_library: String::new(),
     });
     let import_symbol = object.layout.symbols.insert(SymbolPlan {
         name: "host_write".into(),
@@ -41,6 +42,7 @@ fn builds_final_image_from_object_symbols_imports_and_relocations() {
         offset: 0,
         size: 0,
         kind: SymbolKind::Import,
+        import_library: String::new(),
     });
     object.layout.symbols.insert(SymbolPlan {
         name: "payload".into(),
@@ -48,6 +50,7 @@ fn builds_final_image_from_object_symbols_imports_and_relocations() {
         offset: 2,
         size: 1,
         kind: SymbolKind::Object,
+        import_library: String::new(),
     });
     object.layout.entry_symbol = entry_symbol;
 

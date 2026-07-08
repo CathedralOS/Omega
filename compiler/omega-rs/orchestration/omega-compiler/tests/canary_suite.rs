@@ -25166,6 +25166,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/narrowing_wide_local_unproven",
     "arithmetic/narrowing_signedness_rejected",
     "capabilities/host_provides_unknown_binding",
+    "capabilities/host_provides_two_unknown_rejected",
     "wire/wire_policy_plan_disagrees",
     "domains/type_constraint_unknown_domain",
     "domains/domain_carrier_mismatch",

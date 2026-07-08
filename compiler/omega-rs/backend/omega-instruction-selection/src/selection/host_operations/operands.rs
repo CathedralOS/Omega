@@ -143,25 +143,41 @@ pub(super) fn select_host_operation_operands(
         (HostCapability::Gui, operation) => {
             select_gui_operation_operands(input, host_call, dispatch_index, operation, operands)
         }
-        // A provides-sourced call (VtableSlot etc.): the operation key falls
-        // OUTSIDE the closed catalog (Unknown), so there is no bespoke arm --
-        // marshal the DECLARED arguments in order (each a scalar value or an
-        // address-of), exactly as written. `this` lands in RCX, the rest
-        // follow MS-x64. Void: no result operand.
+        // A provides-sourced call (VtableSlot / authored DllImport): the
+        // operation key falls OUTSIDE the closed catalog (Unknown), so there
+        // is no bespoke arm -- marshal the DECLARED arguments in order (each
+        // a scalar value or an address-of), exactly as written. `this` lands
+        // in RCX, the rest follow MS-x64. When the collector prepended a
+        // RESULT place (`let m = self.b.beep(v)`), argument[0] is a WRITABLE
+        // place and must lower as the result-storage operand, not be read as
+        // a value; the declared arguments then start at index 1. Any
+        // unresolvable operand => NO operands, so the encoder hard-errors
+        // rather than calling with garbage.
         (HostCapability::Unknown, _) => {
             let arity = input
                 .host_calls
                 .arguments
                 .span(host_call.arguments)
                 .map_or(0, |arguments| arguments.len());
-            let kinds: Option<Vec<InstructionOperandKind>> = (0..arity)
+            let result = if host_call.has_result {
+                first_scalar_argument_operand(input, host_call, dispatch_index)
+            } else {
+                None
+            };
+            if host_call.has_result && result.is_none() {
+                return HandleSpan::empty();
+            }
+            let first_declared = usize::from(host_call.has_result);
+            let kinds: Option<Vec<InstructionOperandKind>> = (first_declared..arity)
                 .map(|index| {
                     scalar_argument_operand_at(input, host_call, dispatch_index, alias_context, index)
                         .or_else(|| address_argument_operand_at(input, host_call, dispatch_index, alias_context, index))
                 })
                 .collect();
             match kinds {
-                Some(kinds) => operands.insert_many(kinds.into_iter().map(operand)),
+                Some(kinds) => operands.insert_many(
+                    result.into_iter().chain(kinds).map(operand),
+                ),
                 None => HandleSpan::empty(),
             }
         }
