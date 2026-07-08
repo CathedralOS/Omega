@@ -138,12 +138,19 @@ fn lower_statement_node(
             lower_statement_expression(lowerer, syntax_trees, relax.target)?,
         )]),
         syntax::statement::StatementNode::Transition(transition) => {
-            let target = lower_transition_target_node(lowerer, syntax_trees, transition.target)?;
+            let mut hoisted = Vec::new();
+            let target = lower_transition_target_node(
+                lowerer,
+                syntax_trees,
+                transition.target,
+                &mut hoisted,
+            )?;
             let continuation = if transition.continuation.is_valid() {
                 Some(lower_transition_target_node(
                     lowerer,
                     syntax_trees,
                     transition.continuation,
+                    &mut hoisted,
                 )?)
             } else {
                 None
@@ -157,7 +164,6 @@ fn lower_statement_node(
             // this makes it automatic. A bare match subject (`transition self.arr[i] { .. }`) is
             // the guard ROOT, which `hoist_operand_indexed_reads` leaves whole -- so match
             // exhaustiveness (which needs a single shared subject across arms) is unaffected.
-            let mut hoisted = Vec::new();
             if let TransitionGuard::When(expression) = guard {
                 // A USER value-machine call compared to an INTEGER literal
                 // (`transition self.dbl(5) == 11`) is hoisted into a `let`
@@ -1233,24 +1239,58 @@ fn lower_transition_target_node(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     target: syntax::statement::TransitionTargetHandle,
+    hoisted: &mut Vec<Statement>,
 ) -> Result<TransitionTarget, Diagnostic> {
     match syntax_trees.statements.transition_target(target) {
         syntax::statement::TransitionTargetNode::Named {
             path,
             path_starts_at_self,
             arguments,
-        } => Ok(TransitionTarget::Named(NamedTransitionTarget {
-            head_symbol: SymbolHandle::invalid(),
-            symbol: SymbolHandle::invalid(),
-            storage: NamedTransitionTargetStorage {
-                path: lower_statement_path_members(lowerer, syntax_trees, *path),
-                path_starts_at_self: *path_starts_at_self,
-                arguments: lower_statement_expressions(lowerer, syntax_trees, *arguments)?,
-            },
-        })),
-        syntax::statement::TransitionTargetNode::Value(expression) => Ok(TransitionTarget::Value(
-            lower_statement_expression(lowerer, syntax_trees, *expression)?,
-        )),
+        } => {
+            let arguments = lower_statement_expressions(lowerer, syntax_trees, *arguments)?;
+            // A runtime-indexed read in OPERAND position inside a transition
+            // ARGUMENT (`-> dot(.., acc + a[i][k] * b[k][j])`) has no value
+            // operand and SILENTLY read 0 (native; the interpreter was right)
+            // -- the same gap the assignment-value/let/guard hoists close.
+            // Hoist each argument's operand-position indexed reads into
+            // `let __hoist_N` temps (the root is left whole: a BARE indexed
+            // arg already delivers through the frame-slot arm). The hoisted
+            // reads are pure loads, so evaluating them before the guard --
+            // even for a not-taken arm -- has no observable effect.
+            for offset in 0..arguments.count() {
+                let argument = lowerer
+                    .symbol_resolved_trees
+                    .tables
+                    .bodies
+                    .expressions
+                    .expression_handles(arguments)[offset as usize];
+                let rewritten =
+                    hoist_operand_indexed_reads(lowerer, argument, hoisted, false);
+                if rewritten != argument {
+                    lowerer
+                        .symbol_resolved_trees
+                        .tables
+                        .bodies
+                        .expressions
+                        .set_expression_handle_at_offset(arguments, offset, rewritten);
+                }
+            }
+            Ok(TransitionTarget::Named(NamedTransitionTarget {
+                head_symbol: SymbolHandle::invalid(),
+                symbol: SymbolHandle::invalid(),
+                storage: NamedTransitionTargetStorage {
+                    path: lower_statement_path_members(lowerer, syntax_trees, *path),
+                    path_starts_at_self: *path_starts_at_self,
+                    arguments,
+                },
+            }))
+        }
+        syntax::statement::TransitionTargetNode::Value(expression) => {
+            let expression = lower_statement_expression(lowerer, syntax_trees, *expression)?;
+            // Same hoist for a VALUE result (`-> (arr[i] + 5)`).
+            let expression = hoist_operand_indexed_reads(lowerer, expression, hoisted, false);
+            Ok(TransitionTarget::Value(expression))
+        }
         syntax::statement::TransitionTargetNode::SelfTarget => Ok(TransitionTarget::SelfTarget),
         syntax::statement::TransitionTargetNode::Terminal => Ok(TransitionTarget::Terminal),
     }

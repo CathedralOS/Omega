@@ -1,0 +1,47 @@
+// Runtime-indexed reads as BINARY OPERANDS inside TRANSITION ARGUMENTS --
+// both the single-index (`arr[i] + 5`) and double-index (`grid[i][j] + 5`)
+// flavors SILENTLY read 0 natively (the interpreter was right): transition
+// args never went through the operand hoist. lower_transition_target_node
+// now hoists each argument's operand-position indexed reads (the root stays
+// whole -- bare indexed args already delivered), and the state lowering
+// splices a LATER arm's hoisted lets BEFORE the dispatch run's first
+// transition so the desugared true/false arms stay CONSECUTIVE (interleaved
+// lets un-paired the arms into a phantom fall-through -- the run-splice in
+// lower_statement_into_pending). The guarded-arm flavor is exercised by
+// samples/cli/collections/matrix_multiply.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    arr: [i32 in Wrapping; 4];
+    grid: [[i32 in Wrapping; 3]; 3];
+    got: i32 in Wrapping;
+}
+machine Main::main(&mut self) {
+    self.arr[2] = 10;
+    self.grid[1][2] = 30;
+    transition { _ -> single(2) }
+    state single(&mut self, i: usize [0..=3]) {
+        transition { _ -> double(self.arr[i] + 5, 1, 2) }
+    }
+    state double(&mut self, v: i32 in Wrapping, i: usize [0..=2], j: usize [0..=2]) {
+        self.got = v;
+        transition { _ -> guarded(self.got + self.grid[i][j] + 2, i, j) }
+    }
+    state guarded(&mut self, v: i32 in Wrapping, i: usize [0..=2], j: usize [0..=2]) {
+        // A GUARDED true/false pair whose arms BOTH carry indexed-operand
+        // args -- the run-splice face (arm 2's hoists must not split the run).
+        transition v == 47 {
+            true -> check(self.grid[i][j] + 1)
+            false -> check(self.grid[i][j] + 2)
+        }
+    }
+    state check(&mut self, w: i32 in Wrapping) {
+        self.got = w;
+        transition self.got == 31 {
+            true -> yes()
+            false -> no()
+        }
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}
