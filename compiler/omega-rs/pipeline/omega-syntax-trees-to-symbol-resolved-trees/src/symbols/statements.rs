@@ -57,6 +57,8 @@ pub(super) fn assign_statement_reference_symbols(
             contains: machine_contained_objects.span_or_empty(*contains),
             inherited_data_members,
             owned_data: machine_owned_data.span_or_empty(*owned_data),
+            data_definitions,
+            data_members,
         };
         for state in machine_state_handles.span_or_empty(*states).iter().copied() {
             let state = machine_states.get_mut(state);

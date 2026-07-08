@@ -594,52 +594,44 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >     (multi-hop) paths hold a STRICT bar -- unprovable or mismatched
 >     offsets BLOCK loudly (direct fields keep the lenient skip: locals/
 >     params resolve by other routes).
->     RUNG 2b -- SYMBOL RESOLUTION nested member hop (NEXT). RECON SHARPENED
->     2026-07-08 (nr1.omg debug bisect: `recv_name=a rsym_valid=false
->     tsym_valid=false` -> the plan records NO call -> silent 0; the
->     validation gate CANNOT lift first). The change is now MECHANICAL --
->     three named edits, no deep-recursion threading:
->       * The exact backend route that must fire:
->         omega-state-calls collection.rs resolve_state_call_target LAST-
->         RESORT branch (~L945, inside `if receiver_symbol.is_valid()`):
->         `target_symbol.is_valid() && find state where state==target_symbol
->         && segment_index==0` -> ContainedMachine + key. So rung 2b's job =
->         stamp BOTH (i) the leaf Member.member_symbol -> the leaf FIELD
->         symbol (makes receiver_symbol valid so we ENTER the L894 block)
->         and (ii) the Call.target_symbol -> the callee STATE symbol. No
->         machine_contains entry needed (it holds DIRECT fields only).
->       * The type walk already half-exists: MachineScope::field_type_
->         reference (scope.rs) resolves a DIRECT field's TypeReference on the
->         attached data (hop 1). Hops 2+ need ALL data definitions -- present
->         at the scope-BUILD site (statements.rs assign_statement_reference_
->         symbols destructures `data_definitions` + `data_members` alongside
->         the `machines.for_each_mut`; borrows are disjoint). Extend
->         MachineScope with those + a `nested_leaf_type_name(chain)` walker
->         (unwrap Reference/Constrained shells via the child_type_references
->         table to read each hop's Named name).
->       * WIRING POINT = the assign_* level, NOT the recursion. assign_call_
->         symbol already takes `machine: &MachineScope`; assign_member_symbol
->         needs the scope added (one sig + one caller in traversal.rs).
->         Detect self-rooted len>=3 chain -> walk to leaf type name ->
->         top_level_symbol(Data, leaf_owner) child lookup for the leaf field
->         symbol + call_target_for_attached_data(leaf_type, method) for the
->         target -> stamp both. Non-nested cases keep the existing recursion.
->       NO SHORTCUT via pre-resolved types: typed-tree Member/Call nodes
->       carry member_symbol/target_symbol only, no type_reference (checked
->       2026-07-08); control-flow ContainedFlow carries type_name for DIRECT
->       fields only. Field-type walk is unavoidable; do it ONCE here.
->     RUNG 2c: verify resolve_state_call_target delivers with the L945 route
->     firing (should need no change once 2b stamps both symbols); if the
->     source machine differs from target, confirm receiver_path storage
->     binding (rung 2a) still resolves the single-instance offset.
->     RUNG 3 (validation gate lift -- LAST): helpers are already in-tree
->     behind #[allow(dead_code)]: places.rs nested_receiver_type_name +
->     calls.rs receiver_member_chain (type resolution VERIFIED -- nr1
->     passed validation when briefly un-gated; reverted same tick). Lift =
->     `.or_else(chain walk)` on receiver_type in
->     validate_expression_call_bounds; self-rooted len>=3 chains only.
->     Result: single-instance nested receivers work; ambiguous ones hit
->     the rung-2a blocker.
+>     RUNG 2b -- SYMBOL RESOLUTION nested member hop (LANDED 2026-07-08).
+>     MachineScope gains `data_definitions` + `data_members` + a
+>     `nested_self_chain_type(chain)` walker (plain-Named hops only; shell-
+>     wrapped `&mut`/constrained hops return None = conservative reject).
+>     assign_member_symbol (now takes &MachineScope) stamps the leaf FIELD
+>     symbol from the chain's owner type; assign_call_symbol stamps the call
+>     TARGET from the leaf type via call_target_for_attached_data. Verified:
+>     when rung 3 was briefly lifted, nr1 RESOLVED past validation and the
+>     interp ran exit 7 (native then hit the unrelated effectful-value-arm
+>     fence, a probe artifact) -- so the symbol path WORKS. Inert while rung
+>     3 stays gated. Helpers unwrap only Named; extend to shells if needed.
+>     RUNG 3 BLOCKED on TWO delivery gaps found the same tick (do NOT lift
+>     until both close -- un-gating now = silent 0):
+>       (D1) BACKEND type-walk cannot descend a plain-DATA intermediate.
+>         `machine_storage_offset`/`nested_machine_storage_offset`
+>         (instruction-selection machine_owned.rs) AND the rung-2a blocker's
+>         `first_type_match_offset`/`receiver_path_offset` descend only via
+>         `field_machine_layout` (MACHINE-typed fields). `self.p.a` with
+>         `p: PairD` (plain data, NO attached machine) is undescendable ->
+>         the callee's self-base is unresolvable. So a DATA-nested receiver
+>         cannot DELIVER even with symbols resolved -- the rung-2a blocker
+>         honestly fires "cannot prove". FIX: both walks must also descend
+>         DataLayout (layouts.data_layouts, DataShape::Record{fields} /
+>         Cases{common_fields}); this is the load-bearing backend change.
+>         MACHINE-nested intermediates already descend -- likely the first
+>         deliverable nested shape (untested; exotic to construct).
+>       (D2) rung 1 walks the receiver only for VALUE-position calls
+>         (CollectedStateCall.raw_receiver set on the two Call arms). A
+>         STATEMENT-position nested call (`self.p.a.mutate();`) gets a
+>         single-segment receiver_path (leaf name only) and would DODGE the
+>         rung-2a blocker's nested branch (field_segments.len()==1 -> direct
+>         branch -> receiver_name not a Main field -> skip). Extend rung 1 to
+>         walk the receiver expression for STATEMENT-position calls too
+>         before lifting rung 3.
+>       RUNG 3 gate-lift is READY otherwise (helpers parked behind
+>       #[allow(dead_code)]: places.rs nested_receiver_type_name + calls.rs
+>       receiver_member_chain; the lift = `.or_else(chain walk)` on
+>       receiver_type in validate_expression_call_bounds, self-rooted len>=3).
 >     RUNG 4 (the deep fix): per-receiver-place state scheduling (a
 >     receiver discriminator alongside StateKey or a scheduled-state clone
 >     per receiver place, biasing the callee's storage resolution by the

@@ -82,6 +82,8 @@ pub(super) fn assign_machine_symbols(
                         owned_data: &[],
                         inherited_data_members: None,
                         contains: &[],
+                        data_definitions,
+                        data_members,
                     },
                     &[],
                     SymbolHandle::invalid(),

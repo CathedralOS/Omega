@@ -211,7 +211,7 @@ pub(in crate::symbols) fn assign_expression_table_symbols(
             );
             assign_member_symbol(
                 symbols,
-                machine.symbol,
+                machine,
                 state_symbol,
                 expression_table,
                 receiver,
