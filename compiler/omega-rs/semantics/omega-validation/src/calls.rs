@@ -1541,6 +1541,38 @@ fn fence_generic_value_callee(
     )));
 }
 
+/// The receiver's spelled member chain, root -> leaf (`["self", "p",
+/// "second"]` for `self.p.second.stored()`). `None` for non-place receivers
+/// (calls, literals). Mirrors the state-call plan's `append_receiver_path`
+/// walk at the typed layer.
+#[allow(dead_code)] // wired in when the nested-receiver gate lifts (staircase rung 3)
+fn receiver_member_chain(
+    program: &TypedTrees,
+    receiver: omega_typed_trees::expression::ExpressionHandle,
+) -> Option<Vec<String>> {
+    if !receiver.is_valid() {
+        return None;
+    }
+    match program.expression_table.expression(receiver) {
+        ExpressionNode::Name(path) => {
+            let members = program.expression_table.name_path_members(path.members);
+            (!members.is_empty()).then(|| {
+                members
+                    .iter()
+                    .map(|member| member.as_str().to_string())
+                    .collect()
+            })
+        }
+        ExpressionNode::Member(member) => {
+            let mut chain = receiver_member_chain(program, member.receiver)?;
+            chain.push(member.member.as_str().to_string());
+            Some(chain)
+        }
+        ExpressionNode::Mutable(inner) => receiver_member_chain(program, *inner),
+        _ => None,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 fn validate_expression_call_bounds(
     program: &TypedTrees,
@@ -1717,6 +1749,15 @@ fn validate_expression_call_bounds(
     }
 
     let receiver_name = external_receiver_name.unwrap_or_default();
+    // Direct field/local receivers resolve by bare name. A NESTED self-rooted
+    // member chain (`self.p.second.stored()`) TYPE-resolves via
+    // `crate::places::nested_receiver_type_name` + `receiver_member_chain`
+    // (kept below, verified) -- but do NOT un-gate it here until the
+    // backend delivers nested receivers: symbol resolution leaves nested
+    // member/target symbols INVALID, the state-call plan then records no
+    // call, and the value silently binds 0 (probed 2026-07-08, nr1.omg).
+    // Rung order: symbol-resolution member-type hop -> plan target
+    // resolution -> THEN this gate lifts (receiver-place staircase, TASKS).
     let receiver_type = machine_symbols.contained_type(receiver_name);
 
     // External machine receiver.

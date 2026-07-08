@@ -18,9 +18,14 @@ use omega_layout::{FieldLayout, LayoutPlan, MachineLayout};
 /// actual offset against the offset the by-type walk picks. Equal -> the call
 /// is sound (single instance, or the receiver IS the first match) and stays
 /// accepted; different -> the call would run on another instance's storage,
-/// which is never intended. Receivers that are not a direct field of the
-/// caller's data (nested `self.x.y.method()`) are skipped -- conservative,
-/// same as before this fence.
+/// which is never intended.
+///
+/// NESTED receivers (`self.p.second.method()`, un-gated by validation rung 3)
+/// hold a STRICTER bar: the plan's `receiver_path` must fully walk the field
+/// layouts to a storage offset AND that offset must equal the by-type walk's
+/// pick -- anything unprovable blocks LOUDLY. (Direct-field receivers keep
+/// the lenient skip-if-unresolved: locals/params as receivers resolve by
+/// other routes and predate this fence.)
 pub(crate) fn collect_contained_receiver_blockers(
     input: &EmissionPlanningInput<'_>,
     blockers: &mut Arena<EmissionBlocker>,
@@ -45,10 +50,70 @@ pub(crate) fn collect_contained_receiver_blockers(
         let Some(target_attached_data) = target_layout.attached_data.as_deref() else {
             continue;
         };
-        // The receiver must be a DIRECT field of the caller's data for the
-        // offset comparison to be meaningful here. Matched by NAME: the
-        // receiver symbol and the layout field symbol live in different
-        // arenas, so handle equality can never hold.
+
+        // The receiver's FIELD path: the plan's root->leaf spelled segments
+        // with the `self` root stripped. Matched by NAME throughout: receiver
+        // symbols and layout field symbols live in different arenas, so
+        // handle equality can never hold.
+        let path_segments = input
+            .state_calls
+            .receiver_path_segments
+            .span(state_call.receiver_path)
+            .unwrap_or(&[]);
+        let field_segments = match path_segments.first() {
+            Some(root) if root.as_str() == "self" => &path_segments[1..],
+            _ => path_segments,
+        };
+
+        let walk_offset = first_type_match_offset(
+            input.layouts,
+            source_layout,
+            state_call.target_key.machine,
+            target_attached_data,
+            0,
+            &mut Vec::new(),
+        );
+
+        if field_segments.len() > 1 {
+            // Nested receiver: prove the chain's storage offset and require
+            // it to be the offset dispatch will pick; block anything else.
+            let spelled = spelled_path(field_segments);
+            match (
+                receiver_path_offset(input.layouts, source_layout, field_segments),
+                walk_offset,
+            ) {
+                (Some(true_offset), Some(predicted)) if true_offset == predicted => {}
+                (Some(true_offset), Some(predicted)) => {
+                    blockers.insert(blocker(
+                        "state calls",
+                        &format!(
+                            "nested receiver `self.{}` lives at offset {}, but dispatch \
+                             resolves the receiver region by TYPE and picks the first \
+                             `{}` (offset {}) -- the call would run on ANOTHER \
+                             instance's storage. Until per-instance dispatch lands, \
+                             give each instance a distinct data type, or add a \
+                             forwarding method on the outer type.",
+                            spelled, true_offset, target_attached_data, predicted,
+                        ),
+                    ));
+                }
+                _ => {
+                    blockers.insert(blocker(
+                        "state calls",
+                        &format!(
+                            "nested receiver `self.{}`: cannot prove the receiver's \
+                             storage offset matches the region dispatch resolves \
+                             (by-TYPE walk for `{}`). Add a forwarding method on the \
+                             outer type.",
+                            spelled, target_attached_data,
+                        ),
+                    ));
+                }
+            }
+            continue;
+        }
+
+        // Direct-field receiver: the original lenient compare.
         let Some(receiver_field) = input
             .layouts
             .fields
@@ -61,14 +126,6 @@ pub(crate) fn collect_contained_receiver_blockers(
         else {
             continue;
         };
-        let walk_offset = first_type_match_offset(
-            input.layouts,
-            source_layout,
-            state_call.target_key.machine,
-            target_attached_data,
-            0,
-            &mut Vec::new(),
-        );
         let Some(walk_offset) = walk_offset else {
             continue;
         };
@@ -92,6 +149,40 @@ pub(crate) fn collect_contained_receiver_blockers(
             ),
         ));
     }
+}
+
+/// Walk the receiver's field path through the layout plan, accumulating each
+/// segment's offset; descend into intermediate segments' machine layouts.
+/// `None` when any segment is not a field of the current layout (or an
+/// intermediate has no machine layout to descend into) -- callers treat
+/// unprovable as blocked.
+fn receiver_path_offset(
+    layouts: &LayoutPlan,
+    source_layout: &MachineLayout,
+    field_segments: &[omega_checked_trees::name::Identifier],
+) -> Option<usize> {
+    let mut layout = source_layout;
+    let mut offset = 0usize;
+    for (position, segment) in field_segments.iter().enumerate() {
+        let field = layouts
+            .fields
+            .span(layout.fields)?
+            .iter()
+            .find(|field| field.name == *segment)?;
+        offset += field.offset;
+        if position + 1 < field_segments.len() {
+            layout = field_machine_layout(layouts, field)?;
+        }
+    }
+    Some(offset)
+}
+
+fn spelled_path(segments: &[omega_checked_trees::name::Identifier]) -> String {
+    segments
+        .iter()
+        .map(|segment| segment.as_str())
+        .collect::<Vec<_>>()
+        .join(".")
 }
 
 fn machine_layout_by_symbol(

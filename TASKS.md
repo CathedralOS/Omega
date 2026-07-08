@@ -589,15 +589,34 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >     statement calls fall back to a single-segment path; leaf == the
 >     receiver_name that existing consumers key on). Inert -- nothing
 >     consumes the path yet.
->     RUNG 2: contained_receiver_blockers computes the receiver's TRUE
->     offset by walking the path segments through field layouts (stop
->     skipping nested receivers) -- blocker fires whenever true offset !=
->     type-walk offset.
->     RUNG 3: extend validation receiver_declared_type_name to walk member
->     chains. Result: SINGLE-INSTANCE nested receivers (distinct types at
->     every level) work via the existing type walk; ambiguous ones are
->     loudly fenced by rung 2. Rungs 2+3 must land TOGETHER (rung 3 alone
->     un-gates silent aliasing for nested same-type siblings).
+>     RUNG 2a (LANDED 2026-07-08): contained_receiver_blockers walks
+>     receiver_path through field layouts for the TRUE offset; nested
+>     (multi-hop) paths hold a STRICT bar -- unprovable or mismatched
+>     offsets BLOCK loudly (direct fields keep the lenient skip: locals/
+>     params resolve by other routes).
+>     RUNG 2b -- SYMBOL RESOLUTION nested member hop (NEXT): probe nr1.omg
+>     proved the validation gate CANNOT lift first -- nested member/target
+>     symbols come out INVALID (Symbol = parent/children/kind/name, NO type
+>     info; child_or_attached_data_child_symbol_by_kinds hops Machine ->
+>     attached data, but a member on a FIELD symbol has no children), so
+>     the state-call plan records NO call and the value SILENTLY BINDS 0 --
+>     blockers only see PLANNED calls. Fix in receivers.rs/lookup.rs
+>     (syntax->symbol-resolved): field symbol -> declared type spelling
+>     (from the data definitions; needs threading tree access into the
+>     receiver resolution) -> top_level_symbol(Data) -> child field; the
+>     call TARGET needs the same hop (call_target_for_attached_data with
+>     the leaf field's type name).
+>     RUNG 2c: verify resolve_state_call_target routes deliver with valid
+>     nested symbols (machine_contains covers DIRECT fields only; the
+>     type-name route or the target_symbol last-resort route must fire).
+>     RUNG 3 (validation gate lift -- LAST): helpers are already in-tree
+>     behind #[allow(dead_code)]: places.rs nested_receiver_type_name +
+>     calls.rs receiver_member_chain (type resolution VERIFIED -- nr1
+>     passed validation when briefly un-gated; reverted same tick). Lift =
+>     `.or_else(chain walk)` on receiver_type in
+>     validate_expression_call_bounds; self-rooted len>=3 chains only.
+>     Result: single-instance nested receivers work; ambiguous ones hit
+>     the rung-2a blocker.
 >     RUNG 4 (the deep fix): per-receiver-place state scheduling (a
 >     receiver discriminator alongside StateKey or a scheduled-state clone
 >     per receiver place, biasing the callee's storage resolution by the
