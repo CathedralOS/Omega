@@ -565,6 +565,21 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >     also WIDENS method-less Phase 1 to constrained fields), and the layout
 >     skip covers machines attached to template data that declare no type
 >     params of their own (Cell::touch_count).
+>     PROBED LIMITS (2026-07-08, both LOUD -- the existence check catches
+>     them; ergonomics features, not soundness holes):
+>     (a) NESTED member receivers (`self.p.second.stored()`) do not resolve
+>     at ANY genericity -- concrete `PairI/BoxI` fails identically; the
+>     value-call receiver resolution handles one member level
+>     (receiver_declared_type_name is bare-name-keyed; the fix = walk the
+>     member chain's field types). Workaround: none needed often (bind the
+>     inner struct? -- no by-value struct locals for methods; realistically
+>     restructure or add a forwarding method).
+>     (b) a generic TEMPLATE method calling a method on a Generic-typed
+>     field (`Pair::first_stored<T>` calling `self.first.stored()` with
+>     `first: Box<T>`) -- the template's receiver type is a Generic node the
+>     resolution does not see through; the CLONES would resolve fine if the
+>     template validated only as a template. Both faces block the
+>     nested-container-with-methods composition (probe gc3).
 >     SLICE 2 -- FREE generic machines at MULTIPLE instantiations
 >     (`Main::id<T>` at i32 AND bool): needs typed-layer DISCOVERY (extend
 >     stage-1's return/param inference to collect per-call-site signatures
