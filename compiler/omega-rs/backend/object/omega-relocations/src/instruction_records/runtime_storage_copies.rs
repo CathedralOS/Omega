@@ -4,6 +4,7 @@ use super::super::offsets::{
     runtime_storage_copy_from_runtime_machine_indexed_runtime_frame_address_offset,
     runtime_storage_copy_from_runtime_machine_indexed_target_address_offset,
     runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset,
+    runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset,
     runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offset,
     runtime_storage_copy_machine_indexed_frame_index_offset,
     runtime_storage_copy_machine_indexed_to_machine_indexed_second_base_offset,
@@ -319,6 +320,21 @@ pub(super) fn collect_runtime_storage_copy_relocations(
                     context.runtime_frame_symbol_handle(),
                 );
             }
+            true
+        }
+        SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage {
+            target_region,
+            ..
+        } => {
+            // ONE frame-base relocation serves the array and both indices;
+            // the target-region base relocates at the pre-store mov.
+            context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
+            context.insert_data_address_at_relative_offset(
+                runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset(
+                    context.input.target.architecture,
+                ),
+                context.storage_region_symbol_handle(*target_region),
+            );
             true
         }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee { source_region, .. } => {

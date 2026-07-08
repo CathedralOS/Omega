@@ -6658,6 +6658,72 @@ pub fn encode_runtime_machine_double_indexed_binary_write(
     Ok(bytes)
 }
 
+/// Width of [`encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage`].
+pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width() -> usize {
+    // mov r14,imm64(frame) (10) + mov eax,[r14+outer] (7) + mov r11d,[r14+inner] (7)
+    // + imul rax,imm32 (7) + imul r11,imm32 (7) + add r14,rax (3) + add r14,r11 (3)
+    // + load rax,[r14+base+field] (7) + mov r15,imm64(target) (10) + store [r15+target] (7)
+    68
+}
+
+/// Target-region relocation start (the `mov r15,imm64` before the store,
+/// pre-`+2`) inside the frame-base double-indexed read.
+pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset() -> usize {
+    68 - 17
+}
+
+/// The BOTH-RUNTIME nested read of a FRAME-resident inline 2D array
+/// (`g[i][j]`, `g` a by-value param or local): rax = outer index, r11 = inner
+/// index (both loaded off the ONE frame base in r14 BEFORE it is biased --
+/// the r14-before-bias key), each scaled by its stride, both added to r14,
+/// then a load of the element and a store to the runtime-storage target.
+pub fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_count, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "X86_64 MVP encoder cannot read {byte_count}-byte frame double-indexed values yet"
+        )));
+    }
+    let outer_scale = element_scale(outer_stride)?;
+    let inner_scale = element_scale(inner_stride)?;
+    let outer_displacement = disp32(outer_index_offset)?;
+    let inner_displacement = disp32(inner_index_offset)?;
+    let mut bytes = Vec::with_capacity(
+        runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width(),
+    );
+    // r14 = frame base (imm64 at +2 relocated to the frame symbol).
+    append_mov_r14_imm64(&mut bytes, 0);
+    // eax = outer index; r11d = inner index (32-bit, zero-extended), both off
+    // the unbiased frame base.
+    bytes.extend([0x41, 0x8b, 0x86]); // mov eax, [r14+disp32]
+    bytes.extend(outer_displacement.to_le_bytes());
+    bytes.extend([0x45, 0x8b, 0x9e]); // mov r11d, [r14+disp32]
+    bytes.extend(inner_displacement.to_le_bytes());
+    append_imul_rax_imm32(&mut bytes, outer_scale);
+    bytes.extend([0x4d, 0x69, 0xdb]); // imul r11, r11, imm32
+    bytes.extend(inner_scale.to_le_bytes());
+    bytes.extend([0x49, 0x01, 0xc6]); // add r14, rax
+    append_add_r14_r11(&mut bytes);
+    // rax = the element at [r14 + base + field].
+    append_load_rax_from_r14(&mut bytes, base_byte_offset + field_byte_offset, byte_count)?;
+    // r15 = target base (imm64 relocated to the target region symbol); store.
+    append_mov_r15_imm64(&mut bytes, 0);
+    append_store_rax_to_r15(&mut bytes, target_offset, byte_count)?;
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width()
+    );
+    Ok(bytes)
+}
+
 pub fn runtime_storage_copy_width(
     source_offset: usize,
     target_offset: usize,

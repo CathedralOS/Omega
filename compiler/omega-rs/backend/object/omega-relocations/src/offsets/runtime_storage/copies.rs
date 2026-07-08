@@ -225,6 +225,16 @@ pub(crate) fn runtime_storage_copy_from_runtime_machine_double_indexed_target_ba
     )
 }
 
+/// Target-region relocation start (pre-`+2`) inside the frame-base
+/// double-indexed read.
+pub(crate) fn runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset(
+    architecture: Architecture,
+) -> usize {
+    omega_instruction_selection::runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset(
+        architecture,
+    )
+}
+
 pub(crate) fn runtime_storage_copy_from_runtime_pointee_to_runtime_frame_target_address_offset(
     architecture: Architecture,
 ) -> usize {

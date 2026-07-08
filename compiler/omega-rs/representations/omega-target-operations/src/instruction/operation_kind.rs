@@ -675,6 +675,24 @@ pub enum TargetOperationKind {
         target_offset: usize,
         byte_count: usize,
     },
+    /// The BOTH-RUNTIME nested read of a FRAME-resident inline 2D array
+    /// (`g[i][j]` where `g` is a by-value param or local `[[T; C]; R]`, no
+    /// descriptor): frame_base + base + outer*outer_stride +
+    /// inner*inner_stride + field. Everything -- array and both indices --
+    /// lives off the ONE frame base, so a single relocation serves the whole
+    /// address computation; the frame sibling of
+    /// `CopyRuntimeMachineDoubleIndexedToRuntimeStorage`.
+    CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage {
+        base_byte_offset: usize,
+        outer_index_offset: usize,
+        outer_stride: usize,
+        inner_index_offset: usize,
+        inner_stride: usize,
+        field_byte_offset: usize,
+        target_region: RuntimeStorageRegion,
+        target_offset: usize,
+        byte_count: usize,
+    },
     /// Write twin of `CopyRuntimeMachineDoubleIndexedToRuntimeStorage`:
     /// `grid[i][j] = self.v` -- a both-runtime nested write sourced from a
     /// runtime storage place. The target is machine-owned by definition (the

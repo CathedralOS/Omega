@@ -160,6 +160,9 @@ pub(super) fn selected_runtime_storage_copy_kind(
         SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage { .. } => {
             Some(MachineInstructionKind::RuntimeStorageCopyFromRuntimeMachineDoubleIndexed)
         }
+        SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage { .. } => {
+            Some(MachineInstructionKind::RuntimeStorageCopyFromRuntimeFrameBaseDoubleIndexed)
+        }
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineDoubleIndexed { .. } => {
             Some(MachineInstructionKind::RuntimeStorageCopyToRuntimeMachineDoubleIndexed)
         }
