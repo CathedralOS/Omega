@@ -1,0 +1,56 @@
+// 3x3 MATRIX MULTIPLY over machine-owned 2D arrays -- the double-indexed
+// access family end to end: both-runtime reads (`a[i][k]`, `b[k][j]`), a
+// both-runtime write (`c[i][j] = acc`), and self-transition loops (Omega has
+// NO recursion; `-> dot(..)` is a jump with re-bound arguments). The indices
+// travel as RANGE-TYPED STATE PARAMS (`i: usize [0..=2]`) -- the declared
+// range discharges every index bound, and each increment is proven in range
+// by its dominating back-edge guard (`k < 2` proves `k + 1` fits [0..=2]).
+//
+//   A = |1 2 3|   B = |9 8 7|   C = A*B = | 30  24  18|
+//       |4 5 6|       |6 5 4|             | 84  69  54|
+//       |7 8 9|       |3 2 1|             |138 114  90|
+//
+// exit = (C[0][0] + C[1][1] + C[2][2]) % 256 = (30 + 69 + 90) % 256 = 189
+//
+// Expected exit: 189
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Main {
+    console: Console;
+    a: [[i32 in Wrapping; 3]; 3];
+    b: [[i32 in Wrapping; 3]; 3];
+    c: [[i32 in Wrapping; 3]; 3];
+}
+machine Main::main(&mut self) {
+    self.a = [[1, 2, 3], [4, 5, 6], [7, 8, 9]];
+    self.b = [[9, 8, 7], [6, 5, 4], [3, 2, 1]];
+    transition { _ -> col(0, 0) }
+    state col(&mut self, i: usize [0..=2], j: usize [0..=2]) {
+        transition { _ -> dot(i, j, 0, 0) }
+    }
+    state dot(&mut self, i: usize [0..=2], j: usize [0..=2], k: usize [0..=2], acc: i32 in Wrapping) {
+        transition k < 2 {
+            true -> dot(i, j, k + 1, acc + self.a[i][k] * self.b[k][j])
+            false -> store(i, j, acc + self.a[i][k] * self.b[k][j])
+        }
+    }
+    state store(&mut self, i: usize [0..=2], j: usize [0..=2], acc: i32 in Wrapping) {
+        self.c[i][j] = acc;
+        transition j < 2 {
+            true -> col(i, j + 1)
+            false -> row_step(i)
+        }
+    }
+    state row_step(&mut self, i: usize [0..=2]) {
+        transition i < 2 {
+            true -> col(i + 1, 0)
+            false -> checksum()
+        }
+    }
+    state checksum(&mut self) {
+        let total: i32 in Wrapping = self.c[0][0] + self.c[1][1] + self.c[2][2];
+        let code: i32 in Wrapping = total % 256;
+        self.console.exit_process(code);
+    }
+}

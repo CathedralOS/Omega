@@ -491,7 +491,15 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >   except: direct RMW (`grid[i][j] = grid[i][j]+1` -- binary value into a
 >   double-indexed target = LOUD error; let-temp idiom works), 3+ runtime
 >   levels, local/param 2D arrays, aarch64 (encoder rejects cleanly). All
->   loud. Array-of-structs as a binary
+>   loud. TRANSITION-ARG operand hole CLOSED same day (found by the NEW
+>   matrix_multiply sample, native 0 vs interp 189): indexed reads as binary
+>   operands inside transition ARGS silently read 0 at EVERY index arity
+>   (pre-existing). Fix = arg/value-target operand hoist in
+>   lower_transition_target_node + the RUN-SPLICE (a later arm's hoisted lets
+>   go BEFORE the dispatch run's first transition -- arm adjacency is
+>   load-bearing for exhaustiveness AND dispatch grouping). Canary
+>   runtime_indexed_operand_transition_arg_exit + the sample's documented
+>   exit. Array-of-structs as a binary
 >   operand: CLOSED (verified 2026-07-07 -- the Member-over-indexed operand HOIST
 >   + machine-indexed copy closed the whole family without a dedicated operand
 >   kind: `cells[i].x + 5`

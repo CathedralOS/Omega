@@ -1918,6 +1918,41 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Indexed reads as binary operands inside TRANSITION ARGUMENTS (single and
+// double index, Always and guarded arms -- the run-splice face).
+#[test]
+fn runtime_indexed_operand_transition_arg_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_indexed_operand_transition_arg_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-indexed-arg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("indexed-operand transition-arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("indexed-operand transition-arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected indexed-operand transition args (arr[i]+5, grid[i][j]+.., guarded arms) to deliver computed values and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // The NON-boundary flavor of task #37's guard face: a shared &Struct param
 // guard reads the right field through the alias slot.
 #[test]

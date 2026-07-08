@@ -185,34 +185,75 @@ fn lower_state_statements(
     syntax_trees: &SyntaxTrees,
     statements: HandleSpan<syntax::statement::StatementHandle>,
 ) -> Result<HandleSpan<Statement>, Diagnostic> {
-    let mut span = HandleSpan::empty();
+    let mut pending: Vec<Statement> = Vec::new();
+    let mut run_start: Option<usize> = None;
 
     for statement in syntax_trees.items.statements(statements) {
-        lower_statement_into_span(lowerer, syntax_trees, *statement, &mut span)?;
+        lower_statement_into_pending(
+            lowerer,
+            syntax_trees,
+            *statement,
+            &mut pending,
+            &mut run_start,
+        )?;
     }
 
+    let mut span = HandleSpan::empty();
+    for lowered in pending {
+        lowerer
+            .symbol_resolved_trees
+            .tables
+            .declarations
+            .state_statements
+            .append_to_span(&mut span, lowered);
+    }
     Ok(span)
 }
 
-fn lower_statement_into_span(
+fn lower_statement_into_pending(
     lowerer: &mut Lowerer,
     syntax_trees: &SyntaxTrees,
     statement: syntax::statement::StatementHandle,
-    span: &mut HandleSpan<Statement>,
+    pending: &mut Vec<Statement>,
+    run_start: &mut Option<usize>,
 ) -> Result<(), Diagnostic> {
     // A single syntax statement can lower to MULTIPLE resolved statements: an
     // assignment or local whose value reads a runtime-indexed element in
     // operand position hoists synthetic `let __hoist_N = arr[i];` temps that
     // must precede the rewritten statement in source order (later passes seed
     // and bind their symbols by statement order).
-    let lowered = lower_statement_handle(lowerer, syntax_trees, statement)?;
-    for lowered in lowered {
-        lowerer
-            .symbol_resolved_trees
-            .tables
-            .declarations
-            .state_statements
-            .append_to_span(span, lowered);
+    //
+    // DISPATCH-RUN SPLICE: a multi-arm transition block desugars into
+    // CONSECUTIVE per-arm `Transition` statements, and both the
+    // exhaustiveness pairing and the state-graph dispatch grouping key on
+    // maximal runs of consecutive transitions. A LATER arm whose hoisted
+    // `let`s landed between two arm transitions would SPLIT the run
+    // (un-pairing `true`/`false` arms into a phantom fall-through), so the
+    // lets of every arm after the first are spliced BEFORE the run's first
+    // transition instead. The hoisted reads are pure loads; evaluating them
+    // ahead of the whole dispatch has no observable effect.
+    let mut lowered = lower_statement_handle(lowerer, syntax_trees, statement)?;
+    let ends_in_transition = matches!(lowered.last(), Some(Statement::Transition(_)));
+    if ends_in_transition {
+        let lets_count = lowered.len() - 1;
+        match *run_start {
+            Some(start) if lets_count > 0 => {
+                let transition = lowered.pop().expect("transition chunk is non-empty");
+                for (offset, hoisted) in lowered.into_iter().enumerate() {
+                    pending.insert(start + offset, hoisted);
+                }
+                pending.push(transition);
+            }
+            _ => {
+                if run_start.is_none() {
+                    *run_start = Some(pending.len() + lets_count);
+                }
+                pending.extend(lowered);
+            }
+        }
+    } else {
+        pending.extend(lowered);
+        *run_start = None;
     }
 
     let syntax::statement::StatementNode::Relax(relax) =
@@ -222,7 +263,7 @@ fn lower_statement_into_span(
     };
 
     for nested in syntax_trees.items.statements(relax.statements) {
-        lower_statement_into_span(lowerer, syntax_trees, *nested, span)?;
+        lower_statement_into_pending(lowerer, syntax_trees, *nested, pending, run_start)?;
     }
 
     Ok(())
