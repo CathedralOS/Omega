@@ -1,0 +1,55 @@
+// Container-method surface matrix (Phase 2 slice 1 hardening, 2026-07-08):
+// T-typed SETTER (&mut self statement calls, called twice -- cross-call
+// state), getter, and a NON-GENERIC method (touch_count, no <T> of its own)
+// on a container with a parameter-FREE Constrained field (touched: i32 in
+// Wrapping). Two fixes pinned: type_reference_mentions_parameter recurses
+// Constrained/FixedArray/Slice/Reference shells precisely (a parameter-free
+// `in Wrapping` field used to refuse the whole container), and the layout
+// builder skips machines attached to generic TEMPLATE data even when they
+// declare no type params of their own.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Cell<T> {
+    value: T;
+    touched: i32 in Wrapping;
+}
+machine Cell::set<T>(&mut self, v: T) {
+    self.value = v;
+    self.touched = self.touched + 1;
+}
+machine Cell::get<T>(&self) -> T {
+    transition { _ -> (self.value) }
+}
+machine Cell::touch_count(&self) -> i32 in Wrapping {
+    transition { _ -> (self.touched) }
+}
+data Main {
+    console: Console;
+    a: Cell<i32>;
+    b: Cell<bool>;
+}
+machine Main::main(&mut self) {
+    self.a.set(41);
+    self.a.set(42);
+    self.b.set(true);
+    let n: i32 = self.a.get();
+    transition n == 42 {
+        true -> check_touches()
+        false -> no()
+    }
+    state check_touches(&mut self) {
+        let t: i32 in Wrapping = self.a.touch_count();
+        transition t == 2 {
+            true -> check_bool()
+            false -> no()
+        }
+    }
+    state check_bool(&mut self) {
+        let f: bool = self.b.get();
+        transition f {
+            true -> yes()
+            false -> no()
+        }
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

@@ -37,7 +37,18 @@ pub fn build_layout_plan(
         // monomorphization clears the parameter span when it substitutes
         // in place, so anything still carrying parameters here is
         // template-only (its value calls stay behind the validation fence).
+        // The same holds for a machine ATTACHED to generic template data
+        // (`Cell::touch_count(&self)` -- no own params, but `self` is the
+        // template `Cell<T>`): its clones attach to the concrete instances.
         if !program.machine_type_parameters(machine).is_empty() {
+            continue;
+        }
+        if machine.attached_data.as_ref().is_some_and(|attached| {
+            program.data_definitions().iter().any(|definition| {
+                definition.name.as_str() == attached.as_str()
+                    && !definition.type_parameters.is_empty()
+            })
+        }) {
             continue;
         }
         builder.layout_machine(machine.symbol)?;

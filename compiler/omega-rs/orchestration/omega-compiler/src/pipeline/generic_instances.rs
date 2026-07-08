@@ -605,9 +605,24 @@ fn type_reference_mentions_parameter(
             .any(|&argument| {
                 type_reference_mentions_parameter(syntax, argument, substitution)
             }),
-        // Any other node shape (arrays, references, ...): be conservative --
-        // treat it as possibly parameter-bearing so Phase 1 rejects rather than
-        // shares a wrong type. Phase 3 handles these precisely.
+        // The common composite shells recurse precisely, so a parameter-FREE
+        // field like `touched: i32 in Wrapping` (Constrained) or
+        // `tags: [u8; 4]` shares unchanged instead of refusing the whole
+        // container (constraints carry domain names, not type references).
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            type_reference_mentions_parameter(syntax, *base_type, substitution)
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            type_reference_mentions_parameter(syntax, *element_type, substitution)
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            type_reference_mentions_parameter(syntax, *element_type, substitution)
+        }
+        TypeReferenceNode::Reference { referee, .. } => {
+            type_reference_mentions_parameter(syntax, *referee, substitution)
+        }
+        // Anything else: conservative -- possibly parameter-bearing, refuse
+        // rather than share a wrong type.
         _ => true,
     }
 }

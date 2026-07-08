@@ -825,6 +825,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_double_indexed_rmw_exit", 1),
     ("collections/runtime_frame_double_indexed_read_exit", 1),
     ("generics/runtime_container_method_instances_exit", 1),
+    ("generics/runtime_container_setter_matrix_exit", 1),
     ("collections/runtime_let_bound_computed_index_exit", 1),
     ("collections/runtime_computed_index_direct_exit", 1),
     ("collections/runtime_guarded_computed_index_operand_exit", 30),
