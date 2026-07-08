@@ -2635,7 +2635,10 @@ impl<'program> Evaluator<'program> {
                 // success (POSIX), so it is only meaningful right after a -1.
                 i64::from(self.virtual_errno)
             }
-            "create_dir" => {
+            // The trusted plain-name variant shares create_dir's semantics
+            // (the arg bytes ARE the path -- the scratch subslice excludes
+            // the native NUL, so both engines see identical bytes).
+            "create_dir" | "create_dir_name" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 // -1 (EEXIST) if the dir already exists.
                 if self.virtual_dirs.insert(path) {

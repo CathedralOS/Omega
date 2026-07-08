@@ -76,10 +76,24 @@ storage operand' gap) BEFORE emission planning. On a real Mac -- where the
 pipeline reaches emission planning -- the fence WILL fire on mkall_step's
 host-call arm, and per the doctrine that is CORRECT: the arm effects run
 per-arm today, invisibly, because redundant best-effort mkdirs are
-EEXIST-harmless. So the macOS wrapper needs the same entry-effect mkall
-rework as the runtime-path item -- the two converge into one restructure
-(requires-clause-bounded entry-recursion copy walk + entry-effect
-discipline). Flag for the macOS confirmation session. First
+EEXIST-harmless. LANDED 2026-07-07: the mkall restructure is IN
+(entry-recursion copy walk `mkall_copy` + statement-position byte writer
+`mkall_put` with per-state guard chains + `mkall_issue` -- effects in
+entries/own-dispatch, pre-fixing the macOS fence collision; `requires` was
+abandoned after probing: the contract prover consumes neither cross-state
+guard facts nor +1 arithmetic, only same-shape threaded facts). The scratch
+prefix reaches the seam through the NEW trusted plain-name variant
+`create_dir_name` (D-at trust class -- the prefix is no_nul by construction;
+same mkdir row on both targets; interp arm shared with create_dir). Suite
+690/0, interp fs coverage green (semantic equivalence oracle'd).
+⚠️ DIAGNOSIS CORRECTED: windows deep create_dir_all is STILL a clean error,
+but the failing operand is the RESULT, not the path -- probed
+`MKD: result=false path=true second=true` on BOTH mkdir sites:
+`first_scalar_argument_operand` cannot resolve the `let rc` result place in
+these deep sibling machines (pre-existing; the original wrapper hit the
+same). Next windows-seam item = that result-place resolution.
+Flag for the macOS confirmation session: mkall behavior now matches the
+fence discipline. First
 wave detail — `filesystem/windows_wrapper_results_exit` runs write_all→Ok,
 create_dir×2→AlreadyExists, open→Ok{File} destructured and USED, close, remove→Ok,
 remove missing→NotFound. Discipline established: host results captured into

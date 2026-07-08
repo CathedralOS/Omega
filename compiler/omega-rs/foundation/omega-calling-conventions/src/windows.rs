@@ -364,6 +364,15 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             [host_operation("Filesystem", "mkdir")],
             PlatformCallData::None,
         );
+        // The TRUSTED plain-name variant (D-at trust class; create_dir_all's
+        // NUL-terminated prefix scratch) -- same native row.
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "create_dir_name",
+            [host_operation("Filesystem", "mkdir")],
+            PlatformCallData::None,
+        );
         insert_platform_lowering(
             plan,
             "FilesystemHost",

@@ -38,6 +38,12 @@ boundary trait FilesystemHost {
     machine seek(fd: i32, offset: i64, whence: i32) -> i64;
     machine create_dir(path: &[u8] in Path, mode: i32) -> i32;
     machine remove_dir(path: &[u8] in Path) -> i32;
+    // Create a directory from a TRUSTED plain `&[u8]` name -- the D-at trust
+    // class (see open_at below): `create_dir_all`'s prefix scratch is no_nul
+    // BY CONSTRUCTION (bytes copied from a `&[u8] in Path` source, the NUL
+    // excluded by the subslice), so it skips the Path domain re-proof exactly
+    // as directory-listing names do. Same native row as create_dir.
+    machine create_dir_name(name: &[u8], mode: i32) -> i32;
     // Open `name` RELATIVE to the open directory `dirfd` (Rust's `openat`, the
     // `*at` family used by `remove_dir_all` etc.). The name is a TRUSTED relative
     // component -- a directory-listing entry is `no_nul` by construction -- so it
