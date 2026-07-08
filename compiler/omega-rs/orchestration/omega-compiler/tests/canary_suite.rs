@@ -20378,6 +20378,55 @@ fn windows_fs_wrapper_results_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A host-call RESULT bound to a LOCAL in a DISPATCHING state gets a frame slot
+// (the dispatch-body storage builder gained a HostCall arm). Opening an absent
+// path returns -1 on both the native seam and the virtual fs, so `fd < 0` is
+// deterministic; a missed result slot would read ZII and take the wrong arm.
+#[cfg(windows)]
+#[test]
+fn runtime_local_host_result_dispatch_exit_canary_runs() {
+    let canary = pass_canary("filesystem/runtime_local_host_result_dispatch_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("local-host-result canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (open of absent path -> fd < 0), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-local-host-result-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("local-host-result canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("local-host-result canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the let-local host result to reach fd < 0 (exit 70), got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // The FIRST windows_x64-native fs raw-seam roundtrip (msvcrt bindings through
 // the general Win64 import call): create/write/close/open/read/close/verify/
 // remove, then an ENOENT + errno probe (the deref-result `_errno()` path).
@@ -24620,6 +24669,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_call_transition_args_straight_line_exit",
     "filesystem/windows_raw_breadth_exit",
     "filesystem/windows_wrapper_breadth_exit",
+    "filesystem/runtime_local_host_result_dispatch_exit",
     "filesystem/windows_raw_roundtrip_exit",
     "filesystem/windows_wrapper_results_exit",
     "collections/runtime_palindrome_two_pointer_exit",
