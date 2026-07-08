@@ -1833,6 +1833,95 @@ pub(super) fn resolve_runtime_frame_base_indexed_target_in_table(
     })
 }
 
+/// The BOTH-RUNTIME nested element of a FRAME-resident inline 2D array
+/// (`g[i][j]`, `g` a by-value param or local `[[T; C]; R]`): outer = the ROW
+/// index (stride = row byte size), inner = the ELEMENT index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) struct RuntimeFrameBaseDoubleIndexedTarget {
+    pub(super) base_byte_offset: usize,
+    pub(super) outer_index_offset: usize,
+    pub(super) outer_stride: usize,
+    pub(super) inner_index_offset: usize,
+    pub(super) inner_stride: usize,
+    pub(super) field_byte_offset: usize,
+    pub(super) byte_count: usize,
+}
+
+/// Resolve `g[i][j]` -- a frame-resident 2D fixed array read with BOTH
+/// indices runtime. `None` for every other shape: single runtime level (the
+/// frame single-index resolver), member links anywhere in the chain (not
+/// wired for the frame flavor yet), non-frame-resident indices (the encoder
+/// serves the whole address off the ONE frame base), machine collections
+/// (the machine double resolver).
+pub(super) fn resolve_runtime_frame_base_double_indexed_source_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<RuntimeFrameBaseDoubleIndexedTarget> {
+    let mut outer = expression;
+    while let ExpressionNode::Mutable(next) = expressions.expression(outer) {
+        outer = *next;
+    }
+    let ExpressionNode::Indexed(outer_indexed) = expressions.expression(outer) else {
+        return None;
+    };
+    let mut inner = outer_indexed.collection;
+    while let ExpressionNode::Mutable(next) = expressions.expression(inner) {
+        inner = *next;
+    }
+    let ExpressionNode::Indexed(inner_indexed) = expressions.expression(inner) else {
+        return None;
+    };
+    if indexed_index_is_const(expressions, outer_indexed.index)
+        || indexed_index_is_const(expressions, inner_indexed.index)
+    {
+        return None;
+    }
+    let collection_slot = runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        inner_indexed.collection,
+    )?;
+    let row_type = inline_fixed_array_element_type(&collection_slot.type_descriptor)?;
+    let row_layout = descriptor_layout(input, row_type);
+    let element_type = inline_fixed_array_element_type(row_type)?;
+    let element_layout = descriptor_layout(input, element_type);
+
+    let outer_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        inner_indexed.index,
+    )?;
+    let inner_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        outer_indexed.index,
+    )?;
+    for place in [&outer_place, &inner_place] {
+        if place.region != RuntimeStorageRegion::RuntimeFrame {
+            return None;
+        }
+    }
+
+    Some(RuntimeFrameBaseDoubleIndexedTarget {
+        base_byte_offset: collection_slot.byte_offset,
+        outer_index_offset: outer_place.byte_offset,
+        outer_stride: row_layout.size,
+        inner_index_offset: inner_place.byte_offset,
+        inner_stride: element_layout.size,
+        field_byte_offset: 0,
+        byte_count: element_layout.size,
+    })
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct RuntimeMachineIndexedTarget {
     pub(super) base_byte_offset: usize,
@@ -2191,6 +2280,23 @@ pub(super) fn resolve_runtime_machine_double_indexed_source(
     let mut delegated_expressions = ExpressionTable::default();
     let delegated_expression = delegated_expressions.insert_tree(expression);
     resolve_runtime_machine_double_indexed_source_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
+}
+
+pub(super) fn resolve_runtime_frame_base_double_indexed_source(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expression: &Expression,
+) -> Option<RuntimeFrameBaseDoubleIndexedTarget> {
+    let mut delegated_expressions = ExpressionTable::default();
+    let delegated_expression = delegated_expressions.insert_tree(expression);
+    resolve_runtime_frame_base_double_indexed_source_in_table(
         input,
         dispatch_index,
         source_key,

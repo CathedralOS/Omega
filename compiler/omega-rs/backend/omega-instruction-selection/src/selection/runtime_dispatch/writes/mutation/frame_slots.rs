@@ -6,6 +6,7 @@ use crate::selection::storage_places::{
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_near_slot_in_table,
+    resolve_runtime_frame_base_double_indexed_source_in_table,
     resolve_runtime_machine_double_indexed_source_in_table,
     resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
@@ -439,6 +440,32 @@ pub(in crate::selection) fn select_runtime_frame_slot_value_write_in_table_with_
                 outer_stride: double_source.outer_stride,
                 inner_index_offset: double_source.inner_index_offset,
                 inner_index_region: double_source.inner_index_region,
+                inner_stride: double_source.inner_stride,
+                field_byte_offset: double_source.field_byte_offset,
+                target_region: RuntimeStorageRegion::RuntimeFrame,
+                target_offset: slot.byte_offset,
+                byte_count: slot.byte_size,
+            },
+        );
+    }
+
+    // A BOTH-RUNTIME nested read of a FRAME-resident 2D array (`g[i][j]`)
+    // into a frame slot -- the frame twin of the double-indexed arm above.
+    if let Some(double_source) = resolve_runtime_frame_base_double_indexed_source_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    ) && double_source.byte_count == slot.byte_size
+        && double_source.byte_count > 0
+    {
+        return Some(
+            SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage {
+                base_byte_offset: double_source.base_byte_offset,
+                outer_index_offset: double_source.outer_index_offset,
+                outer_stride: double_source.outer_stride,
+                inner_index_offset: double_source.inner_index_offset,
                 inner_stride: double_source.inner_stride,
                 field_byte_offset: double_source.field_byte_offset,
                 target_region: RuntimeStorageRegion::RuntimeFrame,

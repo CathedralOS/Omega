@@ -7,6 +7,9 @@ use super::super::super::storage_places::{
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_near_slot_in_table,
+    resolve_runtime_frame_base_double_indexed_source,
+    resolve_runtime_frame_base_double_indexed_source_in_table,
+    resolve_runtime_machine_double_indexed_source,
     resolve_runtime_machine_double_indexed_source_in_table,
     resolve_runtime_machine_indexed_target, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target,
@@ -188,19 +191,72 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
         return Some(kind);
     }
 
-    let indexed_source =
-        resolve_runtime_machine_indexed_target(input, dispatch_index, value_source_key, value)?;
-    if target_place.byte_count != indexed_source.byte_count {
-        return None;
+    if let Some(indexed_source) =
+        resolve_runtime_machine_indexed_target(input, dispatch_index, value_source_key, value)
+    {
+        if target_place.byte_count != indexed_source.byte_count {
+            return None;
+        }
+
+        return Some(
+            SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
+                base_byte_offset: indexed_source.base_byte_offset,
+                index_offset: indexed_source.index_offset,
+                index_region: indexed_source.index_region,
+                element_byte_size: indexed_source.element_byte_size,
+                field_byte_offset: indexed_source.field_byte_offset,
+                target_region: target_place.region,
+                target_offset: target_place.byte_offset,
+                byte_count: target_place.byte_count,
+            },
+        );
     }
 
+    // KEEP IN SYNC with `runtime_storage_indexed_source_copy_in_table` (the
+    // parallel-cascade rule): the double-indexed arms, frame flavor first.
+    if let Some(double_source) = resolve_runtime_frame_base_double_indexed_source(
+        input,
+        dispatch_index,
+        value_source_key,
+        value,
+    ) {
+        if target_place.byte_count != double_source.byte_count {
+            return None;
+        }
+        return Some(
+            SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage {
+                base_byte_offset: double_source.base_byte_offset,
+                outer_index_offset: double_source.outer_index_offset,
+                outer_stride: double_source.outer_stride,
+                inner_index_offset: double_source.inner_index_offset,
+                inner_stride: double_source.inner_stride,
+                field_byte_offset: double_source.field_byte_offset,
+                target_region: target_place.region,
+                target_offset: target_place.byte_offset,
+                byte_count: target_place.byte_count,
+            },
+        );
+    }
+
+    let double_source = resolve_runtime_machine_double_indexed_source(
+        input,
+        dispatch_index,
+        value_source_key,
+        value,
+    )?;
+    if target_place.byte_count != double_source.byte_count {
+        return None;
+    }
     Some(
-        SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeStorage {
-            base_byte_offset: indexed_source.base_byte_offset,
-            index_offset: indexed_source.index_offset,
-            index_region: indexed_source.index_region,
-            element_byte_size: indexed_source.element_byte_size,
-            field_byte_offset: indexed_source.field_byte_offset,
+        SelectedInstructionKind::CopyRuntimeMachineDoubleIndexedToRuntimeStorage {
+            base_byte_offset: double_source.base_byte_offset,
+            outer_index_offset: double_source.outer_index_offset,
+            outer_index_region: double_source.outer_index_region,
+            outer_stride: double_source.outer_stride,
+            inner_index_offset: double_source.inner_index_offset,
+            inner_index_region: double_source.inner_index_region,
+            inner_stride: double_source.inner_stride,
+            field_byte_offset: double_source.field_byte_offset,
             target_region: target_place.region,
             target_offset: target_place.byte_offset,
             byte_count: target_place.byte_count,
@@ -538,6 +594,33 @@ pub(in crate::selection::runtime_dispatch) fn runtime_storage_indexed_source_cop
                 index_region: indexed_source.index_region,
                 element_byte_size: indexed_source.element_byte_size,
                 field_byte_offset: indexed_source.field_byte_offset,
+                target_region: target_place.region,
+                target_offset: target_place.byte_offset,
+                byte_count: target_place.byte_count,
+            },
+        );
+    }
+
+    // BOTH-RUNTIME nested read of a FRAME-resident 2D array (`g[i][j]`) into
+    // a runtime-storage target.
+    if let Some(double_source) = resolve_runtime_frame_base_double_indexed_source_in_table(
+        input,
+        dispatch_index,
+        value_source_key,
+        expressions,
+        value,
+    ) {
+        if target_place.byte_count != double_source.byte_count {
+            return None;
+        }
+        return Some(
+            SelectedInstructionKind::CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage {
+                base_byte_offset: double_source.base_byte_offset,
+                outer_index_offset: double_source.outer_index_offset,
+                outer_stride: double_source.outer_stride,
+                inner_index_offset: double_source.inner_index_offset,
+                inner_stride: double_source.inner_stride,
+                field_byte_offset: double_source.field_byte_offset,
                 target_region: target_place.region,
                 target_offset: target_place.byte_offset,
                 byte_count: target_place.byte_count,

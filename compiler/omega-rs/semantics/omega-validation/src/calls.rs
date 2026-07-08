@@ -1124,12 +1124,19 @@ fn double_indexed_machine_read_is_lowerable(
             ExpressionNode::Mutable(next) => place = *next,
             ExpressionNode::Name(path) => {
                 // A multi-member Name path starting at `self` (`self.grid`
-                // resolved as one path) is machine-owned too.
-                return program
-                    .expression_table
-                    .name_path_members(path.members)
+                // resolved as one path) is machine-owned. A BARE single name
+                // (a by-value param or local 2D array, `g[i][j]`) is the
+                // FRAME flavor, lowered since 2026-07-07 by
+                // CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage -- but
+                // only for the DIRECTLY-nested member-free shape, which is
+                // exactly what reaching this arm through the loop implies
+                // for the frame case (member links between the indices stay
+                // fenced by the resolver and report loudly downstream).
+                let members = program.expression_table.name_path_members(path.members);
+                return members
                     .first()
-                    .is_some_and(|name| name.as_str() == "self");
+                    .is_some_and(|name| name.as_str() == "self")
+                    || members.len() == 1;
             }
             _ => return false,
         }

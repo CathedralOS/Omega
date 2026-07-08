@@ -1,0 +1,47 @@
+// FRAME-resident 2D arrays, both-runtime reads
+// (CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage, 2026-07-07): local
+// arrays in entry and PARAM states, and a by-value param array through a
+// value machine -- all let-consumer faces (the _in_table route). Also pins
+// the COLLECTION NO-FOLD: an aggregate-literal binding must not fold into an
+// indexed collection position (simplify_collection_expression -- the folded
+// literal has no place to index; the local keeps its slot). The
+// machine-field-target face (`self.got = g[a][b]`, the TREE route) stays a
+// LOUD blocker: the delegated-table slot lookup does not resolve locals --
+// the filed follow-up.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; got: i32; }
+machine Main::pick(&self, m: [[i32; 3]; 2], i: usize [0..=1], j: usize [0..=2]) -> i32 {
+    transition { _ -> (m[i][j]) }
+}
+machine Main::main(&mut self) {
+    transition { _ -> let_face(1, 2) }
+    state let_face(&mut self, i: usize [0..=1], j: usize [0..=2]) {
+        let g: [[i32; 3]; 2] = [[1, 2, 3], [4, 5, 6]];
+        let picked: i32 = g[i][j];
+        transition picked == 6 {
+            true -> machine_target()
+            false -> no()
+        }
+    }
+    state machine_target(&mut self) {
+        transition { _ -> machine_target_go(0, 1) }
+    }
+    state machine_target_go(&mut self, a: usize [0..=1], b: usize [0..=2]) {
+        let g2: [[i32; 3]; 2] = [[9, 8, 7], [6, 5, 4]];
+        let picked2: i32 = g2[a][b];
+        transition picked2 == 8 {
+            true -> param_face()
+            false -> no()
+        }
+    }
+    state param_face(&mut self) {
+        let m: [[i32; 3]; 2] = [[10, 20, 30], [40, 50, 60]];
+        let pv: i32 = self.pick(m, 1, 0);
+        transition pv == 40 {
+            true -> yes()
+            false -> no()
+        }
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

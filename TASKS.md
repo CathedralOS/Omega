@@ -477,8 +477,19 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >     hoist-temp typing walks interleaved Indexed/Member chains (the
 >     rows[i].data[j] RMW temp was Unit). Canary
 >     runtime_double_indexed_rmw_exit.
->   - 3+ runtime index levels; local/param 2D arrays; aarch64 double-indexed
->     encoders (clean rejections).
+>   - local/param 2D arrays: READS LANDED 2026-07-07 for the let-consumer
+>     faces (CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage + the
+>     COLLECTION NO-FOLD: aggregate-literal bindings must not fold into
+>     indexed collection positions -- simplify_collection_expression; canary
+>     runtime_frame_double_indexed_read_exit). STILL LOUD: the
+>     machine-field-target face (`self.got = g[a][b]`, the TREE route --
+>     runtime_frame_slot_for_expression_in_table does not resolve locals
+>     through a DELEGATED table; instrumented FB2 trace confirmed slot=None
+>     on the tree route while the _in_table route resolves the same local),
+>     writes, member faces. Follow-up: fix the delegated-table slot lookup
+>     (or route the tree flavor through the original table).
+>   - 3+ runtime index levels; aarch64 double-indexed encoders (clean
+>     rejections).
 >   - u64 literals > i64::MAX (i128 refactor; fenced clean).
 >   One-fence-per-fire.
 >
