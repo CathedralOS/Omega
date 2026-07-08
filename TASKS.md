@@ -482,12 +482,17 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >     COLLECTION NO-FOLD: aggregate-literal bindings must not fold into
 >     indexed collection positions -- simplify_collection_expression; canary
 >     runtime_frame_double_indexed_read_exit). STILL LOUD: the
->     machine-field-target face (`self.got = g[a][b]`, the TREE route --
->     runtime_frame_slot_for_expression_in_table does not resolve locals
->     through a DELEGATED table; instrumented FB2 trace confirmed slot=None
->     on the tree route while the _in_table route resolves the same local),
->     writes, member faces. Follow-up: fix the delegated-table slot lookup
->     (or route the tree flavor through the original table).
+>     machine-field-target face (`self.got = g[a][b]`, the TREE route) --
+>     RE-DIAGNOSED (FB3 trace): TWO coupled causes, not the lookup itself.
+>     (1) the aggregate local g has NO FRAME SLOT on this route -- the
+>     collection.rs aggregate carve-out keeps array-literal locals only when
+>     read by a later LET; consumed by an ASSIGNMENT value it elides (extend
+>     the carve-out's use scan with assignment_value_references_symbol).
+>     (2) even with my simplify collection no-fold, the SELECTION-layer alias
+>     substitution (the third fold layer per the const-fold memo) re-inlines
+>     the ArrayLiteral into the collection position on the mutation route --
+>     mirror the no-fold there (aliases/alias_expressions in mutation.rs).
+>     Fix both together; writes + member faces also open.
 >   - 3+ runtime index levels; aarch64 double-indexed encoders (clean
 >     rejections).
 >   - u64 literals > i64::MAX (i128 refactor; fenced clean).
