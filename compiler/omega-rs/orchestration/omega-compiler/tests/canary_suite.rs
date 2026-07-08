@@ -1898,6 +1898,41 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Member-between (`rows[i].data[j]`) + member-suffix (`boards[i][j].x`)
+// double-indexed faces, read AND write, both-runtime indices.
+#[test]
+fn runtime_double_indexed_member_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_double_indexed_member_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-double-indexed-member-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("double-indexed member canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("double-indexed member canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected rows[i].data[j] and boards[i][j].field faces (both indices runtime) to hit the right elements and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Both-runtime nested read as a BINARY OPERAND (`grid[i][j] + 5`).
 #[test]
 fn runtime_double_indexed_operand_exit_canary_runs() {
@@ -24756,8 +24791,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/field_default_narrowing_rejected",
     "text/bounded_carrier_construction_over_capacity_rejected",
     "collections/triple_runtime_indexed_read_rejected",
-    "collections/nested_runtime_indexed_struct_field_read_rejected",
-    "collections/nested_runtime_indexed_struct_field_write_rejected",
     "collections/declared_range_index_too_wide",
     "collections/wrapping_range_index_unproven",
     "collections/deep_nested_runtime_indexed_write_rejected",

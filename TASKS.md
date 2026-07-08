@@ -476,11 +476,17 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >   operand HOIST temp now types through nested-Indexed collections
 >   (element-of-element descent in infer_hoist_temp_type), so `grid[i][j]+5`
 >   operands work too. Canaries runtime_double_indexed_{write,operand}_exit
->   (write fail canary graduated). The nested-indexing matrix is now CLOSED
->   on x86_64 except: direct RMW (`grid[i][j] = grid[i][j]+1` -- binary value
->   into a double-indexed target = LOUD error; let-temp idiom works),
->   `rows[i].data[j]` (member between indices), 3+ runtime levels, local
->   /param 2D arrays, aarch64 (encoder rejects cleanly). All loud. Array-of-structs as a binary
+>   (write fail canary graduated). MEMBER faces LANDED same day: a member
+>   chain BETWEEN the indices (`rows[i].data[j]`) rides field_byte_offset
+>   (address arithmetic commutes -- resolver descends the row type through
+>   the chain), and a member SUFFIX above the element (`boards[i][j].x`)
+>   folds in via the boundary suffix walk; read AND write (shared resolver);
+>   canary runtime_double_indexed_member_exit (both struct-field fail
+>   canaries graduated). The nested-indexing matrix is now CLOSED on x86_64
+>   except: direct RMW (`grid[i][j] = grid[i][j]+1` -- binary value into a
+>   double-indexed target = LOUD error; let-temp idiom works), 3+ runtime
+>   levels, local/param 2D arrays, aarch64 (encoder rejects cleanly). All
+>   loud. Array-of-structs as a binary
 >   operand: CLOSED (verified 2026-07-07 -- the Member-over-indexed operand HOIST
 >   + machine-indexed copy closed the whole family without a dedicated operand
 >   kind: `cells[i].x + 5`

@@ -1,0 +1,86 @@
+// MEMBER-BETWEEN + MEMBER-SUFFIX double-indexed faces, both-runtime indices
+// (2026-07-07): a member chain BETWEEN the indices (`rows[i].data[j]`) is a
+// fixed offset -- address arithmetic commutes, so it rides the op's
+// field_byte_offset (resolver descends the row type via the between chain);
+// a member SUFFIX above the element (`boards[i][j].x`) folds in via the
+// boundary suffix walk. Replaces the two struct-field fail canaries:
+// m1: read rows[i].data[j]          m2: write rows[i].data[j] = v
+// m3: suffix read boards[i][j].x    m4: suffix write boards[i][j].y = v
+// Neighbor/other-row validation throughout.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Row {
+    tag: i32;
+    data: [i32; 2];
+}
+data Cell {
+    x: i32;
+    y: i32;
+}
+data Main {
+    console: Console;
+    rows: [Row; 3];
+    boards: [[Cell; 2]; 2];
+    i: usize [0..=2];
+    j: usize [0..=1];
+    got: i32;
+}
+machine Main::main(&mut self) {
+    self.rows[2].tag = 7;
+    self.rows[2].data[0] = 50;
+    self.rows[2].data[1] = 60;
+    self.rows[0].data[1] = 11;
+    self.i = 2;
+    self.j = 1;
+    self.got = self.rows[self.i].data[self.j];
+    transition self.got == 60 {
+        true -> m2()
+        false -> no()
+    }
+    state m2(&mut self) {
+        self.rows[self.i].data[self.j] = 77;
+        self.got = self.rows[2].data[1];
+        transition self.got == 77 {
+            true -> m2b()
+            false -> no()
+        }
+    }
+    state m2b(&mut self) {
+        self.got = self.rows[2].data[0] + self.rows[2].tag + self.rows[0].data[1];
+        transition self.got == 68 {
+            true -> m3()
+            false -> no()
+        }
+    }
+    state m3(&mut self) {
+        self.boards[1][0] = Cell { x: 37, y: 90 };
+        self.boards[0][0] = Cell { x: 5, y: 6 };
+        let bi: usize [0..=1] = 1;
+        let bj: usize [0..=1] = 0;
+        self.got = self.boards[bi][bj].x;
+        transition self.got == 37 {
+            true -> m4()
+            false -> no()
+        }
+    }
+    state m4(&mut self) {
+        let bi: usize [0..=1] = 1;
+        let bj: usize [0..=1] = 0;
+        self.boards[bi][bj].y = 91;
+        self.got = self.boards[1][0].y;
+        transition self.got == 91 {
+            true -> m4b()
+            false -> no()
+        }
+    }
+    state m4b(&mut self) {
+        self.got = self.boards[1][0].x + self.boards[0][0].y;
+        transition self.got == 43 {
+            true -> yes()
+            false -> no()
+        }
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}
