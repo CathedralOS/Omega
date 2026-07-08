@@ -1898,6 +1898,41 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The NON-boundary flavor of task #37's guard face: a shared &Struct param
+// guard reads the right field through the alias slot.
+#[test]
+fn runtime_shared_ref_param_guard_exit_canary_runs() {
+    let canary = pass_canary("references/runtime_shared_ref_param_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-shared-ref-guard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("shared ref-param guard canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("shared ref-param guard canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected `transition r.c == 9` (r: &Pt, non-boundary) to read c and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Member-between (`rows[i].data[j]`) + member-suffix (`boards[i][j].x`)
 // double-indexed faces, read AND write, both-runtime indices.
 #[test]
