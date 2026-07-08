@@ -98,6 +98,20 @@ impl ExpressionTable {
         self.identifier_path_members.span_or_empty(span)
     }
 
+    /// Iterate every expression with its handle (the desugar passes' walk).
+    pub fn iter_expressions(
+        &self,
+    ) -> impl Iterator<Item = (ExpressionHandle, &ExpressionNode)> {
+        self.expressions.iter()
+    }
+
+    /// Replace a node in place. Reserved for the pre-resolution DESUGAR
+    /// passes (provides-value substitution) -- downstream stages treat the
+    /// table as immutable.
+    pub fn replace_expression(&mut self, handle: ExpressionHandle, node: ExpressionNode) {
+        *self.expressions.get_mut(handle) = node;
+    }
+
     pub fn expression_count(&self) -> usize {
         self.expressions.len()
     }

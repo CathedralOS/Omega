@@ -135,6 +135,14 @@ impl Compiler {
         )?;
         let plan_laid_records =
             crate::pipeline::plan_laid::desugar_plan_laid_value_types(&mut syntax.syntax_trees)?;
+        // PORTABLE VALUES (2026-07-07 settle, rung V2): the SELECTED target's
+        // provides VALUE rows substitute into `Trait::NAME` paths here, so no
+        // later stage -- including the interpreter -- grows a per-target
+        // concept; each use IS the target's number (const-v0 discipline).
+        crate::pipeline::provides_values::substitute_provides_values(
+            &mut syntax.syntax_trees,
+            self.options.target_name.as_deref(),
+        )?;
         remove_stale_phase_diagrams(&self.options)?;
         write_pipeline_index(&self.options)?;
         write_syntax_snapshot(&self.options, &syntax)?;

@@ -6,6 +6,7 @@ mod checked_entry;
 mod const_lengths;
 mod layout_plans;
 mod plan_laid;
+mod provides_values;
 mod wire_plans;
 pub mod compile_options;
 pub mod compile_report;
