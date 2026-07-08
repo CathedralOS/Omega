@@ -70,6 +70,9 @@ pub(super) fn selected_binary_write_kind(
             *byte_size,
             *operator,
         )),
+        SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedBinary { .. } => {
+            Some(MachineInstructionKind::RuntimeMachineDoubleIndexedBinaryWrite)
+        }
         SelectedInstructionKind::WriteRuntimeMachineIndexedBinary {
             base_byte_offset,
             index_region,

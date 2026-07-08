@@ -2089,6 +2089,34 @@ fn select_runtime_binary_mutation_write(
         });
     }
 
+    // BOTH-RUNTIME nested target (`grid[i][j] = a OP b`, the direct-RMW face):
+    // the double-indexed binary write. The assignment-value hoist has already
+    // slotted any indexed READ on the RHS, so left/right resolve through the
+    // ordinary operand machinery.
+    if let Some(double_target) = resolve_runtime_machine_double_indexed_source(
+        input,
+        dispatch_index,
+        target_source_key,
+        resolved_target,
+    ) {
+        return Some(
+            SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedBinary {
+                base_byte_offset: double_target.base_byte_offset,
+                outer_index_offset: double_target.outer_index_offset,
+                outer_index_region: double_target.outer_index_region,
+                outer_stride: double_target.outer_stride,
+                inner_index_offset: double_target.inner_index_offset,
+                inner_index_region: double_target.inner_index_region,
+                inner_stride: double_target.inner_stride,
+                field_byte_offset: double_target.field_byte_offset,
+                byte_size: double_target.byte_count,
+                left,
+                operator,
+                right,
+            },
+        );
+    }
+
     if let Some(pointer_target) = resolve_runtime_pointee_slot_offset(
         input,
         dispatch_index,

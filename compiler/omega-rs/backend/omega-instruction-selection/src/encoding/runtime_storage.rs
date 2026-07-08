@@ -377,6 +377,45 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
 }
 
 #[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_double_indexed_binary_write(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    match architecture {
+        Architecture::Aarch64 => Err(Diagnostic::error(
+            "aarch64 cannot encode a both-runtime nested binary write \
+             (`grid[i][j] = a OP b`) yet; bind the value to a let first",
+        )),
+        Architecture::X86_64 => x86_64::encode_runtime_machine_double_indexed_binary_write(
+            runtime_value_operands,
+            base_byte_offset,
+            outer_index_offset,
+            outer_index_region,
+            outer_stride,
+            inner_index_offset,
+            inner_index_region,
+            inner_stride,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
+    }
+}
+
 pub fn encode_runtime_machine_indexed_binary_write(
     architecture: Architecture,
     runtime_value_operands: &impl RuntimeValueOperandSource,

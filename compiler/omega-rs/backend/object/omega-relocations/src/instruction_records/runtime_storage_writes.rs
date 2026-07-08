@@ -234,6 +234,47 @@ pub(super) fn collect_runtime_storage_write_relocations(
             collect_runtime_value_operand_relocations(context, right_offset, *right);
             true
         }
+        SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedBinary {
+            outer_index_region,
+            inner_index_region,
+            left,
+            right,
+            ..
+        } => {
+            // Machine base at the instruction start; ONE shared frame base at
+            // +10 when either index is frame-resident (the double prologue's
+            // r10 load); then the left/right value operands at the double
+            // prologue's end.
+            context
+                .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
+            if [outer_index_region, inner_index_region].iter().any(|region| {
+                **region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            }) {
+                context.insert_data_address_at_relative_offset(
+                    10,
+                    context.runtime_frame_symbol_handle(),
+                );
+            }
+            let left_offset = context.selected_text_offset
+                + omega_instruction_selection::runtime_machine_double_indexed_binary_left_operand_offset(
+                    context.input.target.architecture,
+                    *outer_index_region,
+                    *inner_index_region,
+                );
+            collect_runtime_value_operand_relocations(context, left_offset, *left);
+            let left_width = omega_instruction_selection::runtime_value_operand_width(
+                context.input.target.architecture,
+                context.input.assigned_target_operations,
+                *left,
+            );
+            let right_offset = left_offset
+                + left_width
+                + omega_instruction_selection::runtime_binary_right_operand_gap(
+                    context.input.target.architecture,
+                );
+            collect_runtime_value_operand_relocations(context, right_offset, *right);
+            true
+        }
         SelectedInstructionKind::WriteRuntimeMachineIndexedBinary {
             base_byte_offset,
             index_offset,

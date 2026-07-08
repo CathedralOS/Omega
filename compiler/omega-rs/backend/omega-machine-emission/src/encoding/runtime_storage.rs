@@ -495,6 +495,41 @@ pub(super) fn encode_runtime_machine_indexed_binary_write(
     )
 }
 
+pub(super) fn encode_runtime_machine_double_indexed_binary_write(
+    input: MachineEmissionContext<'_>,
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    validate_runtime_value_home(input, left)?;
+    validate_runtime_value_home(input, right)?;
+    architecture::encode_runtime_machine_double_indexed_binary_write(
+        input.target.architecture,
+        input.assigned_target_operations,
+        base_byte_offset,
+        outer_index_offset,
+        outer_index_region,
+        outer_stride,
+        inner_index_offset,
+        inner_index_region,
+        inner_stride,
+        field_byte_offset,
+        byte_size,
+        left,
+        operator,
+        right,
+    )
+}
+
 pub(super) fn encode_runtime_machine_string_write(
     input: MachineEmissionContext<'_>,
     byte_offset: usize,

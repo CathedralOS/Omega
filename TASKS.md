@@ -468,20 +468,15 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >   hoisted lets inside a dispatch run must precede the run head -- arm
 >   adjacency is load-bearing). Canaries pin every face; matrix_multiply
 >   sample (exit 189) exercises the family natively. STILL OPEN, all loud:
->   - direct RMW `grid[i][j] = grid[i][j] + 1` -- SCOPED 2026-07-07, one
->     tick: the operands ALREADY resolve (the assignment-value hoist turns
->     the RHS read into a slotted `__hoist` local -- dw2's trace proved it;
->     the failing piece is ONLY the target arm). Land
->     WriteRuntimeMachineDoubleIndexedBinary mirroring
->     WriteRuntimeMachineIndexedBinary (mutation.rs consumer arm after the
->     single-index one at ~2073, passing the SAME left/operator/right
->     handles; encoder mirrors x86_64 lib.rs:6465 -- r14 = target address
->     computed FIRST and held across operand evaluation, which clobbers
->     r15/r10/r11 but never r14; the double prologue loads BOTH indices
->     before biasing r14, exactly like the copy twins' r14-before-bias key;
->     width fn takes runtime_value_operands + left/right like its sibling;
->     reloc record mirrors the single-index binary write's, machine @start +
->     frame r10 @+10 when any frame index). Let-temp idiom works meanwhile.
+>   - direct RMW: LANDED 2026-07-07 (WriteRuntimeMachineDoubleIndexedBinary
+>     per the filed recipe) + TWO bugs it surfaced: (a) STALE-FOLD
+>     invalidation -- the prefix key embedded the runtime index
+>     ("grid[self.i]" never prefixes "grid[1][2]"), so const folds survived
+>     nested runtime writes; nested_place_key now stops BELOW the outermost
+>     runtime level (static_values.rs, both tree/table flavors); (b) the
+>     hoist-temp typing walks interleaved Indexed/Member chains (the
+>     rows[i].data[j] RMW temp was Unit). Canary
+>     runtime_double_indexed_rmw_exit.
 >   - 3+ runtime index levels; local/param 2D arrays; aarch64 double-indexed
 >     encoders (clean rejections).
 >   - u64 literals > i64::MAX (i128 refactor; fenced clean).

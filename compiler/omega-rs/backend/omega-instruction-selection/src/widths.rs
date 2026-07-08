@@ -1852,6 +1852,46 @@ pub fn runtime_machine_double_indexed_integer_write_width(
     }
 }
 
+pub fn runtime_machine_double_indexed_binary_write_width(
+    architecture: Architecture,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: omega_target_operations::StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => x86_64::runtime_machine_double_indexed_binary_write_width(
+            runtime_value_operands,
+            outer_index_region,
+            inner_index_region,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
+    }
+}
+
+pub fn runtime_machine_double_indexed_binary_left_operand_offset(
+    architecture: Architecture,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 0,
+        Architecture::X86_64 => {
+            x86_64::runtime_machine_double_indexed_binary_left_operand_offset(
+                outer_index_region,
+                inner_index_region,
+            )
+        }
+    }
+}
+
 pub fn runtime_storage_copy_to_runtime_pointee_width(
     architecture: Architecture,
     source_offset: usize,

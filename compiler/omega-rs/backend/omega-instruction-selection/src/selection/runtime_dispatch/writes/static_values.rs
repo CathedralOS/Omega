@@ -305,12 +305,60 @@ fn runtime_indexed_write_collection(target: &Expression) -> Option<PlaceKey> {
             if matches!(indexed.index, Expression::Integer(_)) {
                 return None;
             }
-            PlaceKey::from_expression(&indexed.collection)
+            // The collection may not be a plain place (`grid[i][j]` -- its
+            // collection is `grid[i]`; `grid[1][j]` -- `grid[1]`): descend to
+            // the DEEPEST resolvable place prefix, which is what the write
+            // invalidates. Returning None here left the stale fold LIVE -- a
+            // later const read of any element folded to its pre-write value.
+            nested_place_key(&indexed.collection)
         }
         // A field (or deeper) of an indexed element keeps the index in the
         // RECEIVER: `arr[i].field` is `Member(Indexed(arr[i]), field)`. Walk in.
         Expression::Member(member) => runtime_indexed_write_collection(&member.receiver),
         _ => None,
+    }
+}
+
+/// The deepest INVALIDATION-SAFE prefix of a possibly-indexed place chain: the
+/// longest leading run with NO runtime-indexed component. `PlaceKey`
+/// stringifies a runtime index into a synthetic member (`grid[i]` ->
+/// `["self","grid","[self.i]"]`), which never prefixes the CONST keys the
+/// tracker records (`["self","grid","[1]","[2]"]`) -- so a prefix taken at or
+/// above a runtime level silently voids NOTHING. Stop BELOW the outermost
+/// runtime-indexed node instead: `grid[i]` -> `grid` (voids every element);
+/// `grid[1]` -> `grid[1]` (precise); `rows[i].data` -> `rows`.
+fn nested_place_key(expression: &Expression) -> Option<PlaceKey> {
+    match expression {
+        Expression::Mutable(inner) => nested_place_key(inner),
+        Expression::Indexed(indexed) => {
+            if !matches!(indexed.index, Expression::Integer(_))
+                || place_chain_has_runtime_index(&indexed.collection)
+            {
+                return nested_place_key(&indexed.collection);
+            }
+            PlaceKey::from_expression(expression)
+                .or_else(|| nested_place_key(&indexed.collection))
+        }
+        Expression::Member(member) => {
+            if place_chain_has_runtime_index(&member.receiver) {
+                return nested_place_key(&member.receiver);
+            }
+            PlaceKey::from_expression(expression)
+                .or_else(|| nested_place_key(&member.receiver))
+        }
+        _ => PlaceKey::from_expression(expression),
+    }
+}
+
+fn place_chain_has_runtime_index(expression: &Expression) -> bool {
+    match expression {
+        Expression::Mutable(inner) => place_chain_has_runtime_index(inner),
+        Expression::Indexed(indexed) => {
+            !matches!(indexed.index, Expression::Integer(_))
+                || place_chain_has_runtime_index(&indexed.collection)
+        }
+        Expression::Member(member) => place_chain_has_runtime_index(&member.receiver),
+        _ => false,
     }
 }
 
@@ -327,12 +375,64 @@ fn runtime_indexed_write_collection_in_table(
             if matches!(expressions.expression(indexed.index), ExpressionNode::Integer(_)) {
                 return None;
             }
-            PlaceKey::from_expression_handle(expressions, indexed.collection)
+            // See `nested_place_key` -- descend to the deepest resolvable
+            // place prefix so nested collections still void their folds.
+            nested_place_key_in_table(expressions, indexed.collection)
         }
         ExpressionNode::Member(member) => {
             runtime_indexed_write_collection_in_table(expressions, member.receiver)
         }
         _ => None,
+    }
+}
+
+/// Handle-table variant of [`nested_place_key`].
+fn nested_place_key_in_table(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<PlaceKey> {
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(inner) => nested_place_key_in_table(expressions, *inner),
+        ExpressionNode::Indexed(indexed) => {
+            if !matches!(
+                expressions.expression(indexed.index),
+                ExpressionNode::Integer(_)
+            ) || place_chain_has_runtime_index_in_table(expressions, indexed.collection)
+            {
+                return nested_place_key_in_table(expressions, indexed.collection);
+            }
+            PlaceKey::from_expression_handle(expressions, expression)
+                .or_else(|| nested_place_key_in_table(expressions, indexed.collection))
+        }
+        ExpressionNode::Member(member) => {
+            if place_chain_has_runtime_index_in_table(expressions, member.receiver) {
+                return nested_place_key_in_table(expressions, member.receiver);
+            }
+            PlaceKey::from_expression_handle(expressions, expression)
+                .or_else(|| nested_place_key_in_table(expressions, member.receiver))
+        }
+        _ => PlaceKey::from_expression_handle(expressions, expression),
+    }
+}
+
+fn place_chain_has_runtime_index_in_table(
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> bool {
+    match expressions.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            place_chain_has_runtime_index_in_table(expressions, *inner)
+        }
+        ExpressionNode::Indexed(indexed) => {
+            !matches!(
+                expressions.expression(indexed.index),
+                ExpressionNode::Integer(_)
+            ) || place_chain_has_runtime_index_in_table(expressions, indexed.collection)
+        }
+        ExpressionNode::Member(member) => {
+            place_chain_has_runtime_index_in_table(expressions, member.receiver)
+        }
+        _ => false,
     }
 }
 

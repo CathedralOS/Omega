@@ -57,6 +57,7 @@ fn first_runtime_value_handle(kind: &SelectedInstructionKind) -> Option<RuntimeV
         | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { left, .. } => Some(*left),
         SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { left, .. } => Some(*left),
         SelectedInstructionKind::WriteRuntimeMachineIndexedBinary { left, .. } => Some(*left),
+        SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedBinary { left, .. } => Some(*left),
         _ => None,
     }
 }
@@ -71,6 +72,7 @@ fn second_runtime_value_handle(
         | SelectedInstructionKind::WriteRuntimeFrameIndexedBinary { right, .. } => Some(*right),
         SelectedInstructionKind::WriteRuntimeFrameBaseIndexedBinary { right, .. } => Some(*right),
         SelectedInstructionKind::WriteRuntimeMachineIndexedBinary { right, .. } => Some(*right),
+        SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedBinary { right, .. } => Some(*right),
         _ => None,
     }
 }

@@ -212,14 +212,43 @@ pub(super) fn infer_hoist_temp_type(
     let ExpressionNode::Indexed(indexed) = expressions.expression(initial_value) else {
         return Ok(None);
     };
-    // A NESTED indexed read (`grid[i][j]`, the double-indexed hoist temp)
-    // descends one element level per `Indexed` layer: walk the collection
-    // chain to the base place, then take element-of-element depth times.
+    // A NESTED indexed read (`grid[i][j]`, `rows[i].data[j]` -- the
+    // double-indexed hoist temps) descends one ELEMENT level per `Indexed`
+    // layer and one FIELD level per `Member` link. Walk the chain to the base
+    // place collecting the steps (they come out innermost-last, so apply them
+    // in reverse), then re-derive the leaf type from the base.
+    enum NestedStep<'walk> {
+        Element,
+        Field(&'walk resolved::name::DiagnosticName),
+    }
+    let mut steps: Vec<NestedStep<'_>> = vec![NestedStep::Element];
     let mut collection = indexed.collection;
-    let mut depth = 1usize;
-    while let ExpressionNode::Indexed(inner) = expressions.expression(collection) {
-        collection = inner.collection;
-        depth += 1;
+    loop {
+        match expressions.expression(collection) {
+            ExpressionNode::Indexed(inner) => {
+                steps.push(NestedStep::Element);
+                collection = inner.collection;
+            }
+            ExpressionNode::Member(member) => {
+                // The base place itself may be a `self.<field>` member --
+                // stop when the receiver is `self` (collection_type_reference
+                // resolves that shape directly).
+                if matches!(
+                    expressions.expression(member.receiver),
+                    ExpressionNode::Name(path)
+                        if expressions
+                            .name_path_members(path.members)
+                            .first()
+                            .is_some_and(|name| name.as_str() == "self")
+                ) {
+                    break;
+                }
+                steps.push(NestedStep::Field(&member.member));
+                collection = member.receiver;
+            }
+            ExpressionNode::Mutable(inner) => collection = *inner,
+            _ => break,
+        }
     }
 
     let Some(collection_type) = collection_type_reference(lowerer, attached_data, state, collection)
@@ -227,21 +256,40 @@ pub(super) fn infer_hoist_temp_type(
         return Ok(None);
     };
 
-    // The element type, plus the collection-level constraints to re-apply (so an
-    // element read of `[i32; N] in Trapping` is `i32 in Trapping`). For nested
-    // reads the LAST non-empty constraint span wins (the innermost declared
-    // domain characterizes the scalar element).
+    // Re-apply the steps outermost-base-first. Element steps keep the LAST
+    // non-empty collection-level constraint span (the innermost declared
+    // domain characterizes the scalar element); a Field step replaces the
+    // type wholly (the field's declared type carries its own constraints).
     let mut element_type = collection_type;
     let mut constraints = HandleSpan::empty();
-    for _ in 0..depth {
-        let Some((next_element, next_constraints)) =
-            element_type_of(lowerer.source_trees, &element_type)
-        else {
-            return Ok(None);
-        };
-        element_type = next_element;
-        if !next_constraints.is_empty() {
-            constraints = next_constraints;
+    for step in steps.iter().rev() {
+        match step {
+            NestedStep::Element => {
+                let Some((next_element, next_constraints)) =
+                    element_type_of(lowerer.source_trees, &element_type)
+                else {
+                    return Ok(None);
+                };
+                element_type = next_element;
+                if !next_constraints.is_empty() {
+                    constraints = next_constraints;
+                }
+            }
+            NestedStep::Field(field_name) => {
+                let TypeReference::Named { name, .. } = &element_type else {
+                    return Ok(None);
+                };
+                let data_name = name.clone();
+                let Some(field_type) = attached_field_type(
+                    lowerer.source_trees,
+                    &data_name,
+                    field_name.as_str(),
+                ) else {
+                    return Ok(None);
+                };
+                element_type = field_type;
+                constraints = HandleSpan::empty();
+            }
         }
     }
 
