@@ -546,16 +546,18 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >     generic_instances.rs (Phase 1/3's home -- synthesize + substitute +
 >     slug-rewrite; copy_machine/copy_state/copy_type_reference exist in
 >     syntax_trees.rs).
->     SLICE 1 -- CONTAINER METHODS (discovery-free; fixes the silent-0
->     container bullet below): when generic_instances.rs synthesizes a data
->     instance (`Box<i32>`), ALSO clone every machine attached to the generic
->     data (`Box::stored<T>` -> `Box<i32>::stored`, receiver data name
->     rewritten to the synthetic record, T substituted in the copied states
->     via a substitution-aware copy_type_reference). The value call
->     `self.b.stored()` then resolves against the CONCRETE instance machine
->     -- no inference needed (the field's data spelling IS the
->     instantiation). Canary: Box<i32> + Box<bool> coexisting, stored() at
->     both, value-validated (kills the runtime silent-0).
+>     SLICE 1 -- CONTAINER METHODS: LANDED 2026-07-08. The desugar clones
+>     each BODIED attached machine per data instance (snapshot copy_item_from
+>     + type-reference WATERMARK substitution of Named(T); the clone's
+>     full-path NAME + attached_data rewrite to the synthetic record --
+>     machine identity keys on the composed name). Declaration-only container
+>     surfaces (stdlib Vec<T>, empty bodies) stay type-check-only (cloning
+>     them tripped the returns-but-empty check); generic TEMPLATE machines
+>     are skipped by the LAYOUT builder (they have no layout; their calls
+>     stay behind the validation fence). Canary
+>     generics/runtime_container_method_instances_exit (Box<i32> + Box<bool>
+>     coexisting, stored() value-validated both engines -- the runtime
+>     silent-0 is dead).
 >     SLICE 2 -- FREE generic machines at MULTIPLE instantiations
 >     (`Main::id<T>` at i32 AND bool): needs typed-layer DISCOVERY (extend
 >     stage-1's return/param inference to collect per-call-site signatures

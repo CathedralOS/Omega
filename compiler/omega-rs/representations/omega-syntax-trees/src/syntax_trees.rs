@@ -142,6 +142,14 @@ impl SyntaxTrees {
         self.push_root_item(item)
     }
 
+    /// Deep-copy a single item from `other` into this tree's tables (the
+    /// generic-instance desugar clones attached machines from a snapshot of
+    /// the tree being extended). Returns the copied item; the caller pushes
+    /// it as a root item after any post-copy rewrites.
+    pub fn copy_item_from(&mut self, other: &SyntaxTrees, item: &Item) -> Item {
+        self.copy_item(other, item)
+    }
+
     fn copy_item(&mut self, other: &SyntaxTrees, item: &Item) -> Item {
         match item {
             Item::Capability(capability) => {

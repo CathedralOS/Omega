@@ -31,6 +31,15 @@ pub fn build_layout_plan(
     }
 
     for machine in program.machines() {
+        // A generic TEMPLATE machine (unresolved type parameters -- e.g. the
+        // `Box::stored<T>` a container instance was cloned FROM) has no
+        // layout; its concrete clones lay out instead. Stage-1
+        // monomorphization clears the parameter span when it substitutes
+        // in place, so anything still carrying parameters here is
+        // template-only (its value calls stay behind the validation fence).
+        if !program.machine_type_parameters(machine).is_empty() {
+            continue;
+        }
         builder.layout_machine(machine.symbol)?;
     }
 

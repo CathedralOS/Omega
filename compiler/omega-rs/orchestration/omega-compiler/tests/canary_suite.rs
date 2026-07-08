@@ -1918,6 +1918,40 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Container instances: Box<i32> + Box<bool> with per-instance stored().
+#[test]
+fn runtime_container_method_instances_exit_canary_runs() {
+    let canary = pass_canary("generics/runtime_container_method_instances_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-container-methods-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("container method instances canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("container method instances canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected Box<i32>.stored() == 42 and Box<bool>.stored() == true (per-instance method clones) to exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Frame-resident 2D arrays, both-runtime reads (local + param faces).
 #[test]
 fn runtime_frame_double_indexed_read_exit_canary_runs() {
