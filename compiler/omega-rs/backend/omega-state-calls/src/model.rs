@@ -10,6 +10,12 @@ pub struct StateCallPlan {
     pub calls: Arena<StateCall>,
     pub arguments: Arena<StateCallArgument>,
     pub required_states: Arena<StateKey>,
+    /// Receiver member-path segments, root -> leaf spelled names (`["self",
+    /// "p", "second"]` for `self.p.second.stored()`); each call's
+    /// `receiver_path` spans into this shared arena. Statement-position calls
+    /// carry a single-segment path (their control-flow op holds only the leaf
+    /// name). The leaf segment always equals the call's `receiver_name`.
+    pub receiver_path_segments: Arena<Identifier>,
 }
 
 impl StateCallPlan {
@@ -25,6 +31,7 @@ impl StateCallPlan {
             calls: Arena::with_capacity(call_capacity),
             arguments: Arena::with_capacity(argument_capacity),
             required_states: Arena::with_capacity(required_state_capacity),
+            receiver_path_segments: Arena::with_capacity(call_capacity),
         }
     }
 
@@ -186,6 +193,13 @@ pub struct StateCall {
     /// so layout-side consumers (the contained-receiver blocker) match fields
     /// by this name; empty when the call has no named receiver.
     pub receiver_name: Identifier,
+    /// The receiver's FULL spelled member path, root -> leaf, spanning the
+    /// plan's `receiver_path_segments` (`["self", "p", "second"]` for
+    /// `self.p.second.stored()`; the leaf equals `receiver_name`). The
+    /// receiver-place fix resolves the callee's storage from this chain
+    /// instead of the by-type layout walk; empty when the call has no named
+    /// receiver.
+    pub receiver_path: HandleSpan<Identifier>,
     pub target_key: StateKey,
     pub argument_count: usize,
     pub arguments: HandleSpan<StateCallArgument>,
@@ -204,6 +218,7 @@ impl Default for StateCall {
             role: StateCallRole::Statement,
             receiver_symbol: SymbolHandle::invalid(),
             receiver_name: Identifier::default(),
+            receiver_path: HandleSpan::empty(),
             target_key: StateKey::default(),
             argument_count: 0,
             arguments: HandleSpan::empty(),

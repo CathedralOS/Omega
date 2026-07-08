@@ -575,16 +575,39 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >     self-storage offset comes from the TYPE-based machine_storage_offset
 >     walk (layout builder nested walk; receiver_name exists only for the
 >     MISMATCH fence) -- which is ALSO why contained-machine SAME-TYPE
->     aliasing is fenced (two BoxI fields -> the walk finds the FIRST). ONE
->     unified fix serves both: thread a receiver PLACE (ReceiverParts in
->     omega-state-calls collection.rs keeps only the LEAF name/symbol today
->     -> carry the member CHAIN -> resolve to a storage offset at selection,
->     replacing the type walk for named receivers), then retire the
->     contained-receiver blocker and extend receiver_declared_type_name.
->     Do NOT relax the validation check first (un-gating = silent 0).
->     Workaround: a forwarding method on the outer type. A dedicated fire:
->     plan struct + collection + selection callee-self binding + two fences
->     retired + canaries (nested receiver, same-type two-field aliasing).
+>     aliasing is fenced (two BoxI fields -> the walk finds the FIRST).
+>     ARCHITECTURE FINDING 2026-07-08: StateKey = {machine, state,
+>     segment_index} -- NO receiver component; callee states are scheduled
+>     ONCE and shared across all call sites, storage accesses are static
+>     entry-relative offsets resolved when lowering the CALLEE's field
+>     accesses (machine_field_layout_by_symbol_or_name -> the type walk),
+>     not at the call. So the full fix is per-receiver scheduling, staged:
+>     RUNG 1 (LANDED 2026-07-08): the state-call plan carries the receiver's
+>     full member PATH (StateCallPlan.receiver_path_segments arena +
+>     StateCall.receiver_path span, root->leaf spelled names; value calls
+>     walk their receiver expression via CollectedStateCall.raw_receiver,
+>     statement calls fall back to a single-segment path; leaf == the
+>     receiver_name that existing consumers key on). Inert -- nothing
+>     consumes the path yet.
+>     RUNG 2: contained_receiver_blockers computes the receiver's TRUE
+>     offset by walking the path segments through field layouts (stop
+>     skipping nested receivers) -- blocker fires whenever true offset !=
+>     type-walk offset.
+>     RUNG 3: extend validation receiver_declared_type_name to walk member
+>     chains. Result: SINGLE-INSTANCE nested receivers (distinct types at
+>     every level) work via the existing type walk; ambiguous ones are
+>     loudly fenced by rung 2. Rungs 2+3 must land TOGETHER (rung 3 alone
+>     un-gates silent aliasing for nested same-type siblings).
+>     RUNG 4 (the deep fix): per-receiver-place state scheduling (a
+>     receiver discriminator alongside StateKey or a scheduled-state clone
+>     per receiver place, biasing the callee's storage resolution by the
+>     place's offset) -- retires the contained-receiver blocker entirely,
+>     unlocks `a: Counter; b: Counter` and Pair{first/second: BoxI}. Big:
+>     StateKey is pervasive (state-graph/control-flow/schedule/emission/
+>     visualizations). Do NOT relax the validation check before rungs 2+3
+>     (un-gating = silent 0). Workaround: a forwarding method on the outer
+>     type. Canaries when rungs land: nested receiver (distinct types),
+>     nested same-type rejected (rung 2), aliasing pair delivered (rung 4).
 >     (b) a generic TEMPLATE method calling a method on a Generic-typed
 >     field (`Pair::first_stored<T>` calling `self.first.stored()` with
 >     `first: Box<T>`) -- the template's receiver type is a Generic node the

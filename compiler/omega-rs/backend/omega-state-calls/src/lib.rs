@@ -189,6 +189,22 @@ pub fn build_state_call_plan_with_workers(
             call.raw_arguments,
         );
 
+        // The full receiver member path (root -> leaf). Value-position calls
+        // carry their receiver EXPRESSION and walk its chain; statement calls
+        // only know the leaf name, recorded as a single-segment path.
+        let mut receiver_path = omega_core::arena::HandleSpan::empty();
+        if call.raw_receiver.is_valid() {
+            collection::append_receiver_path(
+                &context.control_flow.expressions,
+                call.raw_receiver,
+                &mut plan.receiver_path_segments,
+                &mut receiver_path,
+            );
+        } else if !call.receiver_name.as_str().is_empty() {
+            receiver_path
+                .push_contiguous(plan.receiver_path_segments.insert(call.receiver_name.clone()));
+        }
+
         plan.calls.insert(StateCall {
             source_key: call.source_key,
             statement_index: call.statement_index,
@@ -196,6 +212,7 @@ pub fn build_state_call_plan_with_workers(
             role: call.role,
             receiver_symbol: call.receiver_symbol,
             receiver_name: call.receiver_name.clone(),
+            receiver_path,
             target_key: call.target_key,
             argument_count: arguments.len(),
             arguments,
