@@ -5,7 +5,7 @@ use omega_control_flow::{
     ControlFlowPlan, MachineFlow, OperationExpressionRefs, OperationKind, StateKey,
     TransitionExpressionRefs,
 };
-use omega_core::arena::HandleSpan;
+use omega_core::arena::{Arena, HandleSpan};
 use omega_core::symbols::SymbolHandle;
 
 use super::{StateCallResolution, StateCallRole};
@@ -22,6 +22,11 @@ pub(crate) struct CollectedStateCall {
     /// downstream layout matching (the contained-receiver blocker) keys on
     /// this name; empty when the call has no named receiver.
     pub receiver_name: Identifier,
+    /// The receiver EXPRESSION for value-position calls -- the plan build
+    /// walks its member chain into `receiver_path`. Invalid for
+    /// statement-position calls: their control-flow op carries only the leaf
+    /// name, so those fall back to a single-segment path.
+    pub raw_receiver: ExpressionHandle,
     pub target_key: StateKey,
     pub raw_arguments: HandleSpan<ExpressionHandle>,
     pub reachable: bool,
@@ -93,6 +98,7 @@ pub(crate) fn collect_machine_state_calls(
                             role: StateCallRole::Statement,
                             receiver_symbol: *receiver_symbol,
                             receiver_name: receiver.clone(),
+                            raw_receiver: ExpressionHandle::invalid(),
                             target_key: candidate.key,
                             raw_arguments: match operation.expressions {
                                 OperationExpressionRefs::Call { arguments } => arguments,
@@ -127,6 +133,7 @@ pub(crate) fn collect_machine_state_calls(
                     role: StateCallRole::Statement,
                     receiver_symbol: *receiver_symbol,
                     receiver_name: receiver.clone(),
+                    raw_receiver: ExpressionHandle::invalid(),
                     target_key: resolved_target
                         .as_ref()
                         .map(|target| target.key)
@@ -477,6 +484,7 @@ fn collect_expression_state_calls_in_table(
                             role,
                             receiver_symbol: receiver.symbol,
                             receiver_name: receiver.name.clone(),
+                            raw_receiver: call.receiver,
                             target_key: candidate.key,
                             raw_arguments: call.arguments,
                             reachable: context.runtime_state_is_reachable_by_key(source_key),
@@ -550,6 +558,7 @@ fn collect_expression_state_calls_in_table(
                 role,
                 receiver_symbol: receiver.symbol,
                 receiver_name: receiver.name.clone(),
+                raw_receiver: call.receiver,
                 target_key: resolved_target
                     .as_ref()
                     .map(|target| target.key)
@@ -699,6 +708,38 @@ fn collect_expression_state_calls_in_table(
         | ExpressionNode::Integer(_)
         | ExpressionNode::Name(_)
         | ExpressionNode::String(_) => {}
+    }
+}
+
+/// Append the receiver's spelled member path (root -> leaf) to `segments`,
+/// growing `span` contiguously: `self.p.second.stored()` appends `["self",
+/// "p", "second"]`. MIRRORS `call_receiver_parts` below -- the last appended
+/// segment always equals that function's leaf `name` (keep the two walks in
+/// lockstep). Non-place receivers (calls, literals) append nothing.
+pub(crate) fn append_receiver_path(
+    expressions: &ExpressionTable,
+    receiver: ExpressionHandle,
+    segments: &mut Arena<Identifier>,
+    span: &mut HandleSpan<Identifier>,
+) {
+    if !receiver.is_valid() {
+        return;
+    }
+
+    match expressions.expression(receiver) {
+        ExpressionNode::Mutable(inner) => {
+            append_receiver_path(expressions, *inner, segments, span);
+        }
+        ExpressionNode::Name(path) => {
+            if let Some(name) = expressions.name_path_members(path.members).last() {
+                span.push_contiguous(segments.insert(name.clone()));
+            }
+        }
+        ExpressionNode::Member(member) => {
+            append_receiver_path(expressions, member.receiver, segments, span);
+            span.push_contiguous(segments.insert(member.member.clone()));
+        }
+        _ => {}
     }
 }
 
