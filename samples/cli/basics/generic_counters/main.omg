@@ -1,0 +1,53 @@
+// GENERIC CONTAINER instances with methods (generics Phase 2 slice 1): one
+// Counter<T> definition, two coexisting concrete instances -- Counter<i32>
+// accumulating a score and Counter<bool> latching a flag -- each with its
+// own cloned method set (record/current/times). The desugar synthesizes
+// Counter<i32> and Counter<bool> as ordinary records and clones the attached
+// machines per instance with T substituted, so every T-typed value call
+// materializes concretely.
+//
+//   score: record(30), record(12) -> current 12 (record REPLACES), times 2
+//   flag:  record(true)           -> current true, times 1
+//   exit = 12 + 2 + (1 if flag) + times_flag(1) = 16
+//
+// Expected exit: 16
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+data Counter<T> {
+    value: T;
+    times: i32 in Wrapping;
+}
+machine Counter::record<T>(&mut self, v: T) {
+    self.value = v;
+    self.times = self.times + 1;
+}
+machine Counter::current<T>(&self) -> T {
+    transition { _ -> (self.value) }
+}
+machine Counter::count(&self) -> i32 in Wrapping {
+    transition { _ -> (self.times) }
+}
+data Main {
+    console: Console;
+    score: Counter<i32>;
+    flag: Counter<bool>;
+}
+machine Main::main(&mut self) {
+    self.score.record(30);
+    self.score.record(12);
+    self.flag.record(true);
+    let total: i32 = self.score.current();
+    let times_score: i32 in Wrapping = self.score.count();
+    let times_flag: i32 in Wrapping = self.flag.count();
+    let latched: bool = self.flag.current();
+    transition latched {
+        true -> tally(total, times_score, times_flag)
+        false -> wrong()
+    }
+    state tally(&mut self, total: i32, times_score: i32 in Wrapping, times_flag: i32 in Wrapping) {
+        let code: i32 in Wrapping = (total as i32 in Wrapping) + times_score + 1 + times_flag;
+        self.console.exit_process(code);
+    }
+    state wrong(&mut self) { self.console.exit_process(3); }
+}
