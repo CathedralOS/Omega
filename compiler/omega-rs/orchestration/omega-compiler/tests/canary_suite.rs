@@ -1918,6 +1918,40 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Frame-resident 2D arrays, both-runtime reads (local + param faces).
+#[test]
+fn runtime_frame_double_indexed_read_exit_canary_runs() {
+    let canary = pass_canary("collections/runtime_frame_double_indexed_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-frame-double-read-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("frame double-indexed read canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("frame double-indexed read canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "expected g[i][j] (frame-resident 2D array, both indices runtime) to read the right elements across the let/param faces and exit 1, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Direct RMW on both-runtime nested targets (grid[i][j] += 1, member flavor)
 // + the stale-fold invalidation and hoist-temp typing fixes it required.
 #[test]

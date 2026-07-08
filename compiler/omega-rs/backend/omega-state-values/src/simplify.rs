@@ -125,7 +125,7 @@ fn simplify_expression_with_bindings(
             }))
         }
         Expression::Indexed(indexed) => Expression::Indexed(Box::new(IndexedExpression {
-            collection: simplify_expression_with_bindings(
+            collection: simplify_collection_expression(
                 program,
                 machine,
                 &indexed.collection,
@@ -256,6 +256,31 @@ fn simplify_expression_with_bindings(
 /// (the runtime-index carve-out in collection.rs), so the Name resolves to a
 /// populated slot. Constant and place bindings still fold (they lower, and
 /// their locals stay elidable).
+/// Simplify an `Indexed` node's COLLECTION. A bare-Name local whose binding
+/// is an AGGREGATE literal (`let g = [[9, 8], [6, 5]]; ... g[a][b]`) must NOT
+/// fold back: an array/struct literal in collection position has no place to
+/// index (the indexed resolvers need a slot), and state-storage keeps exactly
+/// such aggregate locals slotted. Scalar and place bindings still fold.
+fn simplify_collection_expression(
+    program: &CheckedTrees,
+    machine: &Machine,
+    collection: &Expression,
+    bindings: &(impl BindingScope + ?Sized),
+    preserve_call_locals: bool,
+) -> Expression {
+    if let Expression::Name(path) = collection
+        && let Some(binding) = bindings.find_path_binding(path)
+        && path.len() == 1
+        && matches!(
+            binding.value,
+            Expression::ArrayLiteral(_) | Expression::StructLiteral(_)
+        )
+    {
+        return collection.clone();
+    }
+    simplify_expression_with_bindings(program, machine, collection, bindings, preserve_call_locals)
+}
+
 fn simplify_index_expression(
     program: &CheckedTrees,
     machine: &Machine,
