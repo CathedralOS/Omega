@@ -20399,6 +20399,58 @@ fn contained_loop_command_branch_carrier_canary_runs() {
 // a silently-dropped terminal host call); remove -> Ok; remove missing ->
 // Error{NotFound}. Interpreter-first differential. Windows-gated like the
 // raw roundtrip.
+// Previously-untested ergonomic wrapper methods on windows_x64: create
+// (writable), sync (_commit), try_clone (dup -- a File round-tripped through
+// a value call), set_permissions (chmod). set_permissions was BROKEN
+// (passed `perms.mode`, a member of a by-value struct param, directly to
+// chmod -- unresolved under some dispatch contexts); the wrapper now
+// captures it into a `perm_mode` scratch field first (the `file_fd` idiom).
+// Interpreter-first differential; windows-gated like the raw roundtrip.
+#[cfg(windows)]
+#[test]
+fn windows_fs_wrapper_dark_methods_exit_canary_runs() {
+    let canary = pass_canary("filesystem/windows_wrapper_dark_methods_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("dark-methods canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (create/sync/try_clone/set_permissions/remove), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fs-dark-methods-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dark-methods canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("dark-methods canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the dark wrapper methods to run (exit 70), got {:?}          (71 create; 73 sync; 74 try_clone; 75 clone close; 76 set_permissions; 77 remove)
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_fs_wrapper_results_exit_canary_runs() {
@@ -24738,6 +24790,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "filesystem/runtime_local_host_result_dispatch_exit",
     "filesystem/windows_raw_roundtrip_exit",
     "filesystem/windows_wrapper_results_exit",
+    "filesystem/windows_wrapper_dark_methods_exit",
     "collections/runtime_palindrome_two_pointer_exit",
     "collections/runtime_bracket_matcher_stack_exit",
     "collections/runtime_argmax_index_exit",

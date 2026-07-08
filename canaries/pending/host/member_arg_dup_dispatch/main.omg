@@ -1,0 +1,32 @@
+// PENDING repro (2026-07-08, found while canarying dark wrapper methods): a
+// host-call ARGUMENT that is a value-call machine PARAM -- either a
+// `&[u8] in Path` slice param or a MEMBER of a by-value struct param
+// (`perms.mode`) -- fails to resolve under some dispatch contexts, so the
+// encoder hard-errors ("no encodable call sequence: a host-call argument
+// must be a simple value"). TWO faces observed:
+//   (a) SELF value call (`self.doit(path)` below): a `&[u8] in Path` PARAM
+//       passed straight to `self.raw.open(path, 0)` resolves to NO operand
+//       (path=false in selection), even though the SAME shape via a
+//       CONTAINED-object value call (`self.fs.open(..)`) works.
+//   (b) CONTAINED value call, member arg: the std wrapper's set_permissions
+//       passed `perms.mode` (member of a by-value struct param) directly and
+//       failed ONLY under a duplicate dispatch context (context 6 of 3);
+//       WORKED around in the wrapper by capturing to a `perm_mode` field
+//       first (the documented `file_fd` idiom), so the wrapper is green.
+// The real fix is backend: follow the leaf binding when resolving a host-call
+// ARGUMENT operand that is a value-call param (slice pointer or struct
+// member), under every dispatch context the statement is selected in. This
+// repro is face (a) -- the reliable minimal one; it errors at compile.
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; raw: FilesystemHost; }
+machine Main::doit(&mut self, path: &[u8] in Path) -> i32 {
+    let fd: i32 = self.raw.open(path, 0);
+    transition fd >= 0 { true -> ok() _ -> ng() }
+    state ok(&mut self) -> i32 { 0 }
+    state ng(&mut self) -> i32 { 1 }
+}
+machine Main::main(&mut self) {
+    let r: i32 = self.doit("omega_absent.txt");
+    self.console.exit_process(70);
+}

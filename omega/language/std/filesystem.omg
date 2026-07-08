@@ -308,6 +308,11 @@ data Filesystem {
     // simple storage place, and a param MEMBER (`file.fd`) is not one (a let
     // folds back to the member) -- the field capture is (try_exists' idiom).
     file_fd: i32;
+    // Same idiom for a by-value Permissions param's mode: `perms.mode` passed
+    // DIRECTLY as a chmod/fchmod arg fails to resolve under some dispatch
+    // contexts (member of a by-value struct param), so set_permissions /
+    // set_file_permissions capture it here in the entry first.
+    perm_mode: u32;
     stat_buf: [u8; 144];
     // Scratch for the two `struct timespec` (atime then mtime) that `set_times`
     // builds and hands to `futimens`.
@@ -1461,7 +1466,8 @@ terminates {
 // write-open of a path whose owner-write bit was cleared fails with
 // `PermissionDenied` (EACCES).
 machine Filesystem::set_permissions(&mut self, path: &[u8] in Path, perms: Permissions) -> UnitResult {
-    let rc: i32 = self.host.set_permissions(path, perms.mode);
+    self.perm_mode = perms.mode;
+    let rc: i32 = self.host.set_permissions(path, self.perm_mode);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
@@ -1504,7 +1510,8 @@ machine Filesystem::canonicalize(&mut self, path: &[u8] in Path, buffer: &mut [u
 // counterpart to `set_permissions`. Uses `fchmod`, so it needs no path.
 machine Filesystem::set_file_permissions(&mut self, file: File, perms: Permissions) -> UnitResult {
     self.file_fd = file.fd;
-    let rc: i32 = self.host.set_file_permissions(self.file_fd, perms.mode);
+    self.perm_mode = perms.mode;
+    let rc: i32 = self.host.set_file_permissions(self.file_fd, self.perm_mode);
     transition rc == 0 { true -> ok() _ -> err() }
     state ok(&mut self) -> UnitResult { UnitResult::Ok }
     state err(&mut self) -> UnitResult { let kind: ErrorKind = self.last_error(); UnitResult::Error { kind: kind } }
