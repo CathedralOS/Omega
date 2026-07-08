@@ -78,11 +78,18 @@ pub(crate) fn desugar_generic_data_instances(
     // resolution (`self.items.push(..)` on a `Vec<i32>` field). Phase 1 =
     // method-less generic data only.
     let mut data_with_machines: std::collections::HashSet<String> = std::collections::HashSet::new();
-    for item in syntax.root_items() {
+    // Attached machines per data name, as ROOT-ITEM indexes (the synthesis
+    // loop clones them from a snapshot when it builds a container instance).
+    let mut attached_machines: HashMap<String, Vec<usize>> = HashMap::new();
+    for (item_index, item) in syntax.root_items().enumerate() {
         if let Item::Machine(machine) = item
             && let Some(attached) = &machine.attached_data
         {
             data_with_machines.insert(attached.as_str().to_string());
+            attached_machines
+                .entry(attached.as_str().to_string())
+                .or_default()
+                .push(item_index);
         }
     }
 
@@ -95,13 +102,57 @@ pub(crate) fn desugar_generic_data_instances(
             continue;
         }
         if data_with_machines.contains(definition.name.as_str()) {
-            continue; // has methods (a container) -> Phase 2; do NOT fence here --
-            // containers are valid-but-unimplemented (used type-check-only, e.g.
-            // the stdlib `Vec<T>` in borrow canaries). A desugar-level "reject all
-            // container instantiations" is too broad (it pre-empts those checks);
-            // the silent-zero of a T-returning container VALUE-CALL at RUNTIME is
-            // the narrow #40 concern, for a value-call/codegen fence -- see the
-            // CONTAINERS note in TASKS.md and generics-runtime-boundary.md.
+            // A CONTAINER (generic data with attached machines) monomorphizes
+            // ONLY when every method's own type parameters are covered by the
+            // data's parameter names (T-on-method matching T-on-data --
+            // decision: per-instance mono, instances always spelled). The
+            // instance clones each method with T substituted (Phase 2 slice
+            // 1), so `self.b.stored()` on a `Box<i32>` field resolves against
+            // a CONCRETE machine and the T-typed value call materializes
+            // (was the runtime silent-0). An uncovered method leaves the
+            // whole container for the type-check-only path, as before.
+            let data_parameter_names: Vec<String> = syntax
+                .tables
+                .items
+                .type_parameters(definition.type_parameters)
+                .iter()
+                .map(|parameter| parameter.name.as_str().to_string())
+                .collect();
+            let all_methods_covered = attached_machines[definition.name.as_str()]
+                .iter()
+                .all(|&item_index| {
+                    let Some(Item::Machine(machine)) = syntax.root_items().nth(item_index)
+                    else {
+                        return false;
+                    };
+                    // DECLARATION-ONLY methods (the stdlib `Vec<T>` surface --
+                    // empty state bodies, type-check-only) must NOT clone: a
+                    // concrete clone of an empty body trips the
+                    // returns-but-empty check that generic templates are
+                    // exempt from. Such containers stay type-check-only.
+                    let has_bodies = syntax
+                        .tables
+                        .items
+                        .state_handles(machine.states)
+                        .iter()
+                        .any(|state| {
+                            !syntax.tables.items.state(*state).statements.is_empty()
+                        });
+                    has_bodies
+                        && syntax
+                            .tables
+                            .items
+                            .type_parameters(machine.type_parameters)
+                            .iter()
+                            .all(|parameter| {
+                                data_parameter_names
+                                    .iter()
+                                    .any(|name| name == parameter.name.as_str())
+                            })
+                });
+            if !all_methods_covered {
+                continue;
+            }
         }
         let parameter_names = syntax
             .tables
@@ -184,6 +235,64 @@ pub(crate) fn desugar_generic_data_instances(
                 properties,
                 members: HandleSpan::from_parts(first, count),
             }));
+
+            // CONTAINER instance: clone each attached machine with the type
+            // parameters substituted (Phase 2 slice 1). The clone copies from
+            // a SNAPSHOT of the tree (same-tree deep copies need a & source
+            // while appending into &mut tables), then a WATERMARK pass
+            // rewrites `Named(T)` nodes created by the copy -- only the
+            // clone's own subtree is younger than the watermark.
+            let Some(machine_items) = attached_machines.get(&instance.base_name) else {
+                continue;
+            };
+            let snapshot = syntax.clone();
+            for &item_index in machine_items {
+                let Some(Item::Machine(machine)) = snapshot.root_items().nth(item_index)
+                else {
+                    continue;
+                };
+                let watermark = syntax.tables.type_references.node_count();
+                let Item::Machine(mut clone) =
+                    syntax.copy_item_from(&snapshot, &Item::Machine(machine.clone()))
+                else {
+                    continue;
+                };
+                // The clone is CONCRETE: attached to the synthetic record,
+                // its type parameters cleared, its `Named(T)` type nodes
+                // substituted with the instance arguments. The machine NAME
+                // is the FULL parsed path ("Box::stored"), so the attached
+                // segment is rewritten there too ("Box<i32>::stored") --
+                // machine identity keys on the composed name.
+                let method_tail = machine
+                    .name
+                    .as_str()
+                    .rsplit("::")
+                    .next()
+                    .unwrap_or(machine.name.as_str())
+                    .to_string();
+                clone.name = Identifier::generated(format!(
+                    "{}::{}",
+                    instance.synthetic_name, method_tail
+                ));
+                clone.attached_data =
+                    Some(Identifier::generated(instance.synthetic_name.as_str()));
+                clone.type_parameters = HandleSpan::default();
+                for (handle, name) in syntax
+                    .tables
+                    .type_references
+                    .named_nodes_from(watermark)
+                {
+                    if let Some(argument) = substitution.get(&name) {
+                        let replacement =
+                            syntax.tables.type_references.type_reference(*argument).clone();
+                        syntax
+                            .tables
+                            .type_references
+                            .replace_type_reference(handle, replacement);
+                    }
+                }
+                syntax.push_root_item(Item::Machine(clone));
+            }
         }
 
         // Rewrite this round's spellings to the synthesized instances' plain names.

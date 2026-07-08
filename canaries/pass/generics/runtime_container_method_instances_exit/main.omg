@@ -1,0 +1,39 @@
+// CONTAINER instances (generics Phase 2 slice 1, 2026-07-08): Box<i32> +
+// Box<bool> COEXISTING, each with the attached method stored() -- the
+// generic-instance desugar clones each BODIED attached machine per data
+// instance (snapshot copy + watermark substitution of Named(T); the clone's
+// full-path NAME and attached_data both rewrite to the synthetic record),
+// so the T-typed value call materializes per instance. This was the
+// runtime SILENT-0 (compiled, returned zero). Declaration-only container
+// surfaces (stdlib Vec<T>) stay type-check-only; generic TEMPLATE machines
+// are skipped by the layout builder.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Box<T> {
+    value: T;
+}
+machine Box::stored<T>(&self) -> T {
+    transition { _ -> (self.value) }
+}
+data Main {
+    console: Console;
+    a: Box<i32>;
+    b: Box<bool>;
+}
+machine Main::main(&mut self) {
+    self.a.value = 42;
+    self.b.value = true;
+    let n: i32 = self.a.stored();
+    transition n == 42 {
+        true -> check_bool()
+        false -> no()
+    }
+    state check_bool(&mut self) {
+        let f: bool = self.b.stored();
+        transition f {
+            true -> yes()
+            false -> no()
+        }
+    }
+    state yes(&mut self) { self.console.exit_process(1); }
+    state no(&mut self) { self.console.exit_process(2); }
+}

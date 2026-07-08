@@ -24,6 +24,27 @@ impl TypeReferenceTable {
         self.type_references.insert(type_reference)
     }
 
+    /// Number of nodes in the table. Handles created at or after this count
+    /// belong to a copy in progress -- the generic-instance machine clones use
+    /// it as a SUBSTITUTION WATERMARK (rewrite `Named(T)` nodes only inside
+    /// the freshly copied subtree).
+    pub fn node_count(&self) -> u32 {
+        self.type_references.iter().count() as u32
+    }
+
+    /// The `Named` nodes created at or after `watermark`, as (handle, name).
+    pub fn named_nodes_from(&self, watermark: u32) -> Vec<(TypeReferenceHandle, String)> {
+        self.type_references
+            .iter()
+            .filter(|(handle, _)| handle.arena_index() >= watermark)
+            .filter_map(|(handle, node)| match node {
+                TypeReferenceNode::Named(name) => Some((handle, name.as_str().to_string())),
+                _ => None,
+            })
+            .collect()
+    }
+
+
     pub fn insert_named(&mut self, name: Identifier) -> TypeReferenceHandle {
         self.insert(TypeReferenceNode::Named(name))
     }
