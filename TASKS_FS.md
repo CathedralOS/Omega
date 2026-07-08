@@ -328,12 +328,14 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    Canaries: capabilities/runtime_provides_value_exit (differential RUN,
    63+7 -> 70 via local_unchecked=host) +
    fail/capabilities/provides_value_wrong_target_rejected.
-   ⚠️ FOUND IN PASSING (parked,
-   pending/expressions/two_segment_path_silent_zii): an unresolved
-   two-segment path in value position compiles clean and reads ZII 0
-   natively AND interp -- the multi-segment sibling of the CLOSED
-   bare-name existence check; differential-invisible, needs a
-   resolution-stage error.
+   FOUND+CLOSED (2026-07-08): an unresolved two-segment path in value
+   position (`Nowhere::NOPE`, or a bogus case `Signal::Blue`) read ZII 0
+   in BOTH runtimes -- the multi-segment sibling of the closed bare-name
+   existence check. Now a clean validation error (omega-validation
+   calls.rs: a two-segment Name whose head AND leaf symbols both stay
+   unresolved names nothing; a real qualified case resolves before this
+   stage). Fail canary expressions/undeclared_two_segment_path_rejected
+   + differential pass twin expressions/runtime_qualified_case_value_exit.
    NEXT: layout maps (stat normalization), std targets files +
    WINDOWS_IMPORT_ROWS migration, wrapper flag-word migration
    (unfences create_new/open_with on windows), the let-local dispatch
