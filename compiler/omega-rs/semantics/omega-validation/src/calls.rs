@@ -1060,9 +1060,16 @@ fn double_indexed_machine_read_is_lowerable(
     program: &TypedTrees,
     indexed: &omega_typed_trees::expression::TableIndexedExpression,
 ) -> bool {
+    // A member chain BETWEEN the two indices (`rows[i].data[j]`) is a fixed
+    // offset the resolver folds into the op's field_byte_offset (2026-07-07),
+    // so peel Member links too.
     let mut inner = indexed.collection;
-    while let ExpressionNode::Mutable(next) = program.expression_table.expression(inner) {
-        inner = *next;
+    loop {
+        match program.expression_table.expression(inner) {
+            ExpressionNode::Mutable(next) => inner = *next,
+            ExpressionNode::Member(member) => inner = member.receiver,
+            _ => break,
+        }
     }
     let ExpressionNode::Indexed(inner_indexed) = program.expression_table.expression(inner) else {
         return false;

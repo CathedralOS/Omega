@@ -1874,17 +1874,39 @@ pub(super) fn resolve_runtime_machine_double_indexed_source_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<RuntimeMachineDoubleIndexedTarget> {
+    // Peel a member SUFFIX above the element (`boards[i][j].x`): the suffix
+    // walk (bounded by the outer Indexed node) folds it into
+    // field_byte_offset after the strides resolve.
     let mut outer = expression;
-    while let ExpressionNode::Mutable(next) = expressions.expression(outer) {
-        outer = *next;
+    loop {
+        match expressions.expression(outer) {
+            ExpressionNode::Mutable(next) => outer = *next,
+            ExpressionNode::Member(member) => outer = member.receiver,
+            _ => break,
+        }
     }
     let ExpressionNode::Indexed(outer_indexed) = expressions.expression(outer) else {
         return None;
     };
+    // A member chain BETWEEN the two indices (`rows[i].data[j]` -- `data` is
+    // a field of the row element) contributes a fixed offset: the address is
+    // base + i*row_stride + data_off + j*elem_stride, and addition commutes,
+    // so it rides the op's field_byte_offset. Collect the chain (outermost
+    // receiver first for the descent below).
+    let mut between_members: Vec<&omega_checked_trees::expression::TableMemberExpression> =
+        Vec::new();
     let mut inner = outer_indexed.collection;
-    while let ExpressionNode::Mutable(next) = expressions.expression(inner) {
-        inner = *next;
+    loop {
+        match expressions.expression(inner) {
+            ExpressionNode::Mutable(next) => inner = *next,
+            ExpressionNode::Member(member) => {
+                between_members.push(member);
+                inner = member.receiver;
+            }
+            _ => break,
+        }
     }
+    between_members.reverse();
     let ExpressionNode::Indexed(inner_indexed) = expressions.expression(inner) else {
         return None;
     };
@@ -1921,8 +1943,56 @@ pub(super) fn resolve_runtime_machine_double_indexed_source_in_table(
     }
     let (row_type, _rows) = collection.type_descriptor.fixed_array()?;
     let row_layout = descriptor_layout(input, row_type);
-    let (element_type, _columns) = row_type.fixed_array()?;
+
+    // Descend the ROW element through the between-members chain to the INNER
+    // array (`Row` --.data--> `[i32; 2]`), accumulating the fixed offset.
+    let row_field = FieldLayout {
+        symbol: SymbolHandle::invalid(),
+        name: "".into(),
+        offset: 0,
+        type_symbol: row_type.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: row_type.clone(),
+        layout: row_layout,
+    };
+    let mut cursor = NestedFieldLayoutCursor::from_root(&row_field);
+    for member in &between_members {
+        cursor = resolve_nested_field_layout_step(
+            &input.layouts,
+            cursor,
+            &member.member,
+            member.member_symbol,
+            None,
+            member.case_variant.as_ref(),
+        )?;
+    }
+    let between_offset = cursor.byte_offset();
+    let inner_array_type = cursor.type_descriptor().clone();
+    if descriptor_is_bounded_byte_buffer(&inner_array_type) {
+        return None;
+    }
+    let (element_type, _columns) = inner_array_type.fixed_array()?;
     let element_layout = descriptor_layout(input, element_type);
+
+    // A member SUFFIX above the element folds in via the boundary walk
+    // (boundary = the outer Indexed node; for a bare `grid[i][j]` the walk
+    // early-returns with offset 0 and the element layout).
+    let element_field = FieldLayout {
+        symbol: SymbolHandle::invalid(),
+        name: "".into(),
+        offset: 0,
+        type_symbol: element_type.storage_symbol(),
+        type_name: "".into(),
+        type_descriptor: element_type.clone(),
+        layout: element_layout,
+    };
+    let (suffix_offset, leaf_layout) = resolve_indexed_target_suffix_layout_in_table(
+        input,
+        &element_field,
+        expressions,
+        expression,
+        outer,
+    )?;
 
     let outer_place = resolve_runtime_storage_place_in_table(
         input,
@@ -1955,8 +2025,8 @@ pub(super) fn resolve_runtime_machine_double_indexed_source_in_table(
         inner_index_region: inner_place.region,
         inner_index_offset: inner_place.byte_offset,
         inner_stride: element_layout.size,
-        field_byte_offset: 0,
-        byte_count: element_layout.size,
+        field_byte_offset: between_offset + suffix_offset,
+        byte_count: leaf_layout.size,
     })
 }
 
