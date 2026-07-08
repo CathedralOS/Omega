@@ -209,6 +209,29 @@ pub(super) fn build_runtime_storage_body_plan(
                     );
                 }
             }
+            // A host-call RESULT bound to a LOCAL (`let rc = self.host.close(fd)`)
+            // in a DISPATCHING state: the statement lowered to a HostCall body op
+            // (not a LocalStorage op), so without this arm the result local never
+            // got a frame slot and its result operand resolved to nothing -- the
+            // encoder then hard-errored ("no encodable call sequence"). Fields
+            // dodged it (machine region, not dispatch-keyed); the straight-line
+            // builder dodged it (its own `locals` scan). Idempotent: the shared
+            // `append_local_slot` skips a slot that already exists.
+            RuntimeDispatchBodyOperationKind::HostCall => {
+                if let Some(local_storage) = local_storage_for_operation(
+                    context,
+                    operation.source_key,
+                    operation.statement_index,
+                ) {
+                    append_branch_local_slot(
+                        context,
+                        &mut plan,
+                        &mut next_frame_offset,
+                        body.dispatch_index,
+                        local_storage,
+                    );
+                }
+            }
             RuntimeDispatchBodyOperationKind::Mutation { lowering, .. }
                 if *lowering != StateMutationLowering::AlreadyLowered =>
             {

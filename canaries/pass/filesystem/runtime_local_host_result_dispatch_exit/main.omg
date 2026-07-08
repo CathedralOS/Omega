@@ -1,0 +1,21 @@
+// RUN CANARY (exit 70, differential): a host-call RESULT bound to a LOCAL
+// (`let fd = self.host.open(..)`) in a DISPATCHING state now gets a frame
+// slot. Before the fix the dispatch-body storage builder had no HostCall arm,
+// so the result local was never allocated a slot and the call hard-errored
+// ("no encodable call sequence: a host-call argument must be a simple value")
+// -- misleading, since the argument was simple; the RESULT PLACE had no slot.
+// FIELD results dodged it (machine region, not dispatch-keyed) and
+// straight-line states dodged it (their own `locals` scan), which is why the
+// whole raw-canary suite used fields. Discriminating: opening a
+// definitely-absent path returns -1 on both the native seam and the
+// interpreter's virtual fs, so `fd < 0` is deterministic -- a missed result
+// slot would read ZII 0 and take the wrong arm (exit 71).
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; host: FilesystemHost; }
+machine Main::main(&mut self) {
+    let fd: i32 = self.host.open("omega_definitely_absent_9x7.dat", 0);
+    transition fd < 0 { true -> good() _ -> bad(71) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

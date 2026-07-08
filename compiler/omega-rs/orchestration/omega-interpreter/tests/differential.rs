@@ -849,6 +849,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("collections/runtime_whole_struct_value_copy_exit", 70),
     ("expressions/runtime_widened_bitwise_exit", 70),
     ("expressions/runtime_widened_comparison_exit", 70),
+    ("filesystem/runtime_local_host_result_dispatch_exit", 70),
     ("filesystem/windows_raw_breadth_exit", 70),
     ("filesystem/windows_raw_roundtrip_exit", 70),
     ("filesystem/windows_wrapper_breadth_exit", 70),

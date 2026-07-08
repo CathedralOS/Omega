@@ -303,8 +303,15 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    under a duplicate dispatch context (slots are dispatch-keyed;
    fields/literals live in the machine region and always resolve -- the
    raw-canary FIELD discipline was load-bearing all along). Catalog-wide
-   face parked at pending/host/host_local_operand_dual_dispatch
-   (Filesystem.close repro; clean-but-misleading error). RUNG V1 LANDED
+   face CLOSED 2026-07-08 (diagnosis was WRONG -- not dispatch-keyed
+   duplication; the dispatch-body STORAGE builder simply had NO HostCall
+   arm, so a host-call result bound to a LOCAL in a dispatching state
+   never got a frame slot; fields dodged it via the machine region,
+   straight-line states via their own locals scan). Fix: HostCall arm in
+   omega-runtime-storage/body.rs allocates the result-local slot
+   (idempotent via append_local_slot's exists-guard). Pinned by
+   filesystem/runtime_local_host_result_dispatch_exit (differential,
+   open-of-absent -> fd < 0 -> 70). RUNG V1 LANDED
    (2026-07-08): per-target VALUE rows parse and ride the row stream --
    `O_CREATE -> 32768` (integer-led RHS, zero new grammar per the extern
    brief; snapshot kind "value"). They are constants, NOT call bindings:
