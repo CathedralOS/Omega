@@ -20479,6 +20479,53 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Provides VALUE consumption (portable-values rung V2): `Beeper::MAGIC` and
+// `Beeper::DELTA` substitute the selected target's numbers (63 + 7 -> 70)
+// before resolution; interp and native agree by construction because both
+// consume the substituted program.
+#[test]
+fn runtime_provides_value_exit_canary_runs() {
+    let canary = pass_canary("capabilities/runtime_provides_value_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("provides-value canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (63 + 7 through two value rows), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir()
+        .join(format!("omega-provides-value-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("provides-value canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("provides-value canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected substituted provides values to reach 70, got {:?}
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // An AUTHORED provides import end to end (hosted-consumption rung 2): the
 // program's own `windows_x64 provides Beeper { beep -> DllImport("msvcrt.dll",
 // "abs") }` row binds, the import table names msvcrt.dll (the binding, not
@@ -24476,6 +24523,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/acquires_filesystem_authority",
     "capabilities/stores_capability",
     "capabilities/host_provides_binding_forms",
+    "capabilities/runtime_provides_value_exit",
     "capabilities/windows_provides_import_exit",
     "targets/efi_freestanding_skeleton",
     "targets/efi_entry_arguments",
@@ -25209,6 +25257,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/narrowing_signedness_rejected",
     "capabilities/host_provides_unknown_binding",
     "capabilities/host_provides_two_unknown_rejected",
+    "capabilities/provides_value_wrong_target_rejected",
     "wire/wire_policy_plan_disagrees",
     "domains/type_constraint_unknown_domain",
     "domains/domain_carrier_mismatch",

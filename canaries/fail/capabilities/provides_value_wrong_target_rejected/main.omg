@@ -1,0 +1,17 @@
+// A `Trait::NAME` reference whose VALUE row exists only on a NON-selected
+// target must be a targeted clean error (naming the declaring target), not
+// the generic unresolved-name diagnostic -- and never a silent fall-through.
+// `demo_target` resolves to no real target, so the row is inert everywhere.
+boundary trait Console { machine exit_process(return_code: i32); }
+boundary trait Beeper { machine noop(); }
+data Main { console: Console; }
+demo_target provides Beeper {
+    MAGIC -> 63;
+    DELTA -> 7;
+}
+machine Main::main(&mut self) {
+    let code: i32 = Beeper::MAGIC + Beeper::DELTA;
+    transition code == 70 { true -> good() _ -> bad(71) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code2: i32) { self.console.exit_process(code2); }
+}

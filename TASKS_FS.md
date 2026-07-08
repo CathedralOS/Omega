@@ -314,13 +314,30 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    host-merged flavors probed). Whitespace-run defect fixed in the three
    merge error messages (a python single-backslash heredoc landmine --
    scripts writing Rust string continuations need `\`).
-   NEXT (V2/V3, the consumption half): boundary-trait const DECLARATIONS
-   (`const FilesystemHost::O_CREATE: i32;` declared, no initializer --
-   composes the settled static_root_and_constants type-scoped const with
-   the provides table) + typed->checked substitution of the SELECTED
-   target's value, clean error when the target provides no row. Then
-   layout maps, std targets files, WINDOWS_IMPORT_ROWS migration, the
-   let-local dispatch face, interp story for authored bindings.
+   RUNG V2 LANDED (2026-07-08): the row IS the declaration -- no new
+   const surface needed. `Trait::NAME` paths substitute the SELECTED
+   target's Value row in a pre-resolution desugar pass
+   (pipeline/provides_values.rs; const-v0 discipline -- each use becomes
+   the literal, no downstream stage grows a concept, interp sees the
+   same substituted program so the differential holds by construction;
+   the pass is wired into BOTH pipeline entries, compile AND
+   compile_to_checked -- forgetting the second made the interp oracle
+   read ZII, caught by the new canary's interp leg). Loud edges: const
+   vs row collision, two same-target rows with different values,
+   wrong-target reference (targeted error naming the declaring target).
+   Canaries: capabilities/runtime_provides_value_exit (differential RUN,
+   63+7 -> 70 via local_unchecked=host) +
+   fail/capabilities/provides_value_wrong_target_rejected.
+   ⚠️ FOUND IN PASSING (parked,
+   pending/expressions/two_segment_path_silent_zii): an unresolved
+   two-segment path in value position compiles clean and reads ZII 0
+   natively AND interp -- the multi-segment sibling of the CLOSED
+   bare-name existence check; differential-invisible, needs a
+   resolution-stage error.
+   NEXT: layout maps (stat normalization), std targets files +
+   WINDOWS_IMPORT_ROWS migration, wrapper flag-word migration
+   (unfences create_new/open_with on windows), the let-local dispatch
+   face, interp story for authored bindings.
    ⚠️ BRIEF DRIFT noted (not touched -- freestanding thread's call): the
    extern brief revised `VtableSlot(index)` to `VtableField(field)`
    (field model, decided 2026-07-04) AFTER the parse landed; the
