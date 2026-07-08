@@ -664,6 +664,7 @@ fn snapshot_item(syntax_trees: &SyntaxTrees, item: &Item) -> ItemSnapshot {
                         HostProviderMappingKind::DllImport { module, symbol } => {
                             ("dll_import", 0, Some(module.clone()), Some(symbol.clone()))
                         }
+                        HostProviderMappingKind::Value { value } => ("value", *value, None, None),
                     };
                     HostProviderMappingSnapshot {
                         machine: snapshot_identifier(&mapping.machine),
