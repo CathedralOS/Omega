@@ -1,0 +1,26 @@
+// RUN CANARY (exit 70) -- the ALIAS-READ terminal (`-> acc` where acc is a
+// `&mut` reference param) from a DISPATCHED value call: the looping callee
+// routes to dispatch, and its terminal reads THROUGH the alias. The risk
+// this pins: a place-resolution that returns the frame slot holding the
+// POINTER would copy the pointer bits into the caller's result slot
+// (silent-wrong garbage). The last unprobed return-write matrix shape
+// (2026-07-10a), alongside float terminals (documented loud-bail).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::peek(&mut self, acc: &mut i32, i: usize, j: usize)
+terminates { decreases (j, i) -> Nat::BoundedDistance; }
+-> i32
+{
+    transition j < i {
+        true -> peek(acc, i, j + 1)
+        false -> leaf(acc)
+    }
+    state leaf(&mut self, acc: &mut i32) -> i32 { acc }
+}
+machine Main::main(&mut self) {
+    let a: i32 = 63;
+    let n: i32 = self.peek(&mut a, 2, 0);
+    transition n == 63 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

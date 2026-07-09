@@ -20086,6 +20086,43 @@ fn runtime_dispatch_result_field_binding_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A dispatched value call whose terminal reads THROUGH a `&mut` ALIAS
+// (`-> acc`, acc: &mut i32): pins that the result is the pointee value,
+// never the pointer bits (the last unprobed return-write shape).
+#[test]
+fn runtime_dispatch_result_alias_read_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_dispatch_result_alias_read_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-dispatch-result-alias-read-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dispatch alias-read terminal canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dispatch alias-read terminal canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the dispatched call's `-> acc` alias terminal to deliver the \
+         pointee 63 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A dispatched value call whose terminal reads a SLICE ELEMENT directly
 // (`-> s[j]`): the return-write emits the region-paired indexed copy
 // (frame slot -> CopyRuntimeFrameIndexedToRuntimeFrame). The first probe
