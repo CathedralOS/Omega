@@ -1,0 +1,38 @@
+// RUN CANARY (exit 70) -- `copy` UNFENCED on windows_x64 (2026-07-08). copy uses
+// open/read/close/create/write + set_len (just wired via `_chsize_s`) +
+// read_metadata + set_permissions -- all now native on windows. Also fixed here:
+// copy's decoded-mode arg to set_permissions was a single-use `let` that elided
+// into a computed host-call argument (rejected); it now lands in the `perm_mode`
+// FIELD. Discriminating: copy a 6-byte source, IoResult::Ok{count == 6}, and the
+// destination `metadata_path` len == 6. NATIVE + interp differential.
+// ⚠️ CAVEAT: copy still opens src/dst in msvcrt TEXT mode (no O_BINARY), so bytes
+// with \n would be CRLF-translated on windows -- this canary uses newline-free
+// content. Binary-safe copy on windows (O_BINARY on both ends) is a follow-up.
+// exits: 70 ok; 71 write src failed; 72 copy not Ok; 73 wrong count; 74 dst
+// metadata not Ok; 75 wrong dst len.
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; fs: Filesystem; unit_result: UnitResult; io_result: IoResult; meta_result: MetadataResult; buffer: [u8; 64]; }
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("omega_cp_src.txt", "hello!");
+    transition self.unit_result { UnitResult::Ok -> docopy() _ -> bad(71) }
+    state docopy(&mut self) {
+        self.io_result = self.fs.copy("omega_cp_src.txt", "omega_cp_dst.txt", &mut self.buffer, 64);
+        transition self.io_result { IoResult::Ok { count } -> chkcount(count) _ -> bad(72) }
+    }
+    state chkcount(&mut self, count: usize) {
+        transition count == 6 { true -> chklen() _ -> bad(73) }
+    }
+    state chklen(&mut self) {
+        self.meta_result = self.fs.metadata_path("omega_cp_dst.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> chk(meta) _ -> bad(74) }
+    }
+    state chk(&mut self, meta: Metadata) {
+        self.unit_result = self.fs.remove("omega_cp_src.txt");
+        self.unit_result = self.fs.remove("omega_cp_dst.txt");
+        transition meta.len == 6 { true -> good() _ -> bad(75) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

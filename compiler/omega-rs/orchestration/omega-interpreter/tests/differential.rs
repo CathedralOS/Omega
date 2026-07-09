@@ -865,6 +865,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("filesystem/windows_wrapper_dark_methods_exit", 70),
     ("filesystem/windows_wrapper_metadata_exit", 70),
     ("filesystem/windows_wrapper_exists_exit", 70),
+    ("filesystem/windows_wrapper_set_len_exit", 70),
+    ("filesystem/windows_wrapper_copy_exit", 70),
     ("host/runtime_gui_foreground_window_exit", 70),
     ("range/runtime_element_range_dataflow_exit", 15),
     ("range/runtime_funnel_guard_agreement_exit", 7),
