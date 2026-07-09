@@ -80,9 +80,10 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    boundary for build.omg), Q12 (byte-level stdin spelling — the samples
    baseline's stdin trio waits on it).
 
-4. **Recorded residuals, need a natural repro before work:** (a)
-   deeper-callee-state SAME-machine name collisions ride the leaf-write
-   name fallback (receiver epic's last theoretical gap); (b) typed
+4. **Recorded residuals:** (a) ~~deeper-callee-state name collisions~~
+   — probed NOT-REPRODUCIBLE 2026-07-11x (two live same-named locals,
+   deep delivering arm: correct on both engines) and pinned
+   (calls/runtime_deep_state_name_collision_exit); (b) typed
    machines carry no source file (fine until a second consumer after
    is_build_machine needs one); (c) console-less programs default-exit 1
    natively vs 0 interpreted (divergent only for a run canary of that

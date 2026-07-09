@@ -1,0 +1,28 @@
+// RUN CANARY (exit 70) -- DEEP-STATE NAME COLLISION (the receiver epic's
+// last recorded theoretical residual, probed NOT-REPRODUCIBLE and pinned
+// 2026-07-11x): the value-delivering arm arg is spelled in a state DEEPER
+// than the callee's entry (`stage`'s v = pad*3 = 9), while the SAME
+// machine's entry binds a live colliding `v` (the decoy, pad+1 = 3, kept
+// unfoldable via field reads). The leaf terminal-write resolves the deep
+// arg correctly on both engines; a name-fallback mismatch would deliver
+// the decoy's 3.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Holder { pad: i32 in Wrapping; }
+machine Holder::deep(&mut self) -> i32 in Wrapping {
+    self.pad = 2;
+    let v: i32 in Wrapping = self.pad + 1;
+    self.pad = v;
+    transition true { true -> stage() }
+    state stage(&mut self) -> i32 in Wrapping {
+        let v: i32 in Wrapping = self.pad * 3;
+        transition true { true -> done(v) }
+    }
+    state done(&mut self, out: i32) -> i32 { out }
+}
+data Main { console: Console; holder: Holder; got: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.got = self.holder.deep();
+    transition self.got == 9 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

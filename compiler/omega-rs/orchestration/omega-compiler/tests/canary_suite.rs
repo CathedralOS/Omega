@@ -21628,6 +21628,38 @@ fn runtime_saturating_time_arith_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// DEEP-STATE NAME COLLISION: a deep arm's arg delivers past a live
+// same-named entry local (the receiver epic's last theoretical residual,
+// probed not-reproducible -- this pin keeps it that way).
+#[test]
+fn runtime_deep_state_name_collision_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_deep_state_name_collision_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-deep-state-name-collision-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("deep-state name collision canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("deep-state name collision canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the DEEP arm's v (9 -> exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // D14 FIRES E+F: u64::MAX literals in a LET initializer and an EQUALITY
 // guard round-trip exactly through a value machine's guarded arms.
 #[test]
