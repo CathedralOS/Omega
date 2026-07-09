@@ -107,9 +107,22 @@ fn lower_statement_node(
             }));
             Ok(hoisted)
         }
-        syntax::statement::StatementNode::Expression(expression) => Ok(vec![Statement::Expression(
-            lower_statement_expression(lowerer, syntax_trees, *expression)?,
-        )]),
+        syntax::statement::StatementNode::Expression(expression) => {
+            // A bare trailing expression is a VALUE machine's implicit return
+            // (`state go(..) -> i64 { ..; self.buf[j] as i64 }`). Its
+            // operand-position runtime-indexed reads need the SAME hoist the
+            // assignment-value / let-initializer / transition-value paths apply
+            // -- otherwise `self.buf[j]` reaches selection as a raw machine
+            // runtime-indexed read with no value-operand lowering and falls to
+            // the place resolver, which drops the index and reads the wrong base
+            // (native only; the interpreter masks it). Root left whole (`false`),
+            // matching the transition-value target.
+            let mut hoisted = Vec::new();
+            let expression = lower_statement_expression(lowerer, syntax_trees, *expression)?;
+            let expression = hoist_operand_indexed_reads(lowerer, expression, &mut hoisted, false);
+            hoisted.push(Statement::Expression(expression));
+            Ok(hoisted)
+        }
         syntax::statement::StatementNode::LocalData(local_data) => {
             let type_reference =
                 lower_type_reference_handle(lowerer, syntax_trees, local_data.type_reference)?;
