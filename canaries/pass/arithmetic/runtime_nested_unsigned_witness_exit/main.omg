@@ -7,13 +7,20 @@
 // compare of a nested quotient (unsigned `>`ping, not signed), and a logical
 // (not arithmetic) shift-right of one. Operands are FIELDS (fold-proof; the
 // verification landmines on the TASKS item apply: positive expected values
-// only). Exit 70.
+// only). Fifth direction: the WRITE-side fused-operand builder shares the
+// witness funnel. Exit 70.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main {
     console: Console;
     a: u32;
     b: u32;
-    r: u32;
+    z: u32;
+    // Wrapping landing + S2-retagged ADD below: the Exact prover does not
+    // model %-result ranges, and div/mod themselves carry no overflow
+    // obligation -- the retag confines the proof question to the add while
+    // the nested div/mod (this direction's actual subject) stay Exact-class
+    // unsigned selections over runtime fields.
+    r: u32 in Wrapping;
 }
 machine Main::main(&mut self) {
     // Fused guard: unsigned 3000000000 / 1 % 100 = 0 (signed: rem -96).
@@ -35,11 +42,30 @@ machine Main::main(&mut self) {
         // Logical shift-right of a nested quotient: 3000000000/1 >> 1 =
         // 1500000000 (arithmetic sar of the negative reading differs).
         self.b = 1;
-        transition ((self.a / self.b) >> 1 == 1500000000) { true -> good() _ -> bad4() }
+        transition ((self.a / self.b) >> 1 == 1500000000) { true -> write_fused() _ -> bad4() }
+    }
+    state write_fused(&mut self) {
+        // The WRITE-side fused-operand builder shares the same witness
+        // funnel: the nested div/mod inside this add's left operand must
+        // also pick the unsigned forms. a/b arrive from EARLIER states so
+        // the folder cannot pre-compute the check (a same-state probe of
+        // this shape folded its guard and MASKED the signedness entirely);
+        // The S2 retags make the ADD Wrapping (defined overflow, no proof
+        // obligation); the nested div/mod inside the left retag remain the
+        // direction's subject.
+        self.z = 5;
+        transition self.z < 10 { true -> write_go(self.z) _ -> bad5() }
+    }
+    state write_go(&mut self, zz: u32 [0..=9]) {
+        self.r = (((self.a / self.b) % 100) as u32 in Wrapping)
+            + (zz as u32 in Wrapping);
+        transition self.r == 5 { true -> good() _ -> bad6() }
     }
     state good(&mut self) { self.console.exit_process(70); }
     state bad1(&mut self) { self.console.exit_process(71); }
     state bad2(&mut self) { self.console.exit_process(72); }
     state bad3(&mut self) { self.console.exit_process(73); }
     state bad4(&mut self) { self.console.exit_process(74); }
+    state bad5(&mut self) { self.console.exit_process(75); }
+    state bad6(&mut self) { self.console.exit_process(76); }
 }
