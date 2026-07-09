@@ -719,7 +719,10 @@ pub fn encode_runtime_storage_binary_write(
     } else if saturating_or_trapping
         && matches!(
             operator,
-            StateGuardOperator::Add | StateGuardOperator::Subtract | StateGuardOperator::Multiply
+            StateGuardOperator::Add
+                | StateGuardOperator::Subtract
+                | StateGuardOperator::Multiply
+                | StateGuardOperator::ShiftLeft
         )
     {
         // Wide-width op + range-compare clamp/trap. Result left in x17; x16 (target
@@ -830,6 +833,53 @@ fn append_saturating_trapping_arithmetic(
         // signed overflow iff SMULH != low >> 63 (the sign broadcast);
         // unsigned iff UMULH != 0. The high half computes BEFORE the low
         // half overwrites x17.
+        if operator == StateGuardOperator::ShiftLeft {
+            // 64-bit `<<` loses the shifted-out bits, so the witness is
+            // RECOVERY: y = x << n, then y >> n (arithmetic for signed,
+            // logical for unsigned) equals x exactly when nothing was lost.
+            // Two count caveats need explicit compares (LSLV masks the count
+            // mod 64, so recovery alone cannot see them): a count >= 64
+            // overflows every nonzero x, and x == 0 never overflows at any
+            // count. Layout: recovery-mismatch branches to the fixup;
+            // count < 64 branches to keep; x == 0 branches to keep; fall
+            // into the fixup (clamp by x's sign / all-ones / brk).
+            let fixup_bytes: isize = match (domain, target_signed) {
+                // cmp x,#0 + csinv MIN/MAX.
+                (ArithmeticDomain::Saturating, true) => 8,
+                // movz/movk*3 padded u64::MAX.
+                (ArithmeticDomain::Saturating, false) => 16,
+                // brk.
+                _ => 4,
+            };
+            bytes.extend(encode_move_x_register(sign_scratch, dest)); // save x
+            if domain == ArithmeticDomain::Saturating && target_signed {
+                append_unsigned_immediate(bytes, bound_scratch, i64::MIN as u64); // 2 instr
+            }
+            bytes.extend(encode_lslv_x_register(dest, dest, rhs));
+            bytes.extend(if target_signed {
+                encode_asrv_x_register(high_scratch, dest, rhs)
+            } else {
+                encode_lsrv_x_register(high_scratch, dest, rhs)
+            });
+            bytes.extend(encode_compare_x_register(high_scratch, sign_scratch));
+            bytes.extend(encode_conditional_branch_not_equal(20)?); // -> fixup
+            bytes.extend(encode_compare_x_immediate(rhs, 64)?);
+            bytes.extend(encode_conditional_branch_lower(12 + fixup_bytes)?); // -> keep
+            bytes.extend(encode_subs_x_immediate(31, sign_scratch, 0)?); // cmp x, #0
+            bytes.extend(encode_conditional_branch_equal(4 + fixup_bytes)?); // -> keep
+            match (domain, target_signed) {
+                (ArithmeticDomain::Saturating, true) => {
+                    bytes.extend(encode_subs_x_immediate(31, sign_scratch, 0)?);
+                    // MI (x negative) -> MIN, else NOT(MIN) = MAX.
+                    bytes.extend(encode_csinv_x(dest, bound_scratch, bound_scratch, 0b0100));
+                }
+                (ArithmeticDomain::Saturating, false) => {
+                    append_unsigned_immediate_padded(bytes, dest, u64::MAX);
+                }
+                _ => bytes.extend(encode_brk(0)),
+            }
+            return Ok(());
+        }
         if matches!(operator, StateGuardOperator::Multiply) {
             match (domain, target_signed) {
                 (ArithmeticDomain::Saturating, true) => {
@@ -926,6 +976,63 @@ fn append_saturating_trapping_arithmetic(
         return Err(Diagnostic::error(format!(
             "saturating/trapping arithmetic cannot handle {byte_size}-byte targets yet on aarch64"
         )));
+    }
+
+    if operator == StateGuardOperator::ShiftLeft {
+        // Narrow `<<`: cap the COUNT at the type width w -- any count >= w
+        // overflows every nonzero x, and the cap keeps the 64-bit LSLV EXACT
+        // (|x| <= 2^31-ish shifted by <= 32 fits 64 bits) -- then range-check
+        // the exact value. The count reads UNSIGNED (a negative signed count
+        // is huge unsigned and caps to w, matching the interpreter's
+        // `count as u64 >= width`); only the VALUE register sign-extends.
+        // Unsigned targets take a SINGLE unsigned upper-bound check: x >= 0
+        // shifted left cannot go below zero, and the wide value can exceed
+        // i64::MAX (2^31 << 32), which the shared add/sub/mul tail's SIGNED
+        // lower compare would misread as negative and clamp to 0.
+        if target_signed {
+            bytes.extend(match byte_size {
+                1 => encode_sign_extend_byte_to_x(dest, dest),
+                2 => encode_sign_extend_halfword_to_x(dest, dest),
+                _ => encode_sign_extend_word_to_x(dest, dest),
+            });
+        }
+        let width_bits = (8 * byte_size) as u64;
+        append_unsigned_immediate_padded(bytes, high_scratch, width_bits);
+        bytes.extend(encode_compare_x_immediate(rhs, width_bits as u32)?);
+        bytes.extend(encode_csel_x(rhs, rhs, high_scratch, 0b0011)); // LO -> keep, else w
+        bytes.extend(encode_lslv_x_register(dest, dest, rhs));
+        let unsigned_max: u64 = (1u64 << (8 * byte_size)) - 1;
+        let signed_min = (-(1i128 << (8 * byte_size - 1))) as i64 as u64;
+        let signed_max = ((1i128 << (8 * byte_size - 1)) - 1) as u64;
+        if target_signed {
+            // Both bounds; the exact wide value stays within i64 (cap = w).
+            append_unsigned_immediate_padded(bytes, rhs, signed_min);
+            bytes.extend(encode_compare_x_register(dest, rhs));
+            bytes.extend(encode_conditional_branch_greater_or_equal(8)?);
+            bytes.extend(if domain == ArithmeticDomain::Saturating {
+                encode_move_x_register(dest, rhs)
+            } else {
+                encode_brk(0)
+            });
+            append_unsigned_immediate_padded(bytes, rhs, signed_max);
+            bytes.extend(encode_compare_x_register(dest, rhs));
+            bytes.extend(encode_conditional_branch_less_or_equal(8)?);
+            bytes.extend(if domain == ArithmeticDomain::Saturating {
+                encode_move_x_register(dest, rhs)
+            } else {
+                encode_brk(0)
+            });
+        } else {
+            append_unsigned_immediate_padded(bytes, rhs, unsigned_max);
+            bytes.extend(encode_compare_x_register(dest, rhs));
+            bytes.extend(encode_conditional_branch_lower_or_same(8)?);
+            bytes.extend(if domain == ArithmeticDomain::Saturating {
+                encode_move_x_register(dest, rhs)
+            } else {
+                encode_brk(0)
+            });
+        }
+        return Ok(());
     }
 
     // The operands were loaded zero-extended. For signed targets, sign-extend both
@@ -3432,6 +3539,7 @@ fn append_runtime_value_operand(
                     StateGuardOperator::Add
                         | StateGuardOperator::Subtract
                         | StateGuardOperator::Multiply
+                        | StateGuardOperator::ShiftLeft
                 )
             })
         {
