@@ -1,0 +1,77 @@
+// RUN CANARY (exit 70) -- closes the wrapper zero-caller sweep: first runtime
+// coverage of set_times (futimens; verified by reading the times BACK via
+// metadata(File)), the set_owner family (set_owner / set_owner_no_follow /
+// set_file_owner with uid/gid -1 = leave-unchanged, the unprivileged no-op
+// that must succeed), and symlink_metadata (the lstat path, probed on a
+// REGULAR file: is_symlink false + real len). darwin-native (chown/futimens/
+// lstat have no msvcrt rows), so this lives macos-gated in
+// native_filesystem_canaries; the interpreter leg was probe-verified at 70.
+// exits: 70 ok; 71 create/write failed; 72 set_times not Ok; 73 times did
+// not read back; 74 set_owner not Ok; 75 set_owner_no_follow not Ok;
+// 76 set_file_owner not Ok; 77 symlink_metadata not Ok / is_symlink wrong /
+// len wrong; 78 cleanup failed.
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    fs: Filesystem;
+    open_result: OpenResult;
+    io_result: IoResult;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+    file_fd: i32;
+    close_rc: i32;
+}
+machine Main::main(&mut self) {
+    self.open_result = self.fs.create("omega_tol_probe.txt");
+    transition self.open_result { OpenResult::Ok { file } -> seed(file) _ -> bad(71) }
+    state seed(&mut self, file: File) {
+        self.file_fd = file.fd;
+        self.io_result = self.fs.write(File { fd: self.file_fd }, "hello");
+        transition self.io_result { IoResult::Ok { count } -> times() _ -> bad(71) }
+    }
+    state times(&mut self) {
+        self.unit_result = self.fs.set_times(File { fd: self.file_fd }, 1000000100, 1000000200);
+        transition self.unit_result { UnitResult::Ok -> ck_times() _ -> bad(72) }
+    }
+    state ck_times(&mut self) {
+        self.meta_result = self.fs.metadata(File { fd: self.file_fd });
+        transition self.meta_result { MetadataResult::Ok { meta } -> ck_times2(meta) _ -> bad(73) }
+    }
+    state ck_times2(&mut self, meta: Metadata) {
+        transition meta.accessed_secs == 1000000100 { true -> ck_times3(meta) _ -> bad(73) }
+    }
+    state ck_times3(&mut self, meta: Metadata) {
+        transition meta.modified_secs == 1000000200 { true -> owner() _ -> bad(73) }
+    }
+    state owner(&mut self) {
+        self.unit_result = self.fs.set_owner("omega_tol_probe.txt", -1, -1);
+        transition self.unit_result { UnitResult::Ok -> owner_nf() _ -> bad(74) }
+    }
+    state owner_nf(&mut self) {
+        self.unit_result = self.fs.set_owner_no_follow("omega_tol_probe.txt", -1, -1);
+        transition self.unit_result { UnitResult::Ok -> owner_fd() _ -> bad(75) }
+    }
+    state owner_fd(&mut self) {
+        self.unit_result = self.fs.set_file_owner(File { fd: self.file_fd }, -1, -1);
+        transition self.unit_result { UnitResult::Ok -> lstat() _ -> bad(76) }
+    }
+    state lstat(&mut self) {
+        self.meta_result = self.fs.symlink_metadata("omega_tol_probe.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> ck_lstat(meta) _ -> bad(77) }
+    }
+    state ck_lstat(&mut self, meta: Metadata) {
+        transition meta.is_symlink { true -> bad(77) _ -> ck_lstat2(meta) }
+    }
+    state ck_lstat2(&mut self, meta: Metadata) {
+        transition meta.len == 5 { true -> cleanup() _ -> bad(77) }
+    }
+    state cleanup(&mut self) {
+        self.close_rc = self.fs.close(File { fd: self.file_fd });
+        self.unit_result = self.fs.remove("omega_tol_probe.txt");
+        transition self.unit_result { UnitResult::Ok -> good() _ -> bad(78) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

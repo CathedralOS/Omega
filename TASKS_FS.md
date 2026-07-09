@@ -490,7 +490,17 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    ARM -- the effectful-arm fence refused every value-position caller
    (zero-caller code again); both now capture errno into a new `lock_errno`
    field in the ENTRY (the try_exists idiom; stale-but-unread on the acquired
-   path). STILL zero-caller: set_times, set_owner family, symlink_metadata.
+   path). ZERO-CALLER SWEEP COMPLETE (2026-07-08i):
+   set_times + set_owner/set_owner_no_follow/set_file_owner + symlink_metadata
+   covered by `wrapper_times_owner_lstat_exit` (native 70 + interp 70,
+   macos-gated -- chown/futimens/lstat have no msvcrt rows): set_times
+   round-trips through metadata(File); ownership uses uid/gid -1 (the
+   unprivileged leave-unchanged no-op); symlink_metadata probes lstat on a
+   regular file (is_symlink false + len). Every user-facing wrapper method
+   now has either a calling canary or a pending canary with a fence
+   diagnosis (open_with; dir-walk family). Internal helpers (decode_metadata,
+   last_error, mkall_*, rda, read_dir_entry_fd) are covered through their
+   callers.
    DIR-WALK FAMILY: NOT darwin-runnable after all -- probed 2026-07-08h,
    INTERP-ONLY on every native target via THREE distinct honest fences:
    (1) create_dir_all's interior value-calls the re-entrant `mkall_copy`
