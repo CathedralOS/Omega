@@ -119,15 +119,20 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
 6. **Authored-bindings interp story** — OWNER_QUESTIONS.md #10 (native-only
    imports today; differential skips).
 
-7. **[CLAIMED from TASKS_TIME 2026-07-11n]** D14 next fires -- u64
-   literals in LET initializers (fire E) and EQUALITY compares (fire F,
-   ==/!= only; ordering stays refused, sign-blind). Unblocks the
-   saturating_* Instant/SystemTime twins (TASKS_TIME item 6's deliberate
-   gap). Survey: parallel thread is on validation rulings (shift counts,
-   Q6), not D14. Recipe per literals.rs: extend u64_blessed_literals AND
-   the materializing consumer in the same change; canaries per
-   TASKS_TIME "Next steps" #5 (exact round-trip, FAIL no-type-fits,
-   FAIL u64-into-i64).
+7. **[CLAIMED from TASKS_TIME 2026-07-11n]** D14 fires E+F — **LANDED
+   2026-07-11n**: u64 literals in LET initializers (fire E; the native
+   static resolver + interpreter were already bits-capable) and
+   EQUALITY guards against u64-classed places (fire F; ==/!= only,
+   ordering stays refused sign-blind; the guard-side resolver gained
+   the bits fallback, sound under the gate; the walker recurses through
+   the multi-arm desugar's `(subject) == true` nesting — that nesting
+   cost the debug cycle). Pins:
+   arithmetic/runtime_u64_literal_let_guard_exit (exact u64::MAX
+   round-trip, differential),
+   fail/arithmetic/u64_literal_into_i64_rejected,
+   fail/arithmetic/u64_literal_ordering_guard_rejected. NEXT (still
+   claimed): the saturating_* Instant/SystemTime twins in std/time —
+   the deliberate gap these fires unblock (TASKS_TIME item 6).
 
 8. ~~Machine source-file plumbing~~ — **RESOLVED 2026-07-11m without a
    representation change**: per-file item attribution already exists at

@@ -10,7 +10,17 @@ pub(super) fn resolved_guard_operand_value(
 ) -> Option<i64> {
     match table.expression(expression) {
         ExpressionNode::Boolean(value) => return Some(i64::from(*value)),
-        ExpressionNode::Integer(value) => return value.value_i64(),
+        // The bits fallback serves u64-magnitude literals (D14 fire F): the
+        // literal-width gate only blesses them into EQUALITY guards against
+        // u64-classed places, where the 8-byte two's-complement pattern IS
+        // the value under bit-pattern compare; an ordering guard never sees
+        // an oversize literal (refused at validation), so the signed compare
+        // the encoder emits stays sound.
+        ExpressionNode::Integer(value) => {
+            return value
+                .value_i64()
+                .or_else(|| value.bits_u64().map(|bits| bits as i64));
+        }
         // A float literal resolves to its IEEE-754 bit pattern so a guard like
         // `self.a == 5.0` becomes a CompareStaticValue; the emission compares
         // against these bits via `comisd` (selected by the guard's is_float).

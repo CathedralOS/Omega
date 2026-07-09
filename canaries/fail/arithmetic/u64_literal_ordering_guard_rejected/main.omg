@@ -1,0 +1,11 @@
+// FAIL CANARY -- a u64-magnitude literal in an ORDERING guard: the
+// encoder's compare is SIGNED, and a two's-complement u64 bit pattern
+// under it is sign-blind (u64::MAX would order as -1). Only equality
+// positions are blessed (D14 fire F); ordering refuses loudly.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; stored: u64 in Wrapping; }
+machine Main::main(&mut self) {
+    self.stored = 5;
+    transition self.stored < 18446744073709551615 { true -> good() _ -> good() }
+    state good(&mut self) { self.console.exit_process(70); }
+}

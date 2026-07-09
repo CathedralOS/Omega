@@ -21392,6 +21392,37 @@ fn runtime_main_source_builder_is_ordinary_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// D14 FIRES E+F: u64::MAX literals in a LET initializer and an EQUALITY
+// guard round-trip exactly through a value machine's guarded arms.
+#[test]
+fn runtime_u64_literal_let_guard_exit_canary_runs() {
+    let canary = pass_canary("arithmetic/runtime_u64_literal_let_guard_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-u64-literal-let-guard-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("u64 let+guard canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("u64 let+guard canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the exact u64::MAX round trip (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // PARAM RECEIVER through a SINGLE-instance family: the by-type pick is
 // provably the passed instance (multi-instance serves via param binding;
 // unresolvable-argument shapes stay fenced).
@@ -28263,6 +28294,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/unconstrained_payload_arithmetic",
     "arithmetic/bounded_assignment_unproven",
     "arithmetic/wrapping_target_plain_operands_rejected",
+    "arithmetic/u64_literal_into_i64_rejected",
+    "arithmetic/u64_literal_ordering_guard_rejected",
     "calls/unresolved_value_call_rejected",
     "calls/unresolved_receiver_method_rejected",
     "calls/void_value_callee_rejected",
