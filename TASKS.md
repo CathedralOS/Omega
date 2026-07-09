@@ -38,10 +38,13 @@ PROOF side accept only structural equivalence (validation's env join handles the
 general case; make the checker join per-guard candidate ranges if a real program
 needs it), and env facts are per-state (no interprocedural ranges).
 
-- **[ ] Element-range de-boilerplate conversions (low priority).** Element
-  ranges can replace re-guard states in converted samples
-  (`cells: [i32 [0..=1]; 64]` in cellular_automaton drops its re-guard states);
-  per-sample judgment. Accumulator samples (array_sum, dot_product, histogram
+- **[~] Element-range de-boilerplate conversions (low priority).**
+  cellular_automaton CONVERTED 2026-07-09: `cells`/`next` declare
+  `[i32 [0..=1]; 64]`; the render value re-guard state (cv < 2) merged away
+  and the `min(max(cell,0),1)` window clamp dropped -- the prover discharges
+  the ramp index, the clamp-free window fold, AND the `(90 >> w) & 1` rule-bit
+  write into the range-checked elements (the &-mask bound holds). Output
+  byte-identical, exit 0. Remaining conversions stay per-sample judgment. Accumulator samples (array_sum, dot_product, histogram
   tallies) legitimately KEEP Wrapping — an accumulator's bound needs
   iteration-count reasoning no element range supplies. The guarded element
   increment (`tallies[k] < 16` proving `tallies[k] += 1`) works for BOTH const
