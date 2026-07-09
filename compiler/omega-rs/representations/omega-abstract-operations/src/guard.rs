@@ -74,4 +74,16 @@ pub enum StateGuardLowering {
     /// rejects it with a bind-to-a-`let` diagnostic. Zero bytes; must never
     /// reach a runnable image.
     UnloweredTerminalHostCall,
+    /// POISON: a CASE/STRUCT-LITERAL construction with a payload field whose
+    /// VALUE no operand strategy could lower (`z: self.name == "omega"` --
+    /// text equality has no branch-resolver arm, for one). The construction
+    /// cascade writes the tag and each field independently and used to OR
+    /// per-field success, so the one unresolvable field was silently DROPPED
+    /// while its siblings landed and the field read ZII 0 (the
+    /// cast-in-payload face was the first instance; this marker closes the
+    /// hole for every future field shape). Selection emits this instead of
+    /// skipping the field; emission planning rejects it with a
+    /// bind-to-a-`let` diagnostic. Zero bytes; must never reach a runnable
+    /// image.
+    UnloweredCaseLiteralField,
 }
