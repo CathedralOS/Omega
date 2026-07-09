@@ -20849,6 +20849,57 @@ fn windows_fs_wrapper_param_shadow_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// `Filesystem::open_with` (Rust OpenOptions) end-to-end: the composed flag
+// word folds to one constant per call site at mutation-write selection
+// (fold_substituted_constant_integer) -- before that fold the machine was
+// natively uncompilable in value position. Six legs: write+create / read /
+// truncate / append / create_new-on-existing / read-absent.
+#[cfg(windows)]
+#[test]
+fn windows_fs_wrapper_open_with_exit_canary_runs() {
+    let canary = pass_canary("filesystem/wrapper_open_with_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("open_with matrix canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (full OpenOptions matrix), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fs-open-with-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("open_with matrix canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("open_with matrix canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the full OpenOptions matrix (exit 70), got {:?} (71/72 = \
+         write+create leg; 73/74 = read leg; 75 = truncate; 76 = append; \
+         77 = create_new not AlreadyExists; 78 = absent not NotFound; \
+         79 = cleanup)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A value-machine METHOD call through a FIELD receiver (`self.meta_f.is_file()`)
 // -- the idiom the param-receiver fence points to. Discriminating: is_file()
 // must be true AND agree with the inline mode-bits twin.

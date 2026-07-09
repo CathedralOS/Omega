@@ -476,14 +476,11 @@ machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptio
     let creating: i32 = (options.create as i32) | (options.create_new as i32);
     let creat_flag: i32 = creating << FilesystemHost::O_CREATE_BIT;
     let excl_flag: i32 = (options.create_new as i32) << FilesystemHost::O_EXCL_BIT;
-    // The composed word lands in a FIELD (host-call scalar-arg idiom).
-    // ⚠️ KNOWN GAP: in a VALUE-CALL dispatch context this machine does not
-    // lower natively yet -- a MachineOwned write whose VALUE is any compound
-    // expression (over locals, or even param members) hits "needs runtime
-    // storage write lowering" (probed 2026-07-08: single-expression, stepwise
-    // RMW over locals, and RMW over param members all refuse; the refusal is
-    // loud, never a miscompile). The interpreter runs it faithfully. See
-    // canaries/pending/host/wrapper_open_with_matrix + TASKS_FS.
+    // The composed word lands in a FIELD (host-call scalar-arg idiom). With a
+    // struct-LITERAL OpenOptions at the call site the whole tree folds to one
+    // constant at mutation-write selection (fold_substituted_constant_integer);
+    // a runtime-valued OpenOptions still refuses loudly (the let-local
+    // write-value face) -- pinned by filesystem/wrapper_open_with_exit.
     self.open_flags = wronly | rdwr | append_flag | truncate_flag | creat_flag | excl_flag
         | FilesystemHost::O_BINARY;
     let fd: i32 = self.host.open_create(path, self.open_flags, 438);
