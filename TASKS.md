@@ -218,7 +218,14 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     idempotent for the write path; runtime_binary_operation_width gained
     byte_size, its six callers mirror the encoders'
     runtime_binary_operation_byte_size derivation).
-    STRING-COMPARE ROOT DIAGNOSED 2026-07-09 (fix = next tick's port):
+    STRING-COMPARE PORTED 2026-07-09 (the plan below executed verbatim; the
+    aarch64 encoder is now an exact x86 mirror -- length precheck, literal_len
+    byte loop, equal-length MATCH shortcut, stored-side delimiter check;
+    MATCH branches externally by distance 1 anchored at the terminal branch,
+    MISMATCH falls through; distance 2 + branch_when_equal unused like x86.
+    Fixed local_string_comparison_value 78 + boolean_transition_after_string_
+    guard + machine_owned_indexed_nested_room_copy; suite 689/18, zero new).
+    ORIGINAL DIAGNOSIS (kept for the record):
     aarch64's encode_runtime_text_storage_compare_bytes (runtime_text/
     compare.rs) is structurally WRONG vs the x86 reference: it never compares
     stored.len against literal.len (loops stored.len bytes over both buffers

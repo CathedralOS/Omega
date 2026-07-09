@@ -34,15 +34,13 @@ pub fn encode_runtime_text_storage_compare_bytes(
     branch_when_equal: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => {
-            let _ = literal_len;
-            aarch64::encode_runtime_text_storage_compare_bytes(
-                source_offset,
-                compare_failure_branch_distance,
-                delimiter_failure_branch_distance,
-                branch_when_equal,
-            )
-        }
+        Architecture::Aarch64 => aarch64::encode_runtime_text_storage_compare_bytes(
+            source_offset,
+            literal_len,
+            compare_failure_branch_distance,
+            delimiter_failure_branch_distance,
+            branch_when_equal,
+        ),
         Architecture::X86_64 => x86_64::encode_runtime_text_storage_compare_bytes(
             source_offset,
             literal_len,

@@ -93,7 +93,9 @@ pub fn runtime_text_literal_compare_width(literal: &str) -> usize {
 }
 
 pub fn runtime_text_storage_compare_width(source_offset: usize) -> usize {
-    76 + runtime_text_descriptor_load_pair_width(source_offset)
+    // adrp pairs (16) + descriptor loads + the padded literal-length
+    // immediate (8) + the fixed 22-instruction compare body (88).
+    112 + runtime_text_descriptor_load_pair_width(source_offset)
 }
 
 pub fn runtime_storage_compare_width(

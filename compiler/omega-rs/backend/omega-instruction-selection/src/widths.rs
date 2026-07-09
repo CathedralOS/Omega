@@ -201,10 +201,12 @@ pub fn runtime_text_storage_compare_failure_branch_offset(
     literal_len: usize,
 ) -> usize {
     match architecture {
-        // AArch64's per-byte mismatch conditional branch follows the two descriptor loads.
+        // AArch64's terminal MATCH branch is the last instruction of the op
+        // (head 16 + loads + the 8-byte length immediate + 21 body
+        // instructions precede it).
         Architecture::Aarch64 => {
             let _ = literal_len;
-            16 + aarch64_runtime_text_descriptor_load_pair_width(source_offset) + 16
+            aarch64::runtime_text_storage_compare_width(source_offset) - 4
         }
         Architecture::X86_64 => {
             x86_64::runtime_text_storage_compare_failure_branch_offset(literal_len)
@@ -220,8 +222,11 @@ pub fn runtime_text_storage_compare_delimiter_branch_offset(
     literal_len: usize,
 ) -> usize {
     match architecture {
+        // Unused by the aarch64 encoder (mismatch falls through like x86_64);
+        // anchor at the MISMATCH trampoline so the computed distance stays
+        // in-bounds.
         Architecture::Aarch64 => {
-            aarch64::runtime_text_storage_compare_width(source_offset).saturating_sub(4)
+            aarch64::runtime_text_storage_compare_width(source_offset).saturating_sub(8)
         }
         Architecture::X86_64 => {
             x86_64::runtime_text_storage_compare_failure_branch_offset(literal_len)
