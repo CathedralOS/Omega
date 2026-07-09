@@ -20086,6 +20086,45 @@ fn runtime_dispatch_result_field_binding_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A dispatched value call whose terminal reads a SLICE ELEMENT directly
+// (`-> s[j]`): the return-write emits the region-paired indexed copy
+// (frame slot -> CopyRuntimeFrameIndexedToRuntimeFrame). The first probe
+// emitted the machine-region kind against the frame slot and crashed;
+// the region split is the fix (2026-07-09k2).
+#[test]
+fn runtime_dispatch_slice_element_terminal_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_dispatch_slice_element_terminal_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-dispatch-slice-element-terminal-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dispatch slice-element terminal canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dispatch slice-element terminal canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the dispatched call's `-> s[j]` terminal to deliver s[2] == 7 \
+         (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A dispatched value call whose terminal is a BINARY expression (-> acc + 100): computed into the result place (was a silent fallthrough).
 #[test]
 fn runtime_dispatch_result_binary_terminal_exit_canary_runs() {
