@@ -68,12 +68,23 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
 
 ## Open work
 
-1. **build.omg compiler-side gate** — DESIGN-GATED on OWNER_QUESTIONS.md
-   #1–4 (capability injection spelling, grant derivation defaults, effect-
-   gate shape, console-for-logging). The interpreter side is fully landed
-   (real-fs provider, grants, granted entry); `pipeline/build_config.rs`
-   still enforces the retired empty-effect gate. When answered: relax the
-   gate per #3, derive grants per #2, spell injection per #1.
+1. **build.omg compiler-side gate** — DESIGN-UNBLOCKED 2026-07-11i
+   (owner answered #2–#5 in OWNER_QUESTIONS.md, commit 14e02026e).
+   Distilled: (a) INJECTION = dependency injection of a filesystem
+   data instance into build's main (SAS-component style; build.omg
+   still `use`s std::filesystem); (b) GRANTS: don't over-index on
+   permissions AT ALL right now — build.omg lives in the dir being
+   built, builds to build/; main.omg is NOT blessed (build.omg
+   specifies the root; maybe a default-build.omg convention later);
+   (c) EFFECT GATE: `filesystem` is a DECLARED effect on build's main
+   fn — allowed there, forbidden elsewhere, enforced by the effect
+   system; relax build_config.rs's empty-effect gate to exactly that;
+   (d) CONSOLE: add to build.omg's declared effects ("harmless and
+   everyone wants it"); the interpreter must treat it as a declared
+   effect, never silently swallow logging. Implementation next: relax
+   the gate, declare+enforce the two effects, thread the injected
+   filesystem instance to the granted interpreter entry
+   (evaluate_build_machine_with_filesystem is already there).
 
 2. ~~reversed-operand receiver residual~~ — **CLOSED 2026-07-10y.** The
    three-session hunt bottomed out in TWO stacked holes past the resolver:
