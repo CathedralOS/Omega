@@ -293,6 +293,20 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         // back into it) up front, so the cloning DFS cannot overflow. STATIC check
         // over call + transition edges; it does not follow continuations.
         if self.call_target_recurses_into(call_edge.target_key, control_key) {
+            if std::env::var_os("OMEGA_DEBUG_TAILCALL").is_some() {
+                eprintln!(
+                    "TAILCALL PROBE: edge {:?} segment {} of {} | control m{} s{} | target m{} s{} | is_value {} stmt {}",
+                    call_edge,
+                    segment,
+                    call_edges.len(),
+                    control_key.machine.arena_index(),
+                    control_key.state.arena_index(),
+                    call_edge.target_key.machine.arena_index(),
+                    call_edge.target_key.state.arena_index(),
+                    call_edge.is_value,
+                    call_edge.statement_index,
+                );
+            }
             return Err(Diagnostic::error(format!(
                 "{} calls into a recursive cycle (target {}); specialization \
                  cannot lower a call graph that (transitively) calls itself. \

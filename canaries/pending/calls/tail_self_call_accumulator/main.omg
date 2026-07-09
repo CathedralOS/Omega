@@ -1,0 +1,46 @@
+// PENDING (2026-07-10c, the tail-call-to-loop transform): the NATURAL
+// accumulator recursion -- an arm state whose terminal is a value call back
+// to its own machine (`self.sum(n - 1, acc + n)`).
+//
+// TODAY: the PROVER ACCEPTS this (decreases n checks fine -- the frontend
+// termination story covers call recursion); only the runtime-flow builder's
+// cloning DFS refuses it ("calls into a recursive cycle... Express the
+// repetition as a loop"). So this is purely a LOWERING gap.
+//
+// THE TRANSFORM (mapped 2026-07-10c): a SELF-RECEIVER tail self-call is
+// semantically identical to the entry-transition loop the machinery already
+// handles end to end (the pick canary shape: same instance, rebound args,
+// result delivered by the entry-loop's CallResultReturn). At the rejection
+// site (runtime_flow/builder.rs visit_state_segment_call), the probe edge is
+// RuntimeStateCallEdge { same machine handle, is_value: true, segment 0 of
+// 1 } -- but the edge does NOT carry receiver identity, and the receiver
+// check is LOAD-BEARING: `self.other.sum(..)` with other: a contained
+// same-machine field must KEEP rejecting (different instance; a self-
+// transition would run on the wrong one). Plan: (1) thread an
+// `is_self_receiver` bit into RuntimeStateCallEdge (backend-pipeline
+// builder has the full StateCall receiver_path); (2) at the rejection
+// site, when same-machine + self-receiver + tail (last call, trivial tail
+// segment), emit the transition edge visit_transition would emit for
+// `-> entry(args)` -- note entry_continuation/entry_arguments(context)
+// already model re-entering the clone's own entry (the no-guard-matched
+// fall-through uses exactly that); (3) keep the cycle error for every
+// other shape. OMEGA_DEBUG_TAILCALL at the rejection site prints the edge.
+// PROMOTE (pass/calls + differential, expected 70/70) when the transform
+// lands. Interp already computes this correctly (fresh-frame call
+// semantics; observably identical for self-receiver tail calls).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::sum(&mut self, n: i32, acc: i32)
+terminates { decreases n; }
+-> i32
+{
+    transition n > 0 { true -> step(n, acc) false -> leaf(acc) }
+    state step(&mut self, n: i32, acc: i32) -> i32 { self.sum(n - 1, acc + n) }
+    state leaf(&mut self, acc: i32) -> i32 { acc }
+}
+machine Main::main(&mut self) {
+    let s: i32 = self.sum(4, 0);
+    transition s == 10 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
