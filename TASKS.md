@@ -291,6 +291,29 @@ decreases remaining
   Same underspecified-numeric family as the shift/cast divergences
   ([[shift-amount-out-of-range-divergence]]).
 
+- **[ ] Sum PAYLOAD-range narrowing under a case-match (CONSERVATIVE gap, scoped
+  2026-07-08).** A destructured payload binding (`P::One { v } -> use_v(v)` with
+  `case One(v: i32 [0..=50])`) loses the payload field's declared range, so a
+  same-ranged param/arithmetic use is wrongly rejected ("cannot prove transition
+  argument `self.p.v` satisfies bounded parameter"). NOT a miscompile -- refuses
+  valid proof-carrying code. The obvious fix (extend
+  omega-proof/obligations.rs `data_field_in_definition` to search variant
+  payloads) was built + PROVEN UNSOUND + reverted (2026-07-08): that path is
+  guard-blind and also feeds DIRECT payload access outside a case-arm, so it
+  would falsely prove `self.p.v in [0..=50]` when the active case is `Two`
+  (compiles, then traps 132 at run). SOUND FIX = a CHECKER-side feature: a
+  case-dispatch arm's guard desugars to `When(self.p.tag == ordinal)`
+  ([[match-desugar-tag-arithmetic-interp]]) and rides on the transition-arg
+  obligation's `guard` field, so checker.rs
+  `guarded_integer_range_for_transition_argument` can admit the payload range
+  when the guard proves the owning variant's tag (reuse guard-narrowing).
+  Multi-fire (needs a tag-ordinal->variant->payload-field-range map). Direct
+  access outside an arm is a CHECKED partial op (native traps 132, interp errors)
+  with an undischarged "case is active" obligation -- it stays unproven (sound)
+  and separately warrants its own compile-time fence (design call). Repro
+  canaries/pending/ranges/sum_payload_range_not_propagated; full trace in memory
+  [[sum-payload-range-not-propagated]].
+
 - Contained-machine METHOD-CALL storage resolution is a SILENT miscompile with TWO faces
   (see memory `contained-machine-same-type-aliasing`), both from the backend resolving a
   method-call receiver's `self`-base by machine TYPE rather than the receiver field:

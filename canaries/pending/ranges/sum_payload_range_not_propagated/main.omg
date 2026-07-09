@@ -12,16 +12,34 @@
 // [0..=50]. This is NOT a miscompile; it just refuses valid proof-carrying code.
 //
 // ⚠️ THE OBVIOUS FIX IS UNSOUND (proved 2026-07-08). The arg proof resolves
-// `self.p.v`'s range via omega-proof/obligations.rs data_field_in_definition.
-// Extending it to search variant payloads makes THIS repro pass -- but DIRECT
-// payload access outside a case-arm is ALLOWED (reads the active case's
-// overlapping bytes), so an unconditional payload range is a LIE when the case
-// differs (`case Two(w:[0..=1000])`; `p=Two{w:900}; got:[0..=50]=self.p.v`
-// COMPILES falsely with the change, is correctly REJECTED without it). The SOUND
-// fix needs CASE-CONTEXT: make the payload range a GUARDED fact keyed on the
-// case-narrowing (reuse the guard-narrowing machinery), OR reject direct payload
-// access outside a case-arm first (design call). See memory
-// value... sum-payload-range-not-propagated for the full trace.
+// `self.p.v`'s range via omega-proof/obligations.rs data_field_in_definition
+// (guard-BLIND: obligation-building has no case context per-expression).
+// Extending it to search variant payloads makes THIS repro pass -- but the same
+// resolution feeds DIRECT payload access outside a case-arm, which is currently
+// admitted (`let got = self.p.v`). Direct wrong-case access is a CHECKED partial
+// op, NOT a silent misread: native TRAPS (exit 132/ud2), interp ERRORS ("case
+// `Two` carries no payload field `v`", exit 101) -- both detect it, they just
+// surface the trap differently. So the field's "case is active" obligation is
+// UNDISCHARGED (exactly analogous to an index bound). The unconditional range is
+// then a proof LIE: it claims a total in-range value where the program can trap
+// (`case Two(w:[0..=1000])`; `p=Two{w:900}; got:[0..=50]=self.p.v` COMPILES
+// falsely with the change, is correctly REJECTED without it, traps 132 at run).
+//
+// THE SOUND FIX (scoped 2026-07-08) is a CHECKER-side feature, not an
+// obligation-building edit. A case-dispatch arm's guard desugars to tag
+// arithmetic (see memory match-desugar-tag-arithmetic-interp): `P::One { v } ->`
+// carries `guard = When(self.p.tag == One's ordinal)`, already on the
+// BoundedTransitionArgumentObligation. The fix: in the checker's transition-arg
+// range resolution, when the argument is a payload member `self.p.v` AND the
+// arm guard proves `self.p`'s tag == the ordinal of the variant that OWNS `v`,
+// admit `v`'s declared payload range (reuse guard-narrowing). It MUST live in
+// the checker (which has the guard); obligation-building resolves the field
+// range guard-blind, so an unconditional extension there is the unsound path.
+// Multi-fire (needs tag-ordinal -> variant -> payload-field mapping). Direct
+// access outside an arm has no case-proving guard, so it stays unproven (sound),
+// and separately warrants its own compile-time fence (a design call: make the
+// undischarged case obligation loud instead of a runtime trap). See memory
+// sum-payload-range-not-propagated for the full trace.
 //
 // Exits 20 when the fix lands (P::One { v: 20 } -> use_v(20) -> exit 20).
 boundary trait Console { machine exit_process(return_code: i32); }
