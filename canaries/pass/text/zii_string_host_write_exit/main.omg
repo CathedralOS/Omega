@@ -1,0 +1,18 @@
+// RUN CANARY (exit 70) + interpreter differential. A never-written String
+// field (all-zero {ptr, len} descriptor) passed to a HOST write call: the
+// host marshal (Stdout.write, first_text_argument) must treat len 0 as the
+// empty string and never dereference the null pointer. This is a DIFFERENT
+// path from the texteq encoders' internal null guard (pinned separately by
+// zii_default_string_equality_exit) -- the descriptor here crosses the
+// boundary into host argument marshaling. A regression is a SIGSEGV or
+// garbage write before the exit call; any non-70 outcome catches it.
+boundary trait Console {
+    machine write_line(text: String);
+    machine exit_process(return_code: i32);
+}
+data Main { console: Console; never: String; }
+machine Main::main(&mut self) {
+    self.console.write_line(self.never);
+    self.console.write_line("after-zii");
+    self.console.exit_process(70);
+}
