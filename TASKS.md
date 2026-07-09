@@ -230,13 +230,20 @@ decreases remaining
   compares as u64 when a u64-classed operand is present. Canary
   arithmetic/runtime_unsigned_min_max_exit (max(u64::MAX,5)==u64::MAX &&
   min==5 -> exit 88) runs native==interp==88; in the differential list.
-  ⚠️ ADJACENT NATIVE GAP FOUND: native `max`/`min` is unsigned for a plain u64
-  FIELD operand (canary proves it) but SIGNED for a `u64 in Wrapping` LOCAL
-  operand (probe maxu.omg: native=78, interp=77) -- the Wrapping/Constrained
-  wrapper hides the u64 primitive from the backend's LOCAL-slot signedness
-  resolver. Same `u64 in Wrapping local` signedness family as the folded-modulo
-  item above; a plain u64 field is the clean vehicle. Filed for the backend fix
-  (peel Constrained when resolving a local slot's signedness).
+  ⚠️ NATIVE DIVERGENCE = the CONST-FOLD DOMAIN HOLE (re-diagnosed 2026-07-08,
+  correcting the earlier "local-slot resolver" guess). native `max`/`min` is
+  unsigned for a plain u64 FIELD operand (the canary proves it: a field read is
+  NOT folded, resolves to u64 -> MaxUnsigned) but SIGNED for a `u64 in Wrapping`
+  LOCAL (probe maxu.omg: native=78, interp=77). ROOT via OPDBG on
+  signedness_adjusted_operator_for_operands: `let big: u64 in Wrapping = z - 1`
+  is CONST-FOLDED to `Integer("-1")` -- the folder strips the u64 domain, so the
+  max operand is a signless literal -> both operands resolve None ->
+  signedness_adjusted_operator keeps the SIGNED `Max`. NOT a slot-resolver bug
+  (descriptor_primitive_type already peels Constrained; a real field slot
+  resolves fine). This is [[decision-17-const-fold-domain-hole]] /
+  [[shift-right-signedness-const-fold]] (folded consts lose their domain/sign) --
+  PARKED on the design call (type-carrying constants). Repro kept at
+  canaries/pending/arithmetic/unsigned_min_max_wrapping_local_divergence.
 
 - **[ ] Same-type receiver aliasing: VALUE-CALL flavor confirmed (2026-07-07, std::time
   authoring; repro canaries/pending/time/value_machine_receiver_field_postentry).** A
