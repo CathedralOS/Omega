@@ -63,6 +63,53 @@ pub(in crate::aarch64) fn append_add_x_constant(
 
 /// `ADDS Xd, Xn, Xm` -- flag-setting add (C = unsigned carry, V = signed
 /// overflow), the 64-bit overflow-detection workhorse.
+/// `SMULH Xd, Xn, Xm` -- high 64 bits of the signed 128-bit product. A 64-bit
+/// signed multiply overflowed iff this differs from the low half's sign
+/// broadcast (`low >> 63`).
+pub(in crate::aarch64) fn encode_smulh_x(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x9B407C00
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `UMULH Xd, Xn, Xm` -- high 64 bits of the unsigned 128-bit product. A
+/// 64-bit unsigned multiply overflowed iff this is non-zero.
+pub(in crate::aarch64) fn encode_umulh_x(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x9BC07C00
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `CMP Xn, Xm, ASR #63` (SUBS XZR, shifted register) -- compare against the
+/// other operand's sign broadcast, the signed-multiply overflow test.
+pub(in crate::aarch64) fn encode_compare_x_register_sign_broadcast(
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0xEB000000
+            | (0b10 << 22) // ASR
+            | (u32::from(right_register) << 16)
+            | (63 << 10)
+            | (u32::from(left_register) << 5)
+            | 31,
+    )
+}
+
 pub(in crate::aarch64) fn encode_adds_x_register(
     destination_register: u8,
     left_register: u8,

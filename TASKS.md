@@ -278,8 +278,14 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     the clamp is branchless (signed: movz MIN + b.vc + `csinv x17,x14,x14,PL`
     picks MIN or NOT(MIN)=MAX off the inverted result sign; unsigned add:
     `csinv x17,x17,xzr,CC` = keep-or-all-ones; unsigned sub: `csel ..,xzr,CS`;
-    trapping: b.cond + brk). 64-bit MULTIPLY stays fenced (needs the
-    SMULH/UMULH high-half check -- narrower message). New primitives:
+    trapping: b.cond + brk). 64-bit MULTIPLY landed the next
+    tick (2026-07-09): SMULH/UMULH high-half witnesses -- signed overflow iff
+    SMULH != low>>63 (cmp with ASR#63 shifted register), unsigned iff UMULH
+    != 0; saturation direction from eor(a,b)'s sign via cmp+CSINV; unsigned
+    saturating multiply is fully branchless (umulh+mul+cmp+csinv). The
+    wide-boundaries canary extended with all three multiply directions
+    (MAX*2 -> MAX, -MAX*2 -> MIN, u64 MAX*3 -> MAX), native==interp. The
+    saturating/trapping family is now COMPLETE on aarch64 at every width. New primitives:
     adds/subs-register, csel/csinv, b.vc. array_adjacent_index fixed + NEW
     canary arithmetic/runtime_saturating_wide_boundaries_exit pins all four
     REAL boundary directions (i64 MAX+1/MIN-1, u64 MAX+5/5-10),
