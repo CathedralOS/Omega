@@ -864,7 +864,25 @@ decreases remaining
   pending/termination/* with PROMOTE notes; the matrix-row ask is filed in
   TASKS_FS Observations. The umbrella now reports exactly the 5 host-blocked
   members (efi x2, tick x2, gui blit); suite failure set unchanged at the
-  known 7. Every serial umbrella in the repo is now collect-all.
+  known 7. [CORRECTION 2026-07-10c: "every serial umbrella is now
+  collect-all" was FALSE when written -- the fail-fragment and pending-gaps
+  umbrellas were still first-panic; converted the next tick, see below.]
+
+- **PENDING DRIFT-CHECK REPOPULATED + LAST TWO UMBRELLAS 2026-07-10c.**
+  Verifying the prior tick's "every umbrella is collect-all" claim found it
+  FALSE (corrected above): fail_canaries_reject_with_expected_diagnostic_
+  fragment and pending_canaries_reproduce_known_gaps were still first-panic
+  -- both now collect-all (nothing was hiding in either; the pattern's
+  find-rate drops to 4 of 6). The bigger find: ACTIVE_PENDING_CANARIES had
+  drifted EMPTY while 13 parked repros sat on disk unwatched -- the suite's
+  own pending-drift infrastructure (CurrentlyAccepts /
+  CurrentlyRejects{fragment}) was checking nothing, and every drift recheck
+  this whole arc was a manual omega-run sweep. Repopulated with all 13
+  (expectations mirror the headers; all pin green first pass). A parked
+  repro graduating now fails the suite with a PROMOTE instruction instead
+  of waiting for the next manual audit. The compile-only check cannot see
+  the runtime divergences (headers + periodic omega-run sweeps still own
+  those), but accepts-vs-rejects drift is now automatic.
 
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE

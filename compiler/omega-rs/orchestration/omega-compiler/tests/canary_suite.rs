@@ -25174,6 +25174,11 @@ fn efi_ref_param_call_arg_derefs_and_dispatches() {
 
 #[test]
 fn fail_canaries_reject_with_expected_diagnostic_fragment() {
+    // COLLECT-ALL, not first-panic: one regressed member must not exempt the
+    // rest of the fail corpus from its check (the serial-umbrella masking
+    // pattern -- every conversion so far has found something hiding).
+    let mut failures: Vec<String> = Vec::new();
+
     for canary_name in ACTIVE_FAIL_CANARIES {
         let canary = fail_canary(canary_name);
         let expected_path = canary.join("expected.txt");
@@ -25184,11 +25189,12 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
 
         let diagnostics = match compile_canary_without_output(&canary) {
             Ok(report) => {
-                panic!(
-                    "expected fail canary {} to reject, but it compiled successfully: {}",
+                failures.push(format!(
+                    "{} compiled successfully (expected a rejection): {}",
                     canary.display(),
                     report.summary()
-                )
+                ));
+                continue;
             }
             Err(diagnostics) => diagnostics,
         };
@@ -25198,14 +25204,22 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
             .collect::<Vec<_>>()
             .join("\n");
 
-        assert!(
-            combined.contains(&expected_fragment),
-            "fail canary {} did not contain expected fragment {:?}\nactual diagnostics:\n{}",
-            canary.display(),
-            expected_fragment,
-            combined
-        );
+        if !combined.contains(&expected_fragment) {
+            failures.push(format!(
+                "{} missing expected fragment {:?}\nactual diagnostics:\n{}",
+                canary.display(),
+                expected_fragment,
+                combined
+            ));
+        }
     }
+
+    assert!(
+        failures.is_empty(),
+        "{} fail canary(ies) drifted:\n\n{}",
+        failures.len(),
+        failures.join("\n\n")
+    );
 }
 
 #[test]
@@ -26048,6 +26062,11 @@ fn runtime_let_local_nested_state_arg_exit_canary_runs() {
 
 #[test]
 fn pending_canaries_reproduce_known_gaps() {
+    // COLLECT-ALL, not first-panic: a drifted member is a PROMOTION signal,
+    // and one promotion must not hide another (the serial-umbrella masking
+    // pattern).
+    let mut drifted: Vec<String> = Vec::new();
+
     for canary in ACTIVE_PENDING_CANARIES {
         let canary_dir = pending_canary(canary.path);
         let result = compile_canary_without_output(&canary_dir);
@@ -26059,21 +26078,22 @@ fn pending_canaries_reproduce_known_gaps() {
                         .map(ToString::to_string)
                         .collect::<Vec<_>>()
                         .join("\n");
-                    panic!(
-                        "pending canary {} now rejects. Promote it to fail and update the suite.\nactual diagnostics:\n{}",
+                    drifted.push(format!(
+                        "{} now REJECTS. Promote it to fail/ and update the suite.\nactual diagnostics:\n{}",
                         canary_dir.display(),
                         combined
-                    );
+                    ));
                 }
             }
             PendingCanaryExpectation::CurrentlyRejects { fragment } => {
                 let diagnostics = match result {
                     Ok(report) => {
-                        panic!(
-                            "pending canary {} no longer rejects. Promote it to pass/fail and update the suite: {}",
+                        drifted.push(format!(
+                            "{} no longer rejects. Promote it to pass/fail and update the suite: {}",
                             canary_dir.display(),
                             report.summary()
-                        )
+                        ));
+                        continue;
                     }
                     Err(diagnostics) => diagnostics,
                 };
@@ -26083,16 +26103,24 @@ fn pending_canaries_reproduce_known_gaps() {
                     .collect::<Vec<_>>()
                     .join("\n");
 
-                assert!(
-                    combined.contains(fragment),
-                    "pending canary {} rejected differently than expected. expected fragment {:?}\nactual diagnostics:\n{}",
-                    canary_dir.display(),
-                    fragment,
-                    combined
-                );
+                if !combined.contains(fragment) {
+                    drifted.push(format!(
+                        "{} rejected DIFFERENTLY than expected (fragment {:?}).\nactual diagnostics:\n{}",
+                        canary_dir.display(),
+                        fragment,
+                        combined
+                    ));
+                }
             }
         }
     }
+
+    assert!(
+        drifted.is_empty(),
+        "{} pending canary(ies) drifted:\n\n{}",
+        drifted.len(),
+        drifted.join("\n\n")
+    );
 }
 
 fn compile_canary_without_output(canary_dir: &Path) -> Result<CompileReport, Vec<Diagnostic>> {
@@ -27286,7 +27314,75 @@ struct PendingCanary {
 // (expressions/nested_i32_mul_overflow) once decision 17 S3 made the unprovable
 // i32 multiply a compile error -- the divergence was a symptom of accepting an
 // unprovable overflow, now rejected.
-const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[];
+// Repopulated 2026-07-10 (the list had drifted EMPTY while 13 pending
+// canaries sat on disk unwatched -- every drift recheck was a manual
+// omega-run sweep). Expectations mirror each canary's header; a flip here
+// means a parked repro graduated (promote it) or regressed differently
+// (rediagnose it). The compile-only check cannot adjudicate the RUNTIME
+// divergences (those stay documented in the headers and the periodic
+// omega-run --both sweep), but it pins accepts-vs-rejects drift for free.
+const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
+    PendingCanary {
+        path: "arithmetic/array_field_default_silent",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "arithmetic/const_fold_unsigned_divide_miscompile",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "arithmetic/const_fold_unsigned_shift_right_miscompile",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "arithmetic/float_to_int_overflow_divergence",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "arithmetic/immutable_arg_for_mut_param_not_checked",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "arithmetic/shift_amount_at_or_above_width_divergence",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "arithmetic/shl_saturating_domain_divergence",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "arithmetic/unsigned_min_max_wrapping_local_divergence",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "calls/tail_self_call_accumulator",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "calls into a recursive cycle",
+        },
+    },
+    PendingCanary {
+        path: "expressions/dead_trapping_let_not_elided",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
+        path: "termination/custom_ranking_field_countdown_compile",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "no selected return-write",
+        },
+    },
+    PendingCanary {
+        path: "termination/custom_ranking_struct_view",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "no selected return-write",
+        },
+    },
+    PendingCanary {
+        path: "time/value_machine_receiver_field_postentry",
+        expectation: PendingCanaryExpectation::CurrentlyRejects {
+            fragment: "would run on ANOTHER instance's storage",
+        },
+    },
+];
 
 // =============================================================================
 // ch17 Atomics (concurrency stage 1) RUN canaries
