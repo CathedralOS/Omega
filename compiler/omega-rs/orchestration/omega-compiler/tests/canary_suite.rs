@@ -16351,6 +16351,40 @@ fn custom_ranking_struct_view_canary_runs() {
 }
 
 #[test]
+fn recursive_result_bind_first_arg_canary_runs() {
+    // The bind-first pairing (`let r = self.countdown(..); let d =
+    // self.plus1(r);`) in a multi-call composition: a recursive value-call
+    // result whose ONLY use is an inline-call argument. The liveness scan
+    // elides `r`'s LocalStorage slot (later-`let` values are covered by the
+    // alias fold) while the alias binding refuses to fold call-initialized
+    // locals (they resolve to their call-result slot) -- so the serve sweep's
+    // let-bound gate must be the AST question (is the statement a `let`?),
+    // not a state_storage.locals scan. When it wasn't, `r` had NO storage:
+    // the return edge wrote nothing and the inline `v + 1` name-captured a
+    // COLLIDING caller-scope `v` (exit 73 silently) or dropped the add.
+    let canary = pass_canary("calls/recursive_result_bind_first_arg");
+    let build_dir = std::env::temp_dir().join(format!("omega-bindfirst-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("bind-first arg canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("bind-first arg canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "bind-first arg canary should deliver r through plus1 (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_recursive_result_roles_exit_canary_runs() {
     // Recursive value-call results consumed as GUARD subjects and TRANSITION
     // ARGUMENTS (the aggregate sweep's role coverage beyond let bindings).
@@ -26495,6 +26529,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/host_provides_binding_forms",
     "capabilities/runtime_provides_value_exit",
     "expressions/runtime_qualified_case_value_exit",
+    "calls/recursive_result_bind_first_arg",
     "calls/runtime_inline_recursive_walk_exit",
     "calls/runtime_value_call_direct_recursive_walk_exit",
     "calls/runtime_value_call_statement_recursive_walk_exit",
@@ -27617,10 +27652,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     },
     PendingCanary {
         path: "arithmetic/unsigned_min_max_wrapping_local_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "calls/recursive_result_bind_first_arg",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {

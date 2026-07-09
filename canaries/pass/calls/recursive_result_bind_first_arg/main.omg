@@ -1,16 +1,19 @@
-// PENDING (2026-07-11e, NATIVE silent-wrong at the recursive-serve's edge):
-// in a MULTI-CALL composition (guard-subject + transition-arg recursive
-// calls in earlier states), a LATER state's bind-first pairing
-// (`let r = self.countdown(..); let d = self.plus1(r);`) natively
-// misdelivers (exit 73; interp 70) -- the earlier calls' swept slots let
-// the call-result fence pass, but the result-slot -> local copy for `r` is
-// never emitted and plus1 reads garbage. The SAME callarg shape ISOLATED
-// (fewer calls) fences LOUDLY instead -- the silent face needs the
-// composition, so this canary keeps all three directions.
-// NEXT: find where served calls emit the call-result->local copy and why
-// the swept-slot + arg-forced-local pairing misses it; reconcile the
-// composition-dependent fencing.
-// PROMOTE (pass/calls + differential, expected 70/70) when the copy lands.
+// The bind-first pairing: a RECURSIVE value-call result whose ONLY use is
+// an INLINE call's argument (`let r = self.countdown(..); let d =
+// self.plus1(r);`), inside a multi-call composition (guard-subject and
+// transition-arg recursive calls in earlier states). Two heuristics
+// collide on `r`: the liveness scan elides its LocalStorage slot (a
+// later-`let` value is "covered by the alias fold") while the alias
+// binding refuses to fold call-initialized locals (they "resolve to their
+// call-result slot") -- so the serve sweep's let-bound gate must ask the
+// AST (is the statement a bare-call `let`?), not scan the elided
+// state_storage.locals. When the gate scanned locals, `r` had NO storage:
+// the return edge wrote nothing, and the inline `v + 1` either
+// name-captured the CALLER-scope `v` (fwd's param -- plus1's param shares
+// its name deliberately, pinning the hygiene face; exit 73 silently) or,
+// with distinct names, dropped the add outright. Exit 70 proves r's slot
+// is allocated by the AST-gated sweep, written by the return edge, and
+// read by name into the inline arg.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 data Cnt { n: usize; }

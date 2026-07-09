@@ -168,12 +168,24 @@ fn append_unserved_recursive_call_result_slots(
         {
             continue;
         }
+        // LET-bound vs FIELD-bound is an AST question, not a liveness one: a
+        // `let r = self.f(..)` whose only later use is a call ARGUMENT has its
+        // LocalStorage slot elided (the liveness scan skips later-`let` values,
+        // expecting the alias fold to cover them) -- but a call-initialized
+        // local is deliberately NEVER aliased (it "resolves to its call-result
+        // slot"), so gating on `state_storage.locals` left exactly that shape
+        // slotless and its downstream name-reads dangling (the bind-first-arg
+        // face). A FIELD-bound result (`self.x = self.f(..)`, multi_arm) is an
+        // Assignment statement and still returns None here, preserving the
+        // machine-place-fallback serve this filter exists to protect.
         if state_call.role == StateCallRole::AssignmentValue
-            && !context.state_storage.locals.iter().any(|(_, local)| {
-                local.source_key.machine == state_call.source_key.machine
-                    && local.source_key.state == state_call.source_key.state
-                    && local.statement_index == state_call.statement_index
-            })
+            && super::body::call_result_slot_symbol_and_name(
+                context,
+                state_call.source_key,
+                state_call.statement_index,
+                state_call.role,
+            )
+            .is_none()
         {
             continue;
         }
