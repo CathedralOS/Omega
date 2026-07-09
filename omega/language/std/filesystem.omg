@@ -395,6 +395,16 @@ data Filesystem {
     rda_sub: i32;
     rda_rc: i32;
     rda_n: i64;
+    // Iterative remove_dir_all drain (2026-07-09g): an explicit dirfd STACK
+    // replaces rda's call recursion (which neither the splice nor the clone
+    // dispatch can lower). Depth-bounded at 16 nested directories (deeper
+    // trees error cleanly); `rda_depth` counts stacked fds (0 = drained).
+    rda_stack: [i32; 16];
+    rda_depth: usize;
+    rda_fd: i32;
+    // rda_step's verdict, read by rda_drain's entry transition: 1 = step done,
+    // keep draining; 0 = all drained; -1 = error/overflow.
+    rda_verdict: i32;
 }
 
 // Create (or truncate) a file for writing, returning an open `File`. Composed
@@ -1353,8 +1363,11 @@ machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> UnitResult
     let dfd: i32 = self.host.open(path, self.read_flags);
     transition dfd >= 0 { true -> rda_run(dfd, path) _ -> rda_err(path) }
     state rda_run(&mut self, dfd: i32, path: &[u8] in Path) -> UnitResult {
-        self.rda_rc = self.rda(dfd, 4096);
-        self.rda_n = self.host.close(dfd) as i64;
+        // Seed the drain stack with the root fd; the loop closes every fd it
+        // pops (including this one), so no close here.
+        self.rda_depth = 1;
+        self.rda_stack[0] = dfd;
+        self.rda_rc = self.rda_drain(4096);
         transition self.rda_rc == 0 { true -> rda_rmdir(path) _ -> rda_err(path) }
     }
     state rda_rmdir(&mut self, path: &[u8] in Path) -> UnitResult {
@@ -1370,89 +1383,135 @@ machine Filesystem::remove_dir_all(&mut self, path: &[u8] in Path) -> UnitResult
     }
 }
 
-// Drain every child of the open directory `dfd` (files unlinked, subdirs emptied +
-// removed), fuel-bounded. Returns 0 on success, -1 on error/fuel-exhaustion. Each
-// recursion (a fresh first-child removal, OR a descent into a subdir) costs 1 fuel.
-machine Filesystem::rda(&mut self, dfd: i32, fuel: usize)
+// Drain every child of the stacked directories (files unlinked, subdirs
+// emptied + removed), ITERATIVELY: an explicit dirfd stack replaces the old
+// call recursion, which no native route can lower (the clone dispatch
+// refuses cycles; the splice runs effects once). The loop is ENTRY-recursion
+// (`rda_drain(fuel - 1)` from the entry's own transition -- the only shape
+// the decreases prover accepts, the mkall precedent); each iteration's WORK
+// is one `rda_step` STATEMENT call (the fence doctrine's prescribed shape:
+// a statement call from a dispatched state, verdict read from a field).
+// Returns 0 on success, -1 on error/fuel-exhaustion/depth overflow (> 16).
+machine Filesystem::rda_drain(&mut self, fuel: usize)
 terminates {
     decreases fuel;
 }
 -> i32
 {
-    transition fuel > 0 { true -> rda_first(dfd, fuel) _ -> rda_out() }
-    state rda_first(&mut self, dfd: i32, fuel: usize) -> i32 {
-        self.rdn_result = self.read_dir_entry_fd(dfd, 0);
-        transition self.rdn_result {
-            DirEntryResult::End -> rda_empty()
-            DirEntryResult::Ok { entry } -> rda_dispatch(dfd, fuel, entry)
-            DirEntryResult::Error { kind } -> rda_readerr()
-        }
+    self.rda_step(0);
+    // The re-entry is the ENTRY's OWN single-comparison transition -- the only
+    // shape the decreases prover accepts (the mkall precedent; an arm-state
+    // re-entry or a conjunct guard is unprovable to it). The loop therefore
+    // runs its FULL fuel unconditionally; once the stack drains, rda_step
+    // no-ops (depth == 0 -> verdict 0) and the tail settles on the verdict.
+    // Cost: 4096 cheap no-op iterations after completion -- the provable
+    // trade, documented here deliberately.
+    transition fuel > 0 { true -> rda_drain(fuel - 1) false -> rdd_settle() }
+    state rdd_settle(&mut self) -> i32 {
+        transition self.rda_verdict == 0 { true -> rdd_done() _ -> rdd_fail() }
     }
-    state rda_dispatch(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
-        transition entry.name_len < 256 {
-            true -> rda_kind(dfd, fuel, entry)
-            false -> rda_readerr()
-        }
-    }
-    state rda_kind(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
-        transition entry.is_dir {
-            true -> rda_open_sub(dfd, fuel, entry)
-            false -> rda_unlink_file(dfd, fuel, entry)
-        }
-    }
-    state rda_unlink_file(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
-        self.rda_rc = self.host.unlink_at(dfd, entry.name[0..entry.name_len], 0);
-        transition self.rda_rc == 0 { true -> rda_continue(dfd, fuel) _ -> rda_readerr() }
-    }
-    state rda_open_sub(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
-        self.rda_sub = self.host.open_at(dfd, entry.name[0..entry.name_len], self.read_flags);
-        // Thread the sub fd as a BY-VALUE param so a nested drain cannot clobber it.
-        transition self.rda_sub >= 0 { true -> rda_recurse(dfd, fuel, self.rda_sub) _ -> rda_readerr() }
-    }
-    state rda_recurse(&mut self, dfd: i32, fuel: usize, sub: i32) -> i32 {
-        // DEPTH recursion (decreases fuel; fuel > 0 held from the entry guard).
-        self.rda_rc = self.rda(sub, fuel - 1);
-        self.rda_n = self.host.close(sub) as i64;
-        transition self.rda_rc == 0 { true -> rda_rmfirst(dfd, fuel) _ -> rda_readerr() }
-    }
-    // The subdir is now empty and is STILL the parent's FIRST child (every sibling
-    // ordered before it was removed before we descended). RE-READ to extract its
-    // name FRESH and remove it (AT_REMOVEDIR = 128) -- never relying on the
-    // pre-recursion `entry`, whose shared name array the nested drain overwrote.
-    state rda_rmfirst(&mut self, dfd: i32, fuel: usize) -> i32 {
-        self.rdn_result = self.read_dir_entry_fd(dfd, 0);
-        transition self.rdn_result {
-            DirEntryResult::Ok { entry } -> rda_rmfirst_do(dfd, fuel, entry)
-            DirEntryResult::End -> rda_continue(dfd, fuel)
-            DirEntryResult::Error { kind } -> rda_readerr()
-        }
-    }
-    state rda_rmfirst_do(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
-        transition entry.name_len < 256 {
-            true -> rda_rmfirst_go(dfd, fuel, entry)
-            false -> rda_readerr()
-        }
-    }
-    state rda_rmfirst_go(&mut self, dfd: i32, fuel: usize, entry: DirEntry) -> i32 {
-        self.rda_rc = self.host.unlink_at(dfd, entry.name[0..entry.name_len], 128);
-        transition self.rda_rc == 0 { true -> rda_continue(dfd, fuel) _ -> rda_readerr() }
-    }
-    state rda_continue(&mut self, dfd: i32, fuel: usize) -> i32 {
-        // DRAIN recursion (decreases fuel): remove the NEXT first child.
-        transition fuel > 1 {
-            true -> rda_more(dfd, fuel)
-            false -> rda_out()
-        }
-    }
-    state rda_more(&mut self, dfd: i32, fuel: usize) -> i32 {
-        self.rda_rc = self.rda(dfd, fuel - 1);
-        transition { _ -> rda_return() }
-    }
-    state rda_return(&mut self) -> i32 { self.rda_rc }
-    state rda_empty(&mut self) -> i32 { 0 }
-    state rda_out(&mut self) -> i32 { -1 }
-    state rda_readerr(&mut self) -> i32 { -1 }
+    state rdd_done(&mut self) -> i32 { 0 }
+    state rdd_fail(&mut self) -> i32 { 0 - 1 }
 }
+
+// ONE drain step: unlink the top directory's first file, or descend into its
+// first subdir (push), or close+pop a drained directory and remove it from
+// its parent. Sets `rda_verdict` (1 continue / 0 done / -1 error). Statement-
+// called from rda_drain, so its states are real dispatch cases and the host
+// calls in arm states are legal. Every array index is guarded by a SINGLE
+// dominating conjunct in its OWN incoming transition (facts do not travel).
+// The `step` param exists so the machine has entry arguments (uniform call
+// shape); it is unused.
+machine Filesystem::rda_step(&mut self, step: usize) {
+    transition self.rda_depth == 0 { true -> rds_alldone() _ -> rds_read() }
+
+    state rds_alldone(&mut self) { self.rda_verdict = 0; }
+
+    state rds_read(&mut self) {
+        // The guard expression matches the INDEX expression exactly (the
+        // prover threads same-shape facts only; `depth <= 16` does not imply
+        // `depth - 1 < 16` to it). The left conjunct discharges the
+        // subtraction's own underflow proof.
+        transition self.rda_depth >= 1 && self.rda_depth - 1 < 16 {
+            true -> rds_read_go()
+            _ -> rds_fail()
+        }
+    }
+    state rds_read_go(&mut self) {
+        self.rda_fd = self.rda_stack[self.rda_depth - 1];
+        self.rdn_result = self.read_dir_entry_fd(self.rda_fd, 0);
+        transition self.rdn_result {
+            DirEntryResult::End -> rds_pop()
+            DirEntryResult::Ok { entry } -> rds_entry(entry)
+            DirEntryResult::Error { kind } -> rds_fail()
+        }
+    }
+
+    // TOP is empty: close + pop. If a parent remains, the drained child is
+    // (still) the parent's FIRST entry -- re-read its name fresh and remove
+    // it (AT_REMOVEDIR = 128). The ROOT (depth hits 0) is the caller's.
+    state rds_pop(&mut self) {
+        self.rda_n = self.host.close(self.rda_fd) as i64;
+        transition self.rda_depth >= 1 { true -> rds_pop_go() _ -> rds_fail() }
+    }
+    state rds_pop_go(&mut self) {
+        self.rda_depth = self.rda_depth - 1;
+        transition self.rda_depth == 0 { true -> rds_continue() _ -> rds_parent() }
+    }
+    state rds_parent(&mut self) {
+        transition self.rda_depth >= 1 && self.rda_depth - 1 < 16 {
+            true -> rds_parent_go()
+            _ -> rds_fail()
+        }
+    }
+    state rds_parent_go(&mut self) {
+        self.rda_fd = self.rda_stack[self.rda_depth - 1];
+        self.rdn_result = self.read_dir_entry_fd(self.rda_fd, 0);
+        transition self.rdn_result {
+            DirEntryResult::Ok { entry } -> rds_rm_child(entry)
+            DirEntryResult::End -> rds_continue()
+            DirEntryResult::Error { kind } -> rds_fail()
+        }
+    }
+    state rds_rm_child(&mut self, entry: DirEntry) {
+        transition entry.name_len < 256 { true -> rds_rm_child_go(entry) _ -> rds_fail() }
+    }
+    state rds_rm_child_go(&mut self, entry: DirEntry) {
+        self.rda_rc = self.host.unlink_at(self.rda_fd, entry.name[0..entry.name_len], 128);
+        transition self.rda_rc == 0 { true -> rds_continue() _ -> rds_fail() }
+    }
+
+    // A live first entry: files unlink; subdirs open + PUSH (descend).
+    state rds_entry(&mut self, entry: DirEntry) {
+        transition entry.name_len < 256 { true -> rds_kind(entry) _ -> rds_fail() }
+    }
+    state rds_kind(&mut self, entry: DirEntry) {
+        transition entry.is_dir {
+            true -> rds_descend(entry)
+            false -> rds_unlink(entry)
+        }
+    }
+    state rds_unlink(&mut self, entry: DirEntry) {
+        self.rda_rc = self.host.unlink_at(self.rda_fd, entry.name[0..entry.name_len], 0);
+        transition self.rda_rc == 0 { true -> rds_continue() _ -> rds_fail() }
+    }
+    state rds_descend(&mut self, entry: DirEntry) {
+        self.rda_sub = self.host.open_at(self.rda_fd, entry.name[0..entry.name_len], self.read_flags);
+        transition self.rda_sub >= 0 { true -> rds_push() _ -> rds_fail() }
+    }
+    state rds_push(&mut self) {
+        transition self.rda_depth < 16 { true -> rds_push_go() _ -> rds_fail() }
+    }
+    state rds_push_go(&mut self) {
+        self.rda_stack[self.rda_depth] = self.rda_sub;
+        self.rda_depth = self.rda_depth + 1;
+        transition true { true -> rds_continue() _ -> rds_fail() }
+    }
+
+    state rds_continue(&mut self) { self.rda_verdict = 1; }
+    state rds_fail(&mut self) { self.rda_verdict = 0 - 1; }
+}
+
 
 // Set a path's permission bits (Rust `std::fs::set_permissions`). A subsequent
 // write-open of a path whose owner-write bit was cleared fails with
