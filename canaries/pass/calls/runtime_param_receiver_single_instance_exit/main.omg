@@ -1,9 +1,9 @@
 // RUN CANARY (exit 70) -- PARAM RECEIVER, SINGLE-INSTANCE FAMILY: a
 // spliced helper calls through a `&mut Tally` param when exactly ONE
 // Tally instance exists -- the by-type walk's pick is provably the
-// passed instance (the multi-instance spelling is fenced loudly;
-// fail/calls/param_receiver_multi_instance_rejected). only.count = 9
-// delivered through the param -> exit 70.
+// passed instance (the multi-instance spelling now SERVES via the
+// param-binding walk; calls/runtime_param_receiver_second_instance_exit).
+// only.count = 9 delivered through the param -> exit 70.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Tally { count: i32 in Wrapping; }
 machine Tally::get(&mut self) -> i32 in Wrapping {

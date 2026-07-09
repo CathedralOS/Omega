@@ -1,11 +1,11 @@
-// FAIL CANARY -- PARAM RECEIVER, MULTI-INSTANCE FAMILY (fenced
-// 2026-07-11h): a spliced helper takes `&mut Tally` and calls through
-// the param while TWO Tally instances are reachable. The by-type walk
-// reads the FIRST instance regardless of which was passed
-// (`probe(&mut self.second)` read `first`: silent-wrong 7-for-9 native
-// vs interp before the fence). Blocks loudly until the receiver walk
-// follows param BINDINGS to the argument's receiver path (the recorded
-// serve design).
+// RUN CANARY (exit 70) -- PARAM-BINDING SERVE (landed 2026-07-11i,
+// flipped from fail/calls/param_receiver_multi_instance_rejected): a
+// spliced helper takes `&mut Tally` and calls through the param while
+// TWO Tally instances exist; the caller passes the SECOND. The receiver
+// chain walk binds `t := &mut self.second` at the descent (param
+// environment) and resolves the param-receiver hop to second's storage
+// -- the by-type walk read FIRST (silent-wrong 7-for-9 before the
+// fence, then fenced, now SERVED). t.get() = 9 -> exit 70.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Tally { count: i32 in Wrapping; }
 machine Tally::get(&mut self) -> i32 in Wrapping {

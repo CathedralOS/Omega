@@ -21269,8 +21269,41 @@ fn runtime_multiarm_same_named_locals_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// PARAM-BINDING SERVE: a spliced helper's `&mut Tally` param receiver
+// delivers on the PASSED instance (the second of two) -- the receiver
+// chain walk binds the param to its argument's base at each descent.
+#[test]
+fn runtime_param_receiver_second_instance_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_param_receiver_second_instance_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-param-receiver-second-instance-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("second-instance param receiver canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("second-instance param receiver canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the param binding to deliver second's 9 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // PARAM RECEIVER through a SINGLE-instance family: the by-type pick is
-// provably the passed instance (multi-instance is fenced loudly).
+// provably the passed instance (multi-instance serves via param binding;
+// unresolvable-argument shapes stay fenced).
 #[test]
 fn runtime_param_receiver_single_instance_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_param_receiver_single_instance_exit");
@@ -28144,7 +28177,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/machine_self_call_recursion_rejected",
     "calls/terminal_self_call_recursion_rejected",
     "calls/ambiguous_spliced_second_receiver_rejected",
-    "calls/param_receiver_multi_instance_rejected",
     "calls/empty_body_return_machine_rejected",
     "parse/machine_clause_garbage_rejected",
     "arithmetic/nested_field_exact_overflow_rejected",

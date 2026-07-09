@@ -131,13 +131,25 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    calls/runtime_param_receiver_single_instance_exit) and read the
    FIRST instance regardless of the argument for multi-instance
    families (silent-wrong 7-for-9; now fenced loudly, fail pin:
-   fail/calls/param_receiver_multi_instance_rejected). SERVE design
-   recorded for later: the receiver chain walk follows param BINDINGS
-   -- at each descent compute machine-typed `&mut` params' receiver
-   offsets from the call's ARGUMENTS (relative to the caller's base)
-   and carry them as the position's param environment; a
-   param-receiver hop resolves through that environment; applies to
-   receiver_base.rs + the fence mirror in lockstep). Pin:
+   fail/calls/param_receiver_multi_instance_rejected). SERVE LANDED
+   2026-07-11i: the receiver chain walk carries a PARAM ENVIRONMENT --
+   each descent binds machine-typed `&mut` (MutableAlias) params to
+   their argument path's ABSOLUTE base (field of the source at base +
+   offset, or a bare name forwarded from the source's own env); a
+   single-segment param-receiver hop resolves through it. Fence mirror
+   in lockstep (MachineAnchor base + params, machine-granular with
+   poisoning = strictly more conservative than the position-granular
+   runtime walk). The multi-instance fail pin FLIPPED to
+   calls/runtime_param_receiver_second_instance_exit (delivers 9).
+   NOTE the state-calls plan has its OWN expression table --
+   StateCallArgument.expression indexes state_calls.expressions, NOT
+   control_flow's (cost one debug cycle). Residuals: param-ROOTED
+   nested receiver paths (`t.inner.method()`) stay unrecoverable ->
+   fenced; re-borrowed param FORWARDING (`self.inner(&mut t)`) serves
+   natively but the INTERPRETER DECLINES the spelling ("unknown
+   value-call target") -- an interp frontend gap, repro
+   scratchpad/slice2/param_forward_chain, differential-unprovable
+   until fixed). Pin:
    fail/calls/ambiguous_spliced_second_receiver_rejected (two
    same-family calls in one state: `second` blocked loudly; was
    silent-wrong 7-for-9 native). SAME-DAY REGRESSION FIX rolled in: the

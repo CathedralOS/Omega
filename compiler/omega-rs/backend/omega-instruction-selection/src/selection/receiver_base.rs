@@ -104,17 +104,18 @@ pub(in crate::selection) fn receiver_base_for(
     // The call graph is acyclic by language rule (no recursion); the fuel
     // is a backstop, not a semantic bound.
     let source_attached = attached_data_of(input, source_machine);
-    let mut frontier: Vec<(omega_control_flow::StateKey, usize)> = vec![(
+    let mut frontier: Vec<(omega_control_flow::StateKey, usize, ParamEnv)> = vec![(
         omega_control_flow::StateKey {
             machine: state.key.machine,
             state: state.key.state,
             segment_index: 0,
         },
         case_base,
+        ParamEnv::new(),
     )];
     let mut recovered: Option<usize> = None;
     let mut fuel = 64usize;
-    while let Some((position, base)) = frontier.pop() {
+    while let Some((position, base, env)) = frontier.pop() {
         if fuel == 0 {
             return None;
         }
@@ -130,13 +131,13 @@ pub(in crate::selection) fn receiver_base_for(
             {
                 continue;
             }
-            let hop_offset = call_receiver_offset(input, position.machine, call);
+            let hop_base = call_receiver_base(input, position.machine, call, base, &env);
             let target_matches = call.target_key.machine == source_machine
                 || (source_attached.is_some()
                     && attached_data_of(input, call.target_key.machine) == source_attached);
             if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
                 eprintln!(
-                    "RB:   hop m{} s{} -> m{} s{} recv {} offset {hop_offset:?} matches {target_matches}",
+                    "RB:   hop m{} s{} -> m{} s{} recv {} base {hop_base:?} matches {target_matches}",
                     position.machine.arena_index(),
                     position.state.arena_index(),
                     call.target_key.machine.arena_index(),
@@ -145,10 +146,9 @@ pub(in crate::selection) fn receiver_base_for(
                 );
             }
             if target_matches {
-                let Some(offset) = hop_offset else {
+                let Some(candidate) = hop_base else {
                     continue; // unrecoverable receiver on the final hop
                 };
-                let candidate = base + offset;
                 if recovered.is_some_and(|existing| existing != candidate) {
                     if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
                         eprintln!("RB: -> AMBIGUOUS (dispatch {dispatch_index})");
@@ -158,8 +158,9 @@ pub(in crate::selection) fn receiver_base_for(
                 recovered = Some(candidate);
                 continue;
             }
-            if let Some(offset) = hop_offset {
-                frontier.push((call.target_key, base + offset));
+            if let Some(target_base) = hop_base {
+                let callee_env = descend_param_env(input, position.machine, call, base, &env);
+                frontier.push((call.target_key, target_base, callee_env));
             }
         }
     }
@@ -172,33 +173,37 @@ pub(in crate::selection) fn receiver_base_for(
     recovered
 }
 
-/// The receiver offset a call contributes within its SOURCE machine's
-/// storage: a named receiver path's offset in that machine's layout, `0`
-/// for a machine-to-machine self call on the SAME attached data (it runs
-/// on the caller's own region), `None` for anything unrecoverable
-/// (static/receiverless spellings, foreign-data self calls, paths that do
-/// not resolve).
-fn call_receiver_offset(
+/// A walk position's PARAM ENVIRONMENT: the source machine's machine-typed
+/// `&mut` parameters, each bound to the ABSOLUTE storage base its argument
+/// named at the (unique) call that brought the walk here. Small and cloned
+/// per descent -- chains are shallow and the walk is compile-time.
+type ParamEnv = Vec<(omega_checked_trees::name::Identifier, usize)>;
+
+/// The ABSOLUTE storage base a call's receiver refers to, given the source
+/// position's own `base` and param environment: `base` itself for a
+/// machine-to-machine self call on the SAME attached data, the environment's
+/// binding for a single-segment PARAM receiver (`t.get()` where `t: &mut
+/// Tally` was bound at the call site -- the param-binding serve,
+/// 2026-07-11i), `base` + the path's offset for a named field receiver.
+/// `None` for anything unrecoverable (static/receiverless spellings,
+/// foreign-data self calls, unresolved paths, unbound params).
+fn call_receiver_base(
     input: &InstructionSelectionInput<'_>,
     source_machine: omega_core::symbols::SymbolHandle,
     call: &omega_state_calls::StateCall,
+    base: usize,
+    env: &ParamEnv,
 ) -> Option<usize> {
     let receiver_name = call.receiver_name.as_str();
     if receiver_name == "self" {
         let same_data = attached_data_of(input, call.target_key.machine).is_some()
             && attached_data_of(input, call.target_key.machine)
                 == attached_data_of(input, source_machine);
-        return same_data.then_some(0);
+        return same_data.then_some(base);
     }
     if receiver_name.is_empty() {
         return None;
     }
-    let caller_layout = input
-        .layouts
-        .machine_layouts
-        .iter()
-        .find(|(_, machine_layout)| machine_layout.symbol == source_machine)
-        .map(|(_, machine_layout)| machine_layout)?;
     let segments = input
         .state_calls
         .receiver_path_segments
@@ -208,14 +213,131 @@ fn call_receiver_offset(
         Some(root) if root.as_str() == "self" => &segments[1..],
         _ => segments,
     };
+    // Single-segment param receiver: the environment answers absolutely.
+    // (Param-ROOTED nested paths stay unrecoverable this round.)
+    if field_segments.len() <= 1
+        && let Some((_, bound)) = env
+            .iter()
+            .find(|(name, _)| name.as_str() == receiver_name)
+    {
+        return Some(*bound);
+    }
+    let caller_layout = input
+        .layouts
+        .machine_layouts
+        .iter()
+        .find(|(_, machine_layout)| machine_layout.symbol == source_machine)
+        .map(|(_, machine_layout)| machine_layout)?;
     if field_segments.is_empty() {
         return omega_layout::field_path_offset(
             input.layouts,
             caller_layout.fields,
             std::slice::from_ref(&call.receiver_name),
-        );
+        )
+        .map(|offset| base + offset);
     }
     omega_layout::field_path_offset(input.layouts, caller_layout.fields, field_segments)
+        .map(|offset| base + offset)
+}
+
+/// The param environment a call's TARGET position starts with: each of the
+/// call's `&mut` (MutableAlias) arguments whose expression names a
+/// resolvable receiver -- a field path of the SOURCE machine (bound to
+/// `base` + its offset) or a single bare name already bound in the source's
+/// own environment (param FORWARDING) -- binds the callee's parameter to
+/// that ABSOLUTE base. Unresolvable arguments simply bind nothing: a
+/// receiver hop through the unbound param refuses, and the fence keeps
+/// blocking that shape.
+fn descend_param_env(
+    input: &InstructionSelectionInput<'_>,
+    source_machine: omega_core::symbols::SymbolHandle,
+    call: &omega_state_calls::StateCall,
+    base: usize,
+    env: &ParamEnv,
+) -> ParamEnv {
+    let mut callee_env = ParamEnv::new();
+    let Some(arguments) = input.state_calls.arguments.span(call.arguments) else {
+        return callee_env;
+    };
+    let source_layout = input
+        .layouts
+        .machine_layouts
+        .iter()
+        .find(|(_, machine_layout)| machine_layout.symbol == source_machine)
+        .map(|(_, machine_layout)| machine_layout);
+    for argument in arguments {
+        if argument.kind != omega_state_calls::StateCallArgumentKind::MutableAlias {
+            continue;
+        }
+        let mut segments: Vec<&omega_checked_trees::name::Identifier> = Vec::new();
+        if !collect_expression_path_segments(
+            &input.state_calls.expressions,
+            argument.expression,
+            &mut segments,
+        ) {
+            continue;
+        }
+        let field_segments = match segments.first() {
+            Some(root) if root.as_str() == "self" => &segments[1..],
+            _ => &segments[..],
+        };
+        let bound = match field_segments {
+            [single] => env
+                .iter()
+                .find(|(name, _)| name == *single)
+                .map(|(_, bound)| *bound)
+                .or_else(|| {
+                    source_layout.and_then(|layout| {
+                        omega_layout::field_path_offset(
+                            input.layouts,
+                            layout.fields,
+                            std::slice::from_ref(*single),
+                        )
+                        .map(|offset| base + offset)
+                    })
+                }),
+            [] => None,
+            path => source_layout.and_then(|layout| {
+                let owned: Vec<omega_checked_trees::name::Identifier> =
+                    path.iter().map(|segment| (*segment).clone()).collect();
+                omega_layout::field_path_offset(input.layouts, layout.fields, &owned)
+                    .map(|offset| base + offset)
+            }),
+        };
+        if let Some(bound) = bound {
+            callee_env.push((argument.parameter_name.clone(), bound));
+        }
+    }
+    callee_env
+}
+
+/// Collect a `&mut`-argument expression's spelled name path (root -> leaf)
+/// into `segments`: unwraps `Mutable`, walks `Member` chains, reads `Name`
+/// paths. Returns false for anything else (calls, literals, indexing --
+/// unresolvable as a receiver identity this round).
+fn collect_expression_path_segments<'table>(
+    table: &'table omega_checked_trees::expression::ExpressionTable,
+    expression: omega_checked_trees::expression::ExpressionHandle,
+    segments: &mut Vec<&'table omega_checked_trees::name::Identifier>,
+) -> bool {
+    use omega_checked_trees::expression::ExpressionNode;
+    match table.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            collect_expression_path_segments(table, *inner, segments)
+        }
+        ExpressionNode::Name(path) => {
+            segments.extend(table.name_path_members(path.members).iter());
+            true
+        }
+        ExpressionNode::Member(member) => {
+            if !collect_expression_path_segments(table, member.receiver, segments) {
+                return false;
+            }
+            segments.push(&member.member);
+            true
+        }
+        _ => false,
+    }
 }
 
 fn attached_data_of<'plan>(

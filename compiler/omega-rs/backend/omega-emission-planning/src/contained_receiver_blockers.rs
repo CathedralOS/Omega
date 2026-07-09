@@ -178,10 +178,11 @@ pub(crate) fn collect_contained_receiver_blockers(
         // (the AMBIGUOUS second receiver blocks; the first-instance call
         // passes the equal-offsets compare and the fallback IS correct).
         if !state_call.reachable {
-            let composed = machine_bases
+            let source_anchor = machine_bases
                 .iter()
                 .find(|(machine, _)| *machine == state_call.source_key.machine)
-                .is_some_and(|(_, base)| base.is_some());
+                .map(|(_, anchor)| anchor);
+            let composed = source_anchor.is_some_and(|anchor| anchor.base.is_some());
             let unique_in_family = input
                 .state_calls
                 .calls
@@ -218,14 +219,16 @@ pub(crate) fn collect_contained_receiver_blockers(
             if composed && unique_in_family && resolved.is_some() {
                 continue;
             }
-            // A PARAM/LOCAL receiver inside spliced code: the runtime resolves
-            // it with the ENTRY-anchored by-type walk, which is EXACT when the
-            // target family has at most ONE instance (pinned by the
-            // single-instance probe) and reads the FIRST instance otherwise --
-            // `probe(&mut self.second)` read `first` (silent-wrong, probed
-            // native 71 vs interp 70). Accept the provable case; block the
-            // rest until the walk follows param BINDINGS to the argument's
-            // receiver path (the recorded serve design).
+            // A PARAM/LOCAL receiver inside spliced code, three tiers:
+            // (1) SERVED (2026-07-11i): the composed anchor's param
+            //     environment binds the receiver -- the runtime walk follows
+            //     the same binding to the passed instance's storage, so the
+            //     call delivers per-instance and needs no fence.
+            // (2) EXACT by luck of uniqueness: at most ONE family instance
+            //     exists, so the by-type walk's pick IS the passed instance.
+            // (3) BLOCKED: multiple instances, no binding -- the by-type
+            //     walk would read the FIRST regardless of the argument
+            //     (silent-wrong 7-for-9, probed native 71 vs interp 70).
             if state_call.receiver_name.as_str() != "self"
                 && input
                     .layouts
@@ -237,6 +240,18 @@ pub(crate) fn collect_contained_receiver_blockers(
                             .any(|field| field.name == state_call.receiver_name)
                     })
             {
+                let bound_by_env = source_anchor.is_some_and(|anchor| {
+                    anchor
+                        .params
+                        .iter()
+                        .any(|(name, bound)| {
+                            name.as_str() == state_call.receiver_name.as_str()
+                                && bound.is_some()
+                        })
+                });
+                if bound_by_env && unique_in_family {
+                    continue; // tier 1: the binding serves it
+                }
                 let instances = machine_layout_by_symbol(input.layouts, input.entry_key.machine)
                     .map(|entry_layout| {
                         count_family_instances(
@@ -494,23 +509,41 @@ fn spliced_live_machines(input: &EmissionPlanningInput<'_>) -> Vec<SymbolHandle>
     live
 }
 
-/// Per-machine COMPOSED storage base, mirroring the runtime chain walk's hop
-/// math (receiver_base.rs): entry = 0; a named receiver adds its offset in
-/// the SOURCE machine's layout; a self call on the same attached data adds
-/// 0. A machine reached with two DISTINCT bases, or through an unresolvable
-/// hop (static spellings, param receivers, unresolvable paths), is POISONED
-/// (`None`) -- the walk could not uniquely anchor it either.
+/// A machine's composed anchor: its storage BASE plus the PARAM ENVIRONMENT
+/// its machine-typed `&mut` parameters were bound with (param name ->
+/// absolute base). `None` anywhere = poisoned (reached two ways with
+/// different answers, or through an unresolvable hop).
+#[derive(Default)]
+struct MachineAnchor {
+    base: Option<usize>,
+    params: Vec<(omega_checked_trees::name::Identifier, Option<usize>)>,
+}
+
+/// Per-machine COMPOSED storage base + param environment, mirroring the
+/// runtime chain walk's hop math (receiver_base.rs -- KEEP IN LOCKSTEP):
+/// entry = 0; a named receiver adds its offset in the SOURCE machine's
+/// layout; a self call on the same attached data keeps the source base; a
+/// single-segment PARAM receiver answers from the source's environment
+/// (the param-binding serve, 2026-07-11i). `&mut` (MutableAlias) arguments
+/// bind the target's params to the argument path's absolute base. A machine
+/// (or param) reached with two DISTINCT answers is POISONED -- the fence is
+/// machine-granular where the runtime walk is position-granular, so this
+/// mirror is strictly more conservative (refuses more, never less).
 fn composed_machine_bases(
     input: &EmissionPlanningInput<'_>,
     live_machines: &[SymbolHandle],
-) -> Vec<(SymbolHandle, Option<usize>)> {
-    let mut bases: Vec<(SymbolHandle, Option<usize>)> =
-        vec![(input.entry_key.machine, Some(0))];
-    let base_of = |bases: &[(SymbolHandle, Option<usize>)], machine: SymbolHandle| {
-        bases
+) -> Vec<(SymbolHandle, MachineAnchor)> {
+    let mut anchors: Vec<(SymbolHandle, MachineAnchor)> = vec![(
+        input.entry_key.machine,
+        MachineAnchor {
+            base: Some(0),
+            params: Vec::new(),
+        },
+    )];
+    let position_of = |anchors: &[(SymbolHandle, MachineAnchor)], machine: SymbolHandle| {
+        anchors
             .iter()
-            .find(|(candidate, _)| *candidate == machine)
-            .map(|(_, base)| *base)
+            .position(|(candidate, _)| *candidate == machine)
     };
     for _ in 0..64 {
         let mut changed = false;
@@ -520,45 +553,167 @@ fn composed_machine_bases(
             }
             let target = call.target_key.machine;
             if target == input.entry_key.machine {
-                continue; // the entry's base is pinned
+                continue; // the entry's anchor is pinned
             }
-            let Some(source_base) = base_of(&bases, call.source_key.machine) else {
+            let Some(source_position) = position_of(&anchors, call.source_key.machine) else {
                 continue; // source not reached yet this pass
             };
-            let candidate = source_base.and_then(|base| {
-                hop_receiver_offset(input, call).map(|offset| base + offset)
-            });
-            match base_of(&bases, target) {
+            let (source_base, hop_base, bindings) = {
+                let source = &anchors[source_position].1;
+                let hop_base = source
+                    .base
+                    .and_then(|base| hop_receiver_base(input, call, base, &source.params));
+                (source.base, hop_base, param_bindings(input, call, source))
+            };
+            let _ = source_base;
+            match position_of(&anchors, target) {
                 None => {
-                    bases.push((target, candidate));
+                    anchors.push((
+                        target,
+                        MachineAnchor {
+                            base: hop_base,
+                            params: bindings,
+                        },
+                    ));
                     changed = true;
                 }
-                Some(existing) if existing != candidate => {
-                    if existing.is_some() {
-                        let position = bases
-                            .iter()
-                            .position(|(candidate_machine, _)| *candidate_machine == target)
-                            .expect("target present");
-                        bases[position].1 = None;
+                Some(target_position) => {
+                    let target_anchor = &mut anchors[target_position].1;
+                    if target_anchor.base != hop_base && target_anchor.base.is_some() {
+                        target_anchor.base = None;
                         changed = true;
                     }
+                    for (name, bound) in bindings {
+                        match target_anchor
+                            .params
+                            .iter_mut()
+                            .find(|(existing, _)| *existing == name)
+                        {
+                            None => {
+                                target_anchor.params.push((name, bound));
+                                changed = true;
+                            }
+                            Some((_, existing)) => {
+                                if *existing != bound && existing.is_some() {
+                                    *existing = None;
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
                 }
-                Some(_) => {}
             }
         }
         if !changed {
             break;
         }
     }
-    bases
+    anchors
 }
 
-/// The offset a call's receiver contributes within its source machine's
-/// storage (the fence-side mirror of the walk's hop math): named receiver
-/// path offset, `0` for a same-data self call, `None` otherwise.
-fn hop_receiver_offset(
+/// The `&mut` (MutableAlias) argument bindings a call hands its target:
+/// param name -> the argument path's ABSOLUTE base (a field of the source
+/// machine at source base + offset, or a bare name forwarded from the
+/// source's own environment). Unresolvable arguments bind `None` (poison)
+/// so a conflicting later binding cannot resurrect them.
+fn param_bindings(
     input: &EmissionPlanningInput<'_>,
     call: &omega_state_calls::StateCall,
+    source: &MachineAnchor,
+) -> Vec<(omega_checked_trees::name::Identifier, Option<usize>)> {
+    let mut bindings = Vec::new();
+    let Some(arguments) = input.state_calls.arguments.span(call.arguments) else {
+        return bindings;
+    };
+    let source_layout = machine_layout_by_symbol(input.layouts, call.source_key.machine);
+    for argument in arguments {
+        if argument.kind != omega_state_calls::StateCallArgumentKind::MutableAlias {
+            continue;
+        }
+        let mut segments: Vec<&omega_checked_trees::name::Identifier> = Vec::new();
+        if !collect_expression_path_segments(
+            &input.state_calls.expressions,
+            argument.expression,
+            &mut segments,
+        ) {
+            bindings.push((argument.parameter_name.clone(), None));
+            continue;
+        }
+        let field_segments = match segments.first() {
+            Some(root) if root.as_str() == "self" => &segments[1..],
+            _ => &segments[..],
+        };
+        let bound = match field_segments {
+            [single] => source
+                .params
+                .iter()
+                .find(|(name, _)| name == *single)
+                .map(|(_, bound)| *bound)
+                .unwrap_or_else(|| {
+                    source.base.and_then(|base| {
+                        source_layout.and_then(|layout| {
+                            omega_layout::field_path_offset(
+                                input.layouts,
+                                layout.fields,
+                                std::slice::from_ref(*single),
+                            )
+                            .map(|offset| base + offset)
+                        })
+                    })
+                }),
+            [] => None,
+            path => source.base.and_then(|base| {
+                source_layout.and_then(|layout| {
+                    let owned: Vec<omega_checked_trees::name::Identifier> =
+                        path.iter().map(|segment| (*segment).clone()).collect();
+                    omega_layout::field_path_offset(input.layouts, layout.fields, &owned)
+                        .map(|offset| base + offset)
+                })
+            }),
+        };
+        bindings.push((argument.parameter_name.clone(), bound));
+    }
+    bindings
+}
+
+/// Mirror of the runtime walk's `collect_expression_path_segments`
+/// (receiver_base.rs -- KEEP IN LOCKSTEP): a `&mut` argument's spelled name
+/// path, or `false` for unresolvable shapes.
+fn collect_expression_path_segments<'table>(
+    table: &'table omega_checked_trees::expression::ExpressionTable,
+    expression: omega_checked_trees::expression::ExpressionHandle,
+    segments: &mut Vec<&'table omega_checked_trees::name::Identifier>,
+) -> bool {
+    use omega_checked_trees::expression::ExpressionNode;
+    match table.expression(expression) {
+        ExpressionNode::Mutable(inner) => {
+            collect_expression_path_segments(table, *inner, segments)
+        }
+        ExpressionNode::Name(path) => {
+            segments.extend(table.name_path_members(path.members).iter());
+            true
+        }
+        ExpressionNode::Member(member) => {
+            if !collect_expression_path_segments(table, member.receiver, segments) {
+                return false;
+            }
+            segments.push(&member.member);
+            true
+        }
+        _ => false,
+    }
+}
+
+/// The ABSOLUTE base a call's receiver refers to (the fence-side mirror of
+/// the walk's hop math -- KEEP IN LOCKSTEP with receiver_base.rs): the
+/// source base for a same-data self call, the environment's binding for a
+/// single-segment param receiver, source base + offset for a field path,
+/// `None` otherwise.
+fn hop_receiver_base(
+    input: &EmissionPlanningInput<'_>,
+    call: &omega_state_calls::StateCall,
+    base: usize,
+    params: &[(omega_checked_trees::name::Identifier, Option<usize>)],
 ) -> Option<usize> {
     let receiver_name = call.receiver_name.as_str();
     let source_layout = machine_layout_by_symbol(input.layouts, call.source_key.machine)?;
@@ -566,7 +721,8 @@ fn hop_receiver_offset(
         let source_attached = source_layout.attached_data.as_deref();
         let target_attached = machine_layout_by_symbol(input.layouts, call.target_key.machine)
             .and_then(|layout| layout.attached_data.as_deref());
-        return (source_attached.is_some() && source_attached == target_attached).then_some(0);
+        return (source_attached.is_some() && source_attached == target_attached)
+            .then_some(base);
     }
     if receiver_name.is_empty() {
         return None;
@@ -580,14 +736,23 @@ fn hop_receiver_offset(
         Some(root) if root.as_str() == "self" => &segments[1..],
         _ => segments,
     };
+    if field_segments.len() <= 1
+        && let Some((_, bound)) = params
+            .iter()
+            .find(|(name, _)| name.as_str() == receiver_name)
+    {
+        return *bound;
+    }
     if field_segments.is_empty() {
         return omega_layout::field_path_offset(
             input.layouts,
             source_layout.fields,
             std::slice::from_ref(&call.receiver_name),
-        );
+        )
+        .map(|offset| base + offset);
     }
     omega_layout::field_path_offset(input.layouts, source_layout.fields, field_segments)
+        .map(|offset| base + offset)
 }
 
 /// Walk the receiver's field path through the layout plan, accumulating each
