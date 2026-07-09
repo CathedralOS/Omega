@@ -1,14 +1,11 @@
-// An EFFECTFUL `terminates` walk reached through a STATEMENT call inside a
-// value-called machine's entry (`count` stores `self.r = self.walk(..)`,
-// and `count` itself is the user's value call) must be a clean compile
-// error (the reentrant-value-call blocker's TRANSITIVE face): the spliced
-// value route runs the walk's `self.bump(..)` at most once, not per
-// iteration -- probed 2026-07-07d, this shape compiled and delivered
-// count 0 where the interpreter counts 2. Note BOTH sites are rejected:
-// the inner `self.r = self.walk(..)` is itself a value call whose direct
-// target is the effectful walk.
+// Call-with-return over an EFFECTFUL RECURSIVE (`terminates`) walk -- the
+// ARM-TARGET (inline-branching) face. Historically FENCED (the inline-branching route could not
+// loop, so the per-iteration `self.bump(..)` silently never executed: native
+// counted 0 separators vs the interpreter's 2). Dispatch call-with-return
+// replaced the fence; this canary pins the capability: count the '/'
+// separators of "a/b/c" through the recursive walk. Exit 70.
 boundary trait Console { machine exit_process(return_code: i32); }
-data Main { console: Console; n: i32 in Wrapping; r: i32; }
+data Main { console: Console; n: i32 in Wrapping; }
 machine Main::walk(&mut self, path: &[u8], i: usize, acc: i32)
 terminates {
     decreases (i, path.len) -> Nat::BoundedDistance;
@@ -40,12 +37,10 @@ machine Main::bump(&mut self, path: &[u8], i: usize) {
     state skip(&mut self) { }
 }
 machine Main::count(&mut self, path: &[u8]) -> i32 {
-    self.r = self.walk(path, 0, 0);
     transition path.len > 0 {
-        true -> got()
+        true -> self.walk(path, 0, 0)
         false -> zero()
     }
-    state got(&mut self) -> i32 { self.r }
     state zero(&mut self) -> i32 { 0 }
 }
 machine Main::main(&mut self) {

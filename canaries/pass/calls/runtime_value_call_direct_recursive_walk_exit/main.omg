@@ -1,13 +1,9 @@
-// A `terminates` walk with an EFFECTFUL looped body (the `self.bump(..)`
-// entry call) as the DIRECT sibling target of a value call must be a clean
-// compile error (the reentrant-value-call blocker's DIRECT face): the
-// spliced value route runs body effects at most ONCE, not per iteration --
-// probed 2026-07-07d, this exact shape compiled and delivered count 0
-// where the interpreter counts 2. A promoted "passing" canary had masked
-// the face by expecting a result of 0, indistinguishable from ZII. PURE
-// loop-carried recursion stays accepted in value position
-// (calls/runtime_loop_accumulator_exit), as do contained-receiver walks
-// (the dual-accumulator sample); statement-position calls always work.
+// Call-with-return over an EFFECTFUL RECURSIVE (`terminates`) walk -- the
+// DIRECT face. Historically FENCED (the inline-branching route could not
+// loop, so the per-iteration `self.bump(..)` silently never executed: native
+// counted 0 separators vs the interpreter's 2). Dispatch call-with-return
+// replaced the fence; this canary pins the capability: count the '/'
+// separators of "a/b/c" through the recursive walk. Exit 70.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; n: i32 in Wrapping; r: i32; }
 machine Main::walk(&mut self, path: &[u8], i: usize, acc: i32)
