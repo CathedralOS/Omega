@@ -203,8 +203,11 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     otherwise -- new UXTB/UXTH primitives; +8 width, operator-independent).
     Fixed cast_in_guard + guard_feature_composition + narrow_signed_guard_ops;
     suite 677/25. The differential oracle's first failure
-    (runtime_cast_in_guard 71) is cleared. Remaining cast faces:
-    f32_field_binary_to_local only (integer_casts FIXED 2026-07-09: unsigned
+    (runtime_cast_in_guard 71) is cleared. CAST FAMILY CLOSED
+    2026-07-09 (f32_field_binary_to_local + f32_deep_chain_binary: the float
+    binary operand now threads binary_byte_width from build time like x86 --
+    const-folded f32 fields become IMMEDIATE operands with no storage width,
+    and the old fallback ran FADD at double precision over f32 bit patterns) (integer_casts FIXED 2026-07-09: unsigned
     narrow widening now ZERO-extends -- mirroring x86's mandatory
     movzx/movsx, since the register may hold a wider pattern from an
     immediate/folded/chained-convert operand; `(-1 i16) as u16 as u32` read
