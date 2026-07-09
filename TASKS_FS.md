@@ -119,10 +119,18 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
 6. **Authored-bindings interp story** — OWNER_QUESTIONS.md #10 (native-only
    imports today; differential skips).
 
-7. **Machine source-file plumbing** — typed machines carry no source
-   file; is_build_machine discriminates by the `b: &mut Build` param
-   signature as an interim. Thread the declaring file through
-   syntax→typed so the rule becomes "declared in build.omg".
+7. ~~Machine source-file plumbing~~ — **RESOLVED 2026-07-11m without a
+   representation change**: per-file item attribution already exists at
+   the SYNTAX stage (AssembledSyntax.files → root_items), so the
+   compiler collects the build.omg-root machine names there and threads
+   the list to the gate; is_build_machine = name (`build`/`::build`)
+   AND declared-in-build.omg (the param-signature interim retired;
+   syntax machine names are already full paths — `Stager::build`).
+   Pins: build_config_granted (positive),
+   pass/build/runtime_main_source_builder_is_ordinary_exit (a
+   `Maker::build(b: &mut Build)` in MAIN source stays an ordinary
+   runtime machine). Typed machines still carry no source file — fine
+   until a second consumer needs one.
 
 ## Design decisions (ratified; user reviews later)
 

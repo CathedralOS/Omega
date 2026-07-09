@@ -21360,6 +21360,38 @@ fn runtime_param_forward_chain_second_receiver_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// BUILD-MACHINE IDENTITY IS FILE-BASED: a `Maker::build(b: &mut Build)`
+// in MAIN source stays an ordinary runtime machine (the build hook must
+// be declared at a build.omg root).
+#[test]
+fn runtime_main_source_builder_is_ordinary_exit_canary_runs() {
+    let canary = pass_canary("build/runtime_main_source_builder_is_ordinary_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-main-source-builder-ordinary-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("main-source builder canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("main-source builder canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the ordinary builder to run at RUNTIME (7 -> exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // PARAM RECEIVER through a SINGLE-instance family: the by-type pick is
 // provably the passed instance (multi-instance serves via param binding;
 // unresolvable-argument shapes stay fenced).
