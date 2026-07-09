@@ -119,123 +119,13 @@ boundary trait FilesystemHost {
     machine errno() -> i32;
 }
 
-// Per-target OPEN-FLAG constants (portable-values settle 2026-07-07). The
-// wrapper composes `open`/`open_create` flag words from these named values;
-// each target supplies its own. darwin O_CREAT (0x200) equals msvcrt O_TRUNC
-// (0x200), which is exactly why these cannot be hardcoded.
-//
-// The single-bit flags are given as BIT POSITIONS (`_BIT`), not values, so the
-// wrapper composes them as `(bool as i32) << BIT` -- a shift of a small
-// positive, which the native i32 backend and the i64 interpreter agree on
-// (a full flag VALUE selected by a sign-bit mask would need i32 overflow the
-// interpreter does not model). Access mode O_WRONLY(1)/O_RDWR(2) is a universal
-// 2-bit value; O_BINARY is a windows-only whole value (0 elsewhere).
-windows_x64 provides FilesystemHost {
-    O_WRONLY     -> 1;
-    O_RDWR       -> 2;
-    O_APPEND_BIT -> 3;
-    O_CREATE_BIT -> 8;
-    O_TRUNC_BIT  -> 9;
-    O_EXCL_BIT   -> 10;
-    O_BINARY     -> 32768;
-    // `struct _stat64` (msvcrt) byte offsets, consumed by `decode_metadata` /
-    // `copy` as `stat_buf[ST_*_OFF + k]`. `_stat64` is 56 bytes; the DEV/MODE/
-    // NLINK/RDEV/SIZE/ATIME/MTIME + creation-as-BTIME fields sit at their real
-    // offsets (0..55). The fields absent or width-mismatched in `_stat64`
-    // (ino/uid/gid, the status-CHANGE time, blocks, blksize) live in a SYNTHETIC
-    // TAIL (>=64) that the hermetic interpreter fills but a real native `_stat64`
-    // leaves zero -- so native windows reports 0 for those, which is honest
-    // (NTFS ino is unreliable; no blocks/blksize/ctime). See TASKS_FS metadata rung.
-    ST_DEV_OFF    -> 0;
-    ST_MODE_OFF   -> 6;
-    ST_NLINK_OFF  -> 8;
-    ST_RDEV_OFF   -> 16;
-    ST_SIZE_OFF   -> 24;
-    ST_ATIME_OFF  -> 32;
-    ST_MTIME_OFF  -> 40;
-    ST_BTIME_OFF  -> 48;
-    ST_INO_OFF    -> 64;
-    ST_UID_OFF    -> 72;
-    ST_GID_OFF    -> 76;
-    ST_CTIME_OFF  -> 80;
-    ST_BLOCKS_OFF -> 88;
-    ST_BLKSIZE_OFF -> 96;
-}
-macos_arm64 provides FilesystemHost {
-    O_WRONLY     -> 1;
-    O_RDWR       -> 2;
-    O_APPEND_BIT -> 3;
-    O_CREATE_BIT -> 9;
-    O_TRUNC_BIT  -> 10;
-    O_EXCL_BIT   -> 11;
-    O_BINARY     -> 0;
-    // darwin `struct stat` (64-bit) byte offsets. Every Metadata field has a real
-    // home here (darwin's stat carries ino/uid/gid/ctime/blocks/blksize/birthtime),
-    // so no synthetic tail is needed.
-    ST_DEV_OFF    -> 0;
-    ST_MODE_OFF   -> 4;
-    ST_NLINK_OFF  -> 6;
-    ST_INO_OFF    -> 8;
-    ST_UID_OFF    -> 16;
-    ST_GID_OFF    -> 20;
-    ST_RDEV_OFF   -> 24;
-    ST_ATIME_OFF  -> 32;
-    ST_MTIME_OFF  -> 48;
-    ST_CTIME_OFF  -> 64;
-    ST_BTIME_OFF  -> 80;
-    ST_SIZE_OFF   -> 96;
-    ST_BLOCKS_OFF -> 104;
-    ST_BLKSIZE_OFF -> 112;
-}
-linux_x64 provides FilesystemHost {
-    O_WRONLY     -> 1;
-    O_RDWR       -> 2;
-    O_APPEND_BIT -> 10;
-    O_CREATE_BIT -> 6;
-    O_TRUNC_BIT  -> 9;
-    O_EXCL_BIT   -> 7;
-    O_BINARY     -> 0;
-    // PLACEHOLDER (darwin-shaped): native linux metadata is not yet wired, so
-    // linux reuses the darwin `struct stat` offsets. The interpreter models the
-    // same POSIX hermetic shape on every non-windows host (evaluator.rs
-    // `host_stat_offsets`), so this stays self-consistent. Replace with linux's
-    // real `struct stat` offsets when wiring native linux stat.
-    ST_DEV_OFF    -> 0;
-    ST_MODE_OFF   -> 4;
-    ST_NLINK_OFF  -> 6;
-    ST_INO_OFF    -> 8;
-    ST_UID_OFF    -> 16;
-    ST_GID_OFF    -> 20;
-    ST_RDEV_OFF   -> 24;
-    ST_ATIME_OFF  -> 32;
-    ST_MTIME_OFF  -> 48;
-    ST_CTIME_OFF  -> 64;
-    ST_BTIME_OFF  -> 80;
-    ST_SIZE_OFF   -> 96;
-    ST_BLOCKS_OFF -> 104;
-    ST_BLKSIZE_OFF -> 112;
-}
-linux_arm64 provides FilesystemHost {
-    O_WRONLY     -> 1;
-    O_RDWR       -> 2;
-    O_APPEND_BIT -> 10;
-    O_CREATE_BIT -> 6;
-    O_TRUNC_BIT  -> 9;
-    O_EXCL_BIT   -> 7;
-    O_BINARY     -> 0;
-    // PLACEHOLDER (darwin-shaped): see linux_x64 above.
-    ST_DEV_OFF    -> 0;
-    ST_MODE_OFF   -> 4;
-    ST_NLINK_OFF  -> 6;
-    ST_INO_OFF    -> 8;
-    ST_UID_OFF    -> 16;
-    ST_GID_OFF    -> 20;
-    ST_RDEV_OFF   -> 24;
-    ST_ATIME_OFF  -> 32;
-    ST_MTIME_OFF  -> 48;
-    ST_CTIME_OFF  -> 64;
-    ST_BTIME_OFF  -> 80;
-    ST_SIZE_OFF   -> 96;
-    ST_BLOCKS_OFF -> 104;
-    ST_BLKSIZE_OFF -> 112;
-}
+// Per-target provides VALUES moved to the settled std/targets file shape
+// (2026-07-08): `std/targets/<target>.omg` (target def) importing
+// `std/targets/<target>/filesystem.provides.omg` (the rows). Importing every
+// target def here keeps `use omega::language::std::filesystem_host;` a single
+// self-contained entry point; the compiler's target filter keeps rows for
+// non-selected targets inert (load-bearing -- see TASKS_FS rung 1).
+use omega::language::std::targets::windows_x64;
+use omega::language::std::targets::macos_arm64;
+use omega::language::std::targets::linux_x64;
+use omega::language::std::targets::linux_arm64;

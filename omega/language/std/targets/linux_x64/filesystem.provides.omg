@@ -1,0 +1,37 @@
+// Per-target `FilesystemHost` provides VALUES (portable-values settle
+// 2026-07-07; std/targets file shape settled 2026-07-07): open-flag constants
+// and `struct stat` byte offsets consumed by the portable wrapper. The
+// single-bit open flags are BIT POSITIONS (`_BIT`), not values, so the wrapper
+// composes them as `(bool as i32) << BIT` -- a shift of a small positive,
+// which the native i32 backend and the i64 interpreter agree on. Access mode
+// O_WRONLY(1)/O_RDWR(2) is a universal 2-bit value; O_BINARY is a windows-only
+// whole value (0 elsewhere). darwin O_CREAT (0x200) equals msvcrt O_TRUNC
+// (0x200), which is exactly why none of this can be hardcoded portably.
+linux_x64 provides FilesystemHost {
+    O_WRONLY     -> 1;
+    O_RDWR       -> 2;
+    O_APPEND_BIT -> 10;
+    O_CREATE_BIT -> 6;
+    O_TRUNC_BIT  -> 9;
+    O_EXCL_BIT   -> 7;
+    O_BINARY     -> 0;
+    // PLACEHOLDER (darwin-shaped): native linux metadata is not yet wired, so
+    // linux reuses the darwin `struct stat` offsets. The interpreter models the
+    // same POSIX hermetic shape on every non-windows host (evaluator.rs
+    // `host_stat_offsets`), so this stays self-consistent. Replace with linux's
+    // real `struct stat` offsets when wiring native linux stat.
+    ST_DEV_OFF    -> 0;
+    ST_MODE_OFF   -> 4;
+    ST_NLINK_OFF  -> 6;
+    ST_INO_OFF    -> 8;
+    ST_UID_OFF    -> 16;
+    ST_GID_OFF    -> 20;
+    ST_RDEV_OFF   -> 24;
+    ST_ATIME_OFF  -> 32;
+    ST_MTIME_OFF  -> 48;
+    ST_CTIME_OFF  -> 64;
+    ST_BTIME_OFF  -> 80;
+    ST_SIZE_OFF   -> 96;
+    ST_BLOCKS_OFF -> 104;
+    ST_BLKSIZE_OFF -> 112;
+}
