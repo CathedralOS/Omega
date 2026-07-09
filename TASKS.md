@@ -204,7 +204,13 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     Fixed cast_in_guard + guard_feature_composition + narrow_signed_guard_ops;
     suite 677/25. The differential oracle's first failure
     (runtime_cast_in_guard 71) is cleared. Remaining cast faces:
-    integer_casts, f32_field_binary_to_local, narrow_signed_divide_guard.
+    integer_casts, f32_field_binary_to_local (narrow_signed_divide_guard
+    FIXED 2026-07-09 -- the aarch64 mirror of x86's divide-core fix:
+    guard-subject narrow signed operands arrive zero-extended, so
+    div/mod/shift-right now sign-extend to the operation width first,
+    idempotent for the write path; runtime_binary_operation_width gained
+    byte_size, its six callers mirror the encoders'
+    runtime_binary_operation_byte_size derivation).
     Remaining: string comparisons
     (runtime_local_string_comparison_value 79!=78), tick/time host lowering,
     the frame-source machine-indexed write, and the entry-args spill.

@@ -372,7 +372,16 @@ pub fn runtime_storage_binary_write_width(
             matches!(operator, StateGuardOperator::Modulo),
         )
     } else {
-        runtime_binary_operation_width(operator)
+        runtime_binary_operation_width(
+            operator,
+            super::runtime_storage::runtime_binary_operation_byte_size(
+                runtime_value_operands,
+                operator,
+                left,
+                right,
+                byte_size,
+            ),
+        )
     };
 
     8 + runtime_value_operand_width(runtime_value_operands, left)
@@ -443,7 +452,16 @@ pub fn runtime_pointee_binary_write_width(
         + add_constant_width(field_byte_offset)
         + runtime_value_operand_width(runtime_value_operands, left)
         + runtime_value_operand_width(runtime_value_operands, right)
-        + runtime_binary_operation_width(operator)
+        + runtime_binary_operation_width(
+            operator,
+            super::runtime_storage::runtime_binary_operation_byte_size(
+                runtime_value_operands,
+                operator,
+                left,
+                right,
+                byte_size,
+            ),
+        )
         + runtime_result_write_width(0, byte_size)
 }
 
@@ -534,7 +552,16 @@ pub fn runtime_frame_indexed_binary_write_width(
     runtime_frame_index_setup_width(element_byte_size, field_byte_offset)
         + runtime_value_operand_width(runtime_value_operands, left)
         + runtime_value_operand_width(runtime_value_operands, right)
-        + runtime_binary_operation_width(operator)
+        + runtime_binary_operation_width(
+            operator,
+            super::runtime_storage::runtime_binary_operation_byte_size(
+                runtime_value_operands,
+                operator,
+                left,
+                right,
+                byte_size,
+            ),
+        )
         + runtime_result_write_width(0, byte_size)
 }
 
@@ -557,7 +584,16 @@ pub fn runtime_frame_base_indexed_binary_write_width(
         + add_constant_width(field_byte_offset)
         + runtime_value_operand_width(runtime_value_operands, left)
         + runtime_value_operand_width(runtime_value_operands, right)
-        + runtime_binary_operation_width(operator)
+        + runtime_binary_operation_width(
+            operator,
+            super::runtime_storage::runtime_binary_operation_byte_size(
+                runtime_value_operands,
+                operator,
+                left,
+                right,
+                byte_size,
+            ),
+        )
         + runtime_result_write_width(0, byte_size)
 }
 
@@ -966,7 +1002,16 @@ pub fn runtime_machine_double_indexed_binary_write_width(
         + 36
         + runtime_value_operand_width(runtime_value_operands, left)
         + runtime_value_operand_width(runtime_value_operands, right)
-        + runtime_binary_operation_width(operator)
+        + runtime_binary_operation_width(
+            operator,
+            super::runtime_storage::runtime_binary_operation_byte_size(
+                runtime_value_operands,
+                operator,
+                left,
+                right,
+                byte_size,
+            ),
+        )
         + runtime_result_write_width(0, byte_size)
 }
 
@@ -1567,7 +1612,16 @@ pub fn runtime_value_operand_width(
         let operation_width = if runtime_value_operands.binary_is_float(operand) {
             runtime_float_binary_operation_width(operator)
         } else {
-            runtime_binary_operation_width(operator)
+            runtime_binary_operation_width(
+                operator,
+                super::runtime_storage::runtime_binary_operation_byte_size(
+                    runtime_value_operands,
+                    operator,
+                    left,
+                    right,
+                    8,
+                ),
+            )
         };
         runtime_value_operand_width(runtime_value_operands, left)
             + runtime_value_operand_width(runtime_value_operands, right)
@@ -1594,7 +1648,23 @@ pub fn runtime_value_operand_width(
     }
 }
 
-fn runtime_binary_operation_width(operator: StateGuardOperator) -> usize {
+fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize) -> usize {
+    // Narrow SIGNED divide/modulo sign-extend BOTH operands first (+8); a
+    // narrow signed shift-right extends the shifted value (+4). See
+    // append_narrow_signed_division_operand_extension / the ShiftRight arm.
+    let narrow_signed_extension = match operator {
+        StateGuardOperator::Divide | StateGuardOperator::Modulo
+            if matches!(byte_size, 1 | 2) =>
+        {
+            8
+        }
+        StateGuardOperator::ShiftRight if matches!(byte_size, 1 | 2) => 4,
+        _ => 0,
+    };
+    narrow_signed_extension + runtime_binary_operation_width_base(operator)
+}
+
+fn runtime_binary_operation_width_base(operator: StateGuardOperator) -> usize {
     // Every operation emits the same instruction count for the 32-bit and
     // 64-bit register forms, so this width is operand-width independent.
     match operator {
