@@ -11045,6 +11045,41 @@ fn runtime_payload_range_narrowing_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// Sum-payload-range narrowing for a DIRECT pass-through (2026-07-08): the
+/// destructured binding `v` (`P::One { v } -> use_v(v)`) rewrites to `self.p.v`
+/// and is passed WITHOUT arithmetic to a same-ranged param. The arm's
+/// co-located guard proves `self.p`'s case is `One`, so the payload field's
+/// declared range [0..=50] discharges the argument obligation. Complements the
+/// arithmetic-use narrowing above (that path handles `index + 65`; this the bare
+/// pass-through). Guard-gated -- direct access outside a case-arm stays unproven
+/// (fail canaries sum_payload_direct_access_unproven / _non_case_guard_unproven).
+/// P::One { v: 20 } -> use_v(20) -> 20.
+#[test]
+fn runtime_sum_payload_range_narrowed_exit_canary_runs() {
+    let canary = pass_canary("ranges/sum_payload_range_narrowed_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-payload-narrow-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("direct payload pass-through should prove under the case-arm guard");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sum payload range narrowed canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(20),
+        "expected direct payload `use_v(v)` under the `P::One` arm to run to 20; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 /// The `a..b` (exclusive) / `a..=b` (inclusive) range refinement syntax that
 /// replaced the removed `range<a, b>`: `x in 0..16` and `y in 0..=100` keep
 /// `x + y` Exact. Runs to 70.
@@ -25371,6 +25406,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_cast_element_accumulator_exit",
     "arithmetic/runtime_exclusive_range_constraint_exit",
     "arithmetic/runtime_payload_range_narrowing_exit",
+    "ranges/sum_payload_range_narrowed_exit",
     "arithmetic/runtime_struct_field_range_narrowing_exit",
     "arithmetic/runtime_provable_field_construction_exit",
     "arithmetic/runtime_inferred_return_range_exit",
@@ -25972,6 +26008,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "ranges/index_read_after_increment_oob",
     "ranges/index_read_after_decrement_negative",
     "ranges/index_signed_guard_below_zero",
+    "ranges/sum_payload_direct_access_unproven",
+    "ranges/sum_payload_non_case_guard_unproven",
     "slices/invalid_slice_folded_index_unchecked",
     "slices/invalid_slice_local_index_unchecked",
     "slices/invalid_subslice_folded_bounds_unchecked",
