@@ -1,0 +1,30 @@
+// PENDING (2026-07-09i, DESIGN-UNDECIDED -- which operators do arithmetic
+// domains govern?): `<<` on a Saturating type diverges THREE ways today.
+// NATIVE wraps (no backend has a saturating-shl sequence anywhere: the shl
+// lowers as the plain op in store and operand position alike, and the store
+// truncates -- exit 72 here). The INTERPRETER clamps on the STORE (the
+// landing seam applies apply_arithmetic_domain generically -- exit 70) but
+// computes fused GUARD shls per the Wrapping node rule. Neither leg ever
+// implemented saturating shl DELIBERATELY.
+// The design call: either shifts are domain-governed operators (then native
+// needs clamp sequences x2 ISAs x2 positions and the interp node arm gets a
+// Saturating shl), or shifts are wrap-only operators (then the CHECKER
+// should reject `<<` on Saturating/Trapping operands loudly, and the interp
+// seam stops clamping shl results). Sibling of the parked
+// shift-count-at-or-above-width divergence.
+// PROMOTE (differential) once the owner picks; expected exit depends on the
+// pick (70 = clamp, 72 = wrap).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: u8 in Saturating; b: u8 in Saturating; r: u8 in Saturating; }
+machine Main::main(&mut self) {
+    self.a = 17;
+    self.b = 4;
+    self.r = self.a << self.b;
+    transition self.r == 255 { true -> clamped() _ -> chk16() }
+    state chk16(&mut self) {
+        transition self.r == 16 { true -> wrapped() _ -> bad() }
+    }
+    state clamped(&mut self) { self.console.exit_process(70); }
+    state wrapped(&mut self) { self.console.exit_process(72); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
