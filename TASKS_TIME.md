@@ -705,6 +705,10 @@ boundary trait TimeHost {
 
 ## Coordination
 
+- OWNER_QUESTIONS.md (repo root) consolidates all lanes' pending owner
+  decisions, including this lane's — batch-answerable.
+
+
 - **Render workstream (TASKS_RENDER.md):** owns darwin `Clock.sleep` binding
   (their item 7). SETTLED HERE (D12): the interpreter headless stub (their
   item 9) covers **Gui/Input only** — time owns interpreter Clock semantics

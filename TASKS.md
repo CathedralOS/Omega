@@ -1,3 +1,5 @@
+> OWNER_QUESTIONS.md (repo root) consolidates all lanes' pending owner decisions — batch-answerable.
+
 # Tasks
 
 This is the working backlog, not a history dump. Keep it biased toward what we
