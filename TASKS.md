@@ -706,6 +706,35 @@ decreases remaining
   parameterization (it hardcodes x17/x26/x9). Also x86 64-bit sat/trap MUL
   parity (needs the 128-bit imul form; aarch64 has MULH arms).
 
+- **WRAPPING NODE SEMANTICS + PROMOTION-AWARE WITNESS 2026-07-09f.** Probing
+  the queued div/mod edges surfaced a LIVE interp divergence first: WRAPPING
+  arithmetic fused into a guard (`(au + bu == 44)`, u8 200+100) -- native's
+  byte-width compare IS the wrap (44), but the interp compared the wide 300
+  full-width (exit 71 vs 70; no landing seam exists guard-direct). Fix: the
+  eval_binary node arm now also WRAPS Add/Sub/Mul to the declared width under
+  Wrapping (congruence-preserving for +/-/* chains, so truncating each
+  intermediate agrees with native's wide-compute + width-sensitive-op
+  truncation everywhere). That fix immediately tripped
+  runtime_mixed_width_sign_exit and exposed a WRONG CONVENTION in the witness
+  resolver: first-non-Exact-witness mistypes mixed-WIDTH promotions (u8+i32
+  runs at i32; wrapping at the u8 witness turned 300 into 44). The Binary arm
+  of expression_scalar_type now picks the WIDER operand witness (promotion
+  rank via a new integer_primitive_byte_width; equal widths keep left --
+  add/sub/mul bits agree across signedness at one width, and mixed DOMAIN
+  classes are checker-rejected). New canary
+  pass/arithmetic/runtime_wrapping_expression_guard_exit (3 wrap directions,
+  native 70, differential 70/70 + suite runs test). Differential umbrella
+  green: 665 matched / 3 native-blocked / 0 mismatch.
+  BACKEND NOTE (same convention, milder): the selection-side witness
+  (resolve_binary_operand_arithmetic_domain_in_table) keeps first-witness for
+  domain (mixed domains checker-rejected) and its WIDTH already promotes via
+  runtime_value_compare_byte_size (max of operand sizes); SIGNEDNESS of a
+  mixed-sign Sat/Trap operand pair is first-witness best-guess -- exotic,
+  flagged here rather than guessed at.
+  STILL QUEUED: operand-position div/mod MIN/-1 (sat clamp / x86 #DE guard,
+  both ISAs + the interp node arm for sat div) and x86 64-bit sat/trap MUL
+  parity.
+
 - **[ ] Range constraint + non-Exact domain = the range is a LIE (found 2026-07-06).**
   `i: usize [0..=4] in Wrapping` accepts `self.i = 100` -- the range enforces only under the
   EXACT domain ("Wrapping stays permissive" was scoped to source-type narrowing, but it also

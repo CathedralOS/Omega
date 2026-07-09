@@ -5053,11 +5053,25 @@ impl<'program> Evaluator<'program> {
             )),
             ExpressionNode::Mutable(inner) => self.expression_scalar_type(*inner, frame),
             ExpressionNode::Unary(unary) => self.expression_scalar_type(unary.operand, frame),
-            // Mixed signedness/width classes are checker-rejected, so one
-            // witness types the whole arithmetic expression.
-            ExpressionNode::Binary(binary) => self
-                .expression_scalar_type(binary.left, frame)
-                .or_else(|| self.expression_scalar_type(binary.right, frame)),
+            // A binary node computes in the PROMOTED type: mixed widths
+            // auto-promote to the wider operand (u8 + i32 runs at i32 --
+            // wrapping 200+100 at the node must yield 300, not the u8 44), so
+            // the WIDER witness types the node. Equal widths keep the left
+            // witness: add/sub/mul bits agree across signedness at one width,
+            // and mixed DOMAIN classes are checker-rejected
+            // (fail/expressions/arithmetic_domain_mixed).
+            ExpressionNode::Binary(binary) => {
+                let left = self.expression_scalar_type(binary.left, frame);
+                let right = self.expression_scalar_type(binary.right, frame);
+                match (left, right) {
+                    (Some(left), Some(right)) => {
+                        let left_width = integer_primitive_byte_width(left.0).unwrap_or(8);
+                        let right_width = integer_primitive_byte_width(right.0).unwrap_or(8);
+                        Some(if right_width > left_width { right } else { left })
+                    }
+                    (left, right) => left.or(right),
+                }
+            }
             ExpressionNode::Name(path) => {
                 let members = self
                     .program
@@ -5198,6 +5212,23 @@ impl<'program> Evaluator<'program> {
         // BOTH operands, can clamp). 64-bit UNSIGNED views its `Value::Int`
         // bit patterns as u64 and clamps to [0, u64::MAX]. Other domains and
         // operators keep the wide i64 compute + landing-seam coercion.
+        // A WRAPPING Add/Sub/Mul likewise wraps at the node: with no landing
+        // seam (a guard-direct `au + bu == 44`), the full-width comparison
+        // would see the wide 300 while native's byte-width compare sees the
+        // wrapped 44. Wrapping is congruence-preserving for +/-/* chains, so
+        // truncating each intermediate agrees with native's wide-compute +
+        // width-sensitive-op truncation everywhere.
+        if let Some((ty, ArithmeticDomain::Wrapping)) = scalar_type {
+            if matches!(operator, Add | Subtract | Multiply) {
+                let wide = match operator {
+                    Add => l.wrapping_add(r),
+                    Subtract => l.wrapping_sub(r),
+                    Multiply => l.wrapping_mul(r),
+                    _ => unreachable!(),
+                };
+                return Ok(Value::Int(wrap_to_width(wide, ty)));
+            }
+        }
         if let Some((ty, domain @ (ArithmeticDomain::Saturating | ArithmeticDomain::Trapping))) =
             scalar_type
         {
@@ -5720,6 +5751,24 @@ enum TransitionDecision {
 
 // `Frame::locals` needs interior mutability so `let` bindings can be added while the
 // frame is shared by `&`. Wrap the map in a RefCell.
+/// Byte width of an integer primitive -- the PROMOTION rank a mixed-width
+/// binary node computes in. `None` for non-integer primitives.
+fn integer_primitive_byte_width(ty: PrimitiveType) -> Option<usize> {
+    match ty {
+        PrimitiveType::I8 | PrimitiveType::U8 => Some(1),
+        PrimitiveType::I16 | PrimitiveType::U16 => Some(2),
+        PrimitiveType::I32 | PrimitiveType::U32 => Some(4),
+        PrimitiveType::I64
+        | PrimitiveType::U64
+        | PrimitiveType::Isize
+        | PrimitiveType::Usize
+        | PrimitiveType::Addr => Some(8),
+        PrimitiveType::Bool | PrimitiveType::F32 | PrimitiveType::F64 | PrimitiveType::String => {
+            None
+        }
+    }
+}
+
 fn primitive_is_unsigned64(primitive: Option<PrimitiveType>) -> bool {
     matches!(
         primitive,
