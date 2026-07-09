@@ -490,9 +490,22 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    ARM -- the effectful-arm fence refused every value-position caller
    (zero-caller code again); both now capture errno into a new `lock_errno`
    field in the ENTRY (the try_exists idiom; stale-but-unread on the acquired
-   path). STILL zero-caller: set_times, set_owner family, symlink_metadata,
-   read_dir_count/nth/stats/is_empty + create_dir_all/remove_dir_all
-   (darwin-runnable wrappers).
+   path). STILL zero-caller: set_times, set_owner family, symlink_metadata.
+   DIR-WALK FAMILY: NOT darwin-runnable after all -- probed 2026-07-08h,
+   INTERP-ONLY on every native target via THREE distinct honest fences:
+   (1) create_dir_all's interior value-calls the re-entrant `mkall_copy`
+   (fires even for a `_ =` discard caller); (2) read_dir_count/nth (so
+   is_empty/stats too) do host READS in loop ARMS -- the try_lock
+   entry-capture idiom cannot apply to a loop of reads; (3) remove_dir_all's
+   `rda` is a genuine recursive CYCLE (depth into a DIFFERENT dirfd +
+   sibling drain) that specialization refuses. Common unlock =
+   CALL-WITH-RETURN (already named as the fence-lifting feature); (3) also
+   needs an rda entry-recursion restructure (mkall precedent, but TWO
+   recursion sites). Parked with the full six-leg matrix (interp 70):
+   `canaries/pending/host/dir_walk_wrappers_native`; promote macos-gated
+   when the unlocks land. ⚠️ This RAISES call-with-return's priority: it is
+   now the single blocker for the whole native dir-walk wrapper surface on
+   EVERY target (not just windows) -- flag for prioritization.
    ⚠️ BRIEF DRIFT noted (not touched -- freestanding thread's call): the
    extern brief revised `VtableSlot(index)` to `VtableField(field)`
    (field model, decided 2026-07-04) AFTER the parse landed; the
