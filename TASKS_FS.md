@@ -207,9 +207,15 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
   is windows-gated now — it IS the gdi32 pixel path; suite baseline
   drops to 4: efi ×3 own-test failures + pass_canaries_compile, whose
   TRUE inner compile-failure set is {targets/efi_ref_param_call_arg,
-  targets/efi_vtable_call, termination/default_order_nat_countdown_compile}
-  — precisely measured 2026-07-11r; the old "same members" note was
-  approximate.)
+  targets/efi_vtable_call} — precisely measured 2026-07-11r/s. (The
+  termination/default_order_nat_countdown_compile member greened
+  2026-07-11s: its source predated explicit value-machine return types
+  — no `-> usize`, so the planner minted no result slot and the
+  call-result fence refused the let-binding loudly, exactly
+  serve-or-refuse working; the declaration fixed it. NOTED, unfiled:
+  console-less programs default-exit 1 natively vs 0 interpreted —
+  compile-only members don't care, but a run canary of that shape
+  would diverge.)
 - **Canonical idioms**: field discipline for host-call args/results;
   errno-capture-in-entry; field-carrier for indexed element moves. The a/b
   first-field receiver shuffle is FULLY RETIRED (per-instance receivers,

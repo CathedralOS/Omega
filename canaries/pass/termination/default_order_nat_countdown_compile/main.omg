@@ -8,6 +8,7 @@ machine Main::countdown(&mut self, remaining: usize)
 terminates {
     decreases remaining;
 }
+-> usize
 {
     transition remaining > 0 {
         true -> countdown(remaining - 1)
