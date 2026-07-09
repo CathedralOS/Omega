@@ -39,6 +39,7 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   unserved-recursive-result sweep in runtime-storage planning.rs); rewrite
   corpus users (proofs canaries, std fs mkall, dungeon find_item pair) into
   explicit sub-state self-transition loops.
+  > Is this a question?
 - **Float domain clauses (Q8):** `f: f32 in Saturating` compiles but means
   nothing (both engines run plain IEEE). Reject or define.
   > Owner: Deferred, until a float domain pass. This has been labbed out some, but needs a serious language document detailing all compiler-supported float domains.
