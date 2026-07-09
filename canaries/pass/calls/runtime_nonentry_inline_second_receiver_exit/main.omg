@@ -1,0 +1,29 @@
+// RUN CANARY (exit 70) -- RECEIVER SLICE 2, INLINE ROUTE (landed
+// 2026-07-11d/e): a NON-looping value machine spliced through the SECOND
+// same-type receiver from a NON-entry caller. Needs BOTH fixes: the
+// call-chain-walk receiver recovery (a two-hop splice stamps get's
+// `self.count` under MAIN's case; the walk composes holder@0 + second@4)
+// AND the call-target-first leaf-write resolution (the outer result copy
+// previously read Main's same-named `total` local, unwritten). The wrong
+// receiver instance delivers 100. second.count = 7 -> exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Tally { count: i32 in Wrapping; }
+machine Tally::get(&mut self) -> i32 in Wrapping {
+    transition true { true -> done(self.count) }
+    state done(&mut self, value: i32) -> i32 { value }
+}
+data Holder { first: Tally; second: Tally; }
+machine Holder::run(&mut self) -> i32 in Wrapping {
+    self.first.count = 100;
+    self.second.count = 7;
+    let total: i32 in Wrapping = self.second.get();
+    transition true { true -> done(total) }
+    state done(&mut self, total: i32) -> i32 { total }
+}
+data Main { console: Console; holder: Holder; }
+machine Main::main(&mut self) {
+    let total: i32 in Wrapping = self.holder.run();
+    transition total == 7 { true -> good() _ -> bad(total) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, total: i32) { self.console.exit_process(71); }
+}

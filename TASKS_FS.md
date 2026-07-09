@@ -129,12 +129,21 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    nested inline VALUE-call chains (entry -> holder.run() ->
    self.only.get()) scramble their result-forwarding copies natively
    (`frame@12 -> frame@0` before frame@12 is written -> ZII delivered;
-   interp 70 vs native 71). Result-plumbing/expansion-ordering.
-   CLAIMED by the fs lane 2026-07-11e (survey: parallel thread is on
-   equality-lowering legs, not result plumbing; call_result_blockers.rs
-   stays extend-only if touched at all -- the fix target is expansion
-   ORDERING, not the fence); the receiver reads themselves resolve
-   correctly. Probe corpus: scratchpad/slice2 — its two
+   interp 70 vs native 71). FIXED 2026-07-11e -- not
+   ordering but a NAME-COLLISION scope bug: the outer leaf
+   terminal-write's branch-key attempt (the arm target owns no slots)
+   fell into the case-wide NAME fallback and copied the CASE's
+   same-named local (Main's unwritten `total` -> ZII). Fix: the
+   CALL-TARGET state (the arm-owning callee scope that spelled the
+   args) is the FIRST resolution key in
+   select_runtime_leaf_branch_terminal_value_write. Pins:
+   calls/runtime_nested_inline_chain_result_exit (colliding names),
+   calls/runtime_nonentry_inline_second_receiver_exit (the full
+   slice-2 inline shape: chain-walk recovery + this fix). Residual
+   (recorded, unfenced): args spelled in a DEEPER callee state than
+   the call target's entry still miss the scoped lookup and ride the
+   name fallback -- same class, needs an arm-owner key on the
+   expansion representation if it surfaces. Probe corpus: scratchpad/slice2 — its two
    frontier return-write shapes still stand: (a) a dispatched callee
    forwarding its own call-bound LOCAL as terminal; (b) the
    field-carrier restructure through a nested receiver.

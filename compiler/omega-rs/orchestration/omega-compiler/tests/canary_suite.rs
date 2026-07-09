@@ -21013,6 +21013,71 @@ fn runtime_selfcall_chain_second_receiver_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// NESTED INLINE VALUE-CALL CHAIN with COLLIDING LOCAL NAMES: the outer
+// leaf terminal-write must resolve the arm's arg in the CALL-TARGET scope
+// first -- the case-wide name fallback previously copied Main's same-named
+// (unwritten) local and delivered ZII.
+#[test]
+fn runtime_nested_inline_chain_result_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_nested_inline_chain_result_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-nested-inline-chain-result-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested inline chain result canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested inline chain result canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the chained inline result to deliver 7 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// RECEIVER SLICE 2, INLINE ROUTE: a non-looping value machine spliced
+// through the SECOND same-type receiver from a NON-entry caller (two-hop
+// splice; chain-walk recovery + call-target-first leaf-write resolution).
+#[test]
+fn runtime_nonentry_inline_second_receiver_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_nonentry_inline_second_receiver_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-nonentry-inline-second-receiver-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("non-entry inline second-receiver canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("non-entry inline second-receiver canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the SECOND receiver through the inline route (7 -> exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A dispatched value call whose terminal reads THROUGH a `&mut` ALIAS
 // (`-> acc`, acc: &mut i32): pins that the result is the pointee value,
 // never the pointer bits (the last unprobed return-write shape).

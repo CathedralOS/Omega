@@ -596,12 +596,16 @@ fn source_completion_dispatch_index(
 ///    against substituting call-result-backed locals with their raw call
 ///    expression (which no write strategy can lower).
 ///
-/// 3. **Dual-context resolution loop** (`resolution_keys`): after
-///    substitution the expression may reference names from the CALLEE context
-///    (`branch_key`) OR the CALLER context (`source_key`). Both are tried in
-///    order so that, e.g., an attached callee's `self.field` resolves in the
-///    callee context while a free-machine result that folds to a caller-side
-///    expression resolves in the caller context.
+/// 3. **Triple-context resolution loop** (`resolution_keys`): after
+///    substitution the expression may reference names from the CALL-TARGET
+///    context (the arm-owning callee state that spelled a chained call's
+///    args -- tried FIRST, because the branch-key attempt's case-wide name
+///    fallback can match a same-named slot of another scope; the
+///    nested-inline result scramble, 2026-07-11e), the CALLEE context
+///    (`branch_key`), or the CALLER context (`source_key`). All are tried
+///    in order so that, e.g., an attached callee's `self.field` resolves in
+///    the callee context while a free-machine result that folds to a
+///    caller-side expression resolves in the caller context.
 ///
 /// 4. **Write-strategy cascade**: for each resolution key, three strategies
 ///    are attempted in order:
@@ -692,9 +696,52 @@ fn select_runtime_leaf_branch_terminal_value_write(
     // `self.v + 1`), which the callee context cannot resolve -- the result-slot
     // write silently dropped and the call returned a stale 0 (the by-value
     // arg-to-free-machine miscompile).
-    let mut resolution_keys = [Some(expansion.branch_key), Some(expansion.source_key)];
+    // The CALL-TARGET scope comes FIRST: a chained inline value call's arm
+    // args are spelled in the CALLEE's arm-owning state (`Main ->
+    // holder.run()`: run.run's `done(total)` names RUN's local), which is
+    // neither branch_key (the arm's TARGET state, `done`) nor source_key
+    // (the top case). Trying branch_key first is not safe order-wise: its
+    // scoped lookups miss (done owns no slots) and the case-wide name
+    // fallback then matches a SAME-NAMED slot of another scope (Main's
+    // `total` local -- the nested-inline result scramble, 2026-07-11e;
+    // repro scratchpad/slice2/nested_inline_chain_single). A statement
+    // with anything but exactly one target skips the extra key.
+    let call_target_key = {
+        let mut targets = input.state_calls.calls.iter().filter_map(|(_, call)| {
+            (call.source_key.machine == expansion.source_key.machine
+                && call.source_key.state == expansion.source_key.state
+                && call.statement_index == expansion.statement_index)
+                .then_some(call.target_key)
+        });
+        let first = targets.next();
+        match (first, targets.next()) {
+            (Some(target), None) => Some(target),
+            _ => None,
+        }
+    };
+    let mut resolution_keys = [
+        call_target_key,
+        Some(expansion.branch_key),
+        Some(expansion.source_key),
+    ];
+    if resolution_keys[0] == resolution_keys[1] {
+        resolution_keys[0] = None;
+    }
     if expansion.branch_key == expansion.source_key {
-        resolution_keys[1] = None;
+        resolution_keys[2] = None;
+    }
+    if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some() {
+        eprintln!(
+            "LEAFWRITE: dispatch {} source m{} s{} branch m{} s{} target {:?} stmt {} slot@{}",
+            expansion.dispatch_index,
+            expansion.source_key.machine.arena_index(),
+            expansion.source_key.state.arena_index(),
+            expansion.branch_key.machine.arena_index(),
+            expansion.branch_key.state.arena_index(),
+            call_target_key.map(|key| (key.machine.arena_index(), key.state.arena_index())),
+            expansion.statement_index,
+            slot.byte_offset,
+        );
     }
     for resolution_key in resolution_keys.into_iter().flatten() {
         if emit_runtime_frame_slot_slice_descriptor_write_in_table(
