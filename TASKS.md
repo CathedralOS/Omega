@@ -1,5 +1,7 @@
 > OWNER_QUESTIONS.md (repo root) consolidates all lanes' pending owner decisions — batch-answerable.
 
+> OWNER: Migrate questions from this into OWNER_QUESTIONS.md, reconciling duplicates.
+
 # Tasks
 
 Working backlog only. Finished work lives in the git log; canary headers carry
