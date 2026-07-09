@@ -15,17 +15,18 @@ use omega_core::symbols::{BuiltinFunction, SymbolHandle};
 use super::super::super::storage_places::resolve_runtime_frame_base_indexed_target_in_table;
 use super::super::super::storage_places::{
     clamp_runtime_case_comparison_operands_in_table, classify_scalar_value_type_in_table,
+    resolve_binary_operand_arithmetic_domain_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
-    resolve_binary_operand_arithmetic_domain_in_table,
     resolve_runtime_pointee_slot_offset_in_table,
-    resolve_runtime_storage_arithmetic_domain_in_table,
-    resolve_runtime_storage_is_signed_in_table, resolve_runtime_storage_place_in_table,
-    resolve_runtime_storage_primitive_type_in_table, static_integer_value_in_table,
+    resolve_runtime_storage_arithmetic_domain_in_table, resolve_runtime_storage_is_signed_in_table,
+    resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
+    static_integer_value_in_table,
 };
-use omega_checked_trees::types::PrimitiveType;
-use super::super::guards::{runtime_value_compare_byte_size, static_guard_conjunct_summary_in_table};
+use super::super::guards::{
+    runtime_value_compare_byte_size, static_guard_conjunct_summary_in_table,
+};
 use super::super::text_writes::{
     runtime_text_builder_write_in_table_emit, string_literal_data_handle,
 };
@@ -37,6 +38,7 @@ use super::super::writes::{
     signedness_adjusted_operator, signedness_adjusted_operator_for_operands,
 };
 use crate::selection::instruction_sink::SelectedInstructionSink;
+use omega_checked_trees::types::PrimitiveType;
 
 fn supports_scalar_integer_write(byte_size: usize) -> bool {
     matches!(byte_size, 1 | 2 | 4 | 8)
@@ -529,8 +531,7 @@ fn static_inline_branching_call_value_in_table(
                 .state_names_by_key_cloned(expansion.branch_key);
             (expansion.branch_key.state == call.target_symbol
                 || branch_state.as_str() == &*call.target)
-                && receiver_machine
-                    .is_none_or(|machine| expansion.branch_key.machine == machine)
+                && receiver_machine.is_none_or(|machine| expansion.branch_key.machine == machine)
                 && expansion.target_value.is_valid()
                 && leaf_expansion_bindings_match_table_call_arguments(
                     input,
@@ -580,8 +581,7 @@ fn static_inline_branching_call_value(
                 .state_names_by_key_cloned(expansion.branch_key);
             (expansion.branch_key.state == call.target_symbol
                 || branch_state.as_str() == &*call.target)
-                && receiver_machine
-                    .is_none_or(|machine| expansion.branch_key.machine == machine)
+                && receiver_machine.is_none_or(|machine| expansion.branch_key.machine == machine)
                 && expansion.target_value.is_valid()
                 && leaf_expansion_bindings_match_call_arguments(input, expansion, call)
         })
@@ -1036,16 +1036,20 @@ fn select_runtime_string_mutation_write_in_table(
     // String field, common in inlined helpers) must be a frame write, not a
     // machine-storage write at the same numeric offset.
     match target_place.region {
-        omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame => Some(SelectedInstructionKind::WriteRuntimeFrameString {
-            byte_offset: target_place.byte_offset,
-            data,
-            byte_length: value.len(),
-        }),
-        omega_abstract_operations::RuntimeStorageRegion::Machine => Some(SelectedInstructionKind::WriteRuntimeMachineString {
-            byte_offset: target_place.byte_offset,
-            data,
-            byte_length: value.len(),
-        }),
+        omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame => {
+            Some(SelectedInstructionKind::WriteRuntimeFrameString {
+                byte_offset: target_place.byte_offset,
+                data,
+                byte_length: value.len(),
+            })
+        }
+        omega_abstract_operations::RuntimeStorageRegion::Machine => {
+            Some(SelectedInstructionKind::WriteRuntimeMachineString {
+                byte_offset: target_place.byte_offset,
+                data,
+                byte_length: value.len(),
+            })
+        }
     }
 }
 
@@ -1273,7 +1277,9 @@ fn resolve_runtime_value_operand_in_table(
                 // The plain integer arm ignores the width; a non-Exact
                 // operand needs its REAL operand width for the
                 // width-correct op + clamp bounds.
-                byte_width: if domain_signedness.0 != omega_core::arithmetic::ArithmeticDomain::Exact {
+                byte_width: if domain_signedness.0
+                    != omega_core::arithmetic::ArithmeticDomain::Exact
+                {
                     runtime_value_compare_byte_size(runtime_value_operands, left, right)
                 } else {
                     8
@@ -1424,7 +1430,6 @@ fn resolve_runtime_value_operand_in_table(
             }),
         );
     }
-
 
     if let Some(indexed_target) = resolve_runtime_frame_fixed_indexed_target_in_table(
         input,

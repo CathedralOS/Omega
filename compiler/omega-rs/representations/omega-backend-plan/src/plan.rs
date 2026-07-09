@@ -48,6 +48,14 @@ pub struct BackendPlan {
     pub runtime_text: RuntimeTextPlan,
     pub layouts: Arc<LayoutPlan>,
     pub entry_key: StateKey,
+    /// Per-DISPATCH-INDEX receiver storage base (indexed by the runtime-flow
+    /// state's arena index): `Some(base)` when the dispatch case's clone
+    /// context was minted by a call through a CONTAINED receiver whose true
+    /// offset resolved (per-instance dispatch); `None` = the by-type walk
+    /// stays authoritative. Computed ONCE in the pipeline builder; consumed
+    /// by guard-operand layout, selection, and the contained-receiver fence
+    /// -- one prediction, no lockstep copies.
+    pub receiver_bases: Vec<Option<usize>>,
     pub phase_timings: Arena<BackendPlanPhaseTiming>,
 }
 

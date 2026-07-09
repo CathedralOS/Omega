@@ -60,6 +60,7 @@ pub(super) fn build_backend_plan_skeleton(input: BackendPlanSkeletonInput) -> Ba
         runtime_text: RuntimeTextPlan::default(),
         layouts: Arc::new(input.layouts),
         entry_key: input.entry_key,
+        receiver_bases: Vec::new(),
         phase_timings: input.phase_timings,
     }
 }

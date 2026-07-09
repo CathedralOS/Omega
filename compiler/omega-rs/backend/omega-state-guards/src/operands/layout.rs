@@ -17,6 +17,7 @@ pub(super) struct ResolvedOperandLayout {
 pub(super) fn resolve_guard_operand_layout(
     layouts: &LayoutPlan,
     runtime_storage: &RuntimeStoragePlan,
+    receiver_bases: &[Option<usize>],
     entry_machine: SymbolHandle,
     source_key: StateKey,
     source_machine: SymbolHandle,
@@ -479,7 +480,9 @@ fn guard_path_member_index(
                 let ExpressionNode::Integer(value) = table.expression(indexed.index) else {
                     return None;
                 };
-                value.value_i64().and_then(|value| usize::try_from(value).ok())
+                value
+                    .value_i64()
+                    .and_then(|value| usize::try_from(value).ok())
             } else {
                 guard_path_member_index(table, indexed.collection, index)
             }

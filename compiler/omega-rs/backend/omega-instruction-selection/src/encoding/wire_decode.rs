@@ -132,9 +132,12 @@ pub fn encode_read_wire_nested_close(
     end_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => {
-            aarch64::encode_read_wire_nested_close(buffer_offset, read_offset, ok_offset, end_offset)
-        }
+        Architecture::Aarch64 => aarch64::encode_read_wire_nested_close(
+            buffer_offset,
+            read_offset,
+            ok_offset,
+            end_offset,
+        ),
         Architecture::X86_64 => {
             x86_64::encode_read_wire_nested_close(buffer_offset, read_offset, ok_offset, end_offset)
         }

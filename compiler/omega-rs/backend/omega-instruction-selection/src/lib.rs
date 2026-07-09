@@ -34,6 +34,8 @@ pub struct InstructionSelectionInput<'plan> {
     pub control_flow: &'plan ControlFlowPlan,
     pub host_calls: &'plan HostCallPlan,
     pub state_calls: &'plan StateCallPlan,
+    /// See BackendPlan::receiver_bases (per-instance receiver dispatch).
+    pub receiver_bases: &'plan [Option<usize>],
     pub alias_flow: &'plan AliasFlowPlan,
     pub state_storage: &'plan StateStoragePlan,
     pub runtime_flow: &'plan RuntimeFlowPlan,

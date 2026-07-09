@@ -1,17 +1,15 @@
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::{RuntimeAliasBinding, resolve_runtime_alias_binding};
-use omega_checked_trees::types::PrimitiveType;
 use crate::selection::storage_places::{
     RuntimeStoragePlace, clamp_runtime_case_comparison_operands,
+    clamp_runtime_case_comparison_operands_in_table, classify_scalar_value_type_in_table,
+    combine_binary_operand_scalar_types, enum_variant_value_in_table,
     resolve_binary_operand_arithmetic_domain_in_table,
-    clamp_runtime_case_comparison_operands_in_table, enum_variant_value_in_table,
     resolve_runtime_assignment_value_call_result_place_by_ordinal,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
-    resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
-    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
-    classify_scalar_value_type_in_table, combine_binary_operand_scalar_types,
-    resolve_runtime_pointee_slot_offset_in_table,
+    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
+    resolve_runtime_pointee_slot_offset, resolve_runtime_pointee_slot_offset_in_table,
     resolve_runtime_storage_place, resolve_runtime_storage_place_in_table,
     resolve_runtime_storage_place_is_fat_slice_in_table,
     resolve_runtime_storage_primitive_type_in_table,
@@ -21,6 +19,7 @@ use omega_checked_trees::expression::{
     Expression, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
 use omega_checked_trees::statement::StatementNode;
+use omega_checked_trees::types::PrimitiveType;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_state_calls::StateCallRole;
@@ -49,14 +48,8 @@ pub(super) fn binary_value_operands_are_float(
     right: ExpressionHandle,
 ) -> bool {
     [left, right].into_iter().any(|operand| {
-        classify_scalar_value_type_in_table(
-            input,
-            dispatch_index,
-            source_key,
-            expressions,
-            operand,
-        )
-        .is_some_and(|primitive| primitive.accepts_float_literal())
+        classify_scalar_value_type_in_table(input, dispatch_index, source_key, expressions, operand)
+            .is_some_and(|primitive| primitive.accepts_float_literal())
     })
 }
 
@@ -104,11 +97,11 @@ pub(super) fn resolve_runtime_value_operand_in_table(
     // float binary write moves those bits into an XMM register for the SSE op.
     // First cut resolves the f64 bit pattern (the default float width); f32
     // arithmetic with a constant operand is gated out at the write site.
-    if let Some(float_value) =
-        resolve_runtime_static_float_value_in_table(expressions, expression)
+    if let Some(float_value) = resolve_runtime_static_float_value_in_table(expressions, expression)
     {
         return Some(
-            runtime_value_operands.insert(RuntimeValueOperand::Immediate(float_value.to_bits() as i64)),
+            runtime_value_operands
+                .insert(RuntimeValueOperand::Immediate(float_value.to_bits() as i64)),
         );
     }
 
@@ -402,7 +395,6 @@ pub(super) fn resolve_runtime_value_operand_in_table(
         );
     }
 
-
     if let Some(indexed_target) = resolve_runtime_frame_fixed_indexed_target_in_table(
         input,
         dispatch_index,
@@ -507,8 +499,14 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operan
         right_expression,
     )?;
     // A String place is its 16-byte `{ptr, len}` text descriptor.
-    debug_assert_eq!(left_place.byte_count, 16, "String place must be a text descriptor");
-    debug_assert_eq!(right_place.byte_count, 16, "String place must be a text descriptor");
+    debug_assert_eq!(
+        left_place.byte_count, 16,
+        "String place must be a text descriptor"
+    );
+    debug_assert_eq!(
+        right_place.byte_count, 16,
+        "String place must be a text descriptor"
+    );
     let text_equals = runtime_value_operands.insert(RuntimeValueOperand::TextEquals {
         left_region: left_place.region,
         left_offset: left_place.byte_offset,

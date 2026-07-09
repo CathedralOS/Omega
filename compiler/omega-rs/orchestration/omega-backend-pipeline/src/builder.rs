@@ -306,6 +306,17 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             render_frame_slot_table(&backend_plan.runtime_storage, &runtime_flow)
         );
     }
+    // PER-INSTANCE RECEIVER BASES (TASKS_FS "Stolen work #2", phase 3): one
+    // table, indexed by dispatch index (== the runtime-flow state's arena
+    // index), consumed by guard-operand layout, selection, and the
+    // contained-receiver fence -- a single prediction site. Gated
+    // OMEGA_RECEIVER_DISPATCH=1 until the end-to-end probe promotes it.
+    backend_plan.receiver_bases = compute_receiver_bases(
+        &runtime_flow,
+        &backend_plan.state_calls,
+        &backend_plan.layouts,
+        backend_plan.entry_key.machine,
+    );
     backend_plan.state_guards = record_backend_phase(&mut phase_timings, "state guards", || {
         build_state_guard_plan(
             &program,
@@ -314,6 +325,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
             &backend_plan.layouts,
             &backend_plan.runtime_storage,
             backend_plan.entry_key.machine,
+            &backend_plan.receiver_bases,
         )
     })
     .into();
@@ -362,6 +374,7 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
         record_backend_phase(&mut phase_timings, "abstract operations", || {
             let runtime_abi = build_runtime_abi_plan(backend_plan.target);
             build_abstract_operation_plan(&AbstractOperationLoweringInput {
+                receiver_bases: &backend_plan.receiver_bases,
                 runtime_abi: &runtime_abi,
                 entry_key: backend_plan.entry_key,
                 entry_symbol: object_entry_symbol_name(&backend_plan.object).into(),
@@ -806,4 +819,67 @@ fn state_call_target_loops(
         &mut Vec::new(),
         &mut Vec::new(),
     )
+}
+
+/// See `BackendPlan::receiver_bases`. Slice-1 scope: the minting caller must
+/// be the ENTRY machine (deeper chains would need the caller's own base --
+/// recursive resolution, a later slice) and the receiver must be a named
+/// non-`self` path that resolves through `omega_layout::field_path_offset`
+/// (the SAME walk the contained-receiver fence predicts with).
+fn compute_receiver_bases(
+    runtime_flow: &omega_state_graph::RuntimeFlowPlan,
+    state_calls: &StateCallPlan,
+    layouts: &omega_layout::LayoutPlan,
+    entry_machine: omega_core::symbols::SymbolHandle,
+) -> Vec<Option<usize>> {
+    if std::env::var_os("OMEGA_RECEIVER_DISPATCH").is_none() {
+        return Vec::new();
+    }
+    runtime_flow
+        .states
+        .iter()
+        .map(|(_, state)| {
+            let (call_key, statement_index) = *runtime_flow
+                .context_call_sites
+                .get(state.context.0 as usize)?;
+            if statement_index == usize::MAX {
+                return None; // ROOT context: the entry machine itself
+            }
+            if call_key.machine != entry_machine {
+                return None; // slice 1: entry-machine callers only
+            }
+            let state_call = state_calls
+                .calls
+                .iter()
+                .map(|(_, call)| call)
+                .find(|call| {
+                    call.source_key == call_key && call.statement_index == statement_index
+                })?;
+            let receiver_name = state_call.receiver_name.as_str();
+            if receiver_name.is_empty() || receiver_name == "self" {
+                return None; // self/static receiver: entry storage
+            }
+            let segments = state_calls
+                .receiver_path_segments
+                .span(state_call.receiver_path)
+                .unwrap_or(&[]);
+            let field_segments = match segments.first() {
+                Some(root) if root.as_str() == "self" => &segments[1..],
+                _ => segments,
+            };
+            let caller_layout = layouts
+                .machine_layouts
+                .iter()
+                .find(|(_, machine_layout)| machine_layout.symbol == call_key.machine)
+                .map(|(_, machine_layout)| machine_layout)?;
+            if field_segments.is_empty() {
+                return omega_layout::field_path_offset(
+                    layouts,
+                    caller_layout.fields,
+                    std::slice::from_ref(&state_call.receiver_name),
+                );
+            }
+            omega_layout::field_path_offset(layouts, caller_layout.fields, field_segments)
+        })
+        .collect()
 }
