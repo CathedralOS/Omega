@@ -807,6 +807,24 @@ decreases remaining
   pending/arithmetic/shl_saturating_domain_divergence with both expected
   exits documented; sibling of the count-at-or-above-width parking.
 
+- **S2 CAST RETAG IN THE INTERP WITNESS 2026-07-09j.** Completeness sweep of
+  the domain-witness sources found the interp's Cast arm HARDCODED Exact
+  ("as T carries no domain clause") -- but decision-17 S2 casts DO
+  (`x as u8 in Saturating`; the checked-trees cast node carries `.domain`,
+  which the backend witness already read). Verified first that the CAST
+  CONVERSION itself is a retag, not a clamp (probe: `300 as u8 in Saturating`
+  truncates to 44 on BOTH legs -- design-correct per chapter 8 / the
+  arithmetic_domain_cast_exit canary; the retag governs the arithmetic the
+  value joins). The live divergence was the retag FUSED under a guard
+  (`(a as u8 in Saturating) + b == 255`: native clamped via its witness,
+  interp compared the wide 300 -- exit 71). Fixes: the interp Cast witness
+  returns `cast.domain`, and the promotion tie-break now prefers the
+  NON-EXACT side at equal widths (an S2 retag on the right operand of a
+  plain-left pair; checker-legal programs agree either way, this is
+  robustness). arithmetic_domain_cast_exit gained the fused-guard direction
+  (differential 70/70; already a RUN member). Domain-witness sources now
+  covered end to end: fields, params, lets, casts, nested nodes, promotions.
+
 - **[ ] Range constraint + non-Exact domain = the range is a LIE (found 2026-07-06).**
   `i: usize [0..=4] in Wrapping` accepts `self.i = 100` -- the range enforces only under the
   EXACT domain ("Wrapping stays permissive" was scoped to source-type narrowing, but it also
