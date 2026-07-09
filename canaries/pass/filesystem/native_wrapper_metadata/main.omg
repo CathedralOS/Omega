@@ -1,7 +1,9 @@
-// REPRO for TASKS_FS.md blocker #2 (metadata_path payload) — FIXED in shared
-// instruction selection (2026-07-06, from the Windows thread); awaiting a real
-// macOS/aarch64 RUN to promote into native_filesystem_canaries. The `meta.len
-// == 0` symptom decomposed into TWO selection bugs, both visible in this
+// PROMOTED from canaries/run/filesystem/wrapper_metadata_repro (2026-07-08:
+// confirmed PASS on real macOS/aarch64 -- "PASS: metadata_path Ok with
+// meta.len == 5"). Originally the REPRO for TASKS_FS.md blocker #2
+// (metadata_path payload), FIXED in shared instruction selection (2026-07-06,
+// from the Windows thread). The `meta.len == 0` symptom decomposed into TWO
+// selection bugs, both visible in this
 // canary's cross-compiled backend_report and both reproduced+fixed natively on
 // windows_x64 with pure-language twins:
 //  (2B) the decode arm's straight-line statements (`let len = ...` byte

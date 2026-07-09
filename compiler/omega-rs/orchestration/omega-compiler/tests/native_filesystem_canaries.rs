@@ -206,6 +206,13 @@ fn native_wrapper_write_all_result_passes() { assert_pass("native_wrapper_write_
 // doesn't reach at that nesting.
 #[test]
 fn native_wrapper_try_exists_passes() { assert_pass("native_wrapper_try_exists"); }
+// `Filesystem::metadata_path -> MetadataResult::Ok { meta }` with the PAYLOAD
+// destructured and USED (`meta.len == 5`). Promoted 2026-07-08 from
+// canaries/run/filesystem/wrapper_metadata_repro after the awaited real
+// macOS/aarch64 run confirmed PASS — pins the two 2026-07-06 selection fixes
+// (straight-line-defers-with-leaf; cast-field convert arm) natively on darwin.
+#[test]
+fn native_wrapper_metadata_passes() { assert_pass("native_wrapper_metadata"); }
 
 // The `file_journal` CLI SAMPLE (samples/cli/systems/file_journal) — a real
 // end-to-end raw-seam workflow (mkdir -> create+write -> stat -> reopen+read ->
