@@ -394,10 +394,21 @@ pub fn encode_runtime_machine_double_indexed_binary_write(
     right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "aarch64 cannot encode a both-runtime nested binary write \
-             (`grid[i][j] = a OP b`) yet; bind the value to a let first",
-        )),
+        Architecture::Aarch64 => aarch64::encode_runtime_machine_double_indexed_binary_write(
+            runtime_value_operands,
+            base_byte_offset,
+            outer_index_offset,
+            outer_index_region,
+            outer_stride,
+            inner_index_offset,
+            inner_index_region,
+            inner_stride,
+            field_byte_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
         Architecture::X86_64 => x86_64::encode_runtime_machine_double_indexed_binary_write(
             runtime_value_operands,
             base_byte_offset,

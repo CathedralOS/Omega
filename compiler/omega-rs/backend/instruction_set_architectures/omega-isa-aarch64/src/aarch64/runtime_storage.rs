@@ -1633,22 +1633,68 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     Ok(bytes)
 }
 
+/// RMW into a machine-resident indexed element (`self.tallies[k] += 1`): the
+/// machine-index address helper walks x16 to the element (its optional
+/// frame-index pair sits at the constant the string-write offset helper
+/// exposes), the operands evaluate into x17/x26 (preserving x16), and the
+/// result stores at [x16, 0] -- the machine-region mirror of the working
+/// frame-base flavor above.
 #[allow(clippy::too_many_arguments)]
 pub fn encode_runtime_machine_indexed_binary_write(
-    _runtime_value_operands: &impl RuntimeValueOperandSource,
-    _base_byte_offset: usize,
-    _index_region: omega_target_operations::RuntimeStorageRegion,
-    _index_offset: usize,
-    _element_byte_size: usize,
-    _field_byte_offset: usize,
-    _byte_size: usize,
-    _left: RuntimeValueOperandHandle,
-    _operator: StateGuardOperator,
-    _right: RuntimeValueOperandHandle,
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
 ) -> Result<Vec<u8>, Diagnostic> {
-    Err(Diagnostic::error(
-        "aarch64 encoder does not yet support a machine-indexed binary write".to_string(),
-    ))
+    let mut bytes = Vec::with_capacity(super::widths::runtime_machine_indexed_binary_write_width(
+        runtime_value_operands,
+        base_byte_offset,
+        index_region,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+        left,
+        operator,
+        right,
+    ));
+    append_runtime_machine_index_target_address(
+        &mut bytes,
+        base_byte_offset,
+        index_region,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )?;
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        17,
+        RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS,
+        left,
+    )?;
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        26,
+        RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS,
+        right,
+    )?;
+    append_runtime_binary_operation(
+        &mut bytes,
+        17,
+        operator,
+        26,
+        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+    )?;
+    append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
+    Ok(bytes)
 }
 
 pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
@@ -2505,6 +2551,73 @@ pub fn encode_runtime_machine_double_indexed_integer_write(
             value,
         )
     );
+    Ok(bytes)
+}
+
+/// RMW into a double-indexed element (`grid[i][j] += 1`): the double-index
+/// bases + math walk x16 to the element, the operands evaluate into x17/x26
+/// (preserving x16), and the result stores at [x16, 0].
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_double_indexed_binary_write(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_machine_double_indexed_binary_write_width(
+            runtime_value_operands,
+            outer_index_region,
+            inner_index_region,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
+    );
+    let (outer_base, inner_base) =
+        append_double_index_bases(&mut bytes, outer_index_region, inner_index_region);
+    append_double_index_address_math(
+        &mut bytes,
+        outer_base,
+        outer_index_offset,
+        outer_stride,
+        inner_base,
+        inner_index_offset,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        17,
+        RUNTIME_VALUE_LEFT_SCRATCH_REGISTERS,
+        left,
+    )?;
+    append_runtime_value_operand(
+        runtime_value_operands,
+        &mut bytes,
+        26,
+        RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS,
+        right,
+    )?;
+    append_runtime_binary_operation(
+        &mut bytes,
+        17,
+        operator,
+        26,
+        runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, byte_size),
+    )?;
+    append_runtime_storage_result_write(&mut bytes, 0, byte_size)?;
     Ok(bytes)
 }
 

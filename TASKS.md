@@ -133,25 +133,22 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     variable width perturbs nothing. FRAME-2D READ landed
     2026-07-08 (op 6, `CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage`,
     60-byte all-constant shape; frame_double_indexed_read green; suite 652/50).
-    STILL OPEN (loud), NEXT = the machine-indexed BINARY write
-    (indexed_rmw_loop/indexed_struct_field_rmw/dice_histogram). EXECUTION MAP
-    (recon 2026-07-08): mirror aarch64's WORKING frame-indexed binary write
-    (encode_runtime_frame_indexed_binary_write, runtime_storage.rs:1530 --
-    element addr into x16 via the address helper, left->x17 right->x26 through
-    append_runtime_value_operand [preserves x16], append_runtime_binary_operation,
-    result store at [x16,0]) but with append_runtime_machine_index_target_address.
-    Width = frame_base_width + (frame-index ? 8 : 0) -- the machine address
-    helper only differs by the optional frame pair at `12 + acw(base)` (the
-    SAME position runtime_machine_indexed_string_runtime_frame_address_offset
-    already exposes arch-aware). Reloc record (runtime_storage_writes.rs:278):
-    extend frame_index_shift to aarch64 (insert the frame reloc at that string
-    helper's offset; shift = 8) -- it currently shifts only for x86_64. The
-    left/right operand-position relocs already flow through
-    runtime_frame_base_indexed_binary_left_operand_offset + operand widths
-    (arch-aware, shared with the working frame flavor). Then: the
-    double-indexed rmw binary (same idea over append_double_index bases),
-    frame-source machine-indexed write, computed_indexed_write, and the
-    `WriteEntryArgumentsSliceDescriptor` spill.
+    BINARY WRITES landed 2026-07-08 (the recon map executed): the
+    machine-indexed binary write (per the map -- frame-flavor mirror + the
+    record's frame_index_shift extended to aarch64) AND the double-indexed
+    RMW binary (bases + math + operands; left-operand reloc offset = bases+36,
+    a region constant). Suite 659/43, zero new, 7 fixed this slice
+    (indexed_rmw_loop, indexed_struct_field_rmw, computed_indexed_write,
+    guarded_runtime_index_increment, machine_frame_index_rmw,
+    struct_field_operand_matrix, double_indexed_rmw); dice_histogram runs to
+    its documented exit 0. DEBUGGING NOTE for the family: a mispositioned
+    operand reloc SHOWS in backend_report.txt's `## Relocations` table (two
+    records at one offset = a stale 0-returning offset helper) -- that plus a
+    minimal runtime-readback probe found the one bug this slice.
+    STILL OPEN (loud): the frame-source machine-indexed write
+    (machine_frame_index_dual_frame_write), the
+    `WriteEntryArgumentsSliceDescriptor` spill, and the non-indexed leftovers
+    (float Min/Max, cast family, carrier read_line vtable...).
   - **[ ] (original map)**
     (now loud, was silent): `CopyRuntimeMachineIndexedToRuntimeMachineIndexed`
     (`arr[i]=arr[j]`), `CopyRuntimeMachineDoubleIndexedToRuntimeStorage` +

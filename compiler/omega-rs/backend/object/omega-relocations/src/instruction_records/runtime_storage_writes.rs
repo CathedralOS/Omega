@@ -251,7 +251,11 @@ pub(super) fn collect_runtime_storage_write_relocations(
                 **region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
             }) {
                 context.insert_data_address_at_relative_offset(
-                    10,
+                    // The shared frame base: x86_64 the `mov r10,imm64` at +10;
+                    // aarch64 the page pair directly after the machine pair.
+                    omega_instruction_selection::runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset(
+                        context.input.target.architecture,
+                    ),
                     context.runtime_frame_symbol_handle(),
                 );
             }
@@ -293,15 +297,28 @@ pub(super) fn collect_runtime_storage_write_relocations(
             // `mov r15,imm64` frame-base load at +10, shifting the operands.
             context
                 .insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
-            let frame_index_shift = if context.input.target.architecture
-                == Architecture::X86_64
-                && *index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+            // A FRAME-resident index adds a frame-base materialization: x86_64
+            // a `mov r15,imm64` at +10; aarch64 the page pair at the same
+            // constant the machine-indexed string write uses (after the
+            // machine pair + mov + base add), shifting the operands by 8.
+            let frame_index_shift = if *index_region
+                == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
             {
+                let (frame_offset, shift) = match context.input.target.architecture {
+                    Architecture::X86_64 => (10, 10),
+                    Architecture::Aarch64 => (
+                        omega_instruction_selection::runtime_machine_indexed_string_runtime_frame_address_offset(
+                            context.input.target.architecture,
+                            *base_byte_offset,
+                        ),
+                        8,
+                    ),
+                };
                 context.insert_data_address_at_relative_offset(
-                    10,
+                    frame_offset,
                     context.runtime_frame_symbol_handle(),
                 );
-                10
+                shift
             } else {
                 0
             };
