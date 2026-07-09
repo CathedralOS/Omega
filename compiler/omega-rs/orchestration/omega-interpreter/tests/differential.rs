@@ -875,6 +875,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("range/runtime_guarded_element_increment_exit", 1),
     ("range/runtime_guarded_runtime_index_increment_exit", 1),
     ("ranges/sum_payload_range_narrowed_exit", 20),
+    ("ranges/sum_payload_range_arith_narrowed_exit", 70),
     ("slices/guard_fixed_array_len_operand_exit", 7),
     ("slices/runtime_bounded_fixed_array_subslice_arg_exit", 3),
     ("slices/runtime_end_fixed_array_subslice_element_exit", 20),

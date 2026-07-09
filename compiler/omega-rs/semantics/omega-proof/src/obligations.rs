@@ -776,29 +776,28 @@ fn collect_bounded_transition_argument_obligations(
         };
 
         let argument = *argument;
-        let mut argument_constraint_buffer =
-            expression_constraints(program, machine, state, argument);
-        // SOUND sum-payload-range narrowing: a destructured payload binding `v`
-        // (`P::One { v } -> use_v(v)`) rewrites to `self.p.v`, whose type
-        // resolution loses the payload field's declared range (payload fields
-        // are `DataMember::Variant` payloads, not plain `DataMember::Field`s).
-        // When the arm's CO-LOCATED, call-free guard PROVES `self.p`'s case is
-        // the variant that owns `v`, the read is provably in that field's
-        // declared range (construction store-enforces each variant's payload
-        // range), so admit those constraints. Gated on the guard proving the
-        // case (direct payload access outside a case-arm has no such guard, so
-        // it stays unproven -- its "case is active" obligation is undischarged)
-        // and on call-free siblings (a sibling call could re-case `self.p`
-        // between the dispatch guard and this argument). Deliberately NOT folded
-        // into the general field resolver, which is guard-blind and also feeds
-        // direct access -- that was the unsound path. See memory
+        // SOUND sum-payload-range narrowing under a case arm: a destructured
+        // payload binding `v` (`P::One { v } -> use_v(v)` or `... use_v(v * 10)`)
+        // rewrites to `self.p.v`, whose type resolution loses the payload field's
+        // declared range (payload fields are `DataMember::Variant` payloads, not
+        // plain `DataMember::Field`s). When the arm's CO-LOCATED guard PROVES
+        // `self.p`'s case is the variant that owns `v`, the read is provably in
+        // that field's declared range (construction store-enforces each variant's
+        // payload range), so `guarded_argument_constraints` resolves it -- as the
+        // whole argument (`use_v(v)`) or as an operand folded into the argument's
+        // arithmetic (`use_v(v * 10)`). Gated on the guard proving the case
+        // (direct payload access outside a case-arm has no such guard, so it stays
+        // unproven -- its "case is active" obligation is undischarged) and on
+        // call-free siblings (a sibling call could re-case `self.p` between the
+        // dispatch guard and this argument). Deliberately NOT folded into the
+        // general field resolver, which is guard-blind and also feeds direct
+        // access -- that was the unsound path. See memory
         // sum-payload-range-not-propagated.
-        if arguments_are_call_free
-            && let Some(payload_constraints) =
-                payload_field_constraints_under_case_guard(program, argument, &transition_guard)
-        {
-            argument_constraint_buffer.extend(payload_constraints);
-        }
+        let argument_constraint_buffer = if arguments_are_call_free {
+            guarded_argument_constraints(program, machine, state, argument, &transition_guard)
+        } else {
+            expression_constraints(program, machine, state, argument)
+        };
         let argument_constraints = proof_plan.store_constraints(argument_constraint_buffer);
         let constraints = proof_plan.store_constraint_nodes(program, constraints);
 
@@ -821,6 +820,42 @@ fn collect_bounded_transition_argument_obligations(
                 },
             },
         ));
+    }
+}
+
+/// `expression_constraints` with SOUND payload-range narrowing under a case
+/// arm's `guard`: a payload-field leaf (`self.p.v`) whose owning case the guard
+/// proves resolves to that field's declared constraints (via
+/// `payload_field_constraints_under_case_guard`), and arithmetic over such
+/// leaves (`self.p.v * 10`) folds their ranges exactly as a normal field's would
+/// -- the Binary/Cast/Unary arms mirror `expression_constraints` but with
+/// guard-aware operands. Every other shape falls back to the plain resolver.
+/// Only reached for CALL-FREE transition arguments, where the co-located guard
+/// soundly narrows the argument places.
+fn guarded_argument_constraints(
+    program: &TypedTrees,
+    machine: &Machine,
+    state: &State,
+    argument: ExpressionHandle,
+    guard: &TransitionGuardNode,
+) -> ConstraintBuffer {
+    match program.expression_table.expression(argument) {
+        ExpressionNode::Member(_) => {
+            payload_field_constraints_under_case_guard(program, argument, guard)
+                .unwrap_or_else(|| expression_constraints(program, machine, state, argument))
+        }
+        ExpressionNode::Binary(binary) => {
+            let left = guarded_argument_constraints(program, machine, state, binary.left, guard);
+            let right = guarded_argument_constraints(program, machine, state, binary.right, guard);
+            derived_binary_constraints(binary.operator, &left, &right)
+        }
+        ExpressionNode::Cast(cast) => {
+            guarded_argument_constraints(program, machine, state, cast.value, guard)
+        }
+        ExpressionNode::Unary(unary) => {
+            guarded_argument_constraints(program, machine, state, unary.operand, guard)
+        }
+        _ => expression_constraints(program, machine, state, argument),
     }
 }
 

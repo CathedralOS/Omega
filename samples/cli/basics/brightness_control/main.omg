@@ -1,0 +1,57 @@
+// A display-brightness controller driven by BOUNDED commands -- the systems-code
+// pattern the sum-payload-range narrowing exists for. Each command carries a
+// payload refined with a declared range (a brightness level is 0..=100, a dim
+// step is 0..=10), and the dispatch flows that payload straight into the
+// same-bounded setter WITHOUT re-annotation:
+//   * `SetLevel { level } -> apply(level)` -- the bounded payload `level` proves
+//     it fits `apply`'s `target: [0..=100]` because the matching case arm proves
+//     the command IS `SetLevel` (the DIRECT pass-through narrowing).
+//   * `Dim { amount } -> apply(amount * 10)` -- `amount: [0..=10]` narrows the
+//     arithmetic so `amount * 10` proves EXACT within [0..=100] (no overflow, no
+//     annotation) -- the arithmetic-use narrowing.
+//   * `Off -> apply(0)` -- a literal in range.
+// The store `self.brightness = target` is a proof-carrying bounded write. Every
+// arm targets `apply`, whose single bounded parameter is discharged three
+// different ways, so the whole controller is proven with no manual range casts.
+//
+// main issues `SetLevel { level: 65 }`, so the controller settles at 65.
+// Expected exit: 65.
+
+boundary trait Console {
+    machine write_line(text: String);
+    machine exit_process(return_code: i32);
+}
+
+data Command {
+    case SetLevel(level: i32 [0..=100]);
+    case Dim(amount: i32 [0..=10]);
+    case Off;
+}
+
+data Main {
+    console: Console;
+    brightness: i32 [0..=100];
+    command: Command;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("brightness_control: applying a bounded SetLevel command");
+    self.brightness = 80;
+    self.command = Command::SetLevel { level: 65 };
+
+    transition self.command {
+        Command::SetLevel { level } -> apply(level)
+        Command::Dim { amount }     -> apply(amount * 10)
+        Command::Off                -> apply(0)
+    }
+
+    state apply(&mut self, target: i32 [0..=100]) {
+        self.brightness = target;
+        transition { _ -> report() }
+    }
+
+    state report(&mut self) {
+        self.console.write_line("brightness settled at the applied level (the exit code)");
+        self.console.exit_process(self.brightness);
+    }
+}

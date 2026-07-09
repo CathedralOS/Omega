@@ -1,0 +1,21 @@
+// Sum-payload-range narrowing through ARITHMETIC in a transition arg (2026-07-08).
+// Extends the direct pass-through (sum_payload_range_narrowed_exit): a bounded
+// payload operand narrows the arithmetic it feeds. `Dim { amount } -> apply(
+// amount * 10)` with `amount: [0..=10]` proves `amount * 10` fits `apply`'s
+// `target: [0..=100]` -- guarded_argument_constraints resolves the payload
+// operand's range under the matching arm's `Equal(self.c, Cmd::Dim)` guard and
+// folds it through `derived_binary_constraints`. Guard-gated: a too-wide result
+// (`amount * 100`) stays unproven (fail canary sum_payload_arith_too_wide).
+// Cmd::Dim { amount: 7 } -> apply(7 * 10 = 70) -> exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Cmd { case Dim(amount: i32 [0..=10]); case Off; }
+data Main { console: Console; c: Cmd; }
+machine Main::main(&mut self) {
+    self.c = Cmd::Dim { amount: 7 };
+    transition self.c {
+        Cmd::Dim { amount } -> apply(amount * 10)
+        Cmd::Off            -> apply(0)
+    }
+    state apply(&mut self, target: i32 [0..=100]) { self.console.exit_process(target); }
+}
+machine Main::run(&mut self) { self.main(); }

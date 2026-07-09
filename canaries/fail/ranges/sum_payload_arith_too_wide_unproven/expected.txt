@@ -1,0 +1,1 @@
+cannot prove transition argument `self.c.amount * 100` satisfies bounded parameter `target`
