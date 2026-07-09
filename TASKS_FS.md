@@ -616,10 +616,23 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    target_index=7, asset bytes on disk; hermetic default run = same
    augmentation, no disk); a Console-touching build machine rejects with
    the policy-naming error.
-   REMAINING RUNGS: (a) further next-slice ops as build programs need
-   them (at-family, locks, perms, times, links, canonicalize — all
-   -1/ENOTSUP today); (b) the COMPILER-side gate relaxation in
-   build_config.rs — DESIGN-GATED, questions for Zach below.
+   RUNG 5 DONE (2026-07-10m): FULL OP PARITY. Every op the virtual fs
+   serves, the real provider serves (canonicalize, hard_link, symlink +
+   read_link, set_permissions/set_file_permissions, set_file_times via
+   File::set_modified, flock via std's advisory locks, chown family, and
+   the at-family resolved against the dirfd's OPENED path — unix-gated
+   where std requires, ENOTSUP elsewhere). A hermetically-tested build
+   program can no longer hit a refusal surprise in real mode on the same
+   host family. FOUND+FIXED while testing: grant authorization
+   canonicalized the FULL path, which FOLLOWS the final symlink — so
+   read_link ran on the target (EINVAL) and read_symlink_metadata lstat'd
+   the wrong file (latent since rung 2); symlink-INSPECTING ops now ride
+   authorized_path_no_follow (parent-canonical + reattached leaf, grants
+   still compare real locations). Acceptance: the 14-step parity probe in
+   tests/real_fs.rs — identical tally on BOTH engines, plus disk
+   assertions (real symlink, unlinked link, stamped mtime round-trip).
+   REMAINING RUNG: the COMPILER-side gate relaxation in build_config.rs —
+   DESIGN-GATED (OWNER_QUESTIONS.md #1–4).
    **DESIGN QUESTIONS (build.omg fs grants — for Zach):**
    (1) CAPABILITY INJECTION: how does the free `machine build(b: &mut
    Build)` GET its Filesystem? Options: a field on Build (`b.fs`), a
