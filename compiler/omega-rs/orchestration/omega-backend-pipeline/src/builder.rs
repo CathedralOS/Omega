@@ -672,7 +672,8 @@ fn dispatch_state_call_edges(
             // cover those shapes first, or a runtime value-select in the inline
             // path. See [[inline-branching-value-runtime-guard]].
             (state_call.required
-                && (state_call_target_loops(control_flow, state_calls, state_call.target_key)
+                && (state_call.lowering == StateCallLowering::DispatchLoop
+                    || state_call_target_loops(control_flow, state_calls, state_call.target_key)
                     || (state_call.role == StateCallRole::Statement
                         && matches!(
                             state_call.lowering,
@@ -684,6 +685,7 @@ fn dispatch_state_call_edges(
                 target_key: state_call.target_key,
                 is_value: state_call.role != StateCallRole::Statement,
                 is_self_receiver: state_call.receiver_name.as_str() == "self",
+                is_dispatch_loop: state_call.lowering == StateCallLowering::DispatchLoop,
             })
         })
         .collect()
