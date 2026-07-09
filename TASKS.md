@@ -130,12 +130,26 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     offset helpers (which only see regions) require; offsets route through
     omega_instruction_selection wrappers (omega-relocations does not link the
     ISA crates). Value immediates materialize AFTER all relocations so their
-    variable width perturbs nothing. STILL OPEN (loud):
-    `WriteRuntimeMachineDoubleIndexedBinary` (grid[i][j] += 1, the rmw canary
-    -- needs the runtime-value-operand machinery),
-    `CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage` (frame-resident 2D,
-    frame_double_indexed_read), machine-indexed binary write
-    (indexed_rmw_loop/indexed_struct_field_rmw/dice_histogram), the
+    variable width perturbs nothing. FRAME-2D READ landed
+    2026-07-08 (op 6, `CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage`,
+    60-byte all-constant shape; frame_double_indexed_read green; suite 652/50).
+    STILL OPEN (loud), NEXT = the machine-indexed BINARY write
+    (indexed_rmw_loop/indexed_struct_field_rmw/dice_histogram). EXECUTION MAP
+    (recon 2026-07-08): mirror aarch64's WORKING frame-indexed binary write
+    (encode_runtime_frame_indexed_binary_write, runtime_storage.rs:1530 --
+    element addr into x16 via the address helper, left->x17 right->x26 through
+    append_runtime_value_operand [preserves x16], append_runtime_binary_operation,
+    result store at [x16,0]) but with append_runtime_machine_index_target_address.
+    Width = frame_base_width + (frame-index ? 8 : 0) -- the machine address
+    helper only differs by the optional frame pair at `12 + acw(base)` (the
+    SAME position runtime_machine_indexed_string_runtime_frame_address_offset
+    already exposes arch-aware). Reloc record (runtime_storage_writes.rs:278):
+    extend frame_index_shift to aarch64 (insert the frame reloc at that string
+    helper's offset; shift = 8) -- it currently shifts only for x86_64. The
+    left/right operand-position relocs already flow through
+    runtime_frame_base_indexed_binary_left_operand_offset + operand widths
+    (arch-aware, shared with the working frame flavor). Then: the
+    double-indexed rmw binary (same idea over append_double_index bases),
     frame-source machine-indexed write, computed_indexed_write, and the
     `WriteEntryArgumentsSliceDescriptor` spill.
   - **[ ] (original map)**

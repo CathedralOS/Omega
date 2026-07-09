@@ -1360,10 +1360,18 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_run
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "aarch64 cannot encode a both-runtime nested read of a frame array \
-             (`g[i][j]`) yet; make one index a constant or use a flat array",
-        )),
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
+                base_byte_offset,
+                outer_index_offset,
+                outer_stride,
+                inner_index_offset,
+                inner_stride,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            )
+        }
         Architecture::X86_64 => {
             x86_64::encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
                 base_byte_offset,
