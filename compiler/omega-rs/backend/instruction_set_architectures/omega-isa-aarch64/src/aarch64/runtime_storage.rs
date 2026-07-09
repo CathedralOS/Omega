@@ -1070,33 +1070,26 @@ fn append_saturating_trapping_arithmetic(
 
     match (domain, target_signed) {
         (ArithmeticDomain::Saturating, false) => {
-            // Unsigned: clamp to [0, MAX]. The wide result of an unsigned op is
-            // always >= 0, so only the upper bound can be exceeded for add/mul.
-            // Subtract can underflow below 0 (wraps to a huge wide value > MAX),
-            // which the same `> MAX` test also catches and would clamp to MAX --
-            // wrong for subtract. So check BOTH bounds explicitly.
-            // The lower-bound test must be SIGNED (`b.ge`): an unsigned
-            // underflow's wide result is a huge u64 whose SIGNED reading is
-            // negative -- an unsigned `b.hs` against 0 is vacuously true and
-            // never clamps (10 - 100 clamped to MAX instead of 0). Add/mul of
-            // <=32-bit unsigned operands can never set the sign bit, so the
-            // signed reading is exact for them too.
-            //   movz/movk x26, #0      ; lower bound
-            //   cmp   x17, x26
-            //   b.ge  +8               ; result >= 0 (signed) -> keep
-            //   mov   x17, x26         ; else clamp to 0
-            //   movz/movk x26, #MAX
-            //   cmp   x17, x26
-            //   b.ls  +8               ; result <= MAX -> keep
-            //   mov   x17, x26         ; else clamp to MAX
-            append_unsigned_immediate_padded(bytes, rhs, 0);
-            bytes.extend(encode_compare_x_register(dest, rhs));
-            bytes.extend(encode_conditional_branch_greater_or_equal(8)?);
-            bytes.extend(encode_move_x_register(dest, rhs));
-            append_unsigned_immediate_padded(bytes, rhs, unsigned_max);
-            bytes.extend(encode_compare_x_register(dest, rhs));
-            bytes.extend(encode_conditional_branch_lower_or_same(8)?);
-            bytes.extend(encode_move_x_register(dest, rhs));
+            // Unsigned wide results overflow in ONE direction per operator:
+            // subtract only DOWNWARD (the wrapped wide underflow reads
+            // signed-negative, so the lower compare is SIGNED `b.ge` -- an
+            // unsigned compare against 0 is vacuously true and never
+            // clamps), add/mul only UPWARD. The upper compare must be
+            // UNSIGNED (`b.ls`): a u32 product can exceed 2^63, whose
+            // SIGNED reading is negative -- the old both-checks tail ran
+            // the signed lower compare first and clamped 4e9 * 4e9 to 0
+            // instead of MAX.
+            if operator == StateGuardOperator::Subtract {
+                append_unsigned_immediate_padded(bytes, rhs, 0);
+                bytes.extend(encode_compare_x_register(dest, rhs));
+                bytes.extend(encode_conditional_branch_greater_or_equal(8)?);
+                bytes.extend(encode_move_x_register(dest, rhs));
+            } else {
+                append_unsigned_immediate_padded(bytes, rhs, unsigned_max);
+                bytes.extend(encode_compare_x_register(dest, rhs));
+                bytes.extend(encode_conditional_branch_lower_or_same(8)?);
+                bytes.extend(encode_move_x_register(dest, rhs));
+            }
         }
         (ArithmeticDomain::Saturating, true) => {
             // Signed: clamp to [MIN, MAX] using signed comparisons on the exact
@@ -1113,20 +1106,22 @@ fn append_saturating_trapping_arithmetic(
             bytes.extend(encode_move_x_register(dest, rhs));
         }
         (ArithmeticDomain::Trapping, false) => {
-            // Unsigned: trap unless 0 <= result <= MAX.
-            // Signed lower-bound test for the same reason as the Saturating
-            // arm: the unsigned reading of an underflowed wide result never
-            // compares below 0.
-            //   movz/movk x26, #0   ; cmp x17,x26 ; b.ge +8 ; brk
-            //   movz/movk x26, #MAX ; cmp x17,x26 ; b.ls +8 ; brk
-            append_unsigned_immediate_padded(bytes, rhs, 0);
-            bytes.extend(encode_compare_x_register(dest, rhs));
-            bytes.extend(encode_conditional_branch_greater_or_equal(8)?);
-            bytes.extend(encode_brk(0));
-            append_unsigned_immediate_padded(bytes, rhs, unsigned_max);
-            bytes.extend(encode_compare_x_register(dest, rhs));
-            bytes.extend(encode_conditional_branch_lower_or_same(8)?);
-            bytes.extend(encode_brk(0));
+            // Same one-direction-per-operator shape as the Saturating arm:
+            // subtract traps on the signed-negative underflow reading;
+            // add/mul trap on the UNSIGNED upper compare (a 2^63+ product's
+            // signed reading is negative and would have trapped as a
+            // phantom "underflow" -- right outcome, wrong witness).
+            if operator == StateGuardOperator::Subtract {
+                append_unsigned_immediate_padded(bytes, rhs, 0);
+                bytes.extend(encode_compare_x_register(dest, rhs));
+                bytes.extend(encode_conditional_branch_greater_or_equal(8)?);
+                bytes.extend(encode_brk(0));
+            } else {
+                append_unsigned_immediate_padded(bytes, rhs, unsigned_max);
+                bytes.extend(encode_compare_x_register(dest, rhs));
+                bytes.extend(encode_conditional_branch_lower_or_same(8)?);
+                bytes.extend(encode_brk(0));
+            }
         }
         (ArithmeticDomain::Trapping, true) => {
             // Signed: trap unless MIN <= result <= MAX.
@@ -5377,27 +5372,45 @@ mod tests {
     /// paths, and unsigned must check both the 0 lower bound and the MAX upper
     /// bound.
     #[test]
-    fn unsigned_trapping_add_emits_two_brks() {
+    fn unsigned_trapping_narrow_brk_per_overflow_direction() {
+        // Unsigned wide results overflow in ONE direction per operator, so
+        // each narrow unsigned trapping arm emits exactly ONE brk (the old
+        // both-checks tail emitted two -- and its SIGNED lower compare
+        // misread 2^63+ products); signed arms keep both bound checks.
         use omega_core::arithmetic::ArithmeticDomain;
-        let (arena, left, right) = immediate_pair(200, 200);
-        let bytes = encode_runtime_storage_binary_write(
-            &arena,
-            0x10,
-            1,
-            left,
-            StateGuardOperator::Add,
-            right,
-            false,
-            ArithmeticDomain::Trapping,
-            false,
-        )
-        .unwrap();
-        let brk_count = bytes
-            .chunks_exact(4)
-            .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
-            .filter(|w| (*w & 0xFFE0_001F) == 0xD420_0000)
-            .count();
-        assert_eq!(brk_count, 2, "expected a BRK on each of the two bound checks");
+        let brk_count = |bytes: &[u8]| {
+            bytes
+                .chunks_exact(4)
+                .map(|c| u32::from_le_bytes(c.try_into().unwrap()))
+                .filter(|w| (*w & 0xFFE0_001F) == 0xD420_0000)
+                .count()
+        };
+        for (operator, signed, expected) in [
+            (StateGuardOperator::Add, false, 1),
+            (StateGuardOperator::Subtract, false, 1),
+            (StateGuardOperator::Multiply, false, 1),
+            (StateGuardOperator::Add, true, 2),
+            (StateGuardOperator::Multiply, true, 2),
+        ] {
+            let (arena, left, right) = immediate_pair(200, 200);
+            let bytes = encode_runtime_storage_binary_write(
+                &arena,
+                0x10,
+                1,
+                left,
+                operator,
+                right,
+                false,
+                ArithmeticDomain::Trapping,
+                signed,
+            )
+            .unwrap();
+            assert_eq!(
+                brk_count(&bytes),
+                expected,
+                "brk count for {operator:?} (signed: {signed})"
+            );
+        }
     }
 
     /// 64-bit saturating/trapping arithmetic (the flag/MULH-based clamps):
@@ -5412,6 +5425,7 @@ mod tests {
                     StateGuardOperator::Add,
                     StateGuardOperator::Subtract,
                     StateGuardOperator::Multiply,
+                    StateGuardOperator::ShiftLeft,
                 ] {
                     let (arena, left, right) = immediate_pair(5, 5);
                     let bytes = encode_runtime_storage_binary_write(

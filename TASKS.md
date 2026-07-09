@@ -99,13 +99,11 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   x86_64 twin sequences (both parked shl_saturating canaries hold 70/70 on
   arm64 and promote with x86).
 
-- SUSPECT (unprobed): the narrow unsigned saturating MULTIPLY tail's signed
-  lower-bound compare -- u32 * u32 can exceed 2^63 (e.g. 4e9 * 4e9), whose
-  SIGNED reading is negative and would clamp to 0 instead of MAX. The
-  comment claims "add/mul of <=32-bit unsigned operands can never set the
-  sign bit," which holds for add but looks wrong for 32-bit mul. Probe
-  (200000000u32 * 100u32 in Saturating expects u32::MAX) and fix the tail
-  to compare unsigned if it trips.
+- (2026-07-14) The narrow-unsigned saturating/trapping mul suspect was REAL
+  and is FIXED on aarch64 (one bound check per unsigned operator; the mul
+  leg's upper compare is UNSIGNED). x86_64's cmova tail was already
+  correct. Pinned by runtime_sat_unsigned_onedirection_exit. Item closes
+  with this note's removal next condense.
 - **FLOAT-TO-INT half still open (no ruling).** `1e300 as i32`: aarch64
   FCVTZS + interp saturate to i32::MAX; x86 CVTTSD2SI gives the 0x80000000
   "integer indefinite". Parked cast divergence stays in the drift ledger.

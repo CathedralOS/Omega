@@ -1,0 +1,45 @@
+// RUN CANARY (exit 70) + interpreter differential. Narrow UNSIGNED
+// Saturating arithmetic clamps in the ONE direction each operator can
+// overflow: mul/add upward to MAX, subtract downward to 0. The old aarch64
+// tail ran BOTH bound checks with a SIGNED lower compare first -- a u32
+// product above 2^63 reads signed-negative and clamped 4e9 * 4e9 to 0
+// instead of u32::MAX (found 2026-07-14 from a suspicious code comment
+// claiming <=32-bit unsigned mul "can never set the sign bit"; x86_64's
+// cmova tail was already correct). The sub leg pins the kept signed lower
+// compare (an unsigned compare against 0 is vacuous); the add leg pins the
+// upper clamp.
+// exits: 71 = mul big-product wrong (0 = the old signed-compare clamp);
+// 72 = add overflow wrong; 73 = sub underflow wrong.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let a: u32 in Saturating = (4000000000 as u32 in Saturating);
+    let b: u32 in Saturating = (4000000000 as u32 in Saturating);
+    let r: u32 in Saturating = a * b;
+    transition r == 4294967295 {
+        true  -> add_leg()
+        false -> bad_mul()
+    }
+    state add_leg(&mut self) {
+        let c: u32 in Saturating = (4000000000 as u32 in Saturating);
+        let d: u32 in Saturating = (4000000000 as u32 in Saturating);
+        let s: u32 in Saturating = c + d;
+        transition s == 4294967295 {
+            true  -> sub_leg()
+            false -> bad_add()
+        }
+    }
+    state sub_leg(&mut self) {
+        let e: u32 in Saturating = (10 as u32 in Saturating);
+        let f: u32 in Saturating = (100 as u32 in Saturating);
+        let t: u32 in Saturating = e - f;
+        transition t == 0 {
+            true  -> good()
+            false -> bad_sub()
+        }
+    }
+    state good(&mut self)    { self.console.exit_process(70); }
+    state bad_mul(&mut self) { self.console.exit_process(71); }
+    state bad_add(&mut self) { self.console.exit_process(72); }
+    state bad_sub(&mut self) { self.console.exit_process(73); }
+}
