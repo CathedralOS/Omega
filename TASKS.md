@@ -878,10 +878,16 @@ decreases remaining
   (isa-aarch64 unit tests green). Pinned:
   pass/arithmetic/runtime_float_compare_bool_exit (negative doubles = the
   numeric-vs-bitwise ordering pin; f32 width leg; ==/!= pair).
-  X86 TWIN GAP (loud, sound): x86_64's float binary op has no comparison arms
-  either ("not implemented yet") -- needs ucomis* + setcc with the parity
-  dance for ==/!= (NaN); not runtime-verifiable from this host, so left
-  fenced. NaN literals stay out of the canary (float semantics pending Q8).
+  X86 TWIN CLOSED same day: ucomis* with operand-order-selected seta/setae
+  (swapping gives unordered-false without a parity check) and the register-free
+  parity branch pattern for ==/!= (bare sete would call NaN == NaN true);
+  ucomiss takes a 1-byte NOP pad so every operator's sequence is f32/f64
+  length-identical (the relocation-offset invariant, now per-operator in
+  runtime_float_binary_operation_width -- both callers thread the operator, and
+  the write call site sizes comparisons at the OPERAND width like aarch64).
+  Verified: isa unit tests both arches + byte-scan of a cross-compiled
+  linux_x64 ELF (each canary leg's sequence at its expected count). NaN
+  literals stay out of the canary (float semantics pending Q8).
 
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE

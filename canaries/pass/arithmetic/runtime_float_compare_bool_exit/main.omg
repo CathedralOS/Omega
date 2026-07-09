@@ -8,8 +8,10 @@
 // bitwise), so a bit-compare regression fails leg 1/2 immediately. Legs:
 // 71 = f64 negative `>` into a let; 72 = f64 negative `<` into a field
 // store; 73 = f32 `>` (4-byte FMOV width); 74 = f64 `==`/`!=` pair.
-// (x86_64's float write path fences these loudly -- the twin arms are not
-// implemented there yet; this canary is the aarch64 + interp pin.)
+// (x86_64's twin arms: ucomis* with operand-order-selected seta/setae for
+// ordering -- unordered-false for free -- and the parity branch pattern for
+// ==/!=; byte-verified in a cross-compiled linux_x64 ELF from the arm64 host,
+// every leg's sequence found at its expected count.)
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main {
     console: Console;
