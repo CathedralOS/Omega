@@ -1,27 +1,12 @@
-// PENDING (2026-07-08g): the FIRST caller of `Filesystem::open_with` (Rust
-// OpenOptions) -- which turned out to be NATIVELY UNCOMPILABLE in value-call
-// position, invisible until now because NOTHING ever called it (unreachable
-// machine bodies are never lowered; the raw-seam OpenOptions canaries
-// hand-compute flag ints). The refusal is LOUD and clean (good fence):
-// "state mutation: Filesystem::open_with... `self.open_flags` = `...` needs
-// runtime storage write lowering". PROBED SHAPES (all refuse identically):
-//   (a) the single compound expression over let-locals (the shipped source);
-//   (b) stepwise RMW `self.open_flags = self.open_flags | <local>`;
-//   (c) stepwise RMW over PARAM MEMBERS only
-//       (`self.open_flags = self.open_flags | ((options.append as i32) << 3)`).
-// So a MachineOwned write in a VALUE-CALLED machine plans only trivial values
-// today -- the write-value sibling of the "let-local dispatch face"
-// (TASKS_FS rung-1/rung-2 notes; copy's complex perm_mode write lowers
-// because its value reads only FIELDS: stat_buf bytes). The INTERPRETER runs
-// open_with faithfully (this program exits 70 interpreted).
-// PROMOTE to pass/filesystem + differential when the write lowering lands.
-//
-// RUN CANARY (exit 70) -- the FIRST runtime coverage of `Filesystem::open_with`
-// (Rust OpenOptions), previously untested anywhere: the raw-seam OpenOptions
-// canaries (native_open_rw/native_append/native_open_create) hand-compute flag
-// ints and never call the WRAPPER machine, whose per-target flag COMPOSITION
-// ((bool as i32) << O_XXX_BIT from provides values) and by-value STRUCT param
-// are exactly the bug-prone shape class. Exercises the matrix end-to-end:
+// RUN CANARY (exit 70) -- `Filesystem::open_with` (Rust OpenOptions),
+// PROMOTED from pending/host/wrapper_open_with_matrix (2026-07-08j): the
+// composed flag word (a compound bitwise tree over the substituted caller
+// OpenOptions literal) now FOLDS at mutation-write selection
+// (fold_substituted_constant_integer, writes/mutation.rs) into one constant
+// store per call site -- sign-safe ops only (| & ^ <<), bool-source casts,
+// ZII for absent literal fields. Before the fold the machine was natively
+// UNCOMPILABLE in value position (needs-runtime-storage-write-lowering).
+// Exercises the matrix end-to-end:
 //   1. write+create on an ABSENT path -> creates, write lands;
 //   2. read-only open -> reads the bytes back;
 //   3. write+truncate -> metadata len 0 after close (truncate happened);

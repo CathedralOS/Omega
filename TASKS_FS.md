@@ -464,20 +464,24 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    provides files replacing the Rust table; NEEDS A WINDOWS SESSION to
    runtime-verify), the let-local dispatch face, interp story for authored
    bindings.
-   ⚠️ LET-LOCAL FACE WIDENED (2026-07-08g): `Filesystem::open_with` (Rust
-   OpenOptions) turned out NATIVELY UNCOMPILABLE in value-call position --
-   invisible until its FIRST caller (the new coverage canary; unreachable
-   machine bodies are never lowered, and the raw-seam OpenOptions canaries
-   hand-compute ints). A MachineOwned write in a value-called machine plans
-   only TRIVIAL values: compound-over-locals, RMW-over-local, and even
-   RMW-over-PARAM-MEMBER all refuse with the loud "needs runtime storage
-   write lowering" (never a miscompile; copy's complex perm_mode write
-   lowers because its value reads only FIELDS). The interpreter runs the
-   full six-leg OpenOptions matrix to 70. Parked:
-   `canaries/pending/host/wrapper_open_with_matrix` (write+create / read /
-   truncate / append / create_new-exists / read-absent); promote to
-   pass/filesystem + differential when the write-value lowering lands --
-   the same face also still blocks host-call args reading locals under
+   OPEN_WITH UNBLOCKED (2026-07-08j; was "LET-LOCAL FACE WIDENED"):
+   the debug trace (OMEGA_DEBUG_MUTATION_SELECTION=1) showed the failing
+   write VALUE is fully CONSTANT after alias substitution -- the splice
+   rewrites `options.write` through the caller's OpenOptions struct LITERAL,
+   leaving `(true as i32)` casts and `Member(StructLiteral, ..)` reads
+   (absent field = ZII 0) under pure bitwise arithmetic. Fix: a scoped fold
+   at mutation-write selection (`fold_substituted_constant_integer`,
+   writes/mutation.rs) collapses such trees to ONE constant store per call
+   site -- restricted to the sign-safe operator class (`| & ^ <<`, never
+   `>> / %` per the const-fold signedness trap) and bool-source casts (no
+   truncation possible), so the fold cannot disagree with the interp's i64
+   evaluation. Suite failure-set verified unchanged. The pending canary is
+   PROMOTED to `filesystem/wrapper_open_with_exit` (differential + a
+   windows-gated suite test; native 70 + interp 70 -- the full six-leg
+   OpenOptions matrix). pending/host/ holds only dir_walk_wrappers_native.
+   STILL OPEN (narrower): a write value with RUNTIME operands (true locals /
+   non-literal options) still refuses loudly -- that remainder is the real
+   let-local face, same bucket as host-call args reading locals under
    duplicated dispatch (rung-2 note). LESSON (coverage doctrine): zero-caller
    std machines are UNVERIFIED code -- "compiles as part of std" means
    nothing; every wrapper method needs at least one calling canary. The

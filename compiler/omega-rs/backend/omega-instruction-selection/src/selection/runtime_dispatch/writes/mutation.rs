@@ -908,6 +908,42 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         return;
     }
 
+    // A write value that is CONSTANT after value-call alias substitution: the
+    // splice rewrites a callee's `options.write` through the caller's struct
+    // LITERAL, leaving `(true as i32)` casts and `Member(StructLiteral, ..)`
+    // reads under pure bitwise/shift arithmetic (open_with's per-target flag
+    // word). Fold the whole tree to one integer and re-enter as a plain
+    // constant store, which the existing paths lower. Restricted to the
+    // sign-safe operator class (`| & ^ <<`; never `>> / %`, the known
+    // const-fold signedness trap) and to bool-source casts (no possible
+    // truncation), so a fold can never disagree with the interpreter's i64
+    // evaluation of the same substituted tree.
+    if matches!(value, Expression::Binary(_))
+        && let Some(folded) = fold_substituted_constant_integer(value)
+    {
+        let folded_value =
+            Expression::Integer(omega_core::literals::IntegerLiteral::from_value(folded));
+        select_runtime_resolved_target_value_source_mutation_writes(
+            input,
+            dispatch_index,
+            operation_source_key,
+            target_source_key,
+            value_source_key,
+            source_machine,
+            source_state,
+            statement_index,
+            resolved_target,
+            &folded_value,
+            aliases,
+            alias_expressions,
+            static_values,
+            resolved_segment_expressions,
+            runtime_value_operands,
+            selected_instructions,
+        );
+        return;
+    }
+
     // Owned `[u8; N]` carrier concat (`self.text = "== " + self.label + " =="`):
     // walk the left-associative `+` tree into segments; the FIRST (a literal)
     // initializes the target carrier (`WriteRuntimeMachineBoundedBuffer` sets len +
@@ -1877,6 +1913,81 @@ pub(super) fn select_runtime_resolved_target_value_source_mutation_writes(
         source_key: operation_source_key,
         source_statement: statement_index,
     });
+}
+
+/// Fold a write value that became CONSTANT through value-call alias
+/// substitution (a callee's param member rewritten to the caller's struct
+/// LITERAL). Leaves: integer literals, bool-source casts (`true as i32` -- a
+/// 0/1, no truncation possible), and struct-literal member reads (an ABSENT
+/// field folds to its ZII default 0, matching the interpreter). Operators:
+/// ONLY the sign-safe bitwise class `| & ^` and `<<` with an in-range
+/// amount -- the i64 fold agrees with any operand width for these (see the
+/// const-fold MISCOMPILE-CLASS notes); `>>`/`/`/`%` are deliberately not
+/// folded. Anything else (names, calls, indexes) -> None, and the caller
+/// falls through to the existing paths.
+fn fold_substituted_constant_integer(value: &Expression) -> Option<i64> {
+    use omega_checked_trees::expression::BinaryOperator;
+    match value {
+        Expression::Integer(literal) => literal.value_i64(),
+        Expression::Mutable(inner) => fold_substituted_constant_integer(inner),
+        Expression::Cast(cast) => {
+            // Only a BOOL-source cast folds (0/1 into any integer width is
+            // truncation-free). The bool may itself be a struct-literal
+            // member read.
+            match bool_leaf_value(&cast.value) {
+                Some(value) => Some(i64::from(value)),
+                None => None,
+            }
+        }
+        Expression::Member(member) => {
+            let Expression::StructLiteral(literal) = &member.receiver else {
+                return None;
+            };
+            literal
+                .fields
+                .iter()
+                .find(|field| field.name == member.member)
+                // ZII: a field absent from the literal is its zero default.
+                .map_or(Some(0), |field| {
+                    fold_substituted_constant_integer(&field.value)
+                })
+        }
+        Expression::Binary(binary) => {
+            let left = fold_substituted_constant_integer(&binary.left)?;
+            let right = fold_substituted_constant_integer(&binary.right)?;
+            match binary.operator {
+                BinaryOperator::BitwiseOr => Some(left | right),
+                BinaryOperator::BitwiseAnd => Some(left & right),
+                BinaryOperator::BitwiseXor => Some(left ^ right),
+                BinaryOperator::ShiftLeft => {
+                    let amount = u32::try_from(right).ok().filter(|amount| *amount < 32)?;
+                    Some(left << amount)
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// A bool LEAF under a cast: a literal `true`/`false`, or a struct-literal
+/// member read whose field is a bool literal (absent field = ZII false).
+fn bool_leaf_value(expression: &Expression) -> Option<bool> {
+    match expression {
+        Expression::Boolean(value) => Some(*value),
+        Expression::Mutable(inner) => bool_leaf_value(inner),
+        Expression::Member(member) => {
+            let Expression::StructLiteral(literal) = &member.receiver else {
+                return None;
+            };
+            literal
+                .fields
+                .iter()
+                .find(|field| field.name == member.member)
+                .map_or(Some(false), |field| bool_leaf_value(&field.value))
+        }
+        _ => None,
+    }
 }
 
 fn debug_unselected_runtime_mutation(
