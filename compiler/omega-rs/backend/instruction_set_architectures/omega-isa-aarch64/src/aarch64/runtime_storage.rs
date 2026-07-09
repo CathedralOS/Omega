@@ -723,6 +723,9 @@ pub fn encode_runtime_storage_binary_write(
             &mut bytes,
             byte_size,
             matches!(operator, StateGuardOperator::Modulo),
+            17,
+            26,
+            9,
         )?;
     } else {
         append_runtime_binary_operation(
@@ -1031,7 +1034,14 @@ fn append_saturating_signed_divide_modulo(
     bytes: &mut Vec<u8>,
     byte_size: usize,
     want_remainder: bool,
+    dest: u8,
+    rhs: u8,
+    scratch: u8,
 ) -> Result<(), Diagnostic> {
+    // Register-parametric like append_saturating_trapping_arithmetic: the
+    // binary WRITE path passes dest=17, rhs=26, scratch=9 (byte-identical to
+    // the pre-parameterization hardcoded registers); the OPERAND-position
+    // lowering passes the operand evaluator's assigned registers.
     if !matches!(byte_size, 1 | 2 | 4) {
         // 64-bit saturating div would need TYPE_MIN detection that `neg`/`mul -1`
         // cannot signal at the full width (it wraps); not needed by any live sample.
@@ -1046,44 +1056,44 @@ fn append_saturating_signed_divide_modulo(
     let mut special: Vec<u8> = Vec::new();
     if want_remainder {
         // a % -1 == 0.
-        special.extend(encode_movz(17, 0));
+        special.extend(encode_movz(dest, 0));
     } else {
         // a / -1 == -a: multiply by the -1 still sitting in x9, then clamp a
         // TYPE_MIN result (-a == TYPE_MAX+1) down to TYPE_MAX.
-        special.extend(encode_mul_x_register(17, 17, 9));
-        append_unsigned_immediate_padded(&mut special, 9, signed_max);
-        special.extend(encode_compare_x_register(17, 9));
+        special.extend(encode_mul_x_register(dest, dest, scratch));
+        append_unsigned_immediate_padded(&mut special, scratch, signed_max);
+        special.extend(encode_compare_x_register(dest, scratch));
         special.extend(encode_conditional_branch_less_or_equal(8)?); // <= MAX -> keep
-        special.extend(encode_move_x_register(17, 9)); // else clamp to MAX
+        special.extend(encode_move_x_register(dest, scratch)); // else clamp to MAX
     }
 
     // The normal path (every divisor except -1).
     let mut normal: Vec<u8> = Vec::new();
     if want_remainder {
-        normal.extend(encode_sdiv_x_register(9, 17, 26)); // q = a / b
-        normal.extend(encode_msub_x_register(17, 9, 26, 17)); // a - q*b
+        normal.extend(encode_sdiv_x_register(scratch, dest, rhs)); // q = a / b
+        normal.extend(encode_msub_x_register(dest, scratch, rhs, dest)); // a - q*b
     } else {
-        normal.extend(encode_sdiv_x_register(17, 17, 26));
+        normal.extend(encode_sdiv_x_register(dest, dest, rhs));
     }
 
     // Sign-extend both operands to 64 bits.
     match byte_size {
         1 => {
-            bytes.extend(encode_sign_extend_byte_to_x(17, 17));
-            bytes.extend(encode_sign_extend_byte_to_x(26, 26));
+            bytes.extend(encode_sign_extend_byte_to_x(dest, dest));
+            bytes.extend(encode_sign_extend_byte_to_x(rhs, rhs));
         }
         2 => {
-            bytes.extend(encode_sign_extend_halfword_to_x(17, 17));
-            bytes.extend(encode_sign_extend_halfword_to_x(26, 26));
+            bytes.extend(encode_sign_extend_halfword_to_x(dest, dest));
+            bytes.extend(encode_sign_extend_halfword_to_x(rhs, rhs));
         }
         _ => {
-            bytes.extend(encode_sign_extend_word_to_x(17, 17));
-            bytes.extend(encode_sign_extend_word_to_x(26, 26));
+            bytes.extend(encode_sign_extend_word_to_x(dest, dest));
+            bytes.extend(encode_sign_extend_word_to_x(rhs, rhs));
         }
     }
     // x9 = -1; branch to `normal` unless the divisor is exactly -1.
-    append_unsigned_immediate_padded(bytes, 9, u64::MAX);
-    bytes.extend(encode_compare_x_register(26, 9));
+    append_unsigned_immediate_padded(bytes, scratch, u64::MAX);
+    bytes.extend(encode_compare_x_register(rhs, scratch));
     bytes.extend(encode_conditional_branch_not_equal(
         (8 + special.len()) as isize,
     )?);
@@ -3278,8 +3288,9 @@ fn append_runtime_value_operand(
             // Decision 17 in OPERAND position: reuse the binary WRITE path's
             // register-parametric clamp/trap sequences at this operand's
             // dest/rhs. The operand's byte_width is its REAL scalar width here
-            // (set at construction for these domains); the remaining scratch
-            // supplies the sequences' immediate/high/sign/bound registers.
+            // (set at construction for non-Exact domains); the remaining
+            // scratch supplies the sequences' immediate/high/sign/bound
+            // registers.
             let byte_width = runtime_value_operands.binary_byte_width(operand).unwrap_or(8);
             append_saturating_trapping_arithmetic(
                 bytes,
@@ -3290,6 +3301,38 @@ fn append_runtime_value_operand(
                 destination_register,
                 rhs_register,
                 remaining_scratch,
+            )?;
+        } else if runtime_value_operands
+            .binary_arithmetic_domain(operand)
+            .is_some_and(|(domain, operands_signed)| {
+                domain == omega_core::arithmetic::ArithmeticDomain::Saturating
+                    && operands_signed
+                    && matches!(
+                        operator,
+                        StateGuardOperator::Divide | StateGuardOperator::Modulo
+                    )
+            })
+        {
+            // Signed Saturating div/mod in OPERAND position: the TYPE_MIN/-1
+            // fixup (a / -1 clamps TYPE_MIN to TYPE_MAX; a % -1 == 0), same
+            // register-parametric reuse as the arithmetic arm above. Wrapping
+            // div/mod need NO arm here: aarch64 `sdiv` wraps naturally (the
+            // x86_64 backend guards its trapping `idiv` instead). Trapping
+            // div/mod fall through -- pre-existing aarch64 behavior (`sdiv`
+            // does not fault), matching the write path.
+            let Some((&div_scratch, _)) = remaining_scratch.split_first() else {
+                return Err(Diagnostic::error(
+                    "AArch64 MVP encoder ran out of scratch registers for runtime arithmetic",
+                ));
+            };
+            let byte_width = runtime_value_operands.binary_byte_width(operand).unwrap_or(8);
+            append_saturating_signed_divide_modulo(
+                bytes,
+                byte_width,
+                matches!(operator, StateGuardOperator::Modulo),
+                destination_register,
+                rhs_register,
+                div_scratch,
             )?;
         } else {
             // Comparisons use the operand width; other nested binaries do not

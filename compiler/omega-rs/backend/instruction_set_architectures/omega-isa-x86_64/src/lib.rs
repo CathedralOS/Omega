@@ -5695,6 +5695,52 @@ fn wrapping_signed_divide_modulo_width(byte_size: usize, want_remainder: bool) -
     4 + 2 + fixup + 2 + normal
 }
 
+/// The domain-honoring OPERAND-POSITION operation a fused `Binary` operand
+/// needs, or `None` for the plain integer path. THE single dispatch shared by
+/// the emission arm and its width twin so they can never disagree: Add/Sub and
+/// Multiply under Saturating/Trapping clamp/trap; SIGNED div/mod under
+/// Saturating take the TYPE_MIN/-1 clamp fixup and under Wrapping the idiv
+/// #DE guard (unsigned div/mod use the *Unsigned operators, never overflow,
+/// and fall through; Trapping div/mod fall through -- `idiv` traps on
+/// overflow and /0, which IS Trapping semantics).
+enum OperandDomainOperation {
+    AddSub { domain: ArithmeticDomain, operands_signed: bool },
+    Multiply { domain: ArithmeticDomain, operands_signed: bool },
+    SaturatingSignedDivMod { want_remainder: bool },
+    WrappingSignedDivMod { want_remainder: bool },
+}
+
+fn operand_position_domain_operation(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    operand: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+) -> Option<OperandDomainOperation> {
+    let (domain, operands_signed) = runtime_value_operands.binary_arithmetic_domain(operand)?;
+    match (operator, domain) {
+        (
+            StateGuardOperator::Add | StateGuardOperator::Subtract,
+            ArithmeticDomain::Saturating | ArithmeticDomain::Trapping,
+        ) => Some(OperandDomainOperation::AddSub { domain, operands_signed }),
+        (
+            StateGuardOperator::Multiply,
+            ArithmeticDomain::Saturating | ArithmeticDomain::Trapping,
+        ) => Some(OperandDomainOperation::Multiply { domain, operands_signed }),
+        (
+            StateGuardOperator::Divide | StateGuardOperator::Modulo,
+            ArithmeticDomain::Saturating,
+        ) if operands_signed => Some(OperandDomainOperation::SaturatingSignedDivMod {
+            want_remainder: operator == StateGuardOperator::Modulo,
+        }),
+        (
+            StateGuardOperator::Divide | StateGuardOperator::Modulo,
+            ArithmeticDomain::Wrapping,
+        ) if operands_signed => Some(OperandDomainOperation::WrappingSignedDivMod {
+            want_remainder: operator == StateGuardOperator::Modulo,
+        }),
+        _ => None,
+    }
+}
+
 /// Bytes of [`append_width_integer_add_sub`]: 4 for 16-bit (0x66 prefix), else 3.
 fn width_integer_add_sub_width(byte_size: usize) -> usize {
     if byte_size == 2 { 4 } else { 3 }
@@ -7188,32 +7234,26 @@ pub fn runtime_value_operand_width(
             // width regardless of operator. MUST match the emission below or the
             // recorded relocation offsets drift (silent runtime segfault).
             runtime_float_binary_operation_width()
-        } else if let Some((domain, operands_signed)) = runtime_value_operands
-            .binary_arithmetic_domain(operand)
-            .filter(|(domain, _)| {
-                matches!(
-                    domain,
-                    ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
-                )
-            })
-            .filter(|_| {
-                matches!(
-                    operator,
-                    StateGuardOperator::Add
-                        | StateGuardOperator::Subtract
-                        | StateGuardOperator::Multiply
-                )
-            })
+        } else if let Some(domain_operation) =
+            operand_position_domain_operation(runtime_value_operands, operand, operator)
         {
-            // Saturating/Trapping operand-position arithmetic: MUST mirror the
-            // emission arm below (width-correct op + clamp, or the wide
-            // multiply sequence) or relocation offsets drift.
+            // Domain-honoring operand-position arithmetic: MUST mirror the
+            // emission arm's dispatch exactly or relocation offsets drift.
             let byte_width = runtime_value_operands.binary_byte_width(operand).unwrap_or(8);
-            if operator == StateGuardOperator::Multiply {
-                saturating_trapping_multiply_width(domain, byte_width, operands_signed)
-            } else {
-                width_integer_add_sub_width(byte_width)
-                    + arithmetic_domain_clamp_width(domain, operator, byte_width, operands_signed)
+            match domain_operation {
+                OperandDomainOperation::AddSub { domain, operands_signed } => {
+                    width_integer_add_sub_width(byte_width)
+                        + arithmetic_domain_clamp_width(domain, operator, byte_width, operands_signed)
+                }
+                OperandDomainOperation::Multiply { domain, operands_signed } => {
+                    saturating_trapping_multiply_width(domain, byte_width, operands_signed)
+                }
+                OperandDomainOperation::SaturatingSignedDivMod { want_remainder } => {
+                    saturating_signed_divide_modulo_width(byte_width, want_remainder)
+                }
+                OperandDomainOperation::WrappingSignedDivMod { want_remainder } => {
+                    wrapping_signed_divide_modulo_width(byte_width, want_remainder)
+                }
             }
         } else {
             // Use the SAME byte_size the emission picks (runtime_binary_operation_byte_size):
@@ -7355,42 +7395,46 @@ fn append_runtime_value_operand(
             // are unaffected.
             let byte_width = runtime_value_operands.binary_byte_width(operand).unwrap_or(8);
             append_runtime_float_binary_operation(bytes, operator, byte_width)?;
-        } else if let Some((domain, operands_signed)) = runtime_value_operands
-            .binary_arithmetic_domain(operand)
-            .filter(|(domain, _)| {
-                matches!(
-                    domain,
-                    ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
-                )
-            })
-            .filter(|_| {
-                matches!(
-                    operator,
-                    StateGuardOperator::Add
-                        | StateGuardOperator::Subtract
-                        | StateGuardOperator::Multiply
-                )
-            })
+        } else if let Some(domain_operation) =
+            operand_position_domain_operation(runtime_value_operands, operand, operator)
         {
             // Decision 17 in OPERAND position: reuse the binary WRITE path's
-            // r10/r11 sequences verbatim -- a width-correct add/sub whose flags
-            // reflect the operand width, then the flag-driven clamp/trap; or
-            // the wide multiply + range clamp/trap. The operand's byte_width
-            // is its REAL scalar width here (set at construction for these
-            // domains). Upper r10 bits may be stale on the non-overflow path,
-            // which every consumer tolerates (compares/stores run at width).
+            // r10/r11 sequences verbatim. Add/Sub take the width-correct op
+            // whose flags reflect the operand width + the flag-driven
+            // clamp/trap; Multiply takes the wide multiply + range clamp/trap;
+            // signed Saturating div/mod take the TYPE_MIN/-1 fixup; signed
+            // Wrapping div/mod take the idiv #DE guard (the byte-width
+            // compare truncates the negated value exactly as the write path's
+            // store would). The operand's byte_width is its REAL scalar width
+            // here (set at construction for non-Exact domains). Upper r10
+            // bits may be stale on the non-overflow path, which every
+            // consumer tolerates (compares/stores run at width).
             let byte_width = runtime_value_operands.binary_byte_width(operand).unwrap_or(8);
-            if operator == StateGuardOperator::Multiply {
-                append_saturating_trapping_multiply(bytes, domain, byte_width, operands_signed)?;
-            } else {
-                append_width_integer_add_sub(bytes, operator, byte_width)?;
-                append_arithmetic_domain_clamp(
-                    bytes,
-                    domain,
-                    operator,
-                    byte_width,
-                    operands_signed,
-                )?;
+            match domain_operation {
+                OperandDomainOperation::AddSub { domain, operands_signed } => {
+                    append_width_integer_add_sub(bytes, operator, byte_width)?;
+                    append_arithmetic_domain_clamp(
+                        bytes,
+                        domain,
+                        operator,
+                        byte_width,
+                        operands_signed,
+                    )?;
+                }
+                OperandDomainOperation::Multiply { domain, operands_signed } => {
+                    append_saturating_trapping_multiply(
+                        bytes,
+                        domain,
+                        byte_width,
+                        operands_signed,
+                    )?;
+                }
+                OperandDomainOperation::SaturatingSignedDivMod { want_remainder } => {
+                    append_saturating_signed_divide_modulo(bytes, byte_width, want_remainder)?;
+                }
+                OperandDomainOperation::WrappingSignedDivMod { want_remainder } => {
+                    append_wrapping_signed_divide_modulo(bytes, byte_width, want_remainder)?;
+                }
             }
         } else {
             // Comparisons use the operand width; other nested binaries do not carry

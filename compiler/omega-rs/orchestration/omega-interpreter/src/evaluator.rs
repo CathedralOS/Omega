@@ -3919,13 +3919,18 @@ impl<'program> Evaluator<'program> {
                         | BinaryOperator::ShiftRight
                 ) && (self.expression_is_unsigned64(binary.left, frame)
                     || self.expression_is_unsigned64(binary.right, frame));
-                // A Saturating/Trapping ADD/SUB/MUL applies its domain at the
-                // OPERATION node (native emits the clamping/trapping sequence
-                // itself), so resolve the expression's declared scalar type for
-                // the arithmetic operators the domains cover.
+                // Non-Exact ADD/SUB/MUL apply their domain at the OPERATION
+                // node (native emits the clamping/trapping/wrapping-width
+                // sequence itself), and signed DIV/MOD resolve the MIN/-1
+                // corner there, so resolve the expression's declared scalar
+                // type for the operators the domains cover.
                 let scalar_type = if matches!(
                     binary.operator,
-                    BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                    BinaryOperator::Add
+                        | BinaryOperator::Subtract
+                        | BinaryOperator::Multiply
+                        | BinaryOperator::Divide
+                        | BinaryOperator::Modulo
                 ) {
                     self.expression_scalar_type(handle, frame)
                 } else {
@@ -5212,6 +5217,53 @@ impl<'program> Evaluator<'program> {
         // BOTH operands, can clamp). 64-bit UNSIGNED views its `Value::Int`
         // bit patterns as u64 and clamps to [0, u64::MAX]. Other domains and
         // operators keep the wide i64 compute + landing-seam coercion.
+        // SIGNED div/mod under a non-Exact domain resolve MIN/-1 at the node
+        // (the one overflowing corner: |quotient| otherwise shrinks):
+        // Wrapping wraps it back to MIN (matching aarch64 `sdiv` and the
+        // x86_64 idiv guard), Saturating clamps it to MAX (`a % -1` is 0
+        // either way), Trapping traps. Division by zero keeps the existing
+        // trap. Unsigned div/mod never overflow and fall through.
+        if matches!(operator, Divide | Modulo) {
+            if let Some((
+                ty @ (PrimitiveType::I8
+                | PrimitiveType::I16
+                | PrimitiveType::I32
+                | PrimitiveType::I64
+                | PrimitiveType::Isize),
+                domain @ (ArithmeticDomain::Wrapping
+                | ArithmeticDomain::Saturating
+                | ArithmeticDomain::Trapping),
+            )) = scalar_type
+            {
+                if r == 0 {
+                    return if operator == Divide {
+                        trap("integer division by zero")
+                    } else {
+                        trap("integer modulo by zero")
+                    };
+                }
+                let wide = if operator == Divide {
+                    l as i128 / r as i128
+                } else {
+                    l as i128 % r as i128
+                };
+                let (min, max) = integer_bounds(ty).unwrap_or((i64::MIN, i64::MAX));
+                return match domain {
+                    ArithmeticDomain::Wrapping => Ok(Value::Int(wrap_to_width(wide as i64, ty))),
+                    ArithmeticDomain::Saturating => {
+                        Ok(Value::Int(wide.clamp(min as i128, max as i128) as i64))
+                    }
+                    ArithmeticDomain::Trapping
+                        if wide < min as i128 || wide > max as i128 =>
+                    {
+                        trap(format!(
+                            "arithmetic overflow in Trapping domain: {wide} is out of range for {ty:?}"
+                        ))
+                    }
+                    _ => Ok(Value::Int(wide as i64)),
+                };
+            }
+        }
         // A WRAPPING Add/Sub/Mul likewise wraps at the node: with no landing
         // seam (a guard-direct `au + bu == 44`), the full-width comparison
         // would see the wide 300 while native's byte-width compare sees the

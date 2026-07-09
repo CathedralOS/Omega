@@ -1670,6 +1670,16 @@ pub fn runtime_value_operand_width(
                         | StateGuardOperator::Multiply
                 )
             });
+        let saturating_signed_div_mod = runtime_value_operands
+            .binary_arithmetic_domain(operand)
+            .is_some_and(|(domain, operands_signed)| {
+                domain == omega_core::arithmetic::ArithmeticDomain::Saturating
+                    && operands_signed
+                    && matches!(
+                        operator,
+                        StateGuardOperator::Divide | StateGuardOperator::Modulo
+                    )
+            });
         let operation_width = if runtime_value_operands.binary_is_float(operand) {
             runtime_float_binary_operation_width(operator)
         } else if let Some((domain, operands_signed)) = operand_domain {
@@ -1680,6 +1690,12 @@ pub fn runtime_value_operand_width(
                 operator,
                 runtime_value_operands.binary_byte_width(operand).unwrap_or(8),
                 operands_signed,
+            )
+        } else if saturating_signed_div_mod {
+            // Signed Saturating div/mod operand arm: the TYPE_MIN/-1 fixup.
+            saturating_signed_divide_modulo_width(
+                runtime_value_operands.binary_byte_width(operand).unwrap_or(8),
+                operator == StateGuardOperator::Modulo,
             )
         } else {
             runtime_binary_operation_width(

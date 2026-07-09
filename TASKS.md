@@ -731,9 +731,38 @@ decreases remaining
   runtime_value_compare_byte_size (max of operand sizes); SIGNEDNESS of a
   mixed-sign Sat/Trap operand pair is first-witness best-guess -- exotic,
   flagged here rather than guessed at.
-  STILL QUEUED: operand-position div/mod MIN/-1 (sat clamp / x86 #DE guard,
-  both ISAs + the interp node arm for sat div) and x86 64-bit sat/trap MUL
-  parity.
+  STILL QUEUED: operand-position div/mod MIN/-1 -- LANDED 2026-07-09g (next
+  entry); x86 64-bit sat/trap MUL parity remains (needs the 128-bit imul
+  form; aarch64 has MULH arms).
+
+- **OPERAND-POSITION DIV/MOD MIN/-1 2026-07-09g: the domain family closed.**
+  Signed division's one overflowing corner now resolves correctly when FUSED
+  into guard operands, on all three legs:
+  - x86_64: the operand Binary dispatch was refactored around a shared
+    `operand_position_domain_operation` classifier (ONE dispatch consumed by
+    both the emission arm and its width twin -- they can no longer drift) and
+    gained SaturatingSignedDivMod (TYPE_MIN/-1 clamp fixup) and
+    WrappingSignedDivMod (the idiv #DE guard; the byte-width compare
+    truncates the negated value exactly as the write path's store would).
+  - aarch64: `append_saturating_signed_divide_modulo` is register-parametric
+    (write path passes 17/26/9, byte-identical); the operand arm calls it for
+    signed Saturating div/mod. Wrapping needs no arm (`sdiv` wraps
+    naturally); Trapping div/mod keep the pre-existing per-ISA divergence
+    (x86 idiv faults, aarch64 sdiv does not -- write-path-consistent).
+  - interp: eval_binary's node path resolves signed div/mod MIN/-1 per
+    domain (wrap/clamp/trap; /0 keeps the trap), and the CALLER now resolves
+    scalar_type for Divide/Modulo too (it was Add/Sub/Mul-only, so the div
+    arm never fired -- caught because the modulo direction passed
+    coincidentally: wide MIN%-1 is 0 anyway; the omega-run --both probe
+    harness the fs lane built made the per-direction bisect one command).
+  Construction sites now record the REAL byte_width for every non-Exact
+  Binary operand (Wrapping included). New canary
+  pass/arithmetic/runtime_divide_min_edge_guard_exit (sat MIN/-1 -> MAX,
+  sat MIN%-1 -> 0, wrap MIN/-1 -> MIN; differential 70/70 + suite test).
+  Suite failure set identical to the known 7; ISA crate tests green; zero
+  warnings. NOTE for the fs lane: omega-run --both printed DIVERGENCE but
+  exited 0 through a pipe -- worth checking its exit-code plumbing (201
+  documented).
 
 - **[ ] Range constraint + non-Exact domain = the range is a LIE (found 2026-07-06).**
   `i: usize [0..=4] in Wrapping` accepts `self.i = 100` -- the range enforces only under the

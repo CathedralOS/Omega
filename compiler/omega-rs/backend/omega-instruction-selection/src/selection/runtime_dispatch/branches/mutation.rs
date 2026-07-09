@@ -1236,14 +1236,10 @@ fn resolve_runtime_value_operand_in_table(
                 right,
                 // Branch-arm value operand: float detection not wired on this path yet.
                 is_float: false,
-                // The plain integer arm ignores the width; a Saturating/
-                // Trapping operand needs its REAL operand width for the
+                // The plain integer arm ignores the width; a non-Exact
+                // operand needs its REAL operand width for the
                 // width-correct op + clamp bounds.
-                byte_width: if matches!(
-                    domain_signedness.0,
-                    omega_core::arithmetic::ArithmeticDomain::Saturating
-                        | omega_core::arithmetic::ArithmeticDomain::Trapping
-                ) {
+                byte_width: if domain_signedness.0 != omega_core::arithmetic::ArithmeticDomain::Exact {
                     runtime_value_compare_byte_size(runtime_value_operands, left, right)
                 } else {
                     8

@@ -16087,6 +16087,35 @@ fn runtime_wrapping_expression_guard_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_divide_min_edge_guard_exit_canary_runs() {
+    // Signed division's one overflowing corner (TYPE_MIN / -1) fused into
+    // guard operands: Saturating clamps to TYPE_MAX (and MIN % -1 == 0),
+    // Wrapping wraps back to TYPE_MIN. On x86_64 the fused idiv would
+    // hardware-trap without its divisor guard; this pins the guard in
+    // operand position on both ISAs.
+    let canary = pass_canary("arithmetic/runtime_divide_min_edge_guard_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-divmin-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("divide min-edge guard canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("divide min-edge guard canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected all three MIN/-1 guard directions to hold (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_trapping_guard_overflow_traps_canary_runs() {
     // Trapping arithmetic in OPERAND position must TRAP: `u8 in Trapping`
     // 200+100 overflows at the guard's fused add, so the process dies before

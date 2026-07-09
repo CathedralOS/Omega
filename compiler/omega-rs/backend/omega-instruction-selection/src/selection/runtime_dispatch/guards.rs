@@ -1785,13 +1785,9 @@ fn resolve_runtime_value_operand_in_table(
             // elsewhere, so the integer value-operand path stays as-is here.
             is_float: false,
             // The plain integer arm ignores the width (default 8 matches prior
-            // behavior); a Saturating/Trapping operand instead needs its REAL
+            // behavior); a non-Exact operand instead needs its REAL
             // operand width for the width-correct op + clamp bounds.
-            byte_width: if matches!(
-                domain_signedness.0,
-                omega_core::arithmetic::ArithmeticDomain::Saturating
-                    | omega_core::arithmetic::ArithmeticDomain::Trapping
-            ) {
+            byte_width: if domain_signedness.0 != omega_core::arithmetic::ArithmeticDomain::Exact {
                 runtime_value_compare_byte_size(runtime_value_operands, left, right)
             } else {
                 8
