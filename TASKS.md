@@ -581,7 +581,9 @@ decreases remaining
   PARKED on the design call (type-carrying constants). Repro kept at
   canaries/pending/arithmetic/unsigned_min_max_wrapping_local_divergence.
 
-- **[ ] Same-type receiver aliasing: VALUE-CALL flavor confirmed (2026-07-07, std::time
+- **[ ] Same-type receiver aliasing — [CLAIMED by the fs lane 2026-07-10n
+  per the work-stealing protocol; scoping + implementation tracked in
+  TASKS_FS.md "Stolen work #2".] VALUE-CALL flavor confirmed (2026-07-07, std::time
   authoring; repro canaries/pending/time/value_machine_receiver_field_postentry).** A
   pure-value method receiver (`self.sum.checked_subtract(...)` with several
   Duration-typed fields) resolves to the FIRST field of the type — the SAME root as the
