@@ -80,7 +80,8 @@ pub(super) fn resolve_guard_operand_layout(
             .find(|(_, machine_layout)| machine_layout.symbol == source_machine)
         {
             if let Some(machine_base_offset) =
-                machine_storage_offset(layouts, entry_machine, source_machine)
+                per_instance_base(receiver_bases, source_dispatch_index)
+                    .or_else(|| machine_storage_offset(layouts, entry_machine, source_machine))
             {
                 if let Some(root_field) = field_layout_by_symbol_or_name(
                     layouts,
@@ -137,7 +138,8 @@ pub(super) fn resolve_guard_operand_layout(
             });
     }
 
-    let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
+    let machine_base_offset = per_instance_base(receiver_bases, source_dispatch_index)
+        .or_else(|| machine_storage_offset(layouts, entry_machine, source_machine))?;
     let machine_layout = layouts
         .machine_layouts
         .iter()
@@ -552,6 +554,17 @@ impl<'path, 'table> Iterator for GuardPathSuffixIter<'path, 'table> {
         self.index += 1;
         Some((member, symbol, field_index))
     }
+}
+
+/// The per-instance receiver base for this dispatch case, when the pipeline
+/// resolved one (BackendPlan::receiver_bases; per-instance dispatch). Guard
+/// operands MUST read the same instance the body writes -- this site was the
+/// phase-3 probe's wrong-resolution hole (native 3 vs interp 70).
+fn per_instance_base(receiver_bases: &[Option<usize>], dispatch_index: u32) -> Option<usize> {
+    receiver_bases
+        .get(dispatch_index as usize)
+        .copied()
+        .flatten()
 }
 
 fn machine_storage_offset(

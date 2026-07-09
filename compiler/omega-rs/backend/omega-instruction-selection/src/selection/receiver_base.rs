@@ -15,8 +15,8 @@
 //! nested caller's own base would need recursive context resolution; the
 //! fence keeps guarding those chains) and only for a named non-`self`
 //! receiver. `None` = no override; the by-type walk stays authoritative.
-//! GATED behind OMEGA_RECEIVER_DISPATCH=1 while the fence still refuses
-//! every affected program -- the mechanism is probeable but dormant.
+//! LIVE for dispatch-routed calls (the fence relaxes exactly there);
+//! inline-routed calls stay fenced until the inline half lands.
 
 use crate::InstructionSelectionInput;
 

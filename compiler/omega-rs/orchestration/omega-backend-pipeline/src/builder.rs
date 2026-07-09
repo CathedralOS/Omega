@@ -309,8 +309,8 @@ pub(super) fn build_backend_plan_from_control_flow_with_workers(
     // PER-INSTANCE RECEIVER BASES (TASKS_FS "Stolen work #2", phase 3): one
     // table, indexed by dispatch index (== the runtime-flow state's arena
     // index), consumed by guard-operand layout, selection, and the
-    // contained-receiver fence -- a single prediction site. Gated
-    // OMEGA_RECEIVER_DISPATCH=1 until the end-to-end probe promotes it.
+    // contained-receiver fence -- a single prediction site. Dispatch-route
+    // consumers only serve when routing agrees (the fence's discipline).
     backend_plan.receiver_bases = compute_receiver_bases(
         &runtime_flow,
         &backend_plan.state_calls,
@@ -832,9 +832,6 @@ fn compute_receiver_bases(
     layouts: &omega_layout::LayoutPlan,
     entry_machine: omega_core::symbols::SymbolHandle,
 ) -> Vec<Option<usize>> {
-    if std::env::var_os("OMEGA_RECEIVER_DISPATCH").is_none() {
-        return Vec::new();
-    }
     runtime_flow
         .states
         .iter()
