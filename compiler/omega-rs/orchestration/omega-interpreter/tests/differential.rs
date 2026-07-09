@@ -169,6 +169,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_dispatch_result_field_terminal_exit", 70),
     ("calls/runtime_dispatch_result_guard_subject_exit", 70),
     ("calls/runtime_dispatch_result_multi_arm_exit", 70),
+    ("calls/runtime_dispatch_result_transition_arg_exit", 70),
     ("calls/runtime_exit_code_exit", 70),
     ("host/runtime_sleep_exit", 70),
     ("host/runtime_write_no_newline_exit", 70),
