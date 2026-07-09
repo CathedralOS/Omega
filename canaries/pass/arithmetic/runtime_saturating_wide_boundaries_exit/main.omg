@@ -5,6 +5,8 @@
 //   i64::MIN - 1        -> clamps to i64::MIN  (verified via MIN + MAX == -1)
 //   u64::MAX + 1        -> clamps to u64::MAX  (via 0 - 1 wrapped? u64 built at runtime)
 //   u64 5 - 10          -> clamps to 0
+//   i64 MAX * 2         -> clamps to MAX;  (-MAX) * 2 -> clamps to MIN
+//   u64 MAX * 3         -> clamps to u64::MAX (UMULH witness)
 // Values are built through runtime fields so the const folder cannot pre-clamp.
 // Exits 70.
 boundary trait Console { machine exit_process(return_code: i32); }
@@ -44,11 +46,35 @@ machine Main::main(&mut self) {
         // u64 underflow: 5 - 10 -> 0.
         self.u = 5;
         self.v = self.u - 10;
-        transition self.v == 0 { true -> ok() _ -> bad4() }
+        transition self.v == 0 { true -> smul() _ -> bad4() }
+    }
+    state smul(&mut self) {
+        // i64 multiply overflow, both signs: MAX * 2 -> MAX; (-MAX) * 2 -> MIN.
+        self.a = 9223372036854775807;
+        self.b = self.a * 2;
+        transition self.b == 9223372036854775807 { true -> smul_neg() _ -> bad5() }
+    }
+    state smul_neg(&mut self) {
+        self.a = 0 - 9223372036854775807;
+        self.b = self.a * 2;
+        // b == MIN <=> b + MAX == -1.
+        self.chk = self.b + 9223372036854775807;
+        transition self.chk == 0 - 1 { true -> umul() _ -> bad6() }
+    }
+    state umul(&mut self) {
+        // u64 multiply overflow: MAX * 3 -> MAX (the UMULH-witness path).
+        self.u = 4611686018427387904;
+        self.u = self.u + self.u;
+        self.u = self.u + self.u;      // saturated to u64::MAX
+        self.v = self.u * 3;
+        transition self.v == self.u { true -> ok() _ -> bad7() }
     }
     state ok(&mut self)  { self.console.exit_process(70); }
     state bad1(&mut self) { self.console.exit_process(81); }
     state bad2(&mut self) { self.console.exit_process(82); }
     state bad3(&mut self) { self.console.exit_process(83); }
     state bad4(&mut self) { self.console.exit_process(84); }
+    state bad5(&mut self) { self.console.exit_process(85); }
+    state bad6(&mut self) { self.console.exit_process(86); }
+    state bad7(&mut self) { self.console.exit_process(87); }
 }

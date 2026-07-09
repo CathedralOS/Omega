@@ -402,10 +402,17 @@ fn saturating_trapping_arithmetic_width(
 ) -> usize {
     use omega_core::arithmetic::ArithmeticDomain;
     if byte_size == 8 {
-        // Flag-based add/sub (multiply errors during emission; 4 is the
-        // harmless pre-error placeholder).
+        // 64-bit multiply: the MULH high-half witness.
         if matches!(operator, StateGuardOperator::Multiply) {
-            return 4;
+            return match (domain, target_signed) {
+                // smulh + eor + movz/movk MIN (8) + mul + cmp-asr + b.eq +
+                // cmp + csinv.
+                (omega_core::arithmetic::ArithmeticDomain::Saturating, true) => 36,
+                // umulh + mul + cmp + csinv.
+                (omega_core::arithmetic::ArithmeticDomain::Saturating, false) => 16,
+                // (s/u)mulh + mul + cmp(+asr) + b.eq + brk.
+                _ => 20,
+            };
         }
         return match (domain, target_signed) {
             // movz+movk MIN (8) + adds/subs (4) + b.vc (4) + csinv (4).

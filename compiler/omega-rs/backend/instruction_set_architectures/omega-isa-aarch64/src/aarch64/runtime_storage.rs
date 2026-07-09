@@ -32,7 +32,9 @@ use super::primitives::{
     encode_lslv_x_register, encode_lsrv_x_register, encode_move_x_register, encode_movz,
     encode_movz_w,
     encode_msub_w_register, encode_msub_x_register, encode_mul_x_register, encode_orr_x_register,
-    encode_adds_x_register, encode_conditional_branch_no_overflow, encode_csel_x, encode_csinv_x,
+    encode_adds_x_register, encode_compare_x_register_sign_broadcast,
+    encode_conditional_branch_no_overflow, encode_csel_x, encode_csinv_x, encode_smulh_x,
+    encode_umulh_x,
     encode_sdiv_w_register, encode_sdiv_x_register, encode_store_byte_w_to_x, encode_store_w_to_x,
     encode_subs_x_register,
     encode_store_w17_to_x16,
@@ -783,14 +785,50 @@ fn append_saturating_trapping_arithmetic(
         // compare below cannot see it. Add/sub instead use the FLAGS the
         // x86_64 backend uses: ADDS/SUBS set C (unsigned carry/borrow) and V
         // (signed overflow), and CSEL/CSINV realize the clamp branchlessly.
-        // 64-bit multiply overflow needs the MULH-high-half check and stays
-        // fenced.
+        // 64-bit multiply overflow: the MULH high half is the witness --
+        // signed overflow iff SMULH != low >> 63 (the sign broadcast);
+        // unsigned iff UMULH != 0. The high half computes BEFORE the low
+        // half overwrites x17.
         if matches!(operator, StateGuardOperator::Multiply) {
-            return Err(Diagnostic::error(
-                "saturating/trapping MULTIPLY on 64-bit integers is not implemented yet on \
-                 aarch64 (needs the SMULH/UMULH high-half check)"
-                    .to_owned(),
-            ));
+            match (domain, target_signed) {
+                (ArithmeticDomain::Saturating, true) => {
+                    // smulh x15 ; eor x13 = true-result sign ; x12 = MIN ;
+                    // mul x17 ; cmp x15, x17 asr #63 ; b.eq +12 (keep) ;
+                    // cmp x13, #0 ; csinv x17, x12, x12, MI (MIN, else MAX).
+                    bytes.extend(encode_smulh_x(15, 17, 26));
+                    bytes.extend(encode_eor_x_register(13, 17, 26));
+                    append_unsigned_immediate(bytes, 12, i64::MIN as u64); // 2 instr
+                    bytes.extend(encode_mul_x_register(17, 17, 26));
+                    bytes.extend(encode_compare_x_register_sign_broadcast(15, 17));
+                    bytes.extend(encode_conditional_branch_equal(12)?);
+                    bytes.extend(encode_subs_x_immediate(31, 13, 0)?); // cmp x13, #0
+                    bytes.extend(encode_csinv_x(17, 12, 12, 0b0100)); // MI -> MIN, else MAX
+                }
+                (ArithmeticDomain::Saturating, false) => {
+                    // umulh x15 ; mul x17 ; cmp x15, #0 ;
+                    // csinv x17, x17, xzr, EQ (keep, else all-ones).
+                    bytes.extend(encode_umulh_x(15, 17, 26));
+                    bytes.extend(encode_mul_x_register(17, 17, 26));
+                    bytes.extend(encode_subs_x_immediate(31, 15, 0)?);
+                    bytes.extend(encode_csinv_x(17, 17, 31, 0b0000)); // EQ
+                }
+                (ArithmeticDomain::Trapping, true) => {
+                    bytes.extend(encode_smulh_x(15, 17, 26));
+                    bytes.extend(encode_mul_x_register(17, 17, 26));
+                    bytes.extend(encode_compare_x_register_sign_broadcast(15, 17));
+                    bytes.extend(encode_conditional_branch_equal(8)?);
+                    bytes.extend(encode_brk(0));
+                }
+                (ArithmeticDomain::Trapping, false) => {
+                    bytes.extend(encode_umulh_x(15, 17, 26));
+                    bytes.extend(encode_mul_x_register(17, 17, 26));
+                    bytes.extend(encode_subs_x_immediate(31, 15, 0)?);
+                    bytes.extend(encode_conditional_branch_equal(8)?);
+                    bytes.extend(encode_brk(0));
+                }
+                _ => unreachable!("only Saturating/Trapping reach this helper"),
+            }
+            return Ok(());
         }
         let subtract = matches!(operator, StateGuardOperator::Subtract);
         match (domain, target_signed) {
