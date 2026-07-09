@@ -366,7 +366,7 @@ pub fn runtime_storage_binary_write_width(
             StateGuardOperator::Add | StateGuardOperator::Subtract | StateGuardOperator::Multiply
         )
     {
-        saturating_trapping_arithmetic_width(byte_size, target_signed)
+        saturating_trapping_arithmetic_width(domain, operator, byte_size, target_signed)
     } else if saturating_signed_divide_modulo {
         saturating_signed_divide_modulo_width(
             byte_size,
@@ -394,9 +394,30 @@ pub fn runtime_storage_binary_write_width(
 
 /// Byte count of [`super::runtime_storage::append_saturating_trapping_arithmetic`]
 /// — the wide op + two range-checked clamp/trap blocks. MUST stay in lockstep.
-fn saturating_trapping_arithmetic_width(byte_size: usize, target_signed: bool) -> usize {
+fn saturating_trapping_arithmetic_width(
+    domain: omega_core::arithmetic::ArithmeticDomain,
+    operator: StateGuardOperator,
+    byte_size: usize,
+    target_signed: bool,
+) -> usize {
+    use omega_core::arithmetic::ArithmeticDomain;
+    if byte_size == 8 {
+        // Flag-based add/sub (multiply errors during emission; 4 is the
+        // harmless pre-error placeholder).
+        if matches!(operator, StateGuardOperator::Multiply) {
+            return 4;
+        }
+        return match (domain, target_signed) {
+            // movz+movk MIN (8) + adds/subs (4) + b.vc (4) + csinv (4).
+            (ArithmeticDomain::Saturating, true) => 20,
+            // adds/subs (4) + csinv/csel (4).
+            (ArithmeticDomain::Saturating, false) => 8,
+            // adds/subs (4) + b.cond (4) + brk (4).
+            _ => 12,
+        };
+    }
     if !matches!(byte_size, 1 | 2 | 4) {
-        // 8-byte / unsupported widths error during emission; the wide op (4) is a
+        // Unsupported widths error during emission; the wide op (4) is a
         // harmless placeholder for the pre-error `Vec::with_capacity`.
         return 4;
     }

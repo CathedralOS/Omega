@@ -1,0 +1,54 @@
+// 64-BIT saturating boundaries -- the flag-based clamp (ADDS/SUBS + CSINV on
+// aarch64, carry/overflow jcc on x86_64), which the narrower widths' wide-result
+// range compare cannot reach. All four directions at the REAL type boundaries:
+//   i64::MAX + 1        -> clamps to i64::MAX
+//   i64::MIN - 1        -> clamps to i64::MIN  (verified via MIN + MAX == -1)
+//   u64::MAX + 1        -> clamps to u64::MAX  (via 0 - 1 wrapped? u64 built at runtime)
+//   u64 5 - 10          -> clamps to 0
+// Values are built through runtime fields so the const folder cannot pre-clamp.
+// Exits 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    a: i64 in Saturating;
+    b: i64 in Saturating;
+    u: u64 in Saturating;
+    v: u64 in Saturating;
+    chk: i64 in Wrapping;
+}
+machine Main::main(&mut self) {
+    // i64 positive overflow: MAX + 1 -> MAX.
+    self.a = 9223372036854775807;
+    self.b = self.a + 1;
+    transition self.b == 9223372036854775807 { true -> neg() _ -> bad1() }
+    state neg(&mut self) {
+        // i64 negative underflow: MIN - 1 -> MIN. MIN spelled via -MAX - 1.
+        self.a = 0 - 9223372036854775807;
+        self.a = self.a - 1;
+        self.b = self.a - 1;
+        // b == MIN <=> b + MAX == -1.
+        self.chk = self.b + 9223372036854775807;
+        transition self.chk == 0 - 1 { true -> uadd() _ -> bad2() }
+    }
+    state uadd(&mut self) {
+        // u64 overflow: MAX + 5 -> MAX. MAX built at runtime (0 - 1 is not
+        // spellable unsigned; saturate 0 - 1 -> 0, so build MAX via clamping
+        // a huge add chain instead: (1<<63) + (1<<63) saturates to MAX).
+        self.u = 4611686018427387904;
+        self.u = self.u + self.u;      // 1<<63 fits
+        self.u = self.u + self.u;      // (1<<63)+(1<<63) -> saturates to u64::MAX
+        self.v = self.u + 5;           // MAX + 5 -> MAX
+        transition self.v == self.u { true -> usub() _ -> bad3() }
+    }
+    state usub(&mut self) {
+        // u64 underflow: 5 - 10 -> 0.
+        self.u = 5;
+        self.v = self.u - 10;
+        transition self.v == 0 { true -> ok() _ -> bad4() }
+    }
+    state ok(&mut self)  { self.console.exit_process(70); }
+    state bad1(&mut self) { self.console.exit_process(81); }
+    state bad2(&mut self) { self.console.exit_process(82); }
+    state bad3(&mut self) { self.console.exit_process(83); }
+    state bad4(&mut self) { self.console.exit_process(84); }
+}

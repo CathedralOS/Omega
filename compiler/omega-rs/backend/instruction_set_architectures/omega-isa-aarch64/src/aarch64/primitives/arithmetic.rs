@@ -61,6 +61,71 @@ pub(in crate::aarch64) fn append_add_x_constant(
     Ok(())
 }
 
+/// `ADDS Xd, Xn, Xm` -- flag-setting add (C = unsigned carry, V = signed
+/// overflow), the 64-bit overflow-detection workhorse.
+pub(in crate::aarch64) fn encode_adds_x_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0xAB000000
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `SUBS Xd, Xn, Xm` -- flag-setting subtract (C clear = borrow, V = signed
+/// overflow). `CMP` is this with Xd = XZR.
+pub(in crate::aarch64) fn encode_subs_x_register(
+    destination_register: u8,
+    left_register: u8,
+    right_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0xEB000000
+            | (u32::from(right_register) << 16)
+            | (u32::from(left_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `CSEL Xd, Xn, Xm, <cond>` -- Xn when the condition holds, else Xm.
+pub(in crate::aarch64) fn encode_csel_x(
+    destination_register: u8,
+    true_register: u8,
+    false_register: u8,
+    condition: u32,
+) -> [u8; 4] {
+    encode_instruction(
+        0x9A800000
+            | (u32::from(false_register) << 16)
+            | (condition << 12)
+            | (u32::from(true_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
+/// `CSINV Xd, Xn, Xm, <cond>` -- Xn when the condition holds, else NOT(Xm).
+/// `csinv Xd, Xm, Xm, cond` therefore picks a bound or its complement in one
+/// instruction (i64::MIN vs i64::MAX), and `csinv Xd, Xn, XZR, cond` yields
+/// all-ones (u64::MAX) on the else-path.
+pub(in crate::aarch64) fn encode_csinv_x(
+    destination_register: u8,
+    true_register: u8,
+    false_register: u8,
+    condition: u32,
+) -> [u8; 4] {
+    encode_instruction(
+        0xDA800000
+            | (u32::from(false_register) << 16)
+            | (condition << 12)
+            | (u32::from(true_register) << 5)
+            | u32::from(destination_register),
+    )
+}
+
 pub(in crate::aarch64) fn encode_add_x_register(
     destination_register: u8,
     left_register: u8,

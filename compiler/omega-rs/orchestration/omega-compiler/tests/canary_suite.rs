@@ -15934,6 +15934,34 @@ fn runtime_nested_payload_range_narrowing_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_saturating_wide_boundaries_exit_canary_runs() {
+    // 64-bit saturating at the REAL boundaries -- the flag-based clamp
+    // (ADDS/SUBS + CSINV on aarch64; the narrower widths' wide-result compare
+    // cannot reach 64 bits). i64::MAX+1 -> MAX, MIN-1 -> MIN, u64 MAX+5 ->
+    // MAX, 5-10 -> 0; exit 70.
+    let canary = pass_canary("arithmetic/runtime_saturating_wide_boundaries_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-satwide-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wide saturating boundaries canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("wide saturating boundaries canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected all four 64-bit saturating boundary directions to clamp (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_trapping_overflow_traps_canary_runs() {
     // Trapping must TRAP: i32::MAX + 1 under `in Trapping` executes ud2, so the
     // process dies with a crash status and never reaches exit_process(70). If a
