@@ -274,10 +274,12 @@ fn sample_file_journal_exits_7() {
 }
 
 // The `note_vault` CLI SAMPLE (samples/cli/systems/note_vault) -- file_journal's
-// WRAPPER-layer counterpart: create_new -> write -> append x2 -> metadata_path
-// -> read_all -> open_with{write,truncate} compaction -> copy -> remove x2,
-// tallying its 9 verified steps. Runs from a temp cwd so the vault files land
-// there. Both engines probe-verified at 9 when this landed.
+// WRAPPER-layer counterpart, now the FULL wrapper surface: create_dir_all ->
+// create_new -> write -> append x2 -> metadata_path -> read_all ->
+// open_with{write,truncate} compaction -> copy -> read_dir_count audit ->
+// remove -> remove_dir_all teardown, tallying its 12 verified steps. Runs
+// from a temp cwd so the vault tree lands there. Both engines
+// probe-verified at 12 when the dir-walk extension landed (2026-07-09).
 #[test]
 fn sample_note_vault_exits_9() {
     let main_path = repo_root().join("samples/cli/systems/note_vault/main.omg");
@@ -295,7 +297,7 @@ fn sample_note_vault_exits_9() {
         .output()
         .expect("run");
     let _ = std::fs::remove_dir_all(&build_dir);
-    assert_eq!(out.status.code(), Some(9), "note_vault should verify all 9 steps and exit 9");
+    assert_eq!(out.status.code(), Some(12), "note_vault should verify all 12 steps and exit 12");
 }
 
 // The arm64 FLOAT-ARGUMENT calling convention: Math::round_nearest(x: f64) -> i64
