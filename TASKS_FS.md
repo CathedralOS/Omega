@@ -129,9 +129,12 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    nested inline VALUE-call chains (entry -> holder.run() ->
    self.only.get()) scramble their result-forwarding copies natively
    (`frame@12 -> frame@0` before frame@12 is written -> ZII delivered;
-   interp 70 vs native 71). Result-plumbing/expansion-ordering, i.e.
-   call_result territory (parallel thread's hot file -- extend, don't
-   rewrite); the receiver reads themselves resolve correctly. Probe corpus: scratchpad/slice2 — its two
+   interp 70 vs native 71). Result-plumbing/expansion-ordering.
+   CLAIMED by the fs lane 2026-07-11e (survey: parallel thread is on
+   equality-lowering legs, not result plumbing; call_result_blockers.rs
+   stays extend-only if touched at all -- the fix target is expansion
+   ORDERING, not the fence); the receiver reads themselves resolve
+   correctly. Probe corpus: scratchpad/slice2 — its two
    frontier return-write shapes still stand: (a) a dispatched callee
    forwarding its own call-bound LOCAL as terminal; (b) the
    field-carrier restructure through a nested receiver.
