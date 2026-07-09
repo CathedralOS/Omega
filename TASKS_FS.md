@@ -92,28 +92,33 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    Debug instrumentation kept env-gated (OMEGA_DEBUG_RECEIVER + the BTW
    binary-write entry prints).
 
-3. **Receiver slice 2** — non-entry callers. ATTEMPTED 2026-07-10z and
-   REVERTED same-session (regressed both native_dungeon canaries + the
-   differential): the naive design — parent contexts recorded at minting,
-   one forward pass composing ctx_base[child] = ctx_base[parent] +
-   receiver offset, inline caller_base composition, fence entry-
-   restriction dropped — CONFLICTS with machine_storage_offset's by-type
-   walk, which ALREADY resolves nested offsets by walking the entry
-   layout recursively (nested_machine_storage_offset): for single-
-   instance nesting the by-type result is the full composed offset, and
-   the override DOUBLE-COUNTS or mismatches. The correct design must
-   either fully REPLACE the nested walk (compose from ROOT always, treat
-   by-type as pure fallback) or make override/walk mutually exclusive
-   per hop — decide with the dungeon canaries (nested machines,
-   single-instance) as the acceptance oracle next session. TWO NEW
-   frontier shapes found while probing (both pre-existing loud fences,
-   NOT slice-2 artifacts — repro scratchpad/slice2): (a) a dispatched
-   callee forwarding its own call-bound LOCAL as terminal ("no selected
-   return-write" — adjacent to the parallel thread's bind-first work);
-   (b) same refusal for the FIELD-carrier restructure through a nested
-   receiver (mid.run() field-read terminal into main) — the outer
-   return-write serve fails to resolve there even through the FIRST
-   receiver.
+3. **Receiver slice 2** — non-entry callers. TWO attempts reverted
+   (2026-07-10z naive composition; 2026-07-11a entry-rooted instance
+   paths), both regressing the dungeon oracle — and the second attempt's
+   report diff found the REAL conflict: a COORDINATE-SYSTEM mismatch.
+   The base computations walk DATA-field offsets
+   (omega_layout::field_path_offset over data fields), but machine
+   storage is laid out in MACHINE-LAYOUT coordinates
+   (machine_storage_offset / nested_machine_storage_offset over machine
+   layouts + owned data). The two coincide for plain attached-data
+   nesting (why slice 1 holds green) and DIVERGE where machines carry
+   owned data or layouts spread (the dungeon: working reads @0/@4112
+   where the data-path walk says game.view=4096 — the crash was reads
+   through the wrong coordinate system, not wrong instances). NEXT
+   DESIGN: compute receiver bases in machine-layout coordinates — a
+   receiver-path-directed variant of nested_machine_storage_offset
+   (walk machine layouts hop by hop, selecting the SPECIFIC field per
+   hop instead of first-type-match) — then the slice-1 table, the
+   inline composition, and the by-type fallback all live in ONE
+   coordinate system. Verify slice 1's simple cases still resolve
+   identically (they must, definitionally), dungeon canaries as the
+   oracle, then the slice2 probe (scratchpad/slice2 — note its two
+   frontier shapes below need their own serves first for end-to-end).
+   Frontier shapes found while probing (pre-existing loud fences, repro
+   scratchpad/slice2): (a) a dispatched callee forwarding its own
+   call-bound LOCAL as terminal; (b) the field-carrier restructure
+   through a nested receiver (outer field-read terminal return-write
+   does not serve).
 
 4. **Windows-session bundle** (needs a Windows host): verify the stat-row
    migration natively; WINDOWS_IMPORT_ROWS migration into provides files;
