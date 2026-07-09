@@ -20772,14 +20772,22 @@ stderr:
 // values, so on windows it emits msvcrt O_CREAT|O_EXCL (not darwin's O_CREAT
 // 0x200 == msvcrt O_TRUNC). Discriminating: create_new on an existing file
 // returns AlreadyExists (proves O_EXCL took effect, no truncation). NATIVE-ONLY:
-// the interpreter still decodes darwin flag numerology (msvcrt flags would miss
-// its O_CREAT/O_EXCL bit checks), so no interp oracle here -- the per-target
-// interp decode is the follow-up rung.
+// the interpreter now decodes the HOST's flag numerology (host_open_flags), so
+// it matches the host-targeted program -- interp oracle + native, differential.
 #[cfg(windows)]
 #[test]
 fn windows_wrapper_create_new_exit_canary_runs() {
     let canary = pass_canary("filesystem/windows_wrapper_create_new_exit");
     let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("create_new canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (create_new + O_EXCL AlreadyExists), got {}",
+        outcome.exit_code
+    );
 
     let build_dir =
         std::env::temp_dir().join(format!("omega-fs-create-new-{}", std::process::id()));

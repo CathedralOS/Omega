@@ -58,12 +58,22 @@ wrapper composes open flags from per-target `FilesystemHost` provides VALUES
 msvcrt bits (O_CREAT 0x100, O_EXCL 0x400) instead of darwin's (O_CREAT 0x200
 == msvcrt O_TRUNC = the silent-truncation hazard). The windows `open_create`
 lowering (`_open`, 3-arg) is RE-ENABLED. open_with's per-target single-bit
-flags use a branch-free arithmetic-shift mask (`((b as i32)<<31)>>31 & VALUE`)
-since exact-arith rejects `*`/`+` on bool casts; the composed word lands in a
-new `open_flags` FIELD (host-call scalar-arg idiom). Pinned by
-filesystem/windows_wrapper_create_new_exit (native-only -- the interpreter
-still decodes DARWIN flag numerology, so a per-target INTERP flag decode is
-the next rung to make these differential). Still fenced on windows:
+flags use `(bool as i32) << O_XXX_BIT` -- the flags are provided as per-target
+BIT POSITIONS (not values), so the shift of a small positive AGREES between the
+native i32 backend and the i64 interpreter (a sign-bit mask `((b<<31)>>31)&VALUE`
+worked natively but the interp computes it in i64 where `1<<31` stays positive
+-- a real native-vs-interp `>>` width divergence, sidestepped here). The
+composed word lands in a new `open_flags` FIELD (host-call scalar-arg idiom). Pinned by
+filesystem/windows_wrapper_create_new_exit -- now DIFFERENTIAL (2026-07-08):
+the interpreter decodes the HOST's flag BIT POSITIONS via `host_open_flags`
+(evaluator.rs, cfg!(target_os)-selected, mirroring the filesystem_host.omg
+provides bits). No target threading needed -- the differential oracle compiles
+for host() and runs on the host, so the host layout matches the substituted
+program; the differential canary is the drift guard against the Rust mirror
+diverging from the .omg source. ⚠️ LESSON: the flag migration first broke the
+omega-interpreter COVERAGE tests (create_new/open_options), missed because that
+iteration only ran `--test differential`; run the FULL `-p omega-interpreter`
+(coverage.rs too) after any std-wrapper or interp change. Still fenced on windows:
 copy/exists/remove_dir_all (set_len/read_metadata/read_dir rows) and
 create_dir_all's DEEP walk (runtime SUBSLICE paths need a NUL-terminated
 scratch copy). ATTEMPTED 2026-07-07 (reverted clean, findings recorded): the
