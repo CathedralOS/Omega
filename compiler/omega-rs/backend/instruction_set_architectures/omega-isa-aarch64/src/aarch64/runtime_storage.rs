@@ -4435,8 +4435,15 @@ mod tests {
             &[(1usize, 0usize), (4, 0), (8, 8), (24, 16), (40, 0)]
         {
             let mut bytes = Vec::new();
-            append_runtime_frame_index_target_address(&mut bytes, 0x10, 0x40, element_size, field_offset)
-                .unwrap();
+            append_runtime_frame_index_target_address(
+                &mut bytes,
+                16,
+                0x10,
+                0x40,
+                element_size,
+                field_offset,
+            )
+            .unwrap();
             assert_eq!(
                 bytes.len(),
                 widths::runtime_frame_index_setup_width(element_size, field_offset),
@@ -4892,24 +4899,35 @@ mod tests {
         assert_eq!(brk_count, 2, "expected a BRK on each of the two bound checks");
     }
 
-    /// 64-bit saturating/trapping arithmetic is not implemented (the wide-result
-    /// range compare cannot detect a 64-bit overflow); it must error cleanly
-    /// rather than emit wrong code.
+    /// 64-bit saturating/trapping arithmetic (the flag/MULH-based clamps):
+    /// every (domain x signedness x operator) arm's emitted length must match
+    /// the width helper, or relocation offsets drift.
     #[test]
-    fn saturating_eight_byte_arithmetic_errors() {
+    fn saturating_eight_byte_arithmetic_width_matches_emission() {
         use omega_core::arithmetic::ArithmeticDomain;
-        let (arena, left, right) = immediate_pair(5, 5);
-        let result = encode_runtime_storage_binary_write(
-            &arena,
-            0x10,
-            8,
-            left,
-            StateGuardOperator::Add,
-            right,
-            false,
-            ArithmeticDomain::Saturating,
-            true,
-        );
-        assert!(result.is_err(), "8-byte saturating add must error, not miscompile");
+        for domain in [ArithmeticDomain::Saturating, ArithmeticDomain::Trapping] {
+            for signed in [true, false] {
+                for operator in [
+                    StateGuardOperator::Add,
+                    StateGuardOperator::Subtract,
+                    StateGuardOperator::Multiply,
+                ] {
+                    let (arena, left, right) = immediate_pair(5, 5);
+                    let bytes = encode_runtime_storage_binary_write(
+                        &arena, 0x10, 8, left, operator, right, false, domain, signed,
+                    )
+                    .unwrap_or_else(|error| {
+                        panic!("8-byte {domain:?} {operator:?} signed={signed} should encode: {error}")
+                    });
+                    assert_eq!(
+                        bytes.len(),
+                        widths::runtime_storage_binary_write_width(
+                            &arena, 0x10, 8, left, operator, right, false, domain, signed,
+                        ),
+                        "width drift: {domain:?} {operator:?} signed={signed}"
+                    );
+                }
+            }
+        }
     }
 }
