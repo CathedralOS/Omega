@@ -113,10 +113,25 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    writes). Self-call chain composition
    landed 2026-07-11c (a self-call context INHERITS its parent's
    composed base when attached data matches; pin:
-   calls/runtime_selfcall_chain_second_receiver_exit). Still open in
-   this lane: the INLINE route for non-entry callers
-   (receiver_base_for's unique-call recovery is still
-   entry-restricted; relax with the same caller-base composition). Probe corpus: scratchpad/slice2 — its two
+   calls/runtime_selfcall_chain_second_receiver_exit). The INLINE
+   route landed 2026-07-11d: receiver_base_for's recovery is a bounded
+   CALL-CHAIN WALK (anchor = the case's composed table base; each hop
+   adds the receiver's offset in the current machine's layout, self
+   calls +0; distinct candidate bases = ambiguous -> refuse). The walk
+   ignores the `reachable` flag -- spliced-out originals keep
+   reachable=false while their copies run inside the case (which is
+   also why the FENCE, which skips unreachable calls, never sees fully
+   inline non-entry chains: a PRE-EXISTING silent-wrong window, now
+   resolved correctly for recoverable shapes; ambiguous ones still
+   need fence visibility -- follow-up). NEW FRONTIER found by the
+   inline probe (PRE-EXISTING, receiver-independent, repro
+   scratchpad/slice2/nested_inline_chain_single + _second_receiver):
+   nested inline VALUE-call chains (entry -> holder.run() ->
+   self.only.get()) scramble their result-forwarding copies natively
+   (`frame@12 -> frame@0` before frame@12 is written -> ZII delivered;
+   interp 70 vs native 71). Result-plumbing/expansion-ordering, i.e.
+   call_result territory (parallel thread's hot file -- extend, don't
+   rewrite); the receiver reads themselves resolve correctly. Probe corpus: scratchpad/slice2 — its two
    frontier return-write shapes still stand: (a) a dispatched callee
    forwarding its own call-bound LOCAL as terminal; (b) the
    field-carrier restructure through a nested receiver.
