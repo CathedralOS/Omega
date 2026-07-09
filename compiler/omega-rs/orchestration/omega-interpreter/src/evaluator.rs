@@ -335,11 +335,24 @@ pub(crate) fn run_granted_build_machine_arguments(
                         evaluator.real_fs = Some(real_fs::RealFs::new(Some(grants)));
                     }
                 }
-                match evaluator.run_build_machine_arguments_with_policy(
+                let result = evaluator.run_build_machine_arguments_with_policy(
                     machine_name,
                     arguments,
                     true,
-                ) {
+                );
+                // Build logging reaches the REAL streams (owner answer #5:
+                // "the interpreter should never just catch it") -- including
+                // on failure, where the partial log is the diagnostic.
+                use std::io::Write as _;
+                if !evaluator.stdout.is_empty() {
+                    let _ = std::io::stdout().write_all(&evaluator.stdout);
+                    let _ = std::io::stdout().flush();
+                }
+                if !evaluator.stderr.is_empty() {
+                    let _ = std::io::stderr().write_all(&evaluator.stderr);
+                    let _ = std::io::stderr().flush();
+                }
+                match result {
                     Ok(values) => Ok(values),
                     Err(Halt::Exit(code)) => Err(format!(
                         "the machine attempted to exit the process (code {code}) instead of returning"
@@ -2516,7 +2529,23 @@ impl<'program> Evaluator<'program> {
 
         // Everything past the Filesystem branch is a NON-fs host boundary
         // (console, exit, clock, gui) -- the granted-build backstop's line.
-        self.non_fs_host_boundary_touched = true;
+        // EXCEPTION (owner answer #5, 2026-07-11k): the CONSOLE WRITE family
+        // is served during granted builds. The effect gate already verified
+        // statically that the build machine reaches console only through
+        // DECLARED stdout_io/stderr_io rows (a row-less boundary surfaces as
+        // opaque `host_boundary` and refuses before evaluation starts), and
+        // the granted entry flushes the buffered bytes to the compiler's
+        // real streams -- "the interpreter should never just catch it".
+        // Everything else keeps tripping the backstop (defense in depth
+        // beneath the gate). The name family IS the interpreter's console
+        // dispatch (the serve below matches the same names).
+        let served_console_write = matches!(
+            target,
+            "write" | "write_line" | "write_error" | "write_error_line"
+        );
+        if !served_console_write {
+            self.non_fs_host_boundary_touched = true;
+        }
 
         let arguments = self
             .program
