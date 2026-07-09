@@ -1,0 +1,34 @@
+// FAIL CANARY -- PARAM RECEIVER, MULTI-INSTANCE FAMILY (fenced
+// 2026-07-11h): a spliced helper takes `&mut Tally` and calls through
+// the param while TWO Tally instances are reachable. The by-type walk
+// reads the FIRST instance regardless of which was passed
+// (`probe(&mut self.second)` read `first`: silent-wrong 7-for-9 native
+// vs interp before the fence). Blocks loudly until the receiver walk
+// follows param BINDINGS to the argument's receiver path (the recorded
+// serve design).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Tally { count: i32 in Wrapping; }
+machine Tally::get(&mut self) -> i32 in Wrapping {
+    transition true { true -> done(self.count) }
+    state done(&mut self, value: i32) -> i32 { value }
+}
+data Holder { first: Tally; second: Tally; }
+machine Holder::probe(&mut self, t: &mut Tally) -> i32 in Wrapping {
+    let v: i32 in Wrapping = t.get();
+    transition true { true -> done(v) }
+    state done(&mut self, v: i32) -> i32 { v }
+}
+machine Holder::run(&mut self) -> i32 in Wrapping {
+    self.first.count = 7;
+    self.second.count = 9;
+    let v: i32 in Wrapping = self.probe(&mut self.second);
+    transition true { true -> done(v) }
+    state done(&mut self, v: i32) -> i32 { v }
+}
+data Main { console: Console; holder: Holder; flag: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.flag = self.holder.run();
+    transition self.flag == 9 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

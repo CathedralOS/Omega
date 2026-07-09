@@ -218,11 +218,14 @@ pub(crate) fn collect_contained_receiver_blockers(
             if composed && unique_in_family && resolved.is_some() {
                 continue;
             }
-            // A PARAM/LOCAL receiver inside spliced code resolves through the
-            // expansion's BINDING substitution, not the by-type field walk --
-            // the param blocker below was written for reachable dispatch and
-            // would falsely block working splices. Left un-fenced (recorded
-            // residual), matching the pre-liveness behavior for this shape.
+            // A PARAM/LOCAL receiver inside spliced code: the runtime resolves
+            // it with the ENTRY-anchored by-type walk, which is EXACT when the
+            // target family has at most ONE instance (pinned by the
+            // single-instance probe) and reads the FIRST instance otherwise --
+            // `probe(&mut self.second)` read `first` (silent-wrong, probed
+            // native 71 vs interp 70). Accept the provable case; block the
+            // rest until the walk follows param BINDINGS to the argument's
+            // receiver path (the recorded serve design).
             if state_call.receiver_name.as_str() != "self"
                 && input
                     .layouts
@@ -234,6 +237,30 @@ pub(crate) fn collect_contained_receiver_blockers(
                             .any(|field| field.name == state_call.receiver_name)
                     })
             {
+                let instances = machine_layout_by_symbol(input.layouts, input.entry_key.machine)
+                    .map(|entry_layout| {
+                        count_family_instances(
+                            input.layouts,
+                            entry_layout,
+                            state_call.target_key.machine,
+                            target_attached_data,
+                            &mut Vec::new(),
+                        )
+                    })
+                    .unwrap_or(0);
+                if instances > 1 {
+                    blockers.insert(blocker(
+                        "state calls",
+                        &format!(
+                            "method call receiver `{}` is a parameter or local inside \
+                             spliced code, and {} `{}` instances are reachable -- the \
+                             by-type walk would read the FIRST instance regardless of \
+                             which one was passed. Pass through a contained field, or \
+                             give each instance a distinct data type.",
+                            state_call.receiver_name, instances, target_attached_data,
+                        ),
+                    ));
+                }
                 continue;
             }
         }
@@ -371,6 +398,76 @@ pub(crate) fn collect_contained_receiver_blockers(
             ),
         ));
     }
+}
+
+/// How many distinct storage instances of the target's data family the
+/// entry's layout tree holds -- the by-type walk's search space. Mirrors
+/// `first_type_match_offset`'s descent but COUNTS matches instead of taking
+/// the first: at 0 or 1, the by-type pick is provably exact; at 2+, a
+/// param-receiver call cannot prove which instance it was handed.
+fn count_family_instances(
+    layouts: &LayoutPlan,
+    machine_layout: &MachineLayout,
+    target_machine: SymbolHandle,
+    target_attached_data: &str,
+    visited: &mut Vec<SymbolHandle>,
+) -> usize {
+    if visited.contains(&machine_layout.symbol) {
+        return 0;
+    }
+    visited.push(machine_layout.symbol);
+    let count = count_family_instances_in_span(
+        layouts,
+        machine_layout.fields,
+        target_machine,
+        target_attached_data,
+        visited,
+    );
+    visited.pop();
+    count
+}
+
+fn count_family_instances_in_span(
+    layouts: &LayoutPlan,
+    fields_span: HandleSpan<FieldLayout>,
+    target_machine: SymbolHandle,
+    target_attached_data: &str,
+    visited: &mut Vec<SymbolHandle>,
+) -> usize {
+    let Some(fields) = layouts.fields.span(fields_span) else {
+        return 0;
+    };
+    let mut count = 0;
+    for field in fields {
+        if field.type_name.as_ref() == target_attached_data {
+            count += 1;
+            continue;
+        }
+        if let Some(nested) = field_machine_layout(layouts, field) {
+            if nested.symbol == target_machine {
+                count += 1;
+                continue;
+            }
+            count += count_family_instances(
+                layouts,
+                nested,
+                target_machine,
+                target_attached_data,
+                visited,
+            );
+            continue;
+        }
+        if let Some(data_fields) = field_data_layout_fields(layouts, field) {
+            count += count_family_instances_in_span(
+                layouts,
+                data_fields,
+                target_machine,
+                target_attached_data,
+                visited,
+            );
+        }
+    }
+    count
 }
 
 /// Machines whose code EXECUTES via splices even though their own states are
