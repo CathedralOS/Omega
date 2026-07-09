@@ -21020,6 +21020,51 @@ fn runtime_value_call_entry_field_write_exit_canary_runs() {
 // non-guard prelude used to re-emit scalar initializer writes wrong-timed
 // with cross-callee resolution -- the duplicated division executed on the
 // other callee's ZII operand and #DE-crashed. A negative exit status = the
+// A value callee whose lets live in a POST-ENTRY state (entry -> `work`
+// (div/mod lets) -> `emit` (mul+add let) -> return). Locks in that the #2B
+// splice machinery delivers straight-line lets across non-entry states of an
+// inlined value callee -- swap_digits(42) = 24 on both engines.
+#[test]
+fn runtime_value_callee_post_entry_lets_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_value_callee_post_entry_lets_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("post-entry-lets canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 24,
+        "interpreter oracle should exit 24 (swap_digits(42)), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-post-entry-lets-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("post-entry-lets canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("post-entry-lets canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(24),
+        "expected post-entry-state lets to deliver swap_digits(42)=24, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // crash is back; 1 = the second callee's chain miscomputed.
 #[test]
 fn runtime_cross_callee_division_exit_canary_runs() {
