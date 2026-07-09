@@ -416,10 +416,18 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
   relative; `create_dir_all` intermediates best-effort; raw boundary in its own
   std module; `read_dir` single 512-byte fill per call.
 
-## Windows metadata / stat migration -- SCOPED, needs a decode refactor first (2026-07-08)
+## Windows metadata / stat migration -- ✅ DONE (2026-07-08)
 
-Investigated deeply, then REVERTED (too big for one clean pass). Findings so
-the next attempt is mechanical:
+NATIVE WINDOWS METADATA WORKS. The decode reads per-target `_stat64` offsets;
+canary `filesystem/windows_wrapper_metadata_exit` (RUN + differential 70);
+`cli__systems__file_journal` now compiles+runs on windows (4 pre-existing sample
+fails -> 3). The blocker was NOT the offsets -- it was the value-machine
+computed-index miscompile ([[value-machine-computed-index-miscompile]]), now
+fixed (pure-const index fold). Follow-ups: `read_symlink_metadata` stays fenced
+(msvcrt has no lstat); a bool-returning value-machine method bound to a local
+(`let x = meta.is_file()`) mis-delivers on windows native (separate task -- the
+metadata canary uses the inline `(meta.mode & 61440) == 32768` form). How it
+landed, for reference:
 - msvcrt `_stat64` WIRES and works: an import row (`Filesystem stat ->
   msvcrt.dll _stat64`) + `read_metadata` lowering unfences the raw stat op;
   `exists`/`try_exists` (which use only the stat RC, not the decode) then pass
