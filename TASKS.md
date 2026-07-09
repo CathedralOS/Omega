@@ -73,11 +73,17 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   interp resolves the node type for >> now (it did not -- the u64 leg of the
   new canary caught it; narrower widths were accidentally right through the
   extended-i64 representation). runtime_shift_right_atwidth_exit pins 7 legs
-  + linux_x64 saturate+sar byte pins. REMAINING -- slice B tail: the
-  indexed/pointee binary-write kinds carry NO domain field, so wrapping
-  shifts into indexed targets still hardware-mask on both ISAs -- thread the
-  domain or route through the storage kind; align the selection-level domain
-  witness to lhs-only for shifts. Slice C: Saturating/Trapping shl (clamp/trap on shifted-out bits;
+  + linux_x64 saturate+sar byte pins. Slice B tail CLOSED by audit
+  (2026-07-14): the feared indexed/pointee hole does not exist -- the
+  planner routes non-Exact binary VALUES through the operand path (whose
+  domain machinery clamps on both ISAs), never fusing them into the
+  domain-less indexed/pointee binary-write kinds; double-indexed targets
+  refuse binary values loudly at compile. The domain witness already
+  derives from the LHS (node type), so Exact-count spellings clamp too.
+  runtime_shift_atwidth_indexed_targets_exit pins the routing (6 legs:
+  machine/frame indexed, pointee, exact-count, << and >>) -- if the planner
+  ever fuses wrapping shifts into those kinds, it trips differential; thread
+  the domain through the kind encoders then. Slice C: Saturating/Trapping shl (clamp/trap on shifted-out bits;
   the shl_saturating parked canary).
 - **FLOAT-TO-INT half still open (no ruling).** `1e300 as i32`: aarch64
   FCVTZS + interp saturate to i32::MAX; x86 CVTTSD2SI gives the 0x80000000
