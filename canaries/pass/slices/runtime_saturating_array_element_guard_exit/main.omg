@@ -11,21 +11,33 @@
 // representable in u8, unlike 256, whose byte-width truncation to 0 made an
 // earlier draft fail on BOTH legs identically -- the literal-out-of-range
 // compare face of the const-fold family). Runtime indexes keep the folder
-// out. Exit 70.
+// out. Third direction: BOTH operands runtime-indexed (no sibling for the
+// witness fallback). Exit 70.
 boundary trait Console { machine exit_process(return_code: i32); }
-data Main { console: Console; sarr: [u8; 3] in Saturating; idx: usize; }
+data Main { console: Console; sarr: [u8; 3] in Saturating; idx: usize; jdx: usize; }
 machine Main::main(&mut self) {
     self.sarr = [200, 100, 50];
     self.idx = 0;
-    transition self.idx < 3 { true -> go(self.idx) _ -> bad() }
-    state go(&mut self, i: usize [0..=2]) {
-        transition (self.sarr[i] + self.sarr[1] == 255) { true -> ordered() _ -> bad_eq() }
+    self.jdx = 1;
+    transition (self.idx < 3) && (self.jdx < 3) { true -> go(self.idx, self.jdx) _ -> bad() }
+    state go(&mut self, i: usize [0..=2], j: usize [0..=2]) {
+        transition (self.sarr[i] + self.sarr[1] == 255) { true -> ordered(i, j) _ -> bad_eq() }
     }
-    state ordered(&mut self) {
-        transition (self.sarr[self.idx] + self.sarr[1] <= 255) { true -> good() _ -> bad_ord() }
+    state ordered(&mut self, i: usize [0..=2], j: usize [0..=2]) {
+        // Bounded params forward range-preservingly (per-state env facts
+        // cannot re-prove self.idx here; the param chain carries the proof).
+        transition (self.sarr[i] + self.sarr[1] <= 255) { true -> both_runtime(i, j) _ -> bad_ord() }
+    }
+    state both_runtime(&mut self, i: usize [0..=2], j: usize [0..=2]) {
+        // BOTH operands runtime-indexed: no const-indexed sibling exists for
+        // the `.or()` witness fallback to lean on -- each side must resolve
+        // its element domain independently (trace-verified 2026-07-10n: both
+        // ride the Name([self, sarr]) route).
+        transition (self.sarr[i] + self.sarr[j] == 255) { true -> good() _ -> bad_both() }
     }
     state good(&mut self) { self.console.exit_process(70); }
     state bad(&mut self) { self.console.exit_process(71); }
     state bad_eq(&mut self) { self.console.exit_process(72); }
     state bad_ord(&mut self) { self.console.exit_process(73); }
+    state bad_both(&mut self) { self.console.exit_process(74); }
 }
