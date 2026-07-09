@@ -1859,6 +1859,9 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     ("arithmetic/shl_saturating_domain_divergence", 72, PendingInterpOutcome::Exit(70)),
     ("arithmetic/unsigned_min_max_wrapping_local_divergence", 78, PendingInterpOutcome::Exit(77)),
     ("expressions/dead_trapping_let_not_elided", 7, PendingInterpOutcome::Traps),
+    // Multi-arm texteq-valued locals: leaf route emits no text compare;
+    // arm slots stay ZII (see the pending canary header). Interp correct.
+    ("calls/multiarm_texteq_local_divergence", 71, PendingInterpOutcome::Exit(70)),
 ];
 
 /// COLLECT-ALL runtime drift-check over the parked divergences above.

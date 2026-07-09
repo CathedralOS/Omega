@@ -28535,6 +28535,10 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {
+        path: "calls/multiarm_texteq_local_divergence",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
         path: "expressions/dead_trapping_let_not_elided",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
