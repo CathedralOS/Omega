@@ -16402,6 +16402,32 @@ fn runtime_float_compare_bool_exit_canary_runs() {
 }
 
 #[test]
+fn deep_nested_write_paths_exit_canary_runs() {
+    // Deep-nesting writes land without bleeding into ZII neighbors:
+    // struct-in-struct, sum-in-struct, array-of-struct element field.
+    let canary = pass_canary("structs/deep_nested_write_paths_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-deepw-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("deep nested write canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("deep nested write canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "deep nested write canary should pass all legs (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn zii_default_composite_exit_canary_runs() {
     // ZII composites: a never-written sum dispatches as its first case with
     // zero payload; never-written array elements and nested fields read 0.
@@ -27548,6 +27574,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_position_branching_call_exit",
     "calls/runtime_value_call_let_combine_exit",
     "structs/runtime_nested_field_accumulate_loop_exit",
+    "structs/deep_nested_write_paths_exit",
     "structs/runtime_enum_classify_dispatch_exit",
     "calls/runtime_value_transition_unsigned_guard_exit",
     "calls/runtime_exit_code_exit",

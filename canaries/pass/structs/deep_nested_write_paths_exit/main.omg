@@ -1,0 +1,58 @@
+// RUN CANARY (exit 70) + interpreter differential. DEEP-NESTING WRITE
+// paths, each leg asserting the write LANDS and does NOT BLEED into ZII
+// neighbors: (1) a struct-in-struct field write (`self.nested.second.b`)
+// with the adjacent `a` still 0; (2) a SUM constructed into a struct field
+// (`self.holder.msg = Msg::Pong { .. }`) destructured back through the
+// nested path; (3) an array-of-struct ELEMENT field write (`self.pair[1].a`
+// -- indexed + member combined) with the sibling element and sibling field
+// both still 0. The offset math for these shapes (member-path accumulation,
+// case_variant tagging at depth, element scaling + field offset) is where a
+// layout regression corrupts adjacent storage first.
+// exits: 71 = nested write wrong/bled; 72 = sum-in-struct dispatch wrong;
+// 73 = nested sum payload wrong; 74 = element field write wrong/bled.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
+data Inner { a: u32; b: u32; }
+data Outer { first: Inner; second: Inner; }
+data Holder { tag: u32; msg: Msg; }
+data Main {
+    console: Console;
+    nested: Outer;
+    holder: Holder;
+    pair: [Inner; 2];
+}
+machine Main::main(&mut self) {
+    self.build();
+}
+machine Main::build(&mut self) {
+    self.nested.second.b = 42;
+    transition self.nested.second.b == 42 && self.nested.second.a == 0 {
+        true -> leg2()
+        _ -> wrong_nested_write()
+    }
+    state leg2(&mut self) {
+        self.holder.msg = Msg::Pong { y: 1, z: 2 };
+        transition self.holder.msg {
+            Msg::Pong { y, z } -> chk(y, z)
+            _ -> wrong_sum_in_struct()
+        }
+    }
+    state chk(&mut self, y: i32, z: i32) {
+        transition y == 1 && z == 2 {
+            true -> leg3()
+            _ -> wrong_sum_payload()
+        }
+    }
+    state leg3(&mut self) {
+        self.pair[1].a = 7;
+        transition self.pair[1].a == 7 && self.pair[0].a == 0 && self.pair[1].b == 0 {
+            true -> good()
+            _ -> wrong_elem_field()
+        }
+    }
+    state good(&mut self)               { self.console.exit_process(70); }
+    state wrong_nested_write(&mut self) { self.console.exit_process(71); }
+    state wrong_sum_in_struct(&mut self){ self.console.exit_process(72); }
+    state wrong_sum_payload(&mut self)  { self.console.exit_process(73); }
+    state wrong_elem_field(&mut self)   { self.console.exit_process(74); }
+}
