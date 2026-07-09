@@ -1189,6 +1189,21 @@ macOS/arm64 host this lane runs on — are CLAIMED here:
   windows leg stays blocked on fs open-work #2's stat rows (as TASKS_TIME
   notes).
 
+## Stolen work #2 (claimed from TASKS.md, 2026-07-10n)
+
+- [ ] **STOLEN #R1 — same-type receiver aliasing (the deep fix): thread the
+  receiver field offset through dispatch.** TASKS.md's unclaimed
+  2026-07-07 item: a value-method receiver (`self.sum.checked_subtract(..)`
+  with several Duration fields) resolves to the FIRST field of the type
+  (machine_storage_offset by type) — same root as the contained-machine
+  aliasing fence (contained_receiver_blockers). Std value types make
+  same-type fields ubiquitous; every workaround is the a/b first-field
+  shuffle (my time-interop canary + note_vault carry it). The parallel
+  thread is on recursion aftermath + holding on Q5; claim-first protocol
+  followed (pointer left at their item). Repro:
+  pending/time/value_machine_receiver_field_postentry. Plan: scope this
+  iteration (repro + root map + written plan), implement next.
+
 ## Observations (not fs, flagged for Zach)
 
 - RETURN-WRITE FENCE gap (2026-07-10k, from the arithmetic thread -- YOUR
