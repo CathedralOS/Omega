@@ -119,7 +119,17 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
 6. **Authored-bindings interp story** — OWNER_QUESTIONS.md #10 (native-only
    imports today; differential skips).
 
-7. ~~Machine source-file plumbing~~ — **RESOLVED 2026-07-11m without a
+7. **[CLAIMED from TASKS_TIME 2026-07-11n]** D14 next fires -- u64
+   literals in LET initializers (fire E) and EQUALITY compares (fire F,
+   ==/!= only; ordering stays refused, sign-blind). Unblocks the
+   saturating_* Instant/SystemTime twins (TASKS_TIME item 6's deliberate
+   gap). Survey: parallel thread is on validation rulings (shift counts,
+   Q6), not D14. Recipe per literals.rs: extend u64_blessed_literals AND
+   the materializing consumer in the same change; canaries per
+   TASKS_TIME "Next steps" #5 (exact round-trip, FAIL no-type-fits,
+   FAIL u64-into-i64).
+
+8. ~~Machine source-file plumbing~~ — **RESOLVED 2026-07-11m without a
    representation change**: per-file item attribution already exists at
    the SYNTAX stage (AssembledSyntax.files → root_items), so the
    compiler collects the build.omg-root machine names there and threads
