@@ -72,6 +72,15 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
 
 ## Open work
 
+0. **[CLAIMED 2026-07-11aa — deferred to this lane by TASKS.md's parking
+   note]** Multi-arm TEXTEQ-valued locals drop silently on the leaf
+   route (pending/calls/multiarm_texteq_local_divergence): a texteq
+   arm-local initializer emits NO compare and NO write in the leaf
+   expansion — arms deliver ZII (native 71 / interp 70). The scalar
+   flavor works (runtime_multiarm_same_named_locals_exit). Serve via
+   the frame-slot text-comparison writer from the leaf route, or
+   poison unserved arm-local initializers loudly.
+
 1. **Windows-session bundle** (needs a Windows host): verify the stat-row
    migration natively; WINDOWS_IMPORT_ROWS migration into provides files;
    Win32 rows for the no-msvcrt ops; file_journal-on-windows recheck;
