@@ -1,0 +1,37 @@
+// FAIL CANARY: a value-machine METHOD call on a PARAM receiver
+// (`meta.is_file()` where `meta` is a state param) must be REJECTED: native
+// dispatch resolves the receiver region by TYPE over the caller's FIELDS, so
+// it would read the first same-typed field's storage (probed: a decoy field
+// with different data changes the answer) or ZII -- never the param itself.
+// The fix is the field-receiver idiom (filesystem/field_receiver_method_exit)
+// or inlining the method's expression. Deep fix = thread receiver storage
+// through dispatch (same session as contained same-type aliasing).
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    fs: Filesystem;
+    raw: FilesystemHost;
+    fd: i32;
+    rc: i32;
+    res: MetadataResult;
+}
+
+machine Main::main(&mut self) {
+    self.fd = self.raw.create("omega_param_recv.txt", 438);
+    self.rc = self.raw.close(self.fd);
+    self.res = self.fs.metadata_path("omega_param_recv.txt");
+    transition self.res {
+        MetadataResult::Ok { meta } -> got(meta)
+        MetadataResult::Error { kind } -> bad()
+    }
+    state got(&mut self, meta: Metadata) {
+        let f: bool = meta.is_file();
+        transition f { true -> good() _ -> bad() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

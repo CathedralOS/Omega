@@ -225,6 +225,25 @@ field access stay accepted (zero corpus impact). The state-call plan now
 carries `receiver_name` (symbol handles cross arenas vs layout). Fail canary
 `calls/contained_same_type_receiver_rejected`. Deep fix = thread the receiver
 offset through dispatch storage resolution (focused session, still open).
+PARAM/LOCAL receivers FENCED TOO (2026-07-08d, closes the windows
+`let x = meta.is_file()` mis-delivery note): the fence's old "lenient
+skip-if-unresolved" for non-field receivers assumed they resolve by other
+routes — probed FALSE on darwin native (matrix + decoy discrimination):
+`meta.is_file()` on a state-PARAM receiver reads the first same-typed FIELD's
+storage when one exists (a decoy field with a directory mode flips the
+answer — silent wrong-receiver) and ZII/garbage when none does; binding kind
+(local vs field) is irrelevant. The direct-receiver arm now BLOCKS a receiver
+that is not a field, with two precise skips: `self` (D10 machine-to-machine
+self calls dispatch on the caller's own region) and the STATIC spelling
+(`Worker::run(pair)` / `Duration::from_secs(n)` carry the TYPE name in
+receiver position; receiverless callees read no receiver storage — their
+by-value params deliver via leaf expansion, runtime-pinned by
+`calls/runtime_attached_machine_struct_arg_exit`; without this skip the fence
+falsely caught 8 green canaries, incl. the time thread's constructors).
+Suite failure-set verified byte-identical to pre-fence. Fail canary
+`fail/calls/param_receiver_method_rejected`; the prescribed idiom
+(param → same-typed field, call through the field) is differential-pinned by
+`filesystem/field_receiver_method_exit`. Same deep fix as above.
 
 **Value-call deferral (the machinery under wrapper results)** — five ordering
 faces closed, each pinned by a canary:
@@ -459,9 +478,10 @@ canary `filesystem/windows_wrapper_metadata_exit` (RUN + differential 70);
 fails -> 3). The blocker was NOT the offsets -- it was the value-machine
 computed-index miscompile ([[value-machine-computed-index-miscompile]]), now
 fixed (pure-const index fold). Follow-ups: `read_symlink_metadata` stays fenced
-(msvcrt has no lstat); a bool-returning value-machine method bound to a local
-(`let x = meta.is_file()`) mis-delivers on windows native (separate task -- the
-metadata canary uses the inline `(meta.mode & 61440) == 32768` form). How it
+(msvcrt has no lstat); the `let x = meta.is_file()` mis-delivery is EXPLAINED
++ FENCED 2026-07-08d (param-receiver method dispatch — see the aliasing-fence
+paragraph; the metadata canary's inline `(meta.mode & 61440) == 32768` form
+and the new field-receiver idiom are the two sanctioned shapes). How it
 landed, for reference:
 - msvcrt `_stat64` WIRES and works: an import row (`Filesystem stat ->
   msvcrt.dll _stat64`) + `read_metadata` lowering unfences the raw stat op;
