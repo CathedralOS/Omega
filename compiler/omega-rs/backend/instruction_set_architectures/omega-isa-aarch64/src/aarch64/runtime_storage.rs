@@ -2554,6 +2554,64 @@ pub fn encode_runtime_machine_double_indexed_integer_write(
     Ok(bytes)
 }
 
+/// Copy a FRAME-resident inline array element at a runtime index into another
+/// frame slot (`let v = arr[i]` where `arr` and `i` are locals/params): ONE
+/// frame pair serves the element address, the index, and the target slot --
+/// the unbiased base is stashed in x24 before the element math biases x16, and
+/// the chunk stores land at `[x24 + target_offset + chunk]`. Single relocation
+/// (the record's arch-aware target-frame offset is None for aarch64).
+pub fn encode_runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame(
+    base_byte_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width(
+            target_offset,
+            byte_count,
+        ),
+    );
+    bytes.extend(encode_adrp_placeholder(16)); // frame base [reloc @ 0]
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_move_x_register(24, 16)); // unbiased base for the target
+    // The index lives in the SAME region as the base, so the fixed-shape
+    // recipe's same-region flavor (no extra page pair) applies.
+    append_fixed_shape_index_element_address(
+        &mut bytes,
+        16,
+        omega_target_operations::RuntimeStorageRegion::Machine,
+        index_offset,
+        element_byte_size,
+        base_byte_offset + field_byte_offset,
+    )?;
+    for_each_runtime_copy_chunk(0, target_offset, byte_count, |offset, chunk_size| {
+        let source_offset = offset;
+        let target_chunk_offset = target_offset + offset;
+        match chunk_size {
+            8 => {
+                bytes.extend(encode_load_x_from_x(17, 16, source_offset)?);
+                bytes.extend(encode_store_x_to_x(17, 24, target_chunk_offset)?);
+            }
+            _ => {
+                bytes.extend(encode_load_w_from_x(17, 16, source_offset, chunk_size)?);
+                bytes.extend(encode_store_w_to_x(17, 24, target_chunk_offset, chunk_size)?);
+            }
+        }
+        Ok(())
+    })?;
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width(
+            target_offset,
+            byte_count,
+        )
+    );
+    Ok(bytes)
+}
+
 /// RMW into a double-indexed element (`grid[i][j] += 1`): the double-index
 /// bases + math walk x16 to the element, the operands evaluate into x17/x26
 /// (preserving x16), and the result stores at [x16, 0].

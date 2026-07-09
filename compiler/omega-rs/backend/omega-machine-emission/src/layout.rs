@@ -1048,11 +1048,15 @@ fn machine_instruction_width(
             *inner_index_region,
             *value,
         ),
-        SelectedInstructionKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame { .. } => {
-            runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width(
-                input.target.architecture,
-            )
-        }
+        SelectedInstructionKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame {
+            target_offset,
+            byte_count,
+            ..
+        } => runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width(
+            input.target.architecture,
+            *target_offset,
+            *byte_count,
+        ),
         SelectedInstructionKind::CopyRuntimeStorageToRuntimeMachineIndexed {
             source_region,
             source_offset,
