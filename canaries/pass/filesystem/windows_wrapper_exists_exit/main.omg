@@ -1,0 +1,38 @@
+// RUN CANARY (exit 70) -- `exists` / `try_exists` UNFENCED on windows_x64 as a
+// side effect of the stat migration (2026-07-08). Both are STAT-based: they call
+// `read_metadata` and consult only its return code (not the decoded record), so
+// wiring msvcrt `_stat64` made them work natively -- no extra seam work. Was
+// fenced before ("no native lowering for read_metadata"). Discriminating:
+// absent -> exists false / try_exists No; after write -> exists true / try_exists
+// Yes. NATIVE + interp differential (the interpreter's virtual stat rc agrees).
+// exits: 70 ok; 71 absent exists true; 72 absent try_exists Yes; 73 absent
+// try_exists Error; 74 write failed; 75 present exists false; 76 present
+// try_exists No; 77 present try_exists Error.
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; fs: Filesystem; unit_result: UnitResult; present: bool; exists_result: ExistsResult; }
+machine Main::main(&mut self) {
+    // absent: exists false
+    self.present = self.fs.exists("omega_wexists_probe.txt");
+    transition self.present { true -> bad(71) _ -> absent_try() }
+    state absent_try(&mut self) {
+        self.exists_result = self.fs.try_exists("omega_wexists_probe.txt");
+        transition self.exists_result { ExistsResult::No -> mk() ExistsResult::Yes -> bad(72) _ -> bad(73) }
+    }
+    state mk(&mut self) {
+        self.unit_result = self.fs.write_all("omega_wexists_probe.txt", "hi");
+        transition self.unit_result { UnitResult::Ok -> present_exists() _ -> bad(74) }
+    }
+    state present_exists(&mut self) {
+        self.present = self.fs.exists("omega_wexists_probe.txt");
+        transition self.present { true -> present_try() _ -> bad(75) }
+    }
+    state present_try(&mut self) {
+        self.exists_result = self.fs.try_exists("omega_wexists_probe.txt");
+        self.unit_result = self.fs.remove("omega_wexists_probe.txt");
+        transition self.exists_result { ExistsResult::Yes -> good() ExistsResult::No -> bad(76) _ -> bad(77) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

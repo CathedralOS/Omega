@@ -73,10 +73,12 @@ program; the differential canary is the drift guard against the Rust mirror
 diverging from the .omg source. ⚠️ LESSON: the flag migration first broke the
 omega-interpreter COVERAGE tests (create_new/open_options), missed because that
 iteration only ran `--test differential`; run the FULL `-p omega-interpreter`
-(coverage.rs too) after any std-wrapper or interp change. Still fenced on windows:
-copy/exists/remove_dir_all (set_len/read_metadata/read_dir rows) and
-create_dir_all's DEEP walk (runtime SUBSLICE paths need a NUL-terminated
-scratch copy). ATTEMPTED 2026-07-07 (reverted clean, findings recorded): the
+(coverage.rs too) after any std-wrapper or interp change. `exists`/`try_exists`
+UNFENCED 2026-07-08 (side effect of the stat migration -- they consult only
+`read_metadata`'s rc; canary `filesystem/windows_wrapper_exists_exit`). Still
+fenced on windows: `copy` (needs `set_len`/`_chsize`), `read_dir` + everything
+that walks it (`remove_dir_all`), and create_dir_all's DEEP walk (runtime
+SUBSLICE paths need a NUL-terminated scratch copy). ATTEMPTED 2026-07-07 (reverted clean, findings recorded): the
 plan is an Omega-side rework, no encoder work -- copy the prefix into a
 `mkall_scratch: [u8; 256]` field, NUL it, pass `mkall_scratch[0..i]` (a
 LITERAL-START subslice of a fixed array = the already-supported
