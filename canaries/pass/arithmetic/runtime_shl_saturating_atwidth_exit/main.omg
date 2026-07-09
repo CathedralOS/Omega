@@ -1,7 +1,9 @@
-// PENDING only for x86_64. Saturating `<<` by an at/above-width count
-// clamps every nonzero x to the saturation bound (3u32 << 40 -> u32::MAX);
-// the interp node arm and the aarch64 sequences conform (70/70 on the
-// arm64 host). x86_64 still wraps; PROMOTE to pass/ with its sequences.
+// RUN CANARY (exit 70) + interpreter differential. Saturating `<<` by an
+// at/above-width count clamps every nonzero x to the saturation bound
+// (3u32 << 40 -> u32::MAX) -- the count cap (narrow) / explicit count
+// compare (64-bit) on both ISAs, wide-i128 on the interp. Promoted with
+// the x86_64 sequences (shift slice C closes).
+// exits: 71 = wrapped to 0 (the old native behavior); 72 = neither.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::main(&mut self) {

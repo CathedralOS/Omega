@@ -5600,6 +5600,8 @@ pub fn runtime_storage_binary_write_width(
         );
     let operation_width = if saturating_or_trapping && operator == StateGuardOperator::Multiply {
         saturating_trapping_multiply_width(domain, byte_size, target_signed)
+    } else if saturating_or_trapping && operator == StateGuardOperator::ShiftLeft {
+        saturating_trapping_shift_left_width(domain, byte_size, target_signed)
     } else if saturating_or_trapping
         && matches!(
             operator,
@@ -5745,6 +5747,7 @@ enum OperandDomainOperation {
     SaturatingSignedDivMod { want_remainder: bool },
     WrappingSignedDivMod { want_remainder: bool },
     WrappingShift { operands_signed: bool },
+    SaturatingTrappingShiftLeft { domain: ArithmeticDomain, operands_signed: bool },
 }
 
 fn operand_position_domain_operation(
@@ -5777,6 +5780,13 @@ fn operand_position_domain_operation(
         (StateGuardOperator::ShiftLeft, ArithmeticDomain::Wrapping) => {
             Some(OperandDomainOperation::WrappingShift { operands_signed })
         }
+        (
+            StateGuardOperator::ShiftLeft,
+            ArithmeticDomain::Saturating | ArithmeticDomain::Trapping,
+        ) => Some(OperandDomainOperation::SaturatingTrappingShiftLeft {
+            domain,
+            operands_signed,
+        }),
         // `>>` cannot overflow: the floor-semantics count fix applies under
         // every non-Exact domain. (Saturating/Trapping `<<` need clamp/trap
         // sequences instead -- not emitted yet; parked shl_saturating canary.)
@@ -5855,6 +5865,10 @@ pub fn encode_runtime_storage_binary_write(
         // for <=32-bit operands (it cannot exceed 64 bits), so compare the full
         // product against the target type's range and clamp / trap.
         append_saturating_trapping_multiply(&mut bytes, domain, byte_size, target_signed)?;
+    } else if saturating_or_trapping && operator == StateGuardOperator::ShiftLeft {
+        // Saturating/Trapping `<<`: clamp/trap when the TRUE value x * 2^n
+        // leaves the target range (shift slice C; mirrors aarch64).
+        append_saturating_trapping_shift_left(&mut bytes, domain, byte_size, target_signed)?;
     } else if saturating_or_trapping
         && matches!(
             operator,
@@ -5975,18 +5989,7 @@ fn saturating_trapping_multiply_width(
     } else {
         0
     };
-    let clamp = match (domain, target_signed) {
-        // mov r11,imm64 (10) + cmp r10,r11 (3) + cmova r10,r11 (4)
-        (ArithmeticDomain::Saturating, false) => 17,
-        // (mov + cmp + cmovg) + (mov + cmp + cmovl)
-        (ArithmeticDomain::Saturating, true) => 34,
-        // mov (10) + cmp (3) + jbe rel8 (2) + ud2 (2)
-        (ArithmeticDomain::Trapping, false) => 17,
-        // mov (10) + cmp (3) + jg (2) + mov (10) + cmp (3) + jge (2) + ud2 (2)
-        (ArithmeticDomain::Trapping, true) => 32,
-        _ => 0,
-    };
-    imul + sign_extend + clamp
+    imul + sign_extend + narrow_range_clamp_or_trap_width(domain, target_signed)
 }
 
 /// Saturating/Trapping multiply (decision 17). A 64-bit `imul r10, r11` produces
@@ -6090,6 +6093,26 @@ fn append_saturating_trapping_multiply(
     let unsigned_max: u64 = (1u64 << (8 * byte_size)) - 1;
     let signed_min = (-(1i128 << (8 * byte_size - 1))) as i64 as u64;
     let signed_max = ((1i128 << (8 * byte_size - 1)) - 1) as u64;
+    append_narrow_range_clamp_or_trap(bytes, domain, byte_size, target_signed);
+    Ok(())
+}
+
+/// The narrow (<= 4-byte) exact-wide-value range tail shared by the
+/// saturating/trapping MULTIPLY and SHIFT-LEFT: the 64-bit op computed the
+/// exact result in r10, so compare it against the target range and clamp
+/// (cmov) or trap (ud2). r11 is spent by then and serves as the bound
+/// scratch. The unsigned arms take a SINGLE UNSIGNED upper compare -- a u32
+/// product or shift can exceed 2^63 (signed reading negative), and unsigned
+/// results cannot go below zero.
+fn append_narrow_range_clamp_or_trap(
+    bytes: &mut Vec<u8>,
+    domain: ArithmeticDomain,
+    byte_size: usize,
+    target_signed: bool,
+) {
+    let unsigned_max: u64 = (1u64 << (8 * byte_size)) - 1;
+    let signed_min = (-(1i128 << (8 * byte_size - 1))) as i64 as u64;
+    let signed_max = ((1i128 << (8 * byte_size - 1)) - 1) as u64;
     fn mov_r11(bytes: &mut Vec<u8>, value: u64) {
         bytes.push(0x49);
         bytes.push(0xbb);
@@ -6126,7 +6149,131 @@ fn append_saturating_trapping_multiply(
         }
         _ => {}
     }
+}
+
+/// Bytes of [`append_narrow_range_clamp_or_trap`]. MUST stay in lockstep.
+fn narrow_range_clamp_or_trap_width(domain: ArithmeticDomain, target_signed: bool) -> usize {
+    match (domain, target_signed) {
+        // mov r11,imm64 (10) + cmp (3) + cmova (4)
+        (ArithmeticDomain::Saturating, false) => 17,
+        // (mov + cmp + cmovg) + (mov + cmp + cmovl)
+        (ArithmeticDomain::Saturating, true) => 34,
+        // mov (10) + cmp (3) + jbe (2) + ud2 (2)
+        (ArithmeticDomain::Trapping, false) => 17,
+        // mov (10) + cmp (3) + jg (2) + mov (10) + cmp (3) + jge (2) + ud2 (2)
+        (ArithmeticDomain::Trapping, true) => 32,
+        _ => 0,
+    }
+}
+
+/// Saturating/Trapping `<<` (shift slice C): the TRUE value is x * 2^n, so
+/// clamp/trap when it leaves the target range. Narrow widths cap the COUNT
+/// at the type width w -- any count >= w overflows every nonzero x, and the
+/// cap keeps the 64-bit shl EXACT -- then take the shared range tail; only
+/// the VALUE sign-extends (the count reads unsigned, so a negative signed
+/// count is huge and caps to w, matching the interpreter). 64-bit uses the
+/// RECOVERY witness (y >> n == x, arithmetic/logical by signedness) with
+/// explicit checks for the two cases the hardware count mask hides: a count
+/// >= 64 overflows every nonzero x, and x == 0 never overflows. Mirrors the
+/// aarch64 sequences; r9/rax/rcx/r15 are scratch as in the multiply arms.
+fn append_saturating_trapping_shift_left(
+    bytes: &mut Vec<u8>,
+    domain: ArithmeticDomain,
+    byte_size: usize,
+    target_signed: bool,
+) -> Result<(), Diagnostic> {
+    if byte_size == 8 {
+        let fixup: u8 = match (domain, target_signed) {
+            // mov r15,MIN (10) + test r9 (3) + mov r10,r15 (3) + not r15 (3)
+            // + cmovns r10,r15 (4).
+            (ArithmeticDomain::Saturating, true) => 23,
+            // mov r10, u64::MAX (10).
+            (ArithmeticDomain::Saturating, false) => 10,
+            // ud2.
+            _ => 2,
+        };
+        bytes.extend([0x4d, 0x89, 0xd1]); // mov r9, r10 (save x)
+        append_runtime_binary_operation(bytes, StateGuardOperator::ShiftLeft, 8)?;
+        bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10 (y)
+        bytes.extend(if target_signed {
+            [0x48, 0xd3, 0xf8] // sar rax, cl (count still in cl)
+        } else {
+            [0x48, 0xd3, 0xe8] // shr rax, cl
+        });
+        bytes.extend([0x4c, 0x39, 0xc8]); // cmp rax, r9 (recovery == x ?)
+        bytes.extend([0x75, 11]); // jne -> fixup
+        bytes.extend([0x49, 0x83, 0xfb, 64]); // cmp r11, 64
+        bytes.extend([0x72, 5 + fixup]); // jb -> keep (in-range count)
+        bytes.extend([0x4d, 0x85, 0xc9]); // test r9, r9
+        bytes.extend([0x74, fixup]); // je -> keep (x == 0)
+        match (domain, target_signed) {
+            (ArithmeticDomain::Saturating, true) => {
+                bytes.push(0x49);
+                bytes.push(0xbf);
+                bytes.extend((i64::MIN as u64).to_le_bytes()); // mov r15, MIN
+                bytes.extend([0x4d, 0x85, 0xc9]); // test r9, r9 (x's sign)
+                bytes.extend([0x4d, 0x89, 0xfa]); // mov r10, r15 (MIN)
+                bytes.extend([0x49, 0xf7, 0xd7]); // not r15 (MAX)
+                bytes.extend([0x4d, 0x0f, 0x49, 0xd7]); // cmovns r10, r15 (x >= 0 -> MAX)
+            }
+            (ArithmeticDomain::Saturating, false) => {
+                bytes.push(0x49);
+                bytes.push(0xba);
+                bytes.extend(u64::MAX.to_le_bytes()); // mov r10, u64::MAX
+            }
+            _ => bytes.extend([0x0f, 0x0b]), // ud2
+        }
+        return Ok(());
+    }
+    if !matches!(byte_size, 1 | 2 | 4) {
+        return Err(Diagnostic::error(format!(
+            "saturating/trapping shift-left cannot handle {byte_size}-byte targets yet"
+        )));
+    }
+    if target_signed {
+        match byte_size {
+            1 => bytes.extend([0x4d, 0x0f, 0xbe, 0xd2]), // movsx r10, r10b
+            2 => bytes.extend([0x4d, 0x0f, 0xbf, 0xd2]), // movsx r10, r10w
+            _ => bytes.extend([0x4d, 0x63, 0xd2]),       // movsxd r10, r10d
+        }
+    }
+    let width_bits = (byte_size * 8) as u8;
+    bytes.push(0xb8); // mov eax, imm32 (= w)
+    bytes.extend(u32::from(width_bits).to_le_bytes());
+    bytes.extend([0x49, 0x83, 0xfb, width_bits]); // cmp r11, w
+    bytes.extend([0x4c, 0x0f, 0x43, 0xd8]); // cmovae r11, rax (cap count at w)
+    append_runtime_binary_operation(bytes, StateGuardOperator::ShiftLeft, 8)?; // exact 64-bit shl
+    append_narrow_range_clamp_or_trap(bytes, domain, byte_size, target_signed);
     Ok(())
+}
+
+/// Bytes of [`append_saturating_trapping_shift_left`]. MUST stay in lockstep.
+fn saturating_trapping_shift_left_width(
+    domain: ArithmeticDomain,
+    byte_size: usize,
+    target_signed: bool,
+) -> usize {
+    if byte_size == 8 {
+        // save (3) + shl op (6) + mov rax (3) + sar/shr (3) + cmp (3)
+        // + jne (2) + cmp #64 (4) + jb (2) + test (3) + je (2) = 31 + fixup.
+        return 31
+            + match (domain, target_signed) {
+                (ArithmeticDomain::Saturating, true) => 23,
+                (ArithmeticDomain::Saturating, false) => 10,
+                _ => 2,
+            };
+    }
+    if !matches!(byte_size, 1 | 2 | 4) {
+        return 6; // emission errors; placeholder for the pre-error capacity
+    }
+    // movsx (4) / movsxd (3) for signed values only, + the count cap
+    // (mov eax 5 + cmp 4 + cmovae 4 = 13) + the 64-bit shl (6) + the tail.
+    let sign_extend = if target_signed {
+        if byte_size == 4 { 3 } else { 4 }
+    } else {
+        0
+    };
+    sign_extend + 13 + 6 + narrow_range_clamp_or_trap_width(domain, target_signed)
 }
 
 /// Width-correct integer `add`/`sub` of `r10 (op)= r11` so the carry/overflow
@@ -7433,6 +7580,10 @@ pub fn runtime_value_operand_width(
                         + fix
                         + wrapping_node_width_extension_width(byte_width)
                 }
+                OperandDomainOperation::SaturatingTrappingShiftLeft {
+                    domain,
+                    operands_signed,
+                } => saturating_trapping_shift_left_width(domain, byte_width, operands_signed),
             }
         } else {
             // Use the SAME byte_size the emission picks (runtime_binary_operation_byte_size):
@@ -7677,6 +7828,21 @@ fn append_runtime_value_operand(
                         append_wrapping_shift_zero_clamp(bytes, byte_width);
                     }
                     append_wrapping_node_width_extension(bytes, byte_width, operands_signed);
+                }
+                OperandDomainOperation::SaturatingTrappingShiftLeft {
+                    domain,
+                    operands_signed,
+                } => {
+                    // The write path's clamp/trap sequence verbatim; the result
+                    // is range-correct at the node width (clamped bounds carry
+                    // the right extension), so no width extension follows --
+                    // the AddSub/Multiply operand contract.
+                    append_saturating_trapping_shift_left(
+                        bytes,
+                        domain,
+                        byte_width,
+                        operands_signed,
+                    )?;
                 }
             }
         } else {
@@ -9653,6 +9819,52 @@ mod wrapping_shift_clamp_tests {
             WRAPPING_SHIFT_RIGHT_COUNT_SATURATE_WIDTH
                 + runtime_binary_operation_width(StateGuardOperator::ShiftRight, 4),
             "emission and width accounting must agree"
+        );
+    }
+
+    #[test]
+    fn saturating_trapping_shift_left_width_stays_in_lockstep() {
+        // Every (domain x signedness x width) arm's emitted length must
+        // match the width twin, or relocation offsets drift.
+        for domain in [ArithmeticDomain::Saturating, ArithmeticDomain::Trapping] {
+            for target_signed in [false, true] {
+                for byte_size in [1usize, 2, 4, 8] {
+                    let mut bytes = Vec::new();
+                    append_saturating_trapping_shift_left(
+                        &mut bytes,
+                        domain,
+                        byte_size,
+                        target_signed,
+                    )
+                    .expect("emit");
+                    assert_eq!(
+                        bytes.len(),
+                        saturating_trapping_shift_left_width(domain, byte_size, target_signed),
+                        "width mismatch: {domain:?} signed={target_signed} {byte_size}b"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn saturating_shl_narrow_caps_the_count_then_takes_the_unsigned_upper_clamp() {
+        // u8 Saturating: [cap count at 8] + 64-bit shl + cmova against 255.
+        let mut bytes = Vec::new();
+        append_saturating_trapping_shift_left(&mut bytes, ArithmeticDomain::Saturating, 1, false)
+            .expect("emit");
+        assert_eq!(
+            bytes,
+            vec![
+                0xb8, 8, 0, 0, 0, // mov eax, 8 (the width)
+                0x49, 0x83, 0xfb, 8, // cmp r11, 8
+                0x4c, 0x0f, 0x43, 0xd8, // cmovae r11, rax (cap the COUNT)
+                0x4c, 0x89, 0xd9, // mov rcx, r11
+                0x49, 0xd3, 0xe2, // shl r10, cl (64-bit, exact)
+                0x49, 0xbb, 255, 0, 0, 0, 0, 0, 0, 0, // mov r11, 255
+                0x4d, 0x39, 0xda, // cmp r10, r11
+                0x4d, 0x0f, 0x47, 0xd3, // cmova r10, r11 (UNSIGNED upper)
+            ]
         );
     }
 
