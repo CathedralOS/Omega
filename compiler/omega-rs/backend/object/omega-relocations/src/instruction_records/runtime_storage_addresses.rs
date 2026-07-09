@@ -46,8 +46,18 @@ pub(super) fn collect_runtime_storage_address_relocations(
         } => {
             // Source frame base at the start; x86_64 reloads the frame base for
             // the target store, and a MACHINE-resident index loads the machine
-            // base at +10 (its own relocation).
+            // base at +10 (its own relocation). On aarch64 a machine-resident
+            // index materializes its page pair at the constant +32 (after the
+            // frame pair + the fixed-width descriptor load).
             context.insert_data_address_at_instruction_start(context.runtime_frame_symbol_handle());
+            if context.input.target.architecture == omega_target::Architecture::Aarch64
+                && *index_region == omega_target_operations::RuntimeStorageRegion::Machine
+            {
+                context.insert_data_address_at_relative_offset(
+                    32,
+                    context.machine_storage_symbol_handle(),
+                );
+            }
             if context.input.target.architecture == omega_target::Architecture::X86_64 {
                 if *index_region == omega_target_operations::RuntimeStorageRegion::Machine {
                     context.insert_data_address_at_relative_offset(

@@ -1365,6 +1365,7 @@ pub fn encode_runtime_pointee_address_to_runtime_frame_write(
 }
 
 pub fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
+    index_region: omega_target_operations::RuntimeStorageRegion,
     descriptor_offset: usize,
     index_offset: usize,
     element_byte_size: usize,
@@ -1372,13 +1373,15 @@ pub fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
     target_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     let mut bytes = Vec::with_capacity(runtime_frame_indexed_address_to_runtime_frame_write_width(
+        index_region,
         element_byte_size,
         field_byte_offset,
         target_offset,
     ));
-    append_runtime_frame_index_target_address(
+    append_runtime_frame_index_target_address_with_index_region(
         &mut bytes,
-            16,
+        16,
+        index_region,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -2247,12 +2250,45 @@ fn append_runtime_frame_index_target_address(
     element_byte_size: usize,
     field_byte_offset: usize,
 ) -> Result<(), Diagnostic> {
+    append_runtime_frame_index_target_address_with_index_region(
+        bytes,
+        address_register,
+        omega_target_operations::RuntimeStorageRegion::RuntimeFrame,
+        descriptor_offset,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+    )
+}
+
+/// Region-aware flavor: a MACHINE-resident index (a subslice start held in a
+/// machine field) materializes its own page pair into x21 at the CONSTANT
+/// offset 32 (after the frame pair + the fixed-width descriptor load), which
+/// the relocation record patches to the machine symbol.
+fn append_runtime_frame_index_target_address_with_index_region(
+    bytes: &mut Vec<u8>,
+    address_register: u8,
+    index_region: omega_target_operations::RuntimeStorageRegion,
+    descriptor_offset: usize,
+    index_offset: usize,
+    element_byte_size: usize,
+    field_byte_offset: usize,
+) -> Result<(), Diagnostic> {
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
     append_fixed_width_load_x_from_x_offset(bytes, address_register, 20, descriptor_offset, 19);
+    let index_base = if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+        // x15, NOT x21: the fixed-width index load below uses x21 as its
+        // offset-materialization scratch, which would destroy the base.
+        bytes.extend(encode_adrp_placeholder(15)); // machine base [reloc @ 32]
+        bytes.extend(encode_add_page_offset_placeholder(15));
+        15
+    } else {
+        20
+    };
     // Index is a 32-bit value: load it zero-extended so high bytes of the
     // adjacent slot can't be spliced into the index (see helper doc comment).
-    append_fixed_width_load_index_w_from_x_offset(bytes, 17, 20, index_offset, 21);
+    append_fixed_width_load_index_w_from_x_offset(bytes, 17, index_base, index_offset, 21);
     append_scale_x_register_by_constant(bytes, 26, 17, element_byte_size)?;
     bytes.extend(encode_add_x_register(address_register, address_register, 26));
     append_add_constant_to_x_register(bytes, address_register, field_byte_offset)?;

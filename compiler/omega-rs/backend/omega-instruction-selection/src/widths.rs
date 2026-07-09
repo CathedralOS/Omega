@@ -1266,6 +1266,7 @@ pub fn runtime_frame_indexed_address_to_runtime_frame_write_width(
     match architecture {
         Architecture::Aarch64 => {
             aarch64::runtime_frame_indexed_address_to_runtime_frame_write_width(
+                index_region,
                 element_byte_size,
                 field_byte_offset,
                 target_offset,
