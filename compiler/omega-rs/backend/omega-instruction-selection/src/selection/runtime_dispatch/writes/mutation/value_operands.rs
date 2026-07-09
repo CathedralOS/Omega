@@ -466,55 +466,88 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operan
         omega_checked_trees::expression::BinaryOperator::NotEqual => true,
         _ => return None,
     };
-    // A `&[u8] in Utf8` view shares the identical 16-byte `{ptr, len}` descriptor
-    // with `String`, so its content `==` is the SAME TextEquals leaf (length +
-    // bounded byte loop). Recognize such a fat-slice-descriptor place too, else a
-    // `&[u8] in Utf8 == &[u8] in Utf8` compare falls to the generic scalar path,
-    // whose 16-byte runtime-operand load the encoder rejects loudly.
-    let operand_is_text = |expression: ExpressionHandle| {
-        matches!(
-            resolve_runtime_storage_primitive_type_in_table(
+    // One side an INLINE STRING LITERAL (`self.okf = self.name == "omega"`):
+    // guard position already lowers this shape via `TextEqualsLiteral`, but in
+    // value/write position it fell through to the generic scalar path (whose
+    // 16-byte descriptor load never resolves) and the machine-owned store
+    // blocker refused it -- the field-store leg of the texteq matrix, while
+    // the `let` leg rode the frame-slot text-comparison writer and the
+    // place==place field store rode `TextEquals` below. Build the literal
+    // leaf here so all four legs lower identically. (Bounded `[u8; N]`
+    // carriers stay guard-only: the descriptor place resolver declines them.)
+    let literal_pairing = match (
+        expressions.expression(left_expression),
+        expressions.expression(right_expression),
+    ) {
+        (ExpressionNode::String(literal), _) => Some((right_expression, literal.to_string())),
+        (_, ExpressionNode::String(literal)) => Some((left_expression, literal.to_string())),
+        _ => None,
+    };
+    let text_equals = if let Some((place_expression, literal)) = literal_pairing {
+        let place = crate::selection::runtime_dispatch::guards::resolve_runtime_text_descriptor_place_operand_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            place_expression,
+            runtime_value_operands,
+        )?;
+        runtime_value_operands.insert(RuntimeValueOperand::TextEqualsLiteral {
+            place,
+            literal,
+            place_is_bounded_buffer: false,
+        })
+    } else {
+        // A `&[u8] in Utf8` view shares the identical 16-byte `{ptr, len}` descriptor
+        // with `String`, so its content `==` is the SAME TextEquals leaf (length +
+        // bounded byte loop). Recognize such a fat-slice-descriptor place too, else a
+        // `&[u8] in Utf8 == &[u8] in Utf8` compare falls to the generic scalar path,
+        // whose 16-byte runtime-operand load the encoder rejects loudly.
+        let operand_is_text = |expression: ExpressionHandle| {
+            matches!(
+                resolve_runtime_storage_primitive_type_in_table(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    expressions,
+                    expression,
+                ),
+                Some(PrimitiveType::String)
+            ) || resolve_runtime_storage_place_is_fat_slice_in_table(
                 input,
                 dispatch_index,
                 source_key,
                 expressions,
                 expression,
-            ),
-            Some(PrimitiveType::String)
-        ) || resolve_runtime_storage_place_is_fat_slice_in_table(
+            )
+        };
+        if !operand_is_text(left_expression) || !operand_is_text(right_expression) {
+            return None;
+        }
+        let left_place = resolve_runtime_storage_place_in_table(
             input,
             dispatch_index,
             source_key,
             expressions,
-            expression,
-        )
+            left_expression,
+        )?;
+        let right_place = resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            right_expression,
+        )?;
+        // A String place is its 16-byte `{ptr, len}` text descriptor.
+        debug_assert_eq!(left_place.byte_count, 16, "String place must be a text descriptor");
+        debug_assert_eq!(right_place.byte_count, 16, "String place must be a text descriptor");
+        runtime_value_operands.insert(RuntimeValueOperand::TextEquals {
+            left_region: left_place.region,
+            left_offset: left_place.byte_offset,
+            right_region: right_place.region,
+            right_offset: right_place.byte_offset,
+        })
     };
-    if !operand_is_text(left_expression) || !operand_is_text(right_expression) {
-        return None;
-    }
-    let left_place = resolve_runtime_storage_place_in_table(
-        input,
-        dispatch_index,
-        source_key,
-        expressions,
-        left_expression,
-    )?;
-    let right_place = resolve_runtime_storage_place_in_table(
-        input,
-        dispatch_index,
-        source_key,
-        expressions,
-        right_expression,
-    )?;
-    // A String place is its 16-byte `{ptr, len}` text descriptor.
-    debug_assert_eq!(left_place.byte_count, 16, "String place must be a text descriptor");
-    debug_assert_eq!(right_place.byte_count, 16, "String place must be a text descriptor");
-    let text_equals = runtime_value_operands.insert(RuntimeValueOperand::TextEquals {
-        left_region: left_place.region,
-        left_offset: left_place.byte_offset,
-        right_region: right_place.region,
-        right_offset: right_place.byte_offset,
-    });
     if !negated {
         return Some(text_equals);
     }
