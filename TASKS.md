@@ -194,6 +194,17 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     strip transition-arg ingredients one at a time (saturating -> plain,
     element read -> const, rebind -> pass-through); the crash needed
     subslice-rebind + element-read in ONE transition. Suite 674/28.
+    NARROW VALUE-COMPARES FIXED
+    2026-07-09: aarch64 has no sub-word CMP -- x86 compares `r10b` directly,
+    so its no-op int->int narrowing convert is width-honest at the compare,
+    but aarch64's `cmp w` saw the untruncated source (`300 as u8 == 44`
+    compared 300 != 44). encode_runtime_value_compare now normalizes BOTH
+    registers at byte_size 1/2 (SXT for signed ordered operators, UXT
+    otherwise -- new UXTB/UXTH primitives; +8 width, operator-independent).
+    Fixed cast_in_guard + guard_feature_composition + narrow_signed_guard_ops;
+    suite 677/25. The differential oracle's first failure
+    (runtime_cast_in_guard 71) is cleared. Remaining cast faces:
+    integer_casts, f32_field_binary_to_local, narrow_signed_divide_guard.
     Remaining: string comparisons
     (runtime_local_string_comparison_value 79!=78), tick/time host lowering,
     the frame-source machine-indexed write, and the entry-args spill.

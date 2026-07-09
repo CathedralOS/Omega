@@ -122,11 +122,16 @@ pub fn runtime_storage_value_compare_width(byte_offset: usize, byte_size: usize)
 
 pub fn runtime_value_compare_width(
     runtime_value_operands: &impl RuntimeValueOperandSource,
+    byte_size: usize,
     left: RuntimeValueOperandHandle,
     right: RuntimeValueOperandHandle,
 ) -> usize {
+    // Narrow (1/2-byte) compares normalize both registers to the compare
+    // width first (one SXT/UXT per side).
+    let narrow_normalization = if matches!(byte_size, 1 | 2) { 8 } else { 0 };
     runtime_value_operand_width(runtime_value_operands, left)
         + runtime_value_operand_width(runtime_value_operands, right)
+        + narrow_normalization
         + 8
 }
 
