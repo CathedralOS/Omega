@@ -85,9 +85,11 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    deep delivering arm: correct on both engines) and pinned
    (calls/runtime_deep_state_name_collision_exit); (b) typed
    machines carry no source file (fine until a second consumer after
-   is_build_machine needs one); (c) console-less programs default-exit 1
-   natively vs 0 interpreted (divergent only for a run canary of that
-   shape).
+   is_build_machine needs one); (c) ~~console-less default exit~~ — FIXED 2026-07-11y: terminate
+   edges (and edgeless cases) zero the return register when no terminal
+   value writes it; natural termination exits 0 matching the oracle,
+   value terminals and exit_process untouched. Pin:
+   core/runtime_natural_termination_exit (differential).
 
 (Closed arcs live in the git log and their canary headers — recent
 pointers: receivers e0c718793→cd271c670; build.omg bc086f0a3/0bc474e81/

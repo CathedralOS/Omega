@@ -1,0 +1,12 @@
+// RUN CANARY (exit 0) -- NATURAL TERMINATION exits 0 (fixed
+// 2026-07-11y): a program with no console and no terminal value ends
+// when main's work ends. The interpreter -- the oracle -- always said 0
+// (ZII: the zero value's meaning is success); native returned whatever
+// the last computation left in the return register (probed 1). The
+// terminate edges now zero the register when no terminal value writes
+// it; value terminals (the EFI entry's `-> (0)`) and exit_process paths
+// are untouched.
+data Main { count: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.count = 7;
+}
