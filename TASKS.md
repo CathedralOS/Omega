@@ -167,8 +167,20 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     guard) branch on is_float. DEBUG RECIPE that found it: decode the
     compare's final b.<cond> nibble from backend_report.txt against the
     FCMP-unordered NZCV=0011 truth table, with a per-operator distinct-exit
-    probe. Suite 668/34. Remaining clusters: the cast family,
-    saturating/narrow-signed, string comparisons
+    probe. Suite 668/34. TWO MORE SILENT-WRONGS FIXED
+    2026-07-08: (a) the UNSIGNED saturating/trapping LOWER-BOUND check was an
+    unsigned `b.hs` against 0 -- vacuously true, so a u8 subtraction underflow
+    clamped to MAX instead of 0 (the comment even described the hazard; now a
+    SIGNED `b.ge` -- an underflowed wide result reads negative signed);
+    (b) the int->int convert only sign-extended `source_byte_size == 4`, so an
+    i8/i16 signed source WIDENING zero-extended (`(-128 i8) as i32` read 128;
+    masked in Exact probes by const folding -- the Saturating canaries
+    surfaced it). Fixed saturating_domain + saturating_narrow_add_sub +
+    cast_sign_zero_extension; suite 671/31. Remaining clusters: the cast
+    family residue (integer_casts, cast_in_guard, cast_element_accumulator,
+    f32_field_binary_to_local -- likely more faces of folded/guard-path
+    signedness), narrow_signed guards (x2), transition_arg_saturating
+    (exits None = a CRASH, worth a look), string comparisons
     (runtime_local_string_comparison_value 79!=78), tick/time host lowering,
     the frame-source machine-indexed write, and the entry-args spill.
   - **[ ] (original map)**
