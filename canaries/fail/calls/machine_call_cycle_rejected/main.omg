@@ -1,0 +1,39 @@
+// FAIL CANARY: a MUTUAL machine-call cycle (scan_a -> scan_b -> scan_a via
+// arm-target `self.SIBLING(..)` spellings) is rejected by the validation
+// walk -- Q6 ruling, Zach 2026-07-13: "yes fucking banned." This BOUNDED
+// shape is the pin: unbounded cycles already refused at specialization, but
+// clone specialization ABSORBED bounded ones (the dungeon's old
+// find_item_at/find_item_after pair compiled and ran). Absorbable is not
+// legal: machine calls are stack-based; repetition is a state transition.
+// The dungeon pair is rewritten as an in-machine inspect_item <-> scan_next
+// state loop -- the spelling this diagnostic prescribes.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::scan_a(&mut self, n: u32 in Wrapping) -> u32 in Wrapping {
+    transition n < 3 {
+        true -> step(n)
+        _ -> (99)
+    }
+    state step(&mut self, n: u32 in Wrapping) {
+        let next: u32 in Wrapping = n + 1;
+        match n == 2 {
+            true -> n
+            false -> self.scan_b(next)
+        }
+    }
+}
+machine Main::scan_b(&mut self, n: u32 in Wrapping) -> u32 in Wrapping {
+    match n < 3 {
+        true -> self.scan_a(n)
+        false -> (99)
+    }
+}
+machine Main::main(&mut self) {
+    let r: u32 in Wrapping = self.scan_a(0);
+    transition r == 2 {
+        true -> observed()
+        _ -> other()
+    }
+    state observed(&mut self) { self.console.exit_process(70); }
+    state other(&mut self)    { self.console.exit_process(71); }
+}

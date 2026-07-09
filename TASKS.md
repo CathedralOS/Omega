@@ -70,39 +70,6 @@ should target NEW feature surfaces as they land, not re-walk these axes.
 
 ## Open bugs / gaps (ungated)
 
-- **Implement the Q6 ban: MUTUAL value-call cycles are rejected.** "Yes
-  fucking banned" (2026-07-13). UNBOUNDED cycles already reject at
-  specialization ("calls into a recursive cycle"); the gap is BOUNDED
-  cycles that clone-specialization absorbs. Add a validation-level walk
-  over the machine-call graph (value calls + statement calls + arm-target
-  `self.SIBLING(..)` spellings) rejecting any cycle regardless of
-  boundedness, with a cycle-path diagnostic + write-it-as-states advice.
-  CORPUS PREP DONE (2026-07-13): the dungeon's find_item_at/
-  find_item_after pair is rewritten as an in-machine state loop
-  (inspect_item <-> scan_next), dungeon differential green. Remaining:
-  the walk + fail canary.
-
-- **Implement the shift-domain ruling.** "Shift overflow is defined by the
-  domain on which the operator is happening... lhs domain governs, rhs
-  doesn't matter; mixed domains = the operator does not resolve (compile
-  error); domain casts solve explicit changes" (2026-07-13, the
-  numeric-range thesis answer). Scope: define wrapped/saturating shift
-  COUNT semantics per the lhs domain, keep Exact shifts as proof
-  obligations, verify the mixed-domain operator rejection covers shifts,
-  and retire/rewrite the parked shift-at-width divergence canaries per the
-  ruling. The float-to-int half of the thesis remains open (no ruling
-  yet; the parked cast divergence stays).
-
-- **Q9 IMPLEMENTED as a declaration-level rejection** (`[range] in
-  Wrapping/Saturating/Trapping` is ill-formed on every declaration site;
-  fail/types/range_under_non_exact_domain_rejected pins it).
-  > Edit: I misunderstood this one at first -- I offered clarity in OWNER_QUESTIONS.md
-  [Read your clarity. Your message sketch ("Exact assignments must be
-  within invariant range...") reads as STORE-level enforcement with the
-  declaration staying legal. We shipped the stricter DECLARATION-level
-  rejection (the combination cannot exist, so no store question arises).
-  If you want the declaration legal + range enforced at stores instead,
-  say so and we swap the check.]
 - **OWNER DIRECTIVE: `usize` is not an Omega type -- retire it.** "We do not
   have usize. We have addr, we have primitives. Conflating addresses & size
   is a semantic disaster" (2026-07-13). Current reality: the compiler
