@@ -1,0 +1,32 @@
+// RUN CANARY (exit 70) + interpreter differential. A Saturating/Trapping
+// fused WRITE whose operand is a NESTED binary keeps the OUTER operator's
+// domain: `(a + b) + 50` at u8-Saturating clamps BOTH adds (255), not just
+// the nested one. The write sites used the leaf PLACE resolver per operand
+// -- a binary node is not a place, so it read Exact and the outer op
+// lowered PLAIN (305 byte-truncated to 49; found 2026-07-14 while probing
+// operand-position saturating shl, disassembly-confirmed). All four write
+// sites (table + non-table, write + branch expansion) now funnel through
+// resolve_binary_write_arithmetic_domain*, the same recursive witness the
+// operand-position lowering uses, so write and operand sites cannot
+// disagree.
+// exits: 71 = outer op lowered plain (49); 99 = neither.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let a: u8 in Saturating = (200 as u8 in Saturating);
+    let b: u8 in Saturating = (100 as u8 in Saturating);
+    let r: u8 in Saturating = (a + b) + 50;
+    transition r == 255 {
+        true  -> pass()
+        false -> chk49()
+    }
+    state chk49(&mut self) {
+        transition r == 49 {
+            true  -> outer_plain()
+            false -> other()
+        }
+    }
+    state pass(&mut self)       { self.console.exit_process(70); }
+    state outer_plain(&mut self){ self.console.exit_process(71); }
+    state other(&mut self)      { self.console.exit_process(99); }
+}

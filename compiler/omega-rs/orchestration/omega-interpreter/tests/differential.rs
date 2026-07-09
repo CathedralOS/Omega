@@ -56,6 +56,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_shift_atwidth_signed_modular_exit", 70),
     ("arithmetic/runtime_shift_right_atwidth_exit", 70),
     ("arithmetic/runtime_shift_atwidth_indexed_targets_exit", 70),
+    ("arithmetic/runtime_sat_nested_operand_domain_exit", 70),
     ("arithmetic/runtime_wrapping_operand_truncation_exit", 70),
     ("text/case_literal_texteq_field_store_exit", 70),
     ("text/case_literal_texteq_terminal_exit", 70),
@@ -1869,7 +1870,6 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     // then both promote to pass/.
     ("arithmetic/shl_saturating_domain_divergence", 70, PendingInterpOutcome::Exit(70)),
     ("arithmetic/shl_saturating_atwidth_divergence", 70, PendingInterpOutcome::Exit(70)),
-    ("arithmetic/sat_nested_operand_outer_domain_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("arithmetic/unsigned_min_max_wrapping_local_divergence", 78, PendingInterpOutcome::Exit(77)),
     ("expressions/dead_trapping_let_not_elided", 7, PendingInterpOutcome::Traps),
     // Multi-arm texteq-valued locals: leaf route emits no text compare;

@@ -99,16 +99,6 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   x86_64 twin sequences (both parked shl_saturating canaries hold 70/70 on
   arm64 and promote with x86).
 
-- Saturating/Trapping fused writes LOSE the outer operator's domain when the
-  left operand is a NESTED binary (found probing operand-position sat shl;
-  NOT shift-specific): `(a + b) + 50` u8-Saturating clamps the nested node
-  but lowers the outer add PLAIN (305 & 0xFF = 49; interp says 255). The
-  write's domain witness reads leaf operand types and falls back to Exact
-  for nested-binary operands -- thread the top node's declared domain into
-  the fused-write witness regardless of operand shape (decision-17 arc).
-  Pinned: pending/arithmetic/sat_nested_operand_outer_domain_divergence
-  (71, Exit(70)).
-
 - SUSPECT (unprobed): the narrow unsigned saturating MULTIPLY tail's signed
   lower-bound compare -- u32 * u32 can exceed 2^63 (e.g. 4e9 * 4e9), whose
   SIGNED reading is negative and would clamp to 0 instead of MAX. The

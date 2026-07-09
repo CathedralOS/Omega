@@ -20,7 +20,7 @@ use super::super::super::storage_places::{
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_binary_operand_arithmetic_domain_in_table,
     resolve_runtime_pointee_slot_offset_in_table,
-    resolve_runtime_storage_arithmetic_domain_in_table,
+    resolve_binary_write_arithmetic_domain_in_table,
     resolve_runtime_storage_is_signed_in_table, resolve_runtime_storage_place_in_table,
     resolve_runtime_storage_primitive_type_in_table, static_integer_value_in_table,
 };
@@ -1201,20 +1201,14 @@ fn select_runtime_binary_mutation_write_in_table(
     );
     // Decision 17 (operand-driven): domain from the operands' types (Exact
     // neutral); signedness from the target (== result type's width/signedness).
-    let domain = resolve_runtime_storage_arithmetic_domain_in_table(
+    let domain = resolve_binary_write_arithmetic_domain_in_table(
         input,
         dispatch_index,
         value_source_key,
         expressions,
         left_expression,
-    )
-    .combine(resolve_runtime_storage_arithmetic_domain_in_table(
-        input,
-        dispatch_index,
-        value_source_key,
-        expressions,
         right_expression,
-    ));
+    );
     let target_signed = resolve_runtime_storage_is_signed_in_table(
         input,
         dispatch_index,

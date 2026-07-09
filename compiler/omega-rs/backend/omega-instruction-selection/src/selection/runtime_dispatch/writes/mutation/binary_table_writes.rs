@@ -5,7 +5,7 @@ use crate::selection::storage_places::{
     resolve_runtime_frame_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
     resolve_runtime_pointee_slot_offset_in_table,
-    resolve_runtime_storage_arithmetic_domain_in_table, resolve_runtime_storage_is_signed_in_table,
+    resolve_binary_write_arithmetic_domain_in_table, resolve_runtime_storage_is_signed_in_table,
     resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
     runtime_storage_target_is_atomic_in_table,
 };
@@ -500,21 +500,14 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     // a literal adopts the other side's domain); a genuine conflict is rejected
     // upstream by the semantics. Signedness comes from the target (== the result
     // type's width/signedness, which must match the operands in a valid program).
-    let left_domain = resolve_runtime_storage_arithmetic_domain_in_table(
+    let domain = resolve_binary_write_arithmetic_domain_in_table(
         input,
         dispatch_index,
         value_source_key,
         expressions,
         left_expression,
-    );
-    let right_domain = resolve_runtime_storage_arithmetic_domain_in_table(
-        input,
-        dispatch_index,
-        value_source_key,
-        expressions,
         right_expression,
     );
-    let domain = left_domain.combine(right_domain);
     let target_signed = resolve_runtime_storage_is_signed_in_table(
         input,
         dispatch_index,
@@ -810,20 +803,14 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_bin
     // Decision 17 (operand-driven): the arithmetic domain comes from the operands'
     // types (Exact neutral, so a literal adopts the other side); signedness from
     // whichever operand resolves to an integer place (they share the result type).
-    let domain = resolve_runtime_storage_arithmetic_domain_in_table(
+    let domain = resolve_binary_write_arithmetic_domain_in_table(
         input,
         dispatch_index,
         source_key,
         expressions,
         left_expression,
-    )
-    .combine(resolve_runtime_storage_arithmetic_domain_in_table(
-        input,
-        dispatch_index,
-        source_key,
-        expressions,
         right_expression,
-    ));
+    );
     let target_signed = resolve_runtime_storage_is_signed_in_table(
         input,
         dispatch_index,
