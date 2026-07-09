@@ -53,6 +53,7 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   obligation (compile error otherwise), one ruling covering both + future
   corners. Related parked divergences + the const-fold family live in the
   pending-canary ledger (self-watching on compile + runtime axes).
+  > Owner: This is incoherent and you've provided 0 context. Shar is shift? What is amount? Update this so I can fucking make a call. Thx jackass.
 
 ## Open bugs / gaps (ungated)
 
