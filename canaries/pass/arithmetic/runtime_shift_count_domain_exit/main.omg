@@ -6,7 +6,7 @@
 // `wrapped << self.k` outright. Legs: << and >> with a runtime Exact count.
 // (At-width counts are slice B: the wrapping count-clamp on x86 + aarch64
 // 64-bit; not pinned here so this canary stays arch-independent.)
-// exits: 71 = << wrong; 72 = >> wrong.
+// exits: 71 = << wrong; 72 = >> wrong; 73/74 = at-width 32/64 not modular-0.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; k: u32; }
 machine Main::main(&mut self) {
@@ -24,11 +24,36 @@ machine Main::build(&mut self) {
         let b: u32 in Wrapping = (64 as u32 in Wrapping);
         let s: u32 in Wrapping = b >> self.k;
         transition s == 8 {
-            true -> good()
+            true -> atwidth32()
             _ -> wrong_shr()
         }
     }
-    state good(&mut self)      { self.console.exit_process(70); }
-    state wrong_shl(&mut self) { self.console.exit_process(71); }
-    state wrong_shr(&mut self) { self.console.exit_process(72); }
+    // MODULAR at-width legs (slice B, aarch64+interp): a Wrapping << by a
+    // count >= the type width is x * 2^n = 0 (mod 2^w) -- the 64-bit case
+    // needs the explicit count clamp (LSLV masks mod 64) and the interp's
+    // uniform modular semantics. x86's count clamp is still pending; these
+    // legs run natively on aarch64 hosts and in the interpreter.
+    state atwidth32(&mut self) {
+        let a: u32 in Wrapping = (1 as u32 in Wrapping);
+        let c: u32 in Wrapping = (40 as u32 in Wrapping);
+        let r: u32 in Wrapping = a << c;
+        transition r == 0 {
+            true -> atwidth64()
+            _ -> wrong_atwidth32()
+        }
+    }
+    state atwidth64(&mut self) {
+        let a: u64 in Wrapping = (1 as u64 in Wrapping);
+        let c: u64 in Wrapping = (70 as u64 in Wrapping);
+        let r: u64 in Wrapping = a << c;
+        transition r == 0 {
+            true -> good()
+            _ -> wrong_atwidth64()
+        }
+    }
+    state good(&mut self)           { self.console.exit_process(70); }
+    state wrong_shl(&mut self)      { self.console.exit_process(71); }
+    state wrong_shr(&mut self)      { self.console.exit_process(72); }
+    state wrong_atwidth32(&mut self){ self.console.exit_process(73); }
+    state wrong_atwidth64(&mut self){ self.console.exit_process(74); }
 }

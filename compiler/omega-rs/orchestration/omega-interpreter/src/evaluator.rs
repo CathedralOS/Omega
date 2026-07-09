@@ -5347,10 +5347,20 @@ impl<'program> Evaluator<'program> {
                     Add => l.wrapping_add(r),
                     Subtract => l.wrapping_sub(r),
                     Multiply => l.wrapping_mul(r),
-                    // Shift COUNT masking at width 64 matches aarch64 LSLV
-                    // (the cross-arch count-at-or-above-width divergence
-                    // stays parked; wrap canaries use in-range counts).
-                    ShiftLeft => l.wrapping_shl(r as u32),
+                    // MODULAR at every width (shift-domain ruling,
+                    // 2026-07-13: the lhs domain defines the semantics;
+                    // Wrapping = mod 2^w): a count >= the type's width is
+                    // x * 2^n = 0 (mod 2^w). The old count-mask
+                    // (wrapping_shl) matched aarch64 LSLV at 64-bit but
+                    // contradicted the <= 32-bit behavior, where the wide
+                    // compute + wrap_to_width already produced 0.
+                    ShiftLeft => {
+                        if (r as u64) >= primitive_bit_width(ty) {
+                            0
+                        } else {
+                            l.wrapping_shl(r as u32)
+                        }
+                    }
                     _ => unreachable!(),
                 };
                 return Ok(Value::Int(wrap_to_width(wide, ty)));
@@ -5838,6 +5848,17 @@ fn apply_arithmetic_domain(
             )),
             _ => Ok(wrap_to_width(raw, ty)),
         },
+    }
+}
+
+/// The bit width a WRAPPING shift wraps at (the modular-arithmetic modulus
+/// exponent). Pointer-width types are 64-bit in both engines.
+fn primitive_bit_width(ty: PrimitiveType) -> u64 {
+    match ty {
+        PrimitiveType::I8 | PrimitiveType::U8 => 8,
+        PrimitiveType::I16 | PrimitiveType::U16 => 16,
+        PrimitiveType::I32 | PrimitiveType::U32 => 32,
+        _ => 64,
     }
 }
 

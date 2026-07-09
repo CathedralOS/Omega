@@ -373,7 +373,7 @@ pub fn runtime_storage_binary_write_width(
             matches!(operator, StateGuardOperator::Modulo),
         )
     } else {
-        runtime_binary_operation_width(
+        runtime_binary_operation_width_with_domain(
             operator,
             super::runtime_storage::runtime_binary_operation_byte_size(
                 runtime_value_operands,
@@ -382,6 +382,7 @@ pub fn runtime_storage_binary_write_width(
                 right,
                 byte_size,
             ),
+            domain,
         )
     };
 
@@ -463,6 +464,24 @@ fn saturating_signed_divide_modulo_width(byte_size: usize, want_remainder: bool)
 /// FCMP+FCSEL (8) + `FMOV` back (4); COMPARISONS FCMP + MOVZ + B.cond + MOVZ
 /// (16) with NO trailing FMOV (the 0/1 result is already in the GPR). MUST
 /// stay in lockstep with `append_runtime_float_binary_operation`.
+/// Width twin of `append_runtime_binary_operation_with_domain`: the plain op
+/// width plus the WRAPPING `<<` modular count clamp (CMP #width + CSEL = 8).
+/// MUST stay in lockstep.
+pub(in crate::aarch64) fn runtime_binary_operation_width_with_domain(
+    operator: StateGuardOperator,
+    byte_size: usize,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+) -> usize {
+    runtime_binary_operation_width(operator, byte_size)
+        + if domain == omega_core::arithmetic::ArithmeticDomain::Wrapping
+            && operator == StateGuardOperator::ShiftLeft
+        {
+            8
+        } else {
+            0
+        }
+}
+
 fn runtime_float_binary_operation_width(operator: StateGuardOperator) -> usize {
     8 + match operator {
         StateGuardOperator::Max | StateGuardOperator::Min => 8 + 4,
@@ -1751,7 +1770,7 @@ pub fn runtime_value_operand_width(
             } else {
                 0
             };
-            runtime_binary_operation_width(
+            runtime_binary_operation_width_with_domain(
                 operator,
                 super::runtime_storage::runtime_binary_operation_byte_size(
                     runtime_value_operands,
@@ -1760,6 +1779,10 @@ pub fn runtime_value_operand_width(
                     right,
                     8,
                 ),
+                runtime_value_operands
+                    .binary_arithmetic_domain(operand)
+                    .map(|(domain, _)| domain)
+                    .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact),
             ) + wrapping_truncation
         };
         runtime_value_operand_width(runtime_value_operands, left)
