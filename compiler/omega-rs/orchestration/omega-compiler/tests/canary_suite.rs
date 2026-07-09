@@ -21237,6 +21237,38 @@ fn runtime_nested_field_terminal_second_instance_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// MULTI-ARM inline callee with SAME-NAMED arm locals (the account_ledger
+// regression shape): each arm's `b` must resolve in THAT arm's scope; a
+// call-target-scoped key stole every arm's delivery for arm 0's slot.
+#[test]
+fn runtime_multiarm_same_named_locals_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_multiarm_same_named_locals_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-multiarm-same-named-locals-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("multi-arm same-named locals canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("multi-arm same-named locals canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected per-arm local deliveries (10/20/30 -> exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A dispatched value call whose terminal reads THROUGH a `&mut` ALIAS
 // (`-> acc`, acc: &mut i32): pins that the result is the pointee value,
 // never the pointer bits (the last unprobed return-write shape).
@@ -28080,6 +28112,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/nested_value_call_arg_rejected",
     "calls/machine_self_call_recursion_rejected",
     "calls/terminal_self_call_recursion_rejected",
+    "calls/ambiguous_spliced_second_receiver_rejected",
     "calls/empty_body_return_machine_rejected",
     "parse/machine_clause_garbage_rejected",
     "arithmetic/nested_field_exact_overflow_rejected",

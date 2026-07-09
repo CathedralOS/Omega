@@ -205,6 +205,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_nonentry_inline_second_receiver_exit", 70),
     ("calls/runtime_nested_local_terminal_second_instance_exit", 70),
     ("calls/runtime_nested_field_terminal_second_instance_exit", 70),
+    ("calls/runtime_multiarm_same_named_locals_exit", 70),
     ("calls/runtime_dispatch_float_terminal_exit", 70),
     ("time/runtime_value_machine_receiver_field_postentry_exit", 70),
     ("references/runtime_nested_receiver_same_type_exit", 70),

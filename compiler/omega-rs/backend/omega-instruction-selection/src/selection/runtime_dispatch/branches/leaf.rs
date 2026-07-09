@@ -696,16 +696,12 @@ fn select_runtime_leaf_branch_terminal_value_write(
     // `self.v + 1`), which the callee context cannot resolve -- the result-slot
     // write silently dropped and the call returned a stale 0 (the by-value
     // arg-to-free-machine miscompile).
-    // The CALL-TARGET scope comes FIRST: a chained inline value call's arm
-    // args are spelled in the CALLEE's arm-owning state (`Main ->
-    // holder.run()`: run.run's `done(total)` names RUN's local), which is
-    // neither branch_key (the arm's TARGET state, `done`) nor source_key
-    // (the top case). Trying branch_key first is not safe order-wise: its
-    // scoped lookups miss (done owns no slots) and the case-wide name
-    // fallback then matches a SAME-NAMED slot of another scope (Main's
-    // `total` local -- the nested-inline result scramble, 2026-07-11e;
-    // repro scratchpad/slice2/nested_inline_chain_single). A statement
-    // with anything but exactly one target skips the extra key.
+    // The CALL-TARGET scope joins the loop for BARE-NAME terminals only: a
+    // chained inline value call's arm args are spelled in the CALLEE's
+    // arm-owning state (`Main -> holder.run()`: run.run's `done(total)`
+    // names RUN's local), which is neither branch_key (the arm's TARGET
+    // state, `done`) nor source_key (the top case). A statement with
+    // anything but exactly one target contributes no key.
     let call_target_key = {
         let mut targets = input.state_calls.calls.iter().filter_map(|(_, call)| {
             (call.source_key.machine == expansion.source_key.machine
@@ -719,20 +715,80 @@ fn select_runtime_leaf_branch_terminal_value_write(
             _ => None,
         }
     };
+    // BARE-NAME terminals resolve ONLY through frame slots, so key order is
+    // decided by SCOPE-STRICT resolvability (runtime_frame_slot_for_
+    // expression_scoped): a key that owns no slot for the name is skipped
+    // outright -- attempting it would reach the case-wide NAME fallback and
+    // match a same-named slot of another scope. Two pinned failure modes of
+    // naive orderings: branch-first let `done` (slotless) steal Main's
+    // `total` via the fallback (the nested-inline result scramble); a
+    // target-first WITHOUT the gate stole each idx-arm's own `b` for the
+    // callee entry's `b` (account_ledger, three same-named arm locals --
+    // regressed 465b82bbf, caught by samples_with_documented_exit).
+    // Non-name terminals keep the pre-existing [branch, source] order and
+    // lenient behavior; when NO key strictly resolves a bare name, the
+    // ungated pre-existing order applies too (old fallback semantics).
+    let value_is_bare_name = matches!(
+        expressions.expression(resolved_value),
+        ExpressionNode::Name(_)
+    );
+    // The target scope's key comes from the SLOT side (unique-per-machine
+    // by name; state symbols differ between the state-call and control-flow
+    // layers, so target_key.state cannot be compared with slot keys).
+    let target_resolution_key = call_target_key
+        .filter(|_| value_is_bare_name)
+        .and_then(|target| {
+            crate::selection::storage_places::unique_machine_frame_slot_key_for_expression(
+                input,
+                expansion.dispatch_index,
+                target.machine,
+                &expressions,
+                resolved_value,
+            )
+        });
     let mut resolution_keys = [
-        call_target_key,
         Some(expansion.branch_key),
+        target_resolution_key,
         Some(expansion.source_key),
     ];
-    if resolution_keys[0] == resolution_keys[1] {
-        resolution_keys[0] = None;
+    if resolution_keys[1] == resolution_keys[0] {
+        resolution_keys[1] = None;
     }
     if expansion.branch_key == expansion.source_key {
         resolution_keys[2] = None;
     }
+    if value_is_bare_name {
+        let any_strict = resolution_keys.iter().flatten().any(|key| {
+            crate::selection::storage_places::runtime_frame_slot_for_expression_scoped(
+                input,
+                expansion.dispatch_index,
+                *key,
+                &expressions,
+                resolved_value,
+            )
+            .is_some()
+        });
+        if any_strict {
+            for slot_key in resolution_keys.iter_mut() {
+                let strict = slot_key.is_some_and(|key| {
+                    crate::selection::storage_places::runtime_frame_slot_for_expression_scoped(
+                        input,
+                        expansion.dispatch_index,
+                        key,
+                        &expressions,
+                        resolved_value,
+                    )
+                    .is_some()
+                });
+                if !strict {
+                    *slot_key = None;
+                }
+            }
+        }
+    }
     if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some() {
         eprintln!(
-            "LEAFWRITE: dispatch {} source m{} s{} branch m{} s{} target {:?} stmt {} slot@{}",
+            "LEAFWRITE: dispatch {} source m{} s{} branch m{} s{} target {:?} stmt {} slot@{} bare {} keys {:?}",
             expansion.dispatch_index,
             expansion.source_key.machine.arena_index(),
             expansion.source_key.state.arena_index(),
@@ -741,6 +797,17 @@ fn select_runtime_leaf_branch_terminal_value_write(
             call_target_key.map(|key| (key.machine.arena_index(), key.state.arena_index())),
             expansion.statement_index,
             slot.byte_offset,
+            value_is_bare_name,
+            resolution_keys
+                .iter()
+                .map(|key| key.map(|key| {
+                    (
+                        key.machine.arena_index(),
+                        key.state.arena_index(),
+                        key.segment_index,
+                    )
+                }))
+                .collect::<Vec<_>>(),
         );
     }
     for resolution_key in resolution_keys.into_iter().flatten() {
