@@ -1225,10 +1225,19 @@ macOS/arm64 host this lane runs on — are CLAIMED here:
   data shape, fine); the guards sibling site must not be missed (probe
   with a guard-position receiver call); interp is already
   instance-correct, so the differential is the oracle throughout.
-  IMPLEMENT next iteration: context field + flow-builder computation →
-  the two resolver sites → fence relaxation → promote the pending repro +
-  a machine-flavor twin → sweep the a/b shuffle workarounds
-  (time-interop canary, note_vault) back to natural spelling.
+  PHASE 1 LANDED (2026-07-10o, behavior-neutral): RuntimeFlowPlan gains
+  `context_call_sites: Vec<(StateKey, usize)>` — the per-context MINTING
+  CALL SITE, recorded by the flow builder at next_callee_context (ROOT =
+  invalid placeholder). This is the receiver-identity thread: downstream,
+  dispatch_index → RuntimeState { key, context } → context_call_sites →
+  the minting StateCall → receiver_path → the true storage base. All
+  gates green (the field is dormant until phase 2 consumes it).
+  PHASE 2 (next): a receiver-path→offset walk helper visible to selection
+  (share/move the blocker's walk); the machine_owned.rs resolver sites +
+  the guards sibling consult the context's receiver base when present;
+  fence relaxation; promote the pending repro + a machine-flavor twin;
+  sweep the a/b shuffle workarounds (time-interop canary, note_vault)
+  back to natural spelling.
 
 ## Observations (not fs, flagged for Zach)
 
