@@ -91,13 +91,24 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    shows TWO wrong emissions (backward splice stmts 3 and 8: `@8 >= @8`,
    `@0 - @0`), exactly the statements with `earlier` on the LEFT and
    `self` on the RIGHT, and in both the self operand EQUALS the earlier
-   operand. SUBSTITUTION-MATCH signature, not resolution: hypothesis —
-   the prelude binding substitution (resolve_branch_prelude_binding_
-   expression_handle / symbol_matches_table_path) mis-matches the bare
-   callee `self` root against the `earlier` param binding, operand-order
-   dependent. NEXT: instrument symbol_matches_table_path for ["self"]
-   path hits; diff the substituted trees of stmt 2 (correct twin) vs
-   stmt 3 (wrong). Then re-sweep after_2026 to natural spelling.
+   operand. SUBSTITUTION-MATCH signature, not resolution. SESSION
+   2026-07-10x ruled OUT the prelude-binding substitution (instrumented:
+   ZERO Name-arm matches fire for this program — that machinery is
+   entirely idle here) and MAPPED the alias route: selection's
+   bind_runtime_operation_aliases sets RuntimeAliasBinding keyed
+   (source_key = the CALLEE's target_key, parameter_symbol) — with TWO
+   calls to the same callee the key COLLIDES by construction, correct
+   only while each call's ops resolve strictly inside its own window
+   (set_alias replace + .rev() find). All VOP place resolutions log
+   correct, so the wrong operands are born on a NON-VOP path — prime
+   suspect: the runtime-branching PLAN's own alias buffer / prelude
+   tables (bind_runtime_branch_aliases), where cross-call ordering at
+   plan-build time could bake the forward call's `earlier→now_keep`
+   into the backward splice's self-side operands (equal-operands
+   signature). NEXT: instrument runtime-branching's alias buffer + the
+   prelude op VALUE expressions at build time (print per-call bindings
+   + the substituted trees for the backward stmts 2/3). Then re-sweep
+   after_2026 to natural spelling.
 
 3. **Receiver slice 2** — non-entry callers need recursive caller-base
    resolution (the context chain's parent bases compose); fenced until then.

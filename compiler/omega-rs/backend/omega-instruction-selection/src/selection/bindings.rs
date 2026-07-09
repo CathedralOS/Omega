@@ -256,17 +256,13 @@ pub(super) fn resolve_runtime_alias_binding(
             // the local's SLOT, which state-storage keeps for exactly these
             // aggregates. The SELECTION-layer twin of state-values'
             // `simplify_collection_expression` guard (the third fold layer).
-            let collection = if alias_for_path(
-                &indexed.collection,
-                source_key,
-                aliases,
-            )
-            .is_some_and(|alias| {
-                matches!(
-                    alias_expressions.expression(alias.expression),
-                    ExpressionNode::ArrayLiteral(_) | ExpressionNode::StructLiteral(_)
-                )
-            }) {
+            let collection = if alias_for_path(&indexed.collection, source_key, aliases)
+                .is_some_and(|alias| {
+                    matches!(
+                        alias_expressions.expression(alias.expression),
+                        ExpressionNode::ArrayLiteral(_) | ExpressionNode::StructLiteral(_)
+                    )
+                }) {
                 RuntimeResolvedExpression {
                     source_key,
                     expression: indexed.collection.clone(),
@@ -1047,6 +1043,15 @@ pub(super) fn resolve_branch_prelude_binding_expression_handle(
             .iter()
             .find(|binding| symbol_matches_table_path(binding.parameter_symbol, &path))
             .map(|binding| {
+                if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
+                    eprintln!(
+                        "PRELUDE SUBST: path head_sym {} sym {} matched binding `{}` (sym {})",
+                        path.head_symbol.arena_index(),
+                        path.symbol.arena_index(),
+                        binding.parameter_name.as_str(),
+                        binding.parameter_symbol.arena_index(),
+                    );
+                }
                 let expression = table.copy_from(source_table, binding.expression);
                 let resolved = resolve_branch_prelude_binding_expression_handle(
                     source_table,
@@ -1258,12 +1263,14 @@ pub(super) fn append_place_suffix(expression: &Expression, suffix: &[Identifier]
 fn append_member_suffix(expression: &Expression, suffix: &[Identifier]) -> Expression {
     let mut result = expression.clone();
     for member in suffix {
-        result = Expression::Member(Box::new(omega_checked_trees::expression::MemberExpression {
-            receiver: result,
-            member_symbol: SymbolHandle::invalid(),
-            member: member.clone(),
-            case_variant: None,
-        }));
+        result = Expression::Member(Box::new(
+            omega_checked_trees::expression::MemberExpression {
+                receiver: result,
+                member_symbol: SymbolHandle::invalid(),
+                member: member.clone(),
+                case_variant: None,
+            },
+        ));
     }
     result
 }
