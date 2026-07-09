@@ -109,6 +109,7 @@ should target NEW feature surfaces as they land, not re-walk these axes.
 - **[RESEARCH, sidesteppable]** nonlinear index `pixels[y*W+x]` isn't provable
   (no product-bound fact); route around with a linear counter until an axiom
   or octagon domain is added.
+  > Owner: Dependent types are a planned feature eventually (not in language docs yet). Huge feature, but will enable this.
 
 ## Backend perf (deferred, post-1.0)
 
