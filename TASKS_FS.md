@@ -1,5 +1,7 @@
 # Tasks — Filesystem (`std::fs`) + Windows-native thread
 
+> Zac: Condense this, this is becoming a graveyard of finished tasks and brain dumps
+> 
 > **LOOP LIVE (Windows thread, since 2026-07-06).** Zach's redirect: Windows/x86_64
 > is the primary TESTED target ("focus on us"); macOS/aarch64 canaries stay green
 > structurally but runtime confirmation needs a Mac. This file is the source of
