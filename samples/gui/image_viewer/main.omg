@@ -18,9 +18,11 @@
 
 use omega::language::std::filesystem_host;
 
+// GUI-subsystem app: the console surface is exit + a status line for terminal
+// runs (invisible from Finder). No stdin — a windowed app must never block on
+// a console.
 boundary trait Console {
     machine write_line(text: String);
-    machine read_line(out_line: &mut String);
     machine exit_process(return_code: i32);
 }
 boundary trait Clock { machine sleep(milliseconds: u32); }
@@ -82,11 +84,9 @@ data Main {
     r: i32;
     px: i32;
     pumped: i32 [0..=16];
-    pause: String;
 }
 
 machine Main::main(&mut self) {
-    self.console.write_line("image_viewer: BMPs from disk, software-blitted -- RIGHT/LEFT flip, ESC closes");
     // "#32770\0" -- the predefined dialog class (draggable top-level window).
     self.cls[0] = 35;
     self.cls[1] = 51;
@@ -365,14 +365,10 @@ machine Main::main(&mut self) {
     }
     state load_failed(&mut self) {
         self.console.write_line("FAIL: could not load imgN.bmp -- run from the image_viewer folder (exit 1)");
-        self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
     state bad(&mut self) {
         self.console.write_line("FAIL: window/DC creation failed or a blit failed while alive (exit 1)");
-        self.console.write_line("[press Enter to close]");
-        self.console.read_line(&mut self.pause);
         self.console.exit_process(1);
     }
 }
