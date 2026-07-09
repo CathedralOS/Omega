@@ -887,6 +887,19 @@ pub fn runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_stora
     8 + if any_frame { 8 } else { 0 } + 4 + 36 + 4
 }
 
+/// Width of the frame-resident 2D read: frame pair + 36-byte math + element
+/// load + target pair + store. All constant.
+pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width()
+-> usize {
+    60
+}
+
+/// The frame-2D read's relocated target pair follows the frame pair + math +
+/// the element load.
+pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset() -> usize {
+    48
+}
+
 /// The shared frame pair sits directly after the machine pair in every
 /// double-indexed op.
 pub fn runtime_machine_double_indexed_frame_base_offset() -> usize {

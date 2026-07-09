@@ -2400,6 +2400,58 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtim
     Ok(bytes)
 }
 
+/// Read `g[i][j]` from a FRAME-resident 2D array (a `let`/param local): one
+/// frame pair serves the array and both indices, then the shared address math,
+/// the element load, and the relocated target pair + store. Every offset is a
+/// pure constant (60-byte total).
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_count, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot read {byte_count}-byte double-indexed values yet"
+        )));
+    }
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width(),
+    );
+    bytes.extend(encode_adrp_placeholder(16)); // frame base [reloc @ 0]
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_double_index_address_math(
+        &mut bytes,
+        16,
+        outer_index_offset,
+        outer_stride,
+        16,
+        inner_index_offset,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    match byte_count {
+        8 => bytes.extend(encode_load_x_from_x(17, 16, 0)?),
+        _ => bytes.extend(encode_load_w_from_x(17, 16, 0, byte_count)?),
+    }
+    bytes.extend(encode_adrp_placeholder(16)); // target base [reloc @ 48]
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    match byte_count {
+        8 => bytes.extend(encode_store_x_to_x(17, 16, target_offset)?),
+        _ => bytes.extend(encode_store_w_to_x(17, 16, target_offset, byte_count)?),
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width()
+    );
+    Ok(bytes)
+}
+
 /// Write twin: `grid[i][j] = <literal>` -- the same address math, then the
 /// value immediate materialized into x17 (AFTER every relocation, so its
 /// variable width perturbs no reloc offset) and stored at the element.

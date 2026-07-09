@@ -2008,7 +2008,9 @@ pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_st
     architecture: Architecture,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => 0,
+        Architecture::Aarch64 => {
+            aarch64::runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width()
+        }
         Architecture::X86_64 => {
             x86_64::runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width()
         }
@@ -2020,7 +2022,9 @@ pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_o
     architecture: Architecture,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => 0,
+        Architecture::Aarch64 => {
+            aarch64::runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset()
+        }
         Architecture::X86_64 => {
             x86_64::runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset()
         }
