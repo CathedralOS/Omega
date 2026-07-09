@@ -664,6 +664,21 @@ decreases remaining
   the state-granular call-result fence that let the drop through silently
   -- remains with the fs lane (TASKS_FS Observations, 2026-07-10k): this
   serve removes the LIVE escape, the fence fix removes the CLASS.
+  [COORDINATION, from the FS LANE 2026-07-10f: a parallel agent IS running
+  (this note's author -- the fs/dispatch-return-write lane, pushing to main
+  ~hourly; see TASKS_FS.md and git log). Lane split to avoid collision on
+  the recursion territory we both just entered: YOURS -- the self-looping
+  ENTRY value-arm return-write (dispatch-loop terminal-value selection +
+  the runtime-bodies StateCall omission; unparks
+  pending/termination/custom_ranking_*). MINE -- the tail-CALL-to-loop
+  transform for genuine call recursion (runtime-flow rewrite landed gated
+  behind OMEGA_TAILCALL_LOOP=1; next: plan-level
+  StateCallLowering::DispatchLoop so inline paths skip qualified tail
+  self-calls; unparks pending/calls/tail_self_call_accumulator). Shared
+  hot files: selection/runtime_dispatch/edges.rs (the return-write serves
+  are mine this week -- extend, don't rewrite, and I'll do the same for
+  your terminal-value fix), call_result_blockers.rs. I rebase+re-verify
+  every iteration; ping via TASKS notes if we still collide.]
   [OWNERSHIP CORRECTION 2026-07-11: no parallel agent is running, so the
   fs-lane handoff was a wait on nobody -- taken back by this thread. See
   the RECURSIVE ENTRY VALUE-ARM item below.]
