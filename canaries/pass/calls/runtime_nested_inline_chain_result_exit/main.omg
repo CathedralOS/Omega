@@ -1,0 +1,28 @@
+// RUN CANARY (exit 70) -- NESTED INLINE VALUE-CALL CHAIN with COLLIDING
+// LOCAL NAMES (fixed 2026-07-11e): Main's `let total = holder.run()` and
+// run's `let total = self.only.get()` share the name `total`. The outer
+// leaf terminal-write resolves `done(total)`'s arg in the CALL-TARGET
+// scope (run.run) FIRST; before that, the branch-key attempt (done owns
+// no slots) fell into the case-wide NAME fallback and copied MAIN's
+// same-named local (unwritten -> ZII delivered: interp 70 vs native 71,
+// the nested-inline result scramble). 7 -> exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Tally { count: i32 in Wrapping; }
+machine Tally::get(&mut self) -> i32 in Wrapping {
+    transition true { true -> done(self.count) }
+    state done(&mut self, value: i32) -> i32 { value }
+}
+data Holder { only: Tally; }
+machine Holder::run(&mut self) -> i32 in Wrapping {
+    self.only.count = 7;
+    let total: i32 in Wrapping = self.only.get();
+    transition true { true -> done(total) }
+    state done(&mut self, total: i32) -> i32 { total }
+}
+data Main { console: Console; holder: Holder; }
+machine Main::main(&mut self) {
+    let total: i32 in Wrapping = self.holder.run();
+    transition total == 7 { true -> good() _ -> bad(total) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, total: i32) { self.console.exit_process(71); }
+}
