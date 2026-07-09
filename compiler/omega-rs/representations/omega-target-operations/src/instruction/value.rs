@@ -49,6 +49,15 @@ pub trait RuntimeValueOperandSource {
     /// (`addsd`) precision instead of re-deriving/hardcoding it. `None` for
     /// non-binary operands; callers default to 8 (the historical width).
     fn binary_byte_width(&self, handle: RuntimeValueOperandHandle) -> Option<usize>;
+    /// The decision-17 arithmetic domain of a `Binary` operand and whether its
+    /// operands are SIGNED integers, both resolved at build time from the
+    /// operands' declared types. Drives the Saturating/Trapping
+    /// operand-position lowering (clamp bounds / overflow flag choice).
+    /// `None` for non-binary operands.
+    fn binary_arithmetic_domain(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(omega_core::arithmetic::ArithmeticDomain, bool)>;
     /// A `Convert` (numeric cast) operand: `(source, source_byte_size,
     /// target_byte_size, source_is_float, target_is_float, source_signed)`.
     fn convert(
@@ -201,6 +210,20 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
     fn binary_byte_width(&self, handle: RuntimeValueOperandHandle) -> Option<usize> {
         match self.get(handle) {
             RuntimeValueOperand::Binary { byte_width, .. } => Some(*byte_width),
+            _ => None,
+        }
+    }
+
+    fn binary_arithmetic_domain(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(omega_core::arithmetic::ArithmeticDomain, bool)> {
+        match self.get(handle) {
+            RuntimeValueOperand::Binary {
+                arithmetic_domain,
+                operands_signed,
+                ..
+            } => Some((*arithmetic_domain, *operands_signed)),
             _ => None,
         }
     }

@@ -1653,8 +1653,34 @@ pub fn runtime_value_operand_width(
     {
         runtime_text_equals_literal_operand_width(runtime_value_operands, place, &literal)
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
+        let operand_domain = runtime_value_operands
+            .binary_arithmetic_domain(operand)
+            .filter(|(domain, _)| {
+                matches!(
+                    domain,
+                    omega_core::arithmetic::ArithmeticDomain::Saturating
+                        | omega_core::arithmetic::ArithmeticDomain::Trapping
+                )
+            })
+            .filter(|_| {
+                matches!(
+                    operator,
+                    StateGuardOperator::Add
+                        | StateGuardOperator::Subtract
+                        | StateGuardOperator::Multiply
+                )
+            });
         let operation_width = if runtime_value_operands.binary_is_float(operand) {
             runtime_float_binary_operation_width(operator)
+        } else if let Some((domain, operands_signed)) = operand_domain {
+            // Saturating/Trapping operand-position arithmetic: MUST mirror the
+            // operand evaluator's clamp/trap dispatch or offsets drift.
+            saturating_trapping_arithmetic_width(
+                domain,
+                operator,
+                runtime_value_operands.binary_byte_width(operand).unwrap_or(8),
+                operands_signed,
+            )
         } else {
             runtime_binary_operation_width(
                 operator,

@@ -16031,6 +16031,74 @@ fn runtime_saturating_param_carry_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_saturating_expression_domain_exit_canary_runs() {
+    // Saturating arithmetic in OPERAND position (fused under guard compares,
+    // no landing seam): i8 add/sub/mul overflow directions clamp at the
+    // operation, the 64-bit boundary add takes the flag-based clamp, and an
+    // in-range add stays exact. Exercises the register-parametric write-path
+    // sequences reused by the operand evaluator.
+    let canary = pass_canary("arithmetic/runtime_saturating_expression_domain_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-satexpr-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating expression-domain canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating expression-domain canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected all five operand-position saturating directions to hold (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_trapping_guard_overflow_traps_canary_runs() {
+    // Trapping arithmetic in OPERAND position must TRAP: `u8 in Trapping`
+    // 200+100 overflows at the guard's fused add, so the process dies before
+    // either exit. A regression back to the plain fused add would truncate
+    // the wide 300 to 44 at the byte-width compare and exit 70 silently.
+    let canary = pass_canary("arithmetic/runtime_trapping_guard_overflow_traps");
+    let build_dir = std::env::temp_dir().join(format!("omega-trapguard-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("trapping guard-overflow canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("trapping guard-overflow canary should spawn");
+    let code = output.status.code();
+    assert_ne!(
+        code,
+        Some(70),
+        "Trapping guard overflow must abort before the clean exit -- exit 70 means the fused add silently wrapped"
+    );
+    assert_ne!(
+        code,
+        Some(71),
+        "Trapping guard overflow must abort, not fall through to the false arm"
+    );
+    // Windows reports the trap as a negative NTSTATUS exit code; unix hosts
+    // terminate on the signal (SIGTRAP/SIGILL), where `code()` is None.
+    assert!(
+        code.is_none() || code.is_some_and(|code| code < 0),
+        "expected a crash status (brk/ud2 kill), got {code:?}"
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_trapping_overflow_traps_canary_runs() {
     // Trapping must TRAP: i32::MAX + 1 under `in Trapping` executes ud2, so the
     // process dies with a crash status and never reaches exit_process(70). If a
@@ -26718,7 +26786,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/unconstrained_payload_arithmetic",
     "arithmetic/bounded_assignment_unproven",
     "arithmetic/wrapping_target_plain_operands_rejected",
-    "arithmetic/guard_saturating_operand_rejected",
     "calls/unresolved_value_call_rejected",
     "calls/unresolved_receiver_method_rejected",
     "calls/void_value_callee_rejected",

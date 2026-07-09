@@ -1,16 +1,21 @@
-// PENDING (2026-07-09c, waiting on OPERAND-POSITION domain lowering): each
-// direction below feeds Saturating arithmetic STRAIGHT INTO A COMPARISON, so
-// there is no landing-seam coercion -- the operation node itself must clamp
-// (decision 17: the domain rides the operand's declared type). The
-// INTERPRETER computes this correctly (exit 70) since the expression-domain
-// fix; NATIVE has no clamping lowering for arithmetic fused into an operand
-// tree, and used to compute the plain op silently (all four overflow
-// directions read the unclamped wide value -- exit 71). That silent
-// miscompile is now FENCED LOUDLY by emission planning's operand-domain
-// blocker (see fail/arithmetic/guard_saturating_operand_rejected), so this
-// program refuses to build natively today.
-// PROMOTE (pass/arithmetic + differential, expected 70/70) when the
-// operand-position Saturating/Trapping lowering lands in both ISAs.
+// Saturating arithmetic applied at the OPERATION node (decision 17): the
+// domain rides the operand's DECLARED type, so `a + b` must clamp even when
+// the result never lands in a Saturating slot -- here each result feeds its
+// COMPARISON directly, so there is no landing-seam coercion at all (the
+// sibling runtime_saturating_narrow_add_sub_exit stores results into
+// Saturating fields first, which a wide-compute-then-coerce-at-landing model
+// also gets right; this canary is what tells the two models apart). Operands
+// are FIELDS so the fold never sees them. Natively this exercises the
+// OPERAND-POSITION clamp lowering (the register-parametric write-path
+// sequences reused under the fused guard compare); the differential oracle
+// pins the interpreter's node-level domain application to the same 70.
+// (History: parked 2026-07-09c while native fused the plain op -- all four
+// overflow directions read unclamped wide values -- behind the
+// operand-domain fence; promoted when the lowering landed in both ISAs.)
+// Directions: i8 add up (100+50 -> 127), i8 sub down (-100-70 -> -128),
+// i8 mul up (64*4 -> 127), 64-bit signed add up (i64::MAX-7 + 100 ->
+// i64::MAX -- the flag-based clamp), and an IN-RANGE add stays exact
+// (40+2 = 42, no clamp). Exit 70.
 boundary trait Console {
     machine exit_process(return_code: i32);
 }

@@ -74,6 +74,11 @@ pub enum ValueOperand {
         /// unclamped wide value (150 instead of the saturated 127) or skipped
         /// the trap.
         arithmetic_domain: omega_core::arithmetic::ArithmeticDomain,
+        /// Whether the operands are SIGNED integers, resolved from the same
+        /// declared-type witness as `arithmetic_domain`. Consumed only by the
+        /// Saturating/Trapping operand-position lowering (it picks the clamp
+        /// bounds / overflow flag); Exact/Wrapping ignore it.
+        operands_signed: bool,
     },
     /// Runtime text CONTENT equality in VALUE position (Equatable synthesis
     /// over `String` fields, chapter 13): both sides are `{ptr @ +0, len @ +8}`
@@ -151,6 +156,7 @@ impl ValueOperand {
                 is_float,
                 byte_width,
                 arithmetic_domain,
+                operands_signed,
             } => Self::Binary {
                 left: remap(*left),
                 operator: *operator,
@@ -158,6 +164,7 @@ impl ValueOperand {
                 is_float: *is_float,
                 byte_width: *byte_width,
                 arithmetic_domain: *arithmetic_domain,
+                operands_signed: *operands_signed,
             },
             Self::TextEqualsLiteral {
                 place,

@@ -194,22 +194,24 @@ pub(super) fn resolve_runtime_value_operand_in_table(
             right,
             runtime_value_operands,
         );
+        let domain_signedness = resolve_binary_operand_arithmetic_domain_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            left_expr,
+            right_expr,
+        );
         return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
             left,
             operator,
             right,
             is_float,
             byte_width,
-            // Recorded so emission planning refuses the domains the fused
-            // operand encoding cannot honor (Saturating/Trapping).
-            arithmetic_domain: resolve_binary_operand_arithmetic_domain_in_table(
-                input,
-                dispatch_index,
-                source_key,
-                expressions,
-                left_expr,
-                right_expr,
-            ),
+            // Recorded so the Saturating/Trapping operand-position lowering
+            // picks its width-correct op + clamp/trap bounds.
+            arithmetic_domain: domain_signedness.0,
+            operands_signed: domain_signedness.1,
         }));
     }
 
@@ -309,8 +311,9 @@ pub(super) fn resolve_runtime_value_operand_in_table(
                 is_float,
                 byte_width,
                 // min/max SELECTS one operand -- no overflow exists for a
-                // domain to clamp/trap.
+                // domain to clamp/trap. Signedness already rode the operator.
                 arithmetic_domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+                operands_signed: true,
             }));
         }
 
@@ -507,6 +510,7 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operan
         byte_width: 1,
         // A synthesized 0/1 bool compare cannot overflow.
         arithmetic_domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        operands_signed: false,
     }))
 }
 
@@ -661,6 +665,14 @@ pub(super) fn resolve_runtime_value_operand(
         let mut domain_expressions = ExpressionTable::default();
         let domain_left = domain_expressions.insert_tree(&binary.left);
         let domain_right = domain_expressions.insert_tree(&binary.right);
+        let domain_signedness = resolve_binary_operand_arithmetic_domain_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            &domain_expressions,
+            domain_left,
+            domain_right,
+        );
         return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
             left,
             operator,
@@ -668,18 +680,26 @@ pub(super) fn resolve_runtime_value_operand(
             // Non-table value-operand path: float detection not wired here yet;
             // float arithmetic via this fallback stays a known gap.
             is_float: false,
-            // Integer arm derives its own width; default 8 matches prior behavior.
-            byte_width: 8,
-            // Recorded so emission planning refuses the domains the fused
-            // operand encoding cannot honor (Saturating/Trapping).
-            arithmetic_domain: resolve_binary_operand_arithmetic_domain_in_table(
-                input,
-                dispatch_index,
-                source_key,
-                &domain_expressions,
-                domain_left,
-                domain_right,
-            ),
+            // The plain integer arm ignores the width; a Saturating/Trapping
+            // operand needs its REAL operand width for the width-correct op +
+            // clamp bounds.
+            byte_width: if matches!(
+                domain_signedness.0,
+                omega_core::arithmetic::ArithmeticDomain::Saturating
+                    | omega_core::arithmetic::ArithmeticDomain::Trapping
+            ) {
+                crate::selection::runtime_dispatch::guards::runtime_value_compare_byte_size(
+                    runtime_value_operands,
+                    left,
+                    right,
+                )
+            } else {
+                8
+            },
+            // Recorded so the Saturating/Trapping operand-position lowering
+            // picks its width-correct op + clamp/trap bounds.
+            arithmetic_domain: domain_signedness.0,
+            operands_signed: domain_signedness.1,
         }));
     }
 
@@ -735,8 +755,9 @@ pub(super) fn resolve_runtime_value_operand(
             // Integer arm derives its own width; default 8 matches prior behavior.
             byte_width: 8,
             // min/max SELECTS one operand -- no overflow exists for a
-            // domain to clamp/trap.
+            // domain to clamp/trap. Signedness already rode the operator.
             arithmetic_domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+            operands_signed: true,
         }));
     }
 
