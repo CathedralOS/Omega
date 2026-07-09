@@ -1,4 +1,12 @@
 use crate::InterpretOutcome;
+use crate::{FilesystemAccess, InterpretOptions};
+
+/// The REAL-filesystem provider (opt-in `FilesystemAccess::RealUnscoped`; the
+/// build.omg rung). A CHILD module so it can serve ops against the private
+/// `Evaluator` internals (the fs argument/buffer helpers) without widening
+/// their visibility; `#[path]` keeps the flat one-file-per-module layout.
+#[path = "evaluator_real_fs.rs"]
+mod real_fs;
 
 /// Per-target open-flag BIT POSITIONS, mirroring the `FilesystemHost` open-flag
 /// provides values in `omega/language/std/filesystem_host.omg` (the single
@@ -172,6 +180,14 @@ mod host_stat_offsets {
 }
 
 pub(crate) fn run(checked: &TypedTrees, stdin: &[u8]) -> InterpretOutcome {
+    run_with_options(checked, stdin, InterpretOptions::default())
+}
+
+pub(crate) fn run_with_options(
+    checked: &TypedTrees,
+    stdin: &[u8],
+    options: InterpretOptions,
+) -> InterpretOutcome {
     // Run on a worker thread with a generous stack: the tree-walker recurses with the
     // program's call/expression nesting, which can exceed the default test-thread stack on
     // deep programs even with the call-depth budget. A scoped thread lets us keep the
@@ -179,7 +195,7 @@ pub(crate) fn run(checked: &TypedTrees, stdin: &[u8]) -> InterpretOutcome {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
             .stack_size(256 * 1024 * 1024)
-            .spawn_scoped(scope, || run_on_current_thread(checked, stdin))
+            .spawn_scoped(scope, || run_on_current_thread(checked, stdin, options))
             .expect("spawn interpreter worker thread")
             .join()
             .unwrap_or_else(|_| {
@@ -284,8 +300,15 @@ pub(crate) fn run_build_time_machine_arguments(
     })
 }
 
-fn run_on_current_thread(checked: &TypedTrees, stdin: &[u8]) -> InterpretOutcome {
+fn run_on_current_thread(
+    checked: &TypedTrees,
+    stdin: &[u8],
+    options: InterpretOptions,
+) -> InterpretOutcome {
     let mut evaluator = Evaluator::new(checked, stdin);
+    if matches!(options.filesystem, FilesystemAccess::RealUnscoped) {
+        evaluator.real_fs = Some(real_fs::RealFs::new());
+    }
     match evaluator.run_entry() {
         Ok(()) => {
             // Reached a terminal transition without an explicit exit_process.
@@ -416,6 +439,12 @@ struct Evaluator<'program> {
     /// `read_errno` (darwin `___error()`). Mirrors the native seam so the typed
     /// error model (`io::ErrorKind`) resolves identically on both engines.
     virtual_errno: i32,
+    /// `Some` iff the run was started with `FilesystemAccess::RealUnscoped`
+    /// (build.omg rung 1): every filesystem op is served against the REAL host
+    /// filesystem instead of the virtual model above. The default (`None`)
+    /// keeps the interpreter hermetic -- the differential oracle never touches
+    /// real disk.
+    real_fs: Option<real_fs::RealFs>,
     /// Set whenever a host-boundary call is driven (statement position or the
     /// value-call fallback). The build-time evaluation entry rejects runs that
     /// touched the host: a dynamic backstop behind decision 12's static gate.
@@ -455,6 +484,7 @@ impl<'program> Evaluator<'program> {
                 .into_iter()
                 .collect(),
             virtual_errno: 0,
+            real_fs: None,
             host_boundary_touched: false,
             steps: 0,
             step_budget: STEP_BUDGET,
@@ -2483,6 +2513,12 @@ impl<'program> Evaluator<'program> {
         arguments: &[ExpressionHandle],
         frame: &Frame,
     ) -> EvalResult<Option<Value>> {
+        // REAL-filesystem mode (build.omg rung; opt-in via
+        // `FilesystemAccess::RealUnscoped`): the whole op family routes to the
+        // real provider, same `Ok(None)`-if-not-an-fs-op contract.
+        if self.real_fs.is_some() {
+            return self.try_real_filesystem_call(method, arguments, frame);
+        }
         // Value-returning raw `FilesystemHost` ops, matching the native seam:
         // each returns its "syscall" result (fd / byte count / rc; negative on
         // error) against the deterministic in-memory filesystem.

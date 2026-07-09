@@ -541,6 +541,32 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    mechanisms need codegen; build.omg composes OS personalities from that
    closed set, it cannot mint new architectures. Interim until the rung lands:
    exes fall back to `../imgN.bmp`.
+   **RUNG 1 DONE (2026-07-09): real-fs interpreter provider, opt-in.**
+   `omega-interpreter` now has `interpret_with_options(checked, stdin,
+   InterpretOptions { filesystem })` with `FilesystemAccess::{Virtual
+   (default), RealUnscoped}` (lib.rs); real mode serves the whole fs-op
+   family against the REAL disk via `evaluator_real_fs.rs` (a `#[path]`
+   child module of the evaluator, so it reuses the private argument/buffer/
+   stat helpers): `std::fs::File`s behind the same synthetic-fd table shape
+   (fds from 3), errno from `io::Error::raw_os_error()`, open flags decoded
+   by the existing `host_open_flags` mirror, real `Metadata` laid out via
+   the shared `write_fs_stat` writer (mode|size|mtime at host stat offsets),
+   op-name parity ONE-FOR-ONE with the virtual dispatcher. Core serve set:
+   create/open/open_create(+unix create-mode)/read/write/seek/close/
+   duplicate/set_len/sync/sync_data/remove/create_dir(_name)/remove_dir/
+   rename/read_metadata/read_symlink_metadata/read_file_metadata/errno.
+   Next-slice ops (at-family, read_at/write_at, locks, chown, perms, times,
+   links, read_dir, canonicalize) return -1/ENOTSUP — loud, never silently
+   wrong. Acceptance: `omega-interpreter/tests/real_fs.rs` runs ONE
+   build-shaped staging program both ways — real mode must materialize the
+   asset on disk byte-exact, hermetic default must exit identically with
+   NOTHING on disk. Every existing gate untouched (default is `Virtual`;
+   `interpret()` delegates unchanged). REMAINING RUNGS: (a) grant plumbing +
+   path scoping (read: source tree, write: build dir) — the variant is
+   named `RealUnscoped` to telegraph its absence; (b) the next-slice ops as
+   build programs need them; (c) the compiler-side build.omg entry that
+   actually invokes `interpret_with_options` (target selection + constant
+   bindings ride this).
 4. [ ] Windows ops without msvcrt equivalents → Win32 calls (stat family first,
    after #2's design).
 5. [ ] Title-bar context-menu Close → outbound WndProc entry stubs (§12.4).
@@ -956,24 +982,29 @@ wrongly rejects them. See Open-work #4.
   runtime_saturating_narrow_add_sub_exit passes, so the gap is specific to the
   transition-argument evaluation path or dispatched-param carry. Interp
   arithmetic is the arithmetic thread's area — flagged.
-- ⚠️ NATIVE MISCOMPILE on main (observed 2026-07-08, present on clean HEAD
-  77d39fbfb with all fs changes stashed — the parallel sum-payload-range /
-  const-fold thread's territory, NOT this thread's): the differential test
-  `-p omega-interpreter --test differential` fails two with native≠interp:
-  `dual_accumulator` sample (interp 70 vs native 71) and
-  `arithmetic/runtime_cast_in_guard_exit` (native 71 vs suite-expected 70).
-  Since the suite pins native as correct-by-definition, native 71 is a real
-  regression. Flagged for the arithmetic thread — likely the folded-constant
-  domain work leaking a sign/width into a cast-in-guard.
-  ⚠️⚠️ SECOND-ORDER COST (found 2026-07-08e): the supported-canaries test
-  PANICS AT THE FIRST MISMATCH, so everything alphabetically after
-  `arithmetic/runtime_cast_in_guard_exit` in RUN_CANARIES is UNVERIFIED while
-  the regression stands — it masked "wrapper open_create never compiled on
-  darwin arm64" for days. Fix the regression (or make the differential
-  collect-all-failures instead of panic-at-first) with priority. (6 GUI/input samples in
-  native_filesystem_canaries also fail, but those are the KNOWN effectful-arm
-  fence on `MacosInput::key_state`/`MacosGui::msg_peek` value calls, per the
-  fence doctrine above — expected, not a regression.)
+- ✅ RESOLVED (verified 2026-07-09g): the 2026-07-08 native arithmetic
+  regression (`dual_accumulator` interp 70 vs native 71;
+  `arithmetic/runtime_cast_in_guard_exit` native 71) is FIXED on main — the
+  differential now runs PAST both (dual_accumulator sample test green;
+  supported-canaries progresses beyond RUN_CANARIES line 33) . Credit the
+  arithmetic/const-fold thread.
+- ⚠️ NEW panic-at-first BLOCKER (2026-07-09g, A/B-verified on clean HEAD with
+  fs changes stashed — the TIME lane's territory, NOT this thread's):
+  `interpreter_matches_native_on_supported_canaries` now dies at
+  `host/runtime_tick_count_monotonic_exit` (RUN_CANARIES line ~285) because
+  `Clock.tick_count` has NO NATIVE LOWERING for aarch64/MachO — the canary +
+  its registration landed on main via d7c0ac73a (2026-07-01, the time
+  worktree's "tick_count runs end-to-end" commit), whose native lowering is
+  presumably windows-first. Its canary_suite test fails on macOS the same
+  way. SECOND-ORDER COST persists: everything AFTER line ~285 in
+  RUN_CANARIES is unverified on macOS hosts while this stands (same masking
+  class that hid "open_create never compiled on darwin arm64" for days).
+  Options for the time lane: land the aarch64 lowering, or gate the canary's
+  differential/suite registration per-target, or make the differential
+  collect-all-failures instead of panic-at-first (repeat ask). (6 GUI/input
+  samples in native_filesystem_canaries also fail, but those are the KNOWN
+  effectful-arm fence on `MacosInput::key_state`/`MacosGui::msg_peek` value
+  calls, per the fence doctrine above — expected, not a regression.)
 
 ## Coordination
 
