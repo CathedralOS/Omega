@@ -57,6 +57,11 @@ pub(crate) fn collect_reentrant_value_call_blockers(
                         | StateCallRole::TransitionArgument
                         | StateCallRole::TransitionGuard
                 )
+                // Dispatched calls are exempt (re-added 2026-07-09f, sound:
+                // the call-result blocker guarantees a dispatched terminal is
+                // served or refuses loudly -- see value_call_arm_effect_blockers
+                // for the full rationale + the runtime differential proofs).
+                && !crate::dispatch_route::state_call_routed_to_dispatch(input, call)
         })
         .map(|(_, call)| call)
         .collect();

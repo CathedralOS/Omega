@@ -20052,6 +20052,43 @@ fn runtime_dispatch_result_transition_arg_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The fence-exemption acceptance test: an EFFECTFUL re-entrant value callee
+// dispatches and delivers both the looped result and the per-entry effect
+// count (the 2026-07-08n retraction counterexample, now sound).
+#[test]
+fn runtime_dispatched_effectful_reentrant_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_dispatched_effectful_reentrant_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-dispatched-effectful-reentrant-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dispatched effectful re-entrant canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dispatched effectful re-entrant canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected total == 5 AND hits == 5 (exit 70; 71 = result wrong, 72 = \
+         effect count wrong), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A dispatched value call whose TERMINAL returns a FIELD read: the
 // return-write copy uses the resolved place's REGION (was hardcoded
 // RuntimeFrame, reading the frame at a machine offset -- garbage).
