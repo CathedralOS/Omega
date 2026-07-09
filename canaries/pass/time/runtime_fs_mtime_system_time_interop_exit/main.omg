@@ -30,11 +30,6 @@ data Main {
     rc: i64;
     buffer: [u8; 144];
     mtime: i64;
-    // `a` must be the FIRST SystemTime field: dispatch resolves contained
-    // receivers by TYPE and picks the first instance (the sibling
-    // system_time_after_2026 canary's a/b shuffle idiom).
-    a: SystemTime;
-    b: SystemTime;
     modified: SystemTime;
     now_keep: SystemTime;
     diff: SystemTimeDifference;
@@ -59,9 +54,9 @@ machine Main::main(&mut self) {
             | ((self.buffer[55] as i64) << 56);
         self.modified = SystemTime::from_unix_seconds(self.mtime);
         self.now_keep = self.time.system_time_now();
-        self.a = self.now_keep;
-        self.b = self.modified;
-        self.diff = self.a.duration_since(self.b);
+        // Direct call on the NON-FIRST SystemTime field: per-instance
+        // receivers (2026-07-10t) retired the a/b first-field shuffle idiom.
+        self.diff = self.now_keep.duration_since(self.modified);
         transition self.diff {
             SystemTimeDifference::Ok { duration } -> check_gap(duration)
             SystemTimeDifference::Backwards { amount } -> bad_backwards(amount)

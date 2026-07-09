@@ -34,11 +34,6 @@ data Main {
     unit_result: UnitResult;
     meta_result: MetadataResult;
     time: Time;
-    // `a` must be the FIRST SystemTime field: dispatch resolves contained
-    // receivers by TYPE and picks the first instance (the canary's shuffle
-    // idiom).
-    a: SystemTime;
-    b: SystemTime;
     modified: SystemTime;
     now_keep: SystemTime;
     diff: SystemTimeDifference;
@@ -116,9 +111,9 @@ machine Main::main(&mut self) {
         // file is never in the future, so duration_since(now) must be Ok.
         self.modified = SystemTime::from_unix_seconds(meta.modified_secs);
         self.now_keep = self.time.system_time_now();
-        self.a = self.now_keep;
-        self.b = self.modified;
-        self.diff = self.a.duration_since(self.b);
+        // Direct call on the non-first SystemTime field (per-instance
+        // receivers, 2026-07-10t).
+        self.diff = self.now_keep.duration_since(self.modified);
         transition self.diff {
             SystemTimeDifference::Ok { duration } -> audit_time_gap(duration)
             _ -> done()
