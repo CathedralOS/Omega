@@ -110,17 +110,6 @@ pub struct RuntimeStateCallEdge {
     /// statement), so their clone terminals carried no CallResultReturn and the
     /// caller read a never-written slot.
     pub is_value: bool,
-    /// Whether the call's spelled receiver is `self` (the plan's
-    /// receiver_name; `self.other.f()` on a contained field is NOT). The
-    /// tail-call-to-loop rewrite is only sound on the SAME instance -- a
-    /// contained same-machine receiver must keep the recursion rejection.
-    pub is_self_receiver: bool,
-    /// Whether the PLAN stamped this call `StateCallLowering::DispatchLoop`
-    /// (the tail-call-to-loop transform): the flow builder rewrites it as
-    /// the entry-transition loop, and every inline path has already skipped
-    /// it. The flow builder re-checks the structural predicate and errors
-    /// loudly if plan and flow disagree.
-    pub is_dispatch_loop: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

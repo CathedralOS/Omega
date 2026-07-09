@@ -20403,106 +20403,6 @@ fn runtime_dispatch_result_field_binding_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-// The prior-ops leg: work before the terminal tail self-call runs every
-// iteration (hits == 4) and the result still delivers (10).
-#[test]
-fn runtime_tail_self_call_prior_ops_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_tail_self_call_prior_ops_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-tail-self-call-prior-ops-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("tail self-call prior-ops canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("tail self-call prior-ops canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected hits == 4 and sum == 10 (exit 70; 71 = wrong sum, 72 = wrong \
-         effect count), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-// STATEMENT-position tail self-call (the mkall_copy class): served by the
-// NESTED-transition route upstream of the state-call plan; pinned so a
-// route regression fires loudly.
-#[test]
-fn runtime_statement_tail_self_call_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_statement_tail_self_call_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-statement-tail-self-call-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&build_dir);
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("statement tail self-call canary should compile");
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("statement tail self-call canary should run");
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the statement tail recursion to accumulate 10 (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
-// GENUINE tail self-call recursion (`{ self.sum(n - 1, acc + n) }`),
-// lowered by the tail-call-to-loop transform (DispatchLoop plan stamp +
-// the flow builder's entry-transition rewrite). 4+3+2+1 accumulates to 10.
-#[test]
-fn runtime_tail_self_call_accumulator_exit_canary_runs() {
-    let canary = pass_canary("calls/runtime_tail_self_call_accumulator_exit");
-    let main_path = canary.join("main.omg");
-    let build_dir = std::env::temp_dir().join(format!(
-        "omega-tail-self-call-accumulator-{}",
-        std::process::id()
-    ));
-    let _ = fs::remove_dir_all(&build_dir);
-
-    compile(CompileOptions {
-        root_path: main_path,
-        build_dir: Some(build_dir.clone()),
-        target_name: None,
-        write_output: true,
-    })
-    .expect("tail self-call accumulator canary should compile");
-
-    let output = Command::new(build_dir.join(executable_name()))
-        .output()
-        .expect("tail self-call accumulator canary should run");
-
-    assert_eq!(
-        output.status.code(),
-        Some(70),
-        "expected the tail-recursive accumulator to deliver 10 (exit 70), got {:?}\nstderr:\n{}",
-        output.status.code(),
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let _ = fs::remove_dir_all(&build_dir);
-}
-
 // A dispatched value call whose terminal reads THROUGH a `&mut` ALIAS
 // (`-> acc`, acc: &mut i32): pins that the result is the pointee value,
 // never the pointer bits (the last unprobed return-write shape).
@@ -27328,6 +27228,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/void_value_callee_rejected",
     "calls/nested_value_call_arg_rejected",
     "calls/machine_self_call_recursion_rejected",
+    "calls/terminal_self_call_recursion_rejected",
     "calls/empty_body_return_machine_rejected",
     "parse/machine_clause_garbage_rejected",
     "arithmetic/nested_field_exact_overflow_rejected",

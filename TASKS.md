@@ -507,6 +507,16 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   value-call cycle walk (bounded clone specialization currently absorbs them).
   (Owner amendment upstream, same commit window: "machine calls are stack based,
   but state transitions are not" -- exactly the enforced distinction.)
+  [FS-LANE NOTE 2026-07-10k: the fs thread UNKNOWINGLY built a
+  tail-call-to-loop transform accepting call-spelled self-recursion in
+  TERMINAL position (2026-07-09/10, post-directive — it never read this
+  file's directive). RETRACTED in full; that position is now pinned
+  rejected by fail/calls/terminal_self_call_recursion_rejected. FOUND
+  while retracting, relevant to your review items (1)/(2): the
+  STATEMENT-position spelling (`self.drip(n - 1);` as a trailing
+  statement) still COMPILES AND RUNS via the Nested-transition route —
+  same rejected spelling class, unenforced. Yours to close with Zach's
+  scope answer.]
   machine Main::countdown(&mut self, remaining: usize) -> usize
 terminates
 decreases remaining

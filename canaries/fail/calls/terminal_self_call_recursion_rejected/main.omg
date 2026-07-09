@@ -1,0 +1,24 @@
+// TERMINAL-position call-spelled self-recursion (`{ self.sum(n - 1, acc +
+// n) }` as a state's value terminal) is REJECTED: Omega has no recursion
+// (owner directive 2026-07-07 -- stack size must be predictable;
+// repetition is a bare state self-transition loop). This position slipped
+// past the directive's transition-arm enforcement and was briefly ACCEPTED
+// via a tail-call-to-loop rewrite (2026-07-09/10, retracted 2026-07-10k);
+// this canary pins the rejection so the class cannot silently reopen.
+// The sibling transition-arm pin is machine_self_call_recursion_rejected.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::sum(&mut self, n: i32, acc: i32)
+terminates { decreases n; }
+-> i32
+{
+    transition n > 0 { true -> step(n, acc) false -> leaf(acc) }
+    state step(&mut self, n: i32, acc: i32) -> i32 { self.sum(n - 1, acc + n) }
+    state leaf(&mut self, acc: i32) -> i32 { acc }
+}
+machine Main::main(&mut self) {
+    let s: i32 = self.sum(4, 0);
+    transition s == 10 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

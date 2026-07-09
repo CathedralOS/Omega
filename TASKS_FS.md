@@ -860,6 +860,28 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    prints the edge at the site. NEW DEV TOOL: `omega-run` bin
    (omega-compiler) -- compile+run a .omg natively, `--both` adds interp
    agreement; the probe workflow's missing one-shot harness.
+   ⚠️ RETRACTED 2026-07-10k — OWNER DIRECTIVE CONFLICT. The tail-call-to-
+   loop transform (steps 2+3 below, landed 2026-07-10h) ACCEPTED
+   call-spelled self-recursion — but Zach had REJECTED recursion outright
+   on 2026-07-07 (TASKS.md, the NO-RECURSION directive + fail canary
+   calls/machine_self_call_recursion_rejected: "Omega has no recursion —
+   stack size must be predictable; repetition is a bare state
+   self-transition loop"). This lane never read the directive (it lives in
+   the other thread's task file; nothing in TASKS_FS referenced it) and
+   built the feature two days after the ruling. RETRACTION: the
+   DispatchLoop plan variant, flow rewrite, and edge bits are REMOVED; the
+   classic cycle rejection is restored with a directive pointer; the three
+   pass canaries are deleted and the terminal-position spelling is pinned
+   REJECTED by fail/calls/terminal_self_call_recursion_rejected (that
+   position slipped past the directive's transition-arm enforcement). KEPT
+   (position-neutral correctness): statement_call_arguments' target_value
+   descent. ENFORCEMENT GAP flagged to the other thread: STATEMENT-position
+   `self.drip(n-1);` still compiles+runs via the Nested-transition route
+   (probe exits 70) — same rejected spelling class, rides their open
+   review items (1)/(2) with Zach.
+   LESSON (saved to memory): survey the OTHER lane's task file for owner
+   directives before feature work — owner rulings outrank lane docs.
+   [Historical record of the retracted work follows.]
    STEPS 2+3 DONE — TAIL-CALL-TO-LOOP LANDED END TO END (2026-07-10h).
    GENUINE call recursion (the natural accumulator spelling) now compiles
    and runs natively: promoted canary
