@@ -101,6 +101,76 @@ const VIRTUAL_INO: u64 = 1_000_000;
 const VIRTUAL_UID: u32 = 501;
 const VIRTUAL_GID: u32 = 20;
 
+/// Byte offsets at which the hermetic FS lays out a `struct stat` for the HOST
+/// target, MIRRORING the `FilesystemHost` `ST_*_OFF` provides values for that same
+/// target -- the wrapper's `decode_metadata`/`copy` read `stat_buf[ST_*_OFF + k]`,
+/// and a program compiled for `host()` runs here, so this must agree offset-for-
+/// offset with the selected target's provides row. The differential canary is the
+/// drift guard between this Rust mirror and the `.omg` rows.
+///
+/// Non-windows hosts use the darwin/POSIX layout (every field has a real home).
+/// Windows uses the msvcrt `_stat64` layout (56 bytes); the fields absent or
+/// width-mismatched in `_stat64` (ino/uid/gid, the status-CHANGE time, blocks,
+/// blksize) live in a SYNTHETIC TAIL (>=64) that the interpreter fills but a real
+/// native `_stat64` leaves zero -- so native windows reports 0 for those.
+mod host_stat_offsets {
+    #[cfg(not(target_os = "windows"))]
+    pub const DEV: usize = 0;
+    #[cfg(not(target_os = "windows"))]
+    pub const MODE: usize = 4;
+    #[cfg(not(target_os = "windows"))]
+    pub const NLINK: usize = 6;
+    #[cfg(not(target_os = "windows"))]
+    pub const INO: usize = 8;
+    #[cfg(not(target_os = "windows"))]
+    pub const UID: usize = 16;
+    #[cfg(not(target_os = "windows"))]
+    pub const GID: usize = 20;
+    #[cfg(not(target_os = "windows"))]
+    pub const ATIME: usize = 32;
+    #[cfg(not(target_os = "windows"))]
+    pub const MTIME: usize = 48;
+    #[cfg(not(target_os = "windows"))]
+    pub const CTIME: usize = 64;
+    #[cfg(not(target_os = "windows"))]
+    pub const BTIME: usize = 80;
+    #[cfg(not(target_os = "windows"))]
+    pub const SIZE: usize = 96;
+    #[cfg(not(target_os = "windows"))]
+    pub const BLOCKS: usize = 104;
+    #[cfg(not(target_os = "windows"))]
+    pub const BLKSIZE: usize = 112;
+
+    // msvcrt `_stat64` real fields (0..55)
+    #[cfg(target_os = "windows")]
+    pub const DEV: usize = 0;
+    #[cfg(target_os = "windows")]
+    pub const MODE: usize = 6;
+    #[cfg(target_os = "windows")]
+    pub const NLINK: usize = 8;
+    #[cfg(target_os = "windows")]
+    pub const ATIME: usize = 32;
+    #[cfg(target_os = "windows")]
+    pub const MTIME: usize = 40;
+    #[cfg(target_os = "windows")]
+    pub const BTIME: usize = 48; // windows st_ctime == creation time
+    #[cfg(target_os = "windows")]
+    pub const SIZE: usize = 24;
+    // synthetic tail (native `_stat64` leaves these zero)
+    #[cfg(target_os = "windows")]
+    pub const INO: usize = 64;
+    #[cfg(target_os = "windows")]
+    pub const UID: usize = 72;
+    #[cfg(target_os = "windows")]
+    pub const GID: usize = 76;
+    #[cfg(target_os = "windows")]
+    pub const CTIME: usize = 80; // no change time on windows -> synthetic
+    #[cfg(target_os = "windows")]
+    pub const BLOCKS: usize = 88;
+    #[cfg(target_os = "windows")]
+    pub const BLKSIZE: usize = 96;
+}
+
 pub(crate) fn run(checked: &TypedTrees, stdin: &[u8]) -> InterpretOutcome {
     // Run on a worker thread with a generous stack: the tree-walker recurses with the
     // program's call/expression nesting, which can exceed the default test-thread stack on
@@ -3247,28 +3317,33 @@ impl<'program> Evaluator<'program> {
                     *slot.borrow_mut() = Value::Int(i64::from(byte));
                 }
             };
-            put(4, (mode & 0xff) as u8);
-            put(5, (mode >> 8) as u8);
-            // st_nlink (u16 @6): the hermetic FS models a fixed link count of 1 --
-            // it does not track hard-link groups (its `hard_link` copies bytes), so
-            // every path reports 1. Native `stat` returns the real count (2 after a
-            // `hard_link`); that case is asserted only in the native canary.
-            put(6, 1);
-            put(7, 0);
+            // Lay the fields out at the HOST target's stat offsets (mirrors the
+            // FilesystemHost ST_*_OFF provides row the wrapper's decode reads). On
+            // windows the width-mismatched/absent fields go to a synthetic tail; a
+            // real native `_stat64` would leave that tail zero.
+            use host_stat_offsets as off;
+            put(off::MODE, (mode & 0xff) as u8);
+            put(off::MODE + 1, (mode >> 8) as u8);
+            // st_nlink: the hermetic FS models a fixed link count of 1 -- it does not
+            // track hard-link groups (its `hard_link` copies bytes), so every path
+            // reports 1. Native `stat` returns the real count (2 after a `hard_link`);
+            // that case is asserted only in the native canary.
+            put(off::NLINK, 1);
+            put(off::NLINK + 1, 0);
             for i in 0..8 {
-                put(8 + i, (VIRTUAL_INO >> (8 * i)) as u8); // st_ino (u64)
-                put(32 + i, (VIRTUAL_ATIME_SECS >> (8 * i)) as u8); // st_atimespec.tv_sec
-                put(48 + i, (mtime_secs >> (8 * i)) as u8); // st_mtimespec.tv_sec
-                put(64 + i, (VIRTUAL_CTIME_SECS >> (8 * i)) as u8); // st_ctimespec.tv_sec
-                put(80 + i, (VIRTUAL_BIRTHTIME_SECS >> (8 * i)) as u8); // st_birthtimespec.tv_sec
-                put(96 + i, (size >> (8 * i)) as u8); // st_size
-                put(104 + i, (VIRTUAL_BLOCKS >> (8 * i)) as u8); // st_blocks (i64)
+                put(off::INO + i, (VIRTUAL_INO >> (8 * i)) as u8);
+                put(off::ATIME + i, (VIRTUAL_ATIME_SECS >> (8 * i)) as u8);
+                put(off::MTIME + i, (mtime_secs >> (8 * i)) as u8);
+                put(off::CTIME + i, (VIRTUAL_CTIME_SECS >> (8 * i)) as u8);
+                put(off::BTIME + i, (VIRTUAL_BIRTHTIME_SECS >> (8 * i)) as u8);
+                put(off::SIZE + i, (size >> (8 * i)) as u8);
+                put(off::BLOCKS + i, (VIRTUAL_BLOCKS >> (8 * i)) as u8);
             }
             for i in 0..4 {
-                put(i, (VIRTUAL_DEV >> (8 * i)) as u8); // st_dev (i32 @0)
-                put(16 + i, (VIRTUAL_UID >> (8 * i)) as u8); // st_uid (u32)
-                put(20 + i, (VIRTUAL_GID >> (8 * i)) as u8); // st_gid (u32)
-                put(112 + i, (VIRTUAL_BLKSIZE >> (8 * i)) as u8); // st_blksize (i32)
+                put(off::DEV + i, (VIRTUAL_DEV >> (8 * i)) as u8);
+                put(off::UID + i, (VIRTUAL_UID >> (8 * i)) as u8);
+                put(off::GID + i, (VIRTUAL_GID >> (8 * i)) as u8);
+                put(off::BLKSIZE + i, (VIRTUAL_BLKSIZE >> (8 * i)) as u8);
             }
         }
     }
