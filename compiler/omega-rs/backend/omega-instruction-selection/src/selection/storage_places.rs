@@ -2708,6 +2708,79 @@ fn runtime_frame_slot_for_expression_in_table<'plan>(
     })
 }
 
+/// GENUINELY SCOPED frame-slot resolution for a name-path expression under
+/// `source_key`: only slots whose source matches the key (segment-
+/// insensitive, per `state_key_matches_statement_source`) answer -- none of
+/// the lenient name-only arms `find_runtime_frame_slot_for_path` ends in.
+/// The leaf terminal-write uses this to test whether a resolution key can
+/// answer for a bare-name terminal AT ALL before attempting it: under a key
+/// that owns no slot for the name, the lenient fallbacks would match a
+/// SAME-NAMED slot of another scope (the nested-inline result scramble,
+/// 2026-07-11e/g).
+pub(in crate::selection) fn runtime_frame_slot_for_expression_scoped<'plan>(
+    input: &'plan InstructionSelectionInput<'plan>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<&'plan omega_runtime_storage::RuntimeFrameSlot> {
+    let path = normalized_storage_name_path_in_table(expressions, expression)?;
+
+    input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .find_map(|(_, slot)| {
+            (slot.dispatch_index == dispatch_index
+                && state_key_matches_statement_source(slot.source_key, source_key)
+                && slot_matches_table_path(slot, &path))
+            .then_some(slot)
+        })
+        .or_else(|| {
+            input
+                .runtime_storage
+                .frame_slots
+                .iter()
+                .filter_map(|(_, slot)| {
+                    (slot.dispatch_index <= dispatch_index
+                        && state_key_matches_statement_source(slot.source_key, source_key)
+                        && slot_matches_table_path(slot, &path))
+                    .then_some(slot)
+                })
+                .max_by_key(|slot| slot.dispatch_index)
+        })
+}
+
+/// The resolution key of the UNIQUE frame slot a MACHINE owns for a
+/// name-path expression under `dispatch_index`. State symbols differ
+/// between planning layers (a state-call's `target_key.state` is not the
+/// control-flow state symbol slots record), so the leaf terminal-write's
+/// CALL-TARGET scope matches by MACHINE and takes the slot's own exact
+/// source key -- but ONLY when unique: a machine with several same-named
+/// slots (one `b` per idx arm, account_ledger) cannot say which instance
+/// answers, and contributes no key.
+pub(in crate::selection) fn unique_machine_frame_slot_key_for_expression(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    machine: omega_core::symbols::SymbolHandle,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> Option<StateKey> {
+    let path = normalized_storage_name_path_in_table(expressions, expression)?;
+    let mut matches = input
+        .runtime_storage
+        .frame_slots
+        .iter()
+        .filter(|(_, slot)| {
+            slot.dispatch_index == dispatch_index
+                && slot.source_key.machine == machine
+                && slot_matches_table_path(slot, &path)
+        })
+        .map(|(_, slot)| slot.source_key);
+    let first = matches.next()?;
+    matches.next().is_none().then_some(first)
+}
+
 fn find_runtime_frame_slot_for_path<'plan>(
     input: &'plan InstructionSelectionInput<'plan>,
     dispatch_index: u32,

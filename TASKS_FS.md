@@ -11,8 +11,10 @@
 > only in per-target binding tables); every fix ships a canary that RUNS and
 > asserts. Gates per iteration: canary_suite (judge by FAILURE-SET diff vs the
 > named baseline below, never raw counts), native_filesystem_canaries (macOS
-> 88/0), omega-interpreter coverage + differential + `run_canary_list` drift
-> guard (run IMMEDIATELY after every rebase), real_fs. Push every iteration:
+> 88/0), samples_compile (BOTH test fns -- compile set AND documented-exit
+> set; skipping it hid the account_ledger silent-wrong for four pushes,
+> 2026-07-11g), omega-interpreter coverage + differential + `run_canary_list`
+> drift guard (run IMMEDIATELY after every rebase), real_fs. Push every iteration:
 > fetch → rebase → survival-grep your recent symbols → re-verify → push.
 
 ## North star
@@ -119,11 +121,27 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    adds the receiver's offset in the current machine's layout, self
    calls +0; distinct candidate bases = ambiguous -> refuse). The walk
    ignores the `reachable` flag -- spliced-out originals keep
-   reachable=false while their copies run inside the case (which is
-   also why the FENCE, which skips unreachable calls, never sees fully
-   inline non-entry chains: a PRE-EXISTING silent-wrong window, now
-   resolved correctly for recoverable shapes; ambiguous ones still
-   need fence visibility -- follow-up). NEW FRONTIER found by the
+   reachable=false while their copies run inside the case. FENCE
+   VISIBILITY closed 2026-07-11g: the contained-receiver fence now
+   examines SPLICED-LIVE calls (liveness fixpoint from the entry;
+   serve = composed source-machine base + unique-in-family final hop +
+   resolvable path, mirroring the walk; param/local receivers in
+   spliced code stay un-fenced -- they resolve via binding
+   substitution, recorded residual). Pin:
+   fail/calls/ambiguous_spliced_second_receiver_rejected (two
+   same-family calls in one state: `second` blocked loudly; was
+   silent-wrong 7-for-9 native). SAME-DAY REGRESSION FIX rolled in: the
+   scope-fix key order (465b82bbf) broke account_ledger (samples gate
+   was NOT in the iteration protocol -- now it is): a call-target
+   resolution key stole each idx-arm's same-named `b` for arm 0's slot.
+   The leaf-write's bare-name keys are now gated by GENUINELY scoped
+   resolvability (runtime_frame_slot_for_expression_scoped -- the
+   lenient last-resort arms in find_runtime_frame_slot_for_path made
+   the first "strict" attempt lie), branch key first when it strictly
+   resolves; the target key comes from the SLOT side (unique-per-machine
+   by name; state symbols differ across planning layers). Pins:
+   calls/runtime_multiarm_same_named_locals_exit + account_ledger's
+   documented-exit sample test. NEW FRONTIER found by the
    inline probe (PRE-EXISTING, receiver-independent, repro
    scratchpad/slice2/nested_inline_chain_single + _second_receiver):
    nested inline VALUE-call chains (entry -> holder.run() ->

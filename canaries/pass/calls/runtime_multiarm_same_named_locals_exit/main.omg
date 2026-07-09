@@ -1,0 +1,48 @@
+// RUN CANARY (exit 70) -- MULTI-ARM inline callee with SAME-NAMED arm
+// locals (the account_ledger regression shape, fixed 2026-07-11g): each
+// idx-guarded arm binds its own `let b` (same name, different state,
+// different value) and returns it. The leaf terminal-write must resolve
+// each arm's `b` in THAT arm's scope: a call-target-scoped key stole
+// arm 1/2's `b` for arm 0's slot (native delivered arm-0's value for
+// every index -- regressed 465b82bbf, caught by
+// samples_with_documented_exit); the scope-strict gate keeps the branch
+// key first when it strictly resolves. 10 + 2*20 + 3*30 = 140 checked
+// via per-index deliveries.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Store { x: i32 in Wrapping; y: i32 in Wrapping; z: i32 in Wrapping; }
+machine Store::pick(&mut self, idx: i32) -> i32 in Wrapping {
+    transition idx == 0 {
+        true -> arm_x()
+        _ -> try_y(idx)
+    }
+    state arm_x(&mut self) -> i32 in Wrapping {
+        let b: i32 in Wrapping = self.x;
+        transition { _ -> (b) }
+    }
+    state try_y(&mut self, idx: i32) -> i32 in Wrapping {
+        transition idx == 1 {
+            true -> arm_y()
+            _ -> arm_z()
+        }
+    }
+    state arm_y(&mut self) -> i32 in Wrapping {
+        let b: i32 in Wrapping = self.y;
+        transition { _ -> (b) }
+    }
+    state arm_z(&mut self) -> i32 in Wrapping {
+        let b: i32 in Wrapping = self.z;
+        transition { _ -> (b) }
+    }
+}
+data Main { console: Console; store: Store; a: i32 in Wrapping; b: i32 in Wrapping; c: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.store.x = 10;
+    self.store.y = 20;
+    self.store.z = 30;
+    self.a = self.store.pick(0);
+    self.b = self.store.pick(1);
+    self.c = self.store.pick(2);
+    transition self.a == 10 && self.b == 20 && self.c == 30 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

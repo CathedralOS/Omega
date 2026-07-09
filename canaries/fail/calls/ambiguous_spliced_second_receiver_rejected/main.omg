@@ -1,0 +1,32 @@
+// FAIL CANARY -- AMBIGUOUS SPLICED SECOND RECEIVER (fenced 2026-07-11g):
+// ONE state makes TWO inline value calls into the SAME data family
+// through DIFFERENT receivers (first.get(), second.get()). The runtime
+// chain-walk recovery refuses (distinct candidate bases) and the by-type
+// fallback would read FIRST for both -- b silently delivered 7 instead
+// of 9 with NO fence, because spliced calls keep reachable=false and the
+// contained-receiver fence skipped them. The fence now examines
+// SPLICED-LIVE calls: the unique-recovery serve fails for `second`
+// (two same-family calls in the state) and the by-type compare blocks
+// it loudly (offset 4 vs first-match 0).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Tally { count: i32 in Wrapping; }
+machine Tally::get(&mut self) -> i32 in Wrapping {
+    transition true { true -> done(self.count) }
+    state done(&mut self, value: i32) -> i32 { value }
+}
+data Holder { first: Tally; second: Tally; }
+machine Holder::run(&mut self) -> i32 in Wrapping {
+    self.first.count = 7;
+    self.second.count = 9;
+    let a: i32 in Wrapping = self.first.get();
+    let b: i32 in Wrapping = self.second.get();
+    transition true { true -> done(a, b) }
+    state done(&mut self, a: i32, b: i32) -> i32 { b }
+}
+data Main { console: Console; holder: Holder; flag: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.flag = self.holder.run();
+    transition self.flag == 9 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

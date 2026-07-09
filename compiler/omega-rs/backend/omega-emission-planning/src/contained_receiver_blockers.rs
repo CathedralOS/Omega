@@ -32,8 +32,30 @@ pub(crate) fn collect_contained_receiver_blockers(
     input: &EmissionPlanningInput<'_>,
     blockers: &mut Arena<EmissionBlocker>,
 ) {
+    // SPLICED-LIVE liveness (2026-07-11g): a call spliced through inline
+    // hops keeps its record `reachable = false` (the original state is never
+    // scheduled) while its copy EXECUTES inside a case -- skipping
+    // unreachable calls made fully-inline chains fence-invisible, so an
+    // AMBIGUOUS receiver (two same-family calls, chain walk refuses,
+    // by-type fallback reads the FIRST instance) was silent-wrong (probed
+    // native 71 vs interp 70). A machine is live when the entry (or a live
+    // machine) calls into it; a call is examined when reachable OR its
+    // source machine is live.
+    let live_machines = spliced_live_machines(input);
+    // The per-machine COMPOSED storage base, mirroring the runtime chain
+    // walk's anchor+hop math (entry = 0; each live call adds its receiver
+    // offset within the source machine's layout; self calls on the same
+    // data add 0). A machine reached with two DISTINCT bases (or through an
+    // unresolvable hop) is poisoned (`None`) -- calls out of it cannot
+    // prove their instance and stay refusable.
+    let machine_bases = composed_machine_bases(input, &live_machines);
     for (_, state_call) in input.state_calls.calls.iter() {
-        if !state_call.reachable || state_call.receiver_name.as_str().is_empty() {
+        if state_call.receiver_name.as_str().is_empty() {
+            continue;
+        }
+        if !state_call.reachable
+            && !live_machines.contains(&state_call.source_key.machine)
+        {
             continue;
         }
         if state_call.source_key.machine == state_call.target_key.machine {
@@ -142,6 +164,76 @@ pub(crate) fn collect_contained_receiver_blockers(
                     .is_some();
             }
             if minted_any && all_composed {
+                continue;
+            }
+        }
+
+        // SPLICED (unreachable) calls serve exactly when the runtime chain
+        // walk can recover their receiver (receiver_base.rs): the source
+        // machine's base COMPOSED through a unique hop chain, AND this is
+        // the UNIQUE live call from its (machine, state) into the target's
+        // data family (the walk's final hop), AND the receiver path
+        // resolves. Anything else falls through to the by-type compare,
+        // which accepts exactly the offsets the fallback resolves correctly
+        // (the AMBIGUOUS second receiver blocks; the first-instance call
+        // passes the equal-offsets compare and the fallback IS correct).
+        if !state_call.reachable {
+            let composed = machine_bases
+                .iter()
+                .find(|(machine, _)| *machine == state_call.source_key.machine)
+                .is_some_and(|(_, base)| base.is_some());
+            let unique_in_family = input
+                .state_calls
+                .calls
+                .iter()
+                .filter(|(_, other)| {
+                    (other.reachable || live_machines.contains(&other.source_key.machine))
+                        && other.source_key.machine == state_call.source_key.machine
+                        && other.source_key.state == state_call.source_key.state
+                        && (other.target_key.machine == state_call.target_key.machine
+                            || machine_layout_by_symbol(input.layouts, other.target_key.machine)
+                                .and_then(|layout| layout.attached_data.as_deref())
+                                == Some(target_attached_data))
+                })
+                .count()
+                == 1;
+            let segments = input
+                .state_calls
+                .receiver_path_segments
+                .span(state_call.receiver_path)
+                .unwrap_or(&[]);
+            let walk_segments = match segments.first() {
+                Some(root) if root.as_str() == "self" => &segments[1..],
+                _ => segments,
+            };
+            let resolved = if walk_segments.is_empty() {
+                omega_layout::field_path_offset(
+                    input.layouts,
+                    source_layout.fields,
+                    std::slice::from_ref(&state_call.receiver_name),
+                )
+            } else {
+                omega_layout::field_path_offset(input.layouts, source_layout.fields, walk_segments)
+            };
+            if composed && unique_in_family && resolved.is_some() {
+                continue;
+            }
+            // A PARAM/LOCAL receiver inside spliced code resolves through the
+            // expansion's BINDING substitution, not the by-type field walk --
+            // the param blocker below was written for reachable dispatch and
+            // would falsely block working splices. Left un-fenced (recorded
+            // residual), matching the pre-liveness behavior for this shape.
+            if state_call.receiver_name.as_str() != "self"
+                && input
+                    .layouts
+                    .fields
+                    .span(source_layout.fields)
+                    .is_none_or(|fields| {
+                        !fields
+                            .iter()
+                            .any(|field| field.name == state_call.receiver_name)
+                    })
+            {
                 continue;
             }
         }
@@ -279,6 +371,126 @@ pub(crate) fn collect_contained_receiver_blockers(
             ),
         ));
     }
+}
+
+/// Machines whose code EXECUTES via splices even though their own states are
+/// never scheduled: the entry seeds the set; any live machine's calls make
+/// their targets live. Bounded fixpoint (the call graph is acyclic by
+/// language rule; the bound is a backstop).
+fn spliced_live_machines(input: &EmissionPlanningInput<'_>) -> Vec<SymbolHandle> {
+    let mut live = vec![input.entry_key.machine];
+    for _ in 0..64 {
+        let mut changed = false;
+        for (_, call) in input.state_calls.calls.iter() {
+            if !(call.reachable || live.contains(&call.source_key.machine)) {
+                continue;
+            }
+            if !live.contains(&call.target_key.machine) {
+                live.push(call.target_key.machine);
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    live
+}
+
+/// Per-machine COMPOSED storage base, mirroring the runtime chain walk's hop
+/// math (receiver_base.rs): entry = 0; a named receiver adds its offset in
+/// the SOURCE machine's layout; a self call on the same attached data adds
+/// 0. A machine reached with two DISTINCT bases, or through an unresolvable
+/// hop (static spellings, param receivers, unresolvable paths), is POISONED
+/// (`None`) -- the walk could not uniquely anchor it either.
+fn composed_machine_bases(
+    input: &EmissionPlanningInput<'_>,
+    live_machines: &[SymbolHandle],
+) -> Vec<(SymbolHandle, Option<usize>)> {
+    let mut bases: Vec<(SymbolHandle, Option<usize>)> =
+        vec![(input.entry_key.machine, Some(0))];
+    let base_of = |bases: &[(SymbolHandle, Option<usize>)], machine: SymbolHandle| {
+        bases
+            .iter()
+            .find(|(candidate, _)| *candidate == machine)
+            .map(|(_, base)| *base)
+    };
+    for _ in 0..64 {
+        let mut changed = false;
+        for (_, call) in input.state_calls.calls.iter() {
+            if !(call.reachable || live_machines.contains(&call.source_key.machine)) {
+                continue;
+            }
+            let target = call.target_key.machine;
+            if target == input.entry_key.machine {
+                continue; // the entry's base is pinned
+            }
+            let Some(source_base) = base_of(&bases, call.source_key.machine) else {
+                continue; // source not reached yet this pass
+            };
+            let candidate = source_base.and_then(|base| {
+                hop_receiver_offset(input, call).map(|offset| base + offset)
+            });
+            match base_of(&bases, target) {
+                None => {
+                    bases.push((target, candidate));
+                    changed = true;
+                }
+                Some(existing) if existing != candidate => {
+                    if existing.is_some() {
+                        let position = bases
+                            .iter()
+                            .position(|(candidate_machine, _)| *candidate_machine == target)
+                            .expect("target present");
+                        bases[position].1 = None;
+                        changed = true;
+                    }
+                }
+                Some(_) => {}
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    bases
+}
+
+/// The offset a call's receiver contributes within its source machine's
+/// storage (the fence-side mirror of the walk's hop math): named receiver
+/// path offset, `0` for a same-data self call, `None` otherwise.
+fn hop_receiver_offset(
+    input: &EmissionPlanningInput<'_>,
+    call: &omega_state_calls::StateCall,
+) -> Option<usize> {
+    let receiver_name = call.receiver_name.as_str();
+    let source_layout = machine_layout_by_symbol(input.layouts, call.source_key.machine)?;
+    if receiver_name == "self" {
+        let source_attached = source_layout.attached_data.as_deref();
+        let target_attached = machine_layout_by_symbol(input.layouts, call.target_key.machine)
+            .and_then(|layout| layout.attached_data.as_deref());
+        return (source_attached.is_some() && source_attached == target_attached).then_some(0);
+    }
+    if receiver_name.is_empty() {
+        return None;
+    }
+    let segments = input
+        .state_calls
+        .receiver_path_segments
+        .span(call.receiver_path)
+        .unwrap_or(&[]);
+    let field_segments = match segments.first() {
+        Some(root) if root.as_str() == "self" => &segments[1..],
+        _ => segments,
+    };
+    if field_segments.is_empty() {
+        return omega_layout::field_path_offset(
+            input.layouts,
+            source_layout.fields,
+            std::slice::from_ref(&call.receiver_name),
+        );
+    }
+    omega_layout::field_path_offset(input.layouts, source_layout.fields, field_segments)
 }
 
 /// Walk the receiver's field path through the layout plan, accumulating each
