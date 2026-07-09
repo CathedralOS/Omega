@@ -1,0 +1,44 @@
+// RUN CANARY (exit 70) + interpreter differential. A value machine's CASE-
+// LITERAL terminal (`-> Msg::Pong { y: 5, z: (x as i8) % 10 }`) whose payload
+// field value is a BINARY WITH A CAST OPERAND must write that field: the
+// branch-side case-literal cascade writes tag + each field independently, and
+// its value-operand resolver had NO Cast arm -- the cast operand nulled out,
+// the binary write bailed, and ONLY that field was dropped while the tag and
+// the sibling `y` landed (the cascade ORs per-field success, so the partial
+// construction compiled silently and `z` read ZII 0: native 72 vs interp 70).
+// The fix mirrors the mutation-table resolver's Cast -> Convert arm into the
+// branch resolver. Bare `x % 10` never hit this (non-cast leaves resolved).
+// exit 71 = sibling y wrong; 72 = z wrong (the dropped-field face); 73 = tag.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Msg { case Ping(x: i32); case Pong(y: i32, z: i8); }
+data Main { console: Console; k: usize; }
+machine Main::mk(&mut self, x: usize [0..=100]) -> Msg {
+    transition true { true -> Msg::Pong { y: 5, z: (x as i8) % 10 } }
+}
+machine Main::main(&mut self) {
+    self.k = 23;
+    self.build();
+}
+machine Main::build(&mut self) {
+    let m: Msg = self.mk(23);
+    transition m {
+        Msg::Pong { y, z } -> chk(y, z)
+        _ -> bad()
+    }
+    state chk(&mut self, y: i32, z: i8) {
+        transition y == 5 {
+            true -> chk2(z)
+            _ -> wrong_sibling()
+        }
+    }
+    state chk2(&mut self, z: i8) {
+        transition z == 3 {
+            true -> good()
+            _ -> wrong_cast_field()
+        }
+    }
+    state good(&mut self)             { self.console.exit_process(70); }
+    state wrong_cast_field(&mut self) { self.console.exit_process(72); }
+    state wrong_sibling(&mut self)    { self.console.exit_process(71); }
+    state bad(&mut self)              { self.console.exit_process(73); }
+}

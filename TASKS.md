@@ -591,11 +591,34 @@ decreases remaining
   types make same-type fields ubiquitous, so the deep fix (thread the receiver field
   offset through dispatch) is now HIGH-LEVERAGE for all std authoring. Workaround
   (canaried): route receivers through the first field of the type.
-  ALSO CONFIRMED same session: the parallel write cascade silently DROPS a case-payload
-  field whose value is `(x as T) % literal` (Binary with a Cast operand) — tag+siblings
-  land, that field never writes (the known missing-arm landmine; bare `x % literal`
-  works). NOTE for report readers: backend_report renders convert widths in BYTES
-  (`as i8->i8` = an 8-byte u64 identity convert, NOT i8).
+  [SPLIT 2026-07-12] The cast-in-payload drop confirmed alongside this item is FIXED --
+  see the closed item below. NOTE for report readers: backend_report renders convert
+  widths in BYTES (`as i8->i8` = an 8-byte u64 identity convert, NOT i8).
+
+- **[x] Case-payload field with a CAST operand silently dropped -- FIXED 2026-07-12
+  (canary pass/control_flow/sum_payload_cast_operand_field_exit, 70/70).** The face:
+  a value machine's case-literal terminal `-> Msg::Pong { y: 5, z: (x as i8) % 10 }`
+  wrote tag + `y` and DROPPED `z` (native read ZII 0 / exit 72; interp right). Root:
+  THREE value-operand resolvers exist (guards.rs tree, writes/mutation table, branches/
+  mutation table) and only the branch-side one lacked a Cast -> Convert arm -- the cast
+  operand nulled, the binary write bailed, and the case-literal cascade's `emitted |=`
+  OR'd the failure away. Fix mirrors the mutation-table Cast arm into the branch
+  resolver (A/B-verified: field-mutation and spliced-callee flavors already served by
+  the other resolvers on baseline; ONLY the case-literal-terminal flavor regresses
+  without it). Also left an env-gated debug line (OMEGA_DEBUG_MUTATION_SELECTION) at
+  the cascade's per-field failure point -- it is how the failing resolver was found.
+
+- **[ ] Case-literal cascade is partial-on-failure: make it all-or-nothing + LOUD.**
+  `select_runtime_resolved_mutation_write_in_mutable_table` (branches/mutation.rs)
+  ORs per-field success (`emitted |= field_emitted`): ANY field value no resolver
+  serves is dropped silently while tag+siblings land -- the cast face above was one
+  instance; the next unresolvable shape re-opens the hole. Plan (the poison pattern
+  already exists): snapshot `selected_instructions.len()` before the cascade, on any
+  field failure pop back to the snapshot and push an UNLOWERED poison the way leaf.rs
+  poisons bare CALL terminals (`StateGuardLowering::UnloweredTerminalHostCall` ->
+  emission planning rejects with a bind-to-a-`let` style diagnostic); needs a sibling
+  variant (e.g. UnloweredCaseLiteralField) + the emission-planning rejection + a fail
+  canary pinning the diagnostic. Sink rollback exists (`pop()`); keep the debug line.
 
 - **PENDING-CANARY RECHECK 2026-07-09** (after the session's aarch64 arc):
   const-fold divide/shift miscompiles + unsigned_min_max_wrapping still

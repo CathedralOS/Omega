@@ -16351,6 +16351,35 @@ fn custom_ranking_struct_view_canary_runs() {
 }
 
 #[test]
+fn sum_payload_cast_operand_field_exit_canary_runs() {
+    // A case-literal terminal's payload field whose value is a BINARY WITH A
+    // CAST OPERAND (`z: (x as i8) % 10`): the branch-side cascade writes each
+    // field independently and its resolver had no Cast arm, so ONLY that field
+    // was dropped (tag + siblings landed) and z read ZII 0 -- a silent partial
+    // construction. Exit 70 proves the Convert-wrapped operand serves.
+    let canary = pass_canary("control_flow/sum_payload_cast_operand_field_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-sumcast-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("sum cast-operand payload canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sum cast-operand payload canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "sum cast-operand payload canary should deliver z == 3 (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn recursive_result_bind_first_arg_canary_runs() {
     // The bind-first pairing (`let r = self.countdown(..); let d =
     // self.plus1(r);`) in a multi-call composition: a recursive value-call
@@ -26647,6 +26676,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/case_payload_shared_field_name_exit",
     "control_flow/sum_mixed_width_payload_layout",
     "control_flow/sum_field_storage_roundtrip",
+    "control_flow/sum_payload_cast_operand_field_exit",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
     "control_flow/runtime_straight_line_terminal_local_exit",

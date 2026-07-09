@@ -14,7 +14,7 @@ use omega_core::symbols::{BuiltinFunction, SymbolHandle};
 
 use super::super::super::storage_places::resolve_runtime_frame_base_indexed_target_in_table;
 use super::super::super::storage_places::{
-    clamp_runtime_case_comparison_operands_in_table,
+    clamp_runtime_case_comparison_operands_in_table, classify_scalar_value_type_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
@@ -201,6 +201,13 @@ fn select_runtime_resolved_mutation_write_in_mutable_table(
                 runtime_value_operands,
                 selected_instructions,
             );
+            if !field_emitted && std::env::var_os("OMEGA_DEBUG_MUTATION_SELECTION").is_some() {
+                eprintln!(
+                    "case-literal field write not selected: field `{}` value {:?}",
+                    field.name.as_str(),
+                    expressions.expression(field.value)
+                );
+            }
             emitted |= field_emitted;
         }
         return emitted;
@@ -1292,6 +1299,45 @@ fn resolve_runtime_value_operand_in_table(
                 // (MinUnsigned/MaxUnsigned).
                 arithmetic_domain: omega_core::arithmetic::ArithmeticDomain::Exact,
                 operands_signed: true,
+            }));
+        }
+        // A numeric `as` cast in operand position (`z: (x as i8) % 10` as a
+        // case-payload field routed through the branch construction): resolve
+        // the source and wrap it in a Convert, exactly like the mutation-table
+        // resolver's cast arm. Before this arm existed the cast operand nulled
+        // out, the binary write bailed, and the case-literal cascade dropped
+        // JUST this field while the tag and sibling fields landed -- a silent
+        // ZII read downstream (the cast-in-payload face; bare `x % 10` never
+        // hit it because the Binary arm recurses fine over non-cast leaves).
+        ExpressionNode::Cast(cast) => {
+            let target_primitive = expressions
+                .name_path_members(cast.target_type)
+                .last()
+                .and_then(|name| PrimitiveType::from_name(name.as_str()))?;
+            let source_primitive = classify_scalar_value_type_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                cast.value,
+            )?;
+            let target_byte_size = target_primitive.scalar_byte_size()?;
+            let source_byte_size = source_primitive.scalar_byte_size()?;
+            let source = resolve_runtime_value_operand_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                cast.value,
+                runtime_value_operands,
+            )?;
+            return Some(runtime_value_operands.insert(RuntimeValueOperand::Convert {
+                source,
+                source_byte_size,
+                target_byte_size,
+                source_is_float: source_primitive.accepts_float_literal(),
+                target_is_float: target_primitive.accepts_float_literal(),
+                source_signed: source_primitive.is_signed_integer(),
             }));
         }
         _ => {}
