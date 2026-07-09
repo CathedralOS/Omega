@@ -590,7 +590,13 @@ impl<'program> Evaluator<'program> {
             host_boundary_touched: false,
             non_fs_host_boundary_touched: false,
             steps: 0,
-            step_budget: STEP_BUDGET,
+            // OMEGA_INTERP_STEP_BUDGET overrides the default for
+            // measurement / long-running sample runs (dev knob, same
+            // convention as the OMEGA_DEBUG_* flags); unset = the default.
+            step_budget: std::env::var("OMEGA_INTERP_STEP_BUDGET")
+                .ok()
+                .and_then(|raw| raw.parse().ok())
+                .unwrap_or(STEP_BUDGET),
             call_depth: 0,
             guard_depth: 0,
         }

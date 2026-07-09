@@ -138,7 +138,13 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    spelling probe-verified), mirroring Duration's saturate idioms
    exactly. Pin: time/runtime_saturating_time_arith_exit (seven exact
    legs, fire-F guards on the extremes, differential). TASKS_TIME item
-   6's deliberate gap is CLOSED — the claim completes.
+   6's deliberate gap is CLOSED — the claim completes. FOLLOW-ON claim
+   (render item 9, interpreter domain, 2026-07-11p): the Gui/Input
+   headless stub was already semantically complete — the gap was the
+   10M step budget vs window_demo's ~40M software-rendered frames;
+   OMEGA_INTERP_STEP_BUDGET overrides it and
+   omega-interpreter/tests/gui_headless.rs pins interp exit 0 ==
+   native exit 0 for the untouched flagship sample.
 
 8. ~~Machine source-file plumbing~~ — **RESOLVED 2026-07-11m without a
    representation change**: per-file item attribution already exists at
