@@ -10,7 +10,8 @@ use super::primitives::{
     encode_adrp_placeholder, encode_and_x_register, encode_casal, encode_cbz_x, encode_eor_x_register,
     encode_float_add,
     encode_ldaddal_discard,
-    encode_float_compare, encode_load_byte_w_post_increment, encode_store_byte_w_post_increment,
+    encode_float_compare, encode_float_conditional_select, encode_float_sqrt,
+    encode_load_byte_w_post_increment, encode_store_byte_w_post_increment,
     encode_subs_x_immediate,
     encode_unconditional_branch,
     encode_float_convert_double_to_single, encode_float_convert_single_to_double,
@@ -3668,6 +3669,22 @@ fn append_runtime_float_binary_operation(
         StateGuardOperator::Subtract => bytes.extend(encode_float_subtract(byte_size, 0, 0, 1)?),
         StateGuardOperator::Multiply => bytes.extend(encode_float_multiply(byte_size, 0, 0, 1)?),
         StateGuardOperator::Divide => bytes.extend(encode_float_divide(byte_size, 0, 0, 1)?),
+        // FMAX/FMIN(NM) do NOT match the pinned SSE semantics (`a > b ? a : b`;
+        // NaN or equal returns b -- see the interpreter's eval_min_max), so
+        // min/max lower as FCMP + FCSEL with GT/MI, both false on unordered.
+        // Two instructions: runtime_float_binary_operation_width(operator)
+        // tracks this in lockstep.
+        StateGuardOperator::Max => {
+            bytes.extend(encode_float_compare(byte_size, 0, 1)?);
+            bytes.extend(encode_float_conditional_select(byte_size, 0, 0, 1, 0b1100)?);
+        }
+        StateGuardOperator::Min => {
+            bytes.extend(encode_float_compare(byte_size, 0, 1)?);
+            bytes.extend(encode_float_conditional_select(byte_size, 0, 0, 1, 0b0100)?);
+        }
+        // Unary, carried with both operands = x (the x86_64 table's shape):
+        // sqrt(operand1) into slot 0.
+        StateGuardOperator::Sqrt => bytes.extend(encode_float_sqrt(byte_size, 0, 1)?),
         _ => {
             return Err(Diagnostic::error(format!(
                 "AArch64 MVP encoder cannot lower runtime float binary operator `{operator:?}` yet"

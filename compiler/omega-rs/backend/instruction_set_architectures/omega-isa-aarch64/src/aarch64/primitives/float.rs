@@ -123,6 +123,40 @@ pub(in crate::aarch64) fn encode_float_divide(
 /// `0x1E20_2000`. The result NZCV uses the C/Z/N flags exactly like an unsigned
 /// integer compare for the ordered relations; the V/unordered (NaN) case is a
 /// documented first-cut limitation (matches x86 `ucomis*`).
+/// `FCSEL Vd, Vn, Vm, <cond>` -- select Vn when `<cond>` holds after an
+/// `FCMP`, else Vm. Condition GT (0b1100) and MI (0b0100) are both FALSE on an
+/// unordered compare, which is exactly what realizes the SSE
+/// `maxsd`/`minsd` semantics (`a > b ? a : b`; NaN or equal returns b) the
+/// interpreter pins.
+pub(in crate::aarch64) fn encode_float_conditional_select(
+    byte_size: usize,
+    destination_register: u8,
+    true_register: u8,
+    false_register: u8,
+    condition: u32,
+) -> Result<[u8; 4], Diagnostic> {
+    let base = 0x1E20_0C00 | float_type_field(byte_size)?;
+    Ok(encode_instruction(
+        base | (u32::from(false_register) << 16)
+            | (condition << 12)
+            | (u32::from(true_register) << 5)
+            | u32::from(destination_register),
+    ))
+}
+
+/// `FSQRT Vd, Vn` -- scalar square root (IEEE-correct rounding, matching
+/// `sqrtsd` exactly).
+pub(in crate::aarch64) fn encode_float_sqrt(
+    byte_size: usize,
+    destination_register: u8,
+    source_register: u8,
+) -> Result<[u8; 4], Diagnostic> {
+    let base = 0x1E21_C000 | float_type_field(byte_size)?;
+    Ok(encode_instruction(
+        base | (u32::from(source_register) << 5) | u32::from(destination_register),
+    ))
+}
+
 pub(in crate::aarch64) fn encode_float_compare(
     byte_size: usize,
     left_register: u8,
