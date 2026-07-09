@@ -1238,7 +1238,11 @@ macOS/arm64 host this lane runs on — are CLAIMED here:
   tick_count aarch64 lowering — time), stdin_checksum/rot1/upper (frontend
   WIP — other workstream), uefi__uefi_hello (host-call arg shape — efi).
   Judge regressions by diff against these five names. file_journal now
-  COMPILES on macOS.
+  COMPILES on macOS. The suite's baseline-7 is likewise FULLY EXPLAINED
+  (verified 2026-07-10l): pass_canaries_compile's content is exactly the
+  same known canaries (efi_vtable_call + efi_ref_param_call_arg host-arg
+  shape; tick_count/tick_paced aarch64 lowering; gui_memory_dc_blit) —
+  no hidden extras behind the sweep failure.
 - ✅ RESOLVED (by the arithmetic thread, cd42934d5 2026-07-09): the
   interpreter Saturating param-carry gap this lane parked
   (`pending/host/interp_saturating_param_carry`) — interp now applies
