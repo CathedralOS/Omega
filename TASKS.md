@@ -96,6 +96,54 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 
 ## Open latent bugs / fenced gaps
 
+- **[~] aarch64 owned `[u8; N]` byte-carrier family -- WRITE landed 2026-07-08
+  (branch omega-language-docs; NOT pushed to main), compare gap SURFACED.**
+  Root cause of the "aarch64 `b.ne target is not instruction aligned` in many
+  unrelated samples" note (native_filesystem_canaries.rs:215, TASKS_FS): the
+  aarch64 encoder for `WriteRuntimeMachineBoundedBuffer` (`self.buf = "150"`) was
+  UNIMPLEMENTED (errored at encode), yet its LAYOUT width borrowed the x86_64
+  width -- a variable-length instruction sequence with inline immediate BYTES,
+  legitimately non-multiple-of-4 (e.g. 51 bytes for "150"). A forward branch
+  skipping the block that held the op computed its distance from that odd width
+  and tripped the alignment check FIRST, masking the real "unimplemented" error.
+  - **DONE:** aarch64 `encode_runtime_machine_bounded_buffer_write` +
+    `runtime_machine_bounded_buffer_write_width` (isa-aarch64 runtime_storage.rs
+    + widths.rs), wired into instruction-selection dispatch (encoding/
+    runtime_storage.rs + widths.rs, Aarch64 arms no longer borrow x86). Stores the
+    len word at `[base+off]` then each literal byte inline at `[base+off+8+i]`;
+    every element is a fixed 4-byte instruction (immediates in the instruction
+    word, not inline data), so the sequence is inherently aligned. The single base
+    reloc (`insert_data_address_at_instruction_start`) is arch-shared and already
+    patches the leading `adrp`+`add` -- no reloc change. VERIFIED: parse_int
+    exit 150; a "Gate" write read back by index/len gives len==4, [0]=='G',
+    [3]=='e'; 8 of 9 previously-alignment-blocked samples now RUN correct
+    (parse_int 150, caesar_cipher 0, string_hash 40, roman_numeral 70,
+    text_padding 6, substring_search 4, parse_number 25, cellular_automaton 0).
+  - **[ ] SURFACED -- aarch64 owned-carrier `==` compare miscompiles (silent).**
+    `format_number` now compiles but exits 71 (expected 70), and
+    canaries/pass/text/runtime_bounded_carrier_write_read_exit exits 71 (`self.label
+    == "Gate"` false) -- the write stored the bytes CORRECTLY (index-read probe
+    proves it), so the fault is the COMPARE. The `==` lowers to
+    `CompareRuntimeTextStorage` (guards.rs, gated on `byte_count ==
+    string_descriptor_size` -- a `[u8;8]` carrier is 16 bytes == the {ptr,len}
+    descriptor size, so it flows through the descriptor path). Both x86 and aarch64
+    compare encoders read `[src+0]` as a POINTER and deref it, `[src+8]` as the
+    length -- {ptr,len} descriptor addressing -- but the owned carrier is {len@0,
+    bytes inline@+8}. x86 write_read PASSES (differential list, exit 70), so on x86
+    a descriptor is materialized from the carrier before the compare; that
+    materialization is MISSING or wrong on aarch64. substring_search's `==` works
+    (exit 4), so it's specific to the owned-carrier-as-subject case. NEXT: dump the
+    selected instructions for write_read on both arches (is there a
+    MaterializeRuntimeTextBuffer before the compare? where does source_offset
+    point?); fix the aarch64 materialize/compare so the owned carrier is compared
+    inline (len@0, bytes@+8, no deref) OR materialized like x86. Until then the
+    write fix is a LOUD-error -> SILENT-miscompile downgrade for `==` sites, so it
+    stays on the branch and is NOT pushed to main.
+  - **[ ] aarch64 carrier APPEND still unimplemented** (source_append,
+    literal_append -- encoder Errs, width borrows x86). Blocks the last two
+    alignment samples cli/basics/text_greeting (concat) + cli/systems/status_report
+    (concat). Same masking mechanism; same fix shape as write.
+
 - **[x] Post-entry-state CHAINED lets in a value callee -- FIXED 2026-07-08.** A
   value callee whose POST-ENTRY state computes a let reading a PRIOR post-entry
   let (`let scaled=q*freq; let rem=total-scaled;` returned) miscompiled: the

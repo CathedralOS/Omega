@@ -538,12 +538,9 @@ pub fn encode_runtime_machine_bounded_buffer_write(
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        // aarch64 owned-carrier write is not yet implemented; x86_64 (the native
-        // run target) is. A carrier canary is therefore x86_64-run-only for now.
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "aarch64 encoder does not yet support the owned `[u8; N]` bounded byte carrier write"
-                .to_string(),
-        )),
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_machine_bounded_buffer_write(byte_offset, literal)
+        }
         Architecture::X86_64 => {
             x86_64::encode_runtime_machine_bounded_buffer_write(byte_offset, literal)
         }
