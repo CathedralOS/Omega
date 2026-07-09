@@ -834,34 +834,6 @@ fn computed_host_arg_rejected_canary_is_rejected() {
 }
 
 #[test]
-fn nested_receiver_same_type_aliasing_rejected_canary_is_rejected() {
-    // Two same-type nested leaves (`a: BoxI; b: BoxI` in `PairD`): a method on
-    // `self.p.b` would resolve its `self` region by the by-type storage walk,
-    // which finds the FIRST BoxI (`a`) -- silently running on the wrong
-    // instance. The contained-receiver blocker computes `self.p.b`'s true offset
-    // (via the same plain-data descent the backend uses) and rejects the
-    // mismatch loudly instead of binding 0 (receiver-place staircase rung 2a).
-    // Delete when per-receiver scheduling (rung 4) lands.
-    let canary = fail_canary("references/nested_receiver_same_type_aliasing_rejected");
-    let diagnostics = match compile_canary_without_output(&canary) {
-        Ok(report) => panic!(
-            "expected same-type nested-receiver aliasing canary to reject, but it compiled: {}",
-            report.summary()
-        ),
-        Err(diagnostics) => diagnostics,
-    };
-    let combined = diagnostics
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join("\n");
-    assert!(
-        combined.contains("ANOTHER instance's storage") && combined.contains("self.p.b"),
-        "expected a 'would run on ANOTHER instance's storage' rejection naming self.p.b, got:\n{combined}"
-    );
-}
-
-#[test]
 fn exact_overflow_value_call_hint_canary_is_rejected() {
     // Exact arithmetic over a value-machine call with an unconstrained return is a
     // decision-17 overflow; the diagnostic must NAME the call and point at annotating
@@ -20610,6 +20582,73 @@ fn runtime_dispatch_float_terminal_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// std::time Duration core through NON-FIRST same-type receivers (the
+// inline-route per-instance fix): sum.checked_subtract resolves against
+// sum's storage, not the first Duration's.
+#[test]
+fn runtime_value_machine_receiver_field_postentry_exit_canary_runs() {
+    let canary = pass_canary("time/runtime_value_machine_receiver_field_postentry_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("receiver-field postentry canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.error, None, "should interpret cleanly");
+    assert_eq!(outcome.exit_code, 70, "interp oracle should exit 70");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-receiver-field-postentry-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("receiver-field postentry canary should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("receiver-field postentry canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected exact Duration math through the third same-type receiver (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// A method through the SECOND same-type NESTED leaf (self.p.b.get())
+// reads b's 9, not the first leaf's 5 (the inline nested-receiver fix).
+#[test]
+fn runtime_nested_receiver_same_type_exit_canary_runs() {
+    let canary = pass_canary("references/runtime_nested_receiver_same_type_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-nested-receiver-same-type-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("nested same-type receiver canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("nested same-type receiver canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected p.b.get() == 9 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // PER-INSTANCE receiver dispatch: a looping value machine called through
 // the SECOND same-type contained receiver runs on that receiver's storage
 // (21 = 3 iterations of second.count 7; by-type resolution read first's
@@ -27474,7 +27513,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/void_value_callee_rejected",
     "calls/nested_value_call_arg_rejected",
     "calls/machine_self_call_recursion_rejected",
-    "control_flow/case_literal_unlowered_field_store_rejected",
     "calls/terminal_self_call_recursion_rejected",
     "calls/empty_body_return_machine_rejected",
     "parse/machine_clause_garbage_rejected",
@@ -27868,12 +27906,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     PendingCanary {
         path: "expressions/dead_trapping_let_not_elided",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "time/value_machine_receiver_field_postentry",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "would run on ANOTHER instance's storage",
-        },
     },
 ];
 

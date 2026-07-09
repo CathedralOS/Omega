@@ -475,7 +475,7 @@ pub(super) fn resolve_runtime_storage_place_in_table(
 
     resolve_machine_owned_place_in_table(
         &input.layouts,
-        crate::selection::receiver_base::dispatch_receiver_base(input, dispatch_index),
+        crate::selection::receiver_base::receiver_base_for(input, dispatch_index, source_key.machine),
         input.entry_key.machine,
         source_key.machine,
         expressions,
@@ -610,7 +610,7 @@ fn fixed_array_length_of_receiver_in_table(
 
     if let Some(target) = resolve_machine_owned_collection_in_table(
         &input.layouts,
-        crate::selection::receiver_base::dispatch_receiver_base(input, dispatch_index),
+        crate::selection::receiver_base::receiver_base_for(input, dispatch_index, source_key.machine),
         input.entry_key.machine,
         source_key.machine,
         expressions,
@@ -1371,7 +1371,7 @@ fn resolve_runtime_storage_leaf_descriptor_in_table(
         // leaf type descriptor through that path instead.
         if let Some(collection) = resolve_machine_owned_collection_in_table(
             &input.layouts,
-            crate::selection::receiver_base::dispatch_receiver_base(input, dispatch_index),
+            crate::selection::receiver_base::receiver_base_for(input, dispatch_index, source_key.machine),
             input.entry_key.machine,
             source_key.machine,
             expressions,
@@ -1542,7 +1542,7 @@ pub(super) fn resolve_fixed_array_length_in_table(
 
     let collection = resolve_machine_owned_collection_in_table(
         &input.layouts,
-        crate::selection::receiver_base::dispatch_receiver_base(input, dispatch_index),
+        crate::selection::receiver_base::receiver_base_for(input, dispatch_index, source_key.machine),
         input.entry_key.machine,
         source_key.machine,
         expressions,
@@ -2872,7 +2872,7 @@ fn resolve_runtime_fixed_indexed_place_in_table(
 
     let collection = match resolve_machine_owned_collection_in_table(
         &input.layouts,
-        crate::selection::receiver_base::dispatch_receiver_base(input, dispatch_index),
+        crate::selection::receiver_base::receiver_base_for(input, dispatch_index, source_key.machine),
         input.entry_key.machine,
         source_key.machine,
         expressions,

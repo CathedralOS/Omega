@@ -1,9 +1,14 @@
-// std::time Duration core (TASKS_TIME.md rung 3): exact-value assertions over
-// the pure-value API on both engines. Exercises the CARRY path of checked_add
-// (2.6s + 3.5s = 6.1s), the BORROW path of checked_subtract (6.1s - 3.5s =
-// 2.6s), the ZERO clamp of saturating_subtract (2.6s - 3.5s), ordering, and
-// the underflow arm. Every failure exits a distinct code.
-// Expected exit: 70.
+// RUN CANARY (exit 70) -- std::time Duration core through NON-FIRST
+// same-type receivers, PROMOTED 2026-07-10t when per-instance receivers
+// landed for the INLINE route: `self.sum.checked_subtract(..)` (sum is
+// the THIRD Duration field) resolves the callee's self-reads against
+// SUM's storage -- the by-type walk read the first Duration (`a`), so
+// 2.6s - 3.5s hit the borrow arm and exited 3 (the recorded repro).
+// The inline expansion recovers the receiver from the state's UNIQUE
+// call to the callee machine (receiver_base_for); ambiguous shapes stay
+// fenced. Exercises checked_add carry, checked_subtract borrow,
+// saturating_subtract clamp, ordering, and the underflow arm -- exact
+// values, both engines.
 use omega::language::std::time;
 
 boundary trait Console { machine exit_process(return_code: i32); }

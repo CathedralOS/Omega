@@ -1288,11 +1288,29 @@ macOS/arm64 host this lane runs on — are CLAIMED here:
   contained-machine-same-type-aliasing stopgap is retired for this
   route). Statement calls dispatching means the common std-authoring
   shape (mutating methods through any same-type field) just works.
-  REMAINING (the inline half): pending/time/value_machine_receiver_field
-  _postentry stays fenced+pending — inline expansions need call-identity
-  threading through prelude/leaf/straight-line resolution; the a/b
-  shuffle workarounds (time canaries, note_vault) are inline-route and
-  stay until then.
+  THE INLINE HALF LANDED (2026-07-10t) — RECEIVER ALIASING IS FIXED ON
+  BOTH ROUTES (slice-1 scope: entry-machine callers). The report autopsy
+  found the exact read (`seconds_bigger` reading Main_storage@0 — a's
+  seconds — instead of @56, sum's): spliced callee expressions resolve
+  under the CALLER's dispatch case with no call identity. Fix:
+  receiver_base_for(input, dispatch_index, source_machine) — when the
+  resolved expression's machine equals the case's machine, the
+  per-dispatch table answers (the dispatch route); when it DIFFERS (a
+  spliced callee), the receiver comes from the state's UNIQUE inline
+  call to that callee machine (ambiguity → None → fenced). The fence
+  relaxes for both routes with matching predicates. PROMOTED:
+  time/runtime_value_machine_receiver_field_postentry_exit (the original
+  repro: Duration math through the THIRD same-type field, exact values,
+  70/70) and references/runtime_nested_receiver_same_type_exit (the
+  NESTED fail fence flipped: self.p.b.get() reads b's 9 — the walk's
+  nested descent serves ["p","b"]). NOTE: my earlier restore had
+  resurrected the other thread's already-promoted poison fail canary —
+  un-resurrected (their 333e8bef1 text-equality lowering flipped it
+  legitimately).
+  REMAINING: the a/b shuffle workaround SWEEP (time canaries, note_vault
+  — now unnecessary; cosmetic, next iteration); non-entry callers
+  (slice-2: recursive caller-base resolution); ambiguous multi-call
+  states stay fenced by design.
 
 ## Observations (not fs, flagged for Zach)
 

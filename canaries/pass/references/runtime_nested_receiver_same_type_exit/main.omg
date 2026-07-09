@@ -1,0 +1,22 @@
+// RUN CANARY (exit 70) -- a method through the SECOND of two same-type
+// NESTED leaves (`self.p.b.get()`, PairD { a: BoxI; b: BoxI }), PROMOTED
+// from the fail fence 2026-07-10t when per-instance receivers landed for
+// the inline route: the spliced callee resolves against `p.b`'s storage
+// via the receiver-path walk (["p", "b"] -> the nested descent), where
+// the by-type walk read the FIRST BoxI (`a` = 5). y must be b's 9.
+boundary trait Console { machine exit_process(return_code: i32); }
+data BoxI { value: i32; }
+machine BoxI::get(&self) -> i32 { transition { _ -> (self.value) } }
+data PairD { a: BoxI; b: BoxI; }
+data Main { console: Console; p: PairD; }
+machine Main::main(&mut self) {
+    self.p.a.value = 5;
+    self.p.b.value = 9;
+    let y: i32 = self.p.b.get();
+    transition y == 9 {
+        true -> ok()
+        false -> bad()
+    }
+    state ok(&self) { self.console.exit_process(70); }
+    state bad(&self) { self.console.exit_process(71); }
+}
