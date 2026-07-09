@@ -1,0 +1,29 @@
+// RUN canary (exit 30). Hardens the post-entry prior-local fold beyond the
+// 2-level case: a value callee's POST-ENTRY state `work` builds a FOUR-deep
+// chain of slot-less lets where an intermediate is read MORE THAN ONCE (`a`
+// feeds b, c; `b` feeds c, d). Each dependent let must fold its priors
+// recursively (fold_straight_line_prior_local_names) or read ZII.
+// proc(5): a=6, b=a+a=12, c=b+a=18, d=c+b=30.
+// Expected exit: 30
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::proc(&self, n: i32 [0..=1000]) -> i32 {
+    transition n > 0 {
+        true -> work(n)
+        false -> 0
+    }
+    state work(&self, n: i32 [1..=1000]) -> i32 {
+        let a: i32 [0..=1000] = n + 1;
+        let b: i32 [0..=2000] = a + a;
+        let c: i32 [0..=3000] = b + a;
+        let d: i32 [0..=4000] = c + b;
+        transition {
+            _ -> (d)
+        }
+    }
+}
+machine Main::run(&mut self) {
+    let r: i32 = self.proc(5);
+    self.console.exit_process(r);
+}
+machine Main::main(&mut self) { self.run(); }
