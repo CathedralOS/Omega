@@ -103,6 +103,7 @@ pub(super) fn runtime_value_operand_name(
             is_float,
             byte_width,
             arithmetic_domain,
+            operands_signed: _,
         } => format!(
             "({} {operator:?}{}/{byte_width}{} {})",
             runtime_value_operand_name(backend_plan, *left),

@@ -17,7 +17,6 @@ use crate::state_call_blockers::collect_state_call_blockers;
 use crate::state_codegen_blockers::collect_state_codegen_blockers;
 use crate::state_guard_blockers::collect_state_guard_blockers;
 use crate::storage_blockers::collect_state_storage_blockers;
-use crate::operand_domain_blockers::collect_operand_domain_blockers;
 use crate::unlowered_guard_blockers::collect_unlowered_guard_blockers;
 use omega_backend_report_types::{EmissionPlan, emission_blocker};
 use omega_core::arena::Arena;
@@ -94,7 +93,6 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
     }
     collect_state_codegen_blockers(input, &schedule_context, &state_schedule, &mut blockers);
     collect_unlowered_guard_blockers(input, &mut blockers);
-    collect_operand_domain_blockers(input, &mut blockers);
 
     verify_required_items_emitted(input, needs_runtime_dispatch, &mut blockers);
     collect_descriptor_argument_blockers(input, needs_runtime_dispatch, &mut blockers);

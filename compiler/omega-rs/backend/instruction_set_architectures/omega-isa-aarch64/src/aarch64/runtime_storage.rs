@@ -713,6 +713,9 @@ pub fn encode_runtime_storage_binary_write(
             operator,
             byte_size,
             target_signed,
+            17,
+            26,
+            &[15, 14, 13, 12],
         )?;
     } else if saturating_signed_divide_modulo {
         // TYPE_MIN / -1 fixup for signed Saturating div/mod (result left in x17).
@@ -778,8 +781,25 @@ fn append_saturating_trapping_arithmetic(
     operator: StateGuardOperator,
     byte_size: usize,
     target_signed: bool,
+    dest: u8,
+    rhs: u8,
+    scratch: &[u8],
 ) -> Result<(), Diagnostic> {
     use omega_core::arithmetic::ArithmeticDomain;
+    // Register-parametric so the OPERAND-position lowering (fused arithmetic
+    // under a guard compare) can reuse these proven sequences at whatever
+    // dest/rhs the operand evaluator assigned. The binary WRITE path passes
+    // dest=17, rhs=26, scratch=[15,14,13,12] -- byte-identical to the
+    // pre-parameterization hardcoded registers. `rhs` doubles as the narrow
+    // paths' bound scratch (its operand value is spent by then).
+    let [high_scratch, immediate_scratch, sign_scratch, bound_scratch] = match scratch {
+        [a, b, c, d, ..] => [*a, *b, *c, *d],
+        _ => {
+            return Err(Diagnostic::error(
+                "AArch64 saturating/trapping arithmetic needs four scratch registers",
+            ));
+        }
+    };
     if byte_size == 8 {
         // A 64-bit op can itself overflow 64 bits, so the wide-result range
         // compare below cannot see it. Add/sub instead use the FLAGS the
@@ -795,34 +815,34 @@ fn append_saturating_trapping_arithmetic(
                     // smulh x15 ; eor x13 = true-result sign ; x12 = MIN ;
                     // mul x17 ; cmp x15, x17 asr #63 ; b.eq +12 (keep) ;
                     // cmp x13, #0 ; csinv x17, x12, x12, MI (MIN, else MAX).
-                    bytes.extend(encode_smulh_x(15, 17, 26));
-                    bytes.extend(encode_eor_x_register(13, 17, 26));
-                    append_unsigned_immediate(bytes, 12, i64::MIN as u64); // 2 instr
-                    bytes.extend(encode_mul_x_register(17, 17, 26));
-                    bytes.extend(encode_compare_x_register_sign_broadcast(15, 17));
+                    bytes.extend(encode_smulh_x(high_scratch, dest, rhs));
+                    bytes.extend(encode_eor_x_register(sign_scratch, dest, rhs));
+                    append_unsigned_immediate(bytes, bound_scratch, i64::MIN as u64); // 2 instr
+                    bytes.extend(encode_mul_x_register(dest, dest, rhs));
+                    bytes.extend(encode_compare_x_register_sign_broadcast(high_scratch, dest));
                     bytes.extend(encode_conditional_branch_equal(12)?);
-                    bytes.extend(encode_subs_x_immediate(31, 13, 0)?); // cmp x13, #0
-                    bytes.extend(encode_csinv_x(17, 12, 12, 0b0100)); // MI -> MIN, else MAX
+                    bytes.extend(encode_subs_x_immediate(31, sign_scratch, 0)?); // cmp sign_scratch, #0
+                    bytes.extend(encode_csinv_x(dest, bound_scratch, bound_scratch, 0b0100)); // MI -> MIN, else MAX
                 }
                 (ArithmeticDomain::Saturating, false) => {
                     // umulh x15 ; mul x17 ; cmp x15, #0 ;
                     // csinv x17, x17, xzr, EQ (keep, else all-ones).
-                    bytes.extend(encode_umulh_x(15, 17, 26));
-                    bytes.extend(encode_mul_x_register(17, 17, 26));
-                    bytes.extend(encode_subs_x_immediate(31, 15, 0)?);
-                    bytes.extend(encode_csinv_x(17, 17, 31, 0b0000)); // EQ
+                    bytes.extend(encode_umulh_x(high_scratch, dest, rhs));
+                    bytes.extend(encode_mul_x_register(dest, dest, rhs));
+                    bytes.extend(encode_subs_x_immediate(31, high_scratch, 0)?);
+                    bytes.extend(encode_csinv_x(dest, dest, 31, 0b0000)); // EQ
                 }
                 (ArithmeticDomain::Trapping, true) => {
-                    bytes.extend(encode_smulh_x(15, 17, 26));
-                    bytes.extend(encode_mul_x_register(17, 17, 26));
-                    bytes.extend(encode_compare_x_register_sign_broadcast(15, 17));
+                    bytes.extend(encode_smulh_x(high_scratch, dest, rhs));
+                    bytes.extend(encode_mul_x_register(dest, dest, rhs));
+                    bytes.extend(encode_compare_x_register_sign_broadcast(high_scratch, dest));
                     bytes.extend(encode_conditional_branch_equal(8)?);
                     bytes.extend(encode_brk(0));
                 }
                 (ArithmeticDomain::Trapping, false) => {
-                    bytes.extend(encode_umulh_x(15, 17, 26));
-                    bytes.extend(encode_mul_x_register(17, 17, 26));
-                    bytes.extend(encode_subs_x_immediate(31, 15, 0)?);
+                    bytes.extend(encode_umulh_x(high_scratch, dest, rhs));
+                    bytes.extend(encode_mul_x_register(dest, dest, rhs));
+                    bytes.extend(encode_subs_x_immediate(31, high_scratch, 0)?);
                     bytes.extend(encode_conditional_branch_equal(8)?);
                     bytes.extend(encode_brk(0));
                 }
@@ -838,41 +858,41 @@ fn append_saturating_trapping_arithmetic(
                 // true result was positive -> saturate to MAX = NOT(MIN).
                 //   movz/movk x14 = MIN ; adds/subs ; b.vc +8 (keep)
                 //   csinv x17, x14, x14, PL   (PL: MIN; else NOT(MIN) = MAX)
-                append_unsigned_immediate(bytes, 14, i64::MIN as u64); // 2 instr
+                append_unsigned_immediate(bytes, immediate_scratch, i64::MIN as u64); // 2 instr
                 bytes.extend(if subtract {
-                    encode_subs_x_register(17, 17, 26)
+                    encode_subs_x_register(dest, dest, rhs)
                 } else {
-                    encode_adds_x_register(17, 17, 26)
+                    encode_adds_x_register(dest, dest, rhs)
                 });
                 bytes.extend(encode_conditional_branch_no_overflow(8)?);
-                bytes.extend(encode_csinv_x(17, 14, 14, 0b0101)); // PL
+                bytes.extend(encode_csinv_x(dest, immediate_scratch, immediate_scratch, 0b0101)); // PL
             }
             (ArithmeticDomain::Saturating, false) => {
                 if subtract {
                     // Borrow clears C: keep the result on CS, else clamp to 0.
-                    bytes.extend(encode_subs_x_register(17, 17, 26));
-                    bytes.extend(encode_csel_x(17, 17, 31, 0b0010)); // CS -> keep, else XZR
+                    bytes.extend(encode_subs_x_register(dest, dest, rhs));
+                    bytes.extend(encode_csel_x(dest, dest, 31, 0b0010)); // CS -> keep, else XZR
                 } else {
                     // Carry sets C: keep on CC, else all-ones (u64::MAX).
-                    bytes.extend(encode_adds_x_register(17, 17, 26));
-                    bytes.extend(encode_csinv_x(17, 17, 31, 0b0011)); // CC -> keep, else NOT(XZR)
+                    bytes.extend(encode_adds_x_register(dest, dest, rhs));
+                    bytes.extend(encode_csinv_x(dest, dest, 31, 0b0011)); // CC -> keep, else NOT(XZR)
                 }
             }
             (ArithmeticDomain::Trapping, true) => {
                 bytes.extend(if subtract {
-                    encode_subs_x_register(17, 17, 26)
+                    encode_subs_x_register(dest, dest, rhs)
                 } else {
-                    encode_adds_x_register(17, 17, 26)
+                    encode_adds_x_register(dest, dest, rhs)
                 });
                 bytes.extend(encode_conditional_branch_no_overflow(8)?);
                 bytes.extend(encode_brk(0));
             }
             (ArithmeticDomain::Trapping, false) => {
                 if subtract {
-                    bytes.extend(encode_subs_x_register(17, 17, 26));
+                    bytes.extend(encode_subs_x_register(dest, dest, rhs));
                     bytes.extend(encode_conditional_branch_higher_or_same(8)?); // CS = no borrow
                 } else {
-                    bytes.extend(encode_adds_x_register(17, 17, 26));
+                    bytes.extend(encode_adds_x_register(dest, dest, rhs));
                     bytes.extend(encode_conditional_branch_lower(8)?); // CC = no carry
                 }
                 bytes.extend(encode_brk(0));
@@ -893,16 +913,16 @@ fn append_saturating_trapping_arithmetic(
     if target_signed {
         match byte_size {
             1 => {
-                bytes.extend(encode_sign_extend_byte_to_x(17, 17));
-                bytes.extend(encode_sign_extend_byte_to_x(26, 26));
+                bytes.extend(encode_sign_extend_byte_to_x(dest, dest));
+                bytes.extend(encode_sign_extend_byte_to_x(rhs, rhs));
             }
             2 => {
-                bytes.extend(encode_sign_extend_halfword_to_x(17, 17));
-                bytes.extend(encode_sign_extend_halfword_to_x(26, 26));
+                bytes.extend(encode_sign_extend_halfword_to_x(dest, dest));
+                bytes.extend(encode_sign_extend_halfword_to_x(rhs, rhs));
             }
             4 => {
-                bytes.extend(encode_sign_extend_word_to_x(17, 17));
-                bytes.extend(encode_sign_extend_word_to_x(26, 26));
+                bytes.extend(encode_sign_extend_word_to_x(dest, dest));
+                bytes.extend(encode_sign_extend_word_to_x(rhs, rhs));
             }
             _ => {}
         }
@@ -910,9 +930,9 @@ fn append_saturating_trapping_arithmetic(
 
     // Wide (64-bit) op: x17 = x17 OP x26. Exact for <=32-bit operands.
     match operator {
-        StateGuardOperator::Add => bytes.extend(encode_add_x_register(17, 17, 26)),
-        StateGuardOperator::Subtract => bytes.extend(encode_sub_x_register(17, 17, 26)),
-        StateGuardOperator::Multiply => bytes.extend(encode_mul_x_register(17, 17, 26)),
+        StateGuardOperator::Add => bytes.extend(encode_add_x_register(dest, dest, rhs)),
+        StateGuardOperator::Subtract => bytes.extend(encode_sub_x_register(dest, dest, rhs)),
+        StateGuardOperator::Multiply => bytes.extend(encode_mul_x_register(dest, dest, rhs)),
         _ => unreachable!("only +/-/* reach the saturating/trapping arithmetic helper"),
     }
 
@@ -941,28 +961,28 @@ fn append_saturating_trapping_arithmetic(
             //   cmp   x17, x26
             //   b.ls  +8               ; result <= MAX -> keep
             //   mov   x17, x26         ; else clamp to MAX
-            append_unsigned_immediate_padded(bytes, 26, 0);
-            bytes.extend(encode_compare_x_register(17, 26));
+            append_unsigned_immediate_padded(bytes, rhs, 0);
+            bytes.extend(encode_compare_x_register(dest, rhs));
             bytes.extend(encode_conditional_branch_greater_or_equal(8)?);
-            bytes.extend(encode_move_x_register(17, 26));
-            append_unsigned_immediate_padded(bytes, 26, unsigned_max);
-            bytes.extend(encode_compare_x_register(17, 26));
+            bytes.extend(encode_move_x_register(dest, rhs));
+            append_unsigned_immediate_padded(bytes, rhs, unsigned_max);
+            bytes.extend(encode_compare_x_register(dest, rhs));
             bytes.extend(encode_conditional_branch_lower_or_same(8)?);
-            bytes.extend(encode_move_x_register(17, 26));
+            bytes.extend(encode_move_x_register(dest, rhs));
         }
         (ArithmeticDomain::Saturating, true) => {
             // Signed: clamp to [MIN, MAX] using signed comparisons on the exact
             // 64-bit result.
             //   movz/movk x26, #MIN ; cmp x17,x26 ; b.ge +8 ; mov x17,x26
             //   movz/movk x26, #MAX ; cmp x17,x26 ; b.le +8 ; mov x17,x26
-            append_unsigned_immediate_padded(bytes, 26, signed_min);
-            bytes.extend(encode_compare_x_register(17, 26));
+            append_unsigned_immediate_padded(bytes, rhs, signed_min);
+            bytes.extend(encode_compare_x_register(dest, rhs));
             bytes.extend(encode_conditional_branch_greater_or_equal(8)?);
-            bytes.extend(encode_move_x_register(17, 26));
-            append_unsigned_immediate_padded(bytes, 26, signed_max);
-            bytes.extend(encode_compare_x_register(17, 26));
+            bytes.extend(encode_move_x_register(dest, rhs));
+            append_unsigned_immediate_padded(bytes, rhs, signed_max);
+            bytes.extend(encode_compare_x_register(dest, rhs));
             bytes.extend(encode_conditional_branch_less_or_equal(8)?);
-            bytes.extend(encode_move_x_register(17, 26));
+            bytes.extend(encode_move_x_register(dest, rhs));
         }
         (ArithmeticDomain::Trapping, false) => {
             // Unsigned: trap unless 0 <= result <= MAX.
@@ -971,12 +991,12 @@ fn append_saturating_trapping_arithmetic(
             // compares below 0.
             //   movz/movk x26, #0   ; cmp x17,x26 ; b.ge +8 ; brk
             //   movz/movk x26, #MAX ; cmp x17,x26 ; b.ls +8 ; brk
-            append_unsigned_immediate_padded(bytes, 26, 0);
-            bytes.extend(encode_compare_x_register(17, 26));
+            append_unsigned_immediate_padded(bytes, rhs, 0);
+            bytes.extend(encode_compare_x_register(dest, rhs));
             bytes.extend(encode_conditional_branch_greater_or_equal(8)?);
             bytes.extend(encode_brk(0));
-            append_unsigned_immediate_padded(bytes, 26, unsigned_max);
-            bytes.extend(encode_compare_x_register(17, 26));
+            append_unsigned_immediate_padded(bytes, rhs, unsigned_max);
+            bytes.extend(encode_compare_x_register(dest, rhs));
             bytes.extend(encode_conditional_branch_lower_or_same(8)?);
             bytes.extend(encode_brk(0));
         }
@@ -984,12 +1004,12 @@ fn append_saturating_trapping_arithmetic(
             // Signed: trap unless MIN <= result <= MAX.
             //   movz/movk x26, #MIN ; cmp x17,x26 ; b.ge +8 ; brk
             //   movz/movk x26, #MAX ; cmp x17,x26 ; b.le +8 ; brk
-            append_unsigned_immediate_padded(bytes, 26, signed_min);
-            bytes.extend(encode_compare_x_register(17, 26));
+            append_unsigned_immediate_padded(bytes, rhs, signed_min);
+            bytes.extend(encode_compare_x_register(dest, rhs));
             bytes.extend(encode_conditional_branch_greater_or_equal(8)?);
             bytes.extend(encode_brk(0));
-            append_unsigned_immediate_padded(bytes, 26, signed_max);
-            bytes.extend(encode_compare_x_register(17, 26));
+            append_unsigned_immediate_padded(bytes, rhs, signed_max);
+            bytes.extend(encode_compare_x_register(dest, rhs));
             bytes.extend(encode_conditional_branch_less_or_equal(8)?);
             bytes.extend(encode_brk(0));
         }
@@ -3236,6 +3256,40 @@ fn append_runtime_value_operand(
                 destination_register,
                 operator,
                 rhs_register,
+            )?;
+        } else if let Some((domain, operands_signed)) = runtime_value_operands
+            .binary_arithmetic_domain(operand)
+            .filter(|(domain, _)| {
+                matches!(
+                    domain,
+                    omega_core::arithmetic::ArithmeticDomain::Saturating
+                        | omega_core::arithmetic::ArithmeticDomain::Trapping
+                )
+            })
+            .filter(|_| {
+                matches!(
+                    operator,
+                    StateGuardOperator::Add
+                        | StateGuardOperator::Subtract
+                        | StateGuardOperator::Multiply
+                )
+            })
+        {
+            // Decision 17 in OPERAND position: reuse the binary WRITE path's
+            // register-parametric clamp/trap sequences at this operand's
+            // dest/rhs. The operand's byte_width is its REAL scalar width here
+            // (set at construction for these domains); the remaining scratch
+            // supplies the sequences' immediate/high/sign/bound registers.
+            let byte_width = runtime_value_operands.binary_byte_width(operand).unwrap_or(8);
+            append_saturating_trapping_arithmetic(
+                bytes,
+                domain,
+                operator,
+                byte_width,
+                operands_signed,
+                destination_register,
+                rhs_register,
+                remaining_scratch,
             )?;
         } else {
             // Comparisons use the operand width; other nested binaries do not

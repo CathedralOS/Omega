@@ -628,14 +628,57 @@ decreases remaining
   runtime_narrow_signed_guard_ops_exit fields switched to plain i8 (its
   Saturating declarations were incidental; subject is signedness).
   OPEN follow-up (queued, both ISAs): real operand-position
-  Saturating/Trapping lowering -- compute the fused Add/Sub/Mul wide in the
-  binary-temp register, clamp/trap before the compare; then promote both
-  pending canaries and re-tighten the blocker to Trapping too. Note the
+  Saturating/Trapping lowering -- LANDED 2026-07-09d, see the next entry;
+  the fence is gone and both pending canaries are promoted. Note the
   backend report now renders fused domains (`Add/8 in Trapping`).
   Suite: failure set IDENTICAL to the known 7 (efi x3 Cathedral, tick x2
   time, gui_memory_dc_blit render, pass umbrella); differential green
   through its list until the pre-existing tick_count first-failure stop
   (baseline-verified); zero warnings.
+
+- **OPERAND-POSITION DOMAIN LOWERING 2026-07-09d: the fused-operand fence
+  retired into a feature.** Saturating/Trapping Add/Sub/Mul now lower
+  correctly IN OPERAND POSITION (fused under guard compares / nested operand
+  trees) on BOTH ISAs, by reusing each backend's proven binary-WRITE domain
+  sequences:
+  - `ValueOperand::Binary` gained `operands_signed` (resolved from the same
+    declared-type witness as `arithmetic_domain`; the storage_places witness
+    helper now returns the pair), and its `byte_width` is the REAL operand
+    width when the domain is Saturating/Trapping (still 8 otherwise --
+    bit-identical plain paths). New `binary_arithmetic_domain` accessor on
+    RuntimeValueOperandSource (both impls).
+  - x86_64: the operand evaluator's Binary arm dispatches to the write path's
+    `append_width_integer_add_sub` + `append_arithmetic_domain_clamp`
+    (flag-driven, r10/r11 -- same registers the operand path already uses)
+    and `append_saturating_trapping_multiply`; width twin mirrors. 64-bit
+    sat/trap MUL stays a loud error (pre-existing x86 gap; aarch64 has MULH
+    arms -- parity item for the x86 thread).
+  - aarch64: `append_saturating_trapping_arithmetic` is now
+    REGISTER-PARAMETRIC (dest/rhs/scratch[4]; the write path passes
+    17/26/[15,14,13,12] -- byte-identical to the old hardcoded registers,
+    proven by the unchanged suite), and the operand evaluator's Binary arm
+    calls it at the evaluator-assigned dest/rhs with the remaining scratch.
+    widths.rs operand-width twin mirrors via
+    `saturating_trapping_arithmetic_width`.
+  - Fence unwound: emission planning's operand_domain_blockers DELETED,
+    fail/arithmetic/guard_saturating_operand_rejected retired. PROMOTED:
+    pass/arithmetic/runtime_saturating_expression_domain_exit (5 directions;
+    differential 70/70) and pass/arithmetic/runtime_trapping_guard_overflow_
+    traps (native brk/SIGTRAP asserted by its suite test, no clean exit;
+    differential-EXCLUDED with the interp leg pinned by
+    interpreter_traps_on_trapping_guard_overflow).
+  Verified: suite failure set identical to the known 7; differential green
+  through its list to the pre-existing tick_count stop; 9 touched-crate test
+  suites green; zero warnings. The aarch64 legs run natively on this host;
+  the x86 legs ride the shared write-path helpers (already canary-proven on
+  x86) plus the encode/width debug_assert -- Windows agent's next suite run
+  confirms.
+  REMAINING operand-position domain edges (parked, small): Saturating signed
+  div/mod MIN/-1 in operand position still rides the plain idiv/sdiv (x86
+  would #DE-trap instead of clamping to MAX; store-position handles it via
+  append_saturating_signed_divide_modulo -- same reuse pattern applies if a
+  real program hits it), and Wrapping signed div MIN/-1 fused would #DE on
+  x86 (store-position guards it).
 
 - **[ ] Range constraint + non-Exact domain = the range is a LIE (found 2026-07-06).**
   `i: usize [0..=4] in Wrapping` accepts `self.i = 100` -- the range enforces only under the

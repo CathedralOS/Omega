@@ -1769,6 +1769,14 @@ fn resolve_runtime_value_operand_in_table(
             binary.right,
             runtime_value_operands,
         )?;
+        let domain_signedness = resolve_binary_operand_arithmetic_domain_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.left,
+            binary.right,
+        );
         return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
             left,
             operator,
@@ -1776,20 +1784,23 @@ fn resolve_runtime_value_operand_in_table(
             // Guard comparison operands; float comparisons lower via ucomisd
             // elsewhere, so the integer value-operand path stays as-is here.
             is_float: false,
-            // Integer arm derives its own width; default 8 matches prior behavior.
-            byte_width: 8,
-            // Recorded so emission planning refuses the domains the fused
-            // operand encoding cannot honor (Saturating/Trapping would
-            // silently compute the plain op: `sat_a + sat_b == 127` read the
-            // unclamped 150).
-            arithmetic_domain: resolve_binary_operand_arithmetic_domain_in_table(
-                input,
-                dispatch_index,
-                source_key,
-                expressions,
-                binary.left,
-                binary.right,
-            ),
+            // The plain integer arm ignores the width (default 8 matches prior
+            // behavior); a Saturating/Trapping operand instead needs its REAL
+            // operand width for the width-correct op + clamp bounds.
+            byte_width: if matches!(
+                domain_signedness.0,
+                omega_core::arithmetic::ArithmeticDomain::Saturating
+                    | omega_core::arithmetic::ArithmeticDomain::Trapping
+            ) {
+                runtime_value_compare_byte_size(runtime_value_operands, left, right)
+            } else {
+                8
+            },
+            // Recorded so the Saturating/Trapping operand-position lowering
+            // picks its width-correct op + clamp/trap bounds (the plain op
+            // silently computed the unclamped 150 for `sat_a + sat_b == 127`).
+            arithmetic_domain: domain_signedness.0,
+            operands_signed: domain_signedness.1,
         }));
     }
 
@@ -1989,7 +2000,7 @@ fn runtime_value_operand_byte_size(
     }
 }
 
-fn runtime_value_compare_byte_size(
+pub(super) fn runtime_value_compare_byte_size(
     runtime_value_operands: &Arena<RuntimeValueOperand>,
     left: RuntimeValueOperandHandle,
     right: RuntimeValueOperandHandle,

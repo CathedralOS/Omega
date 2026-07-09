@@ -144,6 +144,20 @@ impl omega_target_operations::RuntimeValueOperandSource for AssignedTargetOperat
         }
     }
 
+    fn binary_arithmetic_domain(
+        &self,
+        handle: omega_target_operations::RuntimeValueOperandHandle,
+    ) -> Option<(omega_core::arithmetic::ArithmeticDomain, bool)> {
+        match &AssignedTargetOperationPlan::runtime_value_operand(self, handle)?.kind {
+            AssignedValueOperandKind::Binary {
+                arithmetic_domain,
+                operands_signed,
+                ..
+            } => Some((*arithmetic_domain, *operands_signed)),
+            _ => None,
+        }
+    }
+
     fn text_equals(
         &self,
         handle: omega_target_operations::RuntimeValueOperandHandle,

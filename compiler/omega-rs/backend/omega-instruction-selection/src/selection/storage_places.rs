@@ -964,13 +964,17 @@ fn bounded_byte_buffer_indexed_place(
     })
 }
 
-/// The decision-17 arithmetic domain a BINARY OPERAND TREE computes in: the
-/// first non-Exact witness among the expression's leaves (the domain rides the
-/// operands' declared types; mixed domain classes are a checker concern, so one
-/// witness types the tree -- the same convention the signedness classifiers
-/// use). Recorded on `ValueOperand::Binary` at construction so emission
-/// planning can refuse the domains the fused operand encoders cannot honor
-/// (Saturating/Trapping) instead of silently computing the plain op.
+/// The decision-17 arithmetic domain a BINARY OPERAND TREE computes in, plus
+/// whether its operands are SIGNED integers: the first non-Exact witness among
+/// the expression's leaves decides both (the domain rides the operands'
+/// declared types; mixed domain classes are a checker concern, so one witness
+/// types the tree -- the same convention the signedness classifiers use).
+/// Recorded on `ValueOperand::Binary` at construction: the Saturating/Trapping
+/// operand-position lowering picks its width-correct op + clamp/trap bounds
+/// from these, and encoding one as the plain op instead silently computed the
+/// unclamped wide value (150 instead of the saturated 127) or skipped the
+/// trap. For an all-Exact tree the signedness is the LEFT leaf's (unused by
+/// the plain lowering).
 pub(in crate::selection) fn resolve_binary_operand_arithmetic_domain_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -978,7 +982,7 @@ pub(in crate::selection) fn resolve_binary_operand_arithmetic_domain_in_table(
     expressions: &ExpressionTable,
     left: ExpressionHandle,
     right: ExpressionHandle,
-) -> omega_core::arithmetic::ArithmeticDomain {
+) -> (omega_core::arithmetic::ArithmeticDomain, bool) {
     let left_witness = resolve_expression_arithmetic_domain_witness_in_table(
         input,
         dispatch_index,
@@ -986,29 +990,36 @@ pub(in crate::selection) fn resolve_binary_operand_arithmetic_domain_in_table(
         expressions,
         left,
     );
-    if left_witness != omega_core::arithmetic::ArithmeticDomain::Exact {
+    if left_witness.0 != omega_core::arithmetic::ArithmeticDomain::Exact {
         return left_witness;
     }
-    resolve_expression_arithmetic_domain_witness_in_table(
+    let right_witness = resolve_expression_arithmetic_domain_witness_in_table(
         input,
         dispatch_index,
         source_key,
         expressions,
         right,
-    )
+    );
+    if right_witness.0 != omega_core::arithmetic::ArithmeticDomain::Exact {
+        return right_witness;
+    }
+    left_witness
 }
 
-/// The domain witness of ONE operand expression: a nested binary node recurses
-/// into its own operands (its leaf descriptor never resolves -- a binary node
-/// is not a place); everything else resolves through the place/cast rules of
-/// [`resolve_runtime_storage_arithmetic_domain_in_table`].
+/// The (domain, signedness) witness of ONE operand expression: a nested binary
+/// node recurses into its own operands (its leaf descriptor never resolves --
+/// a binary node is not a place); everything else resolves through the
+/// place/cast rules of [`resolve_runtime_storage_arithmetic_domain_in_table`]
+/// with the signedness read from the SAME expression (signed when
+/// unresolvable, which only matters when the domain resolved non-Exact -- and
+/// a resolved domain implies a resolved declared type).
 fn resolve_expression_arithmetic_domain_witness_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: StateKey,
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
-) -> omega_core::arithmetic::ArithmeticDomain {
+) -> (omega_core::arithmetic::ArithmeticDomain, bool) {
     if let ExpressionNode::Binary(binary) = expressions.expression(expression) {
         return resolve_binary_operand_arithmetic_domain_in_table(
             input,
@@ -1019,13 +1030,22 @@ fn resolve_expression_arithmetic_domain_witness_in_table(
             binary.right,
         );
     }
-    resolve_runtime_storage_arithmetic_domain_in_table(
+    let domain = resolve_runtime_storage_arithmetic_domain_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    );
+    let signed = resolve_runtime_storage_is_signed_in_table(
         input,
         dispatch_index,
         source_key,
         expressions,
         expression,
     )
+    .unwrap_or(true);
+    (domain, signed)
 }
 
 /// The arithmetic domain (`T in Wrapping/Saturating/Trapping`, decision 17) of a

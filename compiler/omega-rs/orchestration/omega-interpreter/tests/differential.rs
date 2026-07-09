@@ -38,6 +38,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_saturating_narrow_add_sub_exit", 70),
     ("arithmetic/runtime_saturating_wide_boundaries_exit", 70),
     ("arithmetic/runtime_saturating_param_carry_exit", 70),
+    ("arithmetic/runtime_saturating_expression_domain_exit", 70),
     ("arithmetic/runtime_unsigned_high_bit_u32_ops_exit", 70),
     ("arithmetic/runtime_unsigned_min_max_exit", 88),
     ("arithmetic/runtime_integer_casts_exit", 70),
@@ -926,6 +927,10 @@ const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
         "the suite asserts the process DIES (a negative crash status from the ud2 trap, assert_ne 70); there is no clean exit code for the differential to match",
     ),
     (
+        "arithmetic/runtime_trapping_guard_overflow_traps",
+        "traps at the guard's fused add (operand-position Trapping) -- no clean exit to match; the oracle leg is pinned by interpreter_traps_on_trapping_guard_overflow",
+    ),
+    (
         "dungeon/runtime_ordered_room_dispatch_loop_exit",
         "suite feeds stdin (b\"east\\n\"); differential harness runs with empty stdin, so the recorded exit code 135 does not apply",
     ),
@@ -1732,18 +1737,17 @@ fn pass_canary(path: &str) -> PathBuf {
     repo_root().join("canaries/pass").join(path)
 }
 
-/// The INTERPRETER leg of the parked operand-position Trapping repro
-/// (pending/arithmetic/runtime_trapping_guard_overflow): `u8 in Trapping`
+/// The INTERPRETER leg of the operand-position Trapping canary
+/// (pass/arithmetic/runtime_trapping_guard_overflow_traps): `u8 in Trapping`
 /// 200 + 100 fused into a guard subject must TRAP in the oracle -- the
-/// expression's declared domain applies at the operation node. Native still
-/// compiles the plain fused add (silently missing the trap; deliberately
-/// unfenced, see emission planning's operand_domain_blockers), so the pending
-/// canary cannot be a differential member yet; this pins the oracle side
-/// alone until the operand-position trap sequence lands.
+/// expression's declared domain applies at the operation node. Native traps
+/// via the operand-position lowering (its suite test asserts the crash
+/// status); a trap has no comparable exit code for the differential harness,
+/// so the oracle side is pinned here.
 #[test]
-fn interpreter_traps_on_pending_trapping_guard_overflow() {
+fn interpreter_traps_on_trapping_guard_overflow() {
     let main_path = repo_root()
-        .join("canaries/pending/arithmetic/runtime_trapping_guard_overflow")
+        .join("canaries/pass/arithmetic/runtime_trapping_guard_overflow_traps")
         .join("main.omg");
     let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
         panic!(
