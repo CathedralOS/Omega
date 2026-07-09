@@ -352,12 +352,16 @@ fn trap<T>(message: impl Into<String>) -> EvalResult<T> {
 /// shared by `&` during statement execution.
 struct Frame {
     locals: RefCell<BTreeMap<String, Cell>>,
-    /// Names of locals/params DECLARED u64-classed (`u64`/`usize`/`addr`),
-    /// recorded at binding: the static witness that a comparison touching
-    /// them is UNSIGNED at width 8 (native emits `LessUnsigned` etc. from the
-    /// same declared types; `Value::Int` alone cannot distinguish u64::MAX
-    /// from -1).
-    unsigned64_locals: RefCell<std::collections::BTreeSet<String>>,
+    /// DECLARED scalar (primitive, arithmetic-domain) of locals/params, recorded
+    /// at binding -- the static type witness `Value::Int` alone cannot carry.
+    /// Read for two classifications native derives from the same declared types:
+    /// u64-classed names (`u64`/`usize`/`addr`) make comparisons UNSIGNED at
+    /// width 8 (`Value::Int` cannot distinguish u64::MAX from -1), and
+    /// Saturating/Trapping names make arithmetic NODES clamp/trap at the
+    /// operation itself (native emits the saturating ADD; a landing-seam
+    /// coercion alone cannot represent an expression whose own domain differs
+    /// from its landing slot's).
+    scalar_locals: RefCell<BTreeMap<String, (PrimitiveType, ArithmeticDomain)>>,
     self_cell: Cell,
     /// The machine whose state is currently executing. Lets a call/transition that names a
     /// SIBLING state resolve it within this machine (rather than re-entering the machine's
@@ -731,7 +735,7 @@ impl<'program> Evaluator<'program> {
                     locals: RefCell::new(BTreeMap::new()),
                     self_cell: Value::Unit.cell(),
                     machine_symbol: SymbolHandle::invalid(),
-                    unsigned64_locals: RefCell::new(std::collections::BTreeSet::new()),
+                    scalar_locals: RefCell::new(BTreeMap::new()),
                     guard_call_results: RefCell::new(Vec::new()),
                 };
                 self.eval_expression(owned.initial_value, &frame)?
@@ -767,7 +771,7 @@ impl<'program> Evaluator<'program> {
                     locals: RefCell::new(BTreeMap::new()),
                     self_cell: Value::Unit.cell(),
                     machine_symbol: SymbolHandle::invalid(),
-                    unsigned64_locals: RefCell::new(std::collections::BTreeSet::new()),
+                    scalar_locals: RefCell::new(BTreeMap::new()),
                     guard_call_results: RefCell::new(Vec::new()),
                 };
                 self.eval_expression(field.initial_value, &frame)?
@@ -1088,7 +1092,7 @@ impl<'program> Evaluator<'program> {
         machine_symbol: SymbolHandle,
         carried: &BTreeMap<String, Cell>,
     ) -> EvalResult<Frame> {
-        let mut unsigned64_locals = std::collections::BTreeSet::new();
+        let mut scalar_locals = BTreeMap::new();
         let mut locals = carried.clone();
         let mut arg_index = 0;
         for parameter in self.program.state_parameters(state) {
@@ -1110,30 +1114,25 @@ impl<'program> Evaluator<'program> {
             // left untouched and its aliasing preserved (keep the original cell);
             // a by-value scalar is a copy anyway, so a fresh coerced cell is
             // correct. Funnels through `coerce_scalar_with` like every other seam.
+            // The resolved (primitive, domain) is also RECORDED so arithmetic on
+            // the param applies its declared domain at the operation node.
             let cell = match self.program.primitive_type_reference(parameter.type_reference) {
                 Some(primitive) => {
+                    let domain = self
+                        .program
+                        .arithmetic_domain_for_type_reference(parameter.type_reference);
+                    scalar_locals.insert(parameter.name.as_str().to_owned(), (primitive, domain));
                     let scalar = match &*cell.borrow() {
                         v @ (Value::Int(_) | Value::Float(_)) => Some(v.clone()),
                         _ => None,
                     };
                     match scalar {
-                        Some(value) => {
-                            let domain = self
-                                .program
-                                .arithmetic_domain_for_type_reference(parameter.type_reference);
-                            self.coerce_scalar_with(value, primitive, domain)?.cell()
-                        }
+                        Some(value) => self.coerce_scalar_with(value, primitive, domain)?.cell(),
                         None => cell,
                     }
                 }
                 None => cell,
             };
-            if primitive_is_unsigned64(
-                self.program
-                    .primitive_type_reference(parameter.type_reference),
-            ) {
-                unsigned64_locals.insert(parameter.name.as_str().to_owned());
-            }
             locals.insert(parameter.name.as_str().to_owned(), cell);
             arg_index += 1;
         }
@@ -1141,7 +1140,7 @@ impl<'program> Evaluator<'program> {
             locals: RefCell::new(locals),
             self_cell,
             machine_symbol,
-            unsigned64_locals: RefCell::new(unsigned64_locals),
+            scalar_locals: RefCell::new(scalar_locals),
             guard_call_results: RefCell::new(Vec::new()),
         })
     }
@@ -1257,14 +1256,19 @@ impl<'program> Evaluator<'program> {
                 // Saturating clamps, Trapping traps, an f32 local rounds to f32.
                 let value = self.coerce_scalar_value(value, local.type_reference)?;
                 // A `let` introduces a fresh local cell, bound through the frame's
-                // interior-mutable locals map.
-                if primitive_is_unsigned64(
-                    self.program.primitive_type_reference(local.type_reference),
-                ) {
+                // interior-mutable locals map. A scalar local also RECORDS its
+                // declared (primitive, domain) so later arithmetic on the name
+                // applies the domain at the operation node.
+                if let Some(primitive) =
+                    self.program.primitive_type_reference(local.type_reference)
+                {
+                    let domain = self
+                        .program
+                        .arithmetic_domain_for_type_reference(local.type_reference);
                     frame
-                        .unsigned64_locals
+                        .scalar_locals
                         .borrow_mut()
-                        .insert(local.name.as_str().to_owned());
+                        .insert(local.name.as_str().to_owned(), (primitive, domain));
                 }
                 frame.bind(local.name.as_str(), value.cell());
                 Ok(())
@@ -3810,7 +3814,19 @@ impl<'program> Evaluator<'program> {
                         | BinaryOperator::ShiftRight
                 ) && (self.expression_is_unsigned64(binary.left, frame)
                     || self.expression_is_unsigned64(binary.right, frame));
-                self.eval_binary(binary.operator, left, right, unsigned_operands)
+                // A Saturating/Trapping ADD/SUB/MUL applies its domain at the
+                // OPERATION node (native emits the clamping/trapping sequence
+                // itself), so resolve the expression's declared scalar type for
+                // the arithmetic operators the domains cover.
+                let scalar_type = if matches!(
+                    binary.operator,
+                    BinaryOperator::Add | BinaryOperator::Subtract | BinaryOperator::Multiply
+                ) {
+                    self.expression_scalar_type(handle, frame)
+                } else {
+                    None
+                };
+                self.eval_binary(binary.operator, left, right, unsigned_operands, scalar_type)
             }
             ExpressionNode::Call(call) => self.eval_call_expression(handle, &call, frame),
             ExpressionNode::Cast(cast) => {
@@ -4885,29 +4901,55 @@ impl<'program> Evaluator<'program> {
         expression: omega_checked_trees::expression::ExpressionHandle,
         frame: &Frame,
     ) -> bool {
+        primitive_is_unsigned64(
+            self.expression_scalar_type(expression, frame)
+                .map(|(primitive, _)| primitive),
+        )
+    }
+
+    /// Best-effort STATIC (primitive, arithmetic-domain) of an expression,
+    /// resolved from DECLARED types only (decision 17): a NAME reads the
+    /// local/param type recorded at binding, `self.field` reads the attached
+    /// data field, a CAST is its target width (`as T` carries no domain
+    /// clause, and the absence of one means Exact), a BINARY/UNARY node is
+    /// typed by one operand witness (mixed classes are checker-rejected).
+    /// `None` on any doubt -- literals are adaptive. This is what lets
+    /// `acc + 50` SATURATE at the operation node when `acc` is declared
+    /// `i8 in Saturating` regardless of where the result lands; the
+    /// landing-seam coercions alone cannot represent an expression whose own
+    /// domain differs from its landing slot's (native emits the saturating
+    /// ADD itself).
+    fn expression_scalar_type(
+        &self,
+        expression: omega_checked_trees::expression::ExpressionHandle,
+        frame: &Frame,
+    ) -> Option<(PrimitiveType, ArithmeticDomain)> {
         match self.program.expression_table.expression(expression) {
-            ExpressionNode::Cast(cast) => {
-                primitive_is_unsigned64(self.cast_target_primitive(cast.target_type))
-            }
-            ExpressionNode::Mutable(inner) => self.expression_is_unsigned64(*inner, frame),
-            // Mixed signedness classes are checker-rejected, so one witness
-            // types the whole arithmetic expression.
-            ExpressionNode::Binary(binary) => {
-                self.expression_is_unsigned64(binary.left, frame)
-                    || self.expression_is_unsigned64(binary.right, frame)
-            }
+            ExpressionNode::Cast(cast) => Some((
+                self.cast_target_primitive(cast.target_type)?,
+                ArithmeticDomain::Exact,
+            )),
+            ExpressionNode::Mutable(inner) => self.expression_scalar_type(*inner, frame),
+            ExpressionNode::Unary(unary) => self.expression_scalar_type(unary.operand, frame),
+            // Mixed signedness/width classes are checker-rejected, so one
+            // witness types the whole arithmetic expression.
+            ExpressionNode::Binary(binary) => self
+                .expression_scalar_type(binary.left, frame)
+                .or_else(|| self.expression_scalar_type(binary.right, frame)),
             ExpressionNode::Name(path) => {
                 let members = self.program.expression_table.name_path_members(path.members);
                 // `self.field` spelled as a two-member path.
                 if members.len() == 2 && members[0].as_str() == "self" {
-                    return self.attached_field_is_unsigned64(frame, members[1].as_str());
+                    return self.attached_field_scalar_type(frame, members[1].as_str());
                 }
-                members.len() == 1
-                    && members[0].as_str() != "self"
-                    && frame
-                        .unsigned64_locals
+                if members.len() == 1 && members[0].as_str() != "self" {
+                    return frame
+                        .scalar_locals
                         .borrow()
-                        .contains(members[0].as_str())
+                        .get(members[0].as_str())
+                        .copied();
+                }
+                None
             }
             // `self.field` spelled as a Member node.
             ExpressionNode::Member(member) => {
@@ -4921,30 +4963,28 @@ impl<'program> Evaluator<'program> {
                     _ => false,
                 };
                 if !receiver_is_self {
-                    return false;
+                    return None;
                 }
-                self.attached_field_is_unsigned64(frame, member.member.as_str())
+                self.attached_field_scalar_type(frame, member.member.as_str())
             }
-            _ => false,
+            _ => None,
         }
     }
 
-    /// Whether the executing machine's attached-data field is u64-classed.
-    fn attached_field_is_unsigned64(&self, frame: &Frame, field_name: &str) -> bool {
-        let Some(machine) = self
+    /// The executing machine's attached-data field's declared scalar
+    /// (primitive, arithmetic-domain); `None` for a non-scalar field.
+    fn attached_field_scalar_type(
+        &self,
+        frame: &Frame,
+        field_name: &str,
+    ) -> Option<(PrimitiveType, ArithmeticDomain)> {
+        let machine = self
             .program
             .machines()
             .iter()
-            .find(|machine| machine.symbol == frame.machine_symbol)
-        else {
-            return false;
-        };
-        let Some(data_name) = machine.attached_data.as_ref() else {
-            return false;
-        };
-        let Some(data) = self.find_data_by_name(data_name.as_str()) else {
-            return false;
-        };
+            .find(|machine| machine.symbol == frame.machine_symbol)?;
+        let data_name = machine.attached_data.as_ref()?;
+        let data = self.find_data_by_name(data_name.as_str())?;
         self.program
             .data_members(data)
             .iter()
@@ -4952,13 +4992,15 @@ impl<'program> Evaluator<'program> {
                 omega_checked_trees::data::DataMember::Field(field)
                     if field.name.as_str() == field_name =>
                 {
-                    Some(primitive_is_unsigned64(
-                        self.program.primitive_type_reference(field.type_reference),
-                    ))
+                    let primitive =
+                        self.program.primitive_type_reference(field.type_reference)?;
+                    let domain = self
+                        .program
+                        .arithmetic_domain_for_type_reference(field.type_reference);
+                    Some((primitive, domain))
                 }
                 _ => None,
             })
-            .unwrap_or(false)
     }
 
     fn eval_binary(
@@ -4967,6 +5009,7 @@ impl<'program> Evaluator<'program> {
         left: Value,
         right: Value,
         unsigned_operands: bool,
+        scalar_type: Option<(PrimitiveType, ArithmeticDomain)>,
     ) -> EvalResult<Value> {
         use BinaryOperator::*;
 
@@ -5019,6 +5062,39 @@ impl<'program> Evaluator<'program> {
         // traps on `Enum - Enum`.
         let l = self.arithmetic_operand_int(&left)?;
         let r = self.arithmetic_operand_int(&right)?;
+        // Saturating/Trapping ADD/SUB/MUL clamp/trap at the OPERATION itself
+        // (decision 17): compute WIDE in i128 -- two in-bounds operands cannot
+        // overflow it, and it also covers 64-bit signed saturation, which the
+        // i64 landing seams cannot express -- then apply the domain to the
+        // exact mathematical result. Other domains and operators keep the wide
+        // i64 compute + landing-seam coercion.
+        if let Some((ty, domain @ (ArithmeticDomain::Saturating | ArithmeticDomain::Trapping))) =
+            scalar_type
+        {
+            if matches!(operator, Add | Subtract | Multiply) {
+                if let Some((min, max)) = integer_bounds(ty) {
+                    let wide = match operator {
+                        Add => l as i128 + r as i128,
+                        Subtract => l as i128 - r as i128,
+                        Multiply => l as i128 * r as i128,
+                        _ => unreachable!(),
+                    };
+                    return match domain {
+                        ArithmeticDomain::Saturating => Ok(Value::Int(
+                            wide.clamp(min as i128, max as i128) as i64,
+                        )),
+                        ArithmeticDomain::Trapping
+                            if wide < min as i128 || wide > max as i128 =>
+                        {
+                            trap(format!(
+                                "arithmetic overflow in Trapping domain: {wide} is out of range for {ty:?}"
+                            ))
+                        }
+                        _ => Ok(Value::Int(wide as i64)),
+                    };
+                }
+            }
+        }
         self.eval_int_binary(operator, l, r, unsigned_operands)
     }
 

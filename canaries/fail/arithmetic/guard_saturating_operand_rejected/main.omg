@@ -1,0 +1,15 @@
+// Saturating arithmetic FUSED into a guard operand has no native lowering yet:
+// the fused compare would compute the plain add and read the unclamped 150
+// instead of the saturated 127 -- a silent wrong branch. Until the
+// operand-position clamp lands, emission planning must refuse this loudly
+// (the workaround is storing `a + b` into a Saturating-typed local/field
+// first; see pass/arithmetic/runtime_saturating_narrow_add_sub_exit).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a8: i8 in Saturating; b8: i8 in Saturating; }
+machine Main::main(&mut self) {
+    self.a8 = 100;
+    self.b8 = 50;
+    transition (self.a8 + self.b8 == 127) { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

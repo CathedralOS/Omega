@@ -692,7 +692,11 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    saturates to 127) but the INTERPRETER diverges (computes wide, no
    clamp through recursion-param carry; parked
    `pending/host/interp_saturating_param_carry`, flagged for the
-   interp/arithmetic thread in Observations). (H) TRANSITION-ARG binding
+   interp/arithmetic thread in Observations). [RESOLVED 2026-07-09c by the
+   arithmetic thread: interp now applies Saturating/Trapping at binary NODES
+   (expression_scalar_type witness); the repro is PROMOTED to
+   pass/arithmetic/runtime_saturating_param_carry_exit, differential 70/70.
+   See TASKS.md "EXPRESSION-DOMAIN SESSION 2026-07-09c".] (H) TRANSITION-ARG binding
    (`true -> check(self.count(..))`) is another LIVE silent-wrong (native
    71): widening the return-write slot lookup to any role
    (`state_call_result_slot_any_role`, kept -- documented and needed) was

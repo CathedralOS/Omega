@@ -3,6 +3,7 @@ use crate::selection::bindings::{RuntimeAliasBinding, resolve_runtime_alias_bind
 use omega_checked_trees::types::PrimitiveType;
 use crate::selection::storage_places::{
     RuntimeStoragePlace, clamp_runtime_case_comparison_operands,
+    resolve_binary_operand_arithmetic_domain_in_table,
     clamp_runtime_case_comparison_operands_in_table, enum_variant_value_in_table,
     resolve_runtime_assignment_value_call_result_place_by_ordinal,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
@@ -199,6 +200,16 @@ pub(super) fn resolve_runtime_value_operand_in_table(
             right,
             is_float,
             byte_width,
+            // Recorded so emission planning refuses the domains the fused
+            // operand encoding cannot honor (Saturating/Trapping).
+            arithmetic_domain: resolve_binary_operand_arithmetic_domain_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                left_expr,
+                right_expr,
+            ),
         }));
     }
 
@@ -297,6 +308,9 @@ pub(super) fn resolve_runtime_value_operand_in_table(
                 right,
                 is_float,
                 byte_width,
+                // min/max SELECTS one operand -- no overflow exists for a
+                // domain to clamp/trap.
+                arithmetic_domain: omega_core::arithmetic::ArithmeticDomain::Exact,
             }));
         }
 
@@ -491,6 +505,8 @@ pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_equals_operan
         is_float: false,
         // Integer 0/1 bool compare; width is unread by the integer emission arm.
         byte_width: 1,
+        // A synthesized 0/1 bool compare cannot overflow.
+        arithmetic_domain: omega_core::arithmetic::ArithmeticDomain::Exact,
     }))
 }
 
@@ -640,6 +656,11 @@ pub(super) fn resolve_runtime_value_operand(
             right,
             runtime_value_operands,
         );
+        // Domain witness through a DELEGATED table (this fallback path works
+        // on expression TREES; the domain resolver is table-shaped).
+        let mut domain_expressions = ExpressionTable::default();
+        let domain_left = domain_expressions.insert_tree(&binary.left);
+        let domain_right = domain_expressions.insert_tree(&binary.right);
         return Some(runtime_value_operands.insert(RuntimeValueOperand::Binary {
             left,
             operator,
@@ -649,6 +670,16 @@ pub(super) fn resolve_runtime_value_operand(
             is_float: false,
             // Integer arm derives its own width; default 8 matches prior behavior.
             byte_width: 8,
+            // Recorded so emission planning refuses the domains the fused
+            // operand encoding cannot honor (Saturating/Trapping).
+            arithmetic_domain: resolve_binary_operand_arithmetic_domain_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                &domain_expressions,
+                domain_left,
+                domain_right,
+            ),
         }));
     }
 
@@ -703,6 +734,9 @@ pub(super) fn resolve_runtime_value_operand(
             is_float: false,
             // Integer arm derives its own width; default 8 matches prior behavior.
             byte_width: 8,
+            // min/max SELECTS one operand -- no overflow exists for a
+            // domain to clamp/trap.
+            arithmetic_domain: omega_core::arithmetic::ArithmeticDomain::Exact,
         }));
     }
 

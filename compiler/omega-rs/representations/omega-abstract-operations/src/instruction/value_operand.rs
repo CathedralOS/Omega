@@ -64,6 +64,16 @@ pub enum ValueOperand {
         /// it; the integer arm keeps its operator/operand-derived width, so a
         /// width that cannot be resolved defaults to 8 (the prior behavior).
         byte_width: usize,
+        /// The decision-17 arithmetic domain the operation must honor,
+        /// resolved at build time from the operands' DECLARED types (first
+        /// non-Exact witness; a domain `as` cast re-tags explicitly).
+        /// Exact/Wrapping lower as the plain modular op (the byte-width
+        /// compare/store truncation IS the wrap); Saturating/Trapping have NO
+        /// operand-position lowering yet, so emission planning refuses them
+        /// loudly -- encoding one as the plain op silently computed the
+        /// unclamped wide value (150 instead of the saturated 127) or skipped
+        /// the trap.
+        arithmetic_domain: omega_core::arithmetic::ArithmeticDomain,
     },
     /// Runtime text CONTENT equality in VALUE position (Equatable synthesis
     /// over `String` fields, chapter 13): both sides are `{ptr @ +0, len @ +8}`
@@ -140,12 +150,14 @@ impl ValueOperand {
                 right,
                 is_float,
                 byte_width,
+                arithmetic_domain,
             } => Self::Binary {
                 left: remap(*left),
                 operator: *operator,
                 right: remap(*right),
                 is_float: *is_float,
                 byte_width: *byte_width,
+                arithmetic_domain: *arithmetic_domain,
             },
             Self::TextEqualsLiteral {
                 place,

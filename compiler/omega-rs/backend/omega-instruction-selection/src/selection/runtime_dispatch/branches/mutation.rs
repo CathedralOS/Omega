@@ -18,6 +18,7 @@ use super::super::super::storage_places::{
     resolve_runtime_frame_fixed_indexed_target_in_table,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_pointee_fixed_indexed_target_in_table,
+    resolve_binary_operand_arithmetic_domain_in_table,
     resolve_runtime_pointee_slot_offset_in_table,
     resolve_runtime_storage_arithmetic_domain_in_table,
     resolve_runtime_storage_is_signed_in_table, resolve_runtime_storage_place_in_table,
@@ -1229,6 +1230,16 @@ fn resolve_runtime_value_operand_in_table(
                 is_float: false,
                 // Integer arm derives its own width; default 8 matches prior behavior.
                 byte_width: 8,
+                // Recorded so emission planning refuses the domains the fused
+                // operand encoding cannot honor (Saturating/Trapping).
+                arithmetic_domain: resolve_binary_operand_arithmetic_domain_in_table(
+                    input,
+                    dispatch_index,
+                    source_key,
+                    expressions,
+                    binary.left,
+                    binary.right,
+                ),
             }));
         }
         ExpressionNode::Call(call) => {
@@ -1267,6 +1278,10 @@ fn resolve_runtime_value_operand_in_table(
                 is_float: false,
                 // Integer arm derives its own width; default 8 matches prior behavior.
                 byte_width: 8,
+                // min/max SELECTS one operand -- no overflow exists for a
+                // domain to clamp/trap, so the fused compare-select is honest
+                // under every domain.
+                arithmetic_domain: omega_core::arithmetic::ArithmeticDomain::Exact,
             }));
         }
         _ => {}
