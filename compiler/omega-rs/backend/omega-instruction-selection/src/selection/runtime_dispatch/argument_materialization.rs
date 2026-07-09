@@ -250,6 +250,18 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         if ranked_place.is_some() {
             transition_call_argument_rank += 1;
         }
+        if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some()
+            && matches!(expressions.expression(argument), ExpressionNode::Call(_))
+        {
+            eprintln!(
+                "call-result READ: src m{} s{} stmt {} dispatch {} ranked {:?}",
+                argument_source_key.machine.arena_index(),
+                argument_source_key.state.arena_index(),
+                statement_index,
+                source_dispatch_index,
+                ranked_place.as_ref().map(|place| (place.region, place.byte_offset, place.byte_count)),
+            );
+        }
         if matches!(expressions.expression(argument), ExpressionNode::Call(_))
             && let Some(place) = ranked_place
             .or_else(|| {

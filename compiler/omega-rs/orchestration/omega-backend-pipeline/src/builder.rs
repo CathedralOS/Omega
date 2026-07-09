@@ -683,6 +683,7 @@ fn dispatch_state_call_edges(
                 source_key: state_call.source_key,
                 statement_index: state_call.statement_index,
                 target_key: state_call.target_key,
+                is_value: state_call.role != StateCallRole::Statement,
             })
         })
         .collect()

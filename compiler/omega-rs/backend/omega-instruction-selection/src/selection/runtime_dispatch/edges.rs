@@ -338,11 +338,42 @@ fn select_runtime_dispatch_call_result_return(
     // (probed native 71 vs interp 70). Restricted to Machine-region targets:
     // a frame-place target under the callee's dispatch context would resolve
     // against the wrong frame, and the frame case is the slot path's job.
-    let (target_region, target_offset, byte_size) = if let Some(slot) =
-        input.runtime_storage.state_call_result_slot_any_role(
+    if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some() {
+        let found = input
+            .runtime_storage
+            .state_call_result_slot_for_dispatch(
+                edge.continuation_dispatch_index,
+                call_result.call_source_key,
+                call_result.statement_index,
+            )
+            .or_else(|| {
+                input.runtime_storage.state_call_result_slot_any_role(
+                    call_result.call_source_key,
+                    call_result.statement_index,
+                )
+            });
+        eprintln!(
+            "call-result WRITE (continuation dispatch {}): caller m{} s{} stmt {} -> slot {:?}",
+            edge.continuation_dispatch_index,
+            call_result.call_source_key.machine.arena_index(),
+            call_result.call_source_key.state.arena_index(),
+            call_result.statement_index,
+            found.map(|slot| (slot.dispatch_index, slot.byte_offset, slot.byte_size, format!("{:?}", slot.kind))),
+        );
+    }
+    let (target_region, target_offset, byte_size) = if let Some(slot) = input
+        .runtime_storage
+        .state_call_result_slot_for_dispatch(
+            edge.continuation_dispatch_index,
             call_result.call_source_key,
             call_result.statement_index,
-        ) {
+        )
+        .or_else(|| {
+            input.runtime_storage.state_call_result_slot_any_role(
+                call_result.call_source_key,
+                call_result.statement_index,
+            )
+        }) {
         (
             RuntimeStorageRegion::RuntimeFrame,
             slot.byte_offset,
