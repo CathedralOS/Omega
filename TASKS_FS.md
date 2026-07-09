@@ -799,11 +799,17 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    gap). Safety: suite A/B zero new failures with the partial landed (the
    newly-stamped terminals write first-match slots; no green canary
    reads those paths yet).
-   REMAINING SHAPES to matrix: transition-arg ordering (above), effectful
-   entries (the parked acceptance canary -- likely the entry-op
-   splice/dispatch interaction, not the return-write), alias results,
-   float terminals (bail today, documented). Slice-element results
-   SERVED 2026-07-09k2 (see above). LESSON: an exemption from a
+   MATRIX COMPLETE (2026-07-10a): the ALIAS-READ terminal (`-> acc`,
+   acc: &mut i32 -- the pointer-bits-as-result risk) was the last
+   unprobed shape and it already serves correctly (place resolution is
+   deref-aware); pinned by calls/runtime_dispatch_result_alias_read_exit
+   (differential 70/70 + suite test). Slice-element results SERVED
+   2026-07-09k2 (see above). Every return-write shape now either SERVES
+   (param/field-binding/field-read/binary/multi-arm/guard-subject/
+   transition-arg/enum-case/machine-array-slice-arg/slice-element/
+   alias-read) or LOUD-BAILS (float terminals, documented). Remaining
+   adjacent (not return-write): transition-arg ordering (above),
+   effectful entries (the entry-op splice/dispatch interaction). LESSON: an exemption from a
    silent-wrong fence needs a RUNTIME differential proof per shape, not a
    routing-evidence proof -- compile-time evidence says the route was
    taken, not that the route is correct.
