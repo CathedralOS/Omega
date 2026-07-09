@@ -92,8 +92,28 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    Debug instrumentation kept env-gated (OMEGA_DEBUG_RECEIVER + the BTW
    binary-write entry prints).
 
-3. **Receiver slice 2** — non-entry callers need recursive caller-base
-   resolution (the context chain's parent bases compose); fenced until then.
+3. **Receiver slice 2** — non-entry callers. ATTEMPTED 2026-07-10z and
+   REVERTED same-session (regressed both native_dungeon canaries + the
+   differential): the naive design — parent contexts recorded at minting,
+   one forward pass composing ctx_base[child] = ctx_base[parent] +
+   receiver offset, inline caller_base composition, fence entry-
+   restriction dropped — CONFLICTS with machine_storage_offset's by-type
+   walk, which ALREADY resolves nested offsets by walking the entry
+   layout recursively (nested_machine_storage_offset): for single-
+   instance nesting the by-type result is the full composed offset, and
+   the override DOUBLE-COUNTS or mismatches. The correct design must
+   either fully REPLACE the nested walk (compose from ROOT always, treat
+   by-type as pure fallback) or make override/walk mutually exclusive
+   per hop — decide with the dungeon canaries (nested machines,
+   single-instance) as the acceptance oracle next session. TWO NEW
+   frontier shapes found while probing (both pre-existing loud fences,
+   NOT slice-2 artifacts — repro scratchpad/slice2): (a) a dispatched
+   callee forwarding its own call-bound LOCAL as terminal ("no selected
+   return-write" — adjacent to the parallel thread's bind-first work);
+   (b) same refusal for the FIELD-carrier restructure through a nested
+   receiver (mid.run() field-read terminal into main) — the outer
+   return-write serve fails to resolve there even through the FIRST
+   receiver.
 
 4. **Windows-session bundle** (needs a Windows host): verify the stat-row
    migration natively; WINDOWS_IMPORT_ROWS migration into provides files;
