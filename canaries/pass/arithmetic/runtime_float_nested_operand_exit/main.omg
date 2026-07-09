@@ -1,0 +1,38 @@
+// RUN CANARY (exit 70) + interpreter differential. NESTED float arithmetic in
+// operand position: `(self.a + self.b) * self.c` as a field-store value and
+// as a TRANSITION ARGUMENT. The two non-guard value-operand resolvers carry
+// "float detection not wired" notes (is_float: false on nested Binary), so
+// this pins that the shapes which actually ROUTE through selection all wire
+// float-ness correctly (the mutation-table resolver classifies operand scalar
+// types; the spliced-mutation flavor also serves -- probed 2026-07-12). If a
+// future route change sends a nested float through an unwired resolver, the
+// inner add would integer-op the IEEE bits and these legs go loud.
+// (Guard-position nested arithmetic fences on the conjunction rule -- not a
+// silent face.) exit 71 = nested write wrong; 73 = transition-arg wrong.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; a: f64; b: f64; c: f64; out: f64; }
+machine Main::main(&mut self) {
+    self.a = 1.5;
+    self.b = 2.25;
+    self.c = 2.0;
+    self.build();
+}
+machine Main::build(&mut self) {
+    self.out = (self.a + self.b) * self.c;
+    transition self.out == 7.5 {
+        true -> argleg()
+        _ -> wrong_nested_write()
+    }
+    state argleg(&mut self) {
+        transition true { true -> take((self.a + self.b) * self.c) }
+    }
+    state take(&mut self, v: f64) {
+        transition v == 7.5 {
+            true -> good()
+            _ -> wrong_arg()
+        }
+    }
+    state good(&mut self)              { self.console.exit_process(70); }
+    state wrong_nested_write(&mut self){ self.console.exit_process(71); }
+    state wrong_arg(&mut self)         { self.console.exit_process(73); }
+}
