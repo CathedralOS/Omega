@@ -696,11 +696,23 @@ decreases remaining
   the SELF-LOOPING ENTRY's own value arm. The inline-branching expansion
   path handles Terminal edges (expansions.rs builds them with bindings);
   the DISPATCH-LOOP path for recursive machines is where the terminal-value
-  write goes missing. NEXT: find where dispatch-loop cases select
-  terminal-value writes for CallResultReturn edges and why the looping
-  entry's value arm is skipped; serving it unparks BOTH
-  pending/termination/custom_ranking_* canaries. This thread's work (no
-  parallel agent is running -- the fs-lane deferral is retracted).
+  write goes missing. ROOT CAUSE PINNED 2026-07-11b (instrumented
+  storage-planner walk + allocator backtrace): the CALLER's dispatch body
+  for `let v = self.weaken(...)` contains NO StateCall operation AT ALL
+  when the callee is recursive (the working non-recursive twin shows
+  `stmt 0 kind StateCall`); no operation -> the storage planner never
+  allocates the call-result slot -> the edge write bails at `slot None` ->
+  the fence. The omission happens in the RUNTIME-BODIES builder
+  (omega-runtime-bodies), upstream of storage/selection. NEXT: find the
+  builder's gate that skips recursive-callee StateCall operations and
+  either emit the operation (the call itself dispatches fine -- only the
+  result plumbing is missing) or fence the omission loudly; serving it
+  unparks BOTH pending/termination/custom_ranking_* canaries. This
+  thread's work (no parallel agent is running).
+  METHOD NOTE: two instrumentation rounds printed nothing because of the
+  stale-CLI landmine (again) and a wrong guess about which planner walk is
+  live -- the allocator BACKTRACE resolved it in one run; prefer
+  backtrace-at-the-known-sink over guessing walk sites.
 
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE
