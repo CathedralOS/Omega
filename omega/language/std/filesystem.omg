@@ -405,6 +405,10 @@ data Filesystem {
     // rda_step's verdict, read by rda_drain's entry transition: 1 = step done,
     // keep draining; 0 = all drained; -1 = error/overflow.
     rda_verdict: i32;
+    // Host-result scratch for the drain's closes (the canonical field
+    // discipline: a raw i32 rc, no cast -- a cast-valued MachineOwned write
+    // does not lower in a dispatched arm).
+    rda_close_rc: i32;
 }
 
 // Create (or truncate) a file for writing, returning an open `File`. Composed
@@ -1451,7 +1455,7 @@ machine Filesystem::rda_step(&mut self, step: usize) {
     // (still) the parent's FIRST entry -- re-read its name fresh and remove
     // it (AT_REMOVEDIR = 128). The ROOT (depth hits 0) is the caller's.
     state rds_pop(&mut self) {
-        self.rda_n = self.host.close(self.rda_fd) as i64;
+        self.rda_close_rc = self.host.close(self.rda_fd);
         transition self.rda_depth >= 1 { true -> rds_pop_go() _ -> rds_fail() }
     }
     state rds_pop_go(&mut self) {

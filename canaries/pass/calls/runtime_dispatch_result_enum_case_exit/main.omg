@@ -1,0 +1,37 @@
+// RUN CANARY (exit 70) -- a dispatched value call whose TERMINAL constructs
+// an ENUM CASE with a payload (`-> Verdict::Yes { score: acc }`), the shape
+// EVERY wrapper result returns through. Served by the case-literal terminal
+// return-write (edges.rs, 2026-07-09h): zero the slot (ZII), write the case
+// tag, then each named field at its ABSOLUTE variant offset (static ints,
+// bools, resolvable places incl. whole arrays; NESTED literals recurse;
+// bare nullary cases tag-only). Unservable fields stay loud via the
+// call-result blocker. Differential.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Verdict {
+    case Nope;
+    case Yes(score: i32);
+}
+data Main { console: Console; result: Verdict; }
+machine Main::count(&mut self, i: usize, j: usize, acc: i32 in Wrapping)
+terminates { decreases (j, i) -> Nat::BoundedDistance; }
+-> Verdict
+{
+    transition j < i {
+        true -> count(i, j + 1, acc + 5)
+        false -> leaf(acc)
+    }
+    // ENUM-case terminal with a payload from a param.
+    state leaf(&mut self, acc: i32 in Wrapping) -> Verdict { Verdict::Yes { score: acc } }
+}
+machine Main::main(&mut self) {
+    self.result = self.count(3, 0, 0);
+    transition self.result {
+        Verdict::Yes { score } -> ck(score)
+        Verdict::Nope -> bad(71)
+    }
+    state ck(&mut self, score: i32) {
+        transition score == 15 { true -> good() _ -> bad(72) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

@@ -20126,6 +20126,41 @@ fn runtime_dispatched_effectful_reentrant_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A dispatched terminal constructing an ENUM CASE with a payload -- the
+// wrapper-result shape (zero slot, tag, payload fields at variant offsets).
+#[test]
+fn runtime_dispatch_result_enum_case_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_dispatch_result_enum_case_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-dispatch-result-enum-case-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dispatch enum-case result canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dispatch enum-case result canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected Verdict::Yes {{ score: 15 }} to deliver tag+payload (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A dispatched value call whose TERMINAL returns a FIELD read: the
 // return-write copy uses the resolved place's REGION (was hardcoded
 // RuntimeFrame, reading the frame at a machine offset -- garbage).
