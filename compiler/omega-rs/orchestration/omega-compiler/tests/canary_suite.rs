@@ -16393,6 +16393,32 @@ fn runtime_float_nested_operand_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_shift_count_domain_exit_canary_runs() {
+    // Shift counts carry no domain weight: wrapped << exact_count resolves
+    // with the lhs domain (the mixed-domain check exempts shift rhs).
+    let canary = pass_canary("arithmetic/runtime_shift_count_domain_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-shiftdom-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("shift count domain canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("shift count domain canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "shift count domain canary should pass both legs (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_wrapping_operand_truncation_exit_canary_runs() {
     // Nested Wrapping binaries in operand position hand the parent the
     // width-wrapped value (>> / % legs pin the sign/width-sensitive reads).
@@ -27548,6 +27574,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/sum_payload_cast_operand_field_exit",
     "arithmetic/runtime_float_compare_bool_exit",
     "arithmetic/runtime_float_nested_operand_exit",
+    "arithmetic/runtime_shift_count_domain_exit",
     "arithmetic/runtime_wrapping_operand_truncation_exit",
     "text/case_literal_texteq_field_store_exit",
     "text/case_literal_texteq_terminal_exit",

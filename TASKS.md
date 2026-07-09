@@ -50,23 +50,22 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   `[range] in Wrapping/Saturating/Trapping` combination at declaration.
   Implementation task filed under Open bugs below. (The example's `usize`
   drew a second ruling -- see the usize retirement directive below.)
-- **Q: what should out-of-range SHIFT COUNTS and FLOAT-TO-INT casts do?**
-  Two concrete programs, currently platform-divergent:
-  1. `let x: u32 = 1; let y: u32 = x << 40;` -- the shift COUNT (40) exceeds
-     u32's 32 bits. Observed: aarch64 (LSLV masks the count mod 64) and the
-     interpreter both give 0; x86_64 (SHL masks mod 32) gives `1 << 8` =
-     256. Same program, two answers.
-  2. `let f: f64 = 1e300; let n: i32 = f as i32;` -- the float exceeds i32's
-     range. Observed: aarch64 FCVTZS and the interpreter saturate to
-     i32::MAX; x86_64 CVTTSD2SI gives the 0x80000000 "integer indefinite".
-  Both faces are parked as pending canaries (cross-arch divergence held in
-  the drift ledger). OPTIONS: (a) extend decision-17 -- the count/value
-  RANGE becomes a proof obligation, out-of-range is a COMPILE error unless
-  proven in range (consistent with Exact arithmetic; our recommendation);
-  (b) define one runtime semantic (e.g. mask counts mod width; saturate
-  casts) and make both backends implement it; (c) per-target behavior
-  (rejected by precedent: silent cross-arch divergence). Pick a/b/c.
+- **SHIFT half ANSWERED: the lhs domain defines shift semantics; the count
+  carries no domain weight; explicit casts cross domains.**
   > Owner: Shift overflow is defined by the domain on which the operator is happening. If y is in wrapping, it has a domain where lhs should be wrapping, and rhs doesnt matter. If you mix domains here, the operator should not resolve to anything, its a compile error. If y is in saturating, domain should assume lhs is saturating, and rhs doesnt matter. Domain casts (x as Saturating) solve the case where we need to change domains, and its always explicit.
+  Slice A DONE (2026-07-13): the shift COUNT is exempt from the
+  mixed-domain check and the domain merge -- `wrapped << self.k` resolves
+  with the LHS domain (pinned: arithmetic/runtime_shift_count_domain_exit);
+  Exact-lhs shifts keep their proof obligation; u32 wrapping at count 40 is
+  already 0 on aarch64+interp (modular). REMAINING -- slice B: the wrapping
+  count-clamp so at-width counts yield 0 on x86 (hardware masks mod width)
+  and aarch64 64-bit ops (LSLV masks mod 64); align the selection-level
+  domain witness to lhs-only for shifts; retire/rewrite the parked
+  shift-at-width divergence canaries. Slice C: Saturating/Trapping shl
+  (clamp/trap on shifted-out bits; the shl_saturating parked canary).
+- **FLOAT-TO-INT half still open (no ruling).** `1e300 as i32`: aarch64
+  FCVTZS + interp saturate to i32::MAX; x86 CVTTSD2SI gives the 0x80000000
+  "integer indefinite". Parked cast divergence stays in the drift ledger.
 
 ## Open bugs / gaps (ungated)
 
