@@ -6,16 +6,21 @@
 // composed flag word), copy (binary-safe), read_dir_count (the dispatched
 // dir walker), remove, and remove_dir_all (the iterative dirfd-stack drain)
 // -- the full wrapper surface including the dir-walk family (native since
-// 2026-07-09). The raw-seam counterpart of this sample is file_journal;
-// together they document both layers' idioms.
+// 2026-07-09), plus the fs<->time BRIDGE (2026-07-10j): the vault's
+// Metadata.modified_secs rides SystemTime::from_unix_seconds and compares
+// against Time::system_time_now() -- the user-facing spelling of the
+// runtime_fs_mtime_system_time_interop_exit canary. The raw-seam
+// counterpart of this sample is file_journal; together they document both
+// layers' idioms.
 //
-// Every step must succeed; the program tallies the twelve verified steps and
-// exits with that count (a partial failure exits with fewer than 12).
+// Every step must succeed; the program tallies the fourteen verified steps
+// and exits with that count (a partial failure exits with fewer than 14).
 //
-// Expected exit: 12.
+// Expected exit: 14.
 
 use omega::language::std::filesystem;
 use omega::language::std::filesystem_host;
+use omega::language::std::time;
 
 boundary trait Console {
     machine exit_process(return_code: i32);
@@ -28,10 +33,19 @@ data Main {
     io_result: IoResult;
     unit_result: UnitResult;
     meta_result: MetadataResult;
+    time: Time;
+    // `a` must be the FIRST SystemTime field: dispatch resolves contained
+    // receivers by TYPE and picks the first instance (the canary's shuffle
+    // idiom).
+    a: SystemTime;
+    b: SystemTime;
+    modified: SystemTime;
+    now_keep: SystemTime;
+    diff: SystemTimeDifference;
     file_fd: i32;
     close_rc: i32;
     present: bool;
-    // Step tally 0..=12 (`in Wrapping` discharges the exact-arith obligation on
+    // Step tally 0..=14 (`in Wrapping` discharges the exact-arith obligation on
     // `+ 1`; the value never nears the i32 range).
     passed: i32 in Wrapping;
     back: [u8; 64];
@@ -93,12 +107,34 @@ machine Main::main(&mut self) {
         transition self.meta_result { MetadataResult::Ok { meta } -> audit_len(meta) _ -> done() }
     }
     state audit_len(&mut self, meta: Metadata) {
-        transition meta.len == 32 { true -> readback() _ -> done() }
+        transition meta.len == 32 { true -> audit_time(meta) _ -> done() }
+    }
+
+    state audit_time(&mut self, meta: Metadata) {
+        self.passed = self.passed + 1;
+        // 8. The vault's modified time BRIDGES into std::time: a just-written
+        // file is never in the future, so duration_since(now) must be Ok.
+        self.modified = SystemTime::from_unix_seconds(meta.modified_secs);
+        self.now_keep = self.time.system_time_now();
+        self.a = self.now_keep;
+        self.b = self.modified;
+        self.diff = self.a.duration_since(self.b);
+        transition self.diff {
+            SystemTimeDifference::Ok { duration } -> audit_time_gap(duration)
+            _ -> done()
+        }
+    }
+    state audit_time_gap(&mut self, duration: Duration) {
+        self.passed = self.passed + 1;
+        // 9. The gap is sane on BOTH engines: native ~0s (just written);
+        // interp ~767M s (virtual 2001 mtime vs virtual 2026 clock). A
+        // garbage decode blows the 10^9 bound.
+        transition duration.seconds < 1000000000 { true -> readback() _ -> done() }
     }
 
     state readback(&mut self) {
         self.passed = self.passed + 1;
-        // 6. Read back and spot-check first ('v') and last ('\n' = 10) bytes.
+        // 8. Read back and spot-check first ('v') and last ('\n' = 10) bytes.
         self.io_result = self.fs.read_all("omega_vault/notes/current/vault.txt", &mut self.back, 64);
         transition self.io_result { IoResult::Ok { count } -> readback_ck(count) _ -> done() }
     }
@@ -111,7 +147,7 @@ machine Main::main(&mut self) {
 
     state compact(&mut self) {
         self.passed = self.passed + 1;
-        // 7. Compact: truncate-rewrite keeps only the header (open_with's
+        // 9. Compact: truncate-rewrite keeps only the header (open_with's
         // composed write+truncate word).
         let opts: OpenOptions = OpenOptions { write: true, truncate: true };
         self.open_result = self.fs.open_with("omega_vault/notes/current/vault.txt", opts);
@@ -130,7 +166,7 @@ machine Main::main(&mut self) {
 
     state backup(&mut self) {
         self.passed = self.passed + 1;
-        // 8. Snapshot the compacted vault.
+        // 10. Snapshot the compacted vault.
         self.io_result = self.fs.copy("omega_vault/notes/current/vault.txt", "omega_vault/notes/current/vault.bak", &mut self.scratch, 64);
         transition self.io_result { IoResult::Ok { count } -> backup_ck(count) _ -> done() }
     }
@@ -140,7 +176,7 @@ machine Main::main(&mut self) {
 
     state cleanup(&mut self) {
         self.passed = self.passed + 1;
-        // 10. Audit the vault directory: exactly the file + its backup.
+        // 12. Audit the vault directory: exactly the file + its backup.
         self.io_result = self.fs.read_dir_count("omega_vault/notes/current");
         transition self.io_result { IoResult::Ok { count } -> audit_dir(count) _ -> done() }
     }
@@ -149,13 +185,13 @@ machine Main::main(&mut self) {
     }
     state remove_one(&mut self) {
         self.passed = self.passed + 1;
-        // 11. Remove one file the precise way...
+        // 13. Remove one file the precise way...
         self.unit_result = self.fs.remove("omega_vault/notes/current/vault.txt");
         transition self.unit_result { UnitResult::Ok -> teardown() _ -> done() }
     }
     state teardown(&mut self) {
         self.passed = self.passed + 1;
-        // 12. ...and drain the whole tree the sweeping way (the iterative
+        // 14. ...and drain the whole tree the sweeping way (the iterative
         // dirfd-stack remove_dir_all), backup and directories included.
         self.unit_result = self.fs.remove_dir_all("omega_vault");
         transition self.unit_result { UnitResult::Ok -> ck_gone() _ -> done() }

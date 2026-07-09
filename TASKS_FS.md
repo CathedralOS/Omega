@@ -1119,6 +1119,13 @@ wrongly rejects them. See Open-work #4.
 
 ## Stolen work (claimed from TASKS_TIME.md, 2026-07-10g)
 
+FOLLOW-ON LANDED (2026-07-10j): the interop is now USER-FACING IDIOM —
+note_vault steps 6–7 bridge the vault's `Metadata.modified_secs` through
+`SystemTime::from_unix_seconds` and assert `duration_since(now)` Ok with
+a sane gap (sample exits 14, both engines; suite test renamed
+sample_note_vault_exits_14). The sample + the canary now document the
+fs↔time seam at both layers.
+
 Per Zach's work-stealing directive (claim-first, survey-first): the time
 lane's last commit is 2026-07-07 and its thread is now on recursion
 territory (TASKS.md), so these two items — both needing exactly the
