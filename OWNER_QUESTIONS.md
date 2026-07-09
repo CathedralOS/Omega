@@ -101,3 +101,15 @@ from all of them.
     collides with the bare exit_process convention all samples use;
     `BuildLog`? method set: write/write_line/write_error/write_error_line?),
     or is per-program spelling the intended shape?
+
+12. **Byte-level stdin spelling for the Omega frontend (fs lane, 2026-07-11w).**
+    The stdin samples (stdin_checksum/rot1/upper — the samples_compile
+    baseline's last three reds) spell `read_byte()`/`write_byte(b)` as FREE
+    functions: that is the BOOTSTRAP lattice's input model (omega2gamma's
+    threaded stdin-list + accumulated stdout), not a settled Omega surface.
+    The real frontend has `Console.read_line` (boundary, line-oriented) only.
+    Should Omega grow (a) byte ops on the Console boundary
+    (`read_byte() -> i32` EOF=-1, `write_byte(b)` — with effect rows), (b) a
+    separate Stdin/Stdout boundary pair, or (c) keep byte I/O
+    lattice-only and rewrite the samples line-oriented? The samples stay
+    red on the Rust compiler until ruled.
