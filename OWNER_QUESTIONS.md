@@ -90,3 +90,14 @@ from all of them.
     virtual semantics next to the row), or (c) something capability-gated
     like the build.omg fs grants? Affects how testable authored-binding
     programs are.
+
+11. **A std console boundary for build.omg logging (fs lane, 2026-07-11k).**
+    Owner answer #5 landed: granted builds SERVE console writes through
+    DECLARED `stdout_io`/`stderr_io` rows, flushed to the compiler's real
+    streams. Today every build.omg spells its own boundary
+    (`boundary trait BuildLog { machine write_line(text: &[u8]) effects
+    stdout_io; }` -- the fail canary teaches this). Should std ship a
+    canonical console/log boundary with declared rows (name? `Console`
+    collides with the bare exit_process convention all samples use;
+    `BuildLog`? method set: write/write_line/write_error/write_error_line?),
+    or is per-program spelling the intended shape?
