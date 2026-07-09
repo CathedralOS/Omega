@@ -218,7 +218,26 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     idempotent for the write path; runtime_binary_operation_width gained
     byte_size, its six callers mirror the encoders'
     runtime_binary_operation_byte_size derivation).
-    Remaining: string comparisons
+    STRING-COMPARE ROOT DIAGNOSED 2026-07-09 (fix = next tick's port):
+    aarch64's encode_runtime_text_storage_compare_bytes (runtime_text/
+    compare.rs) is structurally WRONG vs the x86 reference: it never compares
+    stored.len against literal.len (loops stored.len bytes over both buffers
+    -- reads past a shorter literal), and its trailing delimiter check reads
+    the LITERAL side (rodata past the literal's end, arbitrary bytes) where
+    x86 shortcuts to SUCCESS on equal lengths and only checks stored[lit_len]
+    for a \n/\r/\0 terminator when stored.len > literal.len. That is why
+    `self.text == "deep room"` (equal strings!) exits 79: the loop matches all
+    9 bytes, then literal[9] in rodata is not a terminator -> failure path.
+    The dungeon's compares pass only because its read_line buffers/GUARD
+    literals ride the input-buffer convention (terminator-bearing). PORT PLAN:
+    reshape the aarch64 encoder to x86's [len < lit_len -> fail][compare
+    lit_len bytes][len == lit_len -> success][else stored[lit_len] must be
+    delimiter]; literal_len is already available at both dispatch sites (the
+    x86 arm consumes it); the failure/delimiter branch-offset helpers
+    (runtime_text_storage_compare_{failure,delimiter}_branch_offset) and the
+    width fn gain literal_len on the aarch64 arms; the record's two reloc
+    positions (literal @0, source @8) are unchanged by the fixed-shape head.
+    Remaining after that: tick/time host lowering
     (runtime_local_string_comparison_value 79!=78), tick/time host lowering,
     the frame-source machine-indexed write, and the entry-args spill.
   - **[ ] (original map)**
