@@ -71,11 +71,16 @@ should target NEW feature surfaces as they land, not re-walk these axes.
 ## Open bugs / gaps (ungated)
 
 - **Implement the Q6 ban: MUTUAL value-call cycles are rejected.** "Yes
-  fucking banned" (2026-07-13). The state-call cycle check does not see
-  value calls; add the value-call cycle walk over the machine-call graph
-  and reject any cycle (A calls B calls A; self value-call cycles are
-  already rejected). Corpus: the dungeon's find_item_at/find_item_after
-  pair must be rewritten as states. Fail canary pinning the diagnostic.
+  fucking banned" (2026-07-13). UNBOUNDED cycles already reject at
+  specialization ("calls into a recursive cycle"); the gap is BOUNDED
+  cycles that clone-specialization absorbs. Add a validation-level walk
+  over the machine-call graph (value calls + statement calls + arm-target
+  `self.SIBLING(..)` spellings) rejecting any cycle regardless of
+  boundedness, with a cycle-path diagnostic + write-it-as-states advice.
+  CORPUS PREP DONE (2026-07-13): the dungeon's find_item_at/
+  find_item_after pair is rewritten as an in-machine state loop
+  (inspect_item <-> scan_next), dungeon differential green. Remaining:
+  the walk + fail canary.
 
 - **Implement the shift-domain ruling.** "Shift overflow is defined by the
   domain on which the operator is happening... lhs domain governs, rhs
