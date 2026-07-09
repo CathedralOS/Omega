@@ -12,17 +12,21 @@ from all of them.
    second parameter (`build(b, fs: &mut Filesystem)`), or machine-owned
    data. Every build.omg will spell this. (Interpreter side is landed and
    parameter-driven; only the spelling is open.)
-2. **Grant derivation defaults.** Read root = the package dir (main.omg's
+   > Owner: This is specifically about getting a data ref on which we can call methods? It needs some form of dependency injection then (similar concept to SAS-components in Cathedral -- the main function literally is given the filesystem instance, although build.omg still needs to include std::filesystem to use it).
+3. **Grant derivation defaults.** Read root = the package dir (main.omg's
    directory)? Write root = which output dir? May build.omg request EXTRA
    roots (assets outside the tree), and does that require CLI
    acknowledgment (`--allow-read=...`)?
-3. **Effect-gate shape.** Relax build_config.rs's empty-effect gate to
+   > Owner: Not sure what you mean. Presumably build.omg is within the dir being built, and it builds to build/. In some sense, main.omg is NOT a blessed name, build.omg should probably specify it, with the exception that we <may> decide to support a "default build.omg" if trying to build some non-build.omg file. I don't think we give a shit about permissions at this point, if you are over-indexing on Cathedral-like permissions & granting.
+4. **Effect-gate shape.** Relax build_config.rs's empty-effect gate to
    "transitive effects ⊆ {filesystem}" unconditionally, or behind an
    explicit opt-in (in build.omg or on the CLI)?
-4. **Console for build logging.** The granted entry currently rejects
+   > Owner: What the fuck is build_config.rs? build.omg may effect filesystem, if thats related. It should be a declared effect on the main func within build (and forbidden otherwise, naturally, by our effect system & trying to call filesystem funcs). Is this what you are trying to say?
+5. **Console for build logging.** The granted entry currently rejects
    Console strictly (only Filesystem granted). Print-logging is the
    obvious want; stdout is interpreter-captured anyway. Grant it?
    (Strict = the reversible choice, so strict ships until answered.)
+   > Owner: Add this to build.omg effects too, its harmless and everyone wants it. Interpreter should never "just catch it" if build.omg is logging, in my mind this is a declared effect and thus should be treated seriously.
 
 ## Recursion directive scope (main lane's review items + one fs-found gap)
 
@@ -41,15 +45,18 @@ from all of them.
    mkall, dungeon parser) into explicit sub-state self-transition loops.
    Pre-scoped in TASKS.md; teardown starts on the answer. We read your
    comment as YES-banned and are holding only for this confirmation.]
+> I dont get why you are so retarded on recursion. machine call cycles = banned. its that fucking simple. Everything that hinges on the contrary is invalid Omega. 'decreases' stuff is for states. States are not recursion. They are transitions, jumps, goto, whatever. Thus this is equal to a for loop, or a while loop. I dont understand why you cant grasp this? Am I missing nuance?
 6. **Mutual value-call cycles** (their review item 2): `A calls B calls A`
    (the dungeon's find_item_at/find_item_after pair) still compiles — the
    cycle check does not see value calls. Kill (needs the value-call cycle
    walk) or keep (bounded clone specialization absorbs them)?
+> Owner: yes fucking banned.
 7. **Statement-position self-call** (fs-found while retracting): a
    TRAILING statement `self.drip(n - 1);` still compiles+runs — it lowers
    as a Nested-transition loop upstream of the call plan (mechanically a
    loop, spelled as a call). The corpus sweep rewrote these spellings but
    the route still accepts them. In or out?
+   > Are you asking about "lowering a tail call to a loop"? Banned, if it reads as recursion. We can maybe relax this later, but as of now, go write this as states.
 
 ## Underspecified numerics (main lane's found items, both marked "owner call")
 
@@ -57,10 +64,12 @@ from all of them.
    nothing (both engines run plain IEEE; overflow → inf). Reject domains
    on float primitives loudly (matches decision-17's integer framing), or
    define float saturation (clamp to finite MAX)?
+   > Not defined yet. Deferred pending a serious float design.
 9. **Range constraint under a non-Exact domain.** `i: usize [0..=4] in
    Wrapping` accepts `self.i = 100` — the range only enforces under Exact,
    so the declaration lies. Ill-formed (reject the combination at
    declaration), or define stores to wrap/clamp INTO the declared range?
+   > Oh I misread this in the other doc. Well, this in my mind is a compile error. You can surface this as a "Exact assignments must be within invariant range, consider adjusting the size or using a modulo operator" or whatever the fuck.
 
 ## Host bindings (fs lane, flagged during provides work)
 
