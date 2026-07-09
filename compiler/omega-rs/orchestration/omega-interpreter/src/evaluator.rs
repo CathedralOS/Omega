@@ -44,10 +44,18 @@ mod host_open_flags {
     #[cfg(all(not(target_os = "windows"), not(target_os = "macos")))]
     pub const O_APPEND_BIT: i32 = 10;
 
-    pub const fn o_creat(flags: i32) -> bool { (flags >> O_CREAT_BIT) & 1 != 0 }
-    pub const fn o_excl(flags: i32) -> bool { (flags >> O_EXCL_BIT) & 1 != 0 }
-    pub const fn o_trunc(flags: i32) -> bool { (flags >> O_TRUNC_BIT) & 1 != 0 }
-    pub const fn o_append(flags: i32) -> bool { (flags >> O_APPEND_BIT) & 1 != 0 }
+    pub const fn o_creat(flags: i32) -> bool {
+        (flags >> O_CREAT_BIT) & 1 != 0
+    }
+    pub const fn o_excl(flags: i32) -> bool {
+        (flags >> O_EXCL_BIT) & 1 != 0
+    }
+    pub const fn o_trunc(flags: i32) -> bool {
+        (flags >> O_TRUNC_BIT) & 1 != 0
+    }
+    pub const fn o_append(flags: i32) -> bool {
+        (flags >> O_APPEND_BIT) & 1 != 0
+    }
 }
 use crate::value::{Cell, Value};
 use omega_core::arithmetic::ArithmeticDomain;
@@ -300,6 +308,51 @@ pub(crate) fn run_build_time_machine_arguments(
     })
 }
 
+/// The GRANTED build entry (open-work #3 rung 4, interpreter side): run the
+/// augmenting `build(b: &mut Build)` machine WITH a filesystem capability --
+/// virtual (hermetic tests) or real scoped/unscoped per `options` -- and read
+/// back the augmented arguments. Filesystem ops are allowed (the grant is the
+/// audit surface); any OTHER host boundary (console, clock, gui) rejects.
+/// Runs under the FULL step budget: staging assets is real work, unlike the
+/// const-eval fuel cap the pure entry rides.
+pub(crate) fn run_granted_build_machine_arguments(
+    program: &TypedTrees,
+    machine_name: &str,
+    arguments: Vec<crate::build_time::BuildTimeValue>,
+    options: InterpretOptions,
+) -> Result<Vec<crate::build_time::BuildTimeValue>, String> {
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .stack_size(256 * 1024 * 1024)
+            .spawn_scoped(scope, move || {
+                let mut evaluator = Evaluator::new(program, &[]);
+                match options.filesystem {
+                    FilesystemAccess::Virtual => {}
+                    FilesystemAccess::RealUnscoped => {
+                        evaluator.real_fs = Some(real_fs::RealFs::new(None));
+                    }
+                    FilesystemAccess::RealScoped(grants) => {
+                        evaluator.real_fs = Some(real_fs::RealFs::new(Some(grants)));
+                    }
+                }
+                match evaluator.run_build_machine_arguments_with_policy(
+                    machine_name,
+                    arguments,
+                    true,
+                ) {
+                    Ok(values) => Ok(values),
+                    Err(Halt::Exit(code)) => Err(format!(
+                        "the machine attempted to exit the process (code {code}) instead of returning"
+                    )),
+                    Err(Halt::Unsupported(message)) | Err(Halt::Trap(message)) => Err(message),
+                }
+            })
+            .expect("spawn granted build evaluation worker thread")
+            .join()
+            .unwrap_or_else(|_| Err("granted build evaluator thread panicked".to_owned()))
+    })
+}
+
 fn run_on_current_thread(
     checked: &TypedTrees,
     stdin: &[u8],
@@ -366,7 +419,6 @@ fn unsupported<T>(message: impl Into<String>) -> EvalResult<T> {
 fn trap<T>(message: impl Into<String>) -> EvalResult<T> {
     Err(Halt::Trap(message.into()))
 }
-
 
 /// A lexical scope: parameter / local bindings by name, plus the receiver (`self`) cell.
 /// `locals` is behind a `RefCell` so `let` bindings can be added while the frame is
@@ -480,6 +532,12 @@ struct Evaluator<'program> {
     /// value-call fallback). The build-time evaluation entry rejects runs that
     /// touched the host: a dynamic backstop behind decision 12's static gate.
     host_boundary_touched: bool,
+    /// Like `host_boundary_touched` but EXCLUDING the filesystem family: the
+    /// GRANTED build entry (`evaluate_build_machine_with_filesystem`) allows
+    /// fs ops (the grant is the audit surface, open-work #3's settled design)
+    /// while still rejecting every OTHER host boundary (console, clock, gui)
+    /// as its dynamic backstop.
+    non_fs_host_boundary_touched: bool,
     steps: u64,
     /// Total step allowance for this run. Full-program interpretation uses
     /// `STEP_BUDGET`; const evaluation uses the much smaller
@@ -517,6 +575,7 @@ impl<'program> Evaluator<'program> {
             virtual_errno: 0,
             real_fs: None,
             host_boundary_touched: false,
+            non_fs_host_boundary_touched: false,
             steps: 0,
             step_budget: STEP_BUDGET,
             call_depth: 0,
@@ -689,6 +748,19 @@ impl<'program> Evaluator<'program> {
         machine_name: &str,
         arguments: Vec<crate::build_time::BuildTimeValue>,
     ) -> EvalResult<Vec<crate::build_time::BuildTimeValue>> {
+        self.run_build_machine_arguments_with_policy(machine_name, arguments, false)
+    }
+
+    /// The shared augmenting-machine runner. `allow_filesystem` selects the
+    /// dynamic backstop: `false` = the PURE build-time entry (any host touch
+    /// rejects -- decision 12's discipline); `true` = the GRANTED build entry
+    /// (filesystem ops are the point; every OTHER host boundary rejects).
+    fn run_build_machine_arguments_with_policy(
+        &mut self,
+        machine_name: &str,
+        arguments: Vec<crate::build_time::BuildTimeValue>,
+        allow_filesystem: bool,
+    ) -> EvalResult<Vec<crate::build_time::BuildTimeValue>> {
         let machine = self
             .find_machine_by_name(machine_name)
             .ok_or_else(|| Halt::Trap(format!("no machine named `{machine_name}` exists")))?
@@ -725,10 +797,22 @@ impl<'program> Evaluator<'program> {
         let kept: Vec<Cell> = argument_cells.clone();
         let _terminal =
             self.run_state_collect(&machine, &entry_state_name, instance, argument_cells)?;
-        if self.host_boundary_touched {
-            return Err(Halt::Trap(format!(
-                "machine `{machine_name}` is not effect-free: it drove a host-boundary call during build-time evaluation"
-            )));
+        let impure = if allow_filesystem {
+            self.non_fs_host_boundary_touched
+        } else {
+            self.host_boundary_touched
+        };
+        if impure {
+            return Err(Halt::Trap(if allow_filesystem {
+                format!(
+                    "machine `{machine_name}` drove a NON-filesystem host-boundary call during \
+                     granted build evaluation -- only the Filesystem capability is granted"
+                )
+            } else {
+                format!(
+                    "machine `{machine_name}` is not effect-free: it drove a host-boundary call during build-time evaluation"
+                )
+            }));
         }
         Ok(kept
             .iter()
@@ -1137,7 +1221,10 @@ impl<'program> Evaluator<'program> {
             // correct. Funnels through `coerce_scalar_with` like every other seam.
             // The resolved (primitive, domain) is also RECORDED so arithmetic on
             // the param applies its declared domain at the operation node.
-            let cell = match self.program.primitive_type_reference(parameter.type_reference) {
+            let cell = match self
+                .program
+                .primitive_type_reference(parameter.type_reference)
+            {
                 Some(primitive) => {
                     let domain = self
                         .program
@@ -1280,8 +1367,7 @@ impl<'program> Evaluator<'program> {
                 // interior-mutable locals map. A scalar local also RECORDS its
                 // declared (primitive, domain) so later arithmetic on the name
                 // applies the domain at the operation node.
-                if let Some(primitive) =
-                    self.program.primitive_type_reference(local.type_reference)
+                if let Some(primitive) = self.program.primitive_type_reference(local.type_reference)
                 {
                     let domain = self
                         .program
@@ -1864,14 +1950,11 @@ impl<'program> Evaluator<'program> {
             };
             match content {
                 WireInterpField::Direct(WireFieldEncoding::Scalar(scalar)) => {
-                    let raw = raw
-                        .borrow()
-                        .as_int()
-                        .ok_or_else(|| {
-                            Halt::Trap(format!(
-                                "`{schema_name}::encode` field `{field_name}` is not a scalar value"
-                            ))
-                        })?;
+                    let raw = raw.borrow().as_int().ok_or_else(|| {
+                        Halt::Trap(format!(
+                            "`{schema_name}::encode` field `{field_name}` is not a scalar value"
+                        ))
+                    })?;
                     bytes.extend(wire_varint_bytes(wire_scalar_varint_value(raw, *scalar)?));
                 }
                 WireInterpField::Nested(children) => {
@@ -2431,6 +2514,10 @@ impl<'program> Evaluator<'program> {
             return unsupported(format!("filesystem host call `{target}` not yet supported"));
         }
 
+        // Everything past the Filesystem branch is a NON-fs host boundary
+        // (console, exit, clock, gui) -- the granted-build backstop's line.
+        self.non_fs_host_boundary_touched = true;
+
         let arguments = self
             .program
             .statement_table
@@ -2496,9 +2583,7 @@ impl<'program> Evaluator<'program> {
             | "monotonic_ticks_per_second"
             | "wall_clock_raw"
             | "wall_clock_units_per_second"
-            | "wall_clock_epoch_offset_seconds" => {
-                Ok(self.virtual_time_host_value(target))
-            }
+            | "wall_clock_epoch_offset_seconds" => Ok(self.virtual_time_host_value(target)),
             "sleep" => {
                 // Frame pacing: no REAL delay in the interpreter (real time has no
                 // effect on the deterministic state the differential oracle
@@ -3048,7 +3133,11 @@ impl<'program> Evaluator<'program> {
                             let n = records.len().min(count);
                             self.write_fs_buffer(arguments.get(1).copied(), frame, &records[..n]);
                             // Any non-zero marker so the next call reports end.
-                            self.write_fs_position(arguments.get(3).copied(), frame, n.max(1) as i64);
+                            self.write_fs_position(
+                                arguments.get(3).copied(),
+                                frame,
+                                n.max(1) as i64,
+                            );
                             n as i64
                         }
                     }
@@ -3103,7 +3192,10 @@ impl<'program> Evaluator<'program> {
                 // is always a regular file here). EBADF for an unknown fd. Never
                 // touches the cursor.
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
-                let path = self.virtual_fds.get(&fd).map(|descriptor| descriptor.path.clone());
+                let path = self
+                    .virtual_fds
+                    .get(&fd)
+                    .map(|descriptor| descriptor.path.clone());
                 let meta = path.and_then(|path| {
                     // A `set_file_times` mtime shows through; else the modeled epoch.
                     let mtime = self
@@ -3116,7 +3208,11 @@ impl<'program> Evaluator<'program> {
                         .get(&path)
                         .map(|mode| (*mode as u16) & 0o7777);
                     if let Some(content) = self.virtual_files.get(&path) {
-                        Some((0o100_000u16 | chmod_perm.unwrap_or(0o644), content.len() as i64, mtime))
+                        Some((
+                            0o100_000u16 | chmod_perm.unwrap_or(0o644),
+                            content.len() as i64,
+                            mtime,
+                        ))
                     } else if self.virtual_dirs.contains(&path) {
                         Some((0o040_000u16 | chmod_perm.unwrap_or(0o755), 0i64, mtime))
                     } else {
@@ -3148,7 +3244,10 @@ impl<'program> Evaluator<'program> {
                         .get(&path)
                         .map(|mode| (*mode as u16) & 0o7777);
                     if let Some(content) = self.virtual_files.get(&path) {
-                        Some((0o100_000u16 | chmod_perm.unwrap_or(0o644), content.len() as i64))
+                        Some((
+                            0o100_000u16 | chmod_perm.unwrap_or(0o644),
+                            content.len() as i64,
+                        ))
                     } else if self.virtual_dirs.contains(&path) {
                         Some((0o040_000u16 | chmod_perm.unwrap_or(0o755), 0i64))
                     } else {
@@ -3231,11 +3330,7 @@ impl<'program> Evaluator<'program> {
     /// Evaluate a `File` handle argument to its raw descriptor. The interpreter
     /// carries the fd directly (see the `Opened` construction), but a wrapping
     /// single-field struct is accepted defensively.
-    fn eval_fs_fd(
-        &mut self,
-        argument: Option<ExpressionHandle>,
-        frame: &Frame,
-    ) -> EvalResult<i32> {
+    fn eval_fs_fd(&mut self, argument: Option<ExpressionHandle>, frame: &Frame) -> EvalResult<i32> {
         let Some(argument) = argument else {
             return trap("filesystem call missing file handle");
         };
@@ -4021,11 +4116,15 @@ impl<'program> Evaluator<'program> {
                         | "msg_dispatch"
                 ) {
                     // Value-position host fallbacks are host-boundary calls too
-                    // (the build-time purity backstop must see them).
+                    // (the build-time purity backstop must see them); none of
+                    // these are filesystem ops, so the granted-build backstop
+                    // sees them as well.
                     self.host_boundary_touched = true;
+                    self.non_fs_host_boundary_touched = true;
                 }
                 if let Some(value) = self.virtual_time_host_value(target) {
                     self.host_boundary_touched = true;
+                    self.non_fs_host_boundary_touched = true;
                     return Ok(value);
                 }
                 if target == "tick_count" {
@@ -4051,7 +4150,9 @@ impl<'program> Evaluator<'program> {
                 if target == "foreground_window" {
                     // The virtual desktop has one app: the most recently
                     // created window is foreground while it lives, 0 after.
-                    let foreground = if self.virtual_live_windows.contains(&self.virtual_window_next)
+                    let foreground = if self
+                        .virtual_live_windows
+                        .contains(&self.virtual_window_next)
                     {
                         self.virtual_window_next
                     } else {
@@ -4154,9 +4255,11 @@ impl<'program> Evaluator<'program> {
         } else {
             match self.program.expression_table.expression(call.receiver) {
                 omega_typed_trees::expression::ExpressionNode::Name(path) => {
-                    let members = self.program.expression_table.name_path_members(path.members);
-                    members.is_empty()
-                        || (members.len() == 1 && members[0].as_str() == "self")
+                    let members = self
+                        .program
+                        .expression_table
+                        .name_path_members(path.members);
+                    members.is_empty() || (members.len() == 1 && members[0].as_str() == "self")
                 }
                 _ => false,
             }
@@ -4185,7 +4288,10 @@ impl<'program> Evaluator<'program> {
             if let omega_typed_trees::expression::ExpressionNode::Name(path) =
                 self.program.expression_table.expression(call.receiver)
             {
-                let members = self.program.expression_table.name_path_members(path.members);
+                let members = self
+                    .program
+                    .expression_table
+                    .name_path_members(path.members);
                 if members.len() == 1
                     && members[0].as_str() != "self"
                     && frame.get(members[0].as_str()).is_none()
@@ -4431,12 +4537,16 @@ impl<'program> Evaluator<'program> {
             let primitive = self.program.primitive_type_reference(element_type)?;
             // The arithmetic domain lives on the ARRAY (`[T;N] in D`), not the
             // bare element type, so read it from the array reference.
-            let domain = self.program.arithmetic_domain_for_type_reference(array_type);
+            let domain = self
+                .program
+                .arithmetic_domain_for_type_reference(array_type);
             return Some((primitive, domain));
         }
         let type_reference = self.assignment_target_type_reference(handle, frame)?;
         let primitive = self.program.primitive_type_reference(type_reference)?;
-        let domain = self.program.arithmetic_domain_for_type_reference(type_reference);
+        let domain = self
+            .program
+            .arithmetic_domain_for_type_reference(type_reference);
         Some((primitive, domain))
     }
 
@@ -4452,7 +4562,9 @@ impl<'program> Evaluator<'program> {
         domain: ArithmeticDomain,
     ) -> EvalResult<Value> {
         match &value {
-            Value::Int(raw) => Ok(Value::Int(apply_arithmetic_domain(*raw, primitive, domain)?)),
+            Value::Int(raw) => Ok(Value::Int(apply_arithmetic_domain(
+                *raw, primitive, domain,
+            )?)),
             Value::Float(f) if primitive == PrimitiveType::F32 => {
                 Ok(Value::Float(*f as f32 as f64))
             }
@@ -4947,7 +5059,10 @@ impl<'program> Evaluator<'program> {
                 .expression_scalar_type(binary.left, frame)
                 .or_else(|| self.expression_scalar_type(binary.right, frame)),
             ExpressionNode::Name(path) => {
-                let members = self.program.expression_table.name_path_members(path.members);
+                let members = self
+                    .program
+                    .expression_table
+                    .name_path_members(path.members);
                 // `self.field` spelled as a two-member path.
                 if members.len() == 2 && members[0].as_str() == "self" {
                     return self.attached_field_scalar_type(frame, members[1].as_str());
@@ -4963,15 +5078,17 @@ impl<'program> Evaluator<'program> {
             }
             // `self.field` spelled as a Member node.
             ExpressionNode::Member(member) => {
-                let receiver_is_self = match self.program.expression_table.expression(member.receiver)
-                {
-                    ExpressionNode::Name(path) => {
-                        let members =
-                            self.program.expression_table.name_path_members(path.members);
-                        members.len() == 1 && members[0].as_str() == "self"
-                    }
-                    _ => false,
-                };
+                let receiver_is_self =
+                    match self.program.expression_table.expression(member.receiver) {
+                        ExpressionNode::Name(path) => {
+                            let members = self
+                                .program
+                                .expression_table
+                                .name_path_members(path.members);
+                            members.len() == 1 && members[0].as_str() == "self"
+                        }
+                        _ => false,
+                    };
                 if !receiver_is_self {
                     return None;
                 }
@@ -5002,8 +5119,9 @@ impl<'program> Evaluator<'program> {
                 omega_checked_trees::data::DataMember::Field(field)
                     if field.name.as_str() == field_name =>
                 {
-                    let primitive =
-                        self.program.primitive_type_reference(field.type_reference)?;
+                    let primitive = self
+                        .program
+                        .primitive_type_reference(field.type_reference)?;
                     let domain = self
                         .program
                         .arithmetic_domain_for_type_reference(field.type_reference);
@@ -5090,12 +5208,10 @@ impl<'program> Evaluator<'program> {
                         _ => unreachable!(),
                     };
                     return match domain {
-                        ArithmeticDomain::Saturating => Ok(Value::Int(
-                            wide.clamp(min as i128, max as i128) as i64,
-                        )),
-                        ArithmeticDomain::Trapping
-                            if wide < min as i128 || wide > max as i128 =>
-                        {
+                        ArithmeticDomain::Saturating => {
+                            Ok(Value::Int(wide.clamp(min as i128, max as i128) as i64))
+                        }
+                        ArithmeticDomain::Trapping if wide < min as i128 || wide > max as i128 => {
                             trap(format!(
                                 "arithmetic overflow in Trapping domain: {wide} is out of range for {ty:?}"
                             ))
@@ -5161,7 +5277,9 @@ impl<'program> Evaluator<'program> {
             ShiftLeft => Value::Int(l.wrapping_shl(r as u32)),
             // Logical (unsigned) shift when the operand is u64-classed;
             // arithmetic shift otherwise.
-            ShiftRight if unsigned_operands => Value::Int(((l as u64).wrapping_shr(r as u32)) as i64),
+            ShiftRight if unsigned_operands => {
+                Value::Int(((l as u64).wrapping_shr(r as u32)) as i64)
+            }
             ShiftRight => Value::Int(l.wrapping_shr(r as u32)),
             BitwiseAnd => Value::Int(l & r),
             BitwiseOr => Value::Int(l | r),
@@ -5236,7 +5354,11 @@ impl<'program> Evaluator<'program> {
         // operand (u64::MAX reads as -1 under signed compare).
         let picked = if unsigned {
             let (lu, ru) = (l as u64, r as u64);
-            (if name == "max" { lu.max(ru) } else { lu.min(ru) }) as i64
+            (if name == "max" {
+                lu.max(ru)
+            } else {
+                lu.min(ru)
+            }) as i64
         } else if name == "max" {
             l.max(r)
         } else {

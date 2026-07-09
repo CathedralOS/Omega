@@ -592,12 +592,56 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    Acceptance: the WRAPPER's `read_dir_count` (open dirfd → read_dir →
    dirent decode → skip dot entries) counts a seeded real directory
    under a read-only grant — the full stack, wrapper decode over real
-   records. REMAINING RUNGS: (a) further next-slice ops as build programs
-   need them (at-family, locks, perms, times, links, canonicalize — all
-   -1/ENOTSUP today); (b) the compiler-side build.omg entry that actually
-   invokes `interpret_with_options` with source-tree/build-dir grants
-   (target selection + constant bindings ride this — likely the
-   design-touching rung: build.omg discovery/location + when it runs).
+   records.
+   **RUNG 4 INTERPRETER SIDE DONE (2026-07-09j): the granted build
+   entry.** Discovery finding first: the compiler-side build.omg entry
+   ALREADY EXISTS — `omega-compiler/src/pipeline/build_config.rs`
+   auto-includes build.omg next to main.omg, finds the free
+   `machine build(b: &mut Build)`, purity-gates it (decision 12 transitive
+   effect surface must be EMPTY — the retired "describe, never do"
+   framing, enforced in code), evaluates with a ZII Build
+   (subsystem/freestanding today) and extracts the config. So rung 4 =
+   RELAXING that gate to admit granted fs, not building an entry from
+   scratch. Landed interpreter half:
+   `evaluate_build_machine_with_filesystem(program, machine, args,
+   options)` — the augmenting-machine runner parameterized by policy
+   (`allow_filesystem`): fs ops allowed and served per options
+   (virtual/real/scoped), every OTHER host boundary rejects via a new
+   `non_fs_host_boundary_touched` backstop flag (split at the Filesystem
+   receiver-trait branch + the value-fallback sites); FULL step budget
+   (staging is real work; the pure entry keeps its const-eval fuel cap).
+   Pure entry delegates unchanged (build_time 2/2). Acceptance in
+   tests/real_fs.rs: a `Stager::build(&mut self, b: &mut Build)` machine
+   stages a real asset AND augments the Build (read back: staged=1,
+   target_index=7, asset bytes on disk; hermetic default run = same
+   augmentation, no disk); a Console-touching build machine rejects with
+   the policy-naming error.
+   REMAINING RUNGS: (a) further next-slice ops as build programs need
+   them (at-family, locks, perms, times, links, canonicalize — all
+   -1/ENOTSUP today); (b) the COMPILER-side gate relaxation in
+   build_config.rs — DESIGN-GATED, questions for Zach below.
+   **DESIGN QUESTIONS (build.omg fs grants — for Zach):**
+   (1) CAPABILITY INJECTION: how does the free `machine build(b: &mut
+   Build)` GET its Filesystem? Options: a field on Build (`b.fs`), a
+   second parameter (`machine build(b: &mut Build, fs: &mut
+   Filesystem)`), or machine-owned data. This is user-facing surface —
+   every build.omg spells it.
+   (2) GRANT DERIVATION: what are the default roots the compiler passes?
+   Read = the package dir (main.omg's directory)? Write = which output
+   dir (the artifact/-o dir)? May build.omg request EXTRA roots (assets
+   outside the tree), and does that need a CLI acknowledgment
+   (--allow-read=...)?
+   (3) STATIC GATE SHAPE: build_config.rs currently requires an EMPTY
+   transitive effect surface. Relax to "⊆ {filesystem}" unconditionally,
+   or only when some explicit opt-in exists (in build.omg or on the CLI)?
+   (4) CONSOLE FOR BUILD LOGGING: the granted entry currently rejects
+   Console strictly (only Filesystem is granted). Build scripts want
+   print-logging — grant Console (stdout is captured by the interpreter
+   anyway), or keep strict? Strict is the reversible choice, so that is
+   what ships until decided.
+   (5) DOC DEBT: wiki/design_briefs/build_and_package_model.md §3 ("Pure
+   plan, effectful executor") still teaches the RETIRED framing — wants a
+   revision pass reflecting grants-as-audit-surface (happy to draft).
 4. [ ] Windows ops without msvcrt equivalents → Win32 calls (stat family first,
    after #2's design).
 5. [ ] Title-bar context-menu Close → outbound WndProc entry stubs (§12.4).
@@ -737,8 +781,9 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    it now DESCENDS into transition TARGET-ARGUMENT / guard expressions.
    SHAPE CLOSED: `pending/host/dispatch_result_transition_arg` PROMOTED to
    `calls/runtime_dispatch_result_transition_arg_exit` (differential 70/70
-   + suite test); pending/host holds only interp_saturating_param_carry
-   (the interp thread's). All three connected gaps are documented in the
+   + suite test); pending/host holds only dispatch_slice_element_terminal
+   (the interp_saturating_param_carry repro was RESOLVED + PROMOTED by the
+   arithmetic thread, cd42934d5). All three connected gaps are documented in the
    canary header (role-stamped CallResultReturn; return-target dispatch
    slot keying; transition-expression argument descent). Parked
    `pending/host/dispatch_result_transition_arg` (native 71/interp 70);
@@ -1020,14 +1065,14 @@ wrongly rejects them. See Open-work #4.
 - macOS-host runs previously showed ~85 pre-existing differential-skip failures +
   a broad aarch64 `b.ne` alignment bug in samples_compile (task chip spawned) —
   NOT this thread's work.
-- ⚠️ INTERPRETER Saturating gap (found 2026-07-09 by the dispatch return-write
-  matrix, parked `pending/host/interp_saturating_param_carry`): i8
-  `in Saturating` arithmetic carried through RECURSION PARAMS
-  (`count(i, j+1, acc + 50)`) does not clamp in the interpreter — it computes
-  wide and truncates (native, which clamps correctly, exits 70; interp 71).
-  runtime_saturating_narrow_add_sub_exit passes, so the gap is specific to the
-  transition-argument evaluation path or dispatched-param carry. Interp
-  arithmetic is the arithmetic thread's area — flagged.
+- ✅ RESOLVED (by the arithmetic thread, cd42934d5 2026-07-09): the
+  interpreter Saturating param-carry gap this lane parked
+  (`pending/host/interp_saturating_param_carry`) — interp now applies
+  Saturating/Trapping at binary operation nodes; the repro was promoted to
+  `pass/arithmetic/runtime_saturating_param_carry_exit` (differential
+  70/70). The remaining OPERAND-position native lowering gap is theirs,
+  parked at `pending/arithmetic/runtime_saturating_expression_domain_exit`
+  with its own promote criteria.
 - ✅ RESOLVED (verified 2026-07-09g): the 2026-07-08 native arithmetic
   regression (`dual_accumulator` interp 70 vs native 71;
   `arithmetic/runtime_cast_in_guard_exit` native 71) is FIXED on main — the
