@@ -597,14 +597,32 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    GONE (the looping callees were already dispatch-routed; only the fences
    lagged). All gates green; suite failure-set zero new; the fence fail
    canaries still fire (their probe callees do not loop).
-   ⚠️ INVESTIGATION ITEM 1b (the remaining fence in the reduced dir-walk
-   probe): `mkall_walk`'s value call to `mkall_copy` did NOT route to
-   dispatch despite mkall_copy's entry-recursion loop -- the suspect is the
-   `state_call.required` filter in dispatch_state_call_edges (mkall_walk is
-   itself interior to create_dir_all's dispatched instance; its call may
-   not be marked `required`). Next step: trace `required` for interior
-   calls; if that's it, the fix is marking calls inside dispatched
-   machines required (or dropping the filter for looping callees).
+   INVESTIGATION ITEM 1b — RESOLVED (2026-07-08m), `required` was NOT the
+   blocker: the router/plan staging is now a monotone FIXPOINT
+   (backend-pipeline builder.rs -- dispatch edges and the state-call plan
+   feed each other; one round baked the seed flow's under-approximated
+   `required` into the edge set; the loop iterates until the edge set
+   stabilizes; today's corpus converges in ONE round = zero behavior
+   change, pure hardening for the widening work). The REAL wall, found via
+   the new env-gated route-miss instrumentation
+   (OMEGA_DEBUG_DISPATCH_ROUTE=1 in dispatch_route.rs): `mkall_copy`
+   recurses via a SELF-CALL in its entry -- the only shape the decreases
+   PROVER accepts ("the contract prover consumes neither cross-state guard
+   facts nor +1 arithmetic") -- and RECURSION can take NEITHER route:
+   the clone DFS is finite (the same specialization-refuses-cycles class
+   as rda) and the splice runs effects once. IDENTIFIED UNLOCK:
+   TAIL-CALL-TO-LOOP conversion -- an entry self-call in tail position is
+   semantically a loop (re-bind params + back-edge to the entry dispatch
+   case); that converts mkall_copy and rda's sibling-drain (`rda_more` is
+   tail) but NOT rda's depth recursion (`rda_recurse` continues after the
+   call -- needs the .omg work-stack restructure or real frames).
+   ALTERNATIVE: prover work so a self-TRANSITION loop can carry the
+   decreases proof (then mkall_copy rewrites as a plain loop, no backend
+   change). Both are bounded; the prover route touches the checker (the
+   arithmetic thread's area -- coordinate), the tail-call route is
+   backend-local (this thread's area). NEXT: the tail-call-to-loop
+   transform, starting with a pure canary (self-tail-call accumulator)
+   before touching mkall.
    INVESTIGATION ITEM 2: enumerate the dispatch return-write's missing
    shapes against the ~13-canary regression list (binary operands,
    slice-element results, aliases, multi-arm) -- each is its own bounded
