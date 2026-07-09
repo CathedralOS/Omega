@@ -1178,6 +1178,19 @@ wrongly rejects them. See Open-work #4.
 
 ## Coordination
 
+- ⚠️ LANE OVERLAP (2026-07-10f): the parallel thread believes "no parallel
+  agent is running" (TASKS.md 2026-07-11 entries), retracted an fs-lane
+  handoff, and is now working RECURSION territory: the self-looping entry
+  value-arm return-write (dispatch-loop terminal-value selection +
+  omega-runtime-bodies StateCall omission). That ADJOINS this lane's
+  tail-call-to-loop work and this week's return-write serves in
+  selection/runtime_dispatch/edges.rs. A coordination note with the lane
+  split is left at the top of their TASKS.md item; watch their commits
+  before touching edges.rs / runtime-bodies, and re-sync before step 3
+  (StateCallLowering::DispatchLoop -- omega-state-calls + runtime-branching
+  consumers, mostly disjoint from their named sites).
+
+
 A parallel agent advances origin/main (std::time lately); files have stayed
 disjoint — fetch/rebase each iteration, run the differential drift guard
 immediately after every rebase, work around collisions.
