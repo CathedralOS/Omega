@@ -1231,9 +1231,14 @@ macOS/arm64 host this lane runs on — are CLAIMED here:
   open-work #2) and `stdin_checksum`/`stdin_rot1`/`stdin_upper` (other
   workstream's WIP frontend errors). Judge regressions by failure-SET diff
   against these names, never raw counts.
-- macOS-host runs previously showed ~85 pre-existing differential-skip failures +
-  a broad aarch64 `b.ne` alignment bug in samples_compile (task chip spawned) —
-  NOT this thread's work.
+- macOS samples_compile REFRESHED (2026-07-10l): the old "~85 differential
+  skips + broad aarch64 b.ne alignment bug" observation is STALE — the
+  alignment bug no longer reproduces. Current failure set is exactly 5 of
+  139, all other lanes' knowns: cli__rendering__tick_marquee (Clock2
+  tick_count aarch64 lowering — time), stdin_checksum/rot1/upper (frontend
+  WIP — other workstream), uefi__uefi_hello (host-call arg shape — efi).
+  Judge regressions by diff against these five names. file_journal now
+  COMPILES on macOS.
 - ✅ RESOLVED (by the arithmetic thread, cd42934d5 2026-07-09): the
   interpreter Saturating param-carry gap this lane parked
   (`pending/host/interp_saturating_param_carry`) — interp now applies
@@ -1262,6 +1267,10 @@ macOS/arm64 host this lane runs on — are CLAIMED here:
   canary_suite test still fails on macOS — known, theirs).
 
 ## Coordination
+
+- OWNER_QUESTIONS.md (repo root, 2026-07-10l) consolidates every pending
+  owner decision across all three lanes — batch-answerable.
+
 
 - ⚠️ LANE OVERLAP (2026-07-10f): the parallel thread believes "no parallel
   agent is running" (TASKS.md 2026-07-11 entries), retracted an fs-lane
