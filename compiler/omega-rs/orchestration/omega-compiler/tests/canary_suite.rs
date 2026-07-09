@@ -16402,6 +16402,34 @@ fn runtime_float_compare_bool_exit_canary_runs() {
 }
 
 #[test]
+fn case_literal_texteq_terminal_exit_canary_runs() {
+    // Text equality as a case-literal payload field in a value-machine
+    // TERMINAL: the write rides the binary write's own target arms into the
+    // frame staging slot, and the TextEqualsLiteral operand encoder must not
+    // clobber the write's target base (x15, not x16).
+    let canary = pass_canary("text/case_literal_texteq_terminal_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-texteqterm-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("texteq terminal canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("texteq terminal canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "texteq terminal canary should deliver z == true (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn case_literal_texteq_field_store_exit_canary_runs() {
     // Text equality as a case-literal payload field in a FIELD STORE --
     // promoted from the fail tier when the literal-RHS TextEqualsLiteral arm
@@ -26950,6 +26978,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_float_nested_operand_exit",
     "arithmetic/runtime_wrapping_operand_truncation_exit",
     "text/case_literal_texteq_field_store_exit",
+    "text/case_literal_texteq_terminal_exit",
     "text/runtime_text_equals_value_positions_exit",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
@@ -27537,7 +27566,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "collections/deep_nested_runtime_indexed_write_rejected",
     "layouts/plan_laid_dynamic_plan",
     "layouts/plan_laid_policy_without_plan_machine",
-    "control_flow/case_literal_unlowered_field_rejected",
     "control_flow/if_statement_retired",
     "control_flow/transition_fall_through_bool",
     "control_flow/transition_fall_through_value_match",

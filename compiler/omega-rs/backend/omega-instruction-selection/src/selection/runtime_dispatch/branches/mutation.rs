@@ -1060,6 +1060,40 @@ fn select_runtime_binary_mutation_write_in_table(
     value: ExpressionHandle,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
+    // A TOP-LEVEL String `==`/`!=` as the written value (`z: self.name ==
+    // "omega"` in a case-literal terminal, decomposed to this per-field
+    // write): resolve the whole value to the `text_equals | 0` operand pair
+    // and fall through to the SAME target arms below (frame-indexed staging /
+    // pointee / plain place). An earlier attempt pre-empted those arms with
+    // its own single plain-place target resolution and wrote the WRONG
+    // region/offset (native 73 while the staged copy pattern expected the
+    // frame staging slot) -- the target resolution must stay this function's.
+    if let ExpressionNode::Binary(binary) = expressions.expression(value)
+        && let Some(text_equals) =
+            super::super::writes::resolve_runtime_text_equals_operand_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                expressions,
+                binary.operator,
+                binary.left,
+                binary.right,
+                runtime_value_operands,
+            )
+    {
+        let zero = runtime_value_operands.insert(RuntimeValueOperand::Immediate(0));
+        return select_runtime_binary_mutation_write_target_arms(
+            input,
+            dispatch_index,
+            target_source_key,
+            expressions,
+            target,
+            text_equals,
+            StateGuardOperator::Or,
+            zero,
+        );
+    }
+
     let (operator, left_expression, right_expression) = match expressions.expression(value) {
         ExpressionNode::Binary(binary) => (
             runtime_binary_operator(binary.operator)?,
@@ -1199,6 +1233,78 @@ fn select_runtime_binary_mutation_write_in_table(
         is_float,
         domain,
         target_signed,
+    })
+}
+
+/// The binary write's TARGET arms (frame-indexed staging / pointee / plain
+/// place) for a PRE-RESOLVED operand triple. The text-equals write rides
+/// exactly this resolution: an earlier attempt did its own single plain-place
+/// lookup ahead of these arms and wrote the wrong region/offset (the
+/// case-literal terminal's fields stage in the FRAME before the whole-value
+/// copy). The flags are fixed for the 0/1 bool result: not float, Exact
+/// domain (a bool OR cannot overflow), unsigned.
+#[allow(clippy::too_many_arguments)]
+fn select_runtime_binary_mutation_write_target_arms(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    target_source_key: StateKey,
+    expressions: &ExpressionTable,
+    target: ExpressionHandle,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> Option<SelectedInstructionKind> {
+    if let Some(indexed_target) = resolve_runtime_frame_indexed_target_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        return Some(SelectedInstructionKind::WriteRuntimeFrameIndexedBinary {
+            descriptor_offset: indexed_target.descriptor_offset,
+            index_offset: indexed_target.index_offset,
+            element_byte_size: indexed_target.element_byte_size,
+            field_byte_offset: indexed_target.field_byte_offset,
+            byte_size: indexed_target.byte_count,
+            left,
+            operator,
+            right,
+        });
+    }
+    if let Some(pointer_target) = resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    ) {
+        return Some(SelectedInstructionKind::WriteRuntimePointeeBinary {
+            pointer_byte_offset: pointer_target.pointer_byte_offset,
+            field_byte_offset: pointer_target.field_byte_offset,
+            byte_size: pointer_target.pointee_byte_size,
+            left,
+            operator,
+            right,
+        });
+    }
+    let target_place = resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        target_source_key,
+        expressions,
+        target,
+    )?;
+    Some(SelectedInstructionKind::WriteRuntimeStorageBinary {
+        target_region: target_place.region,
+        target_offset: target_place.byte_offset,
+        byte_size: target_place.byte_count,
+        left,
+        operator,
+        right,
+        is_float: false,
+        domain: omega_core::arithmetic::ArithmeticDomain::Exact,
+        target_signed: false,
     })
 }
 

@@ -1,1 +1,0 @@
-a case-literal payload field's value has no operand lowering

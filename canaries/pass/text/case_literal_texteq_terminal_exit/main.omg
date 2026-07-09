@@ -1,0 +1,38 @@
+// RUN CANARY (exit 70) + interpreter differential. TEXT EQUALITY as a
+// case-literal payload field in a VALUE-MACHINE TERMINAL
+// (`-> Msg::Pong { y: 5, z: self.name == "omega" }`) -- the last texteq
+// position to serve. History: (1) silently dropped (tag+y landed, z read
+// ZII); (2) poisoned by UnloweredCaseLiteralField; (3) a pre-empting write
+// clause resolved its own target and wrote the wrong region (native 73);
+// (4) served by threading `text_equals | 0` through the binary write's OWN
+// target arms (frame staging @z-offset before the whole-value copy) -- which
+// exposed that the TextEqualsLiteral operand encoder landed its descriptor
+// address in x16, CLOBBERING the binary write's target base (fine in guard
+// position; wild store under a write; the machine-target field store only
+// survived by an offset-0 accident). The encoder now uses x15, mirroring the
+// frame-indexed operand precedent. exit 73 = z false/dropped or tag wrong.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Msg { case Ping(x: i32); case Pong(y: i32, z: bool); }
+data Main { console: Console; name: String; }
+machine Main::mk(&mut self) -> Msg {
+    transition true { true -> Msg::Pong { y: 5, z: self.name == "omega" } }
+}
+machine Main::main(&mut self) {
+    self.name = "omega";
+    self.build();
+}
+machine Main::build(&mut self) {
+    let m: Msg = self.mk();
+    transition m {
+        Msg::Pong { y, z } -> chk(y, z)
+        _ -> bad()
+    }
+    state chk(&mut self, y: i32, z: bool) {
+        transition z {
+            true -> good()
+            _ -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(73); }
+}

@@ -52,12 +52,14 @@ target, enum payloads) bias which vertical slices get picked next.
   (`omega-state-values/simplify/folding.rs`) is still i64-window/type-blind
   by design (D14 comment); a width-carrying folder remains the deeper rung,
   gated with the type-carrying-constants design.
-- **Terminal-position text equality.** `-> Msg::Pong { z: self.name == ".." }`
-  through the branch cascade stays POISONED (loud): a naive `text_equals | 0`
-  place-write there miscompiled (wrong offset/timing; reverted) — the terminal
-  write must ride the leaf expansion's result plumbing.
-  fail/control_flow/case_literal_unlowered_field_rejected pins it; all other
-  texteq value/write positions serve (pass/text/* canaries).
+- **UnloweredCaseLiteralField poison is now UNPINNED by a fail canary.**
+  Every previously-poisoned texteq shape serves (terminal position landed:
+  the write rides the binary write's own target arms, and the
+  TextEqualsLiteral operand encoder moved off x16 -- it was clobbering the
+  write's target base; pass/text/case_literal_texteq_terminal_exit pins it,
+  with the x15 precedent note). The poison stays as negative space for the
+  NEXT unloweable payload-field shape; when one surfaces in authoring, give
+  it the fail canary.
 - **Same-type receiver aliasing** — CLAIMED by the fs lane (TASKS_FS.md
   "Stolen work #2"); per-instance receiver phases have been landing. Retire
   pending/time/value_machine_receiver_field_postentry when their arc closes.
