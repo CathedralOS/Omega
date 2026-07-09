@@ -18,6 +18,7 @@ use super::primitives::{
     encode_float_divide, encode_float_move_from_gpr, encode_float_move_to_gpr,
     encode_float_multiply, encode_float_to_signed_int, encode_signed_int_to_float,
     encode_brk, encode_sign_extend_byte_to_w, encode_sign_extend_byte_to_x,
+    encode_zero_extend_byte_to_w, encode_zero_extend_halfword_to_w,
     encode_sign_extend_halfword_to_w, encode_sign_extend_halfword_to_x, encode_sign_extend_word_to_x,
     encode_float_subtract, encode_compare_w_immediate, encode_compare_w_register,
     encode_compare_x_register, encode_load_byte_w_from_x,
@@ -504,6 +505,31 @@ pub fn encode_runtime_value_compare(
         RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS,
         right,
     )?;
+    // aarch64 has no sub-word CMP (x86 compares `r10b`/`r10w` directly), so a
+    // 1/2-byte compare must normalize BOTH registers to the compare width
+    // first -- a convert-wrapped operand (`self.big as u8 == 44`) leaves the
+    // untruncated source in the register (int->int narrowing is a no-op in
+    // the shared convert op because the WRITE path's store truncates).
+    // Sign-extend for the signed ordered operators, zero-extend otherwise
+    // (equality and the unsigned family); one instruction per side either
+    // way, so the width is operator-independent (+8 for narrow compares).
+    if matches!(byte_size, 1 | 2) {
+        let signed = matches!(
+            operator,
+            StateGuardOperator::Less
+                | StateGuardOperator::LessOrEqual
+                | StateGuardOperator::Greater
+                | StateGuardOperator::GreaterOrEqual
+        );
+        for register in [17u8, 26u8] {
+            bytes.extend(match (byte_size, signed) {
+                (1, true) => encode_sign_extend_byte_to_w(register, register),
+                (1, false) => encode_zero_extend_byte_to_w(register, register),
+                (2, true) => encode_sign_extend_halfword_to_w(register, register),
+                _ => encode_zero_extend_halfword_to_w(register, register),
+            });
+        }
+    }
     match byte_size {
         1 | 2 | 4 => bytes.extend(encode_compare_w_register(17, 26)),
         8 => bytes.extend(encode_compare_x_register(17, 26)),

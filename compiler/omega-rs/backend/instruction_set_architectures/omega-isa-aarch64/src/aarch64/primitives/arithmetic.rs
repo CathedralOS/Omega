@@ -341,6 +341,26 @@ pub(in crate::aarch64) fn encode_msub_w_register(
 
 /// `SXTB Wd, Wn` — sign-extend the low byte into the 32-bit register (`SBFM`
 /// alias). Used to compare narrow signed operands at the 32-bit width.
+/// `UXTB Wd, Wn` (UBFM #0,#7) -- zero-extend the low byte within a W register.
+pub(in crate::aarch64) fn encode_zero_extend_byte_to_w(
+    destination_register: u8,
+    source_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x53001C00 | (u32::from(source_register) << 5) | u32::from(destination_register),
+    )
+}
+
+/// `UXTH Wd, Wn` (UBFM #0,#15) -- zero-extend the low halfword within a W register.
+pub(in crate::aarch64) fn encode_zero_extend_halfword_to_w(
+    destination_register: u8,
+    source_register: u8,
+) -> [u8; 4] {
+    encode_instruction(
+        0x53003C00 | (u32::from(source_register) << 5) | u32::from(destination_register),
+    )
+}
+
 pub(in crate::aarch64) fn encode_sign_extend_byte_to_w(
     destination_register: u8,
     source_register: u8,

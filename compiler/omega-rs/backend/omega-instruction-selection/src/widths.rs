@@ -722,7 +722,7 @@ pub fn runtime_value_compare_width(
 ) -> usize {
     match architecture {
         Architecture::Aarch64 => {
-            aarch64::runtime_value_compare_width(runtime_value_operands, left, right)
+            aarch64::runtime_value_compare_width(runtime_value_operands, byte_size, left, right)
         }
         Architecture::X86_64 => {
             x86_64::runtime_value_compare_width(runtime_value_operands, byte_size, left, right)
