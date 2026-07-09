@@ -7,7 +7,8 @@
 // reverse order for negatives (-1.5 > -2.5 is TRUE numerically, FALSE
 // bitwise), so a bit-compare regression fails leg 1/2 immediately. Legs:
 // 71 = f64 negative `>` into a let; 72 = f64 negative `<` into a field
-// store; 73 = f32 `>` (4-byte FMOV width); 74 = f64 `==`/`!=` pair.
+// store; 73 = f32 `>` (4-byte FMOV width); 74 = f64 `==`/`!=` pair;
+// 75 = `!=` on EQUAL floats read TRUE.
 // (x86_64's twin arms: ucomis* with operand-order-selected seta/setae for
 // ordering -- unordered-false for free -- and the parity branch pattern for
 // ==/!=; byte-verified in a cross-compiled linux_x64 ELF from the arm64 host,
@@ -50,8 +51,18 @@ machine Main::build(&mut self) {
         let eq: bool = self.a == self.a;
         let ne: bool = self.a != self.b;
         transition eq && ne {
-            true -> good()
+            true -> neleg()
             _ -> wrong_eq()
+        }
+    }
+    // The DISTINGUISHING negation leg: != on EQUAL floats must be FALSE.
+    // (Unequal-operand != legs pass even when a negation flag is ignored --
+    // the text != inversion hid exactly this way.)
+    state neleg(&mut self) {
+        let nefalse: bool = self.a != self.a;
+        transition nefalse {
+            true -> wrong_ne_equal()
+            _ -> good()
         }
     }
     state good(&mut self)     { self.console.exit_process(70); }
@@ -59,4 +70,5 @@ machine Main::build(&mut self) {
     state wrong_lt(&mut self) { self.console.exit_process(72); }
     state wrong_f32(&mut self){ self.console.exit_process(73); }
     state wrong_eq(&mut self) { self.console.exit_process(74); }
+    state wrong_ne_equal(&mut self) { self.console.exit_process(75); }
 }
