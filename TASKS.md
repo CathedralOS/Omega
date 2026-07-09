@@ -300,11 +300,16 @@ decreases remaining
   obligation builder) admits the payload field's declared range when the
   co-located, call-free guard proves the owning variant. Deliberately NOT in the
   guard-blind `data_field_in_definition` (that also feeds direct access -- the
-  UNSOUND path proved+reverted the same day). ARITHMETIC uses already worked
-  (nested-field exact-arith walk). Canaries: pass
-  ranges/sum_payload_range_narrowed_exit (native==interp==20) + fail pins
-  sum_payload_direct_access_unproven / sum_payload_non_case_guard_unproven.
-  Detail in memory [[sum-payload-range-not-propagated]].
+  UNSOUND path proved+reverted the same day). EXTENDED same day to ARITHMETIC
+  transition args (`apply(amount * 10)`, `amount: [0..=10]` into
+  `target: [0..=100]`): `guarded_argument_constraints` recurses Binary/Cast/Unary
+  with guard-aware payload operands so `derived_binary_constraints` folds the
+  payload range (the pre-existing arithmetic narrowing only proved overflow/Exact,
+  never a ranged-param fit -- surfaced by samples/cli/basics/brightness_control).
+  Canaries: pass ranges/sum_payload_range_narrowed_exit (20) +
+  _arith_narrowed_exit (70); fail sum_payload_direct_access_unproven /
+  _non_case_guard_unproven / _arith_too_wide_unproven. Detail in memory
+  [[sum-payload-range-not-propagated]].
 
 - Contained-machine METHOD-CALL storage resolution is a SILENT miscompile with TWO faces
   (see memory `contained-machine-same-type-aliasing`), both from the backend resolving a

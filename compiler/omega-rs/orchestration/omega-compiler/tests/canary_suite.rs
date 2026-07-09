@@ -11080,6 +11080,39 @@ fn runtime_sum_payload_range_narrowed_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// Sum-payload-range narrowing through ARITHMETIC in a transition arg
+/// (2026-07-08): a bounded payload operand narrows the arithmetic it feeds.
+/// `Cmd::Dim { amount } -> apply(amount * 10)` with `amount: [0..=10]` proves
+/// `amount * 10` fits `apply`'s `target: [0..=100]` -- the payload operand's
+/// range is resolved under the arm guard and folded through the binary. Extends
+/// the direct pass-through; the too-wide sibling (`amount * 100`) stays unproven.
+/// Cmd::Dim { amount: 7 } -> apply(70) -> 70.
+#[test]
+fn runtime_sum_payload_range_arith_narrowed_exit_canary_runs() {
+    let canary = pass_canary("ranges/sum_payload_range_arith_narrowed_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-payload-arith-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("payload operand arithmetic should prove under the case-arm guard");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("sum payload range arith narrowed canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected `apply(amount * 10)` with amount in [0..=10] to run to 70; got {:?}\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 /// The `a..b` (exclusive) / `a..=b` (inclusive) range refinement syntax that
 /// replaced the removed `range<a, b>`: `x in 0..16` and `y in 0..=100` keep
 /// `x + y` Exact. Runs to 70.
@@ -25533,6 +25566,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_exclusive_range_constraint_exit",
     "arithmetic/runtime_payload_range_narrowing_exit",
     "ranges/sum_payload_range_narrowed_exit",
+    "ranges/sum_payload_range_arith_narrowed_exit",
     "arithmetic/runtime_struct_field_range_narrowing_exit",
     "arithmetic/runtime_provable_field_construction_exit",
     "arithmetic/runtime_inferred_return_range_exit",
@@ -26136,6 +26170,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "ranges/index_signed_guard_below_zero",
     "ranges/sum_payload_direct_access_unproven",
     "ranges/sum_payload_non_case_guard_unproven",
+    "ranges/sum_payload_arith_too_wide_unproven",
     "slices/invalid_slice_folded_index_unchecked",
     "slices/invalid_slice_local_index_unchecked",
     "slices/invalid_subslice_folded_bounds_unchecked",

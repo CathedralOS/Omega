@@ -1,0 +1,18 @@
+// SOUNDNESS PIN for the arithmetic sum-payload-range narrowing (2026-07-08). The
+// payload operand's range is FOLDED, not blanket-trusted: `amount: [0..=10]`
+// gives `amount * 100` the range [0..=1000], which does NOT fit `apply`'s
+// `target: [0..=100]`, so the argument must stay unproven. If the narrowing ever
+// admitted the range without folding it (or clamped it to the target), this
+// would falsely compile. MUST reject with the expected fragment.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Cmd { case Dim(amount: i32 [0..=10]); case Off; }
+data Main { console: Console; c: Cmd; }
+machine Main::main(&mut self) {
+    self.c = Cmd::Dim { amount: 3 };
+    transition self.c {
+        Cmd::Dim { amount } -> apply(amount * 100)
+        Cmd::Off            -> apply(0)
+    }
+    state apply(&mut self, target: i32 [0..=100]) { self.console.exit_process(target); }
+}
+machine Main::run(&mut self) { self.main(); }
