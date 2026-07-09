@@ -21065,6 +21065,51 @@ fn runtime_value_callee_post_entry_lets_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A value callee whose POST-ENTRY state computes a CHAINED let (`rem` reads the
+// prior post-entry let `scaled`). The straight-line initializer write now folds
+// prior slot-less locals (fold_straight_line_prior_local_names) like the leaf
+// path -- proc(100,7)=2 both engines (was native 0).
+#[test]
+fn runtime_post_entry_chained_let_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_post_entry_chained_let_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("post-entry chained-let canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 2,
+        "interpreter oracle should exit 2 (proc(100,7) rem = 100 - (100/7)*7), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-post-entry-chained-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("post-entry chained-let canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("post-entry chained-let canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "expected the post-entry chained let (rem reads prior let scaled) to deliver 2, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // crash is back; 1 = the second callee's chain miscomputed.
 #[test]
 fn runtime_cross_callee_division_exit_canary_runs() {

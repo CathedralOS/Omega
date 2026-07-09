@@ -96,67 +96,25 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 
 ## Open latent bugs / fenced gaps
 
-- **[ ] Straight-line LETS in a POST-ENTRY state of an inlined value callee misdeliver
-  natively (2026-07-07, std::time `divide`; interp correct).** A guarded post-entry
-  state computing lets (`seconds_quotient`, chained div/mod/mul) then threading them to
-  an emit state produced a wrong subsecond natively; restructuring to ENTRY-ONLY lets
-  (safe-divisor bump trick for the eager-eval zero case) fixed it. Same #2B
-  splice-machinery family as the deferred-entry-locals fix — post-entry-state locals
-  need the same deferral/contiguity treatment.
-  DISTILLED + PRECISELY CHARACTERIZED 2026-07-08 (minimal repro pinned at
-  canaries/pending/calls/post_entry_chained_let_miscompile; native=0, interp=2):
-  the trigger is a CHAINED let in a POST-ENTRY state -- a let that reads a PRIOR
-  post-entry let. `proc`'s `work` state does `let q = total/freq; let scaled =
-  q*freq; let rem = total - scaled;` and returns rem; `rem` (which reads the
-  prior let `scaled`) misdelivers as 0. Isolating variants:
-    * SAME chain in the ENTRY state -> delivers 2 (correct). Entry-only lets get
-      the #2B deferral; post-entry lets do NOT.
-    * Direct `total % freq` (no `scaled` intermediate) in the post-entry state ->
-      correct. A let reading only PARAMS is fine; a let reading a prior LOCAL is
-      the miscompile.
-    * NOT about the eager-eval zero divisor (earlier guess) and NOT about the
-      threading to `emit` (variant returning rem straight from `work` still
-      fails). The prior-let VALUE is not materialized before the dependent let
-      reads it in a non-entry state.
-  ROOT CAUSE PINNED 2026-07-08 (backend_report on ez2c): the intermediate
-  locals `q` (stmt 0) and `scaled` (stmt 1) get NO frame slot -- only `rem`
-  (stmt 2, the terminal-returned local) does. `local_data_requires_storage`
-  (omega-state-storage/src/collection.rs) ELIDES q/scaled because the final
-  liveness scan `statement_references_local` does NOT inspect LocalData (`let`)
-  initializer VALUES -- so `q` being read by `let scaled = q*freq` is invisible.
-  Elided locals are meant to FOLD into their uses; that substitution runs for a
-  STRAIGHT-LINE state but NOT for a value callee's spliced POST-ENTRY state, so
-  the dependent `let` reads the elided local's ZII (native 0; interp right).
-  ⚠️ The obvious state-storage fix (keep the slot for a computed local read by a
-  later `let`) is FRAGILE and was REVERTED: keeping ANY extra slot SHIFTS frame
-  offsets and regressed 6 canaries + the dungeon differential (exit 71!=70).
-  DEEPER MECHANISM PINNED 2026-07-08 (traced to the exact gate): the value
-  callee's leaf terminal `(rem)` is lowered by
-  `select_runtime_leaf_branch_terminal_value_write` ->
-  `resolve_leaf_caller_local_initializer_names` (leaf.rs). That resolver ALREADY
-  folds slot-LESS prior locals into the terminal (recursively) -- so q/scaled
-  WOULD fold. The blocker is `rem` itself: it has a LocalStorage slot (the
-  TERMINAL transition `(rem)` references it, so state-storage's
-  statement_references_local marks it required), and the resolver's `has_slot`
-  gate (leaf.rs ~L1051-1066) KEEPS a slotted local as its Name instead of
-  folding -- correctly, to avoid the stale-fold family. But the leaf lowers the
-  terminal by FOLDING, not by WRITING rem's slot, so rem's slot stays ZII and,
-  being slotted, rem also blocks the fold chain into scaled/q. The mismatch:
-  state-storage slots `rem` (transition references it) but the leaf path never
-  emits rem's WRITE (it expects to fold the terminal).
-  TWO fix directions, each with a landmine:
-   (a) leaf side -- when the terminal-returned local has a slot but NO write in
-       this leaf AND its initializer is pure (no call, no field capture, not
-       reassigned), fold it anyway. Safe from stale-fold ONLY under those
-       guards; getting them right is the work.
-   (b) state-storage side -- do NOT slot a local referenced ONLY by the leaf's
-       terminal transition of a value callee (let it fold). But removing a slot
-       SHIFTS offsets (the same fragility that regressed the keep-slot attempt).
-  Both deep; NOT a quick fix. The simple post-entry case (lets reading only
-  params) works (passing canary
-  calls/runtime_value_callee_post_entry_lets_exit, swap_digits=24); this pending
-  repro is the prior-LET-dependency face. Low urgency: std authoring dodges it
-  with entry-only lets.
+- **[x] Post-entry-state CHAINED lets in a value callee -- FIXED 2026-07-08.** A
+  value callee whose POST-ENTRY state computes a let reading a PRIOR post-entry
+  let (`let scaled=q*freq; let rem=total-scaled;` returned) miscompiled: the
+  intermediate q/scaled are elided (no slot; read only by a sibling `let`) and
+  meant to FOLD, but the STRAIGHT-LINE branch path's local-initializer write
+  (select_runtime_straight_line_local_initializer_write) applied only BINDING
+  substitution, not the prior-local fold the LEAF path does -- so `rem`'s
+  initializer kept `scaled` as a slot-less Name -> ZII (native 0; interp 2).
+  Fix: `fold_straight_line_prior_local_names` (straight_line.rs) mirrors the leaf
+  resolver -- substitutes Names referring to prior slot-less locals of the SAME
+  state (keyed by operation.source_key, NOT expansion.source_key which is the
+  CALLER) with their initializers, recursively, bindings re-applied; slotted
+  locals keep their Name; only the arithmetic subset folds (no Call/Member, so
+  no stale field read or un-lowerable call). Canary
+  calls/runtime_post_entry_chained_let_exit (native==interp==2); differential-
+  listed. (An earlier state-storage keep-the-slot attempt was reverted -- adding
+  slots shifted offsets and regressed the dungeon; the fold is offset-neutral.)
+  The simple post-entry case (lets reading only params) has its own passing
+  canary calls/runtime_value_callee_post_entry_lets_exit (swap_digits=24).
 - **[x] NESTED-value-call transition guard read the nested result's PRE-STORE ZII
   TAG natively — FIXED 2026-07-08.** NOT a splice-ordering bug: a bare-call binding
   (`let since = self.checked_subtract(..)`) whose local ALSO has a LocalStorage
