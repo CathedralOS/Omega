@@ -1,0 +1,34 @@
+// RUN CANARY (exit 70) -- a SECOND "first entry" read on the SAME dirfd must
+// return the entry again. Pins the read_dir_entry_fd REWIND (2026-07-09j):
+// the native getdirentries cursor is the FD OFFSET -- zeroing the basep
+// out-param does not rewind it, so the second read returned End natively
+// while the hermetic interpreter (which reads at the passed position)
+// returned the entry; read_dir_entry_fd now lseeks(dfd, 0, SEEK_SET) first.
+// The iterative remove_dir_all drain re-reads first entries every step and
+// depends on this. macOS-gated (read_dir has no msvcrt row).
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; fs: Filesystem; raw: FilesystemHost; unit_result: UnitResult; entry_result: DirEntryResult; dfd: i32; rc: i32; }
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.create_dir("omega_reread");
+    self.unit_result = self.fs.write_all("omega_reread/f1.txt", "x");
+    self.dfd = self.raw.open("omega_reread", 0);
+    transition self.dfd >= 0 { true -> first() _ -> bad(71) }
+    state first(&mut self) {
+        self.entry_result = self.fs.read_dir_entry_fd(self.dfd, 0);
+        transition self.entry_result { DirEntryResult::Ok { entry } -> second() _ -> bad(72) }
+    }
+    state second(&mut self) {
+        self.entry_result = self.fs.read_dir_entry_fd(self.dfd, 0);
+        transition self.entry_result { DirEntryResult::Ok { entry } -> cleanup() _ -> bad(73) }
+    }
+    state cleanup(&mut self) {
+        self.rc = self.raw.close(self.dfd);
+        self.unit_result = self.fs.remove("omega_reread/f1.txt");
+        self.unit_result = self.fs.remove_dir("omega_reread");
+        transition true { true -> good() _ -> bad(74) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

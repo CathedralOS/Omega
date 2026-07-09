@@ -87,6 +87,14 @@ fn wrapper_times_owner_lstat_exit_runs() {
     let (code, _) = compile_run("wrapper_times_owner_lstat_exit");
     assert_eq!(code, Some(70), "wrapper times/owner/lstat should exit 70");
 }
+// The dirfd REWIND: a second first-entry read on the same fd must return the
+// entry (native getdirentries advances the FD OFFSET; read_dir_entry_fd now
+// lseeks to 0 first). The iterative remove_dir_all drain depends on this.
+#[test]
+fn dirfd_reread_exit_runs() {
+    let (code, _) = compile_run("dirfd_reread_exit");
+    assert_eq!(code, Some(70), "dirfd re-read should exit 70");
+}
 #[test]
 fn native_at_ops_passes() { assert_pass("native_at_ops"); }
 #[test]
