@@ -20799,6 +20799,54 @@ fn windows_fs_discarded_self_call_literal_errno_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A value-machine METHOD call through a FIELD receiver (`self.meta_f.is_file()`)
+// -- the idiom the param-receiver fence points to. Discriminating: is_file()
+// must be true AND agree with the inline mode-bits twin.
+#[cfg(windows)]
+#[test]
+fn windows_fs_field_receiver_method_exit_canary_runs() {
+    let canary = pass_canary("filesystem/field_receiver_method_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("field-receiver method canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (is_file true through the field receiver), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fs-field-recv-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("field-receiver method canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("field-receiver method canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected is_file() through the field receiver (exit 70), got {:?} \
+         (71 = metadata error; 72 = method mis-delivered; 73 = inline twin \
+         disagreed; 74 = cleanup failed)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A host-call RESULT let in a callee reached via an ARM transition-target
 // value call (`true -> self.e1()`) resolves its frame slot in the inlining
 // dispatch case (branch_transition_target_key's self/sibling Nested arm).
@@ -26344,6 +26392,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "termination/subtraction_spelling_retired",
     // --- Language-guide chapter coverage (Ch1-22) ---
     "calls/contained_same_type_receiver_rejected",
+    "calls/param_receiver_method_rejected",
     "calls/guard_call_vs_call_rejected",
     "calls/value_call_effectful_arm_rejected",
     "calls/value_call_param_effect_arm_rejected",

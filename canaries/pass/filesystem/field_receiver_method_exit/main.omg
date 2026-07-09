@@ -1,0 +1,51 @@
+// RUN CANARY (exit 70) -- a value-machine METHOD call through a FIELD receiver
+// (`self.meta_f.is_file()`), the idiom the param-receiver fence
+// (fail/calls/param_receiver_method_rejected) points to: copy the param into a
+// same-typed field, then call through the field. Dispatch's by-TYPE receiver
+// walk lands on that field (the only Metadata field), so the method reads the
+// right storage. The interpreter's virtual fs is the differential oracle.
+//
+// exit 70 = is_file() true through the field receiver AND the inline twin
+// agrees; 71 = metadata error; 72 = method said not-a-file (mis-delivery);
+// 73 = inline twin disagreed; 74 = cleanup failed.
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    fs: Filesystem;
+    raw: FilesystemHost;
+    fd: i32;
+    rc: i32;
+    n: i64;
+    res: MetadataResult;
+    meta_f: Metadata;
+}
+
+machine Main::main(&mut self) {
+    self.fd = self.raw.create("omega_field_recv.txt", 438);
+    self.n = self.raw.write(self.fd, "hello");
+    self.rc = self.raw.close(self.fd);
+    self.res = self.fs.metadata_path("omega_field_recv.txt");
+    transition self.res {
+        MetadataResult::Ok { meta } -> got(meta)
+        MetadataResult::Error { kind } -> bad(71)
+    }
+    state got(&mut self, meta: Metadata) {
+        // The fence's prescribed idiom: param -> field, call through the field.
+        self.meta_f = meta;
+        let f: bool = self.meta_f.is_file();
+        transition f { true -> check_inline() _ -> bad(72) }
+    }
+    state check_inline(&mut self) {
+        transition (self.meta_f.mode & 61440) == 32768 { true -> cleanup() _ -> bad(73) }
+    }
+    state cleanup(&mut self) {
+        self.rc = self.raw.remove("omega_field_recv.txt");
+        transition self.rc == 0 { true -> good() _ -> bad(74) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

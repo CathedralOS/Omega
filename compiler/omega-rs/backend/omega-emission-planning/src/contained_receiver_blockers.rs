@@ -113,6 +113,22 @@ pub(crate) fn collect_contained_receiver_blockers(
             continue;
         }
 
+        // Machine-to-machine self calls (`self.probe(..)` between machines
+        // attached to the SAME data) dispatch on the caller's own region --
+        // no by-type receiver walk is involved (D10; wrappers rely on it).
+        if state_call.receiver_name.as_str() == "self" {
+            continue;
+        }
+
+        // The STATIC spelling (`Worker::run(pair)`, `Duration::from_secs(n)`)
+        // carries the TYPE name in receiver position: the callee is
+        // receiverless (or constructs its own), reads no receiver storage,
+        // and its by-value params deliver via the leaf expansion path
+        // (runtime-pinned by calls/runtime_attached_machine_struct_arg_exit).
+        if state_call.receiver_name.as_str() == target_attached_data {
+            continue;
+        }
+
         // Direct-field receiver: the original lenient compare.
         let Some(receiver_field) = input
             .layouts
@@ -124,6 +140,26 @@ pub(crate) fn collect_contained_receiver_blockers(
                     .find(|field| field.name == state_call.receiver_name)
             })
         else {
+            // A PARAM or LOCAL receiver (`meta.is_file()` where `meta` is a
+            // state param): dispatch's by-TYPE walk can only reach FIELDS, so
+            // it either reads the first same-typed field's storage (silently
+            // answering for ANOTHER instance -- probed: a decoy field with
+            // different data changes the result) or, with no matching field,
+            // an unrelated/ZII region. Never the param's actual storage.
+            // Block loudly until receiver storage threads through dispatch.
+            blockers.insert(blocker(
+                "state calls",
+                &format!(
+                    "method call receiver `{}` is a parameter or local, but dispatch \
+                     resolves the receiver region by TYPE over the caller's FIELDS -- \
+                     the call would read another instance's storage (or ZII), never \
+                     `{}` itself. Copy `{}` into a field of the caller's data and \
+                     call through that field, or inline the method's expression.",
+                    state_call.receiver_name,
+                    state_call.receiver_name,
+                    state_call.receiver_name,
+                ),
+            ));
             continue;
         };
         let Some(walk_offset) = walk_offset else {
