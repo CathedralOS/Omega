@@ -428,15 +428,23 @@ the next attempt is mechanical:
 - The stat DECODE is per-target by OFFSET *and* WIDTH: windows `_stat64`
   (size@24, mode@6, mtime@40, atime@32, ctime=creation@48, nlink@8, dev@0,
   rdev@16, sizeof 56) has 2-byte ino/uid/gid where darwin has 8/4-byte, and
-  lacks blocks/blksize/change-time. Trick that works: per-target ST_*_OFF
-  provides values, with width-mismatched/absent windows fields pointed at the
-  buffer's ZERO REGION (offset 128; `_stat64` writes only 0..55, buffer is
-  zero_init) so the wrapper's wider read yields 0. Verified: computed-const
-  buffer index `stat_buf[FilesystemHost::ST_SIZE_OFF + k]` compiles+runs.
+  lacks blocks/blksize/change-time. Per-target ST_*_OFF provides values, with
+  the windows-absent fields at DISTINCT SYNTHETIC TAIL offsets (>=64, past
+  `_stat64`'s 0..55) -- NOT a shared zero-region: the hermetic interpreter models
+  each as a distinct non-zero value (ino=1000000, uid=501, changed=1000000050,
+  blocks=8, blksize=4096) which would collide at one offset. A real native
+  `_stat64` leaves the tail zero, so native windows reports 0 for those (honest).
+- CORRECTION: `stat_buf[FilesystemHost::ST_SIZE_OFF + k]` COMPILES but on NATIVE
+  windows READS OFFSET 0 (the earlier "compiles+runs" only checked compilation).
+  The raw `_stat64` seam is fine (a raw read + inline `buf[24]` gives the real
+  size); the miscompile is a VALUE-MACHINE codegen bug -- `self.stat_buf[<non-
+  literal index>]` inside the `decode_metadata` value machine resolves against a
+  wrong base. See [[value-machine-computed-index-miscompile]] +
+  `canaries/pending/backend/value_machine_computed_index_self_array/`.
 - The interpreter's `write_fs_stat` must fill the HOST's layout too (a
-  cfg!(target_os) `host_stat_offsets` mirror, `None` for absent fields) so the
-  differential (compiles for host()) agrees. Prototyped and worked for
-  metadata_path.
+  cfg!(target_os) `host_stat_offsets` mirror) so the differential (compiles for
+  host()) agrees. This was prototyped, verified green on the interpreter (all
+  metadata coverage), and reverted with Phase A.
 - ~~BLOCKER that forced the revert: the decode is DUPLICATED across~~
   ~~metadata_path + metadata(file, via fstat) + symlink_metadata~~
   **PREREQ DONE (2026-07-08):** the three per-caller decode bodies (was ~240
@@ -449,12 +457,19 @@ the next attempt is mechanical:
   behavior-preserving: interpreter runs the decode (coverage 68/0 + differential
   11/0), canary_suite 711/0, samples_compile the 4 documented pre-existing
   windows fails only. THE SINGLE DECODE SITE is now the migration target.
-- REMAINING (mechanical, one site now): migrate `decode_metadata`'s offsets to
-  per-target ST_*_OFF provides values + wire windows `_stat64`/fstat import rows
-  + `read_metadata`/`read_file_metadata`/`read_symlink_metadata` lowering + the
-  interp `write_fs_stat` cfg!(target_os) `host_stat_offsets` mirror + a native
-  windows metadata canary. Width-mismatched/absent windows fields point at the
-  buffer ZERO REGION (offset 128).
+- BLOCKED on [[value-machine-computed-index-miscompile]]: the whole migration
+  needs `stat_buf[ST_*_OFF + k]` (a non-literal index) inside `decode_metadata`,
+  which native-miscompiles today. FIX THAT codegen bug FIRST (it is a general
+  silent miscompile, not fs-specific -- receiver-base threading for indexed reads
+  in value machines).
+- THEN re-land (all prototyped+verified this session, reverted as commit
+  72b1b112a's revert): (1) per-target ST_*_OFF provides + interp
+  `host_stat_offsets` cfg mirror with DISTINCT synthetic tail offsets for
+  windows; (2) `("Filesystem","stat","msvcrt.dll","_stat64")` + `_fstat64` import
+  rows + `read_metadata`/`read_file_metadata` lowerings in windows.rs
+  (`read_symlink_metadata` stays fenced -- msvcrt has no lstat); (3) a native
+  windows metadata canary asserting size/is_file/!is_dir. The refactor (literal
+  darwin offsets) is the CORRECT shipped state until then.
 
 ## Wrapper dark-method coverage + a parked backend gap (2026-07-08)
 

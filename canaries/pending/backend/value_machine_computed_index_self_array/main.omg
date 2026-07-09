@@ -1,0 +1,43 @@
+// PENDING repro (NOT run by the pass harness) -- a NATIVE codegen miscompile in
+// value machines: a value machine (one invoked as `self.x.method()` returning a
+// value) that reads `self.<array field>[<index>]` in one of its arm/sub-states
+// reads OFFSET 0 instead of the indexed byte -- UNLESS the index is a single
+// literal token.
+//
+// Characterized 2026-07-08 (native x86_64, omega.exe):
+//   value machine arm:   self.buf[5]        -> 99  (CORRECT: single literal)
+//                        self.buf[5 + 0]    -> 0   (WRONG)
+//                        self.buf[4 + 1]    -> 0   (WRONG)
+//                        let j=5; self.buf[j] -> 0 (WRONG: local index)
+//                        self.buf[self.i]   -> 0   (WRONG: field index)
+//   PLAIN (statement) machine, same reads   -> 99  (all forms CORRECT)
+//   interpreter, ALL forms                  -> 99  (masks the bug)
+//
+// So the miscompile is: in a VALUE machine, a NON-literal (local / field /
+// const-arithmetic) index into a `self` array field resolves against the wrong
+// base -- it reads the frame/zero base, not the receiver's array field. The
+// single-literal path resolves the offset at compile time and is fine. This is
+// almost certainly the "receiver threading still open" area
+// ([[contained-machine-same-type-aliasing]]): the indexed-read base is not
+// threaded with the value machine's receiver offset.
+//
+// BLOCKS the fs metadata per-target offset migration: data-driving the decode
+// needs `stat_buf[ST_*_OFF + k]` (a const-arithmetic index) inside the
+// `decode_metadata` VALUE machine, which this bug miscompiles to read offset 0.
+// See [[value-machine-computed-index-miscompile]] and TASKS_FS.md metadata rung.
+//
+// This program exits 99 when correct, 0 when the bug is present. Run natively:
+//   omega --build-dir <dir> main.omg && <dir>/omega-program.exe ; echo $?
+boundary trait Console { machine exit_process(return_code: i32); }
+data Probe { buf: [u8; 16]; }
+machine Probe::fill(&mut self) -> i64 {
+    self.buf[5] = 99;
+    transition true { _ -> go() }
+    state go(&mut self) -> i64 { let j: usize = 4 + 1; self.buf[j] as i64 }
+}
+data Main { console: Console; probe: Probe; out: i64; ncode: i32; }
+machine Main::main(&mut self) {
+    self.out = self.probe.fill();
+    self.ncode = self.out as i32;
+    self.console.exit_process(self.ncode);
+}
