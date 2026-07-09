@@ -1,0 +1,35 @@
+// RUN CANARY (exit 70) -- FIELD-BINDING + FIELD-READ TERMINAL through a
+// double-nested SECOND instance (served 2026-07-11f): Main calls
+// mid2.run(), which binds `self.total = self.t2.drain(3,0)` (the
+// field-binding delivery must resolve `self.total` under the CALLER's
+// composed receiver base -- mid2+8=Machine@20, not the by-type
+// first-Mid @8; the dummy dispatch-index 0 in the fallback was the
+// silent-wrong hole) and returns `(self.total)` from the tail segment.
+// mid2{t1:3,t2:4}: 3 iterations of +4 = 12 -> exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Tally { count: i32 in Wrapping; }
+machine Tally::drain(&mut self, n: i32, acc: i32 in Wrapping)
+terminates { decreases n -> Nat::Descending; }
+-> i32 in Wrapping
+{
+    transition n > 0 { true -> drain(n - 1, acc + self.count) false -> leaf(acc) }
+    state leaf(&mut self, acc: i32 in Wrapping) -> i32 in Wrapping { acc }
+}
+data Mid { t1: Tally; t2: Tally; total: i32 in Wrapping; }
+machine Mid::run(&mut self) -> i32 in Wrapping {
+    // Field binding + field-read terminal (both served shapes) -- the
+    // chained call-bound-local terminal is a separate pre-existing fence.
+    self.total = self.t2.drain(3, 0);
+    transition { _ -> (self.total) }
+}
+data Main { console: Console; mid1: Mid; mid2: Mid; }
+machine Main::main(&mut self) {
+    self.mid1.t1.count = 1;
+    self.mid1.t2.count = 2;
+    self.mid2.t1.count = 3;
+    self.mid2.t2.count = 4;
+    let total: i32 in Wrapping = self.mid2.run();
+    transition total == 12 { true -> good() _ -> bad(total) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, total: i32 in Wrapping) { self.console.exit_process(71); }
+}

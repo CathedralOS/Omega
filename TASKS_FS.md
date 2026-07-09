@@ -143,10 +143,18 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    (recorded, unfenced): args spelled in a DEEPER callee state than
    the call target's entry still miss the scoped lookup and ride the
    name fallback -- same class, needs an arm-owner key on the
-   expansion representation if it surfaces. Probe corpus: scratchpad/slice2 — its two
-   frontier return-write shapes still stand: (a) a dispatched callee
-   forwarding its own call-bound LOCAL as terminal; (b) the
-   field-carrier restructure through a nested receiver.
+   expansion representation if it surfaces. The two frontier
+   return-write shapes SERVED 2026-07-11f: (a) the call-bound-local
+   bare terminal was a SEGMENT miss (the terminal lives in the state's
+   tail segment; the return-write's control-flow lookups normalize to
+   segment 0 now — terminal_target_value_expression); (b) the
+   field-binding delivery resolved `self.total` with a DUMMY dispatch
+   index 0, so the caller's composed receiver base never applied
+   (by-type wrote the FIRST Mid's field) — the fallback now resolves
+   under the return edge's target dispatch case. Pins:
+   calls/runtime_nested_local_terminal_second_instance_exit,
+   calls/runtime_nested_field_terminal_second_instance_exit (both
+   double-nested two-Mids × two-Tallys shapes, exact values).
 
 4. **Windows-session bundle** (needs a Windows host): verify the stat-row
    migration natively; WINDOWS_IMPORT_ROWS migration into provides files;
