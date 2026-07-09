@@ -1,5 +1,40 @@
 # Implementation map: arithmetic domains (frozen decision 17)
 
+> **STATUS 2026-07-10: IMPLEMENTED (and past this plan's horizon).** The map
+> below is the original 2026-06-14 turnkey plan, preserved for context. What
+> landed (see TASKS.md session records 2026-07-09c through 2026-07-09j):
+> - The domain rides `TypeReferenceNode::Constrained` and reaches BOTH
+>   `RuntimeValueOperand::Binary` (as `arithmetic_domain` + `operands_signed`
+>   + a real `byte_width`, exactly the is_float/byte_width threading pattern
+>   this plan predicted) and the binary-write ops.
+> - Saturating/Trapping emission exists per width (1/2/4/8) on BOTH ISAs for
+>   add/sub/mul, signed div/mod's MIN/-1 corner, in STORE and OPERAND
+>   position (guard-fused arithmetic clamps/traps with no landing store);
+>   64-bit uses flag/high-half witnesses (ADDS+CSINV / SMULH-UMULH on
+>   aarch64; carry-overflow cmov / 128-bit one-operand imul-mul + RDX
+>   witness on x86_64). Wrapping div/mod's MIN/-1 gets the x86 #DE guard.
+> - S2 domain casts (`x as u8 in Saturating`) are RETAGS (the conversion
+>   truncates; the tag governs the arithmetic the value joins) and reach the
+>   fused-operand witness on both legs.
+> - The INTERPRETER mirrors all of it at the operation node (its
+>   wide-compute + landing-seam model cannot represent guard-fused domain
+>   arithmetic): scalar_locals typed-name map, expression_scalar_type
+>   witness (width-promotion-aware, non-Exact tie-break, cast retags),
+>   i128/u128 wide compute for the 64-bit widths.
+> - Every behavior is pinned by differential RUN canaries
+>   (runtime_saturating_*, runtime_wrapping_expression_guard,
+>   runtime_divide_min_edge_guard, arithmetic_domain_cast_exit, ...).
+>
+> OPEN EDGES (design-gated, see TASKS.md): saturating/trapping SHIFT-LEFT
+> (nobody implemented it deliberately; native wraps, interp seam clamps
+> stores -- pending/arithmetic/shl_saturating_domain_divergence), shift
+> counts at/above width (cross-arch native divergence), range constraints
+> under non-Exact domains, S3 Exact proof obligations vs const-fold's
+> type-carrying-constants hole, and FLOAT types accepting a domain clause
+> (`f32 in Saturating` compiles and means nothing -- both legs run plain
+> IEEE; reject-or-define is an owner call, same family as
+> range-under-non-Exact).
+
 Turnkey entry map for building exact-by-default arithmetic + the
 Wrapping/Saturating/Trapping primitive domains. Written 2026-06-14 after the
 decision was frozen. Decision text + S1-S4 plan: TASKS.md decision 17; semantics:

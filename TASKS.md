@@ -842,6 +842,14 @@ decreases remaining
   binary domain machinery) -- the domain operator space is complete with no
   hidden unary path.
 
+- **[ ] Float types accept a domain clause that means nothing (found
+  2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE
+  arithmetic (overflow -> inf), so nothing diverges -- but the DECLARATION is
+  semantically empty, exactly the range-under-non-Exact shape below. Owner
+  call: reject domains on float primitives loudly (chapter 8 defines them for
+  integers), or define float saturation (clamp to finite MAX?) -- the former
+  matches decision-17's integer framing. Same underspecified-numeric family.
+
 - **[ ] Range constraint + non-Exact domain = the range is a LIE (found 2026-07-06).**
   `i: usize [0..=4] in Wrapping` accepts `self.i = 100` -- the range enforces only under the
   EXACT domain ("Wrapping stays permissive" was scoped to source-type narrowing, but it also
