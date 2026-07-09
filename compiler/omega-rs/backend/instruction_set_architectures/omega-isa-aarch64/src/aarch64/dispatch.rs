@@ -2,7 +2,7 @@ use omega_core::diagnostics::Diagnostic;
 use omega_target_operations::StateGuardOperator;
 
 use super::primitives::{
-    append_add_x_constant, append_unsigned_immediate_padded, append_unsigned_immediate_w_padded,
+    append_add_x_constant, encode_add_x_immediate, append_unsigned_immediate_padded, append_unsigned_immediate_w_padded,
     encode_add_page_offset_placeholder, encode_adrp_placeholder, encode_compare_w_immediate,
     encode_compare_w_register, encode_compare_x_register, encode_conditional_branch_equal,
     encode_conditional_branch_greater, encode_conditional_branch_greater_or_equal,
@@ -270,6 +270,34 @@ pub fn encode_entry_argument_register_write_bytes(
     debug_assert_eq!(
         bytes.len(),
         super::widths::entry_argument_register_write_width()
+    );
+    Ok(bytes)
+}
+
+/// The bytes-handoff half of the entry prologue: bind `args: &[u8]` as a view
+/// over the entry-argument spill -- write the slice descriptor
+/// `{ptr @ desc+0 = frame+spill_offset, len @ desc+8 = byte_length}`. One
+/// relocation (the frame pair at instruction start, shared with the
+/// register-write record). Fixed 28-byte shape.
+pub fn encode_entry_arguments_slice_descriptor_write_bytes(
+    descriptor_offset: usize,
+    spill_offset: usize,
+    byte_length: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    let length = u32::try_from(byte_length).map_err(|_| {
+        Diagnostic::error("entry-argument slice length exceeds a 32-bit immediate")
+    })?;
+    let mut bytes =
+        Vec::with_capacity(super::widths::entry_arguments_slice_descriptor_write_width());
+    bytes.extend(encode_adrp_placeholder(16)); // frame base [reloc @ start]
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_add_x_immediate(17, 16, spill_offset)?); // ptr = frame + spill
+    bytes.extend(encode_store_x_to_x(17, 16, descriptor_offset)?);
+    append_unsigned_immediate_w_padded(&mut bytes, 17, length); // fixed 8 bytes
+    bytes.extend(encode_store_x_to_x(17, 16, descriptor_offset + 8)?);
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::entry_arguments_slice_descriptor_write_width()
     );
     Ok(bytes)
 }
