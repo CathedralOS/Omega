@@ -89,11 +89,33 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   Saturating `<<` clamps / Trapping traps when the true x * 2^n leaves the
   range (at/above-width counts force overflow for nonzero x); `>>` floor
   semantics extended to every non-Exact domain on the interp AND both ISAs
-  (>> cannot overflow, so the count fix is domain-independent). REMAINING --
-  native Saturating/Trapping `<<` sequences on both ISAs (write + operand
-  positions; crib the saturating-multiply skeleton: exact 64-bit shift +
-  range-check tail for widths <= 32, recovery-compare for 64-bit); the two
-  parked shl_saturating canaries (in-range + at-width) promote with them.
+  (>> cannot overflow, so the count fix is domain-independent). AARCH64 DONE
+  (2026-07-14): ShiftLeft arms in the register-parametric sat/trap helper --
+  narrow widths cap the count at w (keeps the 64-bit LSLV exact) + range
+  tail (single UNSIGNED upper bound for unsigned targets: the shared
+  add/sub/mul tail's SIGNED lower compare would misread wide values >=
+  2^63); 64-bit uses the recovery witness (y >> n == x) + explicit count>=64
+  / x==0 compares. Both positions; disassembly-verified. REMAINING -- the
+  x86_64 twin sequences (both parked shl_saturating canaries hold 70/70 on
+  arm64 and promote with x86).
+
+- Saturating/Trapping fused writes LOSE the outer operator's domain when the
+  left operand is a NESTED binary (found probing operand-position sat shl;
+  NOT shift-specific): `(a + b) + 50` u8-Saturating clamps the nested node
+  but lowers the outer add PLAIN (305 & 0xFF = 49; interp says 255). The
+  write's domain witness reads leaf operand types and falls back to Exact
+  for nested-binary operands -- thread the top node's declared domain into
+  the fused-write witness regardless of operand shape (decision-17 arc).
+  Pinned: pending/arithmetic/sat_nested_operand_outer_domain_divergence
+  (71, Exit(70)).
+
+- SUSPECT (unprobed): the narrow unsigned saturating MULTIPLY tail's signed
+  lower-bound compare -- u32 * u32 can exceed 2^63 (e.g. 4e9 * 4e9), whose
+  SIGNED reading is negative and would clamp to 0 instead of MAX. The
+  comment claims "add/mul of <=32-bit unsigned operands can never set the
+  sign bit," which holds for add but looks wrong for 32-bit mul. Probe
+  (200000000u32 * 100u32 in Saturating expects u32::MAX) and fix the tail
+  to compare unsigned if it trips.
 - **FLOAT-TO-INT half still open (no ruling).** `1e300 as i32`: aarch64
   FCVTZS + interp saturate to i32::MAX; x86 CVTTSD2SI gives the 0x80000000
   "integer indefinite". Parked cast divergence stays in the drift ledger.

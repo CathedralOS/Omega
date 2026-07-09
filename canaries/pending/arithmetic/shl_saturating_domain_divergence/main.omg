@@ -1,19 +1,10 @@
-// PENDING (2026-07-09i, DESIGN-UNDECIDED -- which operators do arithmetic
-// domains govern?): `<<` on a Saturating type diverges THREE ways today.
-// NATIVE wraps (no backend has a saturating-shl sequence anywhere: the shl
-// lowers as the plain op in store and operand position alike, and the store
-// truncates -- exit 72 here). The INTERPRETER clamps on the STORE (the
-// landing seam applies apply_arithmetic_domain generically -- exit 70) but
-// computes fused GUARD shls per the Wrapping node rule. Neither leg ever
-// implemented saturating shl DELIBERATELY.
-// The design call: either shifts are domain-governed operators (then native
-// needs clamp sequences x2 ISAs x2 positions and the interp node arm gets a
-// Saturating shl), or shifts are wrap-only operators (then the CHECKER
-// should reject `<<` on Saturating/Trapping operands loudly, and the interp
-// seam stops clamping shl results). Sibling of the parked
-// shift-count-at-or-above-width divergence.
-// PROMOTE (differential) once the owner picks; expected exit depends on the
-// pick (70 = clamp, 72 = wrap).
+// PENDING only for x86_64 (was: design-undecided divergence). Shifts are
+// domain-governed (shift-domain ruling): Saturating `<<` clamps when the
+// TRUE value x * 2^n leaves the type's range. The INTERPRETER node arm and
+// the AARCH64 sequences (count capped at the width + exact 64-bit shift +
+// range-check tail; recovery-compare at 64-bit) both conform -- this canary
+// runs 70/70 on the arm64 host. x86_64 still lowers the plain shl (wraps);
+// PROMOTE to pass/ when its clamp/trap sequences land.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; a: u8 in Saturating; b: u8 in Saturating; r: u8 in Saturating; }
 machine Main::main(&mut self) {

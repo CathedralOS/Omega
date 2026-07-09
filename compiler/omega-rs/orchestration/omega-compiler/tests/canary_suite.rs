@@ -28928,6 +28928,10 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {
+        path: "arithmetic/sat_nested_operand_outer_domain_divergence",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
         path: "arithmetic/unsigned_min_max_wrapping_local_divergence",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },

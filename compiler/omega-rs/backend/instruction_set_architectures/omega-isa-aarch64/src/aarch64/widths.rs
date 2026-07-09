@@ -363,7 +363,10 @@ pub fn runtime_storage_binary_write_width(
     } else if saturating_or_trapping
         && matches!(
             operator,
-            StateGuardOperator::Add | StateGuardOperator::Subtract | StateGuardOperator::Multiply
+            StateGuardOperator::Add
+                | StateGuardOperator::Subtract
+                | StateGuardOperator::Multiply
+                | StateGuardOperator::ShiftLeft
         )
     {
         saturating_trapping_arithmetic_width(domain, operator, byte_size, target_signed)
@@ -403,6 +406,18 @@ fn saturating_trapping_arithmetic_width(
 ) -> usize {
     use omega_core::arithmetic::ArithmeticDomain;
     if byte_size == 8 {
+        // 64-bit shl: the recovery witness -- mov save (4) [+ movz/movk MIN
+        // (8) for saturating-signed] + lslv (4) + asrv/lsrv (4) + cmp (4)
+        // + b.ne (4) + cmp #64 (4) + b.lo (4) + cmp #0 (4) + b.eq (4)
+        // + fixup (sat-signed cmp+csinv 8; sat-unsigned padded MAX 16;
+        // trapping brk 4).
+        if operator == StateGuardOperator::ShiftLeft {
+            return match (domain, target_signed) {
+                (ArithmeticDomain::Saturating, true) => 36 + 8 + 8,
+                (ArithmeticDomain::Saturating, false) => 36 + 16,
+                _ => 36 + 4,
+            };
+        }
         // 64-bit multiply: the MULH high-half witness.
         if matches!(operator, StateGuardOperator::Multiply) {
             return match (domain, target_signed) {
@@ -428,6 +443,13 @@ fn saturating_trapping_arithmetic_width(
         // Unsupported widths error during emission; the wide op (4) is a
         // harmless placeholder for the pre-error `Vec::with_capacity`.
         return 4;
+    }
+    // Narrow shl: [SXT dest (4, signed)] + count cap (padded w 16 + cmp 4
+    // + csel 4) + lslv (4) + the bound checks (28 each: padded bound 16 +
+    // cmp 4 + b.cond 4 + mov/brk 4) -- both bounds for signed, the single
+    // unsigned upper bound otherwise.
+    if operator == StateGuardOperator::ShiftLeft {
+        return if target_signed { 4 + 28 + 56 } else { 28 + 28 };
     }
     // Two SXTB/SXTH/SXTW sign-extends (4 bytes each) for signed targets only.
     let sign_extend = if target_signed { 8 } else { 0 };
@@ -1732,6 +1754,7 @@ pub fn runtime_value_operand_width(
                     StateGuardOperator::Add
                         | StateGuardOperator::Subtract
                         | StateGuardOperator::Multiply
+                        | StateGuardOperator::ShiftLeft
                 )
             });
         let saturating_signed_div_mod = runtime_value_operands

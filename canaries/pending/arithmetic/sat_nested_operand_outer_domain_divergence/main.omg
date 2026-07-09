@@ -1,0 +1,32 @@
+// PENDING (found 2026-07-14 while probing operand-position saturating shl):
+// a Saturating/Trapping fused WRITE whose left operand is a NESTED binary
+// loses the OUTER operator's domain -- the write's domain witness reads
+// leaf operand types and falls back to Exact for nested-binary operands, so
+// the outer op lowers PLAIN. Here (200 + 100) clamps to 255 correctly (the
+// nested node's own domain arm works, disassembly-verified), but the outer
+// + 50 runs as a plain 64-bit add: 305, byte-store-truncated to 49 -> exit
+// 71. The interpreter applies the node domain everywhere -> 255 -> exit 70.
+// NOT shift-specific (this probe is adds only); the same loss hits
+// `(a << c) + 5` spellings. FIX: thread the top node's declared domain into
+// the fused-write witness regardless of operand shape (selection-level
+// domain witness, decision-17 arc). PROMOTE at 70/70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let a: u8 in Saturating = (200 as u8 in Saturating);
+    let b: u8 in Saturating = (100 as u8 in Saturating);
+    let r: u8 in Saturating = (a + b) + 50;
+    transition r == 255 {
+        true  -> pass()
+        false -> chk49()
+    }
+    state chk49(&mut self) {
+        transition r == 49 {
+            true  -> outer_plain()
+            false -> other()
+        }
+    }
+    state pass(&mut self)       { self.console.exit_process(70); }
+    state outer_plain(&mut self){ self.console.exit_process(71); }
+    state other(&mut self)      { self.console.exit_process(99); }
+}
