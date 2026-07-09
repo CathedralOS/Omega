@@ -1432,6 +1432,18 @@ fn subslice_path_pointer(
         &input.host_calls.expressions,
         subslice.collection,
     )?;
+    if std::env::var_os("OMEGA_DEBUG_SUBSLICE").is_some() {
+        eprintln!(
+            "subslice ptr: state m{} s{} seg{} dispatch {:?} -> region {:?} offset {} count {}",
+            host_call.source_key.machine.arena_index(),
+            host_call.source_key.state.arena_index(),
+            host_call.source_key.segment_index,
+            dispatch_index,
+            place.region,
+            place.byte_offset,
+            place.byte_count,
+        );
+    }
     let length = resolve_fixed_array_length_in_table(
         input,
         dispatch_index.unwrap_or(0),

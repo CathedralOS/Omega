@@ -112,6 +112,17 @@ pub(super) fn select_runtime_dispatch_argument_materialization(
         let Some(argument) = target_arguments.get(parameter_index).copied() else {
             break;
         };
+        if std::env::var_os("OMEGA_DEBUG_SUBSLICE").is_some()
+            && let Some(slot) = runtime_parameter_slot(input, target_dispatch_index, parameter)
+        {
+            eprintln!(
+                "materialize param `{}` -> target dispatch {} offset {} size {}",
+                parameter.name,
+                target_dispatch_index,
+                slot.byte_offset,
+                slot.byte_size,
+            );
+        }
         let Some(slot) = runtime_parameter_slot(input, target_dispatch_index, parameter) else {
             continue;
         };

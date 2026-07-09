@@ -95,6 +95,13 @@ fn dirfd_reread_exit_runs() {
     let (code, _) = compile_run("dirfd_reread_exit");
     assert_eq!(code, Some(70), "dirfd re-read should exit 70");
 }
+// The dir-walk wrapper family END TO END (create_dir_all -> read_dir_count /
+// is_empty -> remove_dir_all): the capstone of the call-with-return arc.
+#[test]
+fn dir_walk_wrappers_exit_runs() {
+    let (code, _) = compile_run("dir_walk_wrappers_exit");
+    assert_eq!(code, Some(70), "native dir-walk family should exit 70");
+}
 #[test]
 fn native_at_ops_passes() { assert_pass("native_at_ops"); }
 #[test]
