@@ -655,12 +655,16 @@ decreases remaining
   holds only the result copy + compare (native 71, interp 70). Facet (a):
   ValueOperand has no MachineIndexed variant, so machine-region indexed
   reads are unresolvable in operand position and the write selection bails.
-  Facet (b) -- THE DANGEROUS ONE: the bail was SILENT; the call-result
-  blockers that fire loudly for the termination canaries' unserved shapes
-  did not fire here. NEXT TICK: trace why the unlowered result write
-  escaped emission planning and FENCE it first (silent->loud); then either
-  add the MachineIndexed operand variant (mirroring 2026-07-10i's frame
-  forms) or hoist machine-indexed args. The register-clobber sweep that
+  Facet (b) -- THE DANGEROUS ONE: the bail was SILENT. TRACED 2026-07-10k:
+  the call-result fence's served-check is STATE-granular, and the result-
+  CONSUMPTION copy in the same case satisfies it while the production
+  write was dropped. A slot-granular probe (target == result-slot offset)
+  still missed this shape AND falsely blocked the transition-arg serve --
+  the correct predicate needs the return-write matrix's serve-shape
+  knowledge, so the fence fix is HANDED to the fs lane (their fence, their
+  matrix; flagged in TASKS_FS Observations with the full analysis). Facet
+  (a) -- the MachineIndexed operand variant or an arg hoist -- remains
+  this thread's follow-up once the fence lands. The register-clobber sweep that
   found this: local-array/frame twin passes post-fix; this is the machine-
   region sibling falling off a different cliff.
 

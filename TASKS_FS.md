@@ -1080,6 +1080,24 @@ wrongly rejects them. See Open-work #4.
 
 ## Observations (not fs, flagged for Zach)
 
+- RETURN-WRITE FENCE gap (2026-07-10k, from the arithmetic thread -- YOUR
+  fence, needs your matrix knowledge): collect_call_result_return_blockers'
+  served-check is STATE-granular (any write-ish instruction in the terminal
+  case), so a result-CONSUMPTION copy (`result_slot -> let d`) satisfies it
+  while the result-PRODUCTION write was silently dropped. Live escape:
+  pending/slices/machine_array_element_fused_call_arg (a machine-array
+  element inside a fused call arg -- no MachineIndexed value-operand
+  variant, the write selection bails, NO blocker fires, native reads
+  ZII/garbage; interp 70). The arithmetic thread PROBED slot-granular
+  (target == state_call_result_slot_any_role offset) and REVERTED it: it
+  still failed to catch this shape AND falsely blocked
+  runtime_dispatch_result_transition_arg_exit, whose serve legitimately
+  targets a transition-ARG slot -- the correct predicate needs your
+  matrix's serve-shape knowledge (which write kinds deliver to which slot
+  classes). The pending canary + both drift lists pin the silent-wrong
+  meanwhile.
+
+
 - RETURN-WRITE MATRIX row request (2026-07-10, from the arithmetic thread):
   the collect-all pass_canaries_compile umbrella (this tick) unmasked two
   termination canaries your 2026-07-09 return-write fence (936fc62c1)
