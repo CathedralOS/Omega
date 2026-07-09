@@ -116,7 +116,7 @@ pub fn runtime_storage_copy_to_return_register_width(
 /// stub exists).
 pub fn entry_argument_register_write_width(architecture: Architecture) -> usize {
     match architecture {
-        Architecture::Aarch64 => 0,
+        Architecture::Aarch64 => aarch64::entry_argument_register_write_width(),
         Architecture::X86_64 => x86_64::entry_argument_register_write_width(),
     }
 }

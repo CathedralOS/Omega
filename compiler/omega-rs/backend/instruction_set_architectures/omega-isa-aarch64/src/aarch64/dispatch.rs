@@ -11,7 +11,8 @@ use super::primitives::{
     encode_conditional_branch_lower, encode_conditional_branch_lower_or_same,
     encode_conditional_branch_not_equal, encode_float_compare, encode_float_move_from_gpr,
     encode_load_w_from_x, encode_load_x_from_x, encode_move_x_register, encode_movz_w,
-    encode_sign_extend_byte_to_w, encode_sign_extend_halfword_to_w, encode_unconditional_branch,
+    encode_sign_extend_byte_to_w, encode_sign_extend_halfword_to_w, encode_store_x_to_x,
+    encode_unconditional_branch,
 };
 use super::widths::dispatch_guard_compare_static_width;
 
@@ -228,6 +229,34 @@ fn append_guard_load(
 /// region's data symbol by the relocation planner, exactly like a dispatch
 /// guard's storage load. Narrow operands are sign-extended so a negative
 /// i8/i16 terminal survives the widening read.
+/// Entry prologue: store the process-entry argument register into its runtime
+/// frame slot (`adrp`+`add` x16 = the frame base, relocated at instruction
+/// start by the arch-agnostic record, then `str x<index>, [x16, offset]`).
+/// AAPCS64 passes the first eight arguments in x0..x7; the prologue runs before
+/// anything clobbers them (the function-enter stp prologue touches only
+/// callee-saved pairs).
+pub fn encode_entry_argument_register_write_bytes(
+    argument_index: u8,
+    byte_offset: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if argument_index > 7 {
+        return Err(Diagnostic::error(format!(
+            "AArch64 entry prologue supports at most 8 register arguments \
+             (argument index {argument_index}); stack-passed entry arguments are not \
+             implemented"
+        )));
+    }
+    let mut bytes = Vec::with_capacity(super::widths::entry_argument_register_write_width());
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_store_x_to_x(argument_index, 16, byte_offset)?);
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::entry_argument_register_write_width()
+    );
+    Ok(bytes)
+}
+
 pub fn encode_runtime_storage_copy_to_return_register_bytes(
     byte_offset: usize,
     byte_size: usize,

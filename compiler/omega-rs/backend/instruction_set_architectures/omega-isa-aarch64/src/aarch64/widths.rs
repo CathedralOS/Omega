@@ -821,6 +821,13 @@ pub(in crate::aarch64) fn line_read_descriptor_store_extra(target_offset: usize)
     }
 }
 
+/// Entry prologue argument store: the frame-base `adrp`+`add` pair (8) plus one
+/// `str` (4). The store's scaled-immediate constraint is enforced by the
+/// encoder (loud error), so the width is a constant.
+pub fn entry_argument_register_write_width() -> usize {
+    12
+}
+
 pub fn runtime_text_line_read_import_width(_byte_capacity: usize, target_offset: usize) -> usize {
     116 + line_read_descriptor_store_extra(target_offset)
 }

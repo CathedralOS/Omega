@@ -96,6 +96,43 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
 
 ## Open latent bugs / fenced gaps
 
+- **[x] ZERO-WIDTH = SILENT DROP -- the emission hole behind every "silent
+  no-op" aarch64 miscompile (FOUND + GUARDED 2026-07-08).** Several selection
+  width functions return 0 on Aarch64 as an "unimplemented; emission will
+  reject at encode" marker -- but emission treats `byte_width == 0` as
+  legitimately empty and SKIPS the instruction WITHOUT calling its encoder
+  (instruction_bytes.rs), so the op's carefully written clean diagnostic was
+  dead code and the operation was silently DROPPED. This is the root of the
+  whole silent-wrong indexed cluster on the arm64 host: `nums[i] = nums[j]`
+  no-opped (exit 10), `a[i]=b[i]` loops no-opped (exit 0), grid[i][j]
+  read/write/RMW/member/operand faces all exit 2, and ENTRY-ARGUMENT register
+  writes silently left args ZII. FIX: layout.rs now REFUSES a zero width for
+  any kind that is not structurally empty (allowlist: EvaluateDispatchGuard
+  residuals, LeaveDispatchLoop, BeginPlatformCall, EnterFunction/LeaveFunction
+  -- a syscall-only ELF entry legitimately has no prologue), with a loud
+  diagnostic naming the op. ALSO LANDED: aarch64
+  `encode_entry_argument_register_write_bytes` (adrp/add frame base + `str
+  x<index>`, AAPCS64 x0..x7; the reloc record was already arch-agnostic) --
+  the EFI ref-param canary now compiles with REAL entry args instead of
+  silently-ZII ones. Suite 642/60 with the SAME failing names (the ~10 indexed
+  canaries flipped from silent-wrong to loud compile errors); fs harness 83/83
+  untouched; samples: the 4 gui samples now compile (upstream fixes), and
+  collections/matrix_multiply went HONESTLY red -- it was being miscompiled
+  (double-indexed ops dropped) while passing the compile-only test.
+  - **[ ] NEXT -- implement the aarch64 double/dual-indexed encoder family**
+    (now loud, was silent): `CopyRuntimeMachineIndexedToRuntimeMachineIndexed`
+    (`arr[i]=arr[j]`), `CopyRuntimeMachineDoubleIndexedToRuntimeStorage` +
+    `CopyRuntimeStorageToRuntimeMachineDoubleIndexed` +
+    `WriteRuntimeMachineDoubleIndexedInteger` + `..Binary` (grid[i][j] faces),
+    `CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage` (frame 2D), and the
+    `WriteEntryArgumentsSliceDescriptor` spill (args: &[u8]). Recipe: reuse
+    `append_runtime_machine_index_target_address` (runtime_storage.rs:2164 --
+    computes elem addr into x16, clobbers x17/x19/x20/x26; stash to x24/x25
+    between two address computations); each op needs its width + reloc-offset
+    helpers in LOCKSTEP (the x86 offset helpers already exist arch-dispatched
+    and return 0 on aarch64 -- fill those arms as the encoders land). Unblocks
+    ~10 canaries + matrix_multiply + dice_histogram.
+
 - **[x] aarch64 owned `[u8; N]` byte-carrier family -- LANDED 2026-07-08 (write +
   pointee write + literal/source append + `==` compare + host-arg marshaling).**
   Root cause of the "aarch64 `b.ne target is not instruction aligned` in many

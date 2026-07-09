@@ -70,6 +70,34 @@ pub(crate) fn layout_machine_instructions(
     for machine_instruction in machine_instructions {
         let byte_width = machine_instruction_width(input, &machine_instruction.source_kind)?;
 
+        // A zero width is legitimate ONLY for STRUCTURAL kinds that may
+        // genuinely emit no bytes: residual guard lowerings, loop-leave
+        // markers, platform-call boundaries, and function enter/leave (a
+        // syscall-only ELF entry needs no prologue). For every OPERATIONAL
+        // kind a zero width is an arch-specific "unimplemented" marker from a
+        // width function -- and emission SKIPS zero-width instructions without
+        // ever calling their encoder, so letting one through silently DROPS
+        // the operation (the historic `arr[i] = arr[j]` no-op miscompile on
+        // aarch64). Refuse loudly instead; the workaround for the indexed
+        // family is staging through a machine field temp.
+        if byte_width == 0
+            && !matches!(
+                machine_instruction.source_kind,
+                SelectedInstructionKind::EvaluateDispatchGuard { .. }
+                    | SelectedInstructionKind::LeaveDispatchLoop
+                    | SelectedInstructionKind::BeginPlatformCall
+                    | SelectedInstructionKind::EnterFunction
+                    | SelectedInstructionKind::LeaveFunction
+            )
+        {
+            return Err(Diagnostic::error(format!(
+                "{:?} has no native lowering for this target (its layout width is zero); \
+                 refusing to emit -- a zero-width instruction is silently skipped, which \
+                 would drop the operation instead of failing loudly",
+                machine_instruction.source_kind,
+            )));
+        }
+
         laid_out.push(LaidOutMachineInstruction {
             selected_instruction_index: machine_instruction.selected_instruction_index,
             offset,
