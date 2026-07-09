@@ -30,6 +30,19 @@ pub(super) fn write_output(
         let output_path = build_dir.join(&image.file_name);
         write_output_file(&output_path, &image.bytes, true)
             .map_err(|diagnostic| vec![diagnostic])?;
+
+        // The GUI-subsystem translation for Mach-O: PE stamps Subsystem 2 into
+        // the image header so Windows never attaches a console box; macOS has no
+        // header equivalent — a bare executable double-clicked in Finder routes
+        // through Terminal. The equivalent is an `.app` bundle, so lay one out
+        // beside the flat binary (which stays, for tests and terminal runs).
+        // The embedded ad-hoc signature is content-hashed, so the copied
+        // executable stays valid inside the bundle.
+        if emitted.target.object_format == omega_target::ObjectFormat::MachO
+            && emitted.subsystem == GUI_SUBSYSTEM
+        {
+            write_macos_app_bundle(options, &build_dir, &image.file_name, &image.bytes)?;
+        }
         return Ok(output_path);
     }
 
@@ -48,6 +61,80 @@ pub(super) fn write_output(
 
 fn io_diagnostic(error: std::io::Error) -> Vec<Diagnostic> {
     vec![Diagnostic::error(error.to_string())]
+}
+
+/// PE optional-header Subsystem word for a GUI program (`Subsystem::Gui`;
+/// console is 3). Shared meaning across targets: the PE writer stamps it, the
+/// Mach-O path translates it into an `.app` bundle.
+const GUI_SUBSYSTEM: u16 = 2;
+
+/// Lays out `build/<name>.app/Contents/{Info.plist,PkgInfo,MacOS/<exe>}` so a
+/// Finder launch runs the program as a real windowed app (no Terminal). `<name>`
+/// is the project directory name (e.g. `window_demo`).
+fn write_macos_app_bundle(
+    options: &CompileOptions,
+    build_dir: &std::path::Path,
+    executable_name: &str,
+    executable_bytes: &[u8],
+) -> Result<(), Vec<Diagnostic>> {
+    let app_name: String = options
+        .root_path
+        .parent()
+        .and_then(|parent| parent.file_name())
+        .and_then(|name| name.to_str())
+        .unwrap_or("omega-program")
+        .chars()
+        .map(|character| {
+            // Keep the plist honest without an XML escaper: path characters that
+            // are XML-significant or exotic collapse to '-'.
+            if character.is_ascii_alphanumeric() || matches!(character, '_' | '.' | ' ' | '-') {
+                character
+            } else {
+                '-'
+            }
+        })
+        .collect();
+    let bundle_identifier: String = app_name
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() {
+                character
+            } else {
+                '-'
+            }
+        })
+        .collect();
+
+    let contents_dir = build_dir.join(format!("{app_name}.app")).join("Contents");
+    let macos_dir = contents_dir.join("MacOS");
+    std::fs::create_dir_all(&macos_dir).map_err(io_diagnostic)?;
+
+    let info_plist = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key>
+	<string>{executable_name}</string>
+	<key>CFBundleIdentifier</key>
+	<string>org.omega-lang.{bundle_identifier}</string>
+	<key>CFBundleName</key>
+	<string>{app_name}</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+</dict>
+</plist>
+"#
+    );
+    std::fs::write(contents_dir.join("Info.plist"), info_plist).map_err(io_diagnostic)?;
+    std::fs::write(contents_dir.join("PkgInfo"), b"APPL????").map_err(io_diagnostic)?;
+    write_output_file(&macos_dir.join(executable_name), executable_bytes, true)
+        .map_err(|diagnostic| vec![diagnostic])?;
+    Ok(())
 }
 
 fn write_output_file(

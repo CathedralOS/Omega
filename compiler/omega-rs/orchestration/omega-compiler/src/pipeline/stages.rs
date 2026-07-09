@@ -43,7 +43,9 @@ pub(super) struct BackendPlanningSurface {
 pub(super) struct EmittedProgram {
     pub(super) target: NativeTarget,
     /// PE optional-header Subsystem resolved from the selected target's
-    /// `subsystem <word>` (console 3 by default); non-PE formats ignore it.
+    /// `subsystem <word>` (console 3 by default). The PE writer stamps it into
+    /// the image; the Mach-O output path translates gui (2) into an `.app`
+    /// bundle beside the flat binary; other formats ignore it.
     pub(super) subsystem: u16,
     pub(super) planned_text_bytes: usize,
     pub(super) object: omega_object_file::ObjectPlan,
