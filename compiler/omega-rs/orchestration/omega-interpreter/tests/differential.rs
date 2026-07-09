@@ -57,6 +57,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("text/case_literal_texteq_terminal_exit", 70),
     ("text/runtime_text_equals_boolean_operand_exit", 70),
     ("text/runtime_text_not_equals_exit", 70),
+    ("traits/equatable_sum_stale_payload_exit", 70),
     ("text/runtime_text_equals_value_positions_exit", 70),
     ("slices/runtime_saturating_array_element_guard_exit", 70),
     ("arithmetic/runtime_unsigned_high_bit_u32_ops_exit", 70),

@@ -1,0 +1,30 @@
+// RUN CANARY (exit 70) + interpreter differential. Synthesized SUM equality
+// must be TAG-AWARE: `self.a` was Pong { y: 7, z: 9 } and is REASSIGNED to
+// the SHORTER Ping { x: 1 } -- Pong's z region beyond Ping's extent stays
+// STALE in storage (construction writes tag + named fields; it does not
+// clear the other variant's tail). A memcmp-style equality would read the
+// stale bytes and call two equal Pings unequal; the synthesized equality
+// compares the tag and then ONLY the active variant's payload, so a == b
+// holds. (Destructuring never sees the stale region; whole-value equality
+// is the only reader that could.) exit 72 = stale bytes leaked into ==.
+boundary trait Console { machine exit_process(return_code: i32); }
+trait Equatable {
+    machine equals(&self, other: &Self) -> bool;
+}
+data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
+Msg satisfies Equatable;
+data Main { console: Console; a: Msg; b: Msg; }
+machine Main::main(&mut self) {
+    self.a = Msg::Pong { y: 7, z: 9 };
+    self.a = Msg::Ping { x: 1 };
+    self.b = Msg::Ping { x: 1 };
+    self.build();
+}
+machine Main::build(&mut self) {
+    transition self.a == self.b {
+        true -> good()
+        _ -> wrong_stale()
+    }
+    state good(&mut self)        { self.console.exit_process(70); }
+    state wrong_stale(&mut self) { self.console.exit_process(72); }
+}
