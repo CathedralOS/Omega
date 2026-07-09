@@ -27410,6 +27410,10 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {
+        path: "slices/machine_array_element_fused_call_arg",
+        expectation: PendingCanaryExpectation::CurrentlyAccepts,
+    },
+    PendingCanary {
         path: "calls/tail_self_call_accumulator",
         expectation: PendingCanaryExpectation::CurrentlyRejects {
             fragment: "calls into a recursive cycle",
