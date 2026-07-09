@@ -738,10 +738,18 @@ decreases remaining
   MULTI-CALL composition (exit 73; interp 70): the earlier calls' swept
   slots satisfy the call-result fence, while `r`'s result-slot -> local
   copy is never emitted and the inline arg reads garbage. The SAME shape
-  isolated fences LOUDLY -- the silent face needs the composition. NEXT:
-  find where served calls emit the call-result->local copy and why the
-  swept-slot + arg-forced-local pairing misses it; reconcile the
-  composition-dependent fencing.
+  isolated fences LOUDLY -- the silent face needs the composition.
+  ATTEMPT LOG 2026-07-11f (reverted): a return-edge slot->local copy
+  wrapper (after every successful call-result write, pair the slot with a
+  same-statement LocalStorage slot) EMITS but does not fix: one pairing is
+  DEGENERATE (`copy @0 -> @0` -- the result slot IS the local in the
+  no-storage naming case, cross-namespace aliasing at equal offsets), and
+  the real copy (`@16 -> @24`) lands yet plus1's ARG still reads garbage --
+  so the arg materialization reads NEITHER the result slot NOR that local
+  slot. NEXT: trace what offset the inline arg materialization actually
+  resolves for `r` (likely a third location: an alias/prelude-substituted
+  read or a different dispatch namespace's local), THEN place the copy or
+  fix the arg resolution; reconcile the composition-dependent fencing.
 
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE
