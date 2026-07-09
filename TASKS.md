@@ -632,18 +632,21 @@ decreases remaining
   was, the shape is guarded end to end now. The suite has ZERO ignored
   tests.
 
-- **[ ] LOCAL-array indexed element as a VALUE-CALL ARG reads wrong natively
-  (found 2026-07-10h auditing another untracked "tracked separately"
-  comment).** The field-array twin passes; the simple local
-  read-into-let-compare passes; but `self.double(arr[i])` with a LOCAL
-  array returns as if the arg were ZII (native 72 = doubled 0, interp 70
-  correct). Parked at pending/slices/local_array_element_value_operand
-  (distinct exits map the directions; registered in BOTH drift lists).
-  NEXT TICK: bisect the arg-materialization of frame-local indexed
-  elements vs the machine-storage form the passing twin uses. Same audit
-  also re-verified: the contained-machine "aliases to the first" comment
-  IS tracked (receiver-aliasing item), and the simple local-array read
-  gap the old comment described has healed.
+- **[x] LOCAL-array indexed element as a VALUE-CALL ARG -- FIXED 2026-07-10i.**
+  Disassembly showed the aarch64 indexed-operand address helpers hardcoding
+  x17 as INDEX scratch (and x26 for the scale): addressing the RIGHT operand
+  of a fused binary clobbered the LEFT operand's already-computed result, so
+  `self.double(arr[i])` computed d = i + arr[i] (x86_64 immune -- it stashes
+  the left result on the stack; the field-array twin passed because
+  machine-resident operands ride a different arm). Fix: index/scale scratch
+  PARAMETERIZED on append_runtime_frame_{base_,}index_target_address (the
+  write-target callers keep 17/26 -- byte-identical, suite-verified); the
+  operand arms pick from their scratch list excluding 15/19/20/21 and the
+  destination. Canary promoted to
+  pass/slices/runtime_local_array_element_value_operand_exit (differential
+  70/70, suite test, drift-list entries retired on graduation exactly as
+  designed). Also deduped an accidental nqueens double-entry in
+  RUN_CANARIES from the previous tick.
 
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE

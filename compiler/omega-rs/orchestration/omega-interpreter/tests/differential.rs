@@ -42,7 +42,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_wrapping_expression_guard_exit", 70),
     ("arithmetic/runtime_divide_min_edge_guard_exit", 70),
     ("arithmetic/runtime_nested_unsigned_witness_exit", 70),
-    ("collections/runtime_nqueens_backtracking_exit", 70),
+    ("slices/runtime_local_array_element_value_operand_exit", 70),
     ("arithmetic/runtime_unsigned_high_bit_u32_ops_exit", 70),
     ("arithmetic/runtime_unsigned_min_max_exit", 88),
     ("arithmetic/runtime_integer_casts_exit", 70),
@@ -1816,9 +1816,6 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     ("arithmetic/shl_saturating_domain_divergence", 72, PendingInterpOutcome::Exit(70)),
     ("arithmetic/unsigned_min_max_wrapping_local_divergence", 78, PendingInterpOutcome::Exit(77)),
     ("expressions/dead_trapping_let_not_elided", 7, PendingInterpOutcome::Traps),
-    // Value-call arg reads the local array element wrong natively (ZII);
-    // the interp is correct. See the canary header for the direction map.
-    ("slices/local_array_element_value_operand", 72, PendingInterpOutcome::Exit(70)),
 ];
 
 /// COLLECT-ALL runtime drift-check over the parked divergences above.
