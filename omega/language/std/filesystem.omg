@@ -587,8 +587,12 @@ machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buff
     // `stat` the source (it exists -- we just read it) and decode st_mode's
     // permission bits (low 9, & 0o777 = 511), then `chmod` the destination.
     let statrc: i32 = self.host.read_metadata(from, &mut self.stat_buf);
-    let mode: u32 = ((self.stat_buf[FilesystemHost::ST_MODE_OFF + 0] as u32) | ((self.stat_buf[FilesystemHost::ST_MODE_OFF + 1] as u32) << 8)) & 511;
-    let chmodded: i32 = self.host.set_permissions(to, mode);
+    // Store the decoded permission bits in a FIELD, not a single-use `let`: an
+    // elided local folds its computed initializer back into the `set_permissions`
+    // argument, which the host-call marshaller rejects (a host arg must be a
+    // simple place). `perm_mode` is the same field the set_permissions wrapper uses.
+    self.perm_mode = ((self.stat_buf[FilesystemHost::ST_MODE_OFF + 0] as u32) | ((self.stat_buf[FilesystemHost::ST_MODE_OFF + 1] as u32) << 8)) & 511;
+    let chmodded: i32 = self.host.set_permissions(to, self.perm_mode);
     transition n >= 0 { true -> ok(n) _ -> err() }
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
     state err(&mut self) -> IoResult { let kind: ErrorKind = self.last_error(); IoResult::Error { kind: kind } }

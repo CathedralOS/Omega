@@ -73,12 +73,16 @@ program; the differential canary is the drift guard against the Rust mirror
 diverging from the .omg source. ⚠️ LESSON: the flag migration first broke the
 omega-interpreter COVERAGE tests (create_new/open_options), missed because that
 iteration only ran `--test differential`; run the FULL `-p omega-interpreter`
-(coverage.rs too) after any std-wrapper or interp change. `exists`/`try_exists`
-UNFENCED 2026-07-08 (side effect of the stat migration -- they consult only
-`read_metadata`'s rc; canary `filesystem/windows_wrapper_exists_exit`). Still
-fenced on windows: `copy` (needs `set_len`/`_chsize`), `read_dir` + everything
-that walks it (`remove_dir_all`), and create_dir_all's DEEP walk (runtime
-SUBSLICE paths need a NUL-terminated scratch copy). ATTEMPTED 2026-07-07 (reverted clean, findings recorded): the
+(coverage.rs too) after any std-wrapper or interp change. UNFENCED 2026-07-08
+(all off the fenced list): `exists`/`try_exists` (stat-rc only, side effect of
+the stat migration), `set_len` (msvcrt `_chsize_s`), and `copy` (set_len wired +
+its chmod mode arg moved to the `perm_mode` field so it stops eliding into a
+computed host-call arg). Canaries: `windows_wrapper_{exists,set_len,copy}_exit`.
+⚠️ `copy` still opens src/dst in msvcrt TEXT mode (no `O_BINARY`) -- newline-free
+content is exact, but a binary-safe copy on windows (O_BINARY both ends) is a
+follow-up. Still fenced on windows: `read_dir` + everything that walks it
+(`remove_dir_all`), and create_dir_all's DEEP walk (runtime SUBSLICE paths need a
+NUL-terminated scratch copy). ATTEMPTED 2026-07-07 (reverted clean, findings recorded): the
 plan is an Omega-side rework, no encoder work -- copy the prefix into a
 `mkall_scratch: [u8; 256]` field, NUL it, pass `mkall_scratch[0..i]` (a
 LITERAL-START subslice of a fixed array = the already-supported

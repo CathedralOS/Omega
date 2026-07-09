@@ -71,6 +71,11 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     // stat variant matching the wrapper's per-target `_stat64` offset layout.
     ("Filesystem", "stat", "msvcrt.dll", "_stat64"),
     ("Filesystem", "fstat", "msvcrt.dll", "_fstat64"),
+    // set_len -> `_chsize_s(fd, __int64 size)` (ftruncate's msvcrt analogue). The
+    // 64-bit variant so the i64 length is not truncated to `_chsize`'s 32-bit
+    // `long`; returns 0 on success like ftruncate (the wrapper checks rc == 0 and
+    // reads errno on the error arm). Same fd+i64 marshalling as `_lseeki64`.
+    ("Filesystem", "ftruncate", "msvcrt.dll", "_chsize_s"),
     ("Filesystem", "read_errno", "msvcrt.dll", "_errno"),
 ];
 
@@ -453,6 +458,15 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             "FilesystemHost",
             "read_file_metadata",
             [host_operation("Filesystem", "fstat")],
+            PlatformCallData::None,
+        );
+        // set_len -> `_chsize_s` (see the import row): unfences `set_len` and the
+        // wrapper `copy` (which set_len-truncates the destination to the read count).
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "set_len",
+            [host_operation("Filesystem", "ftruncate")],
             PlatformCallData::None,
         );
         // errno accessor: `_errno()` returns `&errno` (the same int*-returning

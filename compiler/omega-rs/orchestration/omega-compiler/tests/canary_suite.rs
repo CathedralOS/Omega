@@ -20953,6 +20953,82 @@ fn windows_wrapper_exists_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// `set_len` UNFENCED on windows via msvcrt `_chsize_s` (ftruncate's 64-bit
+// analogue): create empty -> extend to 10 -> metadata len == 10. NATIVE + interp.
+#[cfg(windows)]
+#[test]
+fn windows_wrapper_set_len_exit_canary_runs() {
+    let main_path = pass_canary("filesystem/windows_wrapper_set_len_exit").join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("set_len canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "set_len interpreter oracle should exit 70, got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir().join(format!("omega-fs-set-len-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("set_len canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("set_len canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected native set_len extend (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// `copy` UNFENCED on windows (set_len wired + the chmod mode arg moved to a field
+// so it no longer elides into a computed host-call argument). NATIVE + interp.
+#[cfg(windows)]
+#[test]
+fn windows_wrapper_copy_exit_canary_runs() {
+    let main_path = pass_canary("filesystem/windows_wrapper_copy_exit").join("main.omg");
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("copy canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "copy interpreter oracle should exit 70, got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir().join(format!("omega-fs-copy-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("copy canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("copy canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected native copy (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // An AUTHORED provides import end to end (hosted-consumption rung 2): the
 // program's own `windows_x64 provides Beeper { beep -> DllImport("msvcrt.dll",
 // "abs") }` row binds, the import table names msvcrt.dll (the binding, not
@@ -25182,6 +25258,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "filesystem/windows_wrapper_create_new_exit",
     "filesystem/windows_wrapper_metadata_exit",
     "filesystem/windows_wrapper_exists_exit",
+    "filesystem/windows_wrapper_set_len_exit",
+    "filesystem/windows_wrapper_copy_exit",
     "targets/efi_freestanding_skeleton",
     "targets/efi_entry_arguments",
     "targets/entry_run_args_bytes",
