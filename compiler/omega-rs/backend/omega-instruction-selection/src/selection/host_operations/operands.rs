@@ -680,18 +680,41 @@ pub(super) fn select_host_operation_operands(
                             operand(pointer),
                             operand(length),
                         ])
-                    } else {
+                    } else if let Some((pointer, length)) =
+                        slice_argument_operands(input, host_call, dispatch_index, 2)
+                    {
                         // Runtime slice payload (a `&[u8]` parameter/field): load the
                         // data pointer + length out of its descriptor.
-                        match slice_argument_operands(input, host_call, dispatch_index, 2) {
-                            Some((pointer, length)) => operands.insert_many([
-                                operand(result),
-                                operand(fd),
-                                operand(pointer),
-                                operand(length),
-                            ]),
-                            None => HandleSpan::empty(),
-                        }
+                        operands.insert_many([
+                            operand(result),
+                            operand(fd),
+                            operand(pointer),
+                            operand(length),
+                        ])
+                    } else if let Some((length, address)) =
+                        alias_resolved_fixed_array_length_at(
+                            input,
+                            host_call,
+                            dispatch_index,
+                            alias_context,
+                            2,
+                        )
+                        .zip(address_argument_operand_at(input, host_call, dispatch_index, alias_context, 2))
+                    {
+                        // LAST RESORT -- a fixed-array FIELD forwarded through a
+                        // value-call param (`fs.write_all(path, self.bin_src)` ->
+                        // the wrapper's `write(fd, bytes)`): a fixed array only in
+                        // the CALLER's scope, no descriptor, no subslice. Kept
+                        // last so a live descriptor route (copy's `&mut buffer`
+                        // param) always wins with its proven address.
+                        operands.insert_many([
+                            operand(result),
+                            operand(fd),
+                            operand(address),
+                            operand(InstructionOperandKind::ByteLength(length)),
+                        ])
+                    } else {
+                        HandleSpan::empty()
                     }
                 }
                 _ => HandleSpan::empty(),
@@ -1523,6 +1546,57 @@ fn alias_resolved_place_at(
         return None;
     }
     resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index.unwrap_or(0),
+        resolved.source_key,
+        &expressions,
+        resolved.expression,
+    )
+}
+
+/// Like `alias_resolved_place_at`, but resolving the argument to a FIXED-ARRAY
+/// LENGTH in the caller's scope: `fs.write_all(path, self.bin_src)` binds the
+/// wrapper's `bytes` param to the caller's `[u8; N]` field, which is a fixed
+/// array only under the RESOLVED source key -- the callee-scope probe returns
+/// None for the bare param name.
+fn alias_resolved_fixed_array_length_at(
+    input: &InstructionSelectionInput<'_>,
+    host_call: &HostCall,
+    dispatch_index: Option<u32>,
+    alias_context: Option<RuntimeAliasResolutionContext<'_, '_>>,
+    index: usize,
+) -> Option<usize> {
+    use crate::selection::bindings::{RuntimeAliasBuffer, resolve_runtime_alias_binding_handle};
+    let alias_context = alias_context?;
+    let argument = input
+        .host_calls
+        .arguments
+        .span(host_call.arguments)
+        .and_then(|arguments| arguments.get(index))?;
+    let HostCallArgumentKind::Expression(expression) = &argument.kind else {
+        return None;
+    };
+    let mut expressions = ExpressionTable::with_expression_capacity(
+        alias_context.aliases.len().saturating_add(4),
+    );
+    let copied_aliases = RuntimeAliasBuffer::copy_from_bindings(
+        alias_context.alias_expressions,
+        alias_context.aliases,
+        &mut expressions,
+    );
+    let expression_handle = expressions.copy_from(&input.host_calls.expressions, *expression);
+    let resolved = resolve_runtime_alias_binding_handle(
+        expression_handle,
+        host_call.source_key,
+        copied_aliases.bindings(),
+        &mut expressions,
+    );
+    // Only follow an alias that actually rewrote the expression (same contract
+    // as `alias_resolved_place_at`) -- the direct probe covered the rest.
+    if resolved.source_key == host_call.source_key && resolved.expression == expression_handle {
+        return None;
+    }
+    resolve_fixed_array_length_in_table(
         input,
         dispatch_index.unwrap_or(0),
         resolved.source_key,

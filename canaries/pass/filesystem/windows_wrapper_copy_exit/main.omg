@@ -1,19 +1,22 @@
 // RUN CANARY (exit 70) -- `copy` UNFENCED on windows_x64 (2026-07-08). copy uses
-// open/read/close/create/write + set_len (just wired via `_chsize_s`) +
-// read_metadata + set_permissions -- all now native on windows. Also fixed here:
-// copy's decoded-mode arg to set_permissions was a single-use `let` that elided
-// into a computed host-call argument (rejected); it now lands in the `perm_mode`
-// FIELD. Discriminating: copy a 6-byte source, IoResult::Ok{count == 6}, and the
-// destination `metadata_path` len == 6. NATIVE + interp differential.
-// ⚠️ CAVEAT: copy still opens src/dst in msvcrt TEXT mode (no O_BINARY), so bytes
-// with \n would be CRLF-translated on windows -- this canary uses newline-free
-// content. Binary-safe copy on windows (O_BINARY on both ends) is a follow-up.
+// open/read/close/open_create/write + set_len (`_chsize_s`) + read_metadata +
+// set_permissions -- all native on windows. Also fixed here: copy's
+// decoded-mode arg to set_permissions was a single-use `let` that elided into
+// a computed host-call argument (rejected); it now lands in the `perm_mode`
+// FIELD. Discriminating: copy a 6-byte source, IoResult::Ok{count == 6}, the
+// destination `metadata_path` len == 6, THEN a BINARY leg (2026-07-08b, pins
+// the O_BINARY migration): a source containing CR(13)/LF(10)/^Z(26) copies
+// byte-exactly -- msvcrt TEXT mode would CRLF-expand the LF and stop reading
+// at the ^Z, so both the copied length and the byte values discriminate.
+// NATIVE + interp differential.
 // exits: 70 ok; 71 write src failed; 72 copy not Ok; 73 wrong count; 74 dst
-// metadata not Ok; 75 wrong dst len.
+// metadata not Ok; 75 wrong dst len; 76 binary write failed; 77 binary copy
+// not Ok / wrong count; 78 binary read-back not Ok / wrong count; 79 binary
+// byte values wrong.
 use omega::language::std::filesystem;
 use omega::language::std::filesystem_host;
 boundary trait Console { machine exit_process(return_code: i32); }
-data Main { console: Console; fs: Filesystem; unit_result: UnitResult; io_result: IoResult; meta_result: MetadataResult; buffer: [u8; 64]; }
+data Main { console: Console; fs: Filesystem; raw: FilesystemHost; unit_result: UnitResult; io_result: IoResult; meta_result: MetadataResult; buffer: [u8; 64]; bin_src: [u8; 5]; bin_back: [u8; 8]; bin_fd: i32; bin_rc: i32; bin_n: i64; }
 machine Main::main(&mut self) {
     self.unit_result = self.fs.write_all("omega_cp_src.txt", "hello!");
     transition self.unit_result { UnitResult::Ok -> docopy() _ -> bad(71) }
@@ -31,7 +34,48 @@ machine Main::main(&mut self) {
     state chk(&mut self, meta: Metadata) {
         self.unit_result = self.fs.remove("omega_cp_src.txt");
         self.unit_result = self.fs.remove("omega_cp_dst.txt");
-        transition meta.len == 6 { true -> good() _ -> bad(75) }
+        transition meta.len == 6 { true -> binleg() _ -> bad(75) }
+    }
+    state binleg(&mut self) {
+        // BINARY leg: 'A' CR LF ^Z 'B' -- text mode would CRLF-expand the LF
+        // on write, translate CRLF->LF on read, and STOP at the ^Z.
+        self.bin_src[0] = 65;
+        self.bin_src[1] = 13;
+        self.bin_src[2] = 10;
+        self.bin_src[3] = 26;
+        self.bin_src[4] = 66;
+        self.unit_result = self.fs.write_all("omega_cp_bin_src.bin", self.bin_src);
+        transition self.unit_result { UnitResult::Ok -> bincopy() _ -> bad(76) }
+    }
+    state bincopy(&mut self) {
+        self.io_result = self.fs.copy("omega_cp_bin_src.bin", "omega_cp_bin_dst.bin", &mut self.buffer, 64);
+        transition self.io_result { IoResult::Ok { count } -> binchkcount(count) _ -> bad(77) }
+    }
+    state binchkcount(&mut self, count: usize) {
+        transition count == 5 { true -> binread() _ -> bad(77) }
+    }
+    state binread(&mut self) {
+        // RAW read-back (open with O_BINARY 32768, harmless 0-bit elsewhere):
+        // the WRAPPER read (`fs.read_all(.., &mut self.bin_back, ..)`) natively
+        // misdirects the forwarded buffer to another array field when one
+        // precedes it (see pending/host/wrapper_read_buffer_decoy) -- the raw
+        // seam takes the buffer arg DIRECTLY and is byte-check-proven
+        // (windows_raw_roundtrip_exit discipline).
+        self.bin_fd = self.raw.open("omega_cp_bin_dst.bin", 32768);
+        self.bin_n = self.raw.read(self.bin_fd, &mut self.bin_back, 8);
+        self.bin_rc = self.raw.close(self.bin_fd);
+        transition self.bin_n == 5 { true -> binbyte_cr() _ -> bad(78) }
+    }
+    state binbyte_cr(&mut self) {
+        transition self.bin_back[1] == 13 { true -> binbyte_lf() _ -> bad(79) }
+    }
+    state binbyte_lf(&mut self) {
+        transition self.bin_back[2] == 10 { true -> binbyte_sub() _ -> bad(79) }
+    }
+    state binbyte_sub(&mut self) {
+        self.unit_result = self.fs.remove("omega_cp_bin_src.bin");
+        self.unit_result = self.fs.remove("omega_cp_bin_dst.bin");
+        transition self.bin_back[3] == 26 { true -> good() _ -> bad(79) }
     }
     state good(&mut self) { self.console.exit_process(70); }
     state bad(&mut self, code: i32) { self.console.exit_process(code); }

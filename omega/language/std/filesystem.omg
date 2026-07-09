@@ -392,10 +392,23 @@ data Filesystem {
     rda_n: i64;
 }
 
-// Create (or truncate) a file for writing, returning an open `File`.
+// Create (or truncate) a file for writing, returning an open `File`. Composed
+// as O_WRONLY|O_CREATE|O_TRUNC (`creat` semantics) + O_BINARY (windows msvcrt
+// text-mode opt-out, 0 on posix) via `open_create` -- the raw `create`
+// (`_creat`) row stays for raw-seam callers, but the wrapper composes flags so
+// windows writes are byte-exact (Rust File::create is binary; msvcrt `_creat`
+// is TEXT mode).
 machine Filesystem::create(&mut self, path: &[u8] in Path) -> OpenResult {
-    self.create_mode = 420;
-    let fd: i32 = self.host.create(path, self.create_mode);
+    self.open_flags = FilesystemHost::O_WRONLY
+        | (1 << FilesystemHost::O_CREATE_BIT)
+        | (1 << FilesystemHost::O_TRUNC_BIT)
+        | FilesystemHost::O_BINARY;
+    // Mode is a LITERAL (438 = 0o666, Rust's create mode; the umask trims it):
+    // the darwin arm64 variadic encoder marshals the trailing mode on the
+    // STACK and requires a compile-time immediate -- a field-held mode
+    // resolves to a runtime place and does not compile there (win64 takes
+    // either; the field idiom is only for COMPOSED words like open_flags).
+    let fd: i32 = self.host.open_create(path, self.open_flags, 438);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
     state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
@@ -405,19 +418,20 @@ machine Filesystem::create(&mut self, path: &[u8] in Path) -> OpenResult {
 // `File::create_new`). O_RDWR|O_CREAT|O_EXCL (2|512|2048 = 2562), mode 0o666
 // (438). An existing path yields `Error { kind: AlreadyExists }`.
 machine Filesystem::create_new(&mut self, path: &[u8] in Path) -> OpenResult {
-    self.create_mode = 438;
     self.open_flags = FilesystemHost::O_RDWR
         | (1 << FilesystemHost::O_CREATE_BIT)
-        | (1 << FilesystemHost::O_EXCL_BIT);
-    let fd: i32 = self.host.open_create(path, self.open_flags, self.create_mode);
+        | (1 << FilesystemHost::O_EXCL_BIT)
+        | FilesystemHost::O_BINARY;
+    let fd: i32 = self.host.open_create(path, self.open_flags, 438);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
     state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
 }
 
-// Open an existing file for reading.
+// Open an existing file for reading (O_RDONLY + O_BINARY; the latter is the
+// windows msvcrt text-mode opt-out, 0 on posix -- Rust reads are byte-exact).
 machine Filesystem::open(&mut self, path: &[u8] in Path) -> OpenResult {
-    self.read_flags = 0;
+    self.read_flags = FilesystemHost::O_BINARY;
     let fd: i32 = self.host.open(path, self.read_flags);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
@@ -458,9 +472,9 @@ machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptio
     let creat_flag: i32 = creating << FilesystemHost::O_CREATE_BIT;
     let excl_flag: i32 = (options.create_new as i32) << FilesystemHost::O_EXCL_BIT;
     // The composed word lands in a FIELD (host-call scalar-arg idiom).
-    self.open_flags = wronly | rdwr | append_flag | truncate_flag | creat_flag | excl_flag;
-    self.create_mode = 438;
-    let fd: i32 = self.host.open_create(path, self.open_flags, self.create_mode);
+    self.open_flags = wronly | rdwr | append_flag | truncate_flag | creat_flag | excl_flag
+        | FilesystemHost::O_BINARY;
+    let fd: i32 = self.host.open_create(path, self.open_flags, 438);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
     state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
@@ -468,10 +482,15 @@ machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptio
 
 // Open an existing file for appending (Rust `OpenOptions::new().append(true)`).
 // Writes land at end-of-file; opening a missing path fails (no O_CREAT).
-// O_WRONLY(1) | O_APPEND(8) = 9.
+// COMPOSED per-target (2026-07-08): the old literal `9` (O_WRONLY|O_APPEND bit
+// 3) happened to agree on darwin==msvcrt but is WRONG on linux (O_APPEND is
+// bit 10 there) -- the provides O_APPEND_BIT fixes it; O_BINARY is the windows
+// text-mode opt-out (0 on posix).
 machine Filesystem::append(&mut self, path: &[u8] in Path) -> OpenResult {
-    let flags: i32 = 9;
-    let fd: i32 = self.host.open(path, flags);
+    self.open_flags = FilesystemHost::O_WRONLY
+        | (1 << FilesystemHost::O_APPEND_BIT)
+        | FilesystemHost::O_BINARY;
+    let fd: i32 = self.host.open(path, self.open_flags);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
     state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
@@ -535,8 +554,13 @@ machine Filesystem::close(&mut self, file: File) -> i32 {
 // `n >= 0` guard reports Error. Success requires the write to have returned a
 // non-negative count.
 machine Filesystem::write_all(&mut self, path: &[u8] in Path, bytes: &[u8]) -> UnitResult {
-    self.create_mode = 420;
-    let fd: i32 = self.host.create(path, self.create_mode);
+    // `open_create` with composed creat-semantics flags + O_BINARY (windows
+    // text-mode opt-out, 0 on posix) -- same migration as `create`/`copy`.
+    self.open_flags = FilesystemHost::O_WRONLY
+        | (1 << FilesystemHost::O_CREATE_BIT)
+        | (1 << FilesystemHost::O_TRUNC_BIT)
+        | FilesystemHost::O_BINARY;
+    let fd: i32 = self.host.open_create(path, self.open_flags, 438);
     let n: i64 = self.host.write(fd, bytes);
     let rc: i32 = self.host.close(fd);
     transition n >= 0 { true -> ok() _ -> err() }
@@ -551,7 +575,7 @@ machine Filesystem::write_all(&mut self, path: &[u8] in Path, bytes: &[u8]) -> U
 // the file, sized via `metadata().len`.) Like `write_all`, all raw ops run in
 // the entry so an open failure flows to Error via the `n >= 0` guard.
 machine Filesystem::read_all(&mut self, path: &[u8] in Path, buffer: &mut [u8], count: usize) -> IoResult {
-    self.read_flags = 0;
+    self.read_flags = FilesystemHost::O_BINARY;
     let fd: i32 = self.host.open(path, self.read_flags);
     let n: i64 = self.host.read(fd, buffer, count);
     let rc: i32 = self.host.close(fd);
@@ -574,12 +598,21 @@ machine Filesystem::read_all(&mut self, path: &[u8] in Path, buffer: &mut [u8], 
 // A faithful version (branch after the read; write only `buffer[0..n]`) lands
 // once the interpreter threads slices through states.
 machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buffer: &mut [u8], cap: usize) -> IoResult {
-    self.read_flags = 0;
-    self.create_mode = 420;
+    // BINARY-SAFE on windows (2026-07-08): O_BINARY (32768 there, 0 on posix --
+    // a per-target provides VALUE) keeps msvcrt from CRLF-translating reads or
+    // stopping at a ^Z. The destination switches from `create` (msvcrt `_creat`
+    // = TEXT mode, no flags arg) to `open_create` with the composed
+    // O_WRONLY|O_CREATE|O_TRUNC|O_BINARY word -- the same per-target bit
+    // composition create_new/open_with use.
+    self.read_flags = FilesystemHost::O_BINARY;
     let src: i32 = self.host.open(from, self.read_flags);
     let n: i64 = self.host.read(src, buffer, cap);
     let closed_src: i32 = self.host.close(src);
-    let dst: i32 = self.host.create(to, self.create_mode);
+    self.open_flags = FilesystemHost::O_WRONLY
+        | (1 << FilesystemHost::O_CREATE_BIT)
+        | (1 << FilesystemHost::O_TRUNC_BIT)
+        | FilesystemHost::O_BINARY;
+    let dst: i32 = self.host.open_create(to, self.open_flags, 438);
     let written: i64 = self.host.write(dst, buffer);
     let truncated: i32 = self.host.set_len(dst, n);
     let closed_dst: i32 = self.host.close(dst);
