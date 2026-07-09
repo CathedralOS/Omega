@@ -350,7 +350,7 @@ pub fn runtime_storage_binary_write_width(
             StateGuardOperator::Divide | StateGuardOperator::Modulo
         );
     let operation_width = if is_float {
-        runtime_float_binary_operation_width()
+        runtime_float_binary_operation_width(operator)
     } else if saturating_or_trapping
         && matches!(
             operator,
@@ -413,9 +413,13 @@ fn saturating_signed_divide_modulo_width(byte_size: usize, want_remainder: bool)
 }
 
 /// Width of the float binary-operation sequence: two `FMOV` from GPR (4 bytes
-/// each), the single scalar FP op (4), and one `FMOV` back to a GPR (4).
-fn runtime_float_binary_operation_width() -> usize {
-    16
+/// each), the scalar FP op (4; min/max are FCMP+FCSEL = 8), and one `FMOV`
+/// back to a GPR (4).
+fn runtime_float_binary_operation_width(operator: StateGuardOperator) -> usize {
+    12 + match operator {
+        StateGuardOperator::Max | StateGuardOperator::Min => 8,
+        _ => 4,
+    }
 }
 
 pub fn runtime_pointee_binary_write_width(
@@ -1553,7 +1557,7 @@ pub fn runtime_value_operand_width(
         runtime_text_equals_literal_operand_width(runtime_value_operands, place, &literal)
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         let operation_width = if runtime_value_operands.binary_is_float(operand) {
-            runtime_float_binary_operation_width()
+            runtime_float_binary_operation_width(operator)
         } else {
             runtime_binary_operation_width(operator)
         };

@@ -145,10 +145,20 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     operand reloc SHOWS in backend_report.txt's `## Relocations` table (two
     records at one offset = a stale 0-returning offset helper) -- that plus a
     minimal runtime-readback probe found the one bug this slice.
-    STILL OPEN (loud): the frame-source machine-indexed write
+    MORE LANDED 2026-07-08: the frame-base single-indexed copy (`arr[i]` on
+    locals/params -- the last alignment-masked gap; single-reloc shape, width
+    mirrors the encoder's chunk split including target alignment; all 5
+    runtime_frame_indexed_* fixed) and float Min/Max/Sqrt
+    (FCMP+FCSEL GT/MI -- FMAX/FMINNM do NOT match the pinned SSE semantics
+    `a>b?a:b` where NaN-or-equal returns b; FSQRT is IEEE-exact both arches;
+    runtime_float_binary_operation_width became operator-dependent;
+    sensor_min_max=33 + vector_distance=5 run correct; 3 canaries fixed).
+    Suite 667/35. STILL OPEN (loud): the frame-source machine-indexed write
     (machine_frame_index_dual_frame_write), the
-    `WriteEntryArgumentsSliceDescriptor` spill, and the non-indexed leftovers
-    (float Min/Max, cast family, carrier read_line vtable...).
+    `WriteEntryArgumentsSliceDescriptor` spill, float NaN GUARD comparisons
+    (runtime_float_nan_comparison exits 71 -- IEEE unordered in guard
+    branches, pre-existing silent-wrong, SEPARATE from min/max), the cast
+    family, and the saturating/narrow-signed clusters.
   - **[ ] (original map)**
     (now loud, was silent): `CopyRuntimeMachineIndexedToRuntimeMachineIndexed`
     (`arr[i]=arr[j]`), `CopyRuntimeMachineDoubleIndexedToRuntimeStorage` +
