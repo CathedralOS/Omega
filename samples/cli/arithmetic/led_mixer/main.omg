@@ -1,0 +1,67 @@
+// LED channel mixer -- brightness math that cannot overflow. Decision-17
+// SATURATING domains do the clamping in the TYPE, not in hand-written guards:
+// two light sources sum onto a u8 channel and clamp at full brightness (255),
+// a dim step underflows and clamps to fully-off (0), a gamma boost multiplies
+// with the same clamp, and the frame counter is `in Wrapping` -- rolling over
+// is its job. The plain-`u8` ambient reading joins the saturating math
+// through a decision-17 S2 retag (`as u8 in Saturating`); the final guard
+// computes fused saturating arithmetic directly in its comparison.
+// Expected exit: 70.
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    channel: u8 in Saturating;
+    source_a: u8 in Saturating;
+    source_b: u8 in Saturating;
+    ambient: u8;
+    frames: u8 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    // Two bright sources: 180 + 140 = 320 -> clamps at full brightness.
+    self.source_a = 180;
+    self.source_b = 140;
+    self.channel = self.source_a + self.source_b;
+    transition self.channel == 255 { true -> dim() _ -> wrong_mix() }
+
+    state dim(&mut self) {
+        // Dimming below zero stays off, never wraps to bright.
+        self.channel = 40;
+        self.channel = self.channel - 90;
+        transition self.channel == 0 { true -> gamma() _ -> wrong_dim() }
+    }
+    state gamma(&mut self) {
+        // Gamma boost: 100 * 3 = 300 -> clamps at full brightness.
+        self.channel = 100;
+        self.channel = self.channel * 3;
+        transition self.channel == 255 { true -> ambient_mix() _ -> wrong_gamma() }
+    }
+    state ambient_mix(&mut self) {
+        // A plain (exact) sensor reading joins saturating math via the S2
+        // retag, and the arithmetic runs FUSED in the guard -- no stored
+        // intermediate, the clamp happens at the operation itself.
+        self.channel = 200;
+        self.ambient = 100;
+        transition ((self.ambient as u8 in Saturating) + self.channel == 255) {
+            true -> frame_roll()
+            _ -> wrong_ambient()
+        }
+    }
+    state frame_roll(&mut self) {
+        // The frame counter WRAPS by design: 250 + 10 rolls to 4.
+        self.frames = 250;
+        self.frames = self.frames + 10;
+        transition self.frames == 4 { true -> done() _ -> wrong_roll() }
+    }
+
+    state done(&mut self) {
+        self.console.write_line("mix stable: channel clamps, counter rolls");
+        self.console.exit_process(70);
+    }
+    state wrong_mix(&mut self) { self.console.exit_process(71); }
+    state wrong_dim(&mut self) { self.console.exit_process(72); }
+    state wrong_gamma(&mut self) { self.console.exit_process(73); }
+    state wrong_ambient(&mut self) { self.console.exit_process(74); }
+    state wrong_roll(&mut self) { self.console.exit_process(75); }
+}

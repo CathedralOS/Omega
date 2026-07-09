@@ -842,6 +842,16 @@ decreases remaining
   binary domain machinery) -- the domain operator space is complete with no
   hidden unary path.
 
+- **SAMPLE: led_mixer 2026-07-10 (the domain arc's idiomatic showcase).**
+  samples/cli/arithmetic/led_mixer -- brightness math where the TYPE does the
+  clamping: saturating u8 channel (add up / dim down / gamma multiply all
+  clamp), a plain sensor reading joining via the S2 retag, the ambient check
+  computed FUSED in its guard (the operand-position clamp, no stored
+  intermediate), and a Wrapping frame counter that rolls by design.
+  Expected exit: 70; verified native + interp; guarded permanently by
+  samples_compile + the documented-exit runner. The "samples as we go"
+  artifact for the whole 2026-07-09 domain arc.
+
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE
   arithmetic (overflow -> inf), so nothing diverges -- but the DECLARATION is
