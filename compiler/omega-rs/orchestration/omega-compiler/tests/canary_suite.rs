@@ -20819,6 +20819,58 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Native windows metadata via msvcrt `_stat64` (the per-target stat-offset
+// migration payoff). The wrapper's `decode_metadata` reads `stat_buf[ST_*_OFF + k]`
+// -- a pure-const binary index that now const-folds -- at the windows `_stat64`
+// offsets from the FilesystemHost provides row. Discriminating: a written 6-byte
+// file reports len 6 and a regular-file st_mode (S_IFREG 0x8000, not S_IFDIR).
+// NATIVE + interp differential: the interpreter mirrors the host stat layout
+// (host_stat_offsets), so it matches the host-targeted program.
+#[cfg(windows)]
+#[test]
+fn windows_wrapper_metadata_exit_canary_runs() {
+    let canary = pass_canary("filesystem/windows_wrapper_metadata_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("windows metadata canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (metadata len + regular-file mode), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fs-metadata-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("windows metadata canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("windows metadata canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected native _stat64 metadata (exit 70), got {:?}          (71 write; 72 not Ok; 73 wrong len; 74 not regular; 75 is dir)
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // An AUTHORED provides import end to end (hosted-consumption rung 2): the
 // program's own `windows_x64 provides Beeper { beep -> DllImport("msvcrt.dll",
 // "abs") }` row binds, the import table names msvcrt.dll (the binding, not
@@ -25046,6 +25098,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "expressions/runtime_qualified_case_value_exit",
     "capabilities/windows_provides_import_exit",
     "filesystem/windows_wrapper_create_new_exit",
+    "filesystem/windows_wrapper_metadata_exit",
     "targets/efi_freestanding_skeleton",
     "targets/efi_entry_arguments",
     "targets/entry_run_args_bytes",

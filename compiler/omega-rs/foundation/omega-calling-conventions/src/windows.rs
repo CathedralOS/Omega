@@ -41,9 +41,12 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     // fd/count/rc surface directly (same arg shapes as the darwin libc calls),
     // so the general import-call encoder marshals them unchanged. The ops with
     // NO clean msvcrt equivalent (pread/pwrite, *at, link/symlink/readlink,
-    // read_dir, flock, chown, futimens, realpath) and the stat family (whose
-    // per-OS record layout the portable decode does not answer yet) keep the
-    // clean "no native lowering" diagnostic.
+    // read_dir, flock, chown, futimens, realpath) keep the clean "no native
+    // lowering" diagnostic. The stat family IS wired (2026-07-08): the wrapper's
+    // `decode_metadata` reads per-target `struct _stat64` offsets from the
+    // `FilesystemHost` ST_*_OFF provides row, so `_stat64`/`_fstat64` land.
+    // `read_symlink_metadata` stays fenced (msvcrt has no `lstat`; mapping it to
+    // `_stat64` would silently FOLLOW symlinks -- wrong, not just approximate).
     ("Filesystem", "open", "msvcrt.dll", "_open"),
     // `open_create` = `_open(path, flags, mode)` -- unfenced 2026-07-08 now that
     // the wrapper composes msvcrt flag words from the per-target `FilesystemHost`
@@ -64,6 +67,10 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     ("Filesystem", "dup", "msvcrt.dll", "_dup"),
     ("Filesystem", "fsync", "msvcrt.dll", "_commit"),
     ("Filesystem", "chmod", "msvcrt.dll", "_chmod"),
+    // `_stat64(path, &_stat64)` / `_fstat64(fd, &_stat64)` -- the 64-bit-time
+    // stat variant matching the wrapper's per-target `_stat64` offset layout.
+    ("Filesystem", "stat", "msvcrt.dll", "_stat64"),
+    ("Filesystem", "fstat", "msvcrt.dll", "_fstat64"),
     ("Filesystem", "read_errno", "msvcrt.dll", "_errno"),
 ];
 
@@ -427,6 +434,25 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             "FilesystemHost",
             "set_permissions",
             [host_operation("Filesystem", "chmod")],
+            PlatformCallData::None,
+        );
+        // stat family: `_stat64(path, &buf)` / `_fstat64(fd, &buf)` write the
+        // 56-byte `_stat64` record the wrapper's `decode_metadata` reads at the
+        // windows_x64 ST_*_OFF offsets. The `&mut [u8]` buffer marshals as a bare
+        // pointer (no length arg), same as darwin's `_stat`. `read_symlink_metadata`
+        // is intentionally NOT wired (msvcrt has no lstat; see the import-rows note).
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "read_metadata",
+            [host_operation("Filesystem", "stat")],
+            PlatformCallData::None,
+        );
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "read_file_metadata",
+            [host_operation("Filesystem", "fstat")],
             PlatformCallData::None,
         );
         // errno accessor: `_errno()` returns `&errno` (the same int*-returning
