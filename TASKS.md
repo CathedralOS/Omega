@@ -787,6 +787,26 @@ decreases remaining
   refused them loudly there; the Windows agent's next suite run confirms
   runtime behavior).
 
+- **SHIFT-LEFT UNDER DOMAINS 2026-07-09i: one fix, one design flag.** Sweeping
+  the operator space after the domain family closed: `<<` was the one
+  remaining overflow-capable operator (bitwise/shr cannot exceed the width).
+  (1) FIXED: Wrapping shl fused in a guard diverged exactly like the wrapping
+  add (native's byte-width compare IS the wrap; the interp compared 272
+  full-width). The interp Wrapping node arm + the caller's scalar_type
+  resolution now include ShiftLeft;
+  runtime_wrapping_expression_guard_exit gained the shl direction (17<<4 ==
+  16; differential 70/70).
+  (2) PARKED (design): `<<` on a SATURATING type diverges three ways -- no
+  backend implements saturating shl anywhere (the plain op wraps, store or
+  operand position), while the interp's landing seam clamps stores
+  generically (native 72 vs interp 70 on the probe). Neither behavior was
+  deliberate. The owner call: shifts as domain-governed operators (native
+  clamp sequences x2 ISAs x2 positions + interp node arm) OR shifts as
+  wrap-only operators (checker rejects `<<` on Saturating/Trapping loudly +
+  the interp seam stops clamping shl). Parked as
+  pending/arithmetic/shl_saturating_domain_divergence with both expected
+  exits documented; sibling of the count-at-or-above-width parking.
+
 - **[ ] Range constraint + non-Exact domain = the range is a LIE (found 2026-07-06).**
   `i: usize [0..=4] in Wrapping` accepts `self.i = 100` -- the range enforces only under the
   EXACT domain ("Wrapping stays permissive" was scoped to source-type narrowing, but it also

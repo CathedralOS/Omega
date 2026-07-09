@@ -5,7 +5,8 @@
 // must wrap at the node (its comparisons are full-width). Operands are
 // FIELDS so the fold never sees them.
 // Directions: u8 add wrap (200+100 = 300 -> 44), i8 sub wrap (-100-50 =
-// -150 -> 106), u8 mul wrap (100*3 = 300 -> 44). Exit 70.
+// -150 -> 106), u8 mul wrap (100*3 = 300 -> 44), u8 shl wrap (17<<4 = 272
+// -> 16). Exit 70.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main {
     console: Console;
@@ -26,7 +27,12 @@ machine Main::main(&mut self) {
     state mul_wrap(&mut self) {
         self.au = 100;
         self.bu = 3;
-        transition (self.au * self.bu == 44) { true -> good() _ -> bad() }
+        transition (self.au * self.bu == 44) { true -> shl_wrap() _ -> bad() }
+    }
+    state shl_wrap(&mut self) {
+        self.au = 17;
+        self.bu = 4;
+        transition (self.au << self.bu == 16) { true -> good() _ -> bad() }
     }
     state good(&mut self) { self.console.exit_process(70); }
     state bad(&mut self) { self.console.exit_process(71); }

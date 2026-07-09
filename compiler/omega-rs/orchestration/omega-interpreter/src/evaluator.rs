@@ -3931,6 +3931,7 @@ impl<'program> Evaluator<'program> {
                         | BinaryOperator::Multiply
                         | BinaryOperator::Divide
                         | BinaryOperator::Modulo
+                        | BinaryOperator::ShiftLeft
                 ) {
                     self.expression_scalar_type(handle, frame)
                 } else {
@@ -5271,11 +5272,15 @@ impl<'program> Evaluator<'program> {
         // truncating each intermediate agrees with native's wide-compute +
         // width-sensitive-op truncation everywhere.
         if let Some((ty, ArithmeticDomain::Wrapping)) = scalar_type {
-            if matches!(operator, Add | Subtract | Multiply) {
+            if matches!(operator, Add | Subtract | Multiply | ShiftLeft) {
                 let wide = match operator {
                     Add => l.wrapping_add(r),
                     Subtract => l.wrapping_sub(r),
                     Multiply => l.wrapping_mul(r),
+                    // Shift COUNT masking at width 64 matches aarch64 LSLV
+                    // (the cross-arch count-at-or-above-width divergence
+                    // stays parked; wrap canaries use in-range counts).
+                    ShiftLeft => l.wrapping_shl(r as u32),
                     _ => unreachable!(),
                 };
                 return Ok(Value::Int(wrap_to_width(wide, ty)));
