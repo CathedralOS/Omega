@@ -48,6 +48,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("termination/custom_ranking_struct_view", 70),
     ("termination/runtime_recursive_result_roles_exit", 70),
     ("calls/recursive_result_bind_first_arg", 70),
+    ("control_flow/sum_payload_cast_operand_field_exit", 70),
     ("slices/runtime_saturating_array_element_guard_exit", 70),
     ("arithmetic/runtime_unsigned_high_bit_u32_ops_exit", 70),
     ("arithmetic/runtime_unsigned_min_max_exit", 88),
