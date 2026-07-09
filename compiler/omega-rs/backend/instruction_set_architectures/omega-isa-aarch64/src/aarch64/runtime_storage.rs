@@ -3085,9 +3085,17 @@ fn append_runtime_value_operand(
         if runtime_value_operands.binary_is_float(operand) {
             // Float operands carry their IEEE bits in the GPRs; run the scalar
             // FP op on the bits (FADD/...) rather than an integer add over
-            // them. Precision follows the operands' width (f64 by default).
+            // them. The width is THREADED from build time
+            // (binary_byte_width, set once from the operands' scalar type) --
+            // a const-folded f32 field pair becomes IMMEDIATE operands with no
+            // storage width, and the old storage-size fallback then ran the
+            // add at double precision over f32 bit patterns (the
+            // f32_field_binary_to_local canary). Storage sizes remain the
+            // fallback for operands built before the width was threaded.
             // MUST stay the fixed runtime_float_binary_operation_width().
-            let byte_size = runtime_value_operand_value_byte_size(runtime_value_operands, left)
+            let byte_size = runtime_value_operands
+                .binary_byte_width(operand)
+                .or_else(|| runtime_value_operand_value_byte_size(runtime_value_operands, left))
                 .or_else(|| runtime_value_operand_value_byte_size(runtime_value_operands, right))
                 .unwrap_or(8);
             append_runtime_float_binary_operation(
