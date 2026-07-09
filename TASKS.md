@@ -863,6 +863,24 @@ decreases remaining
   (result slot + local, call-site copy bridging them) is redundant when
   the guard reads by name; harmless, but a future slot-dedup could fold it.
 
+- **[x] Float COMPARISONS in value/write position -- SERVED on aarch64
+  2026-07-12.** `let ok: bool = self.a > self.b` (float operands, bool target)
+  refused loudly with a confusing width error: the float write path received
+  the TARGET width (bool = 1) for its FMOV loads, and had NO comparison arms
+  at all. Fixed: the call site now sizes the float op via
+  `runtime_binary_operation_byte_size` (comparisons -> operand width, like the
+  integer path), and `append_runtime_float_binary_operation` gained the
+  comparison arms -- FCMP + the integer path's MOVZ/skip/MOVZ materialization
+  reusing the guard path's float-aware conditions (ordered comparisons FALSE
+  on unordered), early-returning past the FMOV-back. Width fn in lockstep
+  (isa-aarch64 unit tests green). Pinned:
+  pass/arithmetic/runtime_float_compare_bool_exit (negative doubles = the
+  numeric-vs-bitwise ordering pin; f32 width leg; ==/!= pair).
+  X86 TWIN GAP (loud, sound): x86_64's float binary op has no comparison arms
+  either ("not implemented yet") -- needs ucomis* + setcc with the parity
+  dance for ==/!= (NaN); not runtime-verifiable from this host, so left
+  fenced. NaN literals stay out of the canary (float semantics pending Q8).
+
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE
   arithmetic (overflow -> inf), so nothing diverges -- but the DECLARATION is

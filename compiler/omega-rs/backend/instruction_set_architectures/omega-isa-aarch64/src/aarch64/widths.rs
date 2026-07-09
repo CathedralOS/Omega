@@ -459,12 +459,24 @@ fn saturating_signed_divide_modulo_width(byte_size: usize, want_remainder: bool)
 }
 
 /// Width of the float binary-operation sequence: two `FMOV` from GPR (4 bytes
-/// each), the scalar FP op (4; min/max are FCMP+FCSEL = 8), and one `FMOV`
-/// back to a GPR (4).
+/// each), then per operator -- the scalar FP op (4) + `FMOV` back (4); min/max
+/// FCMP+FCSEL (8) + `FMOV` back (4); COMPARISONS FCMP + MOVZ + B.cond + MOVZ
+/// (16) with NO trailing FMOV (the 0/1 result is already in the GPR). MUST
+/// stay in lockstep with `append_runtime_float_binary_operation`.
 fn runtime_float_binary_operation_width(operator: StateGuardOperator) -> usize {
-    12 + match operator {
-        StateGuardOperator::Max | StateGuardOperator::Min => 8,
-        _ => 4,
+    8 + match operator {
+        StateGuardOperator::Max | StateGuardOperator::Min => 8 + 4,
+        StateGuardOperator::Equal
+        | StateGuardOperator::NotEqual
+        | StateGuardOperator::Greater
+        | StateGuardOperator::GreaterOrEqual
+        | StateGuardOperator::Less
+        | StateGuardOperator::LessOrEqual
+        | StateGuardOperator::GreaterUnsigned
+        | StateGuardOperator::GreaterOrEqualUnsigned
+        | StateGuardOperator::LessUnsigned
+        | StateGuardOperator::LessOrEqualUnsigned => 16,
+        _ => 4 + 4,
     }
 }
 
