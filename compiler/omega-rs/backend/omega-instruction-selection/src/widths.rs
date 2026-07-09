@@ -1975,7 +1975,15 @@ pub fn runtime_machine_double_indexed_binary_write_width(
     right: RuntimeValueOperandHandle,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => 0,
+        Architecture::Aarch64 => aarch64::runtime_machine_double_indexed_binary_write_width(
+            runtime_value_operands,
+            outer_index_region,
+            inner_index_region,
+            byte_size,
+            left,
+            operator,
+            right,
+        ),
         Architecture::X86_64 => x86_64::runtime_machine_double_indexed_binary_write_width(
             runtime_value_operands,
             outer_index_region,
@@ -1994,7 +2002,12 @@ pub fn runtime_machine_double_indexed_binary_left_operand_offset(
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => 0,
+        Architecture::Aarch64 => {
+            aarch64::runtime_machine_double_indexed_binary_left_operand_offset(
+                outer_index_region,
+                inner_index_region,
+            )
+        }
         Architecture::X86_64 => {
             x86_64::runtime_machine_double_indexed_binary_left_operand_offset(
                 outer_index_region,

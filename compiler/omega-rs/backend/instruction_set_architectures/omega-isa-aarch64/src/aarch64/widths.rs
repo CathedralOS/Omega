@@ -562,9 +562,14 @@ pub fn runtime_machine_indexed_binary_write_width(
     operator: StateGuardOperator,
     right: RuntimeValueOperandHandle,
 ) -> usize {
-    // aarch64 does not emit this instruction (the encoder returns a clean
-    // error); reuse the frame-base layout as a conservative total width.
-    runtime_frame_base_indexed_binary_write_width(
+    // The machine-index address helper differs from the frame-base one only
+    // by the optional frame-index page pair (see
+    // append_runtime_machine_index_target_address).
+    (if _index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+        8
+    } else {
+        0
+    }) + runtime_frame_base_indexed_binary_write_width(
         runtime_value_operands,
         base_byte_offset,
         index_offset,
@@ -898,6 +903,33 @@ pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_st
 /// the element load.
 pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_target_base_offset() -> usize {
     48
+}
+
+/// Width of the double-indexed RMW binary write: bases + 36-byte math +
+/// operands + the operation + the result store.
+pub fn runtime_machine_double_indexed_binary_write_width(
+    runtime_value_operands: &impl RuntimeValueOperandSource,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    byte_size: usize,
+    left: RuntimeValueOperandHandle,
+    operator: StateGuardOperator,
+    right: RuntimeValueOperandHandle,
+) -> usize {
+    double_indexed_base_width(outer_index_region, inner_index_region)
+        + 36
+        + runtime_value_operand_width(runtime_value_operands, left)
+        + runtime_value_operand_width(runtime_value_operands, right)
+        + runtime_binary_operation_width(operator)
+        + runtime_result_write_width(0, byte_size)
+}
+
+/// The double-indexed RMW's left operand starts after bases + math.
+pub fn runtime_machine_double_indexed_binary_left_operand_offset(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    double_indexed_base_width(outer_index_region, inner_index_region) + 36
 }
 
 /// The shared frame pair sits directly after the machine pair in every
