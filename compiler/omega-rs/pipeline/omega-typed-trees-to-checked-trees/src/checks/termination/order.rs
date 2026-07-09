@@ -137,15 +137,17 @@ impl RankingOrder {
         }
 
         // Simple measure: validate parameter / return shape, then classify the body.
-        if !measure_return_is_usize(program, measure) {
+        if !measure_return_is_natural(program, measure) {
             return None;
         }
 
         match measure_body_shape(program, measure)? {
             MeasureBodyShape::ParameterForward => {
                 // The decreasing value is already the numeric quantity.
-                if measure_parameter_is_usize(program, measure)
-                    && expression_type_name(program, state, decreases).as_deref() == Some("usize")
+                if measure_parameter_is_natural(program, measure)
+                    && expression_type_name(program, state, decreases)
+                        .as_deref()
+                        .is_some_and(|name| natural_measure_names_match(name, "usize"))
                 {
                     Some(Self::CustomNatDescending)
                 } else {
@@ -159,8 +161,9 @@ impl RankingOrder {
                         .type_reference_table
                         .display_name(parameter.type_reference)
                 })?;
-                if expression_type_name(program, state, decreases).as_deref()
-                    != Some(parameter_type.as_str())
+                if !expression_type_name(program, state, decreases)
+                    .as_deref()
+                    .is_some_and(|name| natural_measure_names_match(name, parameter_type.as_str()))
                 {
                     return None;
                 }
@@ -439,25 +442,44 @@ fn find_declared_measure<'program>(
         .find(|measure| path_matches_path(program.measure_path_members(measure.name), order))
 }
 
-fn measure_return_is_usize(
+/// `usize` and `u64` are the SAME natural-measure class: the usize
+/// retirement (owner directive 2026-07-13 -- "we have addr, we have
+/// primitives") rewrites the corpus usize -> u64, and termination measures
+/// must accept both during and after the migration. `.len` projections and
+/// subtraction measures synthesize "usize" today; the class comparison
+/// keeps them matching u64-declared measures.
+fn natural_measure_names_match(left: &str, right: &str) -> bool {
+    fn is_natural(name: &str) -> bool {
+        matches!(name, "usize" | "u64")
+    }
+    left == right || (is_natural(left) && is_natural(right))
+}
+
+fn measure_return_is_natural(
     program: &omega_typed_trees::TypedTrees,
     measure: &MeasureDefinition,
 ) -> bool {
-    program
-        .type_reference_table
-        .display_name(measure.return_type)
-        == "usize"
+    matches!(
+        program
+            .type_reference_table
+            .display_name(measure.return_type)
+            .as_str(),
+        "usize" | "u64"
+    )
 }
 
-fn measure_parameter_is_usize(
+fn measure_parameter_is_natural(
     program: &omega_typed_trees::TypedTrees,
     measure: &MeasureDefinition,
 ) -> bool {
     measure.parameter.as_ref().is_some_and(|parameter| {
-        program
-            .type_reference_table
-            .display_name(parameter.type_reference)
-            == "usize"
+        matches!(
+            program
+                .type_reference_table
+                .display_name(parameter.type_reference)
+                .as_str(),
+            "usize" | "u64"
+        )
     })
 }
 

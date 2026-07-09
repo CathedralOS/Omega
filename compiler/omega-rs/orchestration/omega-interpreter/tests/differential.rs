@@ -60,6 +60,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_sat_unsigned_onedirection_exit", 70),
     ("arithmetic/runtime_shl_saturating_exit", 70),
     ("arithmetic/runtime_shl_saturating_atwidth_exit", 70),
+    ("proofs/runtime_decreases_u64_measure_exit", 70),
     ("arithmetic/runtime_wrapping_operand_truncation_exit", 70),
     ("text/case_literal_texteq_field_store_exit", 70),
     ("text/case_literal_texteq_terminal_exit", 70),

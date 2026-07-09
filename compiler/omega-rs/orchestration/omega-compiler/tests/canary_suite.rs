@@ -16731,6 +16731,32 @@ fn runtime_shl_saturating_atwidth_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_decreases_u64_measure_exit_canary_runs() {
+    // u64-typed termination measures verify like usize ones (the usize
+    // retirement's stage-1 enabler; natural_measure_names_match).
+    let canary = pass_canary("proofs/runtime_decreases_u64_measure_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-decu64-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("u64 decreases canary should compile (termination must accept u64 measures)");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("u64 decreases canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "u64 decreases canary should pass (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_wrapping_operand_truncation_exit_canary_runs() {
     // Nested Wrapping binaries in operand position hand the parent the
     // width-wrapped value (>> / % legs pin the sign/width-sensitive reads).
@@ -28131,6 +28157,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_sat_unsigned_onedirection_exit",
     "arithmetic/runtime_shl_saturating_exit",
     "arithmetic/runtime_shl_saturating_atwidth_exit",
+    "proofs/runtime_decreases_u64_measure_exit",
     "arithmetic/runtime_wrapping_operand_truncation_exit",
     "text/case_literal_texteq_field_store_exit",
     "text/case_literal_texteq_terminal_exit",

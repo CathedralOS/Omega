@@ -46,76 +46,21 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   all compiler-supported float domains." Until then `f32 in Saturating`
   keeps compiling as plain IEEE. Filed under Big arcs: the float-domains
   language document.
-- **Range under non-Exact -- ANSWERED: "just a compile error."** Reject the
-  `[range] in Wrapping/Saturating/Trapping` combination at declaration.
-  Implementation task filed under Open bugs below. (The example's `usize`
-  drew a second ruling -- see the usize retirement directive below.)
-- **SHIFT half ANSWERED: the lhs domain defines shift semantics; the count
-  carries no domain weight; explicit casts cross domains.**
-  > Owner: Shift overflow is defined by the domain on which the operator is happening. If y is in wrapping, it has a domain where lhs should be wrapping, and rhs doesnt matter. If you mix domains here, the operator should not resolve to anything, its a compile error. If y is in saturating, domain should assume lhs is saturating, and rhs doesnt matter. Domain casts (x as Saturating) solve the case where we need to change domains, and its always explicit.
-  Slice A DONE (2026-07-13): the shift COUNT is exempt from the
-  mixed-domain check and the domain merge -- `wrapped << self.k` resolves
-  with the LHS domain (pinned: arithmetic/runtime_shift_count_domain_exit);
-  Exact-lhs shifts keep their proof obligation; u32 wrapping at count 40 is
-  already 0 on aarch64+interp (modular). Slice B DONE for `<<`
-  (2026-07-14): all three engines are modular (count >= width -> 0). Interp
-  uniformly modular; aarch64 CMP+CSEL-XZR clamp (write + operand paths);
-  x86_64 cmp-r11+cmovae-zero clamp (write path + a WrappingShiftLeft arm in
-  the shared OperandDomainOperation dispatch, which also fixed the nested
-  at-width case that hardware-masked before). Byte-pinned via the linux_x64
-  clamp-bytes test; the parked divergence canary is PROMOTED to
-  pass/arithmetic/runtime_shift_atwidth_signed_modular_exit (i32 write leg +
-  u32 operand legs, counts 40/70). Wrapping >> DONE (2026-07-14): floor-division
-  semantics -- logical -> 0, arithmetic -> sign-fill at/above-width
-  (derived from the ruling's value-operation principle; flag if wrong).
-  Arithmetic >> SATURATES the count to width-1 pre-shift on both ISAs (a
-  post-fix cannot recover the sign); logical >> zero-clamps like <<; the
-  interp resolves the node type for >> now (it did not -- the u64 leg of the
-  new canary caught it; narrower widths were accidentally right through the
-  extended-i64 representation). runtime_shift_right_atwidth_exit pins 7 legs
-  + linux_x64 saturate+sar byte pins. Slice B tail CLOSED by audit
-  (2026-07-14): the feared indexed/pointee hole does not exist -- the
-  planner routes non-Exact binary VALUES through the operand path (whose
-  domain machinery clamps on both ISAs), never fusing them into the
-  domain-less indexed/pointee binary-write kinds; double-indexed targets
-  refuse binary values loudly at compile. The domain witness already
-  derives from the LHS (node type), so Exact-count spellings clamp too.
-  runtime_shift_atwidth_indexed_targets_exit pins the routing (6 legs:
-  machine/frame indexed, pointee, exact-count, << and >>) -- if the planner
-  ever fuses wrapping shifts into those kinds, it trips differential; thread
-  the domain through the kind encoders then. The shift-domain arc (slices A/B/C) is
-  CLOSED (2026-07-15): shifts are domain-governed on all three engines --
-  Wrapping << / >> modular + floor semantics, Saturating/Trapping << clamps
-  or traps on true-value overflow (x86_64 landed last: count cap + shared
-  narrow range tail, recovery witness at 64-bit, byte-pinned via unit tests
-  + the linux_x64 ELF pin; the SaturatingTrappingShiftLeft operand-dispatch
-  variant covers operand position). Both parked shl_saturating canaries
-  PROMOTED to pass/ (runtime_shl_saturating_exit + _atwidth_exit). Residual
-  (unruled, low priority): shift-count domain witness when the LHS is Exact
-  and only the COUNT carries a domain -- the ruling says lhs-only, the
-  witness picks the non-Exact side; observable only for unproven Exact
-  shifts, which are proof obligations anyway. Note in a future domain audit.
-
-- (2026-07-14) The narrow-unsigned saturating/trapping mul suspect was REAL
-  and is FIXED on aarch64 (one bound check per unsigned operator; the mul
-  leg's upper compare is UNSIGNED). x86_64's cmova tail was already
-  correct. Pinned by runtime_sat_unsigned_onedirection_exit. Item closes
-  with this note's removal next condense.
 - **FLOAT-TO-INT half still open (no ruling).** `1e300 as i32`: aarch64
   FCVTZS + interp saturate to i32::MAX; x86 CVTTSD2SI gives the 0x80000000
   "integer indefinite". Parked cast divergence stays in the drift ledger.
 
 ## Open bugs / gaps (ungated)
 
-- **OWNER DIRECTIVE: `usize` is not an Omega type -- retire it.** "We do not
-  have usize. We have addr, we have primitives. Conflating addresses & size
-  is a semantic disaster" (2026-07-13). Current reality: the compiler
-  ACCEPTS `usize`, ~366 canaries and several guide chapters use it, and
-  prover diagnostics print it. Scope (String-retirement-scale): pin the
-  addr/primitive split semantics from the owner's existing notes, add the
-  compile-time rejection (or alias-with-warning migration step), sweep the
-  corpus + chapters, purge the diagnostics. NOT a background-tick item;
-  needs its own execution recipe first.
+- **OWNER DIRECTIVE: `usize` is not an Omega type -- retire it** ("we have
+  addr, we have primitives", 2026-07-13). Recipe:
+  wiki/architecture/usize_retirement_execution.md (inventory: 380 .omg
+  files, ~15 compiler files, ~8 chapters; usize -> u64, addresses -> addr,
+  isize -> i64). Stage 1 DONE (2026-07-15): termination measures accept
+  u64 naturals (natural_measure_names_match; pinned by
+  proofs/runtime_decreases_u64_measure_exit). NEXT: the family-batched
+  corpus sweep (stage 2), then chapters, then the compiler rejection +
+  fail canary.
 
 - **Multi-arm TEXTEQ-valued locals drop silently on the leaf route (found
   2026-07-13 probing the fresh scoped-leaf-key surface; parked at
