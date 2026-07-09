@@ -1,0 +1,80 @@
+// RUN CANARY (exit 70) -- first coverage of the wrapper LOCK family
+// (lock/lock_shared/try_lock/try_lock_shared/unlock, Rust File::lock etc.)
+// and metadata(File) (the FSTAT-based wrapper; metadata_path is covered, the
+// File form was a zero-caller). Single-fd flock: exclusive -> unlock ->
+// shared -> unlock -> try exclusive (Acquired, no contention) -> unlock ->
+// try shared (Acquired) -> unlock. The interpreter's virtual fs is the
+// differential oracle.
+// exits: 70 ok; 71 create failed; 72 write short; 73 metadata(File) not
+// Ok/len wrong; 74 lock failed; 75 unlock-1 failed; 76 lock_shared failed;
+// 77 unlock-2 failed; 78 try_lock not Acquired; 79 unlock-3 failed;
+// 80 try_lock_shared not Acquired; 81 unlock-4/close/remove failed.
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    fs: Filesystem;
+    open_result: OpenResult;
+    io_result: IoResult;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+    try_result: TryLockResult;
+    file_fd: i32;
+    close_rc: i32;
+}
+machine Main::main(&mut self) {
+    self.open_result = self.fs.create("omega_lock_probe.txt");
+    transition self.open_result { OpenResult::Ok { file } -> seed(file) _ -> bad(71) }
+    state seed(&mut self, file: File) {
+        self.file_fd = file.fd;
+        self.io_result = self.fs.write(File { fd: self.file_fd }, "hello");
+        transition self.io_result { IoResult::Ok { count } -> seeded(count) _ -> bad(72) }
+    }
+    state seeded(&mut self, count: usize) {
+        transition count == 5 { true -> meta() _ -> bad(72) }
+    }
+    state meta(&mut self) {
+        self.meta_result = self.fs.metadata(File { fd: self.file_fd });
+        transition self.meta_result { MetadataResult::Ok { meta } -> ckmeta(meta) _ -> bad(73) }
+    }
+    state ckmeta(&mut self, meta: Metadata) {
+        transition meta.len == 5 { true -> lockx() _ -> bad(73) }
+    }
+    state lockx(&mut self) {
+        self.unit_result = self.fs.lock(File { fd: self.file_fd });
+        transition self.unit_result { UnitResult::Ok -> un1() _ -> bad(74) }
+    }
+    state un1(&mut self) {
+        self.unit_result = self.fs.unlock(File { fd: self.file_fd });
+        transition self.unit_result { UnitResult::Ok -> locksh() _ -> bad(75) }
+    }
+    state locksh(&mut self) {
+        self.unit_result = self.fs.lock_shared(File { fd: self.file_fd });
+        transition self.unit_result { UnitResult::Ok -> un2() _ -> bad(76) }
+    }
+    state un2(&mut self) {
+        self.unit_result = self.fs.unlock(File { fd: self.file_fd });
+        transition self.unit_result { UnitResult::Ok -> tryx() _ -> bad(77) }
+    }
+    state tryx(&mut self) {
+        self.try_result = self.fs.try_lock(File { fd: self.file_fd });
+        transition self.try_result { TryLockResult::Acquired -> un3() _ -> bad(78) }
+    }
+    state un3(&mut self) {
+        self.unit_result = self.fs.unlock(File { fd: self.file_fd });
+        transition self.unit_result { UnitResult::Ok -> trysh() _ -> bad(79) }
+    }
+    state trysh(&mut self) {
+        self.try_result = self.fs.try_lock_shared(File { fd: self.file_fd });
+        transition self.try_result { TryLockResult::Acquired -> un4() _ -> bad(80) }
+    }
+    state un4(&mut self) {
+        self.unit_result = self.fs.unlock(File { fd: self.file_fd });
+        self.close_rc = self.fs.close(File { fd: self.file_fd });
+        self.unit_result = self.fs.remove("omega_lock_probe.txt");
+        transition self.unit_result { UnitResult::Ok -> good() _ -> bad(81) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

@@ -349,6 +349,11 @@ data Filesystem {
     // a nested host-call-in-guard (`let code = errno(); transition code == 2` inside
     // a leaf state) — which the value-call deep fix does not reach at that nesting.
     stat_errno: i32;
+    // `try_lock`/`try_lock_shared` capture errno the same way (entry, before the
+    // transition) so the WouldBlock-vs-Error split guards on a stored field --
+    // an errno() host call in the contended ARM trips the effectful-arm fence
+    // for every value-position caller.
+    lock_errno: i32;
     // `last_error`: the captured errno and its classified ErrorKind. Produced by a
     // `match` TERMINAL (errno -> nullary ErrorKind), NOT a transition-guard chain,
     // for the same value-call guard-ordering reason as the STAT queries. This is
@@ -1626,11 +1631,14 @@ machine Filesystem::lock_shared(&mut self, file: File) -> UnitResult {
 machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
     self.file_fd = file.fd;
     let rc: i32 = self.host.lock_file(self.file_fd, 6); // LOCK_EX | LOCK_NB
+    // Errno captured in the ENTRY (the try_exists idiom): valid right after the
+    // failing flock; on success it is stale but UNREAD (the acquired arm never
+    // looks). An errno() call in the contended ARM trips the effectful-arm fence.
+    self.lock_errno = self.host.errno();
     transition rc == 0 { true -> acquired() _ -> contended() }
     state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
     state contended(&mut self) -> TryLockResult {
-        let code: i32 = self.host.errno();
-        transition code == 35 { true -> would_block() _ -> failed() }
+        transition self.lock_errno == 35 { true -> would_block() _ -> failed() }
     }
     state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
     state failed(&mut self) -> TryLockResult { let kind: ErrorKind = self.last_error(); TryLockResult::Error { kind: kind } }
@@ -1640,11 +1648,12 @@ machine Filesystem::try_lock(&mut self, file: File) -> TryLockResult {
 machine Filesystem::try_lock_shared(&mut self, file: File) -> TryLockResult {
     self.file_fd = file.fd;
     let rc: i32 = self.host.lock_file(self.file_fd, 5); // LOCK_SH | LOCK_NB
+    // Entry-captured errno; see try_lock.
+    self.lock_errno = self.host.errno();
     transition rc == 0 { true -> acquired() _ -> contended() }
     state acquired(&mut self) -> TryLockResult { TryLockResult::Acquired }
     state contended(&mut self) -> TryLockResult {
-        let code: i32 = self.host.errno();
-        transition code == 35 { true -> would_block() _ -> failed() }
+        transition self.lock_errno == 35 { true -> would_block() _ -> failed() }
     }
     state would_block(&mut self) -> TryLockResult { TryLockResult::WouldBlock }
     state failed(&mut self) -> TryLockResult { let kind: ErrorKind = self.last_error(); TryLockResult::Error { kind: kind } }

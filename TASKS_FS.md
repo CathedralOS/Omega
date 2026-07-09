@@ -481,10 +481,18 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    duplicated dispatch (rung-2 note). LESSON (coverage doctrine): zero-caller
    std machines are UNVERIFIED code -- "compiles as part of std" means
    nothing; every wrapper method needs at least one calling canary. The
-   audit list of remaining zero-caller methods: lock family (lock/
-   lock_shared/try_lock/try_lock_shared/unlock), set_times, set_owner
-   family, symlink_metadata, metadata(File), read_dir_count/nth/stats/
-   is_empty + create_dir_all/remove_dir_all (darwin-runnable wrappers).
+   audit list of remaining zero-caller methods -- LOCK FAMILY + metadata(File)
+   COVERED 2026-07-08h (`wrapper_lock_metadata_exit`, native 70 + interp 70;
+   macos-gated in native_filesystem_canaries like native_flock -- flock has no
+   msvcrt row, so it stays out of the differential RUN_CANARIES, which a
+   windows host also runs). FOUND + FIXED by that canary:
+   `try_lock`/`try_lock_shared` had an errno() host call in their contended
+   ARM -- the effectful-arm fence refused every value-position caller
+   (zero-caller code again); both now capture errno into a new `lock_errno`
+   field in the ENTRY (the try_exists idiom; stale-but-unread on the acquired
+   path). STILL zero-caller: set_times, set_owner family, symlink_metadata,
+   read_dir_count/nth/stats/is_empty + create_dir_all/remove_dir_all
+   (darwin-runnable wrappers).
    ⚠️ BRIEF DRIFT noted (not touched -- freestanding thread's call): the
    extern brief revised `VtableSlot(index)` to `VtableField(field)`
    (field model, decided 2026-07-04) AFTER the parse landed; the
