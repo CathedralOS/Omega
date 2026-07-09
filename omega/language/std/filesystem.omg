@@ -409,6 +409,10 @@ data Filesystem {
     // discipline: a raw i32 rc, no cast -- a cast-valued MachineOwned write
     // does not lower in a dispatched arm).
     rda_close_rc: i32;
+    // mkall_put's byte carrier (the let-local dispatch face: a machine-indexed
+    // write's LOCAL source does not resolve under a dispatched arm; a FIELD
+    // source always does -- the canonical discipline).
+    mkall_byte: u8;
 }
 
 // Create (or truncate) a file for writing, returning an open `File`. Composed
@@ -975,7 +979,14 @@ machine Filesystem::mkall_put(&mut self, path: &[u8] in Path, i: usize, j: usize
         }
     }
     state put_byte_write(&mut self, path: &[u8] in Path, j: usize) {
-        self.mkall_scratch[j] = path[j];
+        // Split through a FIELD: the DUAL-indexed frame-descriptor-to-machine
+        // copy (`self.mkall_scratch[j] = path[j]`) has no single instruction
+        // in the dispatched context, but both halves lower (frame-indexed
+        // read -> field; machine place -> machine-indexed write). A LET
+        // carrier does not resolve as the write's source under a dispatched
+        // arm (the let-local face), so the byte rides a field.
+        self.mkall_byte = path[j];
+        self.mkall_scratch[j] = self.mkall_byte;
         transition { _ -> put_done() }
     }
     state put_nul(&mut self, j: usize) {
