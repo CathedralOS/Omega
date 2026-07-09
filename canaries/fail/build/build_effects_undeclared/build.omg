@@ -1,0 +1,20 @@
+// FAIL CANARY -- build.omg reaching the filesystem WITHOUT declaring it
+// (owner answers #4/#5, gated 2026-07-11j): the effects are allowed for a
+// build machine but must be DECLARED on its signature.
+use omega::language::std::filesystem_host;
+
+data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
+data Build { subsystem: Subsystem; freestanding: bool; }
+
+data Stager {
+    fs: FilesystemHost;
+    fd: i32;
+}
+
+machine Stager::build(&mut self, b: &mut Build) {
+    self.fd = self.fs.create("build/asset.bin", 438);
+    transition true { true -> done(b) _ -> done(b) }
+    state done(&mut self, b: &mut Build) {
+        b.freestanding = false;
+    }
+}

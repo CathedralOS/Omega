@@ -170,10 +170,9 @@ impl Compiler {
         // build time. When present it is AUTHORITATIVE; the legacy in-source
         // `target { subsystem }` word is the fallback until its removal.
         let build_config = crate::pipeline::build_config::compute_build_config(&typed)?;
-        let build_machine_present = typed
-            .machines()
-            .iter()
-            .any(|machine| machine.name.as_str() == "build");
+        let build_machine_present = typed.machines().iter().any(|machine| {
+            crate::pipeline::build_config::is_build_machine(&typed, machine)
+        });
         write_typed_snapshot(&self.options, &typed)?;
         crate::pipeline::wire_report::write_wire_protocol_report(&self.options, &typed)?;
 

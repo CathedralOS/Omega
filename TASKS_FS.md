@@ -81,10 +81,34 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    system; relax build_config.rs's empty-effect gate to exactly that;
    (d) CONSOLE: add to build.omg's declared effects ("harmless and
    everyone wants it"); the interpreter must treat it as a declared
-   effect, never silently swallow logging. Implementation next: relax
-   the gate, declare+enforce the two effects, thread the injected
-   filesystem instance to the granted interpreter entry
-   (evaluate_build_machine_with_filesystem is already there).
+   effect, never silently swallow logging. LANDED 2026-07-11j
+   (first slice): std FilesystemHost declares `effects filesystem_io`
+   rows on all 36 methods (row-less boundaries surface as opaque
+   `host_boundary`, which the gate can never allow); build_config.rs
+   accepts the FREE `build` or ONE attached `<Component>::build`
+   (is_build_machine_name; two -> error), allows transitive
+   {filesystem_io, stdout_io, stderr_io}, requires them DECLARED on
+   the build machine (`effects filesystem_io` clause), and routes
+   effectful builds through evaluate_build_machine_with_filesystem
+   (RealUnscoped -- owner de-scoped permissions). Pins:
+   tests/build_config_granted.rs (declared build STAGES a real asset
+   at compile time + augmented facts flow),
+   fail/build/build_effects_undeclared,
+   fail/build/build_boundary_rowless (teaching messages).
+   REMAINING: console SERVING in the granted interpreter entry
+   (#5's second half -- a `stdout_io`-declared row passes the gate but
+   the granted evaluator still rejects non-fs boundaries; extend it to
+   serve console writes seriously), and a std Console boundary with
+   declared rows (today every program spells its own row-less
+   Console; a std one with `effects stdout_io;` rows makes the
+   gate-accepted spelling reachable). OMEGA_DEBUG_BUILD_CONFIG dumps
+   the gate's machine + transitive set. GOTCHA fixed same-session: a
+   name-suffix `::build` match captured ordinary builder machines
+   (MazeBuilder::build and five friends broke 14 tests in a stale
+   battery) -- the attached form requires the `b: &mut Build`
+   single-param signature (is_build_machine); the eventual rule is
+   "declared in build.omg" but typed machines carry no source file
+   today (plumbing item).
 
 2. ~~reversed-operand receiver residual~~ — **CLOSED 2026-07-10y.** The
    three-session hunt bottomed out in TWO stacked holes past the resolver:

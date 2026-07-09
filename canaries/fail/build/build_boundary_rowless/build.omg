@@ -1,0 +1,20 @@
+// FAIL CANARY -- build.omg calling a ROW-LESS boundary trait (gated
+// 2026-07-11j): an undeclared-row boundary call surfaces as the opaque
+// `host_boundary` effect, which the build gate cannot allow; the message
+// teaches declaring effect rows on the boundary's methods.
+data Subsystem { case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }
+data Build { subsystem: Subsystem; freestanding: bool; }
+
+boundary trait BuildLog { machine write_line(text: &[u8]); }
+
+data Logger {
+    log: BuildLog;
+}
+
+machine Logger::build(&mut self, b: &mut Build)
+effects
+    stdout_io
+{
+    self.log.write_line("configuring");
+    b.freestanding = false;
+}

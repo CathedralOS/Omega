@@ -50,19 +50,70 @@ impl Default for BuildConfig {
     }
 }
 
+/// Whether a machine is the program's build machine: the FREE `build(b:
+/// &mut Build)` (the pure-config shape) or an ATTACHED `<Component>::build`
+/// (the dependency-injection shape, owner answer #2: the component's data
+/// holds the injected capability instance -- `fs: FilesystemHost` -- and
+/// the granted evaluator ZII-constructs and routes it). The attached form
+/// additionally requires the `b: &mut Build` parameter signature: ordinary
+/// builder-pattern machines (`MazeBuilder::build(&mut self, level: &mut
+/// Level)`) are everywhere in real source, and the NAME alone cannot
+/// discriminate. (The eventual rule is "declared in build.omg" -- typed
+/// machines carry no source file today; recorded in TASKS_FS.)
+pub(crate) fn is_build_machine(typed: &TypedTrees, machine: &omega_typed_trees::machine::Machine) -> bool {
+    let name = machine.name.as_str();
+    if name == BUILD_MACHINE {
+        return true;
+    }
+    if !name.ends_with("::build") {
+        return false;
+    }
+    let Some(entry) = typed.machine_states(machine).first() else {
+        return false;
+    };
+    let mut value_parameters = typed
+        .state_parameters(entry)
+        .iter()
+        .filter(|parameter| !parameter.is_self);
+    let Some(parameter) = value_parameters.next() else {
+        return false;
+    };
+    if value_parameters.next().is_some() {
+        return false;
+    }
+    typed
+        .display_type_reference(parameter.type_reference)
+        .trim_start_matches("&mut ")
+        .trim()
+        == "Build"
+}
+
 /// Evaluate the program's `build` machine (if any) and extract the config.
 /// No `build` machine -> the default. Every failure names the machine.
 pub(crate) fn compute_build_config(typed: &TypedTrees) -> Result<BuildConfig, Vec<Diagnostic>> {
-    let Some(machine) = typed
+    let mut build_machines = typed
         .machines()
         .iter()
-        .find(|machine| machine.name.as_str() == BUILD_MACHINE)
-    else {
+        .filter(|machine| is_build_machine(typed, machine));
+    let Some(machine) = build_machines.next() else {
         return Ok(BuildConfig::default());
     };
+    if let Some(second) = build_machines.next() {
+        return Err(vec![Diagnostic::error(format!(
+            "two build machines exist (`{}` and `{}`); a program declares at most one",
+            machine.name.as_str(),
+            second.name.as_str(),
+        ))]);
+    }
+    let machine_name = machine.name.as_str();
 
-    // The purity gate: decision 12's transitive effect surface must be empty
-    // (same discipline as every build-time policy evaluation).
+    // The effect gate (owner answers, OWNER_QUESTIONS #4/#5, 2026-07-11i):
+    // `build` MAY reach `filesystem_io` (staging assets is the point) and
+    // console output (`stdout_io`/`stderr_io` -- "harmless and everyone
+    // wants it") -- as DECLARED effects on the build machine itself,
+    // forbidden anywhere else by the ordinary effect system. Anything
+    // outside that set still refuses; a row-less boundary trait surfaces
+    // as `host_boundary`, so the message points at declaring rows.
     let effect_plan = omega_effects::infer_effects(typed);
     let transitive = effect_plan
         .machines()
@@ -70,11 +121,47 @@ pub(crate) fn compute_build_config(typed: &TypedTrees) -> Result<BuildConfig, Ve
         .find(|entry| entry.symbol == machine.symbol)
         .map(|entry| entry.transitive)
         .unwrap_or_else(omega_effects::EffectSet::empty);
-    if !transitive.is_empty() {
+    if std::env::var_os("OMEGA_DEBUG_BUILD_CONFIG").is_some() {
+        eprintln!(
+            "BUILDCFG: machine `{}` found, transitive effects [{}]",
+            machine.name.as_str(),
+            transitive.names().collect::<Vec<_>>().join(", "),
+        );
+    }
+    const ALLOWED_BUILD_EFFECTS: &[&str] = &["filesystem_io", "stdout_io", "stderr_io"];
+    let disallowed: Vec<&str> = transitive
+        .names()
+        .filter(|name| !ALLOWED_BUILD_EFFECTS.contains(name))
+        .collect();
+    if !disallowed.is_empty() {
+        let boundary_hint = if disallowed.contains(&"host_boundary") {
+            " (a boundary trait without declared effect rows surfaces as \
+             `host_boundary`; declare rows -- e.g. `effects stdout_io;` on a \
+             console method -- so the gate can tell what the call does)"
+        } else {
+            ""
+        };
         return Err(vec![Diagnostic::error(format!(
-            "`{BUILD_MACHINE}` is not effect-free: it reaches effects `{}`; build.omg is \
-             interpreted at build time and may only describe, never do",
-            transitive.names().collect::<Vec<_>>().join(", ")
+            "`{machine_name}` reaches effects `{}` -- build.omg may declare only \
+             `{}`{boundary_hint}",
+            disallowed.join(", "),
+            ALLOWED_BUILD_EFFECTS.join("`, `"),
+        ))]);
+    }
+    // The allowed effects must be DECLARED on the build machine (the owner's
+    // "declared effect on the main func within build" -- reaching the
+    // filesystem silently is refused even though it would be allowed).
+    let declared = typed.machine_effects(machine);
+    let undeclared: Vec<&str> = transitive
+        .names()
+        .filter(|name| !declared.iter().any(|effect| effect.as_str() == *name))
+        .collect();
+    if !undeclared.is_empty() {
+        return Err(vec![Diagnostic::error(format!(
+            "`{machine_name}` reaches effects `{}` without declaring them; add \
+             `effects {}` to the build machine's signature",
+            undeclared.join(", "),
+            undeclared.join(", "),
         ))]);
     }
 
@@ -92,25 +179,40 @@ pub(crate) fn compute_build_config(typed: &TypedTrees) -> Result<BuildConfig, Ve
         ],
     };
 
-    let mut arguments = omega_interpreter::evaluate_build_time_machine_arguments(
-        typed,
-        BUILD_MACHINE,
-        vec![zero_build],
-    )
+    // Effect-free builds keep the pure engine; a declared-filesystem build
+    // runs the GRANTED entry (real filesystem, unscoped -- the owner
+    // explicitly de-scoped permission ceremony: "I don't think we give a
+    // shit about permissions at this point").
+    let mut arguments = if transitive.is_empty() {
+        omega_interpreter::evaluate_build_time_machine_arguments(
+            typed,
+            machine_name,
+            vec![zero_build],
+        )
+    } else {
+        omega_interpreter::evaluate_build_machine_with_filesystem(
+            typed,
+            machine_name,
+            vec![zero_build],
+            omega_interpreter::InterpretOptions {
+                filesystem: omega_interpreter::FilesystemAccess::RealUnscoped,
+            },
+        )
+    }
     .map_err(|reason| {
         vec![Diagnostic::error(format!(
-            "build-time evaluation of `{BUILD_MACHINE}` failed: {reason}"
+            "build-time evaluation of `{machine_name}` failed: {reason}"
         ))]
     })?;
     let augmented = arguments.pop().ok_or_else(|| {
         vec![Diagnostic::error(format!(
-            "`{BUILD_MACHINE}` returned no argument values (expected the augmented Build)"
+            "`{machine_name}` returned no argument values (expected the augmented Build)"
         ))]
     })?;
 
     extract_build_config(&augmented).map_err(|reason| {
         vec![Diagnostic::error(format!(
-            "`{BUILD_MACHINE}` produced an invalid Build: {reason}"
+            "`{machine_name}` produced an invalid Build: {reason}"
         ))]
     })
 }
