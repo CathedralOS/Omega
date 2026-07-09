@@ -828,6 +828,80 @@ pub fn entry_argument_register_write_width() -> usize {
     12
 }
 
+fn double_indexed_any_frame(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> bool {
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    outer_index_region == frame || inner_index_region == frame
+}
+
+/// Base-pair widths of the double-indexed ops: the machine pair (8) plus the
+/// shared frame pair (8) when any index is frame-resident.
+fn double_indexed_base_width(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    8 + if double_indexed_any_frame(outer_index_region, inner_index_region) {
+        8
+    } else {
+        0
+    }
+}
+
+/// Width of the double-indexed read `grid[i][j] -> slot`: bases + the 36-byte
+/// fixed address math + the element load + the relocated target pair + store.
+pub fn runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    double_indexed_base_width(outer_index_region, inner_index_region) + 36 + 4 + 8 + 4
+}
+
+/// Width of the double-indexed literal write `grid[i][j] = value`: bases +
+/// address math + the value immediate (variable, AFTER all relocations) +
+/// store.
+pub fn runtime_machine_double_indexed_integer_write_width(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    value: i64,
+) -> usize {
+    double_indexed_base_width(outer_index_region, inner_index_region)
+        + 36
+        + unsigned_immediate_width(value as u64)
+        + 4
+}
+
+/// Width of the double-indexed storage write `grid[i][j] = slot`: bases (the
+/// shared frame pair also serves a frame-resident source) + the source load +
+/// the 36-byte address math + the element store.
+pub fn runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    let any_frame = source_region == frame
+        || outer_index_region == frame
+        || inner_index_region == frame;
+    8 + if any_frame { 8 } else { 0 } + 4 + 36 + 4
+}
+
+/// The shared frame pair sits directly after the machine pair in every
+/// double-indexed op.
+pub fn runtime_machine_double_indexed_frame_base_offset() -> usize {
+    8
+}
+
+/// The double-indexed read's relocated TARGET pair follows bases + math +
+/// the element load.
+pub fn runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offset(
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> usize {
+    double_indexed_base_width(outer_index_region, inner_index_region) + 36 + 4
+}
+
 /// Fixed-shape indexed-element address width (see
 /// `append_fixed_shape_index_element_address`): mov + [frame adrp pair] +
 /// index ldr + movz + mul + add-register + add-immediate.

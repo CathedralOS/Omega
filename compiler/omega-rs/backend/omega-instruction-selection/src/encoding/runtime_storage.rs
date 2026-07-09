@@ -1228,9 +1228,20 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtim
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "aarch64 cannot encode a both-runtime nested read (`grid[i][j]`) yet;              make one index a constant or use a flat array",
-        )),
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage(
+                base_byte_offset,
+                outer_index_offset,
+                outer_index_region,
+                outer_stride,
+                inner_index_offset,
+                inner_index_region,
+                inner_stride,
+                field_byte_offset,
+                target_offset,
+                byte_count,
+            )
+        }
         Architecture::X86_64 => {
             x86_64::encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage(
                 base_byte_offset,
@@ -1263,10 +1274,21 @@ pub fn encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtim
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "aarch64 cannot encode a both-runtime nested write (`grid[i][j] = v`) yet; \
-             make one index a constant or use a flat array",
-        )),
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage(
+                source_region,
+                source_offset,
+                base_byte_offset,
+                outer_index_offset,
+                outer_index_region,
+                outer_stride,
+                inner_index_offset,
+                inner_index_region,
+                inner_stride,
+                field_byte_offset,
+                byte_count,
+            )
+        }
         Architecture::X86_64 => {
             x86_64::encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage(
                 source_region,
@@ -1299,10 +1321,18 @@ pub fn encode_runtime_machine_double_indexed_integer_write(
     value: i64,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "aarch64 cannot encode a both-runtime nested integer write yet; \
-             make one index a constant or use a flat array",
-        )),
+        Architecture::Aarch64 => aarch64::encode_runtime_machine_double_indexed_integer_write(
+            base_byte_offset,
+            outer_index_offset,
+            outer_index_region,
+            outer_stride,
+            inner_index_offset,
+            inner_index_region,
+            inner_stride,
+            field_byte_offset,
+            byte_size,
+            value,
+        ),
         Architecture::X86_64 => x86_64::encode_runtime_machine_double_indexed_integer_write(
             base_byte_offset,
             outer_index_offset,
