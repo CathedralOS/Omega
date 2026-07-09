@@ -224,8 +224,10 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
   the inline-Clock tick_count darwin row landed): efi ×3
   (efi_entry_arguments / efi_freestanding_skeleton / efi_ref_param_call_arg),
   runtime_gui_memory_dc_blit, pass_canaries_compile (= the same four
-  canaries, no hidden extras). samples_compile macOS baseline-4:
-  stdin ×3 (frontend WIP), uefi_hello. SUITE BASELINE: ZERO failures
+  canaries, no hidden extras). samples_compile macOS baseline-3
+  (2026-07-11v; uefi_hello cross-compiles with the registered
+  uefi_x64 target — the harness gives target-shaped samples their
+  explicit target): stdin ×3 (frontend WIP). SUITE BASELINE: ZERO failures
   on macOS since 2026-07-11t (windows-hosted members are gated to
   windows hosts; judge by the empty set — ANY suite failure is a
   regression now). (2026-07-11r: the gui blit canary

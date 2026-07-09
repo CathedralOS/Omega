@@ -141,10 +141,19 @@ fn all_samples_compile() {
         ));
         let _ = fs::remove_dir_all(&build_dir);
 
+        // Target-shaped samples compile with their EXPLICIT cross target
+        // (the registered `uefi_x64`, 2026-07-11v) -- the sample IS the
+        // EFI image; a host-format compile can never satisfy it. Mirrors
+        // the canary suite's CROSS_TARGET_PASS_CANARIES.
+        let target_name = if name.contains("uefi_hello") {
+            Some("uefi_x64".to_owned())
+        } else {
+            None
+        };
         let result = compile(CompileOptions {
             root_path: main_path.clone(),
             build_dir: Some(build_dir.clone()),
-            target_name: None,
+            target_name,
             write_output: true,
         });
         if let Err(error) = result {
