@@ -841,9 +841,25 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    decreases proof (then mkall_copy rewrites as a plain loop, no backend
    change). Both are bounded; the prover route touches the checker (the
    arithmetic thread's area -- coordinate), the tail-call route is
-   backend-local (this thread's area). NEXT: the tail-call-to-loop
-   transform, starting with a pure canary (self-tail-call accumulator)
-   before touching mkall.
+   backend-local (this thread's area). TAIL-CALL STEP 1 DONE (2026-07-10c):
+   the pure accumulator canary is PARKED at
+   pending/calls/tail_self_call_accumulator with the full diagnosis and
+   the mapped transform plan. Findings: the PROVER ACCEPTS the recursive
+   spelling (decreases checks fine) -- only the runtime-flow builder's
+   cloning-DFS cycle check refuses, so this is purely a lowering gap; the
+   rejection-site edge is { same machine handle, is_value, segment 0 of
+   1 } but RuntimeStateCallEdge carries NO RECEIVER IDENTITY, and the
+   receiver check is load-bearing (`self.other.sum(..)` on a contained
+   same-machine field must keep rejecting -- wrong instance otherwise).
+   Plan: thread is_self_receiver into the edge (backend-pipeline builder
+   has receiver_path), rewrite same-machine+self-receiver+tail calls at
+   the rejection site as the entry transition visit_transition already
+   emits (entry_continuation/entry_arguments(context) already model
+   re-entering the clone's own entry -- the no-guard-matched fall-through
+   uses exactly that), keep the error otherwise. OMEGA_DEBUG_TAILCALL
+   prints the edge at the site. NEW DEV TOOL: `omega-run` bin
+   (omega-compiler) -- compile+run a .omg natively, `--both` adds interp
+   agreement; the probe workflow's missing one-shot harness.
    INVESTIGATION ITEM 2: enumerate the dispatch return-write's missing
    shapes against the ~13-canary regression list (binary operands,
    slice-element results, aliases, multi-arm) -- each is its own bounded
