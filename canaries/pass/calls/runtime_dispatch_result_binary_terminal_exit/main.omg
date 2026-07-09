@@ -1,0 +1,26 @@
+// RUN CANARY (exit 70) -- a dispatched value call whose TERMINAL is a BINARY
+// expression (`-> acc + 100`). The return-write handled only literal and
+// place terminals; a binary fell through SILENTLY and the caller's slot kept
+// its prior/ZII value (native 71 vs interp 70 -- live unfenced silent-wrong,
+// open-work #7 return-write matrix 2026-07-09). Fixed: a dedicated binary
+// path computes into the result place (WriteRuntimeStorageBinary; arithmetic/
+// bitwise subset, typed-place signedness/domain, floats bail). Differential.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::count(&mut self, i: usize, j: usize, acc: i32 in Wrapping)
+terminates { decreases (j, i) -> Nat::BoundedDistance; }
+-> i32
+{
+    transition j < i {
+        true -> count(i, j + 1, acc + 1)
+        false -> leaf(acc)
+    }
+    // Terminal returns a BINARY expression over a param.
+    state leaf(&mut self, acc: i32 in Wrapping) -> i32 { acc + 100 }
+}
+machine Main::main(&mut self) {
+    let n: i32 = self.count(5, 0, 0);
+    transition n == 105 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

@@ -169,6 +169,7 @@ pub(super) fn select_runtime_dispatch_edge(
                 edge,
                 source_key,
                 source_dispatch_index,
+                runtime_value_operands,
                 selected_instructions,
             );
 
@@ -322,6 +323,7 @@ fn select_runtime_dispatch_call_result_return(
     edge: &RuntimeDispatchLoopEdge,
     source_key: StateKey,
     source_dispatch_index: u32,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
 ) {
     let Some(call_result) = edge.call_result else {
@@ -405,7 +407,151 @@ fn select_runtime_dispatch_call_result_return(
             source_key,
             source_statement: edge.statement_index,
         });
+        return;
     }
+
+    // BINARY terminal (`-> acc + 100`, `-> 0 - acc`): compute into the
+    // caller's result place. Operands are static integers (Immediate) or
+    // resolvable places (Storage); operators are the ARITHMETIC/BITWISE
+    // subset (a comparison terminal is a bool value, out of scope here).
+    // Signedness and domain come from whichever operand resolves to a typed
+    // place; float terminals bail (no dispatch float-return story yet).
+    // Before this path a binary terminal fell through SILENTLY and the
+    // caller's slot kept its prior/ZII value (probed native 71 vs interp 70).
+    select_dispatch_binary_terminal_return(
+        input,
+        edge,
+        source_key,
+        source_dispatch_index,
+        target_region,
+        target_offset,
+        byte_size,
+        value_expr,
+        runtime_value_operands,
+        selected_instructions,
+    );
+}
+
+/// The arithmetic/bitwise operator subset a binary TERMINAL may compute with
+/// (local sibling of writes/mutation's `runtime_binary_operator`, which is
+/// module-scoped there; comparisons are deliberately absent).
+fn dispatch_terminal_binary_operator(operator: BinaryOperator) -> Option<StateGuardOperator> {
+    match operator {
+        BinaryOperator::Add => Some(StateGuardOperator::Add),
+        BinaryOperator::Subtract => Some(StateGuardOperator::Subtract),
+        BinaryOperator::Multiply => Some(StateGuardOperator::Multiply),
+        BinaryOperator::Divide => Some(StateGuardOperator::Divide),
+        BinaryOperator::Modulo => Some(StateGuardOperator::Modulo),
+        BinaryOperator::BitwiseAnd => Some(StateGuardOperator::BitwiseAnd),
+        BinaryOperator::BitwiseOr => Some(StateGuardOperator::BitwiseOr),
+        BinaryOperator::BitwiseXor => Some(StateGuardOperator::BitwiseXor),
+        BinaryOperator::ShiftLeft => Some(StateGuardOperator::ShiftLeft),
+        BinaryOperator::ShiftRight => Some(StateGuardOperator::ShiftRight),
+        _ => None,
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn select_dispatch_binary_terminal_return(
+    input: &InstructionSelectionInput<'_>,
+    edge: &RuntimeDispatchLoopEdge,
+    source_key: StateKey,
+    source_dispatch_index: u32,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_size: usize,
+    value_expr: ExpressionHandle,
+    runtime_value_operands: &mut Arena<RuntimeValueOperand>,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let expressions = &input.control_flow.expressions;
+    let ExpressionNode::Binary(binary) = expressions.expression(value_expr) else {
+        return;
+    };
+    let Some(operator) = dispatch_terminal_binary_operator(binary.operator) else {
+        return;
+    };
+    let resolve = |input: &InstructionSelectionInput<'_>,
+                   handle: ExpressionHandle|
+     -> Option<(RuntimeValueOperand, Option<crate::selection::storage_places::RuntimeStoragePlace>)> {
+        if let Some(value) =
+            static_runtime_argument_value(expressions.expression(handle))
+        {
+            return Some((RuntimeValueOperand::Immediate(value), None));
+        }
+        let place = resolve_runtime_storage_place_in_table(
+            input,
+            source_dispatch_index,
+            source_key,
+            expressions,
+            handle,
+        )?;
+        if !matches!(place.byte_count, 1 | 2 | 4 | 8) {
+            return None;
+        }
+        Some((
+            RuntimeValueOperand::Storage {
+                region: place.region,
+                byte_offset: place.byte_offset,
+                byte_size: place.byte_count,
+            },
+            Some(place),
+        ))
+    };
+    let Some((left_operand, left_place)) = resolve(input, binary.left) else {
+        return;
+    };
+    let Some((right_operand, right_place)) = resolve(input, binary.right) else {
+        return;
+    };
+    // Type facts come from whichever side is a typed PLACE (an all-immediate
+    // binary folds statically and never reaches here). Float terminals bail.
+    let typed_expr = if left_place.is_some() { binary.left } else { binary.right };
+    let primitive = resolve_runtime_storage_primitive_type_in_table(
+        input,
+        source_dispatch_index,
+        source_key,
+        expressions,
+        typed_expr,
+    );
+    if matches!(primitive, Some(PrimitiveType::F32 | PrimitiveType::F64)) {
+        return;
+    }
+    if left_place.is_none() && right_place.is_none() {
+        return;
+    }
+    let is_signed = resolve_runtime_storage_is_signed_in_table(
+        input,
+        source_dispatch_index,
+        source_key,
+        expressions,
+        typed_expr,
+    )
+    .unwrap_or(true);
+    let domain = crate::selection::storage_places::resolve_runtime_storage_arithmetic_domain_in_table(
+        input,
+        source_dispatch_index,
+        source_key,
+        expressions,
+        typed_expr,
+    );
+    let left = runtime_value_operands.insert(left_operand);
+    let right = runtime_value_operands.insert(right_operand);
+    selected_instructions.push(SelectedInstruction {
+        kind: SelectedInstructionKind::WriteRuntimeStorageBinary {
+            target_region,
+            target_offset,
+            byte_size,
+            left,
+            operator,
+            right,
+            is_float: false,
+            domain,
+            target_signed: is_signed,
+        },
+        source_key,
+        source_statement: edge.statement_index,
+    });
 }
 
 /// The caller's assignment TARGET resolved to a MACHINE-region place, for a

@@ -1,0 +1,23 @@
+// RUN CANARY (exit 70) -- a dispatched value call as a GUARD SUBJECT
+// (`transition self.count(3, 0, 0) == 9`): the guard-subject hoist temp gets
+// a real result slot and the dispatch return-write serves it. Probed GREEN
+// while the sibling shapes were broken -- pinned so it stays that way.
+// Differential.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::count(&mut self, i: usize, j: usize, acc: i32 in Wrapping)
+terminates { decreases (j, i) -> Nat::BoundedDistance; }
+-> i32
+{
+    transition j < i {
+        true -> count(i, j + 1, acc + 3)
+        false -> leaf(acc)
+    }
+    state leaf(&mut self, acc: i32 in Wrapping) -> i32 { acc }
+}
+machine Main::main(&mut self) {
+    // Guard-subject position: the hoist makes this a let temp; 3 x 3 = 9.
+    transition self.count(3, 0, 0) == 9 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
