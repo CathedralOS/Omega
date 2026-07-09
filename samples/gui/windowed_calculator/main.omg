@@ -62,6 +62,12 @@ data Main {
     current: i32 in Saturating;
     accumulator: i32 in Saturating;
     memory: i32 in Saturating;
+    // Digit-append staging: Saturating Mul/Add must LAND in a
+    // Saturating-typed field before feeding another operation (the
+    // operand-domain fence, 2026-07-09 -- fused operand encodings would
+    // compute the plain op natively).
+    append_shift: i32 in Saturating;
+    append_sum: i32 in Saturating;
     pending: i32 [0..=4]; // 0 none, 1 add, 2 subtract, 3 multiply, 4 divide
     typing: u32;
     error: u32;
@@ -840,7 +846,12 @@ machine Main::accept_digit(&mut self, digit: i32 [0..=9], key_code: i32 [0..=31]
         self.typing = 1;
     }
     state digit_append(&mut self, digit: i32 [0..=9]) {
-        self.current = ((self.current * (10 as i32 in Saturating)) + (digit as i32 in Saturating)) % (10000 as i32 in Saturating);
+        // Step each Saturating op through its own FIELD (append_* above):
+        // let-locals substitute into their uses, so only a stored field
+        // truly de-fuses the operand chain for the fence.
+        self.append_shift = self.current * (10 as i32 in Saturating);
+        self.append_sum = self.append_shift + (digit as i32 in Saturating);
+        self.current = self.append_sum % (10000 as i32 in Saturating);
     }
 }
 
