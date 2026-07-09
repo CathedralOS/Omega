@@ -1,0 +1,38 @@
+// RUN CANARY (exit 70) -- RECEIVER SLICE 2, SELF-CALL HOP (landed
+// 2026-07-11c): like runtime_nonentry_second_receiver_exit, but the
+// dispatching caller is reached through a machine-to-machine SELF call
+// (D10): Main -> holder.run() -> self.step() -> second.drain(3, 0). A
+// self-call context INHERITS its parent's composed base (the callee runs
+// on the caller's own region; attached data must match), so the named
+// second-receiver hop downstream keeps composing: 3 iterations of +7 =
+// 21 -> exit 70. The wrong instance delivers 300; before the self-hop
+// inheritance the chain was fenced loudly.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Tally { count: i32 in Wrapping; }
+machine Tally::drain(&mut self, n: i32, acc: i32 in Wrapping)
+terminates { decreases n -> Nat::Descending; }
+-> i32 in Wrapping
+{
+    transition n > 0 { true -> drain(n - 1, acc + self.count) false -> leaf(acc) }
+    state leaf(&mut self, acc: i32) -> i32 { acc }
+}
+data Holder { first: Tally; second: Tally; }
+machine Holder::step(&mut self) -> i32 in Wrapping {
+    let total: i32 in Wrapping = self.second.drain(3, 0);
+    transition true { true -> done(total) }
+    state done(&mut self, total: i32) -> i32 { total }
+}
+machine Holder::run(&mut self) -> i32 in Wrapping {
+    self.first.count = 100;
+    self.second.count = 7;
+    let total: i32 in Wrapping = self.step();
+    transition true { true -> done(total) }
+    state done(&mut self, total: i32) -> i32 { total }
+}
+data Main { console: Console; holder: Holder; }
+machine Main::main(&mut self) {
+    let total: i32 in Wrapping = self.holder.run();
+    transition total == 21 { true -> good() _ -> bad(total) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, total: i32) { self.console.exit_process(71); }
+}
