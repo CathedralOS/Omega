@@ -27,36 +27,62 @@ should target NEW feature surfaces as they land, not re-walk these axes.
 
 ## Owner-gated holds (see OWNER_QUESTIONS.md)
 
-- **NO-RECURSION scope (Q5, with Q6/Q7).** Zach's countdown note reads as
-  banning the bare `-> own_entry(..)` spelling too; holding the one-way
-  teardown for the batch answer only. Pre-scoped blast radius on a "banned"
-  answer: reject bare entry re-entry + the statement-position
-  `self.drip(n-1);` route (Q7) + (per Q6) mutual value-call cycles; convert or
-  delete the ~12 pass canaries pinning the spelling (termination/measure
-  family, recursive-walk pins, loop_{accumulator,rotation}, bind-first serve,
-  lattice dual_accumulator); remove the orphaned machinery (entry-reentry
-  `decreases` proof surface, recursive-clone specialization, the
-  unserved-recursive-result sweep in runtime-storage planning.rs); rewrite
-  corpus users (proofs canaries, std fs mkall, dungeon find_item pair) into
-  explicit sub-state self-transition loops.
+- **Q (yes/no, blocks a one-way teardown): is the BARE `-> own_entry(..)`
+  loop-back banned, like the `self.`-spelled form already is?** Your
+  countdown note says yes ("removing the `self` keyword doesn't change
+  fuck-all"). On YES we immediately: reject bare entry re-entry + the
+  statement-position `self.drip(n-1);` route + mutual value-call cycles;
+  convert/delete the ~12 canaries pinning the spelling; remove the orphaned
+  machinery (entry-reentry `decreases` surface, recursive-clone
+  specialization, the unserved-result sweep); rewrite corpus users into
+  explicit sub-state self-transition loops. Reply here; scope details in
+  OWNER_QUESTIONS.md Q5-Q7.
   > Is this a question?
-- **Float domain clauses (Q8):** `f: f32 in Saturating` compiles but means
-  nothing (both engines run plain IEEE). Reject or define.
-  > Owner: Deferred, until a float domain pass. This has been labbed out some, but needs a serious language document detailing all compiler-supported float domains.
-- **Range under non-Exact (Q9):** `i: usize [0..=4] in Wrapping` accepts
-  `self.i = 100` — the range only enforces under Exact. Ill-formed, or
-  wrap/clamp into range at stores?
-  > Owner: usize is not a fucking thing in Omega. Why does this keep coming up? I will fucking kill you. We do not have usize. We have addr, we have primitives. Conflating addresses & size is a semantic disaster. I dont even understand what the fuck self.i = 100; conveys here -- its a fucking array? This is just a compile error, why are you wasting my time.
-- **Underspecified numeric-range ops (design thesis, flagged for Zach):**
-  shift-amount >= width and float-to-int out-of-range are the same shape —
-  behavior undefined outside a range, native and interp diverge, neither
-  canonically correct. Proposed: extend decision-17 — make the RANGE a proof
-  obligation (compile error otherwise), one ruling covering both + future
-  corners. Related parked divergences + the const-fold family live in the
-  pending-canary ledger (self-watching on compile + runtime axes).
+  [It wasn't stated as one -- fixed above. Awaiting the yes.]
+- **Float domain clauses -- ANSWERED (deferred).** Owner: deferred until a
+  float domain pass; prerequisite is "a serious language document detailing
+  all compiler-supported float domains." Until then `f32 in Saturating`
+  keeps compiling as plain IEEE. Filed under Big arcs: the float-domains
+  language document.
+- **Range under non-Exact -- ANSWERED: "just a compile error."** Reject the
+  `[range] in Wrapping/Saturating/Trapping` combination at declaration.
+  Implementation task filed under Open bugs below. (The example's `usize`
+  drew a second ruling -- see the usize retirement directive below.)
+- **Q: what should out-of-range SHIFT COUNTS and FLOAT-TO-INT casts do?**
+  Two concrete programs, currently platform-divergent:
+  1. `let x: u32 = 1; let y: u32 = x << 40;` -- the shift COUNT (40) exceeds
+     u32's 32 bits. Observed: aarch64 (LSLV masks the count mod 64) and the
+     interpreter both give 0; x86_64 (SHL masks mod 32) gives `1 << 8` =
+     256. Same program, two answers.
+  2. `let f: f64 = 1e300; let n: i32 = f as i32;` -- the float exceeds i32's
+     range. Observed: aarch64 FCVTZS and the interpreter saturate to
+     i32::MAX; x86_64 CVTTSD2SI gives the 0x80000000 "integer indefinite".
+  Both faces are parked as pending canaries (cross-arch divergence held in
+  the drift ledger). OPTIONS: (a) extend decision-17 -- the count/value
+  RANGE becomes a proof obligation, out-of-range is a COMPILE error unless
+  proven in range (consistent with Exact arithmetic; our recommendation);
+  (b) define one runtime semantic (e.g. mask counts mod width; saturate
+  casts) and make both backends implement it; (c) per-target behavior
+  (rejected by precedent: silent cross-arch divergence). Pick a/b/c.
   > Owner: This is incoherent and you've provided 0 context. Shar is shift? What is amount? Update this so I can fucking make a call. Thx jackass.
+  [Rewritten above with the concrete programs and observed behavior.]
 
 ## Open bugs / gaps (ungated)
+
+- **Implement the Q9 ruling: `[range] in <non-Exact domain>` is a compile
+  error at declaration** ("this is just a compile error" -- Zach,
+  2026-07-13). Reject the combination in type checking; sweep the corpus
+  for existing spellings; fail canary pinning the diagnostic.
+
+- **OWNER DIRECTIVE: `usize` is not an Omega type -- retire it.** "We do not
+  have usize. We have addr, we have primitives. Conflating addresses & size
+  is a semantic disaster" (2026-07-13). Current reality: the compiler
+  ACCEPTS `usize`, ~366 canaries and several guide chapters use it, and
+  prover diagnostics print it. Scope (String-retirement-scale): pin the
+  addr/primitive split semantics from the owner's existing notes, add the
+  compile-time rejection (or alias-with-warning migration step), sweep the
+  corpus + chapters, purge the diagnostics. NOT a background-tick item;
+  needs its own execution recipe first.
 
 - **Multi-arm TEXTEQ-valued locals drop silently on the leaf route (found
   2026-07-13 probing the fresh scoped-leaf-key surface; parked at
@@ -117,10 +143,9 @@ should target NEW feature surfaces as they land, not re-walk these axes.
 
 - **[ENGINEERING]** numeric intrinsics remainder: sin/cos need range reduction
   + a polynomial matching interp precision — a numerical mini-project.
-- **[RESEARCH, sidesteppable]** nonlinear index `pixels[y*W+x]` isn't provable
-  (no product-bound fact); route around with a linear counter until an axiom
-  or octagon domain is added.
-  > Owner: Dependent types are a planned feature eventually (not in language docs yet). Huge feature, but will enable this.
+- **Nonlinear index `pixels[y*W+x]` -- ANSWERED: enabled by dependent types
+  eventually** (planned, huge, not in language docs yet). Until then the
+  linear-counter workaround stands; no axiom/octagon stopgap.
 
 ## Backend perf (deferred, post-1.0)
 
