@@ -1,0 +1,18 @@
+// SOUNDNESS PIN for the sum-payload-range narrowing (landed 2026-07-08). The
+// payload range is admitted ONLY under a case-proving guard (a transition arm).
+// DIRECT payload access outside a case-arm (`self.got = self.p.v`) has no such
+// guard -- the active case may not be the one that owns `v` -- so its "case is
+// active" obligation is UNDISCHARGED and the store must NOT be proven. Here
+// `p = Two{w:900}`, and `self.p.v` reads `One`'s payload field on a `Two`-active
+// value (a checked partial op: it traps at runtime). If the narrowing ever
+// leaks to direct access, `self.p.v` would falsely prove into `got: [0..=50]`.
+// MUST reject with the expected fragment.
+boundary trait Console { machine exit_process(return_code: i32); }
+data P { case One(v: i32 [0..=50]); case Two(w: i32 [0..=1000]); }
+data Main { console: Console; got: i32 [0..=50]; p: P; }
+machine Main::main(&mut self) {
+    self.p = P::Two { w: 900 };
+    self.got = self.p.v;
+    self.console.exit_process(self.got);
+}
+machine Main::run(&mut self) { self.main(); }

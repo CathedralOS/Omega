@@ -776,8 +776,30 @@ fn collect_bounded_transition_argument_obligations(
         };
 
         let argument = *argument;
-        let argument_constraints =
-            proof_plan.store_constraints(expression_constraints(program, machine, state, argument));
+        let mut argument_constraint_buffer =
+            expression_constraints(program, machine, state, argument);
+        // SOUND sum-payload-range narrowing: a destructured payload binding `v`
+        // (`P::One { v } -> use_v(v)`) rewrites to `self.p.v`, whose type
+        // resolution loses the payload field's declared range (payload fields
+        // are `DataMember::Variant` payloads, not plain `DataMember::Field`s).
+        // When the arm's CO-LOCATED, call-free guard PROVES `self.p`'s case is
+        // the variant that owns `v`, the read is provably in that field's
+        // declared range (construction store-enforces each variant's payload
+        // range), so admit those constraints. Gated on the guard proving the
+        // case (direct payload access outside a case-arm has no such guard, so
+        // it stays unproven -- its "case is active" obligation is undischarged)
+        // and on call-free siblings (a sibling call could re-case `self.p`
+        // between the dispatch guard and this argument). Deliberately NOT folded
+        // into the general field resolver, which is guard-blind and also feeds
+        // direct access -- that was the unsound path. See memory
+        // sum-payload-range-not-propagated.
+        if arguments_are_call_free
+            && let Some(payload_constraints) =
+                payload_field_constraints_under_case_guard(program, argument, &transition_guard)
+        {
+            argument_constraint_buffer.extend(payload_constraints);
+        }
+        let argument_constraints = proof_plan.store_constraints(argument_constraint_buffer);
         let constraints = proof_plan.store_constraint_nodes(program, constraints);
 
         proof_plan.push_obligation(ProofObligation::BoundedTransitionArgument(
@@ -800,6 +822,115 @@ fn collect_bounded_transition_argument_obligations(
             },
         ));
     }
+}
+
+/// SOUND sum-payload-range narrowing (see memory
+/// sum-payload-range-not-propagated). When `argument` is a payload-field member
+/// access (`self.p.v`, from a destructured `P::One { v } -> ...` binding) AND
+/// the arm `guard` proves `self.p`'s case is the variant that OWNS `v`, resolve
+/// that payload field's declared-range constraints. Under the proven case the
+/// read is provably in range (construction store-enforces each variant's
+/// payload range), so this is sound. Kept OUT of the general field resolver
+/// (`data_field_in_definition`) on purpose: that path is guard-blind and also
+/// feeds DIRECT payload access outside a case-arm (which carries no such guard
+/// and stays correctly unproven).
+fn payload_field_constraints_under_case_guard(
+    program: &TypedTrees,
+    argument: ExpressionHandle,
+    guard: &TransitionGuardNode,
+) -> Option<ConstraintBuffer> {
+    let ExpressionNode::Member(member) = program.expression_table.expression(argument) else {
+        return None;
+    };
+    let TransitionGuardNode::When(condition) = guard else {
+        return None;
+    };
+    let variant_symbol = case_guard_proven_variant(program, *condition, member.receiver)?;
+    let payload_type_reference = variant_payload_field_type_reference(
+        program,
+        variant_symbol,
+        member.member_symbol,
+        &member.member,
+    )?;
+    let constraints = collect_constraints(program, payload_type_reference);
+    (!constraints.is_empty()).then_some(constraints)
+}
+
+/// Walk a guard condition (through `&&` conjunctions and `== true` wrappers) for
+/// a case-membership conjunct `Equal(receiver, Type::Case)` whose left side is
+/// the SAME place as `receiver`, returning the matched case's variant symbol.
+/// Case membership lowers to exactly this equality shape, with the case
+/// reference a `Name` whose `.symbol` is the variant symbol (see
+/// omega-symbol-resolved-trees-to-typed-trees domain_membership.rs).
+fn case_guard_proven_variant(
+    program: &TypedTrees,
+    condition: ExpressionHandle,
+    receiver: ExpressionHandle,
+) -> Option<SymbolHandle> {
+    let ExpressionNode::Binary(binary) = program.expression_table.expression(condition) else {
+        return None;
+    };
+    match binary.operator {
+        BinaryOperator::And => case_guard_proven_variant(program, binary.left, receiver)
+            .or_else(|| case_guard_proven_variant(program, binary.right, receiver)),
+        BinaryOperator::Equal => {
+            // `cond == true` wrapper: recurse into the non-boolean side.
+            if matches!(
+                program.expression_table.expression(binary.right),
+                ExpressionNode::Boolean(true)
+            ) {
+                return case_guard_proven_variant(program, binary.left, receiver);
+            }
+            if matches!(
+                program.expression_table.expression(binary.left),
+                ExpressionNode::Boolean(true)
+            ) {
+                return case_guard_proven_variant(program, binary.right, receiver);
+            }
+            // Case-membership equality: `Equal(receiver, Type::Case)` (the case
+            // reference is always lowered to the RIGHT of `value`).
+            let ExpressionNode::Name(case_reference) =
+                program.expression_table.expression(binary.right)
+            else {
+                return None;
+            };
+            let variant_symbol = case_reference.symbol;
+            (variant_symbol.is_valid()
+                && expressions_equivalent_for_precondition(program, binary.left, receiver))
+            .then_some(variant_symbol)
+        }
+        _ => None,
+    }
+}
+
+/// The declared type of the payload field named by `member_*` in the variant
+/// identified by `variant_symbol`, or None when that variant has no such
+/// payload field. Searches ONLY `DataMember::Variant` payloads -- the
+/// complement of `data_field_in_definition`, which searches plain fields.
+fn variant_payload_field_type_reference(
+    program: &TypedTrees,
+    variant_symbol: SymbolHandle,
+    member_symbol: SymbolHandle,
+    member_name: &Identifier,
+) -> Option<TypeReferenceHandle> {
+    program.data_definitions().iter().find_map(|definition| {
+        program.data_members(definition).iter().find_map(|member| {
+            let omega_typed_trees::data::DataMember::Variant(variant) = member else {
+                return None;
+            };
+            if variant.symbol != variant_symbol {
+                return None;
+            }
+            program
+                .data_payload_fields(variant)
+                .iter()
+                .find_map(|field| {
+                    ((member_symbol.is_valid() && field.symbol == member_symbol)
+                        || field.name == *member_name)
+                        .then_some(field.type_reference)
+                })
+        })
+    })
 }
 
 /// Whether any `Call` node appears in the expression tree (an opaque effect:
