@@ -653,7 +653,11 @@ boundary trait TimeHost {
    Exit proves elapsed >= slept; native prints the real measurement
    (observed "elapsed milliseconds: 00052"). The stopwatch sample stays
    simulated-tick.
-9. [ ] **Filesystem interop** — [CLAIMED by the fs lane 2026-07-10g per
+9. [~] **Filesystem interop** — [macOS LEG DONE by the fs lane 2026-07-10g:
+   time/runtime_fs_mtime_system_time_interop_exit -- real file mtime ->
+   from_unix_seconds -> duration_since(now) = Ok, BOTH engines exit 70
+   (macos-gated dual suite test; differential-excluded with reason).
+   Windows leg still waits on fs open-work #2's stat rows.] [CLAIMED per
    Zach's work-stealing directive; see TASKS_FS.md "Stolen work". The
    macOS leg lands there; windows leg stays on fs open-work #2.] — `SystemTime::from_unix_seconds` consumed from
    `Metadata` timestamps; later, fs-side `modified() -> SystemTime` parity
@@ -681,8 +685,15 @@ boundary trait TimeHost {
     aarch64-target-truth only because aarch64 == darwin today; if
     linux_arm64 ever binds a CALL-shaped frequency the routing must become
     PlatformCallData-driven (flagged in the predicate doc).
-    [NATIVE-CONFIRMATION CLAIMED by the fs lane 2026-07-10g (it has the
-    Mac); results will be recorded here. See TASKS_FS.md "Stolen work".]
+    [NATIVE-CONFIRMED on real darwin/aarch64 by the fs lane 2026-07-10g:
+    NEW canary time/runtime_time_host_native_darwin_exit exits 70 (exact
+    darwin constants 10^9/0, clockid-injected reads strictly advancing
+    across a 30ms sleep, unix-seconds sanity bracket) -- macos-gated suite
+    test, the mirror of the windows-gated sibling. Wrapper surface also
+    native-green here: instant_elapsed / elapsed_since / sleep_for /
+    system_time_after_2026 all exit 70; the elapsed_timer sample prints a
+    real measurement ("elapsed milliseconds: 00050") and exits 70. Rung
+    10's honest gap is CLOSED.]
     VERIFIED: cross-compile canary `time/cross_darwin_time_host`
     (compile-only pin for macos_arm64 from any host; backend_report shows
     all five ops with correct per-target shapes); windows battery untouched

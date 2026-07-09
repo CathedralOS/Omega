@@ -1644,6 +1644,78 @@ fn runtime_time_host_native_exit_canary_runs() {
 }
 
 #[test]
+#[cfg(target_os = "macos")]
+fn runtime_time_host_native_darwin_exit_canary_runs() {
+    // std::time rung 10 NATIVE CONFIRMATION (claimed by the fs lane -- it
+    // has the Mac): _clock_gettime_nsec_np both reads via clockid injection
+    // + the aarch64 constant-result encoder, darwin calibration constants
+    // asserted exactly (10^9 units, offset 0), real-clock inequalities.
+    // NO interpreter oracle (virtual clock reports 1000/0 by design).
+    let canary = pass_canary("time/runtime_time_host_native_darwin_exit");
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-time-host-darwin-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("darwin time host native canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("darwin time host native canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the darwin native time-host chain to exit 70, got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+#[cfg(target_os = "macos")]
+fn runtime_fs_mtime_system_time_interop_exit_canary_runs() {
+    // fs <-> time interop (TASKS_TIME #9's ready leg, fs-lane claimed): a
+    // real file's stat mtime bridges via SystemTime::from_unix_seconds and
+    // compares against system_time_now(). Engine-agnostic assertions: BOTH
+    // the interpreter (virtual mtime 10^9 vs virtual 2026 clock) and the
+    // native darwin run (fresh file vs real clock) exit 70. macos-gated:
+    // the decode reads darwin stat offsets (windows waits on fs #2).
+    let canary = pass_canary("time/runtime_fs_mtime_system_time_interop_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("fs-time interop canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(outcome.error, None, "interop should interpret cleanly");
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 for the interop chain, got {}",
+        outcome.exit_code
+    );
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fs-time-interop-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("fs-time interop canary should compile natively");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("fs-time interop canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the native fs-time interop chain to exit 70, got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_duration_totals_exit_canary_runs() {
     // checked_as_nanoseconds/microseconds/milliseconds exact values + the
     // Overflow arm at Duration::MAX, interpreter oracle + native. Exit 70.
