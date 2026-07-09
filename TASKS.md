@@ -276,6 +276,20 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     track, pre-baseline), tick_count x2 (time agent's darwin boundary row),
     gui_memory_dc_blit (render track's darwin surface),
     + the two umbrella tests that clear with their members.
+    UMBRELLA UNMASKING 2026-07-09: canaries/.gitignore's `**/build/`
+    swallowed the fail/build/ CATEGORY -- the build_machine_wrong_arity
+    canary was committed TWICE without its files (both agents), and the fail
+    umbrella's serial panic then masked every later member. Fixed the
+    pattern to depth-anchored `*/*/*/build/`, re-authored the canary
+    (expected: "takes 2 argument(s); the build-time position supplied 1"),
+    and the unmasking surfaced that the parallel agent's CALL-WITH-RETURN
+    arc had landed the capability behind the reentrant-value-call fence:
+    all three recursive-walk fence canaries now COMPILE AND RUN CORRECTLY
+    (exit 70) -- promoted to pass/calls/runtime_*_recursive_walk_exit with
+    a pinned suite test. The windows-host provides canary is
+    #[cfg(windows)]-listed (no target block to cross-compile against). The
+    pass umbrella now stops honestly at the efi/vtable cluster (Cathedral
+    track). fail_canaries umbrella GREEN; suite 705/7.
     64-BIT SATURATING/TRAPPING landed 2026-07-09 (was the documented
     limitation): add/sub now use the FLAGS like x86 -- ADDS/SUBS set C/V, and
     the clamp is branchless (signed: movz MIN + b.vc + `csinv x17,x14,x14,PL`

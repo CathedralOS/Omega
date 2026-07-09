@@ -15933,6 +15933,44 @@ fn runtime_nested_payload_range_narrowing_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+/// The three faces the reentrant-value-call fence used to reject -- now
+/// carried by dispatch call-with-return: an effectful `terminates` walk
+/// value-called inline / directly / as a statement counts the separators of
+/// "a/b/c" (exit 70; the historic miscompile counted 0 natively).
+#[test]
+fn runtime_recursive_walk_call_with_return_canaries_run() {
+    for name in [
+        "calls/runtime_inline_recursive_walk_exit",
+        "calls/runtime_value_call_direct_recursive_walk_exit",
+        "calls/runtime_value_call_statement_recursive_walk_exit",
+    ] {
+        let canary = pass_canary(name);
+        let build_dir = std::env::temp_dir().join(format!(
+            "omega-rwalk-{}-{}",
+            name.rsplit('/').next().unwrap(),
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&build_dir);
+        compile(CompileOptions {
+            root_path: canary.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: None,
+            write_output: true,
+        })
+        .unwrap_or_else(|d| panic!("{name} should compile: {d:?}"));
+        let output = Command::new(build_dir.join(executable_name()))
+            .output()
+            .unwrap_or_else(|e| panic!("{name} should run: {e}"));
+        assert_eq!(
+            output.status.code(),
+            Some(70),
+            "{name}: expected the walk to count 2 separators (exit 70), got {:?}",
+            output.status.code(),
+        );
+        let _ = fs::remove_dir_all(&build_dir);
+    }
+}
+
 #[test]
 fn runtime_saturating_wide_boundaries_exit_canary_runs() {
     // 64-bit saturating at the REAL boundaries -- the flag-based clamp
@@ -22550,7 +22588,8 @@ fn runtime_value_call_dispatch_results_exit_canary_runs() {
 // guard, `.len` folds to the byte length, and the ordered comparison decides
 // each arm statically -- one arm per call site, and two sites hit OPPOSITE
 // arms of the same callee. The re-entrant sibling (arm targeting a
-// `terminates` walk) is fenced instead (calls/inline_recursive_walk_rejected):
+// `terminates` walk) was fenced until call-with-return landed (now the
+// promoted calls/runtime_inline_recursive_walk_exit family):
 // these folds and that fence landed together and must stay together.
 #[test]
 fn runtime_value_call_literal_len_arm_guard_exit_canary_runs() {
@@ -24403,8 +24442,31 @@ fn domain_operator_selection_records_builtin_fallback_when_fact_unproven() {
     );
 }
 
+/// Pass canaries whose authored bindings exist only on a WINDOWS host (a
+/// `windows_x64 provides ...` row with no other-target lowering and no
+/// explicit `target` block to cross-compile against). Compiled by
+/// `pass_canaries_compile` on windows hosts only; their `_canary_runs` twins
+/// are `#[cfg(windows)]`-gated the same way.
+#[cfg_attr(not(windows), allow(dead_code))]
+const WINDOWS_HOST_PASS_CANARIES: &[&str] = &["capabilities/windows_provides_import_exit"];
+
 #[test]
 fn pass_canaries_compile() {
+    #[cfg(windows)]
+    for canary_name in WINDOWS_HOST_PASS_CANARIES {
+        let canary = pass_canary(canary_name);
+        if let Err(diagnostics) = compile_canary_without_output(&canary) {
+            panic!(
+                "expected windows-host pass canary {} to compile, but got:\n{}",
+                canary.display(),
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            );
+        }
+    }
     for canary_name in ACTIVE_PASS_CANARIES {
         let canary = pass_canary(canary_name);
 
@@ -25863,7 +25925,9 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/host_provides_binding_forms",
     "capabilities/runtime_provides_value_exit",
     "expressions/runtime_qualified_case_value_exit",
-    "capabilities/windows_provides_import_exit",
+    "calls/runtime_inline_recursive_walk_exit",
+    "calls/runtime_value_call_direct_recursive_walk_exit",
+    "calls/runtime_value_call_statement_recursive_walk_exit",
     "filesystem/windows_wrapper_create_new_exit",
     "filesystem/windows_wrapper_metadata_exit",
     "filesystem/windows_wrapper_exists_exit",
@@ -26820,9 +26884,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/guard_call_vs_call_rejected",
     "calls/value_call_effectful_arm_rejected",
     "calls/value_call_param_effect_arm_rejected",
-    "calls/inline_recursive_walk_rejected",
-    "calls/value_call_direct_recursive_walk_rejected",
-    "calls/value_call_statement_recursive_walk_rejected",
     "calls/terminal_return_type_mismatch_rejected",
     "collections/write_first_loop_bound_exceeds_capacity",
     "capabilities/duplicate_provider_declaration",
