@@ -5622,7 +5622,7 @@ pub fn runtime_storage_binary_write_width(
         // operators and cannot overflow, so it falls through.
         wrapping_signed_divide_modulo_width(byte_size, operator == StateGuardOperator::Modulo)
     } else if is_float {
-        runtime_float_binary_operation_width()
+        runtime_float_binary_operation_width(operator)
     } else {
         // Trapping div/mod (idiv traps == Trapping semantics), Exact (proven
         // non-overflowing), and unsigned div/mod (cannot overflow) use the normal
@@ -5789,7 +5789,20 @@ pub fn encode_runtime_storage_binary_write(
             ArithmeticDomain::Saturating | ArithmeticDomain::Trapping
         );
     if is_float {
-        append_runtime_float_binary_operation(&mut bytes, operator, byte_size)?;
+        // Comparisons run at the OPERAND width (a bool target is 1 byte, but
+        // the xmm moves + ucomis need the f32/f64 width); arithmetic keeps the
+        // target width, which equals the operand width for float targets.
+        append_runtime_float_binary_operation(
+            &mut bytes,
+            operator,
+            runtime_binary_operation_byte_size(
+                runtime_value_operands,
+                operator,
+                left,
+                right,
+                byte_size,
+            ),
+        )?;
     } else if saturating_or_trapping && operator == StateGuardOperator::Multiply {
         // Saturating/Trapping multiply: a 64-bit `imul` yields the EXACT product
         // for <=32-bit operands (it cannot exceed 64 bits), so compare the full
@@ -7312,10 +7325,11 @@ pub fn runtime_value_operand_width(
         runtime_text_equals_literal_operand_width(runtime_value_operands, place, &literal)
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
         let operation_width = if runtime_value_operands.binary_is_float(operand) {
-            // Float operands: the SSE op (movq xmm<-r, op, movq r<-xmm) is a fixed
-            // width regardless of operator. MUST match the emission below or the
-            // recorded relocation offsets drift (silent runtime segfault).
-            runtime_float_binary_operation_width()
+            // Float operands: the SSE sequence width is PER-OPERATOR (comparisons
+            // materialize 0/1) but f32/f64-identical at each operator. MUST match
+            // the emission below or the recorded relocation offsets drift (silent
+            // runtime segfault).
+            runtime_float_binary_operation_width(operator)
         } else if let Some(domain_operation) =
             operand_position_domain_operation(runtime_value_operands, operand, operator)
         {
@@ -8225,7 +8239,7 @@ fn append_runtime_binary_operation(
 /// Move them into xmm0/xmm1, run the SSE arithmetic op, then move the result
 /// bits back to r10 so the shared store path writes them out. `byte_size > 4`
 /// selects f64 (`movq` + `*sd`); otherwise f32 (`movd` + `*ss`). Always the
-/// fixed `runtime_float_binary_operation_width()` bytes.
+/// per-operator `runtime_float_binary_operation_width(operator)` bytes.
 fn append_runtime_float_binary_operation(
     bytes: &mut Vec<u8>,
     operator: StateGuardOperator,
@@ -8256,6 +8270,71 @@ fn append_runtime_float_binary_operation(
         // computes sqrt(xmm1) = sqrt(x) into xmm0, so the shared final line
         // below (op on xmm0, xmm1) already produces the right result.
         StateGuardOperator::Sqrt => 0x51, // sqrtsd/sqrtss
+        // COMPARISON into a 0/1 result in r10 (`let ok: bool = self.a >
+        // self.b` with float operands), the aarch64 twin. `ucomis*` sets
+        // ZF/PF/CF (unordered = all three): ordering picks the operand ORDER
+        // so an unsigned-above condition is FALSE on unordered for free
+        // (`>`/`>=` compare (xmm0,xmm1) + seta/setae; `<`/`<=` swap to
+        // (xmm1,xmm0)); equality needs the parity dance (unordered sets ZF,
+        // so a bare sete/setne would call NaN == NaN true) -- a short
+        // branch-over pattern keeps it register-free. f32's 3-byte `ucomiss`
+        // takes a 1-byte NOP pad so the sequence length stays f32/f64
+        // identical (the relocation-offset invariant). Widths tracked by
+        // `runtime_float_binary_operation_width` -- MUST stay in lockstep.
+        StateGuardOperator::Equal
+        | StateGuardOperator::NotEqual
+        | StateGuardOperator::Greater
+        | StateGuardOperator::GreaterOrEqual
+        | StateGuardOperator::Less
+        | StateGuardOperator::LessOrEqual
+        | StateGuardOperator::GreaterUnsigned
+        | StateGuardOperator::GreaterOrEqualUnsigned
+        | StateGuardOperator::LessUnsigned
+        | StateGuardOperator::LessOrEqualUnsigned => {
+            let swapped = matches!(
+                operator,
+                StateGuardOperator::Less
+                    | StateGuardOperator::LessOrEqual
+                    | StateGuardOperator::LessUnsigned
+                    | StateGuardOperator::LessOrEqualUnsigned
+            );
+            let modrm = if swapped { 0xc8 } else { 0xc1 }; // xmm1,xmm0 / xmm0,xmm1
+            if wide {
+                bytes.extend([0x66, 0x0f, 0x2e, modrm]); // ucomisd
+            } else {
+                bytes.extend([0x0f, 0x2e, modrm]); // ucomiss
+                bytes.push(0x90); // pad: keep f32/f64 sequence lengths equal
+            }
+            match operator {
+                StateGuardOperator::Equal => {
+                    bytes.extend([0xb0, 0x00]); // mov al, 0
+                    bytes.extend([0x7a, 0x04]); // jp  +4 (unordered -> false)
+                    bytes.extend([0x75, 0x02]); // jne +2 (not equal -> false)
+                    bytes.extend([0xb0, 0x01]); // mov al, 1
+                }
+                StateGuardOperator::NotEqual => {
+                    bytes.extend([0xb0, 0x01]); // mov al, 1
+                    bytes.extend([0x7a, 0x04]); // jp  +4 (unordered -> TRUE)
+                    bytes.extend([0x75, 0x02]); // jne +2 (not equal -> true)
+                    bytes.extend([0xb0, 0x00]); // mov al, 0
+                }
+                StateGuardOperator::Greater
+                | StateGuardOperator::GreaterUnsigned
+                | StateGuardOperator::Less
+                | StateGuardOperator::LessUnsigned => {
+                    bytes.extend([0x0f, 0x97, 0xc0]); // seta (CF=0 && ZF=0)
+                }
+                StateGuardOperator::GreaterOrEqual
+                | StateGuardOperator::GreaterOrEqualUnsigned
+                | StateGuardOperator::LessOrEqual
+                | StateGuardOperator::LessOrEqualUnsigned => {
+                    bytes.extend([0x0f, 0x93, 0xc0]); // setae (CF=0)
+                }
+                _ => unreachable!(),
+            }
+            bytes.extend([0x44, 0x0f, 0xb6, 0xd0]); // movzx r10d, al
+            return Ok(());
+        }
         _ => {
             return Err(Diagnostic::error(format!(
                 "X86_64 runtime float binary operator `{operator:?}` is not implemented yet"
@@ -8271,10 +8350,25 @@ fn append_runtime_float_binary_operation(
     Ok(())
 }
 
-/// Fixed width of [`append_runtime_float_binary_operation`]: two operand moves
-/// (5 each) + the SSE op (4) + the result move (5) = 19, for both f32 and f64.
-fn runtime_float_binary_operation_width() -> usize {
-    19
+/// Width of [`append_runtime_float_binary_operation`]: two operand moves
+/// (5 each) + per operator -- the SSE op (4) + the result move (5) = 19 for
+/// arithmetic/min/max/sqrt; comparisons are ucomis (4, f32 NOP-padded) +
+/// setcc (3) or the equality branch pattern (8) + movzx (4). Identical for
+/// f32 and f64 at every operator (the relocation-offset invariant). MUST
+/// stay in lockstep with the emission.
+fn runtime_float_binary_operation_width(operator: StateGuardOperator) -> usize {
+    match operator {
+        StateGuardOperator::Equal | StateGuardOperator::NotEqual => 10 + 4 + 8 + 4,
+        StateGuardOperator::Greater
+        | StateGuardOperator::GreaterOrEqual
+        | StateGuardOperator::Less
+        | StateGuardOperator::LessOrEqual
+        | StateGuardOperator::GreaterUnsigned
+        | StateGuardOperator::GreaterOrEqualUnsigned
+        | StateGuardOperator::LessUnsigned
+        | StateGuardOperator::LessOrEqualUnsigned => 10 + 4 + 3 + 4,
+        _ => 19,
+    }
 }
 
 fn runtime_binary_operation_width(operator: StateGuardOperator, byte_size: usize) -> usize {
