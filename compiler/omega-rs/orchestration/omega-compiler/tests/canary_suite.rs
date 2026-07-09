@@ -20816,6 +20816,40 @@ fn runtime_dispatch_second_receiver_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// RECEIVER SLICE 2: the second-receiver dispatch shape with a NON-ENTRY
+// caller (Holder under Main). The per-dispatch base composes through the
+// parent-context chain (Main->holder@0, +second@4); also pins the
+// dispatch-index table's ARENA-index (1-based) alignment -- the positional
+// table read the next state's base and this is the shape that exposes it.
+#[test]
+fn runtime_nonentry_second_receiver_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_nonentry_second_receiver_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-nonentry-second-receiver-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("non-entry second-receiver canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("non-entry second-receiver canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the SECOND receiver's storage through a NON-entry caller (21 -> exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A dispatched value call whose terminal reads THROUGH a `&mut` ALIAS
 // (`-> acc`, acc: &mut i32): pins that the result is the pointee value,
 // never the pointer bits (the last unprobed return-write shape).

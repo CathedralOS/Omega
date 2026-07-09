@@ -78,8 +78,13 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
     }
 
     /// Record the minting call site for `context` (parallel to the plan's
-    /// `context_call_sites`; ROOT stays the invalid placeholder).
-    fn record_context_call_site(&mut self, context: CallContext, site: (StateKey, usize)) {
+    /// `context_call_sites`; ROOT stays the invalid placeholder). The third
+    /// element is the PARENT context -- the one the calling state ran in.
+    fn record_context_call_site(
+        &mut self,
+        context: CallContext,
+        site: (StateKey, usize, CallContext),
+    ) {
         let index = context.0 as usize;
         debug_assert_eq!(self.runtime_flow.context_call_sites.len(), index);
         let _ = index;
@@ -343,7 +348,10 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
             omega_core::arena::HandleSpan::empty(),
             call_result,
         )?;
-        self.record_context_call_site(callee_context, (control_key, call_edge.statement_index));
+        self.record_context_call_site(
+            callee_context,
+            (control_key, call_edge.statement_index, context),
+        );
         let call_target = crate::RuntimeTransitionTarget::State {
             key: call_edge.target_key,
             context: callee_context,

@@ -92,36 +92,33 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    Debug instrumentation kept env-gated (OMEGA_DEBUG_RECEIVER + the BTW
    binary-write entry prints).
 
-3. **Receiver slice 2** — non-entry callers. Two attempts reverted
-   (2026-07-10z naive composition; 2026-07-11a entry-rooted instance
-   paths). ROOT CAUSE NOW CONFIRMED from the dungeon's layout plan
-   (omega-run --keep, backend_report machine layouts) — it is OVERRIDE
-   OVER-APPLICATION, not the coordinate-system mismatch first suspected:
-   the dungeon receivers (`GameView`, `CommandParser`, `Console`) are
-   ZERO-SIZE machines (`attached GameView, size 0`). The receiver has NO
-   storage, so EVERY machine-storage read inside its clones is
-   CALLER-owned (spliced `&mut self.console` args, prelude lets: Game's
-   console@0/dungeon@0/output@4112). Attempt #2's per-context base
-   (["game","view"] → 0+4096) was arithmetically consistent as a path
-   walk — but view@4096 is a zero-size field aliasing `input@4096:
-   String`, and applying it per-CONTEXT shifted the CALLER's reads
-   wholesale (+4096: @0/@8/@4088 → @4096/@4104/@8184 in the report
-   diff) → garbage → crash. Slice 1 never exposed this: caller = entry
-   → caller base 0, so over-application was invisible. DESIGN RULES for
-   attempt #3: (a) the receiver-base override is per-STATEMENT, scoped
-   to reads the CALLEE owns (statement source machine == dispatched
-   callee, or member path resolving in the callee's layout) — NEVER
-   per-context/per-clone; (b) caller-stamped statements compose with
-   the CALLER's own base (recursively — the caller may itself be a
-   non-first instance; dungeon caller Game sits at Main.game@0 so its
-   base is 0 naturally); (c) zero-size receivers need no override at
-   all (no self reads exist) — skip them, they're pure behavior.
-   Dungeon canaries stay the acceptance oracle; then the slice2 probe
-   (scratchpad/slice2). Frontier shapes found while probing
-   (pre-existing loud fences, repro scratchpad/slice2): (a) a
-   dispatched callee forwarding its own call-bound LOCAL as terminal;
-   (b) the field-carrier restructure through a nested receiver (outer
-   field-read terminal return-write does not serve).
+3. ~~Receiver slice 2 (non-entry callers)~~ — **LANDED 2026-07-11b**
+   (attempts 1-2 reverted 2026-07-10z/11a; the dungeon "regression" of
+   attempt 2 turned out to be override over-application onto zero-size
+   receivers' caller-owned reads). Final shape, three pieces: (a)
+   `context_call_sites` carries the minting caller's PARENT context;
+   per-context bases compose parent-first in `compute_receiver_bases`
+   (parent base + receiver offset in the CALLER's machine layout;
+   self/static/unresolvable stay `None` = by-type fallback); (b)
+   ZERO-SIZE callee machines emit `None` deliberately (no self reads
+   exist; an override could only mis-rebase caller-owned spliced reads
+   — the dungeon lesson); (c) the contained-receiver fence serves
+   non-entry DISPATCH calls by consulting the TABLE itself (every
+   minted clone composed ⇒ serve; no re-derived predicate). Bonus
+   fix: the table is now indexed by ARENA index (1-based) — the
+   positional collect() was OFF BY ONE for every consumer, masked in
+   slice-1 shapes because adjacent clone states share a context. Pin:
+   calls/runtime_nonentry_second_receiver_exit (Holder-under-Main,
+   second Tally, 21→70; wrong-instance delivers 300 / out-of-region
+   writes). Still open in this lane: SELF-call chain composition
+   (a non-entry caller reached via `self.helper()` chains — contexts
+   under self-call parents stay `None`, fence keeps refusing) and the
+   INLINE route for non-entry callers (receiver_base_for's unique-call
+   recovery is still entry-restricted; relax with the same
+   caller-base composition). Probe corpus: scratchpad/slice2 — its two
+   frontier return-write shapes still stand: (a) a dispatched callee
+   forwarding its own call-bound LOCAL as terminal; (b) the
+   field-carrier restructure through a nested receiver.
 
 4. **Windows-session bundle** (needs a Windows host): verify the stat-row
    migration natively; WINDOWS_IMPORT_ROWS migration into provides files;

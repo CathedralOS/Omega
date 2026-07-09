@@ -1,0 +1,33 @@
+// RUN CANARY (exit 70) -- RECEIVER SLICE 2 (landed 2026-07-11b): the
+// second-receiver dispatch shape with a NON-ENTRY caller. Holder (itself
+// a contained machine under Main) holds two same-type Tally receivers and
+// calls through the SECOND; the composed per-dispatch base (parent-context
+// chain: Main->holder@0, +second@4) must drive the loop on second's
+// storage: 3 iterations of +7 = 21 -> exit 70. Also pins the dispatch-index
+// table alignment (arena indices are 1-BASED; the positional table read the
+// NEXT state's base and this canary is the shape that exposes it: 300 -- or
+// an out-of-region write -- instead of 21).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Tally { count: i32 in Wrapping; }
+machine Tally::drain(&mut self, n: i32, acc: i32 in Wrapping)
+terminates { decreases n -> Nat::Descending; }
+-> i32 in Wrapping
+{
+    transition n > 0 { true -> drain(n - 1, acc + self.count) false -> leaf(acc) }
+    state leaf(&mut self, acc: i32) -> i32 { acc }
+}
+data Holder { first: Tally; second: Tally; }
+machine Holder::run(&mut self) -> i32 in Wrapping {
+    self.first.count = 100;
+    self.second.count = 7;
+    let total: i32 in Wrapping = self.second.drain(3, 0);
+    transition true { true -> done(total) }
+    state done(&mut self, total: i32) -> i32 { total }
+}
+data Main { console: Console; holder: Holder; }
+machine Main::main(&mut self) {
+    let total: i32 in Wrapping = self.holder.run();
+    transition total == 21 { true -> good() _ -> bad(total) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, total: i32) { self.console.exit_process(71); }
+}
