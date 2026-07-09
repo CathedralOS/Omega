@@ -2079,11 +2079,12 @@ pub fn encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_stora
 /// Write `machine[index] = <machine-storage source>` — the store-side mirror of
 /// `encode_runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage`.
 /// Computes the ELEMENT address (base + index*scale + field) into x16 exactly as
-/// the read does, computes the SOURCE address (machine region + `source_offset`)
+/// the read does, computes the SOURCE address (source region + `source_offset`)
 /// into x20, then LOADs from the source (x20) and STOREs into the element (x16) --
-/// the load/store bases are swapped relative to the read. `source_region` is
-/// Machine-only (the instruction-selection dispatch rejects a frame source), so
-/// both x16's index base and x20's source share the machine region.
+/// the load/store bases are swapped relative to the read. The source page pair's
+/// SYMBOL is chosen by the relocation record (machine for a field source, the
+/// runtime frame for a slot-backed local source); the emitted bytes are
+/// identical either way.
 pub fn encode_runtime_storage_copy_to_runtime_machine_indexed_from_runtime_storage(
     source_offset: usize,
     base_byte_offset: usize,
