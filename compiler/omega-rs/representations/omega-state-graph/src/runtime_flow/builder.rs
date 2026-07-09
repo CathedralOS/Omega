@@ -307,20 +307,14 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         // receivers -- a DIFFERENT instance; non-tail calls; transitive
         // cycles) keeps the loud rejection.
         if self.call_target_recurses_into(call_edge.target_key, control_key) {
-            // Plan/flow drift check: a DispatchLoop-stamped edge that fails
-            // the structural predicate here means the plan's tail-self-call
-            // predicate and this one disagree -- refuse loudly rather than
-            // rewrite on a shape only one side believes in.
+            // A DispatchLoop-stamped edge that fails the flow predicate
+            // (e.g. the plan cannot see sibling calls, so a multi-call state
+            // can arrive stamped) falls through to the CLASSIC cycle
+            // rejection below -- the honest refusal, not a rewrite on a
+            // shape only one side believes in.
             if call_edge.is_dispatch_loop
-                && !self.tail_self_call_qualifies(call_edge, control_key, segment, call_edges.len())
+                && self.tail_self_call_qualifies(call_edge, control_key, segment, call_edges.len())
             {
-                return Err(Diagnostic::error(format!(
-                    "{} was stamped DispatchLoop by the state-call plan but fails \
-                     the flow builder's tail-self-call predicate -- plan/flow drift",
-                    self.state_key_display(control_key)
-                )));
-            }
-            if call_edge.is_dispatch_loop {
                 if std::env::var_os("OMEGA_DEBUG_TAILCALL").is_some() {
                     eprintln!(
                         "TAILCALL: rewriting m{} s{} stmt {} as entry-transition loop",

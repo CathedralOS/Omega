@@ -882,11 +882,23 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    no transition arguments, and without this leg the loop carried NO
    rebinds and the emitted binary SPUN FOREVER (n stayed 4; caught by the
    backend report showing zero argument writes on the cycle edge).
-   FOLLOW-ONS: the STATEMENT spelling (mkall_copy's class — unit machines,
-   slice-1 predicate deliberately rejects it); relaxing the no-operations
-   leg (prior statements before the tail call). The wrapper's rda/mkall
-   iterative restructures could eventually rewrite in the natural
-   recursive spelling.
+   FOLLOW-ONS CLOSED (2026-07-10i):
+   (a) The STATEMENT spelling (mkall_copy's class) ALREADY SERVES — probe
+   showed it lowers as a NESTED-transition cycle upstream of the
+   state-call plan entirely (no StateCall entry; the report shows
+   `step -> drip always [cycle]` as a flow transition). Pinned by
+   calls/runtime_statement_tail_self_call_exit so a route regression
+   fires loudly.
+   (b) The no-operations leg RELAXED: prior ops are dispatch-case work
+   that runs before the loop edge every iteration; pinned by
+   calls/runtime_tail_self_call_prior_ops_exit (effect count == 4 AND
+   result == 10 — both failure directions). The plan cannot see sibling
+   calls, so a multi-call state can arrive stamped; the flow predicate's
+   call_count leg rejects it and the handling falls back to the CLASSIC
+   cycle rejection (the drift hard-error is gone — over-stamping degrades
+   to the honest refusal, never a crash).
+   REMAINING: the wrapper's rda/mkall iterative restructures could now
+   rewrite in the natural recursive spelling (cosmetic, low priority).
    INVESTIGATION ITEM 2: enumerate the dispatch return-write's missing
    shapes against the ~13-canary regression list (binary operands,
    slice-element results, aliases, multi-arm) -- each is its own bounded
