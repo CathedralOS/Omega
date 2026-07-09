@@ -96,6 +96,16 @@ pub(super) fn runtime_value_operand_name(
         } => format!(
             "frame_fixed_indexed(descriptor@{descriptor_offset}, index {element_index}, elem {element_byte_size}, field +{field_byte_offset}, bytes {byte_size})"
         ),
+        RuntimeValueOperand::MachineIndexed {
+            base_byte_offset,
+            index_region,
+            index_offset,
+            element_byte_size,
+            field_byte_offset,
+            byte_size,
+        } => format!(
+            "machine_indexed(base@{base_byte_offset}, index {index_region:?}@{index_offset}, elem {element_byte_size}, field +{field_byte_offset}, bytes {byte_size})"
+        ),
         RuntimeValueOperand::Binary {
             left,
             operator,

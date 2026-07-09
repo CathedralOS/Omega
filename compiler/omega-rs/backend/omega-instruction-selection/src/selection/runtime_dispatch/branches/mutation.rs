@@ -1333,6 +1333,26 @@ fn resolve_runtime_value_operand_in_table(
         );
     }
 
+    if let Some(indexed_target) = resolve_runtime_machine_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(
+            runtime_value_operands.insert(RuntimeValueOperand::MachineIndexed {
+                base_byte_offset: indexed_target.base_byte_offset,
+                index_region: indexed_target.index_region,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                byte_size: indexed_target.byte_count,
+            }),
+        );
+    }
+
+
     if let Some(indexed_target) = resolve_runtime_frame_fixed_indexed_target_in_table(
         input,
         dispatch_index,

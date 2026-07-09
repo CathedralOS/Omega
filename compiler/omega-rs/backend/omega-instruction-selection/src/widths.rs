@@ -505,6 +505,18 @@ pub fn runtime_binary_right_operand_gap(architecture: Architecture) -> usize {
     }
 }
 
+/// Where a `MachineIndexed` operand's FRAME-base materialization sits relative
+/// to the operand start, when its index is frame-resident: after the machine
+/// adrp/add pair (aarch64) or the machine mov-imm64 + the rax accumulator move
+/// (x86_64). Both encoders emit this prefix unconditionally in that order, so
+/// the relocation walker can pin the second symbol here.
+pub fn machine_indexed_operand_frame_index_base_offset(architecture: Architecture) -> usize {
+    match architecture {
+        Architecture::Aarch64 => 8,
+        Architecture::X86_64 => 13,
+    }
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn runtime_storage_binary_write_width(
     architecture: Architecture,

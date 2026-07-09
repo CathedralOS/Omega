@@ -32,6 +32,12 @@ pub trait RuntimeValueOperandSource {
         &self,
         handle: RuntimeValueOperandHandle,
     ) -> Option<(usize, usize, usize, usize, usize)>;
+    /// A `MachineIndexed` operand: `(base_byte_offset, index_region,
+    /// index_offset, element_byte_size, field_byte_offset, byte_size)`.
+    fn machine_indexed(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(usize, RuntimeStorageRegion, usize, usize, usize, usize)>;
     fn binary(
         &self,
         handle: RuntimeValueOperandHandle,
@@ -173,6 +179,30 @@ impl RuntimeValueOperandSource for Arena<RuntimeValueOperand> {
             } => Some((
                 *descriptor_offset,
                 *element_index,
+                *element_byte_size,
+                *field_byte_offset,
+                *byte_size,
+            )),
+            _ => None,
+        }
+    }
+
+    fn machine_indexed(
+        &self,
+        handle: RuntimeValueOperandHandle,
+    ) -> Option<(usize, RuntimeStorageRegion, usize, usize, usize, usize)> {
+        match self.get(handle) {
+            RuntimeValueOperand::MachineIndexed {
+                base_byte_offset,
+                index_region,
+                index_offset,
+                element_byte_size,
+                field_byte_offset,
+                byte_size,
+            } => Some((
+                *base_byte_offset,
+                *index_region,
+                *index_offset,
                 *element_byte_size,
                 *field_byte_offset,
                 *byte_size,

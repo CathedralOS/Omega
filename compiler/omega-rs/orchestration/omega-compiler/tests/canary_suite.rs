@@ -16171,6 +16171,33 @@ fn runtime_local_array_element_value_operand_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_machine_array_element_fused_call_arg_exit_canary_runs() {
+    // A machine array's runtime-indexed element inside a fused value-call
+    // arg -- the shape whose computation was silently dropped before the
+    // MachineIndexed operand variant existed.
+    let canary = pass_canary("slices/runtime_machine_array_element_fused_call_arg_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-machidx-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("machine-array fused-call-arg canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("machine-array fused-call-arg canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the fused machine-indexed arg to deliver (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_trapping_guard_overflow_traps_canary_runs() {
     // Trapping arithmetic in OPERAND position must TRAP: `u8 in Trapping`
     // 200+100 overflows at the guard's fused add, so the process dies before
@@ -27407,10 +27434,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     },
     PendingCanary {
         path: "arithmetic/unsigned_min_max_wrapping_local_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "slices/machine_array_element_fused_call_arg",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
     },
     PendingCanary {

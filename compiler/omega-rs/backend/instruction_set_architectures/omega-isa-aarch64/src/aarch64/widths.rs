@@ -1646,6 +1646,32 @@ pub fn runtime_value_operand_width(
             element_byte_size,
             field_byte_offset,
         ) + runtime_load_data_width(byte_size)
+    } else if let Some((
+        base_byte_offset,
+        index_region,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    )) = runtime_value_operands.machine_indexed(operand)
+    {
+        // MUST mirror the machine-indexed operand arm exactly: machine pair
+        // (8) + conditional frame pair (8) + 4-byte index load + scale +
+        // address add (4) + combined base+field constant + element load (4).
+        let frame_pair = if index_region
+            == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        {
+            8
+        } else {
+            0
+        };
+        let _ = byte_size;
+        8 + frame_pair
+            + load_data_offset_width(index_offset, 4)
+            + scale_index_width(element_byte_size)
+            + 4
+            + add_constant_width(base_byte_offset + field_byte_offset)
+            + 4
     } else if runtime_value_operands.text_equals(operand).is_some() {
         runtime_text_equals_operand_width()
     } else if let Some((place, literal, _place_is_bounded_buffer)) =

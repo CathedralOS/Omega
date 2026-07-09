@@ -3281,6 +3281,57 @@ fn append_runtime_value_operand(
             }
         }
         Ok(())
+    } else if let Some((
+        base_byte_offset,
+        index_region,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    )) = runtime_value_operands.machine_indexed(operand)
+    {
+        // MACHINE-owned array element in operand position: machine base pair
+        // at the operand start (relocated), then -- for a frame-resident
+        // index -- the frame pair at the PINNED offset 8 (see
+        // machine_indexed_operand_frame_index_base_offset). Index/scale
+        // scratch come from the operand scratch list exactly like the frame
+        // arms (the hardcoded-x17 clobber lesson).
+        let mut scratch_picks = scratch_registers
+            .iter()
+            .copied()
+            .filter(|register| !matches!(register, 15 | 19 | 20 | 21))
+            .filter(|register| *register != destination_register);
+        let (Some(index_scratch), Some(scale_scratch)) =
+            (scratch_picks.next(), scratch_picks.next())
+        else {
+            return Err(Diagnostic::error(
+                "AArch64 MVP encoder ran out of scratch registers for a machine-indexed operand",
+            ));
+        };
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+        let index_base = if index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        {
+            bytes.extend(encode_adrp_placeholder(20));
+            bytes.extend(encode_add_page_offset_placeholder(20));
+            20
+        } else {
+            15
+        };
+        append_load_data_from_x_offset(bytes, index_scratch, index_base, index_offset, 4, 19)?;
+        append_scale_x_register_by_constant(bytes, scale_scratch, index_scratch, element_byte_size)?;
+        bytes.extend(encode_add_x_register(15, 15, scale_scratch));
+        append_add_constant_to_x_register(bytes, 15, base_byte_offset + field_byte_offset)?;
+        match byte_size {
+            1 | 2 | 4 => bytes.extend(encode_load_w_from_x(destination_register, 15, 0, byte_size)?),
+            8 => bytes.extend(encode_load_x_from_x(destination_register, 15, 0)?),
+            _ => {
+                return Err(Diagnostic::error(format!(
+                    "AArch64 MVP encoder cannot load machine-indexed operand width `{byte_size}` yet"
+                )));
+            }
+        }
+        Ok(())
     } else if let Some((_, left_offset, _, right_offset)) =
         runtime_value_operands.text_equals(operand)
     {
