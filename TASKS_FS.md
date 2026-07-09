@@ -105,13 +105,23 @@ operands.rs) -- kept last so the descriptor route (copy's `&mut buffer`)
 always wins with its proven address.
 `windows_wrapper_copy_exit` gained a BINARY leg (CR/LF/^Z bytes copied
 byte-exactly; read-back via the RAW seam) and its text-era caveat is gone.
-⚠️ NEW PENDING (found by that leg's first draft):
-`pending/host/wrapper_read_buffer_decoy` -- a `&mut self.X` array-field
-buffer forwarded through the WRAPPER's `&mut [u8]` read param natively fills
-the WRONG buffer when another array field precedes it (decoy-discriminated:
-native 73 vs interp 70; without the decoy it is byte-exact). Same
-resolution-by-KIND disease family as the receiver walk. The raw seam is
-unaffected (direct buffer arg). Still fenced on windows: `read_dir` + everything that walks it
+PARAM-NAME SHADOWING FIXED (2026-07-08f, was pending/host/
+wrapper_read_buffer_decoy): the "wrong buffer" was NAME-COLLISION, not
+kind-match -- renaming the decoy field fixed it, which pinned the root: the
+direct callee-scope operand resolution falls through to MACHINE-OWNED NAME
+matching, so a caller field named like a forwarded wrapper param captured the
+operand (a caller `buffer: [u8;64]` swallowed the read -> native 73; a caller
+`count: usize` ZII 0 made the read request 0 bytes -> native 72; interp 70
+both). FIX (operands.rs): the ALIAS REWRITE (the forwarded param's semantic
+truth) now precedes direct resolution in BOTH `address_argument_operand_at`
+and `scalar_argument_operand_at` -- including the forwarded-LITERAL immediate
+probe, which also sat behind the direct fallback (the count shadow only
+cleared once the literal probe moved up). Both alias probes return None
+unless an alias actually rewrote, so non-forwarded args are untouched.
+Promoted as `filesystem/wrapper_param_shadow_exit` (differential; BOTH decoy
+fields declared, binary roundtrip must land in the SPELLED buffer/count
+byte-exactly); pending/host/ is empty again. The copy canary's raw read-back
+note still stands as written history (the raw seam was never affected). Still fenced on windows: `read_dir` + everything that walks it
 (`remove_dir_all`), and create_dir_all's DEEP walk (runtime SUBSLICE paths need a
 NUL-terminated scratch copy). ATTEMPTED 2026-07-07 (reverted clean, findings recorded): the
 plan is an Omega-side rework, no encoder work -- copy the prefix into a

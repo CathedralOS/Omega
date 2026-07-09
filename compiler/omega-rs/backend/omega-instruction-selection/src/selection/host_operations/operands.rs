@@ -1177,18 +1177,30 @@ fn address_argument_operand_at(
     let HostCallArgumentKind::Expression(expression) = &argument.kind else {
         return None;
     };
-    resolve_runtime_storage_place_in_table(
-        input,
-        dispatch_index.unwrap_or(0),
-        host_call.source_key,
-        &input.host_calls.expressions,
-        *expression,
-    )
-    .or_else(|| alias_resolved_place_at(input, host_call, dispatch_index, alias_context, index))
-    .map(|place| InstructionOperandKind::RuntimeStorageAddress {
-        region: place.region,
-        byte_offset: place.byte_offset,
-    })
+    // ALIAS REWRITE FIRST: a value-call-forwarded `&mut` buffer param is
+    // BY-REF -- when an alias binding rewrites it to the caller's place, that
+    // place is the semantic truth. The direct callee-scope resolution below
+    // falls through to MACHINE-OWNED NAME matching, which silently captured a
+    // CALLER FIELD that happened to share the param's name (`buffer` param vs
+    // a caller `buffer: [u8; 64]` field -- the wrapper_read_buffer_decoy
+    // repro: the read filled the caller's same-named field, the spelled
+    // buffer stayed ZII). `alias_resolved_place_at` returns None unless an
+    // alias actually rewrote the expression, so non-forwarded arguments keep
+    // the direct path unchanged.
+    alias_resolved_place_at(input, host_call, dispatch_index, alias_context, index)
+        .or_else(|| {
+            resolve_runtime_storage_place_in_table(
+                input,
+                dispatch_index.unwrap_or(0),
+                host_call.source_key,
+                &input.host_calls.expressions,
+                *expression,
+            )
+        })
+        .map(|place| InstructionOperandKind::RuntimeStorageAddress {
+            region: place.region,
+            byte_offset: place.byte_offset,
+        })
 }
 
 /// Resolve a runtime `&[u8]` argument (a fat-pointer descriptor: `{ptr, len}`)
@@ -1779,28 +1791,50 @@ fn scalar_argument_operand_at(
         HostCallArgumentKind::Integer(value) => {
             Some(InstructionOperandKind::ImmediateInteger(*value))
         }
-        HostCallArgumentKind::Expression(expression) => resolve_runtime_storage_place_in_table(
-            input,
-            dispatch_index.unwrap_or(0),
-            host_call.source_key,
-            &input.host_calls.expressions,
-            *expression,
-        )
-        .or_else(|| alias_resolved_place_at(input, host_call, dispatch_index, alias_context, index))
-        .filter(|place| matches!(place.byte_count, 1 | 2 | 4 | 8))
-        .map(|place| InstructionOperandKind::RuntimeScalarInteger {
-            region: place.region,
-            byte_offset: place.byte_offset,
-            byte_count: place.byte_count,
-        })
-        // An alias that rewrites the argument to the CALLER'S INTEGER LITERAL
-        // (`fs.read(file, &mut buf, 32)` forwards the wrapper's `count` param
-        // bound to `32`): a literal has no storage place, so it marshals as an
-        // immediate instead.
-        .or_else(|| {
-            alias_resolved_integer_at(input, host_call, alias_context, index)
-                .map(InstructionOperandKind::ImmediateInteger)
-        }),
+        // ALIAS REWRITE FIRST (same ordering + rationale as
+        // `address_argument_operand_at`): a forwarded param's alias binding is
+        // the semantic truth; the direct callee-scope resolution falls through
+        // to machine-owned NAME matching, which silently captured a caller
+        // field sharing the param's name (a caller `count` field shadowing the
+        // wrapper's `count` param made the read request the field's ZII 0
+        // bytes). `alias_resolved_place_at` is None unless an alias actually
+        // rewrote the expression, so non-forwarded arguments are unchanged.
+        HostCallArgumentKind::Expression(expression) => {
+            let scalar_place = |place: crate::selection::storage_places::RuntimeStoragePlace| {
+                matches!(place.byte_count, 1 | 2 | 4 | 8).then_some(
+                    InstructionOperandKind::RuntimeScalarInteger {
+                        region: place.region,
+                        byte_offset: place.byte_offset,
+                        byte_count: place.byte_count,
+                    },
+                )
+            };
+            // The alias rewrite may land on the caller's PLACE or the caller's
+            // INTEGER LITERAL (`fs.read(file, &mut buf, 32)` binds `count` to
+            // `32`, which has no storage place -- it marshals as an immediate).
+            // BOTH precede the direct fallback: the direct path's machine-owned
+            // NAME matching silently captured a caller field sharing the
+            // param's name (a caller `count` field shadowing the wrapper's
+            // `count` param made the read request the field's ZII 0 bytes).
+            // Both alias probes are None unless an alias actually rewrote the
+            // expression, so non-forwarded arguments are unchanged.
+            alias_resolved_place_at(input, host_call, dispatch_index, alias_context, index)
+                .and_then(scalar_place)
+                .or_else(|| {
+                    alias_resolved_integer_at(input, host_call, alias_context, index)
+                        .map(InstructionOperandKind::ImmediateInteger)
+                })
+                .or_else(|| {
+                    resolve_runtime_storage_place_in_table(
+                        input,
+                        dispatch_index.unwrap_or(0),
+                        host_call.source_key,
+                        &input.host_calls.expressions,
+                        *expression,
+                    )
+                    .and_then(scalar_place)
+                })
+        }
         _ => None,
     }
 }
