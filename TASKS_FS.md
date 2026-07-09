@@ -410,6 +410,19 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
   the same predicate; same discipline as `restores_stack()`).
 - **D10** Machine-to-machine self value-calls work; wrappers rely on it.
 - **D11** Runtime-length subslice write `write(fd, buf[0..n])` fixed.
+- **D12** Per-OS values = DATA in `.omg` provides rows + a `cfg!(target_os)`
+  interpreter Rust mirror, differential-guarded. Duplication is interim debt
+  that self-hosting dissolves (the Omega interpreter will read the same rows).
+- **D13** Per-OS decode = variation-as-DATA at the edge (provides) + ONE generic
+  central decoder producing a neutral `Metadata`. Strict "portable core never
+  touches a raw OS byte" (a per-target-CODE normalize behind the seam) is
+  deferred — a new mechanism, marginal purity.
+- **D14** (⚖️ LEANING, not ratified) `Metadata` absent/unknown fields = `0`
+  (ZII-clean); OS quirks like unix `uid 0 == root` remap at the SEAM to keep
+  `0 = none` pristine. No `-1` sentinel (breaks ZII), no `Option`. A cased-data
+  field (`Owner{None|Root|Id}`) is the clearer-but-heavier alternative, deferred.
+- **D15** A `provides` target name is valid iff compiler-defined OR build-defined,
+  else error (needs freestanding labels `uefi_x64`/`demo_target` registered first).
 - **D-oracle** RUN canaries run interpreter-vs-native; unsupported constructs go
   to a skip bucket.
 - Misc (in force): `remove_dir_all` one `fuel=4096` budget; `*at` names trusted
@@ -510,51 +523,53 @@ attempted and REVERTED -- insufficient without fixing the key agreement.
 Real fix is backend value-call arg handling; the std wrapper (contained
 receivers, used results) is unaffected, so this is latent, not blocking.
 
-## ⚠️ Portable-values FRONTIER IS DESIGN-GATED (mapped 2026-07-08, needs Zach)
+## Portable-values / Metadata design questions — RESOLVED (chat 2026-07-08)
 
-The provides/portable-values ladder reached the point where the remaining
-rungs are DESIGN decisions, not mechanical work. Two forks block the
-headline payoff (unfencing windows create_new/open_with):
+The forks this section used to flag are decided (the flag + stat migrations
+already shipped -- create_new/open_with/metadata are unfenced). Recorded as
+D12–D15 below. One (Q3) is an explicit LEANING, not fully settled.
 
-**Flag-migration plan (facts, fully scouted).** The wrapper hardcodes
-darwin flag words (O_CREAT=512, O_EXCL=2048, O_TRUNC=1024, O_APPEND=8,
-access=0x3). To migrate to `FilesystemHost::O_CREATE` per-target refs
-(V2 substitution already works) needs THREE coordinated pieces:
-(1) a bundled per-target flag provides module + injection — the
-`substitute_native_gui_provider` pattern (stages.rs) injects a bundled
-std module gated on a boundary trait, but it is NATIVE-ONLY (the
-interpreter's compile_to_checked keeps abstract traits), so flags need
-injection on BOTH paths; (2) wrapper literal->ref migration; (3)
-interpreter target-aware flag decode — the decode is in evaluator.rs
-`virtual_open_flags` + the `open_create` arm, hardcoding darwin bits
-(0x200/0x400/0x8/0x3, EXCL 2048); it MUST match whatever numerology the
-wrapper emits. ⚠️ LANDMINE: on a Windows host `host()` == `windows_x64`
-(Coff/X86_64/8/8), so compile-target-None already resolves to windows —
-migrating the wrapper without the interpreter flip breaks the
-windows_wrapper interp-oracle canaries immediately. The darwin O_CREAT
-0x200 == msvcrt O_TRUNC 0x200 collision means the interpreter CANNOT
-decode semantically from bits alone; it needs the target.
-🔷 DESIGN FORK (Zach): where do per-OS values live as the SINGLE source
-of truth -- a Rust const table (interpreter + native both read it) or the
-`.omg` provides rows (settled design says .omg, but then the interpreter
-must READ provides tables for flag decode, more machinery)? This is the
-crux; picking wrong duplicates the values (ZII "clear data-to-data"
-concern). NOT settled -> not built.
+**Q1 — single source of truth for per-OS values (RESOLVED, D12).** Per-OS
+numbers (flag bit positions, stat offsets) live as DATA in the `.omg`
+provides rows; the interpreter carries a `cfg!(target_os)` Rust MIRROR
+(`host_open_flags` / `host_stat_offsets`), differential-canary-guarded
+against drift. The duplication is accepted INTERIM debt: the interpreter is
+the language runtime implemented in Rust *until self-hosting*, at which point
+it reads the same provides rows the compiler does and the mirror dissolves
+for free. Not a fork — keep the mirror, canary-guarded.
 
-**Silent typo hazard in provides target names (found 2026-07-08).** A
-`provides` block naming an UNKNOWN target (`windows_x86` typo) silently
-voids the whole block: an unreferenced value row = ZERO errors; a binding
-= a misleading "no native lowering" at the call, not "unknown target". A
-referenced value row IS caught (the V2 wrong-target error). 🔷 The clean
-fix ("unknown provides target = error") needs a canonical VALID-TARGET-
-NAME set, which is itself unsettled: `uefi_x64` (freestanding, 3 corpus
-uses) and `demo_target` (placeholder, host_provides_binding_forms) are
-NOT in `from_omega_target_name`, and freestanding provides labels are
-DECORATIVE (build_freestanding_abi_plan takes ALL rows, no target
-filter) -- plus freestanding-vs-hosted isn't known at the pre-resolution
-point where names are processed. So this touches freestanding target
-naming ([[first-boot-ladder]]/[[extern-binding-sum]] lane). Parked, not
-fenced unilaterally.
+**Q2 — where the per-OS decode lives / "push complexity to the edges"
+(RESOLVED, D13; deeper option noted).** The per-OS VARIATION (layout offsets,
+and value quirks like unix root-0) is at the EDGE as provides DATA + seam-side
+normalization; the portable core runs ONE generic, data-driven decoder and
+sees a clean neutral `Metadata`. The stricter reading — portable code never
+touches a raw OS byte at all — would move the decoder itself behind the seam,
+which needs per-target CODE (Omega has per-target DATA via provides, not
+per-target code); that is a NEW mechanism, more machinery for marginal purity,
+DEFERRED. Current shape (variation-as-data at the edge + one uniform central
+decoder) is the accepted realization.
+
+**Q3 — Metadata fields an OS lacks (LEANING, not fully settled; D14).** `0` =
+"none / unknown" is the ZII-clean default — a zeroed `Metadata` is a valid
+"we don't know" record. Windows reporting `0` for uid/gid/ino/blocks is
+CORRECT (it has no such concept), not a hack. Real values stay 1:1 EXCEPT an
+OS quirk like unix `uid 0 == root`, which the SEAM remaps to a distinct Omega
+"root" value on the way IN, so our `0 = none` is never polluted — an edge-side
+translation (ties to Q2), only real once a unix native target lands. NO
+widening to a `-1` sentinel (breaks ZII, which is much desired), NO `Option`;
+don't bend the clean abstraction for OS quirks. ⚖️ NOT fully settled: a more
+advanced CASED-DATA field (`Owner { None | Root | Id(n) }`) gives explicit
+clarity but is more baggage on an identifier and is functionally ~ `Option<>`;
+we LEAN the plain-`0`-sentinel for now and revisit if it bites.
+
+**Q4 — silent typo in provides target names (RESOLVED → engineering, D15).**
+Rule: a `provides` target name is valid iff it is COMPILER-defined (the closed
+arch/format target set) OR BUILD-defined (build.omg); else = error. Closes the
+silent-void footgun (`windows_x86` typo). Engineering, not a fork — the one
+real gotcha: freestanding provides labels (`uefi_x64`, `demo_target`) are
+currently DECORATIVE (`build_freestanding_abi_plan` ignores the label), so they
+must be REGISTERED as real target names BEFORE the check switches on, else it
+wrongly rejects them. See Open-work #4.
 
 ## Observations (not fs, flagged for Zach)
 
