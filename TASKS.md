@@ -204,7 +204,11 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     Fixed cast_in_guard + guard_feature_composition + narrow_signed_guard_ops;
     suite 677/25. The differential oracle's first failure
     (runtime_cast_in_guard 71) is cleared. Remaining cast faces:
-    integer_casts, f32_field_binary_to_local (narrow_signed_divide_guard
+    f32_field_binary_to_local only (integer_casts FIXED 2026-07-09: unsigned
+    narrow widening now ZERO-extends -- mirroring x86's mandatory
+    movzx/movsx, since the register may hold a wider pattern from an
+    immediate/folded/chained-convert operand; `(-1 i16) as u16 as u32` read
+    the full -1 pattern before) (narrow_signed_divide_guard
     FIXED 2026-07-09 -- the aarch64 mirror of x86's divide-core fix:
     guard-subject narrow signed operands arrive zero-extended, so
     div/mod/shift-right now sign-extend to the operation width first,

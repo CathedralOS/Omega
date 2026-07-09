@@ -320,23 +320,30 @@ fn append_runtime_convert_operation(
             }
         }
         (false, false) => {
-            // Sign-extend a narrow signed source when widening; otherwise the load
-            // already zero-extended and the store truncates. EVERY narrow signed
-            // width extends -- the old `source_byte_size == 4` guard silently
-            // zero-extended i8/i16 sources (`(-128 i8) as i32` read 128; the
-            // Saturating canaries surfaced it because their stores cannot
-            // const-fold).
-            if target_byte_size > source_byte_size && source_signed {
-                match source_byte_size {
-                    1 if target_byte_size > 4 => {
+            // EVERY narrow (1/2-byte) source extends when widening -- signed
+            // sign-extends, unsigned ZERO-extends (mirroring x86's mandatory
+            // movzx/movsx: the register may hold a wider bit pattern from an
+            // immediate, a folded local, or a chained convert -- `(-1 i16) as
+            // u16 as u32` must read 65535, not the full -1 pattern). A 4-byte
+            // signed source sign-extends to 64; a 4-byte unsigned source is
+            // already correct (w-ops zero-extend).
+            if target_byte_size > source_byte_size {
+                match (source_byte_size, source_signed) {
+                    (1, true) if target_byte_size > 4 => {
                         bytes.extend(encode_sign_extend_byte_to_x(register, register))
                     }
-                    1 => bytes.extend(encode_sign_extend_byte_to_w(register, register)),
-                    2 if target_byte_size > 4 => {
+                    (1, true) => bytes.extend(encode_sign_extend_byte_to_w(register, register)),
+                    (1, false) => bytes.extend(encode_zero_extend_byte_to_w(register, register)),
+                    (2, true) if target_byte_size > 4 => {
                         bytes.extend(encode_sign_extend_halfword_to_x(register, register))
                     }
-                    2 => bytes.extend(encode_sign_extend_halfword_to_w(register, register)),
-                    4 => bytes.extend(encode_sign_extend_word_to_x(register, register)),
+                    (2, true) => {
+                        bytes.extend(encode_sign_extend_halfword_to_w(register, register))
+                    }
+                    (2, false) => {
+                        bytes.extend(encode_zero_extend_halfword_to_w(register, register))
+                    }
+                    (4, true) => bytes.extend(encode_sign_extend_word_to_x(register, register)),
                     _ => {}
                 }
             }
