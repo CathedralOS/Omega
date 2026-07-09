@@ -89,6 +89,17 @@ pub(in crate::aarch64) fn encode_conditional_branch_plus(
     ))
 }
 
+/// `B.VC` (V clear) -- taken when the last flag-setting op did NOT overflow
+/// signed arithmetic.
+pub(in crate::aarch64) fn encode_conditional_branch_no_overflow(
+    byte_distance: isize,
+) -> Result<[u8; 4], Diagnostic> {
+    let instruction_distance = checked_instruction_distance(byte_distance, 19, "b.vc")?;
+    Ok(encode_instruction(
+        0x54000007 | ((instruction_distance as u32 & 0x7ffff) << 5),
+    ))
+}
+
 pub(in crate::aarch64) fn encode_conditional_branch_higher(
     byte_distance: isize,
 ) -> Result<[u8; 4], Diagnostic> {

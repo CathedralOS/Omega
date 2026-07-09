@@ -32,7 +32,9 @@ use super::primitives::{
     encode_lslv_x_register, encode_lsrv_x_register, encode_move_x_register, encode_movz,
     encode_movz_w,
     encode_msub_w_register, encode_msub_x_register, encode_mul_x_register, encode_orr_x_register,
+    encode_adds_x_register, encode_conditional_branch_no_overflow, encode_csel_x, encode_csinv_x,
     encode_sdiv_w_register, encode_sdiv_x_register, encode_store_byte_w_to_x, encode_store_w_to_x,
+    encode_subs_x_register,
     encode_store_w17_to_x16,
     encode_store_x_to_x, encode_store_x17_to_x16, encode_sub_x_register, encode_udiv_w_register,
     encode_udiv_x_register,
@@ -778,13 +780,68 @@ fn append_saturating_trapping_arithmetic(
     use omega_core::arithmetic::ArithmeticDomain;
     if byte_size == 8 {
         // A 64-bit op can itself overflow 64 bits, so the wide-result range
-        // compare cannot detect it. (x86_64 handles 64-bit add/sub via the
-        // carry/overflow flags; the uniform aarch64 range approach cannot.)
-        return Err(Diagnostic::error(
-            "saturating/trapping arithmetic on 64-bit integers is not implemented yet on \
-             aarch64 (the wide-result range compare cannot detect a 64-bit overflow)"
-                .to_owned(),
-        ));
+        // compare below cannot see it. Add/sub instead use the FLAGS the
+        // x86_64 backend uses: ADDS/SUBS set C (unsigned carry/borrow) and V
+        // (signed overflow), and CSEL/CSINV realize the clamp branchlessly.
+        // 64-bit multiply overflow needs the MULH-high-half check and stays
+        // fenced.
+        if matches!(operator, StateGuardOperator::Multiply) {
+            return Err(Diagnostic::error(
+                "saturating/trapping MULTIPLY on 64-bit integers is not implemented yet on \
+                 aarch64 (needs the SMULH/UMULH high-half check)"
+                    .to_owned(),
+            ));
+        }
+        let subtract = matches!(operator, StateGuardOperator::Subtract);
+        match (domain, target_signed) {
+            (ArithmeticDomain::Saturating, true) => {
+                // x14 = i64::MIN, then on overflow the RESULT's sign is the
+                // INVERSE of the true sign: N set (negative result) means the
+                // true result was positive -> saturate to MAX = NOT(MIN).
+                //   movz/movk x14 = MIN ; adds/subs ; b.vc +8 (keep)
+                //   csinv x17, x14, x14, PL   (PL: MIN; else NOT(MIN) = MAX)
+                append_unsigned_immediate(bytes, 14, i64::MIN as u64); // 2 instr
+                bytes.extend(if subtract {
+                    encode_subs_x_register(17, 17, 26)
+                } else {
+                    encode_adds_x_register(17, 17, 26)
+                });
+                bytes.extend(encode_conditional_branch_no_overflow(8)?);
+                bytes.extend(encode_csinv_x(17, 14, 14, 0b0101)); // PL
+            }
+            (ArithmeticDomain::Saturating, false) => {
+                if subtract {
+                    // Borrow clears C: keep the result on CS, else clamp to 0.
+                    bytes.extend(encode_subs_x_register(17, 17, 26));
+                    bytes.extend(encode_csel_x(17, 17, 31, 0b0010)); // CS -> keep, else XZR
+                } else {
+                    // Carry sets C: keep on CC, else all-ones (u64::MAX).
+                    bytes.extend(encode_adds_x_register(17, 17, 26));
+                    bytes.extend(encode_csinv_x(17, 17, 31, 0b0011)); // CC -> keep, else NOT(XZR)
+                }
+            }
+            (ArithmeticDomain::Trapping, true) => {
+                bytes.extend(if subtract {
+                    encode_subs_x_register(17, 17, 26)
+                } else {
+                    encode_adds_x_register(17, 17, 26)
+                });
+                bytes.extend(encode_conditional_branch_no_overflow(8)?);
+                bytes.extend(encode_brk(0));
+            }
+            (ArithmeticDomain::Trapping, false) => {
+                if subtract {
+                    bytes.extend(encode_subs_x_register(17, 17, 26));
+                    bytes.extend(encode_conditional_branch_higher_or_same(8)?); // CS = no borrow
+                } else {
+                    bytes.extend(encode_adds_x_register(17, 17, 26));
+                    bytes.extend(encode_conditional_branch_lower(8)?); // CC = no carry
+                }
+                bytes.extend(encode_brk(0));
+            }
+            _ => unreachable!("only Saturating/Trapping reach this helper"),
+        }
+        return Ok(());
     }
     if !matches!(byte_size, 1 | 2 | 4) {
         return Err(Diagnostic::error(format!(

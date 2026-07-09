@@ -272,8 +272,19 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     remaining 9 are all OTHER-WORKSTREAM or BY-DESIGN: efi x3 (Cathedral
     track, pre-baseline), tick_count x2 (time agent's darwin boundary row),
     gui_memory_dc_blit (render track's darwin surface),
-    array_adjacent_index (the documented 64-bit saturating/trapping
-    limitation), + the two umbrella tests that clear with their members.
+    + the two umbrella tests that clear with their members.
+    64-BIT SATURATING/TRAPPING landed 2026-07-09 (was the documented
+    limitation): add/sub now use the FLAGS like x86 -- ADDS/SUBS set C/V, and
+    the clamp is branchless (signed: movz MIN + b.vc + `csinv x17,x14,x14,PL`
+    picks MIN or NOT(MIN)=MAX off the inverted result sign; unsigned add:
+    `csinv x17,x17,xzr,CC` = keep-or-all-ones; unsigned sub: `csel ..,xzr,CS`;
+    trapping: b.cond + brk). 64-bit MULTIPLY stays fenced (needs the
+    SMULH/UMULH high-half check -- narrower message). New primitives:
+    adds/subs-register, csel/csinv, b.vc. array_adjacent_index fixed + NEW
+    canary arithmetic/runtime_saturating_wide_boundaries_exit pins all four
+    REAL boundary directions (i64 MAX+1/MIN-1, u64 MAX+5/5-10),
+    suite-registered + differential-listed (native==interp verified). Suite
+    702/8.
     Remaining after that: tick/time host lowering
     (runtime_local_string_comparison_value 79!=78), tick/time host lowering,
     the frame-source machine-indexed write, and the entry-args spill.
