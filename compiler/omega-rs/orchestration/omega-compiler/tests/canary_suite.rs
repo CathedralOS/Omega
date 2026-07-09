@@ -24718,36 +24718,51 @@ const WINDOWS_HOST_PASS_CANARIES: &[&str] = &["capabilities/windows_provides_imp
 
 #[test]
 fn pass_canaries_compile() {
+    // COLLECT-ALL, not first-panic: a serial panic at the first failing
+    // member masked every member ordered after it (this is the same
+    // umbrella-masking pattern that hid a real interpreter bug behind the
+    // differential's tick_count stop). One host-blocked cluster (e.g. the
+    // efi members on a non-EFI-lowering host) must not exempt the rest of
+    // the corpus from its compile check.
+    let mut failures: Vec<String> = Vec::new();
+
     #[cfg(windows)]
     for canary_name in WINDOWS_HOST_PASS_CANARIES {
         let canary = pass_canary(canary_name);
         if let Err(diagnostics) = compile_canary_without_output(&canary) {
-            panic!(
-                "expected windows-host pass canary {} to compile, but got:\n{}",
+            failures.push(format!(
+                "windows-host {}:\n{}",
                 canary.display(),
                 diagnostics
                     .iter()
                     .map(ToString::to_string)
                     .collect::<Vec<_>>()
                     .join("\n")
-            );
+            ));
         }
     }
     for canary_name in ACTIVE_PASS_CANARIES {
         let canary = pass_canary(canary_name);
 
         if let Err(diagnostics) = compile_canary_without_output(&canary) {
-            panic!(
-                "expected pass canary {} to compile, but got diagnostics:\n{}",
+            failures.push(format!(
+                "{}:\n{}",
                 canary.display(),
                 diagnostics
                     .iter()
                     .map(ToString::to_string)
                     .collect::<Vec<_>>()
                     .join("\n")
-            );
+            ));
         }
     }
+
+    assert!(
+        failures.is_empty(),
+        "{} pass canary(ies) failed to compile:\n\n{}",
+        failures.len(),
+        failures.join("\n\n")
+    );
 }
 
 #[test]
@@ -26314,9 +26329,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/runtime_straight_line_terminal_field_readback_exit",
     "control_flow/termination_countdown_compile",
     "control_flow/termination_index_distance_compile",
-    "termination/custom_ranking_field_countdown_compile",
     "termination/custom_ranking_order_compile",
-    "termination/custom_ranking_struct_view",
     "domains/contracts_domain_membership_surface",
     "domains/domain_operator_spelling_selected",
     "domains/domain_operator_proven_fact_selects_meaning",
