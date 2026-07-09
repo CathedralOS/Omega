@@ -1,0 +1,13 @@
+// FAIL CANARY: a declared RANGE constraint combined with a NON-EXACT
+// arithmetic domain is ill-formed (Q9 ruling, Zach 2026-07-13: "this is
+// just a compile error"). Ranges are only enforced under Exact stores, so
+// `u8 [0..=4] in Wrapping` accepted `self.i = 100` silently -- the
+// declaration lied. All three declaration sites reject: data field, state
+// param, and local. Keep the range (Exact enforces it) or keep the domain
+// (defined overflow, full type range), never both.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; i: u8 [0..=4] in Wrapping; }
+machine Main::main(&mut self) {
+    self.i = 100;
+    self.console.exit_process(70);
+}

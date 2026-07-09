@@ -1,1 +1,1 @@
-cannot prove index `self.i` is within length 5
+declares a range constraint together with the

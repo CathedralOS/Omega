@@ -1,7 +1,13 @@
-// A WRAPPING-domained range must NOT discharge an index bound: `[0..=4] in
-// Wrapping` is deliberately permissive at stores (a store of 100 is accepted),
-// so the "declared range" is not an invariant -- feeding it to the index
-// prover would read out of bounds. The Exact-domain gate keeps this rejected.
+// SUPERSEDED SETUP, SAME SOUNDNESS OUTCOME (Q9 ruling, 2026-07-13): this
+// canary originally pinned that a WRAPPING-domained range must not discharge
+// an index bound (the range is permissive at stores, so feeding it to the
+// index prover would read out of bounds; the Exact-domain gate rejected the
+// INDEX). The Q9 ruling made the `[range] in Wrapping` declaration itself
+// ill-formed ("this is just a compile error"), so the rejection now fires at
+// the DECLARATION, before the index prover ever sees it -- strictly earlier,
+// same out-of-bounds read prevented. The expected fragment tracks the
+// declaration-level diagnostic; types/range_under_non_exact_domain_rejected
+// pins the store-context flavor of the same rule.
 boundary trait Console {
     machine exit_process(return_code: i32);
 }
