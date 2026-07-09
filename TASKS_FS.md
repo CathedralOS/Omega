@@ -24,7 +24,7 @@ A serious, ergonomic `std::fs` with Rust parity: portable `Filesystem` wrapper
 `std::fs` over `std::sys`). Raw ops return syscall ints; the wrapper builds
 results in Omega. Interpreter = full-parity reference oracle for everything.
 
-## Current state (2026-07-10)
+## Current state (2026-07-11)
 
 - **Interpreter**: full Rust-parity fs; the hermetic virtual fs is the
   differential oracle. OPT-IN real filesystem (`interpret_with_options`,
@@ -68,176 +68,46 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
 
 ## Open work
 
-1. **build.omg compiler-side gate** — DESIGN-UNBLOCKED 2026-07-11i
-   (owner answered #2–#5 in OWNER_QUESTIONS.md, commit 14e02026e).
-   Distilled: (a) INJECTION = dependency injection of a filesystem
-   data instance into build's main (SAS-component style; build.omg
-   still `use`s std::filesystem); (b) GRANTS: don't over-index on
-   permissions AT ALL right now — build.omg lives in the dir being
-   built, builds to build/; main.omg is NOT blessed (build.omg
-   specifies the root; maybe a default-build.omg convention later);
-   (c) EFFECT GATE: `filesystem` is a DECLARED effect on build's main
-   fn — allowed there, forbidden elsewhere, enforced by the effect
-   system; relax build_config.rs's empty-effect gate to exactly that;
-   (d) CONSOLE: add to build.omg's declared effects ("harmless and
-   everyone wants it"); the interpreter must treat it as a declared
-   effect, never silently swallow logging. LANDED 2026-07-11j
-   (first slice): std FilesystemHost declares `effects filesystem_io`
-   rows on all 36 methods (row-less boundaries surface as opaque
-   `host_boundary`, which the gate can never allow); build_config.rs
-   accepts the FREE `build` or ONE attached `<Component>::build`
-   (is_build_machine_name; two -> error), allows transitive
-   {filesystem_io, stdout_io, stderr_io}, requires them DECLARED on
-   the build machine (`effects filesystem_io` clause), and routes
-   effectful builds through evaluate_build_machine_with_filesystem
-   (RealUnscoped -- owner de-scoped permissions). Pins:
-   tests/build_config_granted.rs (declared build STAGES a real asset
-   at compile time + augmented facts flow),
-   fail/build/build_effects_undeclared,
-   fail/build/build_boundary_rowless (teaching messages).
-   Console SERVING landed
-   2026-07-11k (#5 complete): the granted backstop exempts the console
-   WRITE family (write/write_line/write_error/write_error_line -- the
-   same name family the interpreter's console dispatch serves; the
-   gate already verified statically that only DECLARED
-   stdout_io/stderr_io rows reach it), and the granted entry FLUSHES
-   the buffered bytes to the compiler's real stdout/stderr -- on
-   failure too, where the partial log is the diagnostic. Pin: the
-   build_config_granted round trip now logs through a declared-row
-   BuildLog while staging. Remaining nicety (owner-surfaceable, not
-   blocking): a std Console/BuildLog boundary with declared rows so
-   programs don't each spell their own; today the fail canary teaches
-   the spelling. OMEGA_DEBUG_BUILD_CONFIG dumps
-   the gate's machine + transitive set. GOTCHA fixed same-session: a
-   name-suffix `::build` match captured ordinary builder machines
-   (MazeBuilder::build and five friends broke 14 tests in a stale
-   battery) -- the attached form requires the `b: &mut Build`
-   single-param signature (is_build_machine); the eventual rule is
-   "declared in build.omg" but typed machines carry no source file
-   today (plumbing item).
+1. ~~build.omg compiler-side gate~~ — **COMPLETE 2026-07-11j/k** (owner
+   answers #2–#5 in commit 14e02026e; implementation bc086f0a3 +
+   0bc474e81). Current shape: std FilesystemHost declares
+   `effects filesystem_io` rows (36 methods); the gate allows transitive
+   {filesystem_io, stdout_io, stderr_io} DECLARED on the build machine
+   (`effects` clause), refuses everything else with teaching messages
+   (row-less boundary → host_boundary hint); effectful builds run the
+   granted entry (RealUnscoped — owner de-scoped permissions), staging
+   real assets at compile time; console writes are SERVED and flushed
+   to the compiler's real streams (failure included). Build machine =
+   free `build(b: &mut Build)` or ONE attached `<Component>::build`
+   with the `b: &mut Build` single-param signature (name alone captured
+   builder-pattern machines; eventual rule = "declared in build.omg",
+   needs machine source-file plumbing — OPEN item). Pins:
+   tests/build_config_granted.rs, fail/build/* (2),
+   granted_build_serves_console_and_rejects_other_boundaries.
+   OMEGA_DEBUG_BUILD_CONFIG dumps the gate. Owner follow-up: Q11 (std
+   console boundary).
 
-2. ~~reversed-operand receiver residual~~ — **CLOSED 2026-07-10y.** The
-   three-session hunt bottomed out in TWO stacked holes past the resolver:
-   (a) the runtime-bodies SPLICE stamps callee statements with the
-   CALLER's source key, so their `self.X`/`earlier.X` member paths (which
-   name no caller field) fell into machine_owned's CROSS-MACHINE SWEEP —
-   which had no receiver awareness (both operands → first-SystemTime@8,
-   the equal-operands signature); (b) the sweep matches ANY machine layout
-   attached to the same data, so even receiver-aware lookup by machine
-   SYMBOL missed (`from_unix_seconds`'s layout ≠ the called
-   `duration_since`). FIX: machine_owned entry fns now take (input,
-   dispatch_index) and resolve bases DYNAMICALLY per resolved machine
-   (resolved_machine_base → receiver_base_for), including at the three
-   sweep sites; receiver_base_for's unique-call match is by ATTACHED-DATA
-   equivalence (the receiver is a property of the data instance, not the
-   machine). The a/b shuffle is now fully retired:
-   runtime_system_time_after_2026_exit swept to natural spelling (70/70).
-   Debug instrumentation kept env-gated (OMEGA_DEBUG_RECEIVER + the BTW
-   binary-write entry prints).
+2. ~~reversed-operand receiver residual~~ — CLOSED 2026-07-10y
+   (dynamic per-machine resolved_machine_base + attached-data
+   equivalence at the sweep sites; a/b shuffle fully retired;
+   runtime_system_time_after_2026_exit at natural spelling).
 
-3. ~~Receiver slice 2 (non-entry callers)~~ — **LANDED 2026-07-11b**
-   (attempts 1-2 reverted 2026-07-10z/11a; the dungeon "regression" of
-   attempt 2 turned out to be override over-application onto zero-size
-   receivers' caller-owned reads). Final shape, three pieces: (a)
-   `context_call_sites` carries the minting caller's PARENT context;
-   per-context bases compose parent-first in `compute_receiver_bases`
-   (parent base + receiver offset in the CALLER's machine layout;
-   self/static/unresolvable stay `None` = by-type fallback); (b)
-   ZERO-SIZE callee machines emit `None` deliberately (no self reads
-   exist; an override could only mis-rebase caller-owned spliced reads
-   — the dungeon lesson); (c) the contained-receiver fence serves
-   non-entry DISPATCH calls by consulting the TABLE itself (every
-   minted clone composed ⇒ serve; no re-derived predicate). Bonus
-   fix: the table is now indexed by ARENA index (1-based) — the
-   positional collect() was OFF BY ONE for every consumer, masked in
-   slice-1 shapes because adjacent clone states share a context. Pin:
-   calls/runtime_nonentry_second_receiver_exit (Holder-under-Main,
-   second Tally, 21→70; wrong-instance delivers 300 / out-of-region
-   writes). Self-call chain composition
-   landed 2026-07-11c (a self-call context INHERITS its parent's
-   composed base when attached data matches; pin:
-   calls/runtime_selfcall_chain_second_receiver_exit). The INLINE
-   route landed 2026-07-11d: receiver_base_for's recovery is a bounded
-   CALL-CHAIN WALK (anchor = the case's composed table base; each hop
-   adds the receiver's offset in the current machine's layout, self
-   calls +0; distinct candidate bases = ambiguous -> refuse). The walk
-   ignores the `reachable` flag -- spliced-out originals keep
-   reachable=false while their copies run inside the case. FENCE
-   VISIBILITY closed 2026-07-11g: the contained-receiver fence now
-   examines SPLICED-LIVE calls (liveness fixpoint from the entry;
-   serve = composed source-machine base + unique-in-family final hop +
-   resolvable path, mirroring the walk; param/local receivers in
-   spliced code CLOSED 2026-07-11h: the by-type walk is EXACT for a
-   single-instance family (pass pin:
-   calls/runtime_param_receiver_single_instance_exit) and read the
-   FIRST instance regardless of the argument for multi-instance
-   families (silent-wrong 7-for-9; now fenced loudly, fail pin:
-   fail/calls/param_receiver_multi_instance_rejected). SERVE LANDED
-   2026-07-11i: the receiver chain walk carries a PARAM ENVIRONMENT --
-   each descent binds machine-typed `&mut` (MutableAlias) params to
-   their argument path's ABSOLUTE base (field of the source at base +
-   offset, or a bare name forwarded from the source's own env); a
-   single-segment param-receiver hop resolves through it. Fence mirror
-   in lockstep (MachineAnchor base + params, machine-granular with
-   poisoning = strictly more conservative than the position-granular
-   runtime walk). The multi-instance fail pin FLIPPED to
-   calls/runtime_param_receiver_second_instance_exit (delivers 9).
-   NOTE the state-calls plan has its OWN expression table --
-   StateCallArgument.expression indexes state_calls.expressions, NOT
-   control_flow's (cost one debug cycle). Residuals: param-ROOTED
-   nested receiver paths (`t.inner.method()`) stay unrecoverable ->
-   fenced; re-borrowed param FORWARDING interp gap CLOSED
-   2026-07-11l: the re-borrow (`&mut t` where t is already `&mut`)
-   nested Ref-to-Ref, which single-level derefs downstream (receiver
-   method resolution) could not see through -- both Mutable evaluation
-   arms now collapse re-borrows to the same target (aliasing
-   preserved). Pin: calls/runtime_param_forward_chain_second_receiver_exit
-   (differential-provable end to end). Pin:
-   fail/calls/ambiguous_spliced_second_receiver_rejected (two
-   same-family calls in one state: `second` blocked loudly; was
-   silent-wrong 7-for-9 native). SAME-DAY REGRESSION FIX rolled in: the
-   scope-fix key order (465b82bbf) broke account_ledger (samples gate
-   was NOT in the iteration protocol -- now it is): a call-target
-   resolution key stole each idx-arm's same-named `b` for arm 0's slot.
-   The leaf-write's bare-name keys are now gated by GENUINELY scoped
-   resolvability (runtime_frame_slot_for_expression_scoped -- the
-   lenient last-resort arms in find_runtime_frame_slot_for_path made
-   the first "strict" attempt lie), branch key first when it strictly
-   resolves; the target key comes from the SLOT side (unique-per-machine
-   by name; state symbols differ across planning layers). Pins:
-   calls/runtime_multiarm_same_named_locals_exit + account_ledger's
-   documented-exit sample test. NEW FRONTIER found by the
-   inline probe (PRE-EXISTING, receiver-independent, repro
-   scratchpad/slice2/nested_inline_chain_single + _second_receiver):
-   nested inline VALUE-call chains (entry -> holder.run() ->
-   self.only.get()) scramble their result-forwarding copies natively
-   (`frame@12 -> frame@0` before frame@12 is written -> ZII delivered;
-   interp 70 vs native 71). FIXED 2026-07-11e -- not
-   ordering but a NAME-COLLISION scope bug: the outer leaf
-   terminal-write's branch-key attempt (the arm target owns no slots)
-   fell into the case-wide NAME fallback and copied the CASE's
-   same-named local (Main's unwritten `total` -> ZII). Fix: the
-   CALL-TARGET state (the arm-owning callee scope that spelled the
-   args) is the FIRST resolution key in
-   select_runtime_leaf_branch_terminal_value_write. Pins:
-   calls/runtime_nested_inline_chain_result_exit (colliding names),
-   calls/runtime_nonentry_inline_second_receiver_exit (the full
-   slice-2 inline shape: chain-walk recovery + this fix). Residual
-   (recorded, unfenced): args spelled in a DEEPER callee state than
-   the call target's entry still miss the scoped lookup and ride the
-   name fallback -- same class, needs an arm-owner key on the
-   expansion representation if it surfaces. The two frontier
-   return-write shapes SERVED 2026-07-11f: (a) the call-bound-local
-   bare terminal was a SEGMENT miss (the terminal lives in the state's
-   tail segment; the return-write's control-flow lookups normalize to
-   segment 0 now — terminal_target_value_expression); (b) the
-   field-binding delivery resolved `self.total` with a DUMMY dispatch
-   index 0, so the caller's composed receiver base never applied
-   (by-type wrote the FIRST Mid's field) — the fallback now resolves
-   under the return edge's target dispatch case. Pins:
-   calls/runtime_nested_local_terminal_second_instance_exit,
-   calls/runtime_nested_field_terminal_second_instance_exit (both
-   double-nested two-Mids × two-Tallys shapes, exact values).
+3. ~~Per-instance receivers, ALL routes~~ — **COMPLETE 2026-07-11b→l**
+   (dispatch-table composition e0c718793; self-call inheritance
+   16c3816f5; inline chain-walk recovery 9ac48266e; leaf-write scoped
+   keys 465b82bbf + d8ff50e89's account_ledger fix; spliced-code fence
+   visibility d8ff50e89; param-binding serve c94fb49ea; interp
+   re-borrow collapse cd271c670). Current semantics: receiver identity
+   composes through the parent-context chain (dispatch), a bounded
+   call-chain walk with per-position PARAM ENVIRONMENTS (inline +
+   spliced code, `&mut` args bind params to absolute bases, re-borrows
+   forward), and the fence mirrors the walk (MachineAnchor with
+   poisoning; serve-or-refuse: every shape delivers per-instance or
+   refuses with guidance). Table indexed by ARENA index (1-based).
+   Pins: ~12 canaries under calls/ + the dungeon; fail pins for the
+   ambiguous shapes. Residual (needs a natural repro): args spelled in
+   a DEEPER callee state colliding same-machine names ride the
+   leaf-write name fallback.
 
 4. **Windows-session bundle** (needs a Windows host): verify the stat-row
    migration natively; WINDOWS_IMPORT_ROWS migration into provides files;
@@ -248,6 +118,11 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
 
 6. **Authored-bindings interp story** — OWNER_QUESTIONS.md #10 (native-only
    imports today; differential skips).
+
+7. **Machine source-file plumbing** — typed machines carry no source
+   file; is_build_machine discriminates by the `b: &mut Build` param
+   signature as an interim. Thread the declaring file through
+   syntax→typed so the rule becomes "declared in build.omg".
 
 ## Design decisions (ratified; user reviews later)
 
