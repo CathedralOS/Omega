@@ -52,6 +52,29 @@ pub(crate) fn validate_call_node(
         return;
     }
 
+    // Q7 ruling (2026-07-13): a STATEMENT-position call to the enclosing
+    // machine's OWN ENTRY (`self.drip(n - 1);` as a trailing statement) is
+    // tail recursion spelled as a call -- it lowered as a Nested-transition
+    // loop and slipped the transition-arm fence. "Banned, if it reads as
+    // recursion... go write this as states": repetition is a state
+    // transition (`-> target(..)`), never a self-call statement.
+    if matches!(receiver_members, [receiver] if receiver.as_str() == "self") {
+        let machine_entry_name = current_machine
+            .name
+            .as_str()
+            .rsplit("::")
+            .next()
+            .unwrap_or(current_machine.name.as_str());
+        if call.target.as_str() == machine_entry_name {
+            diagnostics.push(Diagnostic::error(format!(
+                "`self.{}(..)` as a STATEMENT calls the enclosing machine's own entry -- tail recursion spelled as a call, which Omega does not support (machine call cycles are banned; stack size must be predictable). Write the repetition as states: transition to a sub-state or loop back with a bare `-> {}(..)` arm",
+                call.target.as_str(),
+                call.target.as_str(),
+            )));
+            return;
+        }
+    }
+
     if receiver_members.is_empty()
         || matches!(receiver_members, [receiver] if receiver.as_str() == "self")
     {

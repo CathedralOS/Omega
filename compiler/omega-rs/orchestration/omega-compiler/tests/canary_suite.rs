@@ -28176,6 +28176,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/void_value_callee_rejected",
     "calls/nested_value_call_arg_rejected",
     "calls/machine_self_call_recursion_rejected",
+    "calls/statement_tail_self_call_rejected",
     "calls/terminal_self_call_recursion_rejected",
     "calls/ambiguous_spliced_second_receiver_rejected",
     "calls/empty_body_return_machine_rejected",

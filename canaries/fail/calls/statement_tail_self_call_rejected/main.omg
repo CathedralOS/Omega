@@ -1,0 +1,27 @@
+// FAIL CANARY: a STATEMENT-position call to the enclosing machine's own
+// entry (`self.drip(n - 1);` as a trailing statement in a sub-state) is
+// tail recursion spelled as a call -- Q7 ruling, Zach 2026-07-13:
+// "Banned, if it reads as recursion... go write this as states." This was
+// the last accepted recursion spelling: the transition-arm fence caught
+// `-> self.drip(..)`, but the statement route lowered as a Nested-
+// transition loop and slipped through (found by the fs lane while
+// retracting the tail-call transform). Machine call cycles are banned;
+// repetition is a state transition. Cross-machine statement calls
+// (`self.other_machine(..)`) remain legal.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; acc: u32 in Wrapping; }
+machine Main::drip(&mut self, n: u32) {
+    self.acc = self.acc + 1;
+    transition n > 0 {
+        true -> again(n)
+        _ -> done()
+    }
+    state again(&mut self, n: u32) {
+        self.drip(n - 1);
+    }
+    state done(&mut self) { }
+}
+machine Main::main(&mut self) {
+    self.drip(3);
+    self.console.exit_process(70);
+}
