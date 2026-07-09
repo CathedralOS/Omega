@@ -1,0 +1,32 @@
+// RUN canary (exit 2). A value callee `proc` whose POST-ENTRY state `work`
+// computes a CHAINED let -- `rem` reads a PRIOR post-entry let `scaled` (which
+// reads `q`) in the same state -- then returns it. The intermediate locals
+// q/scaled are elided (no slot; read only by a sibling `let`) and expected to
+// FOLD into their uses. The straight-line branch path previously applied only
+// binding substitution to the initializer write, not the prior-local fold the
+// leaf path does, so `rem`'s `total - scaled` kept `scaled` as a slot-less Name
+// -> ZII (native 0; interp right). Fixed by folding prior slot-less locals into
+// the straight-line initializer write (fold_straight_line_prior_local_names).
+// proc(100,7): q=100/7=14, scaled=14*7=98, rem=100-98=2.
+// Expected exit: 2
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::proc(&self, total: i32 [0..=1000], freq: i32 [0..=1000]) -> i32 {
+    transition freq > 0 {
+        true -> work(total, freq)
+        false -> 0
+    }
+    state work(&self, total: i32 [0..=1000], freq: i32 [1..=1000]) -> i32 {
+        let q: i32 [0..=1000] = total / freq;
+        let scaled: i32 [0..=1000000] = q * freq;
+        let rem: i32 [0..=1000] = total - scaled;
+        transition {
+            _ -> (rem)
+        }
+    }
+}
+machine Main::run(&mut self) {
+    let a: i32 = self.proc(100, 7);
+    self.console.exit_process(a);
+}
+machine Main::main(&mut self) { self.run(); }

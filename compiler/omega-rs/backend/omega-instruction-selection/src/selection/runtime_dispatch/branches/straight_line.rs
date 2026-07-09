@@ -584,6 +584,154 @@ fn select_runtime_straight_line_branch_writes(
     }
 }
 
+/// Substitute Names that refer to PRIOR slot-less locals of `expansion`'s state
+/// (statements before `statement_bound`) with their initializers -- bindings
+/// re-applied, recursively folded. Mirrors the leaf path's
+/// `resolve_leaf_caller_local_initializer_names` for the straight-line branch.
+/// A local that HAS a slot keeps its Name (its slot holds the value); only the
+/// arithmetic subset is folded (Binary/Unary/Cast/Mutable/Name), so a Member /
+/// Call / aggregate initializer is left untouched (no stale field read, no
+/// un-lowerable call planted -- the same guards the leaf resolver relies on).
+fn fold_straight_line_prior_local_names(
+    input: &InstructionSelectionInput<'_>,
+    state_key: StateKey,
+    dispatch_index: u32,
+    expressions: &mut ExpressionTable,
+    expression: ExpressionHandle,
+    bindings: &[RuntimeStraightLineBranchBinding],
+    statement_bound: usize,
+) -> ExpressionHandle {
+    match expressions.expression(expression).clone() {
+        ExpressionNode::Binary(binary) => {
+            let left = fold_straight_line_prior_local_names(
+                input, state_key, dispatch_index, expressions, binary.left, bindings, statement_bound,
+            );
+            let right = fold_straight_line_prior_local_names(
+                input, state_key, dispatch_index, expressions, binary.right, bindings, statement_bound,
+            );
+            if left == binary.left && right == binary.right {
+                return expression;
+            }
+            expressions.insert(ExpressionNode::Binary(
+                omega_checked_trees::expression::TableBinaryExpression {
+                    left,
+                    operator: binary.operator,
+                    right,
+                },
+            ))
+        }
+        ExpressionNode::Unary(unary) => {
+            let operand = fold_straight_line_prior_local_names(
+                input, state_key, dispatch_index, expressions, unary.operand, bindings, statement_bound,
+            );
+            if operand == unary.operand {
+                return expression;
+            }
+            expressions.insert(ExpressionNode::Unary(
+                omega_checked_trees::expression::TableUnaryExpression {
+                    operator: unary.operator,
+                    operand,
+                },
+            ))
+        }
+        ExpressionNode::Cast(cast) => {
+            let value = fold_straight_line_prior_local_names(
+                input, state_key, dispatch_index, expressions, cast.value, bindings, statement_bound,
+            );
+            if value == cast.value {
+                return expression;
+            }
+            expressions.insert(ExpressionNode::Cast(
+                omega_checked_trees::expression::TableCastExpression {
+                    value,
+                    target_type: cast.target_type,
+                    domain: cast.domain,
+                },
+            ))
+        }
+        ExpressionNode::Mutable(inner) => {
+            let resolved = fold_straight_line_prior_local_names(
+                input, state_key, dispatch_index, expressions, inner, bindings, statement_bound,
+            );
+            if resolved == inner {
+                return expression;
+            }
+            expressions.insert(ExpressionNode::Mutable(resolved))
+        }
+        ExpressionNode::Name(path) => {
+            if path.members.count() != 1 {
+                return expression;
+            }
+            let Some(machine) = input
+                .program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == state_key.machine)
+            else {
+                return expression;
+            };
+            let Some(state) = input
+                .program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == state_key.state)
+            else {
+                return expression;
+            };
+            let statements = input
+                .program
+                .statement_table
+                .statements(state.statement_nodes);
+            let mut matched: Option<(usize, ExpressionHandle)> = None;
+            for (index, statement) in statements.iter().enumerate().take(statement_bound) {
+                let StatementNode::LocalData(local) = statement else {
+                    continue;
+                };
+                let matches = if path.head_symbol.is_valid() || path.symbol.is_valid() {
+                    local.symbol == path.symbol || local.symbol == path.head_symbol
+                } else {
+                    expressions
+                        .name_path_members(path.members)
+                        .first()
+                        .is_some_and(|name| *name == local.name)
+                };
+                if matches && local.initial_value.is_valid() {
+                    matched = Some((index, local.initial_value));
+                }
+            }
+            let Some((local_index, initial_value)) = matched else {
+                return expression;
+            };
+            // A slotted local keeps its Name -- its own initializer write (emitted
+            // earlier in the straight-line sequence) holds the value.
+            let has_slot = input.runtime_storage.frame_slots.iter().any(|(_, slot)| {
+                slot.dispatch_index == dispatch_index
+                    && slot.source_key == state_key
+                    && slot.statement_index == local_index
+                    && matches!(
+                        slot.kind,
+                        omega_runtime_storage::RuntimeFrameSlotKind::LocalStorage
+                    )
+            });
+            if has_slot {
+                return expression;
+            }
+            let initializer =
+                expressions.copy_from(&input.program.expression_table, initial_value);
+            let bound = resolve_straight_line_binding_expression_handle(
+                &input.runtime_branching_calls.expressions,
+                expressions,
+                initializer,
+                bindings,
+            );
+            fold_straight_line_prior_local_names(
+                input, state_key, dispatch_index, expressions, bound, bindings, local_index,
+            )
+        }
+        _ => expression,
+    }
+}
+
 fn select_runtime_straight_line_local_initializer_write(
     input: &InstructionSelectionInput<'_>,
     expansion: &RuntimeStraightLineBranchExpansion,
@@ -636,6 +784,23 @@ fn select_runtime_straight_line_local_initializer_write(
         expressions,
         initializer,
         bindings,
+    );
+    // Fold PRIOR slot-less locals of the same state into this initializer. A
+    // value callee's spliced POST-ENTRY state elides an intermediate local read
+    // only by a sibling `let` (`let scaled = q*freq; let rem = total - scaled;`)
+    // -- it has no slot and its write is skipped above -- so `rem`'s
+    // initializer keeps `scaled` as a Name resolving to a missing slot -> ZII
+    // (the post-entry chained-let miscompile). The LEAF path already does this
+    // via resolve_leaf_caller_local_initializer_names; the straight-line path
+    // only applied bindings. Mirror it here.
+    let resolved_initializer = fold_straight_line_prior_local_names(
+        input,
+        operation.source_key,
+        expansion.dispatch_index,
+        expressions,
+        resolved_initializer,
+        bindings,
+        operation.statement_index,
     );
     let static_values = RuntimeStaticValues::with_capacity(input.runtime_storage.frame_slots.len());
     if emit_runtime_frame_slot_slice_descriptor_write_in_table(
