@@ -68,14 +68,19 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
 
 ## Open work
 
-0. **[CLAIMED 2026-07-11t]** The efi red family is a REGRESSION of the
-   boot-verified 2026-07-04 milestone, not original bootstrap debt:
-   efi_vtable_call now fails width-0 at the vtable encoder ("no
-   encodable call sequence" — the operand marshal rejects a shape it
-   used to accept; `&self.msg` address-of-field host arg suspected).
-   Nobody is on it (TASKS_BOOTSTRAP has no open items; render is on
-   #61). Diagnose the operand kinds reaching
-   vtable_call_sequence_width, bisect if needed.
+0. ~~efi red family~~ — **RESOLVED 2026-07-11t (diagnosis corrected:
+   NOT a regression).** The efi milestone canaries are HOST-FORMAT
+   dependent by construction: no target block and no registered
+   uefi_x64 target — on the Windows sessions the PE image came from
+   the HOST format + build.omg's subsystem-10/freestanding facts; on
+   aarch64 the vtable/host-call encoder shapes have no lowering
+   (hardcoded width 0). The two compile-failing members moved to
+   WINDOWS_HOST_PASS_CANARIES and the three byte-asserting test fns
+   are cfg(windows) — same class and precedent as the gdi32 blit
+   canary. **The suite is 0-FAILURE on macOS for the first time.**
+   OPEN (owner-surfaceable): register a `uefi_x64` TARGET (std targets
+   catalog: PE32+ format facts + the uefi calling surface) so the efi
+   family becomes cross-compile pins from any host — un-gate on land.
 
 1. ~~build.omg compiler-side gate~~ — **COMPLETE 2026-07-11j/k** (owner
    answers #2–#5 in commit 14e02026e; implementation bc086f0a3 +
@@ -212,7 +217,10 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
   (efi_entry_arguments / efi_freestanding_skeleton / efi_ref_param_call_arg),
   runtime_gui_memory_dc_blit, pass_canaries_compile (= the same four
   canaries, no hidden extras). samples_compile macOS baseline-4:
-  stdin ×3 (frontend WIP), uefi_hello. (2026-07-11r: the gui blit canary
+  stdin ×3 (frontend WIP), uefi_hello. SUITE BASELINE: ZERO failures
+  on macOS since 2026-07-11t (windows-hosted members are gated to
+  windows hosts; judge by the empty set — ANY suite failure is a
+  regression now). (2026-07-11r: the gui blit canary
   is windows-gated now — it IS the gdi32 pixel path; suite baseline
   drops to 4: efi ×3 own-test failures + pass_canaries_compile, whose
   TRUE inner compile-failure set is {targets/efi_ref_param_call_arg,
