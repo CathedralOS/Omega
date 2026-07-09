@@ -1789,6 +1789,103 @@ fn pass_canary(path: &str) -> PathBuf {
     repo_root().join("canaries/pass").join(path)
 }
 
+/// What the INTERPRETER leg of a parked divergence is documented to do.
+enum PendingInterpOutcome {
+    Exit(i32),
+    Traps,
+}
+
+/// The parked native-vs-interp RUNTIME divergences, pinned to the exact exit
+/// pair each canary's header documents. The canary suite's pending drift-check
+/// covers compile accepts-vs-rejects; THIS covers the runtime legs, so a fix
+/// landing on either side (a const-fold repair, a design call implemented)
+/// fails loudly with a promote signal instead of waiting for a manual
+/// omega-run sweep. Entries mirror canaries/pending/*/ headers -- update BOTH
+/// when a divergence's documented behavior changes.
+const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
+    ("arithmetic/array_field_default_silent", 0, PendingInterpOutcome::Exit(1)),
+    ("arithmetic/const_fold_unsigned_divide_miscompile", 71, PendingInterpOutcome::Exit(70)),
+    ("arithmetic/const_fold_unsigned_shift_right_miscompile", 71, PendingInterpOutcome::Exit(70)),
+    ("arithmetic/float_to_int_overflow_divergence", 99, PendingInterpOutcome::Exit(71)),
+    ("arithmetic/immutable_arg_for_mut_param_not_checked", -1, PendingInterpOutcome::Exit(1)),
+    // 72/72: the two legs AGREE on this host (aarch64 LSLV masks the count
+    // at 64 like the interp); the parked divergence is vs x86's 32-bit mask.
+    ("arithmetic/shift_amount_at_or_above_width_divergence", 72, PendingInterpOutcome::Exit(72)),
+    ("arithmetic/shl_saturating_domain_divergence", 72, PendingInterpOutcome::Exit(70)),
+    ("arithmetic/unsigned_min_max_wrapping_local_divergence", 78, PendingInterpOutcome::Exit(77)),
+    ("expressions/dead_trapping_let_not_elided", 7, PendingInterpOutcome::Traps),
+];
+
+/// COLLECT-ALL runtime drift-check over the parked divergences above.
+#[test]
+fn pending_runtime_divergences_hold() {
+    let mut drifted: Vec<String> = Vec::new();
+
+    for (name, expected_native, expected_interp) in PENDING_RUNTIME_DIVERGENCES {
+        let main_path = repo_root().join("canaries/pending").join(name).join("main.omg");
+
+        let checked = match compile_to_checked(&main_path, None) {
+            Ok(checked) => checked,
+            Err(diagnostics) => {
+                drifted.push(format!(
+                    "{name}: frontend now rejects (was a compiling divergence):\n{}",
+                    join_diagnostics(&diagnostics)
+                ));
+                continue;
+            }
+        };
+        let outcome = interpret(&checked, b"");
+        match expected_interp {
+            PendingInterpOutcome::Exit(code) => {
+                if outcome.is_error() {
+                    drifted.push(format!(
+                        "{name}: interp now errors/traps (documented exit {code}): {:?}",
+                        outcome.error
+                    ));
+                } else if outcome.exit_code != *code {
+                    drifted.push(format!(
+                        "{name}: interp exit {} != documented {code} -- the parked \
+                         divergence moved; recheck the header and promote if fixed",
+                        outcome.exit_code
+                    ));
+                }
+            }
+            PendingInterpOutcome::Traps => {
+                if !outcome.is_error() {
+                    drifted.push(format!(
+                        "{name}: interp no longer traps (documented trap): exit {}",
+                        outcome.exit_code
+                    ));
+                }
+            }
+        }
+
+        match try_compile_and_run_native(name, &main_path) {
+            Ok((native_code, _, _)) => {
+                if native_code != *expected_native {
+                    drifted.push(format!(
+                        "{name}: native exit {native_code} != documented {expected_native} -- \
+                         the parked divergence moved; recheck the header and promote if fixed"
+                    ));
+                }
+            }
+            Err(failure) => {
+                drifted.push(format!(
+                    "{name}: native now fails to compile (was a running divergence):\n{}",
+                    failure.lines().next().unwrap_or("")
+                ));
+            }
+        }
+    }
+
+    assert!(
+        drifted.is_empty(),
+        "{} parked runtime divergence(s) drifted:\n\n{}",
+        drifted.len(),
+        drifted.join("\n\n")
+    );
+}
+
 /// The INTERPRETER leg of the operand-position Trapping canary
 /// (pass/arithmetic/runtime_trapping_guard_overflow_traps): `u8 in Trapping`
 /// 200 + 100 fused into a guard subject must TRAP in the oracle -- the

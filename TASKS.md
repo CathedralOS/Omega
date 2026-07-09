@@ -884,6 +884,17 @@ decreases remaining
   the runtime divergences (headers + periodic omega-run sweeps still own
   those), but accepts-vs-rejects drift is now automatic.
 
+- **PENDING RUNTIME DRIFT-CHECK 2026-07-10d: the corpus is fully
+  self-watching.** The canary suite's repopulated pending list pins compile
+  accepts-vs-rejects; the new differential test
+  pending_runtime_divergences_hold pins the RUNTIME legs -- all 9
+  compiling parked divergences' exact (native exit, interp exit-or-trap)
+  pairs, collect-all, mutation-tested (a flipped expectation is caught and
+  named). A fix landing on either side (a const-fold repair, a design call
+  implemented, an ISA change) now fails loudly with a promote signal; the
+  manual omega-run sweeps become confirmation, not discovery. Both lists
+  cross-reference the canary headers as the source of truth.
+
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE
   arithmetic (overflow -> inf), so nothing diverges -- but the DECLARATION is
