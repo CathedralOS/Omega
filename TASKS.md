@@ -102,9 +102,16 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   an emit state produced a wrong subsecond natively; restructuring to ENTRY-ONLY lets
   (safe-divisor bump trick for the eager-eval zero case) fixed it. Same #2B
   splice-machinery family as the deferred-entry-locals fix — post-entry-state locals
-  need the same deferral/contiguity treatment. The std authoring rule (entry-only
-  lets, params-only states) dodges it; a minimal repro can be distilled from
-  time.omg's divide at commit HEAD~1 if the fix lands here.
+  need the same deferral/contiguity treatment.
+  NARROWED 2026-07-08: the SIMPLE shape does NOT reproduce -- a value callee with a
+  post-entry `work` state (div + mod lets) threading to an `emit` state (mul+add let)
+  delivers correctly on both engines (now PINNED as canary
+  calls/runtime_value_callee_post_entry_lets_exit, swap_digits(42)=24). So the trigger
+  is NARROWER than "any post-entry let": it is the EAGER-EVAL ZERO-DIVISOR interaction
+  (all inline arms compute; an arm whose divisor is 0-in-that-path divides eagerly) --
+  the "safe-divisor bump" workaround is the tell. A minimal repro still needs the
+  time.omg divide structure at commit HEAD~1 (a guarded division whose non-taken arm
+  has a zero divisor). Distill THAT specific shape, not generic post-entry lets.
 - **[x] NESTED-value-call transition guard read the nested result's PRE-STORE ZII
   TAG natively — FIXED 2026-07-08.** NOT a splice-ordering bug: a bare-call binding
   (`let since = self.checked_subtract(..)`) whose local ALSO has a LocalStorage

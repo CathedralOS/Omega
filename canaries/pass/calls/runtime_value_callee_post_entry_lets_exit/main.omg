@@ -1,0 +1,34 @@
+// RUN canary (exit 24). A VALUE callee (`swap_digits`, called as
+// `self.swap_digits(42)`) whose body spans THREE states: the entry guards, a
+// POST-ENTRY state `work` computes straight-line lets (div + mod) and threads
+// them to a third state `emit`, which computes another let (mul + add) and
+// returns it. Exercises the #2B splice machinery for lets that live in a
+// NON-entry state of an inlined value callee -- the split div/mod/mul chain
+// across post-entry states must deliver the same value both engines.
+// swap_digits(42): work -> tens=4, ones=2; emit(2, 4) -> 2*10 + 4 = 24.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::swap_digits(&self, x: i32 [0..=99]) -> i32 {
+    transition x > 0 {
+        true -> work(x)
+        false -> 0
+    }
+    state work(&self, x: i32 [0..=99]) -> i32 {
+        let tens: i32 [0..=9] = x / 10;
+        let ones: i32 [0..=9] = x % 10;
+        transition {
+            _ -> emit(ones, tens)
+        }
+    }
+    state emit(&self, ones: i32 [0..=9], tens: i32 [0..=9]) -> i32 {
+        let combined: i32 [0..=99] = ones * 10 + tens;
+        transition {
+            _ -> (combined)
+        }
+    }
+}
+machine Main::run(&mut self) {
+    let r: i32 = self.swap_digits(42);
+    self.console.exit_process(r);
+}
+machine Main::main(&mut self) { self.run(); }
