@@ -73,42 +73,24 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    still enforces the retired empty-effect gate. When answered: relax the
    gate per #3, derive grants per #2, spell injection per #1.
 
-2. **ACTIVE: reversed-operand receiver residual** (the last inline-receiver
-   hole; runtime_system_time_after_2026_exit keeps its a/b spelling as the
-   live repro — its natural-spelling twin diverges native 4 vs interp 70).
-   NARROWED 2026-07-10v: `receiver_base_for` is proven CORRECT for every
-   resolution (OMEGA_DEBUG_RECEIVER logs: base 0/dispatch 1 ×37, base
-   16/dispatch 3 ×41, no misses) — yet the backward splice's stmt-3 RHS
-   (`earlier.subsecond >= self.subsecond`) emits @8, the FORWARD receiver's
-   field: that ONE operand's place never consults the resolver. Ruled out:
-   reversed-operand shape alone and two-calls-two-states structure alone
-   (both pass; repros preserved in the session scratchpad). Adjacent-
-   statement contradiction (stmt-2 self-read resolves @24 correctly) rules
-   out a per-expression memo. SHARPENED 2026-07-10w (VOP instrumentation
-   committed, env-gated OMEGA_DEBUG_RECEIVER): every value-operand PLACE
-   resolution is CORRECT (`self.subsecond → @24`,
-   `self.now_keep.subsecond → @8`, both right) — yet the fresh report
-   shows TWO wrong emissions (backward splice stmts 3 and 8: `@8 >= @8`,
-   `@0 - @0`), exactly the statements with `earlier` on the LEFT and
-   `self` on the RIGHT, and in both the self operand EQUALS the earlier
-   operand. SUBSTITUTION-MATCH signature, not resolution. SESSION
-   2026-07-10x ruled OUT the prelude-binding substitution (instrumented:
-   ZERO Name-arm matches fire for this program — that machinery is
-   entirely idle here) and MAPPED the alias route: selection's
-   bind_runtime_operation_aliases sets RuntimeAliasBinding keyed
-   (source_key = the CALLEE's target_key, parameter_symbol) — with TWO
-   calls to the same callee the key COLLIDES by construction, correct
-   only while each call's ops resolve strictly inside its own window
-   (set_alias replace + .rev() find). All VOP place resolutions log
-   correct, so the wrong operands are born on a NON-VOP path — prime
-   suspect: the runtime-branching PLAN's own alias buffer / prelude
-   tables (bind_runtime_branch_aliases), where cross-call ordering at
-   plan-build time could bake the forward call's `earlier→now_keep`
-   into the backward splice's self-side operands (equal-operands
-   signature). NEXT: instrument runtime-branching's alias buffer + the
-   prelude op VALUE expressions at build time (print per-call bindings
-   + the substituted trees for the backward stmts 2/3). Then re-sweep
-   after_2026 to natural spelling.
+2. ~~reversed-operand receiver residual~~ — **CLOSED 2026-07-10y.** The
+   three-session hunt bottomed out in TWO stacked holes past the resolver:
+   (a) the runtime-bodies SPLICE stamps callee statements with the
+   CALLER's source key, so their `self.X`/`earlier.X` member paths (which
+   name no caller field) fell into machine_owned's CROSS-MACHINE SWEEP —
+   which had no receiver awareness (both operands → first-SystemTime@8,
+   the equal-operands signature); (b) the sweep matches ANY machine layout
+   attached to the same data, so even receiver-aware lookup by machine
+   SYMBOL missed (`from_unix_seconds`'s layout ≠ the called
+   `duration_since`). FIX: machine_owned entry fns now take (input,
+   dispatch_index) and resolve bases DYNAMICALLY per resolved machine
+   (resolved_machine_base → receiver_base_for), including at the three
+   sweep sites; receiver_base_for's unique-call match is by ATTACHED-DATA
+   equivalence (the receiver is a property of the data instance, not the
+   machine). The a/b shuffle is now fully retired:
+   runtime_system_time_after_2026_exit swept to natural spelling (70/70).
+   Debug instrumentation kept env-gated (OMEGA_DEBUG_RECEIVER + the BTW
+   binary-write entry prints).
 
 3. **Receiver slice 2** — non-entry callers need recursive caller-base
    resolution (the context chain's parent bases compose); fenced until then.
@@ -171,8 +153,8 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
   uefi_hello.
 - **Canonical idioms**: field discipline for host-call args/results;
   errno-capture-in-entry; field-carrier for indexed element moves. The a/b
-  first-field receiver shuffle is RETIRED (per-instance receivers) except in
-  runtime_system_time_after_2026_exit (the live repro for open item 2).
+  first-field receiver shuffle is FULLY RETIRED (per-instance receivers,
+  both routes + the splice/sweep holes closed 2026-07-10y).
 - **C-strings at host boundaries**: subslices pass a POINTER (kernel reads to
   NUL); the interpreter slices by LENGTH — a standing native-vs-interp
   divergence class to check on string-ish bugs.

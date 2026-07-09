@@ -74,20 +74,32 @@ pub(in crate::selection) fn receiver_base_for(
     if state.key.machine != input.entry_key.machine {
         return None;
     }
+    // Match callee machines by ATTACHED-DATA equivalence, not machine-symbol
+    // equality: the resolution sweep may land in ANY machine layout attached
+    // to the same data (`SystemTime::from_unix_seconds` vs the called
+    // `SystemTime::duration_since`), and the receiver identity is a property
+    // of the DATA instance, not the particular machine (2026-07-10y -- the
+    // reversed-operand residual's final hop).
+    let source_attached = attached_data_of(input, source_machine);
     let mut found: Option<&omega_state_calls::StateCall> = None;
     for (_, call) in input.state_calls.calls.iter() {
         if !call.reachable
             || call.source_key.machine != state.key.machine
             || call.source_key.state != state.key.state
-            || call.target_key.machine != source_machine
         {
+            continue;
+        }
+        let target_matches = call.target_key.machine == source_machine
+            || (source_attached.is_some()
+                && attached_data_of(input, call.target_key.machine) == source_attached);
+        if !target_matches {
             continue;
         }
         if found.is_some() {
             if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
                 eprintln!("RB: -> AMBIGUOUS (dispatch {dispatch_index})");
             }
-            return None; // ambiguous: two calls to the same callee machine
+            return None; // ambiguous: two calls into the same data family
         }
         found = Some(call);
     }
@@ -129,4 +141,16 @@ pub(in crate::selection) fn receiver_base_for(
         );
     }
     resolved
+}
+
+fn attached_data_of<'plan>(
+    input: &'plan InstructionSelectionInput<'_>,
+    machine: omega_core::symbols::SymbolHandle,
+) -> Option<&'plan str> {
+    input
+        .layouts
+        .machine_layouts
+        .iter()
+        .find(|(_, layout)| layout.symbol == machine)
+        .and_then(|(_, layout)| layout.attached_data.as_deref())
 }

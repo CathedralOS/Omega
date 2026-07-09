@@ -9,7 +9,6 @@ use crate::selection::storage_places::{
     resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
     runtime_storage_target_is_atomic_in_table,
 };
-use omega_checked_trees::types::PrimitiveType;
 use omega_abstract_operations::{
     RuntimeStorageRegion, RuntimeValueOperand, RuntimeValueOperandHandle, SelectedInstructionKind,
     StateGuardOperator,
@@ -17,12 +16,11 @@ use omega_abstract_operations::{
 use omega_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
+use omega_checked_trees::types::PrimitiveType;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 
-use super::super::static_values::{
-    RuntimeStaticValues, invalidate_runtime_static_value_in_table,
-};
+use super::super::static_values::{RuntimeStaticValues, invalidate_runtime_static_value_in_table};
 use super::operators::{builtin_runtime_call_operator_in_table, runtime_binary_operator};
 use super::value_operands::{
     binary_value_operands_are_float, resolve_runtime_comparison_operand_in_table,
@@ -228,7 +226,8 @@ fn select_runtime_atomic_fetch_add_in_table(
         expressions,
         left,
     )?;
-    if left_place.region != target_place.region || left_place.byte_offset != target_place.byte_offset
+    if left_place.region != target_place.region
+        || left_place.byte_offset != target_place.byte_offset
     {
         return None;
     }
@@ -267,6 +266,16 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     static_values: &mut RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
+    if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
+        eprintln!(
+            "BTW targeted: dispatch {} valsrc m{} s{} stmt {} value `{}`",
+            dispatch_index,
+            value_source_key.machine.arena_index(),
+            value_source_key.state.arena_index(),
+            statement_index,
+            expressions.display_name(value)
+        );
+    }
     let (operator, comparison_operator, left_expression, right_expression) =
         match expressions.expression(value) {
             ExpressionNode::Binary(binary) => (
@@ -298,16 +307,17 @@ fn select_runtime_targeted_binary_mutation_write_in_table(
     // text-equals leaf. The binary write needs two operands, so the leaf is
     // passed through unchanged as `text_equals | 0`.
     if let Some(comparison_operator) = comparison_operator
-        && let Some(text_equals) = super::value_operands::resolve_runtime_text_equals_operand_in_table(
-            input,
-            dispatch_index,
-            value_source_key,
-            expressions,
-            comparison_operator,
-            left_expression,
-            right_expression,
-            runtime_value_operands,
-        )
+        && let Some(text_equals) =
+            super::value_operands::resolve_runtime_text_equals_operand_in_table(
+                input,
+                dispatch_index,
+                value_source_key,
+                expressions,
+                comparison_operator,
+                left_expression,
+                right_expression,
+                runtime_value_operands,
+            )
     {
         invalidate_runtime_static_value_in_table(static_values, expressions, target);
         let zero = runtime_value_operands.insert(RuntimeValueOperand::Immediate(0));
@@ -687,6 +697,15 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_storage_bin
     static_values: &RuntimeStaticValues,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
 ) -> Option<SelectedInstructionKind> {
+    if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
+        eprintln!(
+            "BTW select_runtime_storage_binary_write_in_table: dispatch {} source m{} s{} stmt {}",
+            dispatch_index,
+            source_key.machine.arena_index(),
+            source_key.state.arena_index(),
+            statement_index
+        );
+    }
     let (operator, comparison_operator, left_expression, right_expression) =
         match expressions.expression(value) {
             ExpressionNode::Binary(binary) => (
@@ -1028,7 +1047,12 @@ fn build_runtime_convert_write(
     // `Float` literals) needs its float-literal constants narrowed to f32 bits before
     // the convert reads them (movd, low dword).
     if source_primitive == PrimitiveType::F32 {
-        narrow_f32_literal_operands(runtime_value_operands, expressions, source_expression, source);
+        narrow_f32_literal_operands(
+            runtime_value_operands,
+            expressions,
+            source_expression,
+            source,
+        );
     }
 
     Some(SelectedInstructionKind::WriteRuntimeStorageConvert {

@@ -22,8 +22,6 @@ data Main {
     console: Console;
     clock: Clock;
     time: Time;
-    a: SystemTime;
-    b: SystemTime;
     now_keep: SystemTime;
     epoch_2026: SystemTime;
     forward: SystemTimeDifference;
@@ -34,9 +32,7 @@ machine Main::main(&mut self) {
     self.clock.sleep(30);
     self.now_keep = self.time.system_time_now();
     self.epoch_2026 = SystemTime::from_unix_seconds(1767225600);
-    self.a = self.now_keep;
-    self.b = self.epoch_2026;
-    self.forward = self.a.duration_since(self.b);
+    self.forward = self.now_keep.duration_since(self.epoch_2026);
     transition self.forward {
         SystemTimeDifference::Ok { duration } -> check_forward(duration)
         SystemTimeDifference::Backwards { amount } -> fail_forward_backwards(amount)
@@ -57,9 +53,7 @@ machine Main::main(&mut self) {
         }
     }
     state check_backward(&mut self) {
-        self.a = self.epoch_2026;
-        self.b = self.now_keep;
-        self.backward = self.a.duration_since(self.b);
+        self.backward = self.epoch_2026.duration_since(self.now_keep);
         transition self.backward {
             SystemTimeDifference::Backwards { amount } -> check_backward_amount(amount)
             SystemTimeDifference::Ok { duration } -> fail_backward_ok(duration)
