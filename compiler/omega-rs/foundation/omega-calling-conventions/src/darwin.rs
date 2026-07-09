@@ -156,6 +156,13 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         // ConstantResult rows (no import at all): POSIX nanosecond units.
         darwin_import("Clock", "monotonic_ticks", "_clock_gettime_nsec_np", &policy),
         darwin_import("Clock", "wall_clock_raw", "_clock_gettime_nsec_np", &policy),
+        // The inline-Clock `tick_count()` spelling (the pre-std samples/
+        // canaries): same symbol, same CLOCK_UPTIME_RAW clockid. RAW HOST
+        // UNITS by doctrine (a boundary trait is the host's own surface):
+        // windows GetTickCount64 ticks are MILLISECONDS, darwin ticks are
+        // NANOSECONDS -- monotonic opaque ticks either way; the portable
+        // calibrated surface is std::time (TimeHost), not this row.
+        darwin_import("Clock", "tick_count", "_clock_gettime_nsec_np", &policy),
     ]);
 
     insert_platform_lowering(
@@ -684,6 +691,14 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
         "*",
         "monotonic_ticks",
         [host_operation("Clock", "monotonic_ticks")],
+        PlatformCallData::ConstantArgument { value: 8 },
+    );
+    // Inline-Clock tick_count: raw nanosecond ticks (see the import row).
+    insert_platform_lowering(
+        plan,
+        "*",
+        "tick_count",
+        [host_operation("Clock", "tick_count")],
         PlatformCallData::ConstantArgument { value: 8 },
     );
     insert_platform_lowering(
