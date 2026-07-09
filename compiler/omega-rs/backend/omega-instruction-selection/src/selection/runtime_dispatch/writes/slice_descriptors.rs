@@ -660,6 +660,52 @@ pub(in crate::selection) fn emit_runtime_frame_slot_slice_descriptor_write_in_ta
         return true;
     }
 
+    // A BARE fixed-array PLACE passed as a slice (`self.pick(self.nums, ..)`
+    // -- no as_slice(), no subslice): write the {ptr = region_base + offset,
+    // len = N} descriptor. Without this arm the value fell through EVERY
+    // strategy; a [i32; 4]'s 16 bytes coincidentally matched the descriptor
+    // size, so the RAW ARRAY BYTES became the pointer (native SIGSEGV --
+    // probed 2026-07-09m; a [u8; 4] took a different wrong path and read
+    // garbage). `WriteRuntimeStorageAddressToRuntimeFrame` carries the source
+    // REGION, so machine and frame arrays both relocate correctly.
+    if !matches!(expressions.expression(value), ExpressionNode::Call(_))
+        && let Some(place) = resolve_runtime_storage_place_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            value,
+        )
+        && let Some(length) = resolve_fixed_array_length_in_table(
+            input,
+            dispatch_index,
+            value_source_key,
+            expressions,
+            value,
+        )
+    {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeStorageAddressToRuntimeFrame {
+                source_region: place.region,
+                source_offset: place.byte_offset,
+                target_offset: slot.byte_offset,
+            },
+            source_key: value_source_key,
+            source_statement: statement_index,
+        });
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                target_region: omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
+                byte_offset: slot.byte_offset + input.runtime_abi.slice_descriptor().len_offset(),
+                byte_size: 8,
+                value: length as i64,
+            },
+            source_key: value_source_key,
+            source_statement: statement_index,
+        });
+        return true;
+    }
+
     let ExpressionNode::Call(call) = expressions.expression(value) else {
         return false;
     };

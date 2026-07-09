@@ -1,0 +1,43 @@
+// RUN CANARY (exit 70) -- a MACHINE ARRAY passed as a SLICE argument to a
+// dispatched value call (`self.pick(self.nums, ..)` with `nums: [i32; 4]`),
+// the element read through the field-carrier idiom. Before the fix
+// (2026-07-09m) this shape had NO descriptor strategy: the value fell
+// through every arm, and a [i32; 4]'s 16 bytes coincidentally matched the
+// descriptor size, so the RAW ARRAY BYTES became the data POINTER -- a
+// native SIGSEGV ([u8; 4] took a different wrong path and read garbage).
+// Fixed: the bare fixed-array-place arm in slice_descriptors.rs writes the
+// {ptr = region_base + offset, len = N} descriptor
+// (WriteRuntimeStorageAddressToRuntimeFrame carries the source REGION, so
+// machine and frame arrays both relocate). Differential.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; nums: [i32; 4]; picked: i32; }
+machine Main::pick(&mut self, s: &[i32], i: usize, j: usize)
+terminates { decreases (j, i) -> Nat::BoundedDistance; }
+-> i32
+{
+    transition j < i {
+        true -> pick(s, i, j + 1)
+        false -> leaf(s, j)
+    }
+    state leaf(&mut self, s: &[i32], j: usize) -> i32 {
+        transition j < s.len { true -> leaf_go(s, j) _ -> leaf_zero() }
+    }
+    state leaf_go(&mut self, s: &[i32], j: usize) -> i32 {
+        // The canonical idiom: element -> FIELD, field-read terminal.
+        self.picked = s[j];
+        transition true { _ -> leaf_out() }
+    }
+    state leaf_out(&mut self) -> i32 { self.picked }
+    state leaf_zero(&mut self) -> i32 { 0 }
+}
+machine Main::main(&mut self) {
+    self.nums[0] = 5;
+    self.nums[1] = 6;
+    self.nums[2] = 7;
+    self.nums[3] = 8;
+    // Loop to j == 2, then return s[2] == 7.
+    let n: i32 = self.pick(self.nums, 2, 0);
+    transition n == 7 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
