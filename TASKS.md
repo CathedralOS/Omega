@@ -65,13 +65,19 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   at-width case that hardware-masked before). Byte-pinned via the linux_x64
   clamp-bytes test; the parked divergence canary is PROMOTED to
   pass/arithmetic/runtime_shift_atwidth_signed_modular_exit (i32 write leg +
-  u32 operand legs, counts 40/70). REMAINING -- slice B tail: Wrapping >>
-  at-width semantics (logical -> 0, arithmetic -> sign-fill; define +
-  implement both engines + both positions); the indexed/pointee binary-write
-  kinds carry NO domain field, so wrapping shifts into indexed targets still
-  hardware-mask on both ISAs -- thread the domain or route through the
-  storage kind; align the selection-level domain witness to lhs-only for
-  shifts. Slice C: Saturating/Trapping shl (clamp/trap on shifted-out bits;
+  u32 operand legs, counts 40/70). Wrapping >> DONE (2026-07-14): floor-division
+  semantics -- logical -> 0, arithmetic -> sign-fill at/above-width
+  (derived from the ruling's value-operation principle; flag if wrong).
+  Arithmetic >> SATURATES the count to width-1 pre-shift on both ISAs (a
+  post-fix cannot recover the sign); logical >> zero-clamps like <<; the
+  interp resolves the node type for >> now (it did not -- the u64 leg of the
+  new canary caught it; narrower widths were accidentally right through the
+  extended-i64 representation). runtime_shift_right_atwidth_exit pins 7 legs
+  + linux_x64 saturate+sar byte pins. REMAINING -- slice B tail: the
+  indexed/pointee binary-write kinds carry NO domain field, so wrapping
+  shifts into indexed targets still hardware-mask on both ISAs -- thread the
+  domain or route through the storage kind; align the selection-level domain
+  witness to lhs-only for shifts. Slice C: Saturating/Trapping shl (clamp/trap on shifted-out bits;
   the shl_saturating parked canary).
 - **FLOAT-TO-INT half still open (no ruling).** `1e300 as i32`: aarch64
   FCVTZS + interp saturate to i32::MAX; x86 CVTTSD2SI gives the 0x80000000
