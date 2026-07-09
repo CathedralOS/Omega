@@ -603,7 +603,26 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    returning fields, binary operands, aliases, multi-arm -- each with a
    differential canary); (2) re-add the fence exemption PER SHAPE, gated
    on the shape's return-write canary being green; (3) only then the
-   dir-walk legs unfence. LESSON: an exemption from a
+   dir-walk legs unfence.
+   STEP 1 FIRST TWO SHAPES CLOSED (2026-07-08o) -- and both were LIVE
+   UNFENCED silent-wrongs (pure looping callees dispatch today with no
+   fence, so these shipped broken, worse than the fenced effectful class):
+   (B) result bound to a FIELD (`self.total = self.count(..)`): fields
+   have no frame result slot, so the return-write silently SKIPPED and the
+   field stayed ZII -- fixed by resolving the caller statement's
+   Assignment target to its MACHINE-region place when no slot exists
+   (edges.rs `assignment_target_machine_place`; conservative: machine
+   region only, frame targets stay the slot path's job);
+   (C) TERMINAL returning a FIELD read (`-> self.base`): the return-write
+   copy hardcoded source_region RuntimeFrame, reading the frame at a
+   machine offset -- fixed by using the resolved place's REGION.
+   Both pinned differential:
+   `calls/runtime_dispatch_result_field_binding_exit` +
+   `calls/runtime_dispatch_result_field_terminal_exit` (native+interp 70;
+   RUN_CANARIES + suite tests). REMAINING SHAPES to matrix: effectful
+   entries (the parked acceptance canary), binary-operand terminals,
+   alias/slice-element results, multi-arm terminals, transition-arg /
+   guard-position bindings. LESSON: an exemption from a
    silent-wrong fence needs a RUNTIME differential proof per shape, not a
    routing-evidence proof -- compile-time evidence says the route was
    taken, not that the route is correct.

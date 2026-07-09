@@ -1,0 +1,27 @@
+// RUN CANARY (exit 70) -- a dispatched value call (looping callee) whose
+// TERMINAL returns a FIELD read (`state leaf ... { self.base }`). The
+// return-write's copy hardcoded source_region RuntimeFrame, so a
+// machine-region source offset read the FRAME at that offset and delivered
+// garbage (native 71 vs interp 70 -- a live unfenced silent-wrong found by
+// the open-work #7 return-write matrix, 2026-07-08o). Fixed: the copy uses
+// the resolved place's REGION. Differential.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; base: i32 in Wrapping; }
+machine Main::count(&mut self, i: usize, j: usize)
+terminates { decreases (j, i) -> Nat::BoundedDistance; }
+-> i32
+{
+    transition j < i {
+        true -> count(i, j + 1)
+        false -> leaf()
+    }
+    // Terminal returns a FIELD read (self.base), not a param.
+    state leaf(&mut self) -> i32 { self.base }
+}
+machine Main::main(&mut self) {
+    self.base = 42;
+    let n: i32 = self.count(3, 0);
+    transition n == 42 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

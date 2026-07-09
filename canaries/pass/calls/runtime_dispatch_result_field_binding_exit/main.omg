@@ -1,0 +1,26 @@
+// RUN CANARY (exit 70) -- a dispatched value call (looping callee) whose
+// result binds to a FIELD (`self.total = self.count(..)`). Fields have no
+// frame result slot, so the dispatch return-write silently SKIPPED the write
+// and the field stayed ZII (native 71 vs interp 70 -- a live unfenced
+// silent-wrong found by the open-work #7 return-write matrix, 2026-07-08o).
+// Fixed: when no slot exists, the caller statement's Assignment target
+// resolves to its MACHINE-region place and the terminal writes there
+// (edges.rs assignment_target_machine_place). Differential.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; total: i32 in Wrapping; }
+machine Main::count(&mut self, i: usize, j: usize, acc: i32 in Wrapping)
+terminates { decreases (j, i) -> Nat::BoundedDistance; }
+-> i32
+{
+    transition j < i {
+        true -> count(i, j + 1, acc + 1)
+        false -> leaf(acc)
+    }
+    state leaf(&mut self, acc: i32 in Wrapping) -> i32 { acc }
+}
+machine Main::main(&mut self) {
+    self.total = self.count(5, 0, 0);
+    transition self.total == 5 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
