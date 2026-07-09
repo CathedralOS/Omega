@@ -16323,6 +16323,32 @@ fn custom_ranking_struct_view_canary_runs() {
 }
 
 #[test]
+fn runtime_wrapping_operand_truncation_exit_canary_runs() {
+    // Nested Wrapping binaries in operand position hand the parent the
+    // width-wrapped value (>> / % legs pin the sign/width-sensitive reads).
+    let canary = pass_canary("arithmetic/runtime_wrapping_operand_truncation_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-wraptrunc-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wrapping operand truncation canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("wrapping operand truncation canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "wrapping operand truncation canary should pass all legs (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_float_compare_bool_exit_canary_runs() {
     // Float comparisons in value/write position (FCMP + materialized 0/1 at
     // operand width). Negative doubles pin the numeric-vs-bitwise ordering.
@@ -26894,6 +26920,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/sum_field_storage_roundtrip",
     "control_flow/sum_payload_cast_operand_field_exit",
     "arithmetic/runtime_float_compare_bool_exit",
+    "arithmetic/runtime_wrapping_operand_truncation_exit",
     "text/case_literal_texteq_field_store_exit",
     "text/runtime_text_equals_value_positions_exit",
     "control_flow/runtime_case_member_dispatch_exit",

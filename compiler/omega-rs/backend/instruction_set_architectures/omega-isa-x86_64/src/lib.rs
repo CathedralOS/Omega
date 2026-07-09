@@ -7356,10 +7356,25 @@ pub fn runtime_value_operand_width(
             // div/mod run at the operand width so a negative i32 dividend is handled
             // correctly, which changes the idiv/div core length -- the width MUST track
             // it or relocation offsets drift (silent segfault). Other ops keep 64-bit.
+            // A nested WRAPPING node < 8 bytes appends one truncation move
+            // (movzx/movsx: 4 bytes; the width-4 forms: 3) -- MUST stay in
+            // lockstep with the emission arm.
+            let wrapping_truncation = match (
+                runtime_value_operands.binary_arithmetic_domain(operand),
+                runtime_value_operands.binary_byte_width(operand),
+            ) {
+                (
+                    Some((omega_core::arithmetic::ArithmeticDomain::Wrapping, _)),
+                    Some(width),
+                ) if width < 8 => {
+                    if width == 4 { 3 } else { 4 }
+                }
+                _ => 0,
+            };
             runtime_binary_operation_width(
                 operator,
                 runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, 8),
-            )
+            ) + wrapping_truncation
         };
         runtime_value_operand_width(runtime_value_operands, left)
             + runtime_value_operand_width(runtime_value_operands, right)
@@ -7578,6 +7593,30 @@ fn append_runtime_value_operand(
                 operator,
                 runtime_binary_operation_byte_size(runtime_value_operands, operator, left, right, 8),
             )?;
+            // A nested WRAPPING binary must hand its PARENT the width-wrapped
+            // VALUE in r10: the plain 64-bit op leaves the untruncated result
+            // (0u32 - 2 = 0xFFFF_FFFF_FFFF_FFFE), and a sign/width-sensitive
+            // parent (>>, /, %, comparisons) then reads it wrong -- the
+            // interpreter wraps AT THE NODE (decision 17); the
+            // store-truncation-is-the-wrap shortcut only holds at the WRITE.
+            // Extension follows the node's own signedness. Width tracked in
+            // runtime_value_operand_width -- MUST stay in lockstep (4 bytes,
+            // except 3 for the width-4 forms).
+            if let Some((omega_core::arithmetic::ArithmeticDomain::Wrapping, operands_signed)) =
+                runtime_value_operands.binary_arithmetic_domain(operand)
+                && let Some(byte_width) = runtime_value_operands.binary_byte_width(operand)
+                && byte_width < 8
+            {
+                match (byte_width, operands_signed) {
+                    (1, false) => bytes.extend([0x4d, 0x0f, 0xb6, 0xd2]), // movzx r10, r10b
+                    (2, false) => bytes.extend([0x4d, 0x0f, 0xb7, 0xd2]), // movzx r10, r10w
+                    (4, false) => bytes.extend([0x45, 0x89, 0xd2]),       // mov r10d, r10d
+                    (1, true) => bytes.extend([0x4d, 0x0f, 0xbe, 0xd2]),  // movsx r10, r10b
+                    (2, true) => bytes.extend([0x4d, 0x0f, 0xbf, 0xd2]),  // movsx r10, r10w
+                    (4, true) => bytes.extend([0x4d, 0x63, 0xd2]),        // movsxd r10, r10d
+                    _ => {}
+                }
+            }
         }
         append_mov_reg_reg(bytes, destination, Reg64::R10);
         Ok(())

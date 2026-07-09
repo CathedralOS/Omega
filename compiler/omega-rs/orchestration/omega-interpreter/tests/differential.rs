@@ -50,6 +50,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/recursive_result_bind_first_arg", 70),
     ("control_flow/sum_payload_cast_operand_field_exit", 70),
     ("arithmetic/runtime_float_compare_bool_exit", 70),
+    ("arithmetic/runtime_wrapping_operand_truncation_exit", 70),
     ("text/case_literal_texteq_field_store_exit", 70),
     ("text/runtime_text_equals_value_positions_exit", 70),
     ("slices/runtime_saturating_array_element_guard_exit", 70),

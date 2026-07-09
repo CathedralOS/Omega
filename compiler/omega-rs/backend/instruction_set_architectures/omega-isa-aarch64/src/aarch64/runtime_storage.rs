@@ -29,7 +29,7 @@ use super::primitives::{
     encode_conditional_branch_lower_or_same, encode_conditional_branch_not_equal,
     encode_conditional_branch_plus,
     encode_load_w_from_x, encode_load_x_from_x, encode_asrv_w_register, encode_asrv_x_register,
-    encode_lslv_x_register, encode_lsrv_x_register, encode_move_x_register, encode_movz,
+    encode_lslv_x_register, encode_lsrv_x_register, encode_move_w_register, encode_move_x_register, encode_movz,
     encode_movz_w,
     encode_msub_w_register, encode_msub_x_register, encode_mul_x_register, encode_orr_x_register,
     encode_adds_x_register, encode_compare_x_register_sign_broadcast,
@@ -3499,6 +3499,28 @@ fn append_runtime_value_operand(
                     8,
                 ),
             )?;
+            // A nested WRAPPING binary must hand its PARENT the width-wrapped
+            // VALUE: the plain 64-bit op leaves the untruncated result
+            // (0u32 - 2 = 0xFFFF_FFFF_FFFF_FFFE in the register), and a
+            // sign/width-sensitive parent (>>, /, %, comparisons) then reads
+            // it wrong -- native diverged from the interpreter, which wraps
+            // AT THE NODE (decision 17). The store-truncation-is-the-wrap
+            // shortcut only holds at the WRITE, never in operand position.
+            // Extension picks the node's own signedness; Exact is proven
+            // non-overflowing and Saturating/Trapping clamp/trap above.
+            // Width tracked in widths.rs -- MUST stay in lockstep.
+            if let Some((omega_core::arithmetic::ArithmeticDomain::Wrapping, operands_signed)) =
+                runtime_value_operands.binary_arithmetic_domain(operand)
+                && let Some(byte_width) = runtime_value_operands.binary_byte_width(operand)
+                && byte_width < 8
+            {
+                append_wrapping_operand_truncation(
+                    bytes,
+                    destination_register,
+                    byte_width,
+                    operands_signed,
+                );
+            }
         }
         Ok(())
     } else if let Some((source, source_byte_size, target_byte_size, source_is_float, target_is_float, source_signed)) =
@@ -4194,6 +4216,27 @@ pub(in crate::aarch64) fn runtime_binary_operation_byte_size(
 /// x86 backend's `addss`/`addsd` selection. The integers are moved into the FP
 /// bank via `FMOV` (a raw bit copy, no numeric conversion), the scalar FP op runs
 /// in `S0`/`D0` and `S1`/`D1`, and the result is moved back with `FMOV`.
+/// Truncate a nested WRAPPING binary's 64-bit register result to the node's
+/// declared width, extending per the node's signedness, so the parent
+/// operation consumes the wrapped VALUE (interp wraps at the node). One
+/// 4-byte instruction for widths 1/2/4; 8-byte nodes are already exact.
+fn append_wrapping_operand_truncation(
+    bytes: &mut Vec<u8>,
+    register: u8,
+    byte_width: usize,
+    operands_signed: bool,
+) {
+    match (byte_width, operands_signed) {
+        (1, false) => bytes.extend(encode_zero_extend_byte_to_w(register, register)),
+        (2, false) => bytes.extend(encode_zero_extend_halfword_to_w(register, register)),
+        (4, false) => bytes.extend(encode_move_w_register(register, register)),
+        (1, true) => bytes.extend(encode_sign_extend_byte_to_x(register, register)),
+        (2, true) => bytes.extend(encode_sign_extend_halfword_to_x(register, register)),
+        (4, true) => bytes.extend(encode_sign_extend_word_to_x(register, register)),
+        _ => {}
+    }
+}
+
 fn append_runtime_float_binary_operation(
     bytes: &mut Vec<u8>,
     byte_size: usize,

@@ -1736,6 +1736,21 @@ pub fn runtime_value_operand_width(
                 operator == StateGuardOperator::Modulo,
             )
         } else {
+            // Plain-op arm; a nested WRAPPING node < 8 bytes appends one
+            // truncation instruction (append_wrapping_operand_truncation) so
+            // the parent reads the width-wrapped value. MUST stay in
+            // lockstep with the operand evaluator.
+            let wrapping_truncation = if matches!(
+                runtime_value_operands.binary_arithmetic_domain(operand),
+                Some((omega_core::arithmetic::ArithmeticDomain::Wrapping, _))
+            ) && runtime_value_operands
+                .binary_byte_width(operand)
+                .is_some_and(|width| width < 8)
+            {
+                4
+            } else {
+                0
+            };
             runtime_binary_operation_width(
                 operator,
                 super::runtime_storage::runtime_binary_operation_byte_size(
@@ -1745,7 +1760,7 @@ pub fn runtime_value_operand_width(
                     right,
                     8,
                 ),
-            )
+            ) + wrapping_truncation
         };
         runtime_value_operand_width(runtime_value_operands, left)
             + runtime_value_operand_width(runtime_value_operands, right)
