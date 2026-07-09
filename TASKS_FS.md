@@ -146,7 +146,10 @@ tick rows 50a339aa0; uefi_x64 cross-target 3915d1cec/631fa6e28.)
   canaries, no hidden extras). samples_compile macOS baseline-3
   (2026-07-11v; uefi_hello cross-compiles with the registered
   uefi_x64 target — the harness gives target-shaped samples their
-  explicit target): stdin ×3 (frontend WIP). SUITE BASELINE: ZERO failures
+  explicit target): stdin ×3 (Q12-gated). The documented-exit fn's
+  wrong-exit set was member-verified 2026-07-11z: all three entries
+  are the SAME trio's compile-failure echoes — zero runtime
+  misdeliveries hide behind the aggregate count. SUITE BASELINE: ZERO failures
   on macOS since 2026-07-11t (windows-hosted members are gated to
   windows hosts; judge by the empty set — ANY suite failure is a
   regression now). (2026-07-11r: the gui blit canary
