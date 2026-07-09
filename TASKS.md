@@ -731,9 +731,10 @@ decreases remaining
   runtime_value_compare_byte_size (max of operand sizes); SIGNEDNESS of a
   mixed-sign Sat/Trap operand pair is first-witness best-guess -- exotic,
   flagged here rather than guessed at.
-  STILL QUEUED: operand-position div/mod MIN/-1 -- LANDED 2026-07-09g (next
-  entry); x86 64-bit sat/trap MUL parity remains (needs the 128-bit imul
-  form; aarch64 has MULH arms).
+  STILL QUEUED: operand-position div/mod MIN/-1 -- LANDED 2026-07-09g; x86
+  64-bit sat/trap MUL parity -- LANDED 2026-07-09h. The decision-17 domain
+  lowering family is CLOSED on both ISAs, in both store and operand
+  position, at every width.
 
 - **OPERAND-POSITION DIV/MOD MIN/-1 2026-07-09g: the domain family closed.**
   Signed division's one overflowing corner now resolves correctly when FUSED
@@ -763,6 +764,28 @@ decreases remaining
   warnings. NOTE for the fs lane: omega-run --both printed DIVERGENCE but
   exited 0 through a pipe -- worth checking its exit-code plumbing (201
   documented).
+
+- **X86 64-BIT SAT/TRAP MULTIPLY 2026-07-09h: the domain family's last gap.**
+  `append_saturating_trapping_multiply` byte_size==8 arms landed via the
+  128-bit ONE-OPERAND forms (RDX:RAX), mirroring aarch64's MULH witnesses:
+  signed overflow iff RDX != RAX>>63 (49-byte branchless clamp selecting
+  MIN/MAX by the true product sign left^right; 20-byte trap), unsigned iff
+  RDX != 0 (26-byte clamp to all-ones; 16-byte trap). Scratch: rax/rdx
+  (clobbered by the multiply anyway) + r9/r15 (free after operand
+  evaluation); r11 is preserved by the one-operand form and keeps serving as
+  the right operand. Width twin returns the four constants. Serves BOTH the
+  write path and operand position through the existing dispatches.
+  VERIFICATION without an x86 host: cross-compiled probes for `windows_x64`
+  from this arm64 host (a build.omg `target` block is how targets enter the
+  frontier) -- emission's width debug_asserts pass, and the full 49/26-byte
+  sequences were byte-matched inside the emitted COFF object; the trapping
+  arms compile the same way. Native+interp legs verified on aarch64
+  (omega-run --both). wide_boundaries gained smul_guard/umul_guard
+  directions (fused 64-bit sat mul in guard operands, exits 88/89 on
+  failure) -- differential 70/70. NOTE: this also un-fences 64-bit
+  saturating-mul programs on Windows hosts (the write path previously
+  refused them loudly there; the Windows agent's next suite run confirms
+  runtime behavior).
 
 - **[ ] Range constraint + non-Exact domain = the range is a LIE (found 2026-07-06).**
   `i: usize [0..=4] in Wrapping` accepts `self.i = 100` -- the range enforces only under the
