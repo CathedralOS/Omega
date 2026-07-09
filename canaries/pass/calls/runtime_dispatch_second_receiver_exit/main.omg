@@ -1,0 +1,31 @@
+// RUN CANARY (exit 70) -- PER-INSTANCE RECEIVER DISPATCH (landed
+// 2026-07-10r): a LOOPING value machine (dispatch-routed) called through
+// the SECOND of two same-type contained receivers must run on THAT
+// receiver's storage. first.count = 100, second.count = 7; three
+// iterations through `second` deliver 21 -- the old by-type resolution
+// read `first` and delivered 300. The receiver base rides
+// BackendPlan::receiver_bases (computed once from the clone context's
+// minting call, consumed by storage resolution AND guard operands); the
+// contained-receiver fence relaxes exactly for dispatch-routed calls and
+// still fences the INLINE route (whose expansions resolve by type -- the
+// pending time repro pins that half).
+// Tally holds 100, the second holds 7; calling through the second must
+boundary trait Console { machine exit_process(return_code: i32); }
+data Tally { count: i32 in Wrapping; }
+machine Tally::drain(&mut self, n: i32, acc: i32 in Wrapping)
+terminates { decreases n -> Nat::Descending; }
+-> i32 in Wrapping
+{
+    transition n > 0 { true -> drain(n - 1, acc + self.count) false -> leaf(acc) }
+    state leaf(&mut self, acc: i32) -> i32 { acc }
+}
+data Main { console: Console; first: Tally; second: Tally; }
+machine Main::main(&mut self) {
+    self.first.count = 100;
+    self.second.count = 7;
+    // 3 iterations of +7 = 21 through the SECOND receiver.
+    let total: i32 in Wrapping = self.second.drain(3, 0);
+    transition total == 21 { true -> good() _ -> bad(total) }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, total: i32) { self.console.exit_process(71); }
+}
