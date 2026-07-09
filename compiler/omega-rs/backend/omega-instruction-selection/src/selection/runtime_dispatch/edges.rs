@@ -342,7 +342,7 @@ fn select_runtime_dispatch_call_result_return(
         let found = input
             .runtime_storage
             .state_call_result_slot_for_dispatch(
-                edge.continuation_dispatch_index,
+                edge.target_dispatch_index,
                 call_result.call_source_key,
                 call_result.statement_index,
             )
@@ -353,8 +353,8 @@ fn select_runtime_dispatch_call_result_return(
                 )
             });
         eprintln!(
-            "call-result WRITE (continuation dispatch {}): caller m{} s{} stmt {} -> slot {:?}",
-            edge.continuation_dispatch_index,
+            "call-result WRITE (return-target dispatch {}): caller m{} s{} stmt {} -> slot {:?}",
+            edge.target_dispatch_index,
             call_result.call_source_key.machine.arena_index(),
             call_result.call_source_key.state.arena_index(),
             call_result.statement_index,
@@ -364,7 +364,11 @@ fn select_runtime_dispatch_call_result_return(
     let (target_region, target_offset, byte_size) = if let Some(slot) = input
         .runtime_storage
         .state_call_result_slot_for_dispatch(
-            edge.continuation_dispatch_index,
+            // The return edge ENTERS the caller's next segment: that segment's
+            // dispatch case is the edge TARGET (continuation is None on a
+            // clone-terminal return edge), and it is the context the caller's
+            // argument materialization reads the slot under.
+            edge.target_dispatch_index,
             call_result.call_source_key,
             call_result.statement_index,
         )
@@ -392,6 +396,16 @@ fn select_runtime_dispatch_call_result_return(
         return;
     }
 
+    let value_expr_probe = terminal_target_value_expression(input, source_key, edge.order);
+    if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some() {
+        eprintln!(
+            "call-result VALUE: src m{} s{} order {} -> expr {:?}",
+            source_key.machine.arena_index(),
+            source_key.state.arena_index(),
+            edge.order,
+            value_expr_probe.is_some(),
+        );
+    }
     let Some(value_expr) = terminal_target_value_expression(input, source_key, edge.order) else {
         return;
     };
@@ -427,6 +441,13 @@ fn select_runtime_dispatch_call_result_return(
         &input.control_flow.expressions,
         value_expr,
     ) {
+        if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some() {
+            eprintln!(
+                "call-result COPY: src {:?}+{} -> {:?}+{} ({} bytes) dispatch {}",
+                place.region, place.byte_offset, target_region, target_offset, byte_size,
+                source_dispatch_index,
+            );
+        }
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::CopyRuntimeStorage {
                 source_region: place.region,
