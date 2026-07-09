@@ -336,11 +336,19 @@ fn source_path_candidates(base_path: &Path) -> Vec<PathBuf> {
     let mut file_omg = base_path.to_path_buf();
     file_omg.set_extension("omg");
 
+    // A provides-only module may live in `<name>.provides.omg` (the settled
+    // std/targets file shape: `std/targets/<target>/<subsystem>.provides.omg`)
+    // -- the compound suffix self-documents "this file is per-target provides
+    // rows" in listings. A plain `<name>.omg` wins when both exist.
+    let mut file_provides = base_path.to_path_buf();
+    file_provides.set_extension("provides.omg");
+
     let mut file_omega = base_path.to_path_buf();
     file_omega.set_extension("omega");
 
     vec![
         file_omg,
+        file_provides,
         base_path.join("mod.omg"),
         file_omega,
         base_path.join("mod.omega"),

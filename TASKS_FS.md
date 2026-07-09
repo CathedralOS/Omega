@@ -446,10 +446,23 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    unresolved names nothing; a real qualified case resolves before this
    stage). Fail canary expressions/undeclared_two_segment_path_rejected
    + differential pass twin expressions/runtime_qualified_case_value_exit.
-   NEXT: layout maps (stat normalization), std targets files +
-   WINDOWS_IMPORT_ROWS migration, wrapper flag-word migration
-   (unfences create_new/open_with on windows), the let-local dispatch
-   face, interp story for authored bindings.
+   STD TARGETS FILES LANDED (2026-07-08g, the settled file shape):
+   `std/targets/<target>.omg` (target def) + `std/targets/<target>/
+   filesystem.provides.omg` (the rows) exist for all four targets; the four
+   inline provides blocks left filesystem_host.omg (241 -> 131 lines), which
+   now imports the four target defs so `use ...::filesystem_host;` stays a
+   single self-contained entry point (the compiler's target filter keeps
+   non-selected rows inert, unchanged). Compiler side: `source_path_candidates`
+   (frontend.rs) gained the `<name>.provides.omg` compound-suffix candidate
+   (plain `<name>.omg` wins when both exist). Provides blocks resolve their
+   trait by NAME globally -- no import cycle back to filesystem_host needed.
+   build.omg's target selection (#3) now has real files to pick; time_host
+   has no provides rows yet (nothing to migrate there).
+   NEXT: layout maps (stat normalization) -- superseded in practice by the
+   shipped ST_*_OFF value rows; revisit only if a declarative map earns its
+   keep -- WINDOWS_IMPORT_ROWS migration (authored import rows in the
+   provides files replacing the Rust table), the let-local dispatch face,
+   interp story for authored bindings.
    ⚠️ BRIEF DRIFT noted (not touched -- freestanding thread's call): the
    extern brief revised `VtableSlot(index)` to `VtableField(field)`
    (field model, decided 2026-07-04) AFTER the parse landed; the
