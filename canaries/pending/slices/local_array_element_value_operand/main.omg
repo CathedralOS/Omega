@@ -1,0 +1,32 @@
+// PENDING (2026-07-10h, NATIVE silent-wrong -- found auditing a "tracked
+// separately" comment that nothing tracked): a LOCAL array's runtime-indexed
+// element in VALUE-OPERAND positions. The FIELD-array twin passes
+// (pass/slices/runtime_field_array_element_value_operand_exit, whose header
+// documented this local-array gap); the simple local read-into-let-and-
+// compare shape ALSO passes -- the break is in the richer operand positions.
+// Interp exits 70 (correct); native exits at the first failing direction.
+// Directions (distinct exits): value-call arg arr[i] (72), let-of-element
+// forwarded as a transition arg (73). NEXT: bisect which direction fails,
+// then the operand builder for machine-indexed LOCAL (frame) arrays vs the
+// field (machine-storage) form the passing twin uses.
+// PROMOTE (pass/slices + differential, expected 70/70) when both directions
+// hold natively.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; idx: usize; }
+machine Main::double(&mut self, v: i32 [0..=100]) -> i32 { v + v }
+machine Main::main(&mut self) {
+    self.idx = 1;
+    transition self.idx < 3 { true -> read_elem(self.idx) _ -> bad() }
+    state read_elem(&mut self, i: usize [0..=2]) {
+        let arr: [i32; 3] = [10, 20, 30];
+        let d: i32 = self.double(arr[i]);
+        transition d == 40 { true -> fwd(arr[i]) _ -> bad_call() }
+    }
+    state fwd(&mut self, e: i32) {
+        transition e == 20 { true -> good() _ -> bad_fwd() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+    state bad_call(&mut self) { self.console.exit_process(72); }
+    state bad_fwd(&mut self) { self.console.exit_process(73); }
+}
