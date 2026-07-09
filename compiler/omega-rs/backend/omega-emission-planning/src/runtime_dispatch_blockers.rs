@@ -178,7 +178,8 @@ fn dispatch_loop_guard_can_emit(edge: &RuntimeDispatchLoopEdge) -> bool {
         // The leaf-arm poison markers never appear on a dispatch edge.
         StateGuardLowering::NeedsRuntimeExpression
         | StateGuardLowering::UnresolvedInlineArmGuard
-        | StateGuardLowering::UnloweredTerminalHostCall => false,
+        | StateGuardLowering::UnloweredTerminalHostCall
+        | StateGuardLowering::UnloweredCaseLiteralField => false,
     }
 }
 

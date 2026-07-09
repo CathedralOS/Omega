@@ -201,12 +201,39 @@ fn select_runtime_resolved_mutation_write_in_mutable_table(
                 runtime_value_operands,
                 selected_instructions,
             );
-            if !field_emitted && std::env::var_os("OMEGA_DEBUG_MUTATION_SELECTION").is_some() {
-                eprintln!(
-                    "case-literal field write not selected: field `{}` value {:?}",
-                    field.name.as_str(),
-                    expressions.expression(field.value)
-                );
+            if !field_emitted {
+                if std::env::var_os("OMEGA_DEBUG_MUTATION_SELECTION").is_some() {
+                    eprintln!(
+                        "case-literal field write not selected: field `{}` value {:?}",
+                        field.name.as_str(),
+                        expressions.expression(field.value)
+                    );
+                }
+                // A field no strategy served must NOT be OR'd away: the tag
+                // and sibling writes already landed, so skipping just this
+                // field compiles a partial construction that reads ZII 0 at
+                // runtime (the cast-in-payload face, then text-equality
+                // payloads). Poison instead -- emission planning rejects it
+                // with the bind-to-a-`let` diagnostic; the poison never
+                // encodes, so the partial writes never run.
+                selected_instructions.push(SelectedInstruction {
+                    kind: SelectedInstructionKind::EvaluateDispatchGuard {
+                        guard_lowering:
+                            omega_abstract_operations::StateGuardLowering::UnloweredCaseLiteralField,
+                        operator: omega_abstract_operations::StateGuardOperator::Equal,
+                        storage_region: omega_abstract_operations::RuntimeStorageRegion::Machine,
+                        byte_offset: 0,
+                        byte_size: 0,
+                        expected_value: 0,
+                        has_storage: false,
+                        is_float: false,
+                    },
+                    source_key: operation_key,
+                    source_statement: statement_index,
+                });
+                // Handled BY POISONING: the caller must not fall through to
+                // another strategy on top of the marker.
+                emitted = true;
             }
             emitted |= field_emitted;
         }

@@ -608,17 +608,19 @@ decreases remaining
   without it). Also left an env-gated debug line (OMEGA_DEBUG_MUTATION_SELECTION) at
   the cascade's per-field failure point -- it is how the failing resolver was found.
 
-- **[ ] Case-literal cascade is partial-on-failure: make it all-or-nothing + LOUD.**
-  `select_runtime_resolved_mutation_write_in_mutable_table` (branches/mutation.rs)
-  ORs per-field success (`emitted |= field_emitted`): ANY field value no resolver
-  serves is dropped silently while tag+siblings land -- the cast face above was one
-  instance; the next unresolvable shape re-opens the hole. Plan (the poison pattern
-  already exists): snapshot `selected_instructions.len()` before the cascade, on any
-  field failure pop back to the snapshot and push an UNLOWERED poison the way leaf.rs
-  poisons bare CALL terminals (`StateGuardLowering::UnloweredTerminalHostCall` ->
-  emission planning rejects with a bind-to-a-`let` style diagnostic); needs a sibling
-  variant (e.g. UnloweredCaseLiteralField) + the emission-planning rejection + a fail
-  canary pinning the diagnostic. Sink rollback exists (`pop()`); keep the debug line.
+- **[x] Case-literal cascade partial-on-failure -- POISONED 2026-07-12.** The
+  predicted next instance materialized on the first probe: a TEXT-EQUALITY bool
+  payload (`z: self.name == "omega"`) silently dropped exactly like the cast face
+  (native 72 / interp 70). Now: any field no strategy serves pushes
+  `StateGuardLowering::UnloweredCaseLiteralField` (sibling of the terminal-host-call
+  poison; zero bytes, counted as handled so no strategy-fallthrough stacks on it) and
+  emission planning rejects with the bind-to-a-`let` diagnostic (the bound spelling
+  `let ok: bool = ...; z: ok` is verified served). No sink rollback needed -- the
+  poison guarantees compilation fails, so the partial tag/sibling writes never
+  encode. Pinned: fail/control_flow/case_literal_unlowered_field_rejected (fragment
+  "has no operand lowering"); the pass canary keeps the served cast shape green. If
+  text equality later gains operand-position lowering, the fail canary flips loudly
+  -- rewrite it to another unloweable shape or promote, don't drop the poison.
 
 - **PENDING-CANARY RECHECK 2026-07-09** (after the session's aarch64 arc):
   const-fold divide/shift miscompiles + unsigned_min_max_wrapping still

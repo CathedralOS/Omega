@@ -9,6 +9,11 @@
 //!   ran and its result slot read ZII 0 (`Filesystem::close` reported rc 0
 //!   "success" while the fd stayed OPEN -- Windows' unlink-refuses-open-files
 //!   exposed what POSIX unlink masked).
+//! - `UnloweredCaseLiteralField`: a case/struct-literal payload field whose
+//!   value no operand strategy lowers. The construction cascade OR'd
+//!   per-field success, so the one bad field was dropped while the tag and
+//!   siblings landed and the field read ZII 0 (first the cast-in-payload
+//!   face, then text-equality payloads).
 //! Each check turns a silent drop into a compile error.
 //!
 //! NOTE: `NeedsRuntimeExpression` guards are deliberately NOT rejected here;
@@ -85,6 +90,22 @@ pub(super) fn collect_unlowered_guard_blockers(
                          silently never run and its result would read 0 (ZII). Bind it \
                          to a `let` and return the local \
                          (`let rc: i32 = self.host.op(..); rc`){}",
+                        state_name(input, instruction.source_key),
+                        instruction.source_statement,
+                        proof_scope_suffix(input, instruction.source_key)
+                    ),
+                ));
+            }
+            StateGuardLowering::UnloweredCaseLiteralField => {
+                blockers.insert(blocker(
+                    "state values",
+                    &format!(
+                        "{} statement {}: a case-literal payload field's value has no \
+                         operand lowering -- the field write would be silently dropped \
+                         while the tag and sibling fields land, and the field would read \
+                         0 (ZII). Bind the field value to a `let` local first, then name \
+                         the local in the literal \
+                         (`let v: bool = self.name == \"x\"; .. Case {{ flag: v }}`){}",
                         state_name(input, instruction.source_key),
                         instruction.source_statement,
                         proof_scope_suffix(input, instruction.source_key)

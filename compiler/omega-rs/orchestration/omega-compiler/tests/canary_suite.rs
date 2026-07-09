@@ -27263,6 +27263,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "collections/deep_nested_runtime_indexed_write_rejected",
     "layouts/plan_laid_dynamic_plan",
     "layouts/plan_laid_policy_without_plan_machine",
+    "control_flow/case_literal_unlowered_field_rejected",
     "control_flow/if_statement_retired",
     "control_flow/transition_fall_through_bool",
     "control_flow/transition_fall_through_value_match",

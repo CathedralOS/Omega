@@ -1,0 +1,37 @@
+// FAIL CANARY: a case-literal payload field whose VALUE has no operand
+// lowering (text equality here -- the branch resolver has no TextEquals arm)
+// must be REJECTED loudly, not dropped. Before the UnloweredCaseLiteralField
+// poison, the construction cascade OR'd per-field success: the tag and the
+// sibling `y` landed, `z` was silently skipped, and the program took the
+// wrong arm at runtime (native 72 vs interp 70 -- the second instance of the
+// hole after the cast-in-payload face, which is now served and pinned by
+// pass/control_flow/sum_payload_cast_operand_field_exit). The bind-first
+// spelling (`let ok: bool = self.name == "omega"; .. z: ok`) serves and is
+// what the diagnostic prescribes. If text equality gains an operand-position
+// lowering later, this canary flips loudly -- rewrite it to another
+// unloweable field shape (or promote it) rather than deleting the poison.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Msg { case Ping(x: i32); case Pong(y: i32, z: bool); }
+data Main { console: Console; name: String; }
+machine Main::mk(&mut self) -> Msg {
+    transition true { true -> Msg::Pong { y: 5, z: self.name == "omega" } }
+}
+machine Main::main(&mut self) {
+    self.name = "omega";
+    self.build();
+}
+machine Main::build(&mut self) {
+    let m: Msg = self.mk();
+    transition m {
+        Msg::Pong { y, z } -> chk(y, z)
+        _ -> bad()
+    }
+    state chk(&mut self, y: i32, z: bool) {
+        transition z {
+            true -> good()
+            _ -> bad()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(73); }
+}
