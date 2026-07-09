@@ -1,0 +1,70 @@
+// PENDING (2026-07-08h): the dir-walk WRAPPER family is INTERP-ONLY on every
+// native target today -- this canary (create_dir_all -> exists -> two
+// write_alls -> read_dir_count == 2 -> read_dir_is_empty NonEmpty ->
+// remove_dir_all -> exists false) runs to 70 INTERPRETED and is refused
+// natively by THREE distinct honest fences (probed individually):
+//  (1) create_dir_all: its interior VALUE-calls the re-entrant effectful
+//      `mkall_copy` walker (reentrant_value_call_blockers) -- fires even for
+//      a `_ =` discard caller, the interior call is the violation;
+//  (2) read_dir_count / read_dir_nth (and so read_dir_is_empty/stats): host
+//      READS inside loop ARM states (value_call_arm_effect_blockers); a loop
+//      of reads cannot move to the entry, so the entry-capture idiom that
+//      fixed try_lock does NOT apply;
+//  (3) remove_dir_all: its `rda` walker is a genuine RECURSIVE CYCLE (depth
+//      recursion into a DIFFERENT dirfd + sibling-drain recursion), refused
+//      by specialization ("calls into a recursive cycle ... express the
+//      repetition as a loop").
+// The common unlock is CALL-WITH-RETURN (dispatch-real value calls) -- the
+// feature TASKS_FS already names as lifting the effectful-arm fence and the
+// splice caveats; (3) additionally needs the rda entry-recursion restructure
+// (the mkall precedent, but with TWO recursion sites). PROMOTE to
+// pass/filesystem (macos-gated beside native_flock -- read_dir has no msvcrt
+// row) when those land.
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    fs: Filesystem;
+    unit_result: UnitResult;
+    io_result: IoResult;
+    empty_result: EmptyResult;
+    present: bool;
+}
+machine Main::main(&mut self) {
+    _ = self.fs.create_dir_all("omega_walk_a/b/c");
+    transition true { true -> ck_created() _ -> bad(99) }
+    state ck_created(&mut self) {
+        self.present = self.fs.exists("omega_walk_a/b/c");
+        transition self.present { true -> seed() _ -> bad(71) }
+    }
+    state seed(&mut self) {
+        self.unit_result = self.fs.write_all("omega_walk_a/b/c/f1.txt", "x");
+        transition self.unit_result { UnitResult::Ok -> seed2() _ -> bad(72) }
+    }
+    state seed2(&mut self) {
+        self.unit_result = self.fs.write_all("omega_walk_a/b/c/f2.txt", "y");
+        transition self.unit_result { UnitResult::Ok -> count() _ -> bad(72) }
+    }
+    state count(&mut self) {
+        self.io_result = self.fs.read_dir_count("omega_walk_a/b/c");
+        transition self.io_result { IoResult::Ok { count } -> ckcount(count) _ -> bad(73) }
+    }
+    state ckcount(&mut self, count: usize) {
+        transition count == 2 { true -> ckempty() _ -> bad(73) }
+    }
+    state ckempty(&mut self) {
+        self.empty_result = self.fs.read_dir_is_empty("omega_walk_a/b/c");
+        transition self.empty_result { EmptyResult::NonEmpty -> teardown() _ -> bad(74) }
+    }
+    state teardown(&mut self) {
+        _ = self.fs.remove_dir_all("omega_walk_a");
+        transition true { true -> ck_gone() _ -> bad(99) }
+    }
+    state ck_gone(&mut self) {
+        self.present = self.fs.exists("omega_walk_a");
+        transition self.present { true -> bad(75) _ -> good() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
