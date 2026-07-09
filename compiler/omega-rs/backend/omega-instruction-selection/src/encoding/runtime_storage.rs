@@ -1183,9 +1183,21 @@ pub fn encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
     byte_count: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "aarch64 cannot encode a dual runtime-indexed copy (`arr[i] = arr[j]`) yet;              use a field temp",
-        )),
+        Architecture::Aarch64 => {
+            aarch64::encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
+                source_base_byte_offset,
+                source_index_offset,
+                source_index_region,
+                source_element_byte_size,
+                source_field_byte_offset,
+                target_base_byte_offset,
+                target_index_offset,
+                target_index_region,
+                target_element_byte_size,
+                target_field_byte_offset,
+                byte_count,
+            )
+        }
         Architecture::X86_64 => x86_64::encode_runtime_storage_copy_machine_indexed_to_machine_indexed(
             source_base_byte_offset,
             source_index_offset,

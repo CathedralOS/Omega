@@ -1075,11 +1075,13 @@ fn machine_instruction_width(
         SelectedInstructionKind::CopyRuntimeMachineIndexedToRuntimeMachineIndexed {
             source_index_region,
             target_index_region,
+            byte_count,
             ..
         } => runtime_storage_copy_machine_indexed_to_machine_indexed_width(
             input.target.architecture,
             *source_index_region,
             *target_index_region,
+            *byte_count,
         ),
         SelectedInstructionKind::CopyRuntimeStorageToRuntimePointee {
             source_offset,
