@@ -130,9 +130,15 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    arithmetic/runtime_u64_literal_let_guard_exit (exact u64::MAX
    round-trip, differential),
    fail/arithmetic/u64_literal_into_i64_rejected,
-   fail/arithmetic/u64_literal_ordering_guard_rejected. NEXT (still
-   claimed): the saturating_* Instant/SystemTime twins in std/time —
-   the deliberate gap these fires unblock (TASKS_TIME item 6).
+   fail/arithmetic/u64_literal_ordering_guard_rejected. The saturating_*
+   twins LANDED 2026-07-11o: Instant::saturating_add/subtract (clamp to
+   the new Instant::MAX / Instant::EPOCH consts — MAX's u64 seconds is
+   fire D) + SystemTime::saturating_add/subtract (SystemTime::MAX /
+   SystemTime::MIN; i64 literals, incl. the -9223372036854775808 MIN
+   spelling probe-verified), mirroring Duration's saturate idioms
+   exactly. Pin: time/runtime_saturating_time_arith_exit (seven exact
+   legs, fire-F guards on the extremes, differential). TASKS_TIME item
+   6's deliberate gap is CLOSED — the claim completes.
 
 8. ~~Machine source-file plumbing~~ — **RESOLVED 2026-07-11m without a
    representation change**: per-file item attribution already exists at

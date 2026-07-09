@@ -633,7 +633,11 @@ boundary trait TimeHost {
    + `time/runtime_sleep_for_exit`. NOT built (deliberate): multi-chunk
    sleeps (a >49-day sleep is a loop in a value callee -- unsupported
    machinery, absurd use case; documented in the machine header);
-   `saturating_*` twins still wait on terminal-position u64 blessing (D14).
+   `saturating_*` twins LANDED 2026-07-11o by the fs lane
+   (claimed per the work-stealing directive; see TASKS_FS.md item 7):
+   D14 fires E+F unblocked them (let-initializer + equality-guard u64
+   literals); Instant::MAX/EPOCH + SystemTime::MAX/MIN consts; pin
+   time/runtime_saturating_time_arith_exit (seven exact legs).
 7. [x] **Kill `Console::sleep` (D16) — DONE 2026-07-06, killed OUTRIGHT (no
    deprecation needed).** Entry removed from `std/console.omg`; the 11 samples
    + `runtime_sleep_exit` migrated onto inline `boundary trait Clock` + a

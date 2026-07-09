@@ -1,0 +1,89 @@
+// std::time SATURATING twins (the deliberate slice-3 gap, unblocked by D14
+// fires E+F): Instant and SystemTime saturating_add/saturating_subtract,
+// exact values on both engines (pure value machines, no clock).
+//
+// Legs (in-range legs prove pass-through; clamp legs pin the extremes):
+//  1. Instant saturating_add in range: {5s,800M} + {2s,300M} = {8s,100M}
+//  2. Instant saturating_add at u64::MAX seconds -> Instant::MAX
+//     (seconds == 18446744073709551615: a D14 fire-F equality guard)
+//  3. Instant saturating_subtract in range: {8s,100M} - {2s,300M} = {5s,800M}
+//  4. Instant saturating_subtract below zero -> Instant::EPOCH
+//  5. SystemTime saturating_add in range: {-5s,800M} + {2s,300M} = {-2s,100M}
+//  6. SystemTime saturating_add at i64::MAX -> SystemTime::MAX
+//  7. SystemTime saturating_subtract at i64::MIN -> SystemTime::MIN
+//
+// AUTHORING: receivers route through the FIRST field of each type (`ia`,
+// `wa`); entry-only field reads per the house rule.
+// Expected exit: 70.
+use omega::language::std::time;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    ia: Instant;
+    wa: SystemTime;
+    d: Duration;
+    instant_out: Instant;
+    wall_out: SystemTime;
+}
+
+machine Main::main(&mut self) {
+    self.ia = Instant { seconds: 5, subsecond_nanoseconds: 800000000 };
+    self.d = Duration { seconds: 2, subsecond_nanoseconds: 300000000 };
+    self.instant_out = self.ia.saturating_add(self.d);
+    transition self.instant_out.seconds == 8 && self.instant_out.subsecond_nanoseconds == 100000000 {
+        true -> leg2()
+        false -> fail_leg(1)
+    }
+    state leg2(&mut self) {
+        self.ia = Instant { seconds: 18446744073709551615, subsecond_nanoseconds: 0 };
+        self.instant_out = self.ia.saturating_add(self.d);
+        transition self.instant_out.seconds == 18446744073709551615 && self.instant_out.subsecond_nanoseconds == 999999999 {
+            true -> leg3()
+            false -> fail_leg(2)
+        }
+    }
+    state leg3(&mut self) {
+        self.ia = Instant { seconds: 8, subsecond_nanoseconds: 100000000 };
+        self.instant_out = self.ia.saturating_subtract(self.d);
+        transition self.instant_out.seconds == 5 && self.instant_out.subsecond_nanoseconds == 800000000 {
+            true -> leg4()
+            false -> fail_leg(3)
+        }
+    }
+    state leg4(&mut self) {
+        self.ia = Instant { seconds: 1, subsecond_nanoseconds: 0 };
+        self.instant_out = self.ia.saturating_subtract(self.d);
+        transition self.instant_out.seconds == 0 && self.instant_out.subsecond_nanoseconds == 0 {
+            true -> leg5()
+            false -> fail_leg(4)
+        }
+    }
+    state leg5(&mut self) {
+        self.wa = SystemTime { seconds_since_unix_epoch: -5, subsecond_nanoseconds: 800000000 };
+        self.wall_out = self.wa.saturating_add(self.d);
+        transition self.wall_out.seconds_since_unix_epoch == -2 && self.wall_out.subsecond_nanoseconds == 100000000 {
+            true -> leg6()
+            false -> fail_leg(5)
+        }
+    }
+    state leg6(&mut self) {
+        self.wa = SystemTime { seconds_since_unix_epoch: 9223372036854775807, subsecond_nanoseconds: 0 };
+        self.wall_out = self.wa.saturating_add(self.d);
+        transition self.wall_out.seconds_since_unix_epoch == 9223372036854775807 && self.wall_out.subsecond_nanoseconds == 999999999 {
+            true -> leg7()
+            false -> fail_leg(6)
+        }
+    }
+    state leg7(&mut self) {
+        self.wa = SystemTime { seconds_since_unix_epoch: -9223372036854775808, subsecond_nanoseconds: 0 };
+        self.wall_out = self.wa.saturating_subtract(self.d);
+        transition self.wall_out.seconds_since_unix_epoch == -9223372036854775808 && self.wall_out.subsecond_nanoseconds == 0 {
+            true -> good()
+            false -> fail_leg(7)
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_leg(&mut self, leg: i32) { self.console.exit_process(leg); }
+}
