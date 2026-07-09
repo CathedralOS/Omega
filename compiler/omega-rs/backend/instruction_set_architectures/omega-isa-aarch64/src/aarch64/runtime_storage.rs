@@ -320,9 +320,24 @@ fn append_runtime_convert_operation(
         }
         (false, false) => {
             // Sign-extend a narrow signed source when widening; otherwise the load
-            // already zero-extended and the store truncates.
-            if target_byte_size > source_byte_size && source_signed && source_byte_size == 4 {
-                bytes.extend(encode_sign_extend_word_to_x(register, register));
+            // already zero-extended and the store truncates. EVERY narrow signed
+            // width extends -- the old `source_byte_size == 4` guard silently
+            // zero-extended i8/i16 sources (`(-128 i8) as i32` read 128; the
+            // Saturating canaries surfaced it because their stores cannot
+            // const-fold).
+            if target_byte_size > source_byte_size && source_signed {
+                match source_byte_size {
+                    1 if target_byte_size > 4 => {
+                        bytes.extend(encode_sign_extend_byte_to_x(register, register))
+                    }
+                    1 => bytes.extend(encode_sign_extend_byte_to_w(register, register)),
+                    2 if target_byte_size > 4 => {
+                        bytes.extend(encode_sign_extend_halfword_to_x(register, register))
+                    }
+                    2 => bytes.extend(encode_sign_extend_halfword_to_w(register, register)),
+                    4 => bytes.extend(encode_sign_extend_word_to_x(register, register)),
+                    _ => {}
+                }
             }
         }
     }
@@ -784,9 +799,15 @@ fn append_saturating_trapping_arithmetic(
             // Subtract can underflow below 0 (wraps to a huge wide value > MAX),
             // which the same `> MAX` test also catches and would clamp to MAX --
             // wrong for subtract. So check BOTH bounds explicitly.
+            // The lower-bound test must be SIGNED (`b.ge`): an unsigned
+            // underflow's wide result is a huge u64 whose SIGNED reading is
+            // negative -- an unsigned `b.hs` against 0 is vacuously true and
+            // never clamps (10 - 100 clamped to MAX instead of 0). Add/mul of
+            // <=32-bit unsigned operands can never set the sign bit, so the
+            // signed reading is exact for them too.
             //   movz/movk x26, #0      ; lower bound
             //   cmp   x17, x26
-            //   b.hs  +8               ; result >= 0 -> keep
+            //   b.ge  +8               ; result >= 0 (signed) -> keep
             //   mov   x17, x26         ; else clamp to 0
             //   movz/movk x26, #MAX
             //   cmp   x17, x26
@@ -794,7 +815,7 @@ fn append_saturating_trapping_arithmetic(
             //   mov   x17, x26         ; else clamp to MAX
             append_unsigned_immediate_padded(bytes, 26, 0);
             bytes.extend(encode_compare_x_register(17, 26));
-            bytes.extend(encode_conditional_branch_higher_or_same(8)?);
+            bytes.extend(encode_conditional_branch_greater_or_equal(8)?);
             bytes.extend(encode_move_x_register(17, 26));
             append_unsigned_immediate_padded(bytes, 26, unsigned_max);
             bytes.extend(encode_compare_x_register(17, 26));
@@ -817,11 +838,14 @@ fn append_saturating_trapping_arithmetic(
         }
         (ArithmeticDomain::Trapping, false) => {
             // Unsigned: trap unless 0 <= result <= MAX.
-            //   movz/movk x26, #0   ; cmp x17,x26 ; b.hs +8 ; brk
+            // Signed lower-bound test for the same reason as the Saturating
+            // arm: the unsigned reading of an underflowed wide result never
+            // compares below 0.
+            //   movz/movk x26, #0   ; cmp x17,x26 ; b.ge +8 ; brk
             //   movz/movk x26, #MAX ; cmp x17,x26 ; b.ls +8 ; brk
             append_unsigned_immediate_padded(bytes, 26, 0);
             bytes.extend(encode_compare_x_register(17, 26));
-            bytes.extend(encode_conditional_branch_higher_or_same(8)?);
+            bytes.extend(encode_conditional_branch_greater_or_equal(8)?);
             bytes.extend(encode_brk(0));
             append_unsigned_immediate_padded(bytes, 26, unsigned_max);
             bytes.extend(encode_compare_x_register(17, 26));

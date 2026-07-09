@@ -303,11 +303,14 @@ fn runtime_convert_operation_width(
             }
         }
         (false, false) => {
-            // Sign-extend a narrow signed source when widening; otherwise the load
-            // already zero-extended and the store truncates. SXTW (4) handles the
-            // signed 32->64 widening case.
-            if target_byte_size > source_byte_size && source_signed && source_byte_size == 4 {
-                4 // SXTW x17, w17
+            // Sign-extend a narrow signed source when widening (one SXTB/SXTH/
+            // SXTW); otherwise the load already zero-extended and the store
+            // truncates.
+            if target_byte_size > source_byte_size
+                && source_signed
+                && matches!(source_byte_size, 1 | 2 | 4)
+            {
+                4
             } else {
                 0
             }
