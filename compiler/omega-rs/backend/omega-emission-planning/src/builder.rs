@@ -78,6 +78,7 @@ pub fn build_emission_plan(input: &EmissionPlanningInput<'_>) -> EmissionPlan {
     collect_contained_receiver_blockers(input, &mut blockers);
     collect_value_call_arm_effect_blockers(input, &mut blockers);
     collect_reentrant_value_call_blockers(input, &mut blockers);
+    crate::call_result_blockers::collect_call_result_return_blockers(input, &mut blockers);
     collect_authored_import_blockers(input, &mut blockers);
     collect_state_call_blockers(
         input,

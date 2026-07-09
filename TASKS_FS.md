@@ -598,12 +598,25 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    instrumentation) stays as DORMANT infrastructure. Counterexample
    parked as the acceptance canary:
    `pending/host/dispatched_effectful_reentrant_value` (interp 70).
-   CORRECTED SEQUENCE for #7: (1) enumerate + close the dispatch
-   return-write shape gaps (effectful entries, arm-leaf terminals
-   returning fields, binary operands, aliases, multi-arm -- each with a
-   differential canary); (2) re-add the fence exemption PER SHAPE, gated
-   on the shape's return-write canary being green; (3) only then the
-   dir-walk legs unfence.
+   CORRECTED SEQUENCE for #7 — STEPS 1+2 COMPLETE (2026-07-09f):
+   the fence exemption for dispatch-routed calls is RE-ADDED and SOUND.
+   What made it sound (the retraction's missing piece): a new
+   emission-planning check (`collect_call_result_return_blockers`)
+   guarantees every dispatched terminal carrying a CallResultReturn has a
+   SELECTED return-write -- unserved shapes (float terminals, unresolvable
+   values) refuse LOUDLY instead of silently ZII. So a dispatched value
+   call either delivers correctly or fails to compile. The retraction
+   counterexample now passes 70/70 and is PROMOTED as the acceptance
+   canary `calls/runtime_dispatched_effectful_reentrant_exit`
+   (differential + suite; both the looped RESULT and the per-entry EFFECT
+   COUNT deliver). The effectful-entry "shape gap" turned out to BE the
+   already-fixed field-read terminal. Fence fail canaries still fire
+   (non-looping callees never dispatch). DIR-WALK STATUS: the pending
+   matrix now fails ONLY on rda's genuine call recursion -- the read_dir
+   and mkall legs cleared. Remaining for the full unlock: the recursion
+   story (rda depth+drain restructure or tail-call-to-loop; mkall_copy's
+   entry self-call is the same class), and the alias/slice-element result
+   shapes are still unprobed (now loud-if-unserved rather than silent).
    STEP 1 FIRST TWO SHAPES CLOSED (2026-07-08o) -- and both were LIVE
    UNFENCED silent-wrongs (pure looping callees dispatch today with no
    fence, so these shipped broken, worse than the fenced effectful class):

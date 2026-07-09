@@ -1,0 +1,36 @@
+// RUN CANARY (exit 70) -- the fence-exemption ACCEPTANCE TEST, promoted
+// 2026-07-09f: a value call to an EFFECTFUL re-entrant machine (per-entry
+// `self.hits` bump, SelfTarget re-entry) ROUTES TO DISPATCH and delivers both
+// the looped RESULT (total == 5) and the per-entry EFFECT COUNT (hits == 5).
+// This exact program was the COUNTEREXAMPLE that retracted the first
+// exemption attempt (2026-07-08n: the field-read terminal misdelivered);
+// with the return-write matrix closed (field/binary/multi-arm/guard/
+// transition-arg) and unserved terminals refusing loudly
+// (collect_call_result_return_blockers), the splice fences exempt
+// dispatch-routed calls SOUNDLY: dispatched value calls either deliver
+// correctly or fail to compile, never silently ZII. Differential.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; hits: i32 in Wrapping; total: i32 in Wrapping; }
+machine Main::count(&mut self, i: usize, j: usize)
+terminates {
+    decreases (j, i) -> Nat::BoundedDistance;
+}
+-> i32
+{
+    self.hits = self.hits + 1;
+    transition j < i {
+        true -> count(i, j + 1)
+        false -> done_leaf()
+    }
+    state done_leaf(&mut self) -> i32 { self.hits }
+}
+machine Main::main(&mut self) {
+    // i = 4: entries at j = 0,1,2,3,4 -> hits == 5; result returns hits (5).
+    self.total = self.count(4, 0);
+    transition self.total == 5 { true -> ck_hits() _ -> bad(71) }
+    state ck_hits(&mut self) {
+        transition self.hits == 5 { true -> good() _ -> bad(72) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

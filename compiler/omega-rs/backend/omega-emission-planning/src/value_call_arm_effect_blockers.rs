@@ -47,16 +47,18 @@ pub(crate) fn collect_value_call_arm_effect_blockers(
         if !callee_machine.is_valid() {
             continue;
         }
-        // ⚠️ RETRACTED (2026-07-08n): an exemption for dispatch-routed calls
-        // lived here for one day and was UNSOUND -- a dispatched effectful
-        // re-entrant callee compiled and silently MISDELIVERED (probe: sum
-        // 0..=4 with a per-entry hits bump, native 71 vs interp 70; parked in
-        // pending/host/dispatched_effectful_reentrant_value). "Routed to
-        // dispatch" does not imply "the dispatch return-write serves this
-        // shape" (the recorded ~13-canary regression class). Re-add the
-        // exemption ONLY per-shape, behind a differential canary, after the
-        // return-write gap for that shape is closed. `dispatch_route` stays
-        // available (env-gated instrumentation) for that work.
+        // A call that ROUTED TO DISPATCH is exempt (re-added 2026-07-09f,
+        // SOUND this time): dispatched arms are real dispatch cases running
+        // once, and -- the piece the retracted first attempt lacked -- every
+        // dispatched terminal now either has a SELECTED return-write or
+        // refuses loudly (collect_call_result_return_blockers), so a
+        // dispatched value call can never silently ZII. Runtime differential
+        // proof: calls/runtime_dispatched_effectful_reentrant_exit (the
+        // retraction counterexample, now 70/70) + the seven pinned
+        // return-write shape canaries.
+        if crate::dispatch_route::state_call_routed_to_dispatch(input, state_call) {
+            continue;
+        }
         let entry_state = state_call.target_key.state;
 
         let effectful_arm = input
