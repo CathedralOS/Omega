@@ -95,13 +95,19 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    at compile time + augmented facts flow),
    fail/build/build_effects_undeclared,
    fail/build/build_boundary_rowless (teaching messages).
-   REMAINING: console SERVING in the granted interpreter entry
-   (#5's second half -- a `stdout_io`-declared row passes the gate but
-   the granted evaluator still rejects non-fs boundaries; extend it to
-   serve console writes seriously), and a std Console boundary with
-   declared rows (today every program spells its own row-less
-   Console; a std one with `effects stdout_io;` rows makes the
-   gate-accepted spelling reachable). OMEGA_DEBUG_BUILD_CONFIG dumps
+   Console SERVING landed
+   2026-07-11k (#5 complete): the granted backstop exempts the console
+   WRITE family (write/write_line/write_error/write_error_line -- the
+   same name family the interpreter's console dispatch serves; the
+   gate already verified statically that only DECLARED
+   stdout_io/stderr_io rows reach it), and the granted entry FLUSHES
+   the buffered bytes to the compiler's real stdout/stderr -- on
+   failure too, where the partial log is the diagnostic. Pin: the
+   build_config_granted round trip now logs through a declared-row
+   BuildLog while staging. Remaining nicety (owner-surfaceable, not
+   blocking): a std Console/BuildLog boundary with declared rows so
+   programs don't each spell their own; today the fail canary teaches
+   the spelling. OMEGA_DEBUG_BUILD_CONFIG dumps
    the gate's machine + transitive set. GOTCHA fixed same-session: a
    name-suffix `::build` match captured ordinary builder machines
    (MazeBuilder::build and five friends broke 14 tests in a stale

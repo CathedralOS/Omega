@@ -3,8 +3,11 @@
 //! `filesystem_io` effect runs at compile time through the granted
 //! interpreter entry (real filesystem, unscoped -- permissions explicitly
 //! de-scoped by the owner) and stages an asset itself, while the augmented
-//! Build's image facts flow into the pipeline. The fail halves live in
-//! canaries/fail/build (undeclared effects; row-less boundary).
+//! Build's image facts flow into the pipeline. Console rows (#5) are
+//! SERVED: a declared `stdout_io` boundary write passes the gate, the
+//! granted evaluator serves it, and the bytes flush to the compiler's
+//! real streams. The fail halves live in canaries/fail/build
+//! (undeclared effects; row-less boundary).
 
 use omega_compiler::{CompileOptions, compile};
 use std::path::PathBuf;
@@ -36,16 +39,24 @@ fn declared_filesystem_build_machine_stages_at_compile_time() {
 data Subsystem {{ case Console; case Gui; case EfiApplication; case Unspecified(value: u16); }}
 data Build {{ subsystem: Subsystem; freestanding: bool; }}
 
+boundary trait BuildLog {{
+    machine write_line(text: &[u8])
+    effects
+        stdout_io;
+}}
+
 data Stager {{
     fs: FilesystemHost;
+    log: BuildLog;
     fd: i32;
     n: i64;
 }}
 
 machine Stager::build(&mut self, b: &mut Build)
 effects
-    filesystem_io
+    filesystem_io, stdout_io
 {{
+    self.log.write_line("build: staging");
     self.fd = self.fs.create("{stage}/asset.bin", 438);
     transition self.fd >= 0 {{ true -> put(b) _ -> done(b) }}
     state put(&mut self, b: &mut Build) {{
@@ -78,7 +89,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         target_name: None,
         write_output: true,
     })
-    .expect("declared-filesystem build.omg should compile");
+    .expect("declared filesystem+console build.omg should compile (console rows are SERVED, not backstopped)");
 
     let staged = std::fs::read_to_string(stage.join("asset.bin"))
         .expect("the build machine should have staged stage/asset.bin at compile time");
