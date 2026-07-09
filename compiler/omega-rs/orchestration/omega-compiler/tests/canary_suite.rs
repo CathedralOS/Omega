@@ -16297,6 +16297,60 @@ fn runtime_saturating_array_element_guard_exit_canary_runs() {
 }
 
 #[test]
+fn custom_ranking_field_countdown_canary_runs() {
+    // Custom-ranking termination proof PLUS the recursive value call's
+    // terminal delivery (the aggregate unserved-recursive-call-result
+    // sweep): weaken counts down to 0 and the let-bound result must land.
+    let canary = pass_canary("termination/custom_ranking_field_countdown_compile");
+    let build_dir = std::env::temp_dir().join(format!("omega-custom_ranking_field_countdown-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("custom-ranking recursive delivery canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("custom-ranking recursive delivery canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the recursive terminal to deliver 0 (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn custom_ranking_struct_view_canary_runs() {
+    // Custom-ranking termination proof PLUS the recursive value call's
+    // terminal delivery (the aggregate unserved-recursive-call-result
+    // sweep): weaken counts down to 0 and the let-bound result must land.
+    let canary = pass_canary("termination/custom_ranking_struct_view");
+    let build_dir = std::env::temp_dir().join(format!("omega-custom_ranking_struct_view-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("custom-ranking recursive delivery canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("custom-ranking recursive delivery canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the recursive terminal to deliver 0 (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_trapping_guard_overflow_traps_canary_runs() {
     // Trapping arithmetic in OPERAND position must TRAP: `u8 in Trapping`
     // 200+100 overflows at the guard's fused add, so the process dies before
@@ -26539,6 +26593,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/termination_countdown_compile",
     "control_flow/termination_index_distance_compile",
     "termination/custom_ranking_order_compile",
+    "termination/custom_ranking_field_countdown_compile",
+    "termination/custom_ranking_struct_view",
     "domains/contracts_domain_membership_surface",
     "domains/domain_operator_spelling_selected",
     "domains/domain_operator_proven_fact_selects_meaning",
@@ -27544,18 +27600,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     PendingCanary {
         path: "expressions/dead_trapping_let_not_elided",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "termination/custom_ranking_field_countdown_compile",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "no selected return-write",
-        },
-    },
-    PendingCanary {
-        path: "termination/custom_ranking_struct_view",
-        expectation: PendingCanaryExpectation::CurrentlyRejects {
-            fragment: "no selected return-write",
-        },
     },
     PendingCanary {
         path: "time/value_machine_receiver_field_postentry",

@@ -1,0 +1,37 @@
+// Custom-ranking termination proof (card -> Card::PowerOrder)
+// PLUS the recursive value call's terminal DELIVERY: weaken re-enters its
+// own entry via a transition-arg self-call, and its `false -> card.power`
+// terminal (a param-struct-field read) must land in the caller's let.
+// (History: parked 2026-07-10 when the return-write fence unmasked them via
+// the collect-all umbrella; served 2026-07-11 by the aggregate unserved-
+// recursive-call-result sweep. The result is now USED -- the serve requires
+// a live let-bound local (an unused result's culled local still fences,
+// soundly and loudly) -- which upgrades these from compile pins to full
+// delivery canaries: weaken counts down to 0, so value == 0 -> exit 70.)
+boundary trait Console { machine exit_process(return_code: i32); }
+data Card {
+    power: usize;
+}
+
+measure Card::PowerOrder(card: Card) -> usize { card.power }
+
+data Main { console: Console; }
+
+machine Main::main(&mut self) {
+    let value: usize = self.weaken(Card { power: 3 });
+    transition value == 0 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
+
+machine Main::weaken(&mut self, card: Card)
+terminates {
+    decreases card -> Card::PowerOrder;
+}
+-> usize
+{
+    transition card.power > 0 {
+        true -> weaken(Card { power: card.power - 1 })
+        false -> card.power
+    }
+}

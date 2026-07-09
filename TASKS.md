@@ -699,51 +699,34 @@ decreases remaining
   surprising, no divergence, belongs to the literal-out-of-range /
   type-carrying-constants design pile.
 
-- **[ ] RECURSIVE machine's ENTRY value arm: NO return-write is selected for
-  ANY terminal shape (diagnosed 2026-07-11a; supersedes the termination
-  canaries' "param-field row" framing).** Probes: a NON-recursive machine
-  with a `-> card.power` value arm compiles fine (param-struct-field
-  terminals ARE served); a RECURSIVE machine (transition-arg self-recursion,
-  measure-proved) with even a LITERAL value arm (`false -> 7`) hits the
-  call-result fence -- the fence's "supported shapes" list is irrelevant
-  because the dispatched path never attempts the write at all. param_carry
-  works because its terminal lives in a SIBLING state; the unserved row is
-  the SELF-LOOPING ENTRY's own value arm. The inline-branching expansion
-  path handles Terminal edges (expansions.rs builds them with bindings);
-  the DISPATCH-LOOP path for recursive machines is where the terminal-value
-  write goes missing. ROOT CAUSE PINNED 2026-07-11b (instrumented
-  storage-planner walk + allocator backtrace): the CALLER's dispatch body
-  for `let v = self.weaken(...)` contains NO StateCall operation AT ALL
-  when the callee is recursive (the working non-recursive twin shows
-  `stmt 0 kind StateCall`); no operation -> the storage planner never
-  allocates the call-result slot -> the edge write bails at `slot None` ->
-  the fence. The omission happens in the RUNTIME-BODIES builder
-  (omega-runtime-bodies), upstream of storage/selection. NEXT: find the
-  builder's gate that skips recursive-callee StateCall operations and
-  either emit the operation (the call itself dispatches fine -- only the
-  result plumbing is missing) or fence the omission loudly; serving it
-  unparks BOTH pending/termination/custom_ranking_* canaries. This
-  thread's work (no parallel agent is running).
-  TWO FIX ATTEMPTS 2026-07-11c, both reverted (tree green at the known 7):
-  (1) MARKER OP (DispatchedCallResultSlot emitted at the dispatched-call
-  gate, consumed only by slot allocation): the recursive repro compiled AND
-  delivered 70/70 both legs (literal + param-field terminals), and both
-  termination canaries compiled -- but SEVEN dispatch-result canaries went
-  wrong-value: the op's mere PRESENCE flips negative-space statement
-  predicates in instruction selection (matches!(kind, LocalStorage|HostCall|
-  Mutation) style all/any checks around runtime_dispatch.rs:660/1079); a
-  new op kind cannot be made invisible to unknown consumers. Slot sets were
-  UNCHANGED (dedup worked) -- the breakage is purely op-visibility.
-  (2) STORAGE-SIDE SWEEP (entry body allocates slots for value calls that
-  no body's StateCall/Inline op covers): recursive-FIELD terminal 70/70,
-  but recursive-LITERAL regressed to native 71 and multi_arm STAYED broken
-  -- so (a) at least one multi_arm call is NOT op-covered by my match
-  (role/ordinal mismatch?) and (b) slot dispatch_index/frame-rebase
-  semantics matter in a way `any_role` does not paper over. NEXT ATTEMPT
-  NEEDS FIRST: how per-body plans MERGE (offset rebase per dispatch body vs
-  shared frame), and a dump of multi_arm's ops vs state_calls to see the
-  uncovered call. The termination canaries remain parked + drift-pinned;
-  no partial fix is worth shipping against seven silent wrong-values.
+- **[x] RECURSIVE machine's ENTRY value arm -- SERVED 2026-07-11d (attempt
+  FIVE; the four failures each taught the constraint the fix now encodes).**
+  Root cause: a dispatched value call to an ENTRY-REENTERING callee carries
+  NO body operation anywhere, so the ops-driven storage allocation never
+  creates the call-result slot and the dispatch-edge write bails at `slot
+  None`. Fix: `append_unserved_recursive_call_result_slots` at the
+  AGGREGATE step of storage planning (planning.rs, post-merge), where the
+  full slot set is visible. Filters, each earned by a counterexample:
+  (1) callee re-enters its own entry (control-flow transitions) -- acyclic
+      dispatched callees are served via their CLONE's ops under clone keys
+      that defeat coverage heuristics;
+  (2) no slot exists anywhere post-merge -- dual_accumulator's recursion IS
+      served and a second slot splits readers/writers;
+  (3) let-bound results only -- FIELD-bound results ride the edge write's
+      machine-place fallback, which a slot HIJACKS (multi_arm);
+  (4) placed in the caller's CONTINUATION segment's dispatch namespace at
+      its current extent -- per-body frame offsets stack by dispatch
+      context, and any other body's namespace addressed the wrong base at
+      runtime (attempt-2 literal regression). Also rejected en route: a
+      marker OP (its mere presence flips negative-space statement
+      predicates in instruction selection).
+  UNSERVED REMAINDER (loud, sound): an UNUSED let result (`let v = self.
+  weaken(..)` with v never read) still fences -- the culled local defeats
+  filter (3); use the result or drop the binding.
+  Both termination canaries PROMOTED to pass/termination/* upgraded from
+  compile pins to full delivery canaries (value == 0 asserted; differential
+  70/70; suite run tests; drift entries retired). Suite failure set
+  identical to the known 7 throughout.
 
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE
