@@ -1296,6 +1296,20 @@ macOS/arm64 host this lane runs on — are CLAIMED here:
 
 ## Observations (not fs, flagged for Zach)
 
+- SHARED-TREE CLOBBER + RESTORE (2026-07-10s): dc2f3dca9 reverted
+  receiver-dispatch phases 3–4 via shared-tree staging (its own message
+  says "we share this working tree"); this lane restored every reverted
+  file from 9afcd0f60, re-added their genuine additions (the poison fail
+  canary registration), and verified the COMBINED battery green. Also
+  landed on top: the delivery-place fence granularity (their handoff —
+  consumption copies no longer satisfy the call-result fence; served =
+  a write into the call's actual delivery place, both slot lookups + the
+  field-binding machine case) and a discovery: float PLACE terminals
+  SERVE (the "floats bail" matrix row was stale; the place-copy serve is
+  type-agnostic) — pinned by calls/runtime_dispatch_float_terminal_exit;
+  float BINARY terminals remain the bail row.
+
+
 - RETURN-WRITE FENCE gap (2026-07-10k, from the arithmetic thread -- YOUR
   fence, needs your matrix knowledge): collect_call_result_return_blockers'
   served-check is STATE-granular (any write-ish instruction in the terminal

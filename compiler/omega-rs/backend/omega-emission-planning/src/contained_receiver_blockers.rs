@@ -53,6 +53,44 @@ pub(crate) fn collect_contained_receiver_blockers(
             continue;
         };
 
+        // PER-INSTANCE DISPATCH (TASKS_FS "Stolen work #2"): a call that is
+        // DISPATCH-ROUTED (the same evidence helper the effect fences use)
+        // with a pipeline-resolvable receiver base (entry-machine caller,
+        // named receiver, path resolves via the shared
+        // omega_layout::field_path_offset walk -- the exact
+        // compute_receiver_bases predicate) is SERVED: the dispatch clone
+        // runs on the receiver's true storage (pinned by
+        // calls/runtime_dispatch_second_receiver_exit). INLINE-routed calls
+        // stay fenced: the inline expansions still resolve callee self-reads
+        // by TYPE (the time repro's route -- probed native 3 vs interp 70;
+        // the inline half is a later phase). The predicate is re-derived
+        // here because the fence iterates CALLS, not dispatch cases.
+        if state_call.source_key.machine == input.entry_key.machine
+            && crate::dispatch_route::state_call_routed_to_dispatch(input, state_call)
+        {
+            let segments = input
+                .state_calls
+                .receiver_path_segments
+                .span(state_call.receiver_path)
+                .unwrap_or(&[]);
+            let walk_segments = match segments.first() {
+                Some(root) if root.as_str() == "self" => &segments[1..],
+                _ => segments,
+            };
+            let resolved = if walk_segments.is_empty() {
+                omega_layout::field_path_offset(
+                    input.layouts,
+                    source_layout.fields,
+                    std::slice::from_ref(&state_call.receiver_name),
+                )
+            } else {
+                omega_layout::field_path_offset(input.layouts, source_layout.fields, walk_segments)
+            };
+            if resolved.is_some() {
+                continue;
+            }
+        }
+
         // The receiver's FIELD path: the plan's root->leaf spelled segments
         // with the `self` root stripped. Matched by NAME throughout: receiver
         // symbols and layout field symbols live in different arenas, so

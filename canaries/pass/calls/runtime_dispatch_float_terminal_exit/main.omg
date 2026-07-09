@@ -1,0 +1,22 @@
+// RUN CANARY (exit 70) -- a dispatched value call whose terminal is a FLOAT
+// place (`-> acc`, acc: f64). DISCOVERED SERVING 2026-07-10s while pinning
+// the fence's delivery-place granularity: the matrix's "float terminals
+// bail" row was STALE -- the place-copy serve (CopyRuntimeStorage) is
+// type-agnostic, so a float PLACE terminal round-trips byte-exact (1.5 in,
+// 1.5 out through the frame result slot). Float BINARY terminals
+// (`-> acc + 0.5`) remain the bail row (the binary serve is integer-only).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::pick(&mut self, n: i32, acc: f64)
+terminates { decreases n -> Nat::Descending; }
+-> f64
+{
+    transition n > 0 { true -> pick(n - 1, acc) false -> leaf(acc) }
+    state leaf(&mut self, acc: f64) -> f64 { acc }
+}
+machine Main::main(&mut self) {
+    let x: f64 = self.pick(2, 1.5);
+    transition x > 1.0 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

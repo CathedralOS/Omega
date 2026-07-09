@@ -20521,6 +20521,102 @@ fn runtime_dispatch_result_field_binding_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The ORIGINAL same-type receiver aliasing repro, now serving:
+// self.b.increment() mutates b (was: mutated a via by-type resolution).
+#[test]
+fn runtime_same_type_second_receiver_mutation_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_same_type_second_receiver_mutation_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-same-type-second-receiver-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("second-receiver mutation canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("second-receiver mutation canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected b.value == 1 after a x1 + b x1 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// A dispatched FLOAT place terminal round-trips through the result slot
+// (the type-agnostic place-copy serve; the old "floats bail" row was
+// stale). Float BINARY terminals remain unserved.
+#[test]
+fn runtime_dispatch_float_terminal_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_dispatch_float_terminal_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-dispatch-float-terminal-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dispatch float terminal canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dispatch float terminal canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the float place terminal to round-trip 1.5 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// PER-INSTANCE receiver dispatch: a looping value machine called through
+// the SECOND same-type contained receiver runs on that receiver's storage
+// (21 = 3 iterations of second.count 7; by-type resolution read first's
+// 100 and delivered 300).
+#[test]
+fn runtime_dispatch_second_receiver_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_dispatch_second_receiver_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-dispatch-second-receiver-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("second-receiver dispatch canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("second-receiver dispatch canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the SECOND receiver's storage to drive the loop (21 -> exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A dispatched value call whose terminal reads THROUGH a `&mut` ALIAS
 // (`-> acc`, acc: &mut i32): pins that the result is the pointee value,
 // never the pointer bits (the last unprobed return-write shape).
@@ -27351,6 +27447,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/void_value_callee_rejected",
     "calls/nested_value_call_arg_rejected",
     "calls/machine_self_call_recursion_rejected",
+    "control_flow/case_literal_unlowered_field_store_rejected",
     "calls/terminal_self_call_recursion_rejected",
     "calls/empty_body_return_machine_rejected",
     "parse/machine_clause_garbage_rejected",
@@ -27574,7 +27671,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "termination/bounded_distance_inverted",
     "termination/subtraction_spelling_retired",
     // --- Language-guide chapter coverage (Ch1-22) ---
-    "calls/contained_same_type_receiver_rejected",
     "calls/param_receiver_method_rejected",
     "calls/guard_call_vs_call_rejected",
     "calls/value_call_effectful_arm_rejected",
