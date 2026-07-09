@@ -1,3 +1,5 @@
+> Owner: Fucking condense this please. This is too much of a brain dump. Remove finished work, instead of making this doc a graveyard of shit
+
 > OWNER_QUESTIONS.md (repo root) consolidates all lanes' pending owner decisions — batch-answerable.
 
 > ⚠️ SHARED-TREE STAGING INCIDENT (2026-07-10s, fs lane): dc2f3dca9's
