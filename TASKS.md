@@ -621,6 +621,17 @@ decreases remaining
   --bin omega-run` self-rebuilds and is exempt -- which is why the canary
   passed 70/70 (fresh) while its report (stale) contradicted it.
 
+- **NQUEENS UN-IGNORED 2026-07-10g: the suite's last #[ignore] retired.**
+  The workspace sweep's `1 ignored` was runtime_nqueens_backtracking_exit,
+  parked 2026-07-06 for a latent codegen HANG with a "tracked separately"
+  note -- an audit found NOTHING tracked it (an ignore is where coverage
+  goes to die quietly; this one held a whole try/prune/undo algorithm
+  shape). The hang no longer reproduces: native exits 70 promptly, the
+  interpreter agrees, and the canary is now a differential RUN member. One
+  of the intervening arcs repaired the underlying pattern; whichever it
+  was, the shape is guarded end to end now. The suite has ZERO ignored
+  tests.
+
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE
   arithmetic (overflow -> inf), so nothing diverges -- but the DECLARATION is
