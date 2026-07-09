@@ -2272,7 +2272,7 @@ pub fn encode_runtime_text_storage_compare_bytes(
     source_offset: usize,
     literal_len: usize,
     match_branch_distance: isize,
-    _branch_when_equal: bool,
+    negated: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     let literal_len_i = i32::try_from(literal_len).map_err(|_| {
         Diagnostic::error(format!(
@@ -2351,24 +2351,30 @@ pub fn encode_runtime_text_storage_compare_bytes(
         bytes.extend([0, 0, 0, 0]);
     }
 
-    // MISMATCH trampoline: fall through to the instruction end (the following
-    // "write text_ok = 0"). `fail_fixups` are the internal mismatch branches; we
-    // route them just before the terminal match jmp and then let them reach the
-    // end via a short jmp.
+    // Exit trampolines. The FIRST falls through to the instruction end (the
+    // following "write text_ok = 0"); the SECOND jmps the external "next
+    // guarded effect end" distance, skipping that write. `negated` (a `!=`
+    // compare) swaps which OUTCOME routes where: `==` sends match outcomes
+    // external; `!=` sends MISMATCH outcomes external -- the flag was ignored
+    // and `!=` behaved as `==` (the frame-slot text-comparison writer's
+    // preset-1/compare/write-0 pattern kept the 1 for equal strings). Same
+    // byte layout either way; only the fixup routing differs.
+    let (end_fixups, external_fixups) = if negated {
+        (success_fixups, fail_fixups)
+    } else {
+        (fail_fixups, success_fixups)
+    };
     let mismatch = bytes.len();
     bytes.push(0xe9);
     let mismatch_jmp_at = bytes.len();
     bytes.extend([0, 0, 0, 0]);
-    for fixup in &fail_fixups {
+    for fixup in &end_fixups {
         bytes[*fixup..*fixup + 4]
             .copy_from_slice(&((mismatch as isize - (*fixup as isize + 4)) as i32).to_le_bytes());
     }
 
-    // MATCH trampoline: single jmp to the external "next guarded effect end"
-    // distance, skipping the trailing "write 0". Its rel32 ends at the
-    // instruction width, which is the offset emission anchors the distance to.
     let matched = bytes.len();
-    for fixup in &success_fixups {
+    for fixup in &external_fixups {
         bytes[*fixup..*fixup + 4]
             .copy_from_slice(&((matched as isize - (*fixup as isize + 4)) as i32).to_le_bytes());
     }

@@ -67,13 +67,19 @@ pub fn encode_runtime_text_literal_compare(
 /// terminator. MATCH branches externally by `match_branch_distance` (anchored
 /// at the terminal branch, `runtime_text_storage_compare_failure_branch_offset`);
 /// MISMATCH falls through to the instruction end (the trailing "write 0").
-/// The second distance and `branch_when_equal` are unused, like x86_64.
+/// The second distance is unused, like x86_64. `negated` (true when the
+/// source operator is `!=`) SWAPS which outcome takes the external branch:
+/// the frame-slot text-comparison writer emits [preset 1][compare:
+/// hold->skip][write 0], so `==` skips on MATCH and `!=` must skip on
+/// MISMATCH -- the flag was ignored and `!=` behaved as `==` (`name !=
+/// "omega"` with equal strings kept the preset 1 and took the wrong arm,
+/// native-vs-interp divergent; the interpreter honors the operator).
 pub fn encode_runtime_text_storage_compare_bytes(
     source_offset: usize,
     literal_len: usize,
     match_branch_distance: isize,
     _delimiter_failure_branch_distance: isize,
-    _branch_when_equal: bool,
+    negated: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     let literal_len_w = u32::try_from(literal_len).map_err(|_| {
         Diagnostic::error(format!(
@@ -102,28 +108,34 @@ pub fn encode_runtime_text_storage_compare_bytes(
     //  i8 subs x15, x15, #1      i19 b     -> MISMATCH
     //  i9 b    -> i3             i20 MISMATCH: b -> END (+8)
     // i10 cmp  x19, x14          i21 MATCH: b <match_branch_distance>
+    // Exit routing: i21 carries the EXTERNAL branch, i20 falls through to
+    // the instruction end. `==` sends MATCH outcomes to i21; `!=` (negated)
+    // sends MISMATCH outcomes there instead -- same 22-instruction body,
+    // only the interior branch targets differ.
+    let match_i: isize = if negated { 20 } else { 21 };
+    let mismatch_i: isize = if negated { 21 } else { 20 };
     bytes.extend(encode_compare_x_register(19, 14)); // i0
-    bytes.extend(encode_conditional_branch_lower((20 - 1) * 4)?); // i1
+    bytes.extend(encode_conditional_branch_lower((mismatch_i - 1) * 4)?); // i1
     bytes.extend(encode_move_x_register(15, 14)); // i2
     bytes.extend(encode_cbz_x(15, (10 - 3) * 4)?); // i3
     bytes.extend(encode_load_byte_w_post_increment(20, 26, 1)?); // i4
     bytes.extend(encode_load_byte_w_post_increment(21, 16, 1)?); // i5
     bytes.extend(encode_compare_w_register(20, 21)); // i6
-    bytes.extend(encode_conditional_branch_not_equal((20 - 7) * 4)?); // i7
+    bytes.extend(encode_conditional_branch_not_equal((mismatch_i - 7) * 4)?); // i7
     bytes.extend(encode_subs_x_immediate(15, 15, 1)?); // i8
     bytes.extend(encode_unconditional_branch(-((9 - 3) * 4))?); // i9
     bytes.extend(encode_compare_x_register(19, 14)); // i10
-    bytes.extend(encode_conditional_branch_equal((21 - 11) * 4)?); // i11
+    bytes.extend(encode_conditional_branch_equal((match_i - 11) * 4)?); // i11
     bytes.extend(encode_load_byte_w_from_x(17, 26, 0)?); // i12 stored[literal_len]
     bytes.extend(encode_compare_w_immediate(17, 10)?); // i13
-    bytes.extend(encode_conditional_branch_equal((21 - 14) * 4)?); // i14
+    bytes.extend(encode_conditional_branch_equal((match_i - 14) * 4)?); // i14
     bytes.extend(encode_compare_w_immediate(17, 13)?); // i15
-    bytes.extend(encode_conditional_branch_equal((21 - 16) * 4)?); // i16
+    bytes.extend(encode_conditional_branch_equal((match_i - 16) * 4)?); // i16
     bytes.extend(encode_compare_w_immediate(17, 0)?); // i17
-    bytes.extend(encode_conditional_branch_equal((21 - 18) * 4)?); // i18
-    bytes.extend(encode_unconditional_branch(4)?); // i19 -> i20
-    bytes.extend(encode_unconditional_branch(8)?); // i20 MISMATCH -> END
-    bytes.extend(encode_unconditional_branch(match_branch_distance)?); // i21 MATCH
+    bytes.extend(encode_conditional_branch_equal((match_i - 18) * 4)?); // i18
+    bytes.extend(encode_unconditional_branch((mismatch_i - 19) * 4)?); // i19
+    bytes.extend(encode_unconditional_branch(8)?); // i20 fall-through -> END
+    bytes.extend(encode_unconditional_branch(match_branch_distance)?); // i21 EXTERNAL
     debug_assert_eq!(
         bytes.len(),
         runtime_text_storage_compare_width(source_offset)

@@ -1,0 +1,51 @@
+// RUN CANARY (exit 70) + interpreter differential. Text INEQUALITY (`!=`)
+// in value and guard positions, including the EQUAL-STRINGS leg -- the pin:
+// the CompareRuntimeTextStorage encoders IGNORED the negation flag on both
+// ISAs, so `!=` behaved as `==` in the frame-slot text-comparison writer's
+// preset-1/compare/write-0 pattern (`name != "omega"` with equal strings
+// kept the preset 1; native 73 vs interp 70). The encoders now swap which
+// outcome takes the external skip under the flag (aarch64: interior branch
+// targets; x86: fixup-list routing) -- same widths, same instruction count.
+// The unequal-string legs alone CANNOT catch this (they pass under either
+// flavor); only the equal-strings `!=` leg distinguishes them.
+// exits: 71 = store !=/unequal wrong; 72 = let !=/unequal (place) wrong;
+// 73 = equal-strings != read TRUE (the regression face); 74 = guard != wrong.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; shift: u64; name: String; other: String; okf: bool; }
+machine Main::main(&mut self) {
+    self.name = "omega";
+    self.other = "delta";
+    self.build();
+}
+machine Main::build(&mut self) {
+    self.okf = self.name != "wrong";
+    transition self.okf {
+        true -> leg2()
+        _ -> wrong_store()
+    }
+    state leg2(&mut self) {
+        let l: bool = self.name != self.other;
+        transition l {
+            true -> leg3()
+            _ -> wrong_let_place()
+        }
+    }
+    state leg3(&mut self) {
+        let eqfalse: bool = self.name != "omega";
+        transition eqfalse {
+            true -> wrong_equal_ne()
+            _ -> leg4()
+        }
+    }
+    state leg4(&mut self) {
+        transition self.name != "omega" {
+            true -> wrong_guard()
+            _ -> good()
+        }
+    }
+    state good(&mut self)           { self.console.exit_process(70); }
+    state wrong_store(&mut self)    { self.console.exit_process(71); }
+    state wrong_let_place(&mut self){ self.console.exit_process(72); }
+    state wrong_equal_ne(&mut self) { self.console.exit_process(73); }
+    state wrong_guard(&mut self)    { self.console.exit_process(74); }
+}

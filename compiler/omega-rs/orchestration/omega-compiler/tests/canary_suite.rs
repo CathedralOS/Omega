@@ -16402,6 +16402,32 @@ fn runtime_float_compare_bool_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_text_not_equals_exit_canary_runs() {
+    // Text != in value + guard positions; the equal-strings leg is the pin
+    // (the negation flag was ignored and != behaved as == on both ISAs).
+    let canary = pass_canary("text/runtime_text_not_equals_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-texteqne-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("text not-equals canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("text not-equals canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "text not-equals canary should pass all four legs (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_text_equals_boolean_operand_exit_canary_runs() {
     // Texteq nested in a boolean AND, both operand orders x both targets;
     // the right-operand legs pin the pool-drawn address register (a fixed
@@ -27068,6 +27094,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/case_literal_texteq_field_store_exit",
     "text/case_literal_texteq_terminal_exit",
     "text/runtime_text_equals_boolean_operand_exit",
+    "text/runtime_text_not_equals_exit",
     "text/runtime_text_equals_value_positions_exit",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
