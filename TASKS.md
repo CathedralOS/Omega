@@ -103,15 +103,31 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   (safe-divisor bump trick for the eager-eval zero case) fixed it. Same #2B
   splice-machinery family as the deferred-entry-locals fix — post-entry-state locals
   need the same deferral/contiguity treatment.
-  NARROWED 2026-07-08: the SIMPLE shape does NOT reproduce -- a value callee with a
-  post-entry `work` state (div + mod lets) threading to an `emit` state (mul+add let)
-  delivers correctly on both engines (now PINNED as canary
-  calls/runtime_value_callee_post_entry_lets_exit, swap_digits(42)=24). So the trigger
-  is NARROWER than "any post-entry let": it is the EAGER-EVAL ZERO-DIVISOR interaction
-  (all inline arms compute; an arm whose divisor is 0-in-that-path divides eagerly) --
-  the "safe-divisor bump" workaround is the tell. A minimal repro still needs the
-  time.omg divide structure at commit HEAD~1 (a guarded division whose non-taken arm
-  has a zero divisor). Distill THAT specific shape, not generic post-entry lets.
+  DISTILLED + PRECISELY CHARACTERIZED 2026-07-08 (minimal repro pinned at
+  canaries/pending/calls/post_entry_chained_let_miscompile; native=0, interp=2):
+  the trigger is a CHAINED let in a POST-ENTRY state -- a let that reads a PRIOR
+  post-entry let. `proc`'s `work` state does `let q = total/freq; let scaled =
+  q*freq; let rem = total - scaled;` and returns rem; `rem` (which reads the
+  prior let `scaled`) misdelivers as 0. Isolating variants:
+    * SAME chain in the ENTRY state -> delivers 2 (correct). Entry-only lets get
+      the #2B deferral; post-entry lets do NOT.
+    * Direct `total % freq` (no `scaled` intermediate) in the post-entry state ->
+      correct. A let reading only PARAMS is fine; a let reading a prior LOCAL is
+      the miscompile.
+    * NOT about the eager-eval zero divisor (earlier guess) and NOT about the
+      threading to `emit` (variant returning rem straight from `work` still
+      fails). The prior-let VALUE is not materialized before the dependent let
+      reads it in a non-entry state.
+  So the fix = extend the deferred-entry-locals materialization (the #2B
+  deferral/contiguity treatment) to POST-ENTRY states of a value callee. Not the
+  eager-eval-zero shape. The simple post-entry case (lets reading only params)
+  is already covered by the passing canary
+  calls/runtime_value_callee_post_entry_lets_exit (swap_digits=24); this pending
+  repro is the prior-let-dependency face. Fix candidate area: the value-callee
+  inline expansion / runtime-bodies local collection
+  (omega-runtime-bodies/src/collection.rs LocalStorage/LocalData handling +
+  omega-runtime-branching expansions) -- entry-state local ordering vs
+  post-entry.
 - **[x] NESTED-value-call transition guard read the nested result's PRE-STORE ZII
   TAG natively — FIXED 2026-07-08.** NOT a splice-ordering bug: a bare-call binding
   (`let since = self.checked_subtract(..)`) whose local ALSO has a LocalStorage
