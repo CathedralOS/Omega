@@ -564,9 +564,17 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
    **So #59 is now the SINGLE remaining blocker between the untouched window_demo and running
    natively.** (Then Input.key_state for windowed_calculator; the interpreter headless stub is a
    separate differential concern, item #9.)
-9. **[ ] Interpreter headless stub** for `Gui`/`Input`/`Clock` — open no real window,
-   succeed all calls, report "no event / alive", quit after N frames — so the samples
-   stay runnable on both engines and differential/coverage stay green.
+9. **[✅ DONE 2026-07-11p — by the fs lane (interpreter domain), Gui/Input
+   scope; Clock's virtual semantics were already the time lane's per D12.]**
+   The virtual window system (live handles, DCs/blits, "no key / no
+   event") already served every op — the only gap was FUEL: window_demo's
+   60 software-rendered frames need ~40M interpreter steps, above the 10M
+   runaway default. OMEGA_INTERP_STEP_BUDGET now overrides the budget
+   (dev knob, OMEGA_DEBUG_* convention), and the parity pin
+   omega-interpreter/tests/gui_headless.rs runs the UNTOUCHED
+   window_demo interpreted to the same exit 0 as the native run —
+   platform-independent (no real window), so differential parity for
+   the flagship holds on every host.
 10. **[✅ DONE — fire 25] `samples/gui/window_demo` RUNS NATIVELY, END TO END, UNTOUCHED.**
     🎉 The UNTOUCHED `samples/gui/window_demo` (unchanged `boundary trait Gui`/`Clock`) compiles
     to a native mach-o AND RUNS on macOS/aarch64: opens a real NSWindow (via the substituted
