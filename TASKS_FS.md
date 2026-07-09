@@ -1125,7 +1125,9 @@ wrongly rejects them. See Open-work #4.
   `pass/arithmetic/runtime_saturating_param_carry_exit` (differential
   70/70). The remaining OPERAND-position native lowering gap is theirs,
   parked at `pending/arithmetic/runtime_saturating_expression_domain_exit`
-  with its own promote criteria.
+  with its own promote criteria. [Update 2026-07-10: that gap closed too --
+  the operand-position lowering landed 2026-07-09d on both ISAs and the
+  park was promoted to pass/arithmetic/ the same day.]
 - ✅ RESOLVED (verified 2026-07-09g): the 2026-07-08 native arithmetic
   regression (`dual_accumulator` interp 70 vs native 71;
   `arithmetic/runtime_cast_in_guard_exit` native 71) is FIXED on main — the
