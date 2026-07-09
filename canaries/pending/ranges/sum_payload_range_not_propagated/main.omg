@@ -1,0 +1,35 @@
+// PENDING (conservative proof gap -- valid code WRONGLY REJECTED, found
+// 2026-07-08). A sum PAYLOAD field declared with a range (`case One(v: i32
+// [0..=50])`), destructured in its matching arm (`P::One { v } -> use_v(v)`) and
+// passed to a same-ranged parameter, FAILS to prove: "cannot prove transition
+// argument `self.p.v` satisfies bounded parameter `x`; expected 0..=50". The
+// destructured payload binding does not carry the payload field's declared
+// range, so a same-ranged param/arithmetic use cannot be proven.
+//
+// SOUND to fix (verified): construction STORE-ENFORCES the payload range --
+// `P::One { v: 100 }` is rejected ("value 100 is outside its declared range
+// 0..=50") -- so a read of `self.p.v` inside the `P::One` arm is provably in
+// [0..=50]. This is NOT a miscompile; it just refuses valid proof-carrying code.
+//
+// FIX AREA (partial trace 2026-07-08): the transition-argument proof lives in
+// omega-proof/src/checker.rs (BoundedTransitionArgumentObligation), NOT in the
+// ranges checks' expression_enforced_declared_range (which only feeds INDEX
+// bounds -- data_field_in_definition there was extended to search variant
+// payloads but that path is not consulted for arg proofs). The fix must record
+// the payload field's declared range on the destructured binding's
+// type/constraints (checked-trees) so the proof checker's constraint resolution
+// sees it -- mirror how a plain ranged field read carries its range.
+//
+// Exits 20 when the fix lands (P::One { v: 20 } -> use_v(20) -> exit 20).
+boundary trait Console { machine exit_process(return_code: i32); }
+data P { case One(v: i32 [0..=50]); case Two(w: i32 [0..=50]); }
+data Main { console: Console; p: P; }
+machine Main::main(&mut self) {
+    self.p = P::One { v: 20 };
+    transition self.p {
+        P::One { v } -> use_v(v)
+        P::Two { w } -> use_v(w)
+    }
+    state use_v(&mut self, x: i32 [0..=50]) { self.console.exit_process(x); }
+}
+machine Main::run(&mut self) { self.main(); }
