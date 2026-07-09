@@ -878,6 +878,10 @@ const RUN_CANARIES: &[(&str, i32)] = &[
 /// `(relative path under canaries/pass, reason for exclusion)`.
 const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
     (
+        "filesystem/windows_wrapper_create_new_exit",
+        "NATIVE-ONLY (windows-gated): create_new emits msvcrt O_CREAT|O_EXCL after the flag migration; the interpreter's virtual fs still decodes darwin flag numerology (0x200 O_CREAT / 0x800 O_EXCL), so it would miss the msvcrt bits -- a per-target interp flag decode is the follow-up rung",
+    ),
+    (
         "capabilities/windows_provides_import_exit",
         "NATIVE-ONLY (windows-gated run test): an AUTHORED provides import (msvcrt abs through the program's own DllImport row) -- the interpreter has no provider for authored bindings yet (open item, TASKS_FS provides thread)",
     ),

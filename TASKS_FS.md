@@ -51,8 +51,20 @@ are the differential oracle. Value-position `match` desugars to tag arithmetic;
 end-to-end. SECOND WAVE (2026-07-07, `filesystem/windows_wrapper_breadth_exit`):
 WRAPPER rename (the two-path import call now resolves each path PER ARGUMENT
 through the alias chain -- param-forwarded literals had no encodable sequence),
-append (flag word 9 is darwin==msvcrt portable), read_all, remove. Still fenced
-on windows: copy/exists/remove_dir_all (set_len/read_metadata/read_dir rows) and
+append (flag word 9 is darwin==msvcrt portable), read_all, remove.
+CREATE_NEW / OPEN_WITH UNFENCED 2026-07-08 (the portable-values payoff): the
+wrapper composes open flags from per-target `FilesystemHost` provides VALUES
+(O_CREATE/O_EXCL/O_TRUNC/O_APPEND in filesystem_host.omg), so windows emits
+msvcrt bits (O_CREAT 0x100, O_EXCL 0x400) instead of darwin's (O_CREAT 0x200
+== msvcrt O_TRUNC = the silent-truncation hazard). The windows `open_create`
+lowering (`_open`, 3-arg) is RE-ENABLED. open_with's per-target single-bit
+flags use a branch-free arithmetic-shift mask (`((b as i32)<<31)>>31 & VALUE`)
+since exact-arith rejects `*`/`+` on bool casts; the composed word lands in a
+new `open_flags` FIELD (host-call scalar-arg idiom). Pinned by
+filesystem/windows_wrapper_create_new_exit (native-only -- the interpreter
+still decodes DARWIN flag numerology, so a per-target INTERP flag decode is
+the next rung to make these differential). Still fenced on windows:
+copy/exists/remove_dir_all (set_len/read_metadata/read_dir rows) and
 create_dir_all's DEEP walk (runtime SUBSLICE paths need a NUL-terminated
 scratch copy). ATTEMPTED 2026-07-07 (reverted clean, findings recorded): the
 plan is an Omega-side rework, no encoder work -- copy the prefix into a

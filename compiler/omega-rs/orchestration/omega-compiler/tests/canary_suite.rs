@@ -20767,6 +20767,50 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// create_new UNFENCED on windows_x64 (portable-values payoff): the wrapper now
+// composes the SELECTED TARGET's open flags from the FilesystemHost provides
+// values, so on windows it emits msvcrt O_CREAT|O_EXCL (not darwin's O_CREAT
+// 0x200 == msvcrt O_TRUNC). Discriminating: create_new on an existing file
+// returns AlreadyExists (proves O_EXCL took effect, no truncation). NATIVE-ONLY:
+// the interpreter still decodes darwin flag numerology (msvcrt flags would miss
+// its O_CREAT/O_EXCL bit checks), so no interp oracle here -- the per-target
+// interp decode is the follow-up rung.
+#[cfg(windows)]
+#[test]
+fn windows_wrapper_create_new_exit_canary_runs() {
+    let canary = pass_canary("filesystem/windows_wrapper_create_new_exit");
+    let main_path = canary.join("main.omg");
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fs-create-new-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("create_new canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("create_new canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected create_new + O_EXCL AlreadyExists (exit 70), got {:?}          (71 create; 72 close; 73 second create not Error; 74 kind not AlreadyExists)
+stderr:
+{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // An AUTHORED provides import end to end (hosted-consumption rung 2): the
 // program's own `windows_x64 provides Beeper { beep -> DllImport("msvcrt.dll",
 // "abs") }` row binds, the import table names msvcrt.dll (the binding, not
@@ -24767,6 +24811,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/runtime_provides_value_exit",
     "expressions/runtime_qualified_case_value_exit",
     "capabilities/windows_provides_import_exit",
+    "filesystem/windows_wrapper_create_new_exit",
     "targets/efi_freestanding_skeleton",
     "targets/efi_entry_arguments",
     "targets/entry_run_args_bytes",

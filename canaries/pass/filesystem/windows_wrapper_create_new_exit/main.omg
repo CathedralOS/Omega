@@ -1,0 +1,40 @@
+// RUN CANARY (exit 70) -- create_new UNFENCED on windows_x64 (portable-values
+// payoff, 2026-07-08). Previously fenced: the wrapper composed DARWIN flag
+// words and darwin O_CREAT (0x200) is msvcrt O_TRUNC, so create_new/open_with
+// would silently TRUNCATE. Now the wrapper composes the SELECTED TARGET's flag
+// values from the FilesystemHost provides rows, so on windows it emits msvcrt
+// O_CREAT (0x100) | O_EXCL (0x400). Discriminating: the SECOND create_new on an
+// existing file must return Error{AlreadyExists} (proves O_EXCL took effect and
+// the first call did NOT truncate) -- the exact data-loss hazard the fence
+// guarded. Windows-gated + native-only (the interpreter still decodes darwin
+// flag numerology; a per-target interp decode is the follow-up rung).
+// exits: 70 ok; 71 create_new not Ok; 72 close nonzero; 73 second create_new
+// not Error; 74 kind not AlreadyExists.
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; fs: Filesystem; unit_result: UnitResult; open_result: OpenResult; rc: i32; }
+machine Main::main(&mut self) {
+    // ensure absent
+    self.unit_result = self.fs.remove("omega_cnew_probe.txt");
+    self.open_result = self.fs.create_new("omega_cnew_probe.txt");
+    transition self.open_result { OpenResult::Ok { file } -> close_it(file) _ -> bad(71) }
+    state close_it(&mut self, file: File) {
+        self.rc = self.fs.close(file);
+        transition self.rc == 0 { true -> again() _ -> bad(72) }
+    }
+    // create_new on an EXISTING file must fail AlreadyExists (proves O_EXCL, not truncate)
+    state again(&mut self) {
+        self.open_result = self.fs.create_new("omega_cnew_probe.txt");
+        transition self.open_result {
+            OpenResult::Error { kind } -> chk(kind)
+            _ -> bad(73)
+        }
+    }
+    state chk(&mut self, kind: ErrorKind) {
+        self.unit_result = self.fs.remove("omega_cnew_probe.txt");
+        transition kind { ErrorKind::AlreadyExists -> good() _ -> bad(74) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
