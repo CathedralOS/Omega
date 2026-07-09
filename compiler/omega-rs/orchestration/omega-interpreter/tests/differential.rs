@@ -1865,6 +1865,7 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     // 72/72: the two legs AGREE on this host (aarch64 LSLV masks the count
     // at 64 like the interp); the parked divergence is vs x86's 32-bit mask.
     ("arithmetic/shl_saturating_domain_divergence", 72, PendingInterpOutcome::Exit(70)),
+    ("arithmetic/shl_saturating_atwidth_divergence", 71, PendingInterpOutcome::Exit(70)),
     ("arithmetic/unsigned_min_max_wrapping_local_divergence", 78, PendingInterpOutcome::Exit(77)),
     ("expressions/dead_trapping_let_not_elided", 7, PendingInterpOutcome::Traps),
     // Multi-arm texteq-valued locals: leaf route emits no text compare;

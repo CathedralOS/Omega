@@ -1,0 +1,28 @@
+// PENDING: native Saturating `<<` sequences are not emitted yet (slice C).
+// The INTERPRETER's node arm now implements the DECIDED semantics (shifts
+// are domain-governed; `<<` is x * 2^n, so Saturating clamps when the true
+// value leaves the range -- an at/above-width count forces overflow for any
+// nonzero x): 3u32 << 40 clamps to u32::MAX -> exit 70. NATIVE still lowers
+// the plain shift and store-truncates: 3 * 2^40 mod 2^32 = 0 -> exit 71.
+// Sibling of shl_saturating_domain_divergence (the in-range clamp case).
+// PROMOTE both when the ISA clamp/trap sequences land; expected 70/70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let a: u32 in Saturating = (3 as u32 in Saturating);
+    let c: u32 in Saturating = (40 as u32 in Saturating);
+    let s: u32 in Saturating = a << c;
+    transition s == 4294967295 {
+        true  -> clamped()
+        false -> chk_zero()
+    }
+    state chk_zero(&mut self) {
+        transition s == 0 {
+            true  -> wrapped()
+            false -> bad()
+        }
+    }
+    state clamped(&mut self) { self.console.exit_process(70); }
+    state wrapped(&mut self) { self.console.exit_process(71); }
+    state bad(&mut self)     { self.console.exit_process(72); }
+}

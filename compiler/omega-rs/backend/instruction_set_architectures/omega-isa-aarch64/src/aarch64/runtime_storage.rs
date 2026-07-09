@@ -3885,7 +3885,12 @@ fn append_runtime_binary_operation_with_domain(
     domain: omega_core::arithmetic::ArithmeticDomain,
 ) -> Result<(), Diagnostic> {
     let wrapping = domain == omega_core::arithmetic::ArithmeticDomain::Wrapping;
-    if wrapping && operator == StateGuardOperator::ShiftRight {
+    // `>>` cannot overflow, so its floor-semantics count fix applies under
+    // EVERY non-Exact domain (Wrapping/Saturating/Trapping alike). `<<`
+    // stays Wrapping-only here: Saturating/Trapping `<<` need clamp/trap
+    // sequences, not the zero-clamp (parked shl_saturating canary).
+    let non_exact = domain != omega_core::arithmetic::ArithmeticDomain::Exact;
+    if non_exact && operator == StateGuardOperator::ShiftRight {
         // Arithmetic `>>` is floor(x / 2^n): an at/above-width count must
         // SIGN-FILL, and a post-fix cannot recover the sign once the masked
         // shift consumed the value -- so saturate the COUNT first. CSINV
@@ -3898,11 +3903,8 @@ fn append_runtime_binary_operation_with_domain(
         bytes.extend(encode_csinv_x(rhs_register, rhs_register, 31, 0b0011));
     }
     append_runtime_binary_operation(bytes, destination_register, operator, rhs_register, byte_size)?;
-    if wrapping
-        && matches!(
-            operator,
-            StateGuardOperator::ShiftLeft | StateGuardOperator::ShiftRightLogical
-        )
+    if (wrapping && operator == StateGuardOperator::ShiftLeft)
+        || (non_exact && operator == StateGuardOperator::ShiftRightLogical)
     {
         // `<<` and logical `>>` both yield ZERO at/above-width (modular /
         // floor-division semantics); the hardware masks the count instead.

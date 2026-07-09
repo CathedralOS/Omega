@@ -5392,6 +5392,58 @@ impl<'program> Evaluator<'program> {
         if let Some((ty, domain @ (ArithmeticDomain::Saturating | ArithmeticDomain::Trapping))) =
             scalar_type
         {
+            // Domain-governed SHIFTS (shift slice C). `>>` is floor(x / 2^n)
+            // and cannot overflow, so every domain shares the Wrapping floor
+            // semantics (at/above-width counts: 0, or the sign-fill for a
+            // negative signed value). `<<` is x * 2^n: Saturating clamps and
+            // Trapping traps when the TRUE value leaves the type's range --
+            // a count at/above the width forces overflow for any nonzero x.
+            // NATIVE saturating/trapping `<<` sequences are not emitted yet
+            // (the parked shl_saturating canary pins that divergence); `>>`
+            // is aligned on both ISAs.
+            if operator == ShiftRight {
+                return Ok(Value::Int(wrap_to_width(
+                    if (r as u64) >= primitive_bit_width(ty) {
+                        if unsigned_operands || l >= 0 { 0 } else { -1 }
+                    } else if unsigned_operands {
+                        ((l as u64).wrapping_shr(r as u32)) as i64
+                    } else {
+                        l.wrapping_shr(r as u32)
+                    },
+                    ty,
+                )));
+            }
+            if operator == ShiftLeft {
+                let (minimum, maximum, value) = if primitive_is_unsigned64(Some(ty)) {
+                    (0i128, u64::MAX as i128, l as u64 as i128)
+                } else {
+                    let (minimum, maximum) = integer_bounds(ty).unwrap_or((i64::MIN, i64::MAX));
+                    (minimum as i128, maximum as i128, l as i128)
+                };
+                let wide = if (r as u64) >= primitive_bit_width(ty) {
+                    // Any nonzero x overflows once the count reaches the
+                    // width; drive the clamp/trap below with a synthetic
+                    // out-of-range value on x's side of the range.
+                    match value.signum() {
+                        0 => 0,
+                        1 => maximum + 1,
+                        _ => minimum - 1,
+                    }
+                } else {
+                    value << (r as u32)
+                };
+                return match domain {
+                    ArithmeticDomain::Saturating => {
+                        Ok(Value::Int(wide.clamp(minimum, maximum) as i64))
+                    }
+                    ArithmeticDomain::Trapping if wide < minimum || wide > maximum => {
+                        trap(format!(
+                            "arithmetic overflow in Trapping domain: shifted value is out of range for {ty:?}"
+                        ))
+                    }
+                    _ => Ok(Value::Int(wide as i64)),
+                };
+            }
             if matches!(operator, Add | Subtract | Multiply) {
                 let bounds_and_wide = if primitive_is_unsigned64(Some(ty)) {
                     let (lu, ru) = (l as u64 as i128, r as u64 as i128);
