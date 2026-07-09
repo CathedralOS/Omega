@@ -119,7 +119,26 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   untouched; samples: the 4 gui samples now compile (upstream fixes), and
   collections/matrix_multiply went HONESTLY red -- it was being miscompiled
   (double-indexed ops dropped) while passing the compile-only test.
-  - **[ ] NEXT -- implement the aarch64 double/dual-indexed encoder family**
+  - **[~] aarch64 double/dual-indexed encoder family -- 4 of 6 ops LANDED
+    2026-07-08** (dual copy `arr[i]=arr[j]`, double-indexed read, storage
+    write, literal write -- 9 canaries fixed, matrix_multiply runs to its
+    documented exit 189). The fixed-shape recipe
+    (`append_fixed_shape_index_element_address` +
+    `append_double_index_address_math`/`_bases`, runtime_storage.rs): every
+    element a fixed 4-byte instruction (unconditional adds, movz+mul scale),
+    so relocated adrp positions are REGION-DEPENDENT CONSTANTS -- what the
+    offset helpers (which only see regions) require; offsets route through
+    omega_instruction_selection wrappers (omega-relocations does not link the
+    ISA crates). Value immediates materialize AFTER all relocations so their
+    variable width perturbs nothing. STILL OPEN (loud):
+    `WriteRuntimeMachineDoubleIndexedBinary` (grid[i][j] += 1, the rmw canary
+    -- needs the runtime-value-operand machinery),
+    `CopyRuntimeFrameBaseDoubleIndexedToRuntimeStorage` (frame-resident 2D,
+    frame_double_indexed_read), machine-indexed binary write
+    (indexed_rmw_loop/indexed_struct_field_rmw/dice_histogram), the
+    frame-source machine-indexed write, computed_indexed_write, and the
+    `WriteEntryArgumentsSliceDescriptor` spill.
+  - **[ ] (original map)**
     (now loud, was silent): `CopyRuntimeMachineIndexedToRuntimeMachineIndexed`
     (`arr[i]=arr[j]`), `CopyRuntimeMachineDoubleIndexedToRuntimeStorage` +
     `CopyRuntimeStorageToRuntimeMachineDoubleIndexed` +

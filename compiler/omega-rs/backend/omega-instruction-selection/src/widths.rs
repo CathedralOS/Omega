@@ -1870,9 +1870,12 @@ pub fn runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_stora
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
 ) -> usize {
     match architecture {
-        // aarch64 has no double-indexed encoder yet; emission rejects the
-        // instruction with a clean diagnostic before any bytes are placed.
-        Architecture::Aarch64 => 0,
+        Architecture::Aarch64 => {
+            aarch64::runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width(
+                outer_index_region,
+                inner_index_region,
+            )
+        }
         Architecture::X86_64 => {
             x86_64::runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width(
                 outer_index_region,
@@ -1888,7 +1891,7 @@ pub fn runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offse
     architecture: Architecture,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => 0,
+        Architecture::Aarch64 => aarch64::runtime_machine_double_indexed_frame_base_offset(),
         Architecture::X86_64 => {
             x86_64::runtime_storage_copy_from_runtime_machine_double_indexed_frame_base_offset()
         }
@@ -1903,7 +1906,12 @@ pub fn runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offs
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => 0,
+        Architecture::Aarch64 => {
+            aarch64::runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offset(
+                outer_index_region,
+                inner_index_region,
+            )
+        }
         Architecture::X86_64 => {
             x86_64::runtime_storage_copy_from_runtime_machine_double_indexed_target_base_offset(
                 outer_index_region,
@@ -1920,7 +1928,13 @@ pub fn runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_stora
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => 0,
+        Architecture::Aarch64 => {
+            aarch64::runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width(
+                source_region,
+                outer_index_region,
+                inner_index_region,
+            )
+        }
         Architecture::X86_64 => {
             x86_64::runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width(
                 source_region,
@@ -1935,9 +1949,14 @@ pub fn runtime_machine_double_indexed_integer_write_width(
     architecture: Architecture,
     outer_index_region: omega_target_operations::RuntimeStorageRegion,
     inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    value: i64,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 => 0,
+        Architecture::Aarch64 => aarch64::runtime_machine_double_indexed_integer_write_width(
+            outer_index_region,
+            inner_index_region,
+            value,
+        ),
         Architecture::X86_64 => x86_64::runtime_machine_double_indexed_integer_write_width(
             outer_index_region,
             inner_index_region,

@@ -1040,11 +1040,13 @@ fn machine_instruction_width(
         SelectedInstructionKind::WriteRuntimeMachineDoubleIndexedInteger {
             outer_index_region,
             inner_index_region,
+            value,
             ..
         } => runtime_machine_double_indexed_integer_write_width(
             input.target.architecture,
             *outer_index_region,
             *inner_index_region,
+            *value,
         ),
         SelectedInstructionKind::CopyRuntimeFrameBaseIndexedToRuntimeFrame { .. } => {
             runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width(

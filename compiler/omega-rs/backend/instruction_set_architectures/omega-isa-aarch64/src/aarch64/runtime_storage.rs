@@ -2213,6 +2213,249 @@ fn append_fixed_shape_index_element_address(
     Ok(())
 }
 
+/// Fixed-shape double-index address math (36 bytes, nine 4-byte instructions):
+/// after the caller has materialized the machine base into x16 (and, when any
+/// index is frame-resident, the frame base into x15), walk x16 to the element
+/// `base + outer*outer_stride + inner*inner_stride + combined_offset`. Every
+/// element is fixed width so the relocated adrp positions around it are
+/// constants. Clobbers x14/x17/x26.
+#[allow(clippy::too_many_arguments)]
+fn append_double_index_address_math(
+    bytes: &mut Vec<u8>,
+    outer_base_register: u8,
+    outer_index_offset: usize,
+    outer_stride: usize,
+    inner_base_register: u8,
+    inner_index_offset: usize,
+    inner_stride: usize,
+    combined_byte_offset: usize,
+) -> Result<(), Diagnostic> {
+    for stride in [outer_stride, inner_stride] {
+        if stride > 0xffff {
+            return Err(Diagnostic::error(format!(
+                "AArch64 MVP encoder cannot scale a double index by stride `{stride}` yet"
+            )));
+        }
+    }
+    bytes.extend(encode_load_w_from_x(17, outer_base_register, outer_index_offset, 4)?);
+    bytes.extend(encode_load_w_from_x(26, inner_base_register, inner_index_offset, 4)?);
+    bytes.extend(encode_movz(14, outer_stride as u16));
+    bytes.extend(encode_mul_x_register(17, 17, 14));
+    bytes.extend(encode_movz(14, inner_stride as u16));
+    bytes.extend(encode_mul_x_register(26, 26, 14));
+    bytes.extend(encode_add_x_register(16, 16, 17));
+    bytes.extend(encode_add_x_register(16, 16, 26));
+    bytes.extend(encode_add_x_immediate(16, 16, combined_byte_offset)?);
+    Ok(())
+}
+
+/// Materialize the double-indexed bases: the machine base into x16 (relocated
+/// at instruction start) and -- when any index is frame-resident -- the SHARED
+/// frame base into x15 (relocated at the constant
+/// `runtime_machine_double_indexed_frame_base_offset` = 8). Returns the
+/// (outer_base, inner_base) index-load registers.
+fn append_double_index_bases(
+    bytes: &mut Vec<u8>,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+) -> (u8, u8) {
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    if outer_index_region == frame || inner_index_region == frame {
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+    }
+    (
+        if outer_index_region == frame { 15 } else { 16 },
+        if inner_index_region == frame { 15 } else { 16 },
+    )
+}
+
+/// Read `grid[i][j]` (both indices runtime) into a storage slot: the
+/// double-index address math walks x16 to the element, the element loads into
+/// x17, then a second relocated base pair addresses the target region for the
+/// store. Historically silently dropped on aarch64 (the zero-width hole).
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    target_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_count, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot read {byte_count}-byte double-indexed values yet"
+        )));
+    }
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width(
+            outer_index_region,
+            inner_index_region,
+        ),
+    );
+    let (outer_base, inner_base) =
+        append_double_index_bases(&mut bytes, outer_index_region, inner_index_region);
+    append_double_index_address_math(
+        &mut bytes,
+        outer_base,
+        outer_index_offset,
+        outer_stride,
+        inner_base,
+        inner_index_offset,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    match byte_count {
+        8 => bytes.extend(encode_load_x_from_x(17, 16, 0)?),
+        _ => bytes.extend(encode_load_w_from_x(17, 16, 0, byte_count)?),
+    }
+    // Target base (relocated at `..target_base_offset`, a constant per frame-ness).
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    match byte_count {
+        8 => bytes.extend(encode_store_x_to_x(17, 16, target_offset)?),
+        _ => bytes.extend(encode_store_w_to_x(17, 16, target_offset, byte_count)?),
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_storage_copy_from_runtime_machine_double_indexed_to_runtime_storage_width(
+            outer_index_region,
+            inner_index_region,
+        )
+    );
+    Ok(bytes)
+}
+
+/// Write `grid[i][j] = <storage slot>` -- the source value loads into x24
+/// FIRST (right after the base pairs, while x16 is still the unbiased machine
+/// base; the shared frame pair also serves a frame-resident SOURCE), then the
+/// address math walks x16 to the element and x24 stores there.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage(
+    source_region: omega_target_operations::RuntimeStorageRegion,
+    source_offset: usize,
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_count: usize,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_count, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot write {byte_count}-byte double-indexed values yet"
+        )));
+    }
+    let frame = omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width(
+            source_region,
+            outer_index_region,
+            inner_index_region,
+        ),
+    );
+    bytes.extend(encode_adrp_placeholder(16));
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    if source_region == frame || outer_index_region == frame || inner_index_region == frame {
+        bytes.extend(encode_adrp_placeholder(15));
+        bytes.extend(encode_add_page_offset_placeholder(15));
+    }
+    let source_base = if source_region == frame { 15 } else { 16 };
+    match byte_count {
+        8 => bytes.extend(encode_load_x_from_x(24, source_base, source_offset)?),
+        _ => bytes.extend(encode_load_w_from_x(24, source_base, source_offset, byte_count)?),
+    }
+    append_double_index_address_math(
+        &mut bytes,
+        if outer_index_region == frame { 15 } else { 16 },
+        outer_index_offset,
+        outer_stride,
+        if inner_index_region == frame { 15 } else { 16 },
+        inner_index_offset,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    match byte_count {
+        8 => bytes.extend(encode_store_x_to_x(24, 16, 0)?),
+        _ => bytes.extend(encode_store_w_to_x(24, 16, 0, byte_count)?),
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_storage_width(
+            source_region,
+            outer_index_region,
+            inner_index_region,
+        )
+    );
+    Ok(bytes)
+}
+
+/// Write twin: `grid[i][j] = <literal>` -- the same address math, then the
+/// value immediate materialized into x17 (AFTER every relocation, so its
+/// variable width perturbs no reloc offset) and stored at the element.
+#[allow(clippy::too_many_arguments)]
+pub fn encode_runtime_machine_double_indexed_integer_write(
+    base_byte_offset: usize,
+    outer_index_offset: usize,
+    outer_index_region: omega_target_operations::RuntimeStorageRegion,
+    outer_stride: usize,
+    inner_index_offset: usize,
+    inner_index_region: omega_target_operations::RuntimeStorageRegion,
+    inner_stride: usize,
+    field_byte_offset: usize,
+    byte_size: usize,
+    value: i64,
+) -> Result<Vec<u8>, Diagnostic> {
+    if !matches!(byte_size, 1 | 4 | 8) {
+        return Err(Diagnostic::error(format!(
+            "AArch64 MVP encoder cannot write {byte_size}-byte double-indexed values yet"
+        )));
+    }
+    let mut bytes = Vec::with_capacity(
+        super::widths::runtime_machine_double_indexed_integer_write_width(
+            outer_index_region,
+            inner_index_region,
+            value,
+        ),
+    );
+    let (outer_base, inner_base) =
+        append_double_index_bases(&mut bytes, outer_index_region, inner_index_region);
+    append_double_index_address_math(
+        &mut bytes,
+        outer_base,
+        outer_index_offset,
+        outer_stride,
+        inner_base,
+        inner_index_offset,
+        inner_stride,
+        base_byte_offset + field_byte_offset,
+    )?;
+    append_unsigned_immediate(&mut bytes, 17, value as u64);
+    match byte_size {
+        8 => bytes.extend(encode_store_x_to_x(17, 16, 0)?),
+        _ => bytes.extend(encode_store_w_to_x(17, 16, 0, byte_size)?),
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        super::widths::runtime_machine_double_indexed_integer_write_width(
+            outer_index_region,
+            inner_index_region,
+            value,
+        )
+    );
+    Ok(bytes)
+}
+
 /// Copy `machine[j] -> machine[i]` where BOTH indices are runtime values
 /// (`arr[i] = arr[j]`): compute the source element address (fixed shape,
 /// stashed in x24), compute the target element address (a second relocated
