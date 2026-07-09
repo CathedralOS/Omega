@@ -21,6 +21,7 @@ use super::primitives::{
     encode_zero_extend_byte_to_w, encode_zero_extend_halfword_to_w,
     encode_sign_extend_halfword_to_w, encode_sign_extend_halfword_to_x, encode_sign_extend_word_to_x,
     encode_float_subtract, encode_compare_w_immediate, encode_compare_w_register,
+    encode_compare_x_immediate,
     encode_compare_x_register, encode_load_byte_w_from_x,
     encode_conditional_branch_equal, encode_conditional_branch_greater,
     encode_conditional_branch_greater_or_equal, encode_conditional_branch_higher,
@@ -744,7 +745,7 @@ pub fn encode_runtime_storage_binary_write(
             9,
         )?;
     } else {
-        append_runtime_binary_operation(
+        append_runtime_binary_operation_with_domain(
             &mut bytes,
             17,
             operator,
@@ -756,6 +757,7 @@ pub fn encode_runtime_storage_binary_write(
                 right,
                 byte_size,
             ),
+            domain,
         )?;
     }
     if runtime_value_operands.frame_indexed(left).is_some()
@@ -3486,7 +3488,7 @@ fn append_runtime_value_operand(
             // Comparisons use the operand width; other nested binaries do not
             // carry their result width, so assume 64-bit (matches the x86_64
             // backend).
-            append_runtime_binary_operation(
+            append_runtime_binary_operation_with_domain(
                 bytes,
                 destination_register,
                 operator,
@@ -3498,6 +3500,10 @@ fn append_runtime_value_operand(
                     right,
                     8,
                 ),
+                runtime_value_operands
+                    .binary_arithmetic_domain(operand)
+                    .map(|(domain, _)| domain)
+                    .unwrap_or(omega_core::arithmetic::ArithmeticDomain::Exact),
             )?;
             // A nested WRAPPING binary must hand its PARENT the width-wrapped
             // VALUE: the plain 64-bit op leaves the untruncated result
@@ -3859,6 +3865,35 @@ fn append_narrow_signed_division_operand_extension(
             _ => {}
         }
     }
+}
+
+/// Domain-aware twin of `append_runtime_binary_operation`: after the plain
+/// op, a WRAPPING `<<` gets the modular count clamp -- a count >= the
+/// operand width yields 0 (x * 2^n = 0 mod 2^w), where LSLV alone masks the
+/// count mod 64 (1u64 << 70 gave 64; the interpreter is modular at every
+/// width since the shift-domain ruling, 2026-07-13). `cmp count, #width;
+/// csel dest, xzr, dest, hs` -- 8 bytes, tracked by
+/// `runtime_binary_operation_width_with_domain`. Wrapping `>>` and the
+/// indexed/pointee binary-write kinds (which carry no domain) are the
+/// slice-B remainder in TASKS.md.
+fn append_runtime_binary_operation_with_domain(
+    bytes: &mut Vec<u8>,
+    destination_register: u8,
+    operator: StateGuardOperator,
+    rhs_register: u8,
+    byte_size: usize,
+    domain: omega_core::arithmetic::ArithmeticDomain,
+) -> Result<(), Diagnostic> {
+    append_runtime_binary_operation(bytes, destination_register, operator, rhs_register, byte_size)?;
+    if domain == omega_core::arithmetic::ArithmeticDomain::Wrapping
+        && operator == StateGuardOperator::ShiftLeft
+    {
+        let width_bits = u32::try_from(byte_size * 8).unwrap_or(64);
+        bytes.extend(encode_compare_x_immediate(rhs_register, width_bits)?);
+        // HS (unsigned >=): count at or above the width selects XZR.
+        bytes.extend(encode_csel_x(destination_register, 31, destination_register, 0b0010));
+    }
+    Ok(())
 }
 
 fn append_runtime_binary_operation(

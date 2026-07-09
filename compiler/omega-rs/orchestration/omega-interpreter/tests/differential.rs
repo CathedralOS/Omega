@@ -1859,6 +1859,9 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     ("arithmetic/immutable_arg_for_mut_param_not_checked", -1, PendingInterpOutcome::Exit(1)),
     // 72/72: the two legs AGREE on this host (aarch64 LSLV masks the count
     // at 64 like the interp); the parked divergence is vs x86's 32-bit mask.
+    // 72/72 = the RULED modular-0 path (Wrapping shl, count >= width -> 0):
+    // interp + aarch64 conform; parked only for the x86 count-clamp (x86
+    // hardware masks the count, would exit 70). Promote to pass/ with it.
     ("arithmetic/shift_amount_at_or_above_width_divergence", 72, PendingInterpOutcome::Exit(72)),
     ("arithmetic/shl_saturating_domain_divergence", 72, PendingInterpOutcome::Exit(70)),
     ("arithmetic/unsigned_min_max_wrapping_local_divergence", 78, PendingInterpOutcome::Exit(77)),

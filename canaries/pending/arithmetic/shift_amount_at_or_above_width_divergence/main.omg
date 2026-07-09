@@ -1,26 +1,19 @@
-// PARKED REPRO (probe 2026-07-04): shift by an amount >= the operand width
-// DIVERGES native-vs-interp, and the intended semantics are UNDECIDED.
+// PARKED: x86 wrapping-shl count-clamp tracker (was: undecided divergence).
 //
-// i32 `1 << 40` with a runtime shift amount:
-//   native  = 70: x86 `shl`/`sar` mask the count to the register width
-//             (40 & 31 = 8), so 1 << 8 = 256.
-//   interp  = 72: eval_int_binary does `(l as i64).wrapping_shl(40)` -- an i64
-//             shift masking to 64 (40 & 63 = 40), so 1 << 40, truncated to i32 = 0.
+// RULED (Zach, 2026-07-13, shift-domain ruling): Wrapping `<<` is MODULAR --
+// x * 2^n (mod 2^w) -- so a count >= the operand width yields 0. The lhs
+// domain defines shift semantics; the count carries no domain weight.
 //
-// AARCH64 DATA POINT (2026-07-09, probe exit 72): LSLV masks the count to the
-// 64-bit register width (like the interp's i64 shift), so aarch64 native
-// AGREES with interp here and DISAGREES with x86 -- the divergence is
-// native-vs-native across architectures.
-// Neither is obviously "correct": the behavior of a shift by >= width is
-// undocumented. For a proof-carrying language the most consistent answer is
-// probably a PROOF OBLIGATION that the shift amount is < the operand width (like
-// an array index bound), making `a << self.n` with unproven `n` a COMPILE ERROR.
-// Alternatives: DEFINE it as mask-to-operand-width (match native/hardware) and
-// fix the interpreter to mask to the operand width instead of i64; or define
-// shift-out-to-zero. DESIGN CALL for Zach -- see TASKS. Until then the oracle is
-// unreliable for out-of-range shift amounts (interp is the likely-wrong side if
-// mask-to-width is chosen). In-range shifts (amount < width) are correct + agree.
-
+// CONFORMING (this canary exits 72/72 = the modular-0 path on both):
+//   interp   -- uniformly modular at every width (was count-masked at 64).
+//   aarch64  -- CMP count,#width + CSEL XZR clamp in the domain-aware
+//               binary-op wrapper (LSLV alone masks the count mod 64).
+// PENDING -- x86: `shl` masks the count to the register width in hardware
+// (40 & 31 = 8), so native x86 gives 1 << 8 = 256 and exits 70. This canary
+// stays parked until the x86 count-clamp lands; then rework exits so the
+// modular-0 path is 70 and promote to pass/ alongside the at-width legs in
+// pass/arithmetic/runtime_shift_count_domain_exit (u32/u64; this one pins
+// signed i32).
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; n: i32 in Wrapping; }
 machine Main::main(&mut self) {
