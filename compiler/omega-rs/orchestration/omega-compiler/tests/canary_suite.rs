@@ -21065,6 +21065,49 @@ fn runtime_value_callee_post_entry_lets_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Hardens the post-entry fold beyond 2 levels: a FOUR-deep chain with an
+// intermediate read more than once (`a` -> b,c; `b` -> c,d). proc(5)=30.
+#[test]
+fn runtime_post_entry_deep_chain_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_post_entry_deep_chain_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("post-entry deep-chain canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 30,
+        "interpreter oracle should exit 30 (proc(5) 4-deep chain), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-post-entry-deep-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("post-entry deep-chain canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("post-entry deep-chain canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(30),
+        "expected the 4-deep post-entry chain with a reused intermediate to deliver 30, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A value callee whose POST-ENTRY state computes a CHAINED let (`rem` reads the
 // prior post-entry let `scaled`). The straight-line initializer write now folds
 // prior slot-less locals (fold_straight_line_prior_local_names) like the leaf
