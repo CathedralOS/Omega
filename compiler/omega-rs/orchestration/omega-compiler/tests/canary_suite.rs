@@ -16402,6 +16402,32 @@ fn runtime_float_compare_bool_exit_canary_runs() {
 }
 
 #[test]
+fn zii_default_composite_exit_canary_runs() {
+    // ZII composites: a never-written sum dispatches as its first case with
+    // zero payload; never-written array elements and nested fields read 0.
+    let canary = pass_canary("core/zii_default_composite_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-ziicomp-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("zii composite canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("zii composite canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "zii composite canary should pass all legs (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn zii_default_string_equality_exit_canary_runs() {
     // ZII default strings ARE the empty string through content equality;
     // the non-empty-literal leg must not dereference the null pointer.
@@ -27450,6 +27476,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "collections/runtime_array_min_max_builtin_exit",
     "collections/runtime_dual_indexed_comparison_guard_exit",
     "core/array_core_surface",
+    "core/zii_default_composite_exit",
     "core/fixed_vec_core_surface",
     "core/region_core_surface",
     "core/collections_text_core_surface",

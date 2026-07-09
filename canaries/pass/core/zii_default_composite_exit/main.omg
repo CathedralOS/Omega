@@ -1,0 +1,58 @@
+// RUN CANARY (exit 70) + interpreter differential. ZII (zero-is-
+// initialization) through COMPOSITE reads, never-written on every leg:
+// (1) a ZII SUM dispatches as its FIRST case with ZII payload (tag 0 ->
+// Msg::Ping { x: 0 }) -- the designed semantic, agreed by both engines;
+// (2) a runtime-indexed element of a never-written array reads 0;
+// (3) a nested struct-in-struct field reads 0. ZII is a Tier-1 Cathedral
+// guarantee: these are the shapes a partial-zeroing or wrong-offset
+// regression would corrupt first. exits: 71 = ZII sum took a non-first
+// variant; 72 = ZII sum matched nothing; 73 = ZII payload nonzero;
+// 74 = ZII array element nonzero; 75 = ZII nested field nonzero.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
+data Inner { a: u32; b: u32; }
+data Outer { first: Inner; second: Inner; }
+data Main {
+    console: Console;
+    never: Msg;
+    arr: [u32; 4];
+    nested: Outer;
+    i: usize [0..=3];
+}
+machine Main::main(&mut self) {
+    self.i = 2;
+    self.build();
+}
+machine Main::build(&mut self) {
+    transition self.never {
+        Msg::Ping { x } -> chk(x)
+        Msg::Pong { y, z } -> wrong_variant()
+        _ -> wrong_no_match()
+    }
+    state chk(&mut self, x: i32) {
+        transition x == 0 {
+            true -> leg2()
+            _ -> wrong_payload()
+        }
+    }
+    state leg2(&mut self) {
+        let e: u32 = self.arr[self.i];
+        transition e == 0 {
+            true -> leg3()
+            _ -> wrong_elem()
+        }
+    }
+    state leg3(&mut self) {
+        let n: u32 = self.nested.second.b;
+        transition n == 0 {
+            true -> good()
+            _ -> wrong_nested()
+        }
+    }
+    state good(&mut self)          { self.console.exit_process(70); }
+    state wrong_variant(&mut self) { self.console.exit_process(71); }
+    state wrong_no_match(&mut self){ self.console.exit_process(72); }
+    state wrong_payload(&mut self) { self.console.exit_process(73); }
+    state wrong_elem(&mut self)    { self.console.exit_process(74); }
+    state wrong_nested(&mut self)  { self.console.exit_process(75); }
+}
