@@ -631,14 +631,26 @@ decreases remaining
   keep working. The ARRAY-literal element loop got the same partiality poison.
   Pinned: fail/control_flow/case_literal_unlowered_field_store_rejected.
 
-- **[ ] TextEquals has NO value/store-position lowering (found via the poison
-  work).** `self.ok = self.name == "x"` hits the mutation blocker;
-  `let ok: bool = ...` alias-folds back and poisons; only GUARD position works
-  (`transition self.name == "x"`). `ValueOperand::TextEquals` exists and lowers in
-  both ISAs for guards -- wiring it into the mutation-write value paths (binary
-  write with a TextEquals operand result) would serve the bool-materialization
-  spelling everywhere. Until then every spelling is LOUD (blocker or poison), so
-  this is a feature gap, not a soundness hole.
+- **[x] TextEquals value/store-position lowering -- SERVED 2026-07-12 (mutation
+  paths; terminal position stays poisoned).** The gap was ONE arm: the
+  `resolve_runtime_text_equals_operand_in_table` resolver required BOTH sides to
+  be text PLACES, so a string-LITERAL right side (`self.okf = self.name ==
+  "omega"`) returned None and the machine-owned store blocker refused it -- while
+  the `let` leg rode the frame-slot text-comparison writer and place==place field
+  stores rode `TextEquals`. Added the literal-RHS arm (TextEqualsLiteral, place
+  side via the guard path's descriptor-place resolver, visibility widened one
+  notch; bounded `[u8; N]` carriers stay guard-only). This ALSO serves the
+  case-literal FIELD-STORE payload (`z: self.name == "omega"` -- the decomposed
+  per-field write rides the same clause), so that fail canary flipped exactly as
+  its header prescribed and was PROMOTED to
+  pass/text/case_literal_texteq_field_store_exit; the full matrix is pinned by
+  pass/text/runtime_text_equals_value_positions_exit (let/store x literal/place).
+  REMAINING LEG (still poisoned, sound): the TERMINAL position (`-> Msg::Pong {
+  z: self.name == .. }`) through the branch cascade -- a naive `text_equals | 0`
+  place-write there MISCOMPILED (native 73 vs interp 70; wrong offset/timing --
+  the terminal's write must ride the leaf expansion's result plumbing, not a
+  direct place write; reverted same session). fail/control_flow/
+  case_literal_unlowered_field_rejected still pins it; header updated.
 
 - **PENDING-CANARY RECHECK 2026-07-09** (after the session's aarch64 arc):
   const-fold divide/shift miscompiles + unsigned_min_max_wrapping still

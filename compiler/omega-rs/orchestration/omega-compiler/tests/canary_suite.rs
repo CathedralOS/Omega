@@ -16351,6 +16351,61 @@ fn custom_ranking_struct_view_canary_runs() {
 }
 
 #[test]
+fn case_literal_texteq_field_store_exit_canary_runs() {
+    // Text equality as a case-literal payload field in a FIELD STORE --
+    // promoted from the fail tier when the literal-RHS TextEqualsLiteral arm
+    // landed in the value-operand resolver (was: silently dropped, then
+    // poisoned). Exit 70 proves content delivery, not just compilation.
+    let canary = pass_canary("text/case_literal_texteq_field_store_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-texteqstore-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("texteq field-store canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("texteq field-store canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "texteq field-store canary should deliver z == true (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_text_equals_value_positions_exit_canary_runs() {
+    // String content equality in every value/write position: let-local,
+    // field store vs literal, field store vs place. Exits 71/72/73 name the
+    // leg that broke.
+    let canary = pass_canary("text/runtime_text_equals_value_positions_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-texteqval-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("texteq value-positions canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("texteq value-positions canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "texteq value-positions canary should pass all three legs (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn sum_payload_cast_operand_field_exit_canary_runs() {
     // A case-literal terminal's payload field whose value is a BINARY WITH A
     // CAST OPERAND (`z: (x as i8) % 10`): the branch-side cascade writes each
@@ -26677,6 +26732,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "control_flow/sum_mixed_width_payload_layout",
     "control_flow/sum_field_storage_roundtrip",
     "control_flow/sum_payload_cast_operand_field_exit",
+    "text/case_literal_texteq_field_store_exit",
+    "text/runtime_text_equals_value_positions_exit",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
     "control_flow/runtime_straight_line_terminal_local_exit",
@@ -27264,7 +27321,6 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "layouts/plan_laid_dynamic_plan",
     "layouts/plan_laid_policy_without_plan_machine",
     "control_flow/case_literal_unlowered_field_rejected",
-    "control_flow/case_literal_unlowered_field_store_rejected",
     "control_flow/if_statement_retired",
     "control_flow/transition_fall_through_bool",
     "control_flow/transition_fall_through_value_match",

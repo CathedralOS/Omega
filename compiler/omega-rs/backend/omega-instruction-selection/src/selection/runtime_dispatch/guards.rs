@@ -1035,7 +1035,7 @@ fn runtime_text_equals_place_guard_in_table(
 /// the POINTER slot's raw bytes as if they were the descriptor).
 /// Only String-typed places qualify -- this operand is a CONTENT compare and
 /// must never see a scalar that happens to be 16 bytes.
-fn resolve_runtime_text_descriptor_place_operand_in_table(
+pub(in crate::selection::runtime_dispatch) fn resolve_runtime_text_descriptor_place_operand_in_table(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
     source_key: omega_control_flow::StateKey,

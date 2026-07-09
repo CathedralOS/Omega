@@ -1,0 +1,39 @@
+// RUN CANARY (exit 70) + interpreter differential. String content equality in
+// every VALUE/WRITE position: a `let` bool local (frame-slot text-comparison
+// writer), a machine-owned bool FIELD store with a LITERAL right side
+// (TextEqualsLiteral -- the leg that was refused by the machine-owned store
+// blocker until the literal-RHS arm landed), and a field store comparing two
+// String PLACES (TextEquals). All three legs ride `text_equals | 0` binary
+// writes; exits 71/72/73 name the leg that broke.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; name: String; other: String; okf: bool; }
+machine Main::main(&mut self) {
+    self.name = "omega";
+    self.other = "omega";
+    self.build();
+}
+machine Main::build(&mut self) {
+    let ok: bool = self.name == "omega";
+    transition ok {
+        true -> st_lit()
+        _ -> wrong_let()
+    }
+    state st_lit(&mut self) {
+        self.okf = self.name == "omega";
+        transition self.okf {
+            true -> st_place()
+            _ -> wrong_store_lit()
+        }
+    }
+    state st_place(&mut self) {
+        self.okf = self.name == self.other;
+        transition self.okf {
+            true -> good()
+            _ -> wrong_store_place()
+        }
+    }
+    state good(&mut self)              { self.console.exit_process(70); }
+    state wrong_let(&mut self)         { self.console.exit_process(71); }
+    state wrong_store_lit(&mut self)   { self.console.exit_process(72); }
+    state wrong_store_place(&mut self) { self.console.exit_process(73); }
+}

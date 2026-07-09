@@ -1,0 +1,36 @@
+// RUN CANARY (exit 70) + interpreter differential. A case-literal FIELD STORE
+// whose payload field value is TEXT EQUALITY (`self.stored = Msg::Pong { y:
+// 5, z: self.name == "omega" }`). History: this was a FAIL canary pinning the
+// UnloweredCaseLiteralField poison -- the decomposition's per-field write had
+// no texteq lowering, so before the poison the tag and `y` landed while `z`
+// silently read ZII 0 (native 72 / interp 70). PROMOTED when
+// `resolve_runtime_text_equals_operand_in_table` gained the literal-RHS arm
+// (TextEqualsLiteral in value/write position): the decomposed field write now
+// rides `text_equals | 0` like the mutation-table path. The TERMINAL position
+// (`-> Msg::Pong { z: self.name == .. }`) is still poisoned -- a naive place
+// write there MISCOMPILED (wrong offset/timing; native 73) and was reverted,
+// so fail/control_flow/case_literal_unlowered_field_rejected still pins it.
+// exit 72 = z dropped/wrong (the old silent face); 73 = tag/dispatch wrong.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Msg { case Ping(x: i32); case Pong(y: i32, z: bool); }
+data Main { console: Console; name: String; stored: Msg; }
+machine Main::main(&mut self) {
+    self.name = "omega";
+    self.build();
+}
+machine Main::build(&mut self) {
+    self.stored = Msg::Pong { y: 5, z: self.name == "omega" };
+    transition self.stored {
+        Msg::Pong { y, z } -> chk(y, z)
+        _ -> bad()
+    }
+    state chk(&mut self, y: i32, z: bool) {
+        transition z {
+            true -> good()
+            _ -> wrong_field()
+        }
+    }
+    state good(&mut self)        { self.console.exit_process(70); }
+    state wrong_field(&mut self) { self.console.exit_process(72); }
+    state bad(&mut self)         { self.console.exit_process(73); }
+}
