@@ -29,18 +29,18 @@ should target NEW feature surfaces as they land, not re-walk these axes.
 
 ## Owner-gated holds (see OWNER_QUESTIONS.md)
 
-- **Q (yes/no, blocks a one-way teardown): is the BARE `-> own_entry(..)`
-  loop-back banned, like the `self.`-spelled form already is?** Your
-  countdown note says yes ("removing the `self` keyword doesn't change
-  fuck-all"). On YES we immediately: reject bare entry re-entry + the
-  statement-position `self.drip(n-1);` route + mutual value-call cycles;
-  convert/delete the ~12 canaries pinning the spelling; remove the orphaned
-  machinery (entry-reentry `decreases` surface, recursive-clone
-  specialization, the unserved-result sweep); rewrite corpus users into
-  explicit sub-state self-transition loops. Reply here; scope details in
-  OWNER_QUESTIONS.md Q5-Q7.
-  > Is this a question?
-  [It wasn't stated as one -- fixed above. Awaiting the yes.]
+- **Recursion scope -- RESOLVED by your OWNER_QUESTIONS answers ("machine
+  call cycles = banned... 'decreases' stuff is for states. States are not
+  recursion. They are transitions, jumps, goto... equal to a for loop").**
+  You asked "Am I missing nuance?" -- no: that distinction is exactly the
+  implementation reality. The bare `-> own_entry(args)` loop-back COMPILES
+  AS A TRANSITION (a jump with re-bound args, constant stack, no call
+  frame), so it is a for-loop under your ruling and STAYS, along with the
+  states-scoped `decreases` proof surface and its canaries. The pre-scoped
+  teardown dissolves into the two CALL-graph bans you confirmed, filed
+  below as engineering: mutual value-call cycles (Q6 "yes fucking banned")
+  and statement-position tail self-calls (Q7 "banned, go write this as
+  states").
 - **Float domain clauses -- ANSWERED (deferred).** Owner: deferred until a
   float domain pass; prerequisite is "a serious language document detailing
   all compiler-supported float domains." Until then `f32 in Saturating`
@@ -69,6 +69,30 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   > Owner: Shift overflow is defined by the domain on which the operator is happening. If y is in wrapping, it has a domain where lhs should be wrapping, and rhs doesnt matter. If you mix domains here, the operator should not resolve to anything, its a compile error. If y is in saturating, domain should assume lhs is saturating, and rhs doesnt matter. Domain casts (x as Saturating) solve the case where we need to change domains, and its always explicit.
 
 ## Open bugs / gaps (ungated)
+
+- **Implement the Q6 ban: MUTUAL value-call cycles are rejected.** "Yes
+  fucking banned" (2026-07-13). The state-call cycle check does not see
+  value calls; add the value-call cycle walk over the machine-call graph
+  and reject any cycle (A calls B calls A; self value-call cycles are
+  already rejected). Corpus: the dungeon's find_item_at/find_item_after
+  pair must be rewritten as states. Fail canary pinning the diagnostic.
+
+- **Implement the Q7 ban: statement-position tail self-calls are
+  rejected.** A trailing `self.drip(n - 1);` statement still compiles via
+  the Nested-transition route -- "banned, if it reads as recursion...
+  go write this as states" (2026-07-13). Reject the spelling with a
+  write-it-as-states diagnostic; fail canary.
+
+- **Implement the shift-domain ruling.** "Shift overflow is defined by the
+  domain on which the operator is happening... lhs domain governs, rhs
+  doesn't matter; mixed domains = the operator does not resolve (compile
+  error); domain casts solve explicit changes" (2026-07-13, the
+  numeric-range thesis answer). Scope: define wrapped/saturating shift
+  COUNT semantics per the lhs domain, keep Exact shifts as proof
+  obligations, verify the mixed-domain operator rejection covers shifts,
+  and retire/rewrite the parked shift-at-width divergence canaries per the
+  ruling. The float-to-int half of the thesis remains open (no ruling
+  yet; the parked cast divergence stays).
 
 - **Q9 IMPLEMENTED as a declaration-level rejection** (`[range] in
   Wrapping/Saturating/Trapping` is ill-formed on every declaration site;
