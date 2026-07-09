@@ -584,19 +584,29 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    regress), but those shapes may then hit the same return-write gaps as
    NEW loud errors -- the return-write shape coverage is the real second
    half of the feature.
-   INVESTIGATION ITEM 1 — RESOLVED (ii) AND LANDED (2026-07-08l): the
-   fences over-applied to dispatched calls. New shared helper
-   `dispatch_route::state_call_routed_to_dispatch` (emission-planning) --
-   EVIDENCE-based: a runtime-flow call edge exists for the call's source
-   state + statement targeting the callee's machine, so the fences can
-   never drift from the router. Both `value_call_arm_effect_blockers` and
-   `reentrant_value_call_blockers` now exempt dispatched calls (their arms
-   are real dispatch cases running once; loops are real back-edges; the
-   all-arms/once-not-per-iteration hazards are splice-only). RESULT: the
-   dir-walk probe's read_dir_count/read_dir_nth effectful-arm refusals are
-   GONE (the looping callees were already dispatch-routed; only the fences
-   lagged). All gates green; suite failure-set zero new; the fence fail
-   canaries still fire (their probe callees do not loop).
+   INVESTIGATION ITEM 1 — LANDED 2026-07-08l, ⚠️ RETRACTED 2026-07-08n:
+   the fence exemption for dispatch-routed calls was UNSOUND. The
+   counterexample (one probe later): an effectful re-entrant SELF-value
+   call (`self.total = self.count(4, 0)`, per-entry `self.hits` bump,
+   SelfTarget re-entry) ROUTES to dispatch (state_call_target_loops sees
+   the SelfTarget back-edge) -- but the dispatch RETURN-WRITE does not
+   serve the shape, so with the exemption it COMPILED and silently
+   misdelivered (native 71 vs interp 70). "Routed to dispatch" does NOT
+   imply "the return-write serves this shape" (the recorded ~13-canary
+   regression class was the warning). Both fences refuse again; the
+   helper (`dispatch_route`, with its OMEGA_DEBUG_DISPATCH_ROUTE
+   instrumentation) stays as DORMANT infrastructure. Counterexample
+   parked as the acceptance canary:
+   `pending/host/dispatched_effectful_reentrant_value` (interp 70).
+   CORRECTED SEQUENCE for #7: (1) enumerate + close the dispatch
+   return-write shape gaps (effectful entries, arm-leaf terminals
+   returning fields, binary operands, aliases, multi-arm -- each with a
+   differential canary); (2) re-add the fence exemption PER SHAPE, gated
+   on the shape's return-write canary being green; (3) only then the
+   dir-walk legs unfence. LESSON: an exemption from a
+   silent-wrong fence needs a RUNTIME differential proof per shape, not a
+   routing-evidence proof -- compile-time evidence says the route was
+   taken, not that the route is correct.
    INVESTIGATION ITEM 1b — RESOLVED (2026-07-08m), `required` was NOT the
    blocker: the router/plan staging is now a monotone FIXPOINT
    (backend-pipeline builder.rs -- dispatch edges and the state-call plan

@@ -47,14 +47,16 @@ pub(crate) fn collect_value_call_arm_effect_blockers(
         if !callee_machine.is_valid() {
             continue;
         }
-        // A call that ROUTED TO DISPATCH is exempt: its arms are REAL dispatch
-        // cases that run exactly once when selected -- the all-arms/re-emission
-        // hazard is splice-only. This is what lets a LOOPING effectful callee
-        // (read_dir_count) value-call natively: the loop already forced the
-        // dispatch route; only the fence lagged behind.
-        if crate::dispatch_route::state_call_routed_to_dispatch(input, state_call) {
-            continue;
-        }
+        // ⚠️ RETRACTED (2026-07-08n): an exemption for dispatch-routed calls
+        // lived here for one day and was UNSOUND -- a dispatched effectful
+        // re-entrant callee compiled and silently MISDELIVERED (probe: sum
+        // 0..=4 with a per-entry hits bump, native 71 vs interp 70; parked in
+        // pending/host/dispatched_effectful_reentrant_value). "Routed to
+        // dispatch" does not imply "the dispatch return-write serves this
+        // shape" (the recorded ~13-canary regression class). Re-add the
+        // exemption ONLY per-shape, behind a differential canary, after the
+        // return-write gap for that shape is closed. `dispatch_route` stays
+        // available (env-gated instrumentation) for that work.
         let entry_state = state_call.target_key.state;
 
         let effectful_arm = input
