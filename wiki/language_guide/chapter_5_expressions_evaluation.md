@@ -342,6 +342,27 @@ data Motion {
 Working interpretation:
 
 - `finite` means the value is not `NaN`, `+inf`, or `-inf`.
+
+### Float comparisons and NaN
+
+Float comparisons follow IEEE 754 semantics on both engines:
+
+- The ordered comparisons `<`, `<=`, `>`, `>=` are **false** whenever either
+  operand is NaN (natively: aarch64 condition codes chosen to fail on
+  unordered; x86_64 `ucomis*` with parity-aware sequencing).
+- `==` is false and `!=` is **true** when either operand is NaN — so
+  `f != f` is the canonical isNaN idiom. The constant folder deliberately
+  refuses to fold float self-comparisons (`x == x`, `x != x`) for exactly
+  this reason: folding `f != f` to `false` would silently break the idiom
+  for a NaN-holding `f`.
+
+Comparison results in value position (`let ok: bool = a > b`) use the same
+lowering as guards and are pinned for ordinary values — including negative
+operands, where a bit-pattern comparison would invert the order — by
+`arithmetic/runtime_float_compare_bool_exit`. NaN-operand legs are not yet
+canary-pinned: constructing NaN portably awaits the float-semantics ruling
+(OWNER_QUESTIONS Q8); until then the NaN rows above are the implemented and
+code-reviewed behavior, not yet differential-proven.
 - `0.0f..=100000.0f` is the intended range spelling for a float fact.
 - Float constraints are not runtime metadata.
 - Float constraints do not automatically permit reassociation, signed-zero
