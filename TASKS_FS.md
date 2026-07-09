@@ -437,14 +437,24 @@ the next attempt is mechanical:
   cfg!(target_os) `host_stat_offsets` mirror, `None` for absent fields) so the
   differential (compiles for host()) agrees. Prototyped and worked for
   metadata_path.
-- BLOCKER that forced the revert: the decode is DUPLICATED across
-  metadata_path + metadata(file, via fstat) + symlink_metadata (+ copy reads
-  size) = ~157 literal `stat_buf[N]` sites. Migrating one breaks the others
-  once the interp writes per-host. PREREQ: refactor the stat->Metadata decode
-  into ONE shared machine (metadata_path/metadata/symlink_metadata call it),
-  THEN migrate that single decode to per-target offsets + wire windows
-  stat/fstat + the interp host layout + a native metadata canary. That
-  refactor-first is the clean multi-step; don't migrate 157 sites in place.
+- ~~BLOCKER that forced the revert: the decode is DUPLICATED across~~
+  ~~metadata_path + metadata(file, via fstat) + symlink_metadata~~
+  **PREREQ DONE (2026-07-08):** the three per-caller decode bodies (was ~240
+  duplicated `stat_buf[N]` lines) now collapse to ONE `Filesystem::decode_metadata(&mut self) -> Metadata`
+  value machine at [filesystem.omg:637](omega/language/std/filesystem.omg). Each
+  caller fills `stat_buf` via its raw op then `let m: Metadata = self.decode_metadata();
+  MetadataResult::Ok { meta: m }`. `is_symlink` is computed from the mode's
+  S_IFLNK bits (40960) in the shared machine -- correct for all three since
+  stat/fstat follow symlinks (mode never a link) while lstat's can be. Verified
+  behavior-preserving: interpreter runs the decode (coverage 68/0 + differential
+  11/0), canary_suite 711/0, samples_compile the 4 documented pre-existing
+  windows fails only. THE SINGLE DECODE SITE is now the migration target.
+- REMAINING (mechanical, one site now): migrate `decode_metadata`'s offsets to
+  per-target ST_*_OFF provides values + wire windows `_stat64`/fstat import rows
+  + `read_metadata`/`read_file_metadata`/`read_symlink_metadata` lowering + the
+  interp `write_fs_stat` cfg!(target_os) `host_stat_offsets` mirror + a native
+  windows metadata canary. Width-mismatched/absent windows fields point at the
+  buffer ZERO REGION (offset 128).
 
 ## Wrapper dark-method coverage + a parked backend gap (2026-07-08)
 

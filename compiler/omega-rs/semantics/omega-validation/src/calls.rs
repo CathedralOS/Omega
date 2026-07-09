@@ -1259,10 +1259,6 @@ fn scan_expression_calls(
     // `true`/`false` are single-segment `Name` nodes here, so they are skipped. The
     // allow-list is deliberately GENEROUS -- an unrecognised valid form only
     // UNDER-rejects (misses a typo), never falsely rejects a real name.
-    if let ExpressionNode::Name(path) = program.expression_table.expression(expression) {
-        let mm: Vec<String> = program.expression_table.name_path_members(path.members).iter().map(|m| m.as_str().to_owned()).collect();
-        eprintln!("TWOSEG members={:?} head_valid={} sym_valid={}", mm, path.head_symbol.is_valid(), path.symbol.is_valid());
-    }
     if let ExpressionNode::Name(path) = program.expression_table.expression(expression)
         && let [only] = program.expression_table.name_path_members(path.members)
     {
