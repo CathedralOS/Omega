@@ -21392,6 +21392,38 @@ fn runtime_main_source_builder_is_ordinary_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// std::time SATURATING twins: Instant/SystemTime saturating_add/subtract
+// clamp to the new MAX/EPOCH/MIN consts; seven exact legs (D14 fire-F
+// equality guards pin the u64::MAX / i64 extreme values).
+#[test]
+fn runtime_saturating_time_arith_exit_canary_runs() {
+    let canary = pass_canary("time/runtime_saturating_time_arith_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-saturating-time-arith-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating time arithmetic canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating time arithmetic canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected all seven saturation legs exact (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // D14 FIRES E+F: u64::MAX literals in a LET initializer and an EQUALITY
 // guard round-trip exactly through a value machine's guarded arms.
 #[test]

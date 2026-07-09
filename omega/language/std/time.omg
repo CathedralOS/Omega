@@ -512,6 +512,12 @@ data InstantResult [copy, zero_init] {
     case Ok(instant: Instant);
 }
 
+// The representable extremes the saturating forms clamp to. MAX's seconds
+// literal is D14 fire D (a u64-classed struct field accepts the u64
+// magnitude); EPOCH is the ZII zero spelled as itself.
+const Instant::EPOCH: Instant = Instant { seconds: 0, subsecond_nanoseconds: 0 };
+const Instant::MAX: Instant = Instant { seconds: 18446744073709551615, subsecond_nanoseconds: 999999999 };
+
 // self + duration as a later Instant; `Overflow` past the representable
 // range. Mirrors Duration::checked_add -- identical field shapes, identical
 // carry idiom (wrapped-compare overflow detection).
@@ -642,6 +648,31 @@ machine Instant::checked_duration_since(&self, earlier: Instant) -> DurationResu
     }
 }
 
+// self + duration, clamping at Instant::MAX instead of reporting overflow
+// (total). Mirrors Duration::saturating_add exactly; unblocked by D14
+// fires E+F (the MAX const's u64 seconds literal is fire D).
+machine Instant::saturating_add(&self, duration: Duration) -> Instant {
+    let sum: InstantResult = self.checked_add(duration);
+    transition sum {
+        InstantResult::Ok { instant } -> saturate_add_value(instant)
+        InstantResult::Overflow -> saturate_add_max()
+    }
+    state saturate_add_value(&self, instant: Instant) -> Instant { instant }
+    state saturate_add_max(&self) -> Instant { Instant::MAX }
+}
+
+// self - duration, clamping at the monotonic EPOCH instead of reporting
+// underflow (total). Mirrors Duration::saturating_subtract.
+machine Instant::saturating_subtract(&self, duration: Duration) -> Instant {
+    let difference: InstantResult = self.checked_subtract(duration);
+    transition difference {
+        InstantResult::Ok { instant } -> saturate_value(instant)
+        InstantResult::Overflow -> saturate_epoch()
+    }
+    state saturate_value(&self, instant: Instant) -> Instant { instant }
+    state saturate_epoch(&self) -> Instant { Instant::EPOCH }
+}
+
 // self - earlier, clamping at ZERO instead of reporting the backwards case
 // (total, the ZII-friendly default -- Rust's `duration_since` panics here).
 // Mirrors Duration::saturating_subtract (transitioning on a nested sibling
@@ -666,6 +697,10 @@ data SystemTime [copy, zero_init] {
 }
 
 const SystemTime::UNIX_EPOCH: SystemTime = SystemTime { seconds_since_unix_epoch: 0, subsecond_nanoseconds: 0 };
+// The representable extremes the saturating forms clamp to (i64 seconds:
+// both literals sit inside the i64 window, no D14 fire needed).
+const SystemTime::MAX: SystemTime = SystemTime { seconds_since_unix_epoch: 9223372036854775807, subsecond_nanoseconds: 999999999 };
+const SystemTime::MIN: SystemTime = SystemTime { seconds_since_unix_epoch: -9223372036854775808, subsecond_nanoseconds: 0 };
 
 // `duration_since`'s result: the wall clock is NOT monotonic, so "earlier is
 // actually later" is an ORDINARY outcome (NTP step, manual clock set), not an
@@ -872,6 +907,32 @@ machine SystemTime::checked_subtract(&self, duration: Duration) -> SystemTimeRes
     }
     state wall_sub_overflow(&self) -> SystemTimeResult { SystemTimeResult::Overflow }
 }
+
+// self + duration, clamping at SystemTime::MAX instead of reporting
+// overflow (total). Mirrors Duration::saturating_add.
+machine SystemTime::saturating_add(&self, duration: Duration) -> SystemTime {
+    let sum: SystemTimeResult = self.checked_add(duration);
+    transition sum {
+        SystemTimeResult::Ok { time } -> saturate_add_value(time)
+        SystemTimeResult::Overflow -> saturate_add_max()
+    }
+    state saturate_add_value(&self, time: SystemTime) -> SystemTime { time }
+    state saturate_add_max(&self) -> SystemTime { SystemTime::MAX }
+}
+
+// self - duration, clamping at SystemTime::MIN instead of reporting
+// underflow (total; wall time is signed, so the floor is i64::MIN seconds,
+// not the epoch). Mirrors Duration::saturating_subtract.
+machine SystemTime::saturating_subtract(&self, duration: Duration) -> SystemTime {
+    let difference: SystemTimeResult = self.checked_subtract(duration);
+    transition difference {
+        SystemTimeResult::Ok { time } -> saturate_value(time)
+        SystemTimeResult::Overflow -> saturate_min()
+    }
+    state saturate_value(&self, time: SystemTime) -> SystemTime { time }
+    state saturate_min(&self) -> SystemTime { SystemTime::MIN }
+}
+
 
 // The clock-read CAPABILITY (D9): reads live here, never ambiently on the
 // value types -- Rust's `Instant::now()`/`Instant::elapsed()` intentionally
