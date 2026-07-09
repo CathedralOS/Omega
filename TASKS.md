@@ -825,6 +825,21 @@ decreases remaining
   (differential 70/70; already a RUN member). Domain-witness sources now
   covered end to end: fields, params, lets, casts, nested nodes, promotions.
 
+- **PENDING-CANARY AUDIT 2026-07-10 (post-domain-arc, via omega-run --both):**
+  all 11 parked repros behave EXACTLY as their headers document -- no drift
+  from the node-level-domain / operand-position-lowering arc. Notables:
+  shift_amount_at_or_above_width agrees 72/72 on this host (aarch64 LSLV
+  matches the interp; the parked divergence is vs x86's 32-bit count mask,
+  unchanged); dead_trapping_let still splits by design (native DCE elides
+  the dead trap -> 7, interp traps -- #65 abort-as-effect territory);
+  const-fold family + unsigned_min_max unchanged (type-carrying-constants
+  design); receiver-field + tail_self_call fail loudly with their
+  documented diagnostics (the latter is the fs lane's active step-2 work).
+  ALSO CONFIRMED this tick: the language has NO unary minus
+  (UnaryOperator = LogicalNot only; negation is `0 - x`, which rides the
+  binary domain machinery) -- the domain operator space is complete with no
+  hidden unary path.
+
 - **[ ] Range constraint + non-Exact domain = the range is a LIE (found 2026-07-06).**
   `i: usize [0..=4] in Wrapping` accepts `self.i = 100` -- the range enforces only under the
   EXACT domain ("Wrapping stays permissive" was scoped to source-type narrowing, but it also
