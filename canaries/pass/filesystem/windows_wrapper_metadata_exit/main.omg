@@ -1,0 +1,42 @@
+// RUN CANARY (exit 70) -- native windows metadata via msvcrt `_stat64`, unfenced
+// 2026-07-08 once the value-machine const-index miscompile was fixed (the decode
+// reads `stat_buf[FilesystemHost::ST_*_OFF + k]` = a pure-const binary index that
+// now const-folds). Writes a known-size file, `stat`s it through the ergonomic
+// wrapper, and asserts the fields `_stat64` reports reliably, checking the DECODED
+// values directly: the size (`meta.len`, `st_size` @24) and the file-type bits of
+// the mode (`st_mode` @6: S_IFREG 0x8000, S_IFDIR 0x4000). The mask-compare is
+// spelled inline rather than via `meta.is_file()` on purpose -- a bool-returning
+// value-machine METHOD bound to a local mis-delivers on windows native (a separate
+// value-call gap, tracked apart from this offset migration); the inline guard is
+// the faithful test of the decode. ino/uid/gid/blocks/blksize/change-time are 0 on
+// native windows (absent from `_stat64`; read from a synthetic tail a real
+// `_stat64` leaves zero), so they are not asserted. Windows-gated (the raw
+// `read_metadata` seam binds `_stat64` only on windows_x64); darwin covers the
+// same wrapper path via the native_metadata_* canaries.
+// exits: 70 ok; 71 write failed; 72 metadata not Ok; 73 wrong len; 74 not regular file; 75 is dir.
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; fs: Filesystem; unit_result: UnitResult; meta_result: MetadataResult; }
+machine Main::main(&mut self) {
+    self.unit_result = self.fs.write_all("omega_winmeta_probe.txt", "hello!");
+    transition self.unit_result { UnitResult::Ok -> statit() _ -> bad(71) }
+    state statit(&mut self) {
+        self.meta_result = self.fs.metadata_path("omega_winmeta_probe.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> chklen(meta) _ -> bad(72) }
+    }
+    state chklen(&mut self, meta: Metadata) {
+        transition meta.len == 6 { true -> chkfile(meta) _ -> bad(73) }
+    }
+    state chkfile(&mut self, meta: Metadata) {
+        // S_IFREG (0x8000 = 32768): a regular file, decoded from st_mode @6.
+        transition (meta.mode & 61440) == 32768 { true -> chkdir(meta) _ -> bad(74) }
+    }
+    state chkdir(&mut self, meta: Metadata) {
+        self.unit_result = self.fs.remove("omega_winmeta_probe.txt");
+        // S_IFDIR (0x4000 = 16384): must NOT be set for a regular file.
+        transition (meta.mode & 61440) == 16384 { true -> bad(75) _ -> good() }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

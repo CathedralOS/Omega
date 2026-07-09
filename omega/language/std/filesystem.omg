@@ -587,7 +587,7 @@ machine Filesystem::copy(&mut self, from: &[u8] in Path, to: &[u8] in Path, buff
     // `stat` the source (it exists -- we just read it) and decode st_mode's
     // permission bits (low 9, & 0o777 = 511), then `chmod` the destination.
     let statrc: i32 = self.host.read_metadata(from, &mut self.stat_buf);
-    let mode: u32 = ((self.stat_buf[4] as u32) | ((self.stat_buf[5] as u32) << 8)) & 511;
+    let mode: u32 = ((self.stat_buf[FilesystemHost::ST_MODE_OFF + 0] as u32) | ((self.stat_buf[FilesystemHost::ST_MODE_OFF + 1] as u32) << 8)) & 511;
     let chmodded: i32 = self.host.set_permissions(to, mode);
     transition n >= 0 { true -> ok(n) _ -> err() }
     state ok(&mut self, n: i64) -> IoResult { IoResult::Ok { count: n as usize } }
@@ -635,86 +635,86 @@ machine Filesystem::try_exists(&mut self, path: &[u8] in Path) -> ExistsResult {
 // three. This SINGLE decode site is where the per-target `struct stat` offset
 // migration will land (TASKS_FS metadata rung).
 machine Filesystem::decode_metadata(&mut self) -> Metadata {
-    let len: i64 = (self.stat_buf[96] as i64)
-        | ((self.stat_buf[97] as i64) << 8)
-        | ((self.stat_buf[98] as i64) << 16)
-        | ((self.stat_buf[99] as i64) << 24)
-        | ((self.stat_buf[100] as i64) << 32)
-        | ((self.stat_buf[101] as i64) << 40)
-        | ((self.stat_buf[102] as i64) << 48)
-        | ((self.stat_buf[103] as i64) << 56);
-    let mode: i32 = (self.stat_buf[4] as i32) | ((self.stat_buf[5] as i32) << 8);
-    let nlink: u64 = (self.stat_buf[6] as u64) | ((self.stat_buf[7] as u64) << 8);
-    let ino: u64 = (self.stat_buf[8] as u64)
-        | ((self.stat_buf[9] as u64) << 8)
-        | ((self.stat_buf[10] as u64) << 16)
-        | ((self.stat_buf[11] as u64) << 24)
-        | ((self.stat_buf[12] as u64) << 32)
-        | ((self.stat_buf[13] as u64) << 40)
-        | ((self.stat_buf[14] as u64) << 48)
-        | ((self.stat_buf[15] as u64) << 56);
-    let uid: u32 = (self.stat_buf[16] as u32)
-        | ((self.stat_buf[17] as u32) << 8)
-        | ((self.stat_buf[18] as u32) << 16)
-        | ((self.stat_buf[19] as u32) << 24);
-    let gid: u32 = (self.stat_buf[20] as u32)
-        | ((self.stat_buf[21] as u32) << 8)
-        | ((self.stat_buf[22] as u32) << 16)
-        | ((self.stat_buf[23] as u32) << 24);
-    let dev: u64 = (self.stat_buf[0] as u64)
-        | ((self.stat_buf[1] as u64) << 8)
-        | ((self.stat_buf[2] as u64) << 16)
-        | ((self.stat_buf[3] as u64) << 24);
-    let rdev: u64 = (self.stat_buf[24] as u64)
-        | ((self.stat_buf[25] as u64) << 8)
-        | ((self.stat_buf[26] as u64) << 16)
-        | ((self.stat_buf[27] as u64) << 24);
-    let ctime: i64 = (self.stat_buf[64] as i64)
-        | ((self.stat_buf[65] as i64) << 8)
-        | ((self.stat_buf[66] as i64) << 16)
-        | ((self.stat_buf[67] as i64) << 24)
-        | ((self.stat_buf[68] as i64) << 32)
-        | ((self.stat_buf[69] as i64) << 40)
-        | ((self.stat_buf[70] as i64) << 48)
-        | ((self.stat_buf[71] as i64) << 56);
-    let blocks: u64 = (self.stat_buf[104] as u64)
-        | ((self.stat_buf[105] as u64) << 8)
-        | ((self.stat_buf[106] as u64) << 16)
-        | ((self.stat_buf[107] as u64) << 24)
-        | ((self.stat_buf[108] as u64) << 32)
-        | ((self.stat_buf[109] as u64) << 40)
-        | ((self.stat_buf[110] as u64) << 48)
-        | ((self.stat_buf[111] as u64) << 56);
-    let blksize: u64 = (self.stat_buf[112] as u64)
-        | ((self.stat_buf[113] as u64) << 8)
-        | ((self.stat_buf[114] as u64) << 16)
-        | ((self.stat_buf[115] as u64) << 24);
+    let len: i64 = (self.stat_buf[FilesystemHost::ST_SIZE_OFF + 0] as i64)
+        | ((self.stat_buf[FilesystemHost::ST_SIZE_OFF + 1] as i64) << 8)
+        | ((self.stat_buf[FilesystemHost::ST_SIZE_OFF + 2] as i64) << 16)
+        | ((self.stat_buf[FilesystemHost::ST_SIZE_OFF + 3] as i64) << 24)
+        | ((self.stat_buf[FilesystemHost::ST_SIZE_OFF + 4] as i64) << 32)
+        | ((self.stat_buf[FilesystemHost::ST_SIZE_OFF + 5] as i64) << 40)
+        | ((self.stat_buf[FilesystemHost::ST_SIZE_OFF + 6] as i64) << 48)
+        | ((self.stat_buf[FilesystemHost::ST_SIZE_OFF + 7] as i64) << 56);
+    let mode: i32 = (self.stat_buf[FilesystemHost::ST_MODE_OFF + 0] as i32) | ((self.stat_buf[FilesystemHost::ST_MODE_OFF + 1] as i32) << 8);
+    let nlink: u64 = (self.stat_buf[FilesystemHost::ST_NLINK_OFF + 0] as u64) | ((self.stat_buf[FilesystemHost::ST_NLINK_OFF + 1] as u64) << 8);
+    let ino: u64 = (self.stat_buf[FilesystemHost::ST_INO_OFF + 0] as u64)
+        | ((self.stat_buf[FilesystemHost::ST_INO_OFF + 1] as u64) << 8)
+        | ((self.stat_buf[FilesystemHost::ST_INO_OFF + 2] as u64) << 16)
+        | ((self.stat_buf[FilesystemHost::ST_INO_OFF + 3] as u64) << 24)
+        | ((self.stat_buf[FilesystemHost::ST_INO_OFF + 4] as u64) << 32)
+        | ((self.stat_buf[FilesystemHost::ST_INO_OFF + 5] as u64) << 40)
+        | ((self.stat_buf[FilesystemHost::ST_INO_OFF + 6] as u64) << 48)
+        | ((self.stat_buf[FilesystemHost::ST_INO_OFF + 7] as u64) << 56);
+    let uid: u32 = (self.stat_buf[FilesystemHost::ST_UID_OFF + 0] as u32)
+        | ((self.stat_buf[FilesystemHost::ST_UID_OFF + 1] as u32) << 8)
+        | ((self.stat_buf[FilesystemHost::ST_UID_OFF + 2] as u32) << 16)
+        | ((self.stat_buf[FilesystemHost::ST_UID_OFF + 3] as u32) << 24);
+    let gid: u32 = (self.stat_buf[FilesystemHost::ST_GID_OFF + 0] as u32)
+        | ((self.stat_buf[FilesystemHost::ST_GID_OFF + 1] as u32) << 8)
+        | ((self.stat_buf[FilesystemHost::ST_GID_OFF + 2] as u32) << 16)
+        | ((self.stat_buf[FilesystemHost::ST_GID_OFF + 3] as u32) << 24);
+    let dev: u64 = (self.stat_buf[FilesystemHost::ST_DEV_OFF + 0] as u64)
+        | ((self.stat_buf[FilesystemHost::ST_DEV_OFF + 1] as u64) << 8)
+        | ((self.stat_buf[FilesystemHost::ST_DEV_OFF + 2] as u64) << 16)
+        | ((self.stat_buf[FilesystemHost::ST_DEV_OFF + 3] as u64) << 24);
+    let rdev: u64 = (self.stat_buf[FilesystemHost::ST_RDEV_OFF + 0] as u64)
+        | ((self.stat_buf[FilesystemHost::ST_RDEV_OFF + 1] as u64) << 8)
+        | ((self.stat_buf[FilesystemHost::ST_RDEV_OFF + 2] as u64) << 16)
+        | ((self.stat_buf[FilesystemHost::ST_RDEV_OFF + 3] as u64) << 24);
+    let ctime: i64 = (self.stat_buf[FilesystemHost::ST_CTIME_OFF + 0] as i64)
+        | ((self.stat_buf[FilesystemHost::ST_CTIME_OFF + 1] as i64) << 8)
+        | ((self.stat_buf[FilesystemHost::ST_CTIME_OFF + 2] as i64) << 16)
+        | ((self.stat_buf[FilesystemHost::ST_CTIME_OFF + 3] as i64) << 24)
+        | ((self.stat_buf[FilesystemHost::ST_CTIME_OFF + 4] as i64) << 32)
+        | ((self.stat_buf[FilesystemHost::ST_CTIME_OFF + 5] as i64) << 40)
+        | ((self.stat_buf[FilesystemHost::ST_CTIME_OFF + 6] as i64) << 48)
+        | ((self.stat_buf[FilesystemHost::ST_CTIME_OFF + 7] as i64) << 56);
+    let blocks: u64 = (self.stat_buf[FilesystemHost::ST_BLOCKS_OFF + 0] as u64)
+        | ((self.stat_buf[FilesystemHost::ST_BLOCKS_OFF + 1] as u64) << 8)
+        | ((self.stat_buf[FilesystemHost::ST_BLOCKS_OFF + 2] as u64) << 16)
+        | ((self.stat_buf[FilesystemHost::ST_BLOCKS_OFF + 3] as u64) << 24)
+        | ((self.stat_buf[FilesystemHost::ST_BLOCKS_OFF + 4] as u64) << 32)
+        | ((self.stat_buf[FilesystemHost::ST_BLOCKS_OFF + 5] as u64) << 40)
+        | ((self.stat_buf[FilesystemHost::ST_BLOCKS_OFF + 6] as u64) << 48)
+        | ((self.stat_buf[FilesystemHost::ST_BLOCKS_OFF + 7] as u64) << 56);
+    let blksize: u64 = (self.stat_buf[FilesystemHost::ST_BLKSIZE_OFF + 0] as u64)
+        | ((self.stat_buf[FilesystemHost::ST_BLKSIZE_OFF + 1] as u64) << 8)
+        | ((self.stat_buf[FilesystemHost::ST_BLKSIZE_OFF + 2] as u64) << 16)
+        | ((self.stat_buf[FilesystemHost::ST_BLKSIZE_OFF + 3] as u64) << 24);
     let is_dir: bool = (mode & 61440) == 16384;
     let is_symlink: bool = (mode & 61440) == 40960;
-    let mtime: i64 = (self.stat_buf[48] as i64)
-        | ((self.stat_buf[49] as i64) << 8)
-        | ((self.stat_buf[50] as i64) << 16)
-        | ((self.stat_buf[51] as i64) << 24)
-        | ((self.stat_buf[52] as i64) << 32)
-        | ((self.stat_buf[53] as i64) << 40)
-        | ((self.stat_buf[54] as i64) << 48)
-        | ((self.stat_buf[55] as i64) << 56);
-    let atime: i64 = (self.stat_buf[32] as i64)
-        | ((self.stat_buf[33] as i64) << 8)
-        | ((self.stat_buf[34] as i64) << 16)
-        | ((self.stat_buf[35] as i64) << 24)
-        | ((self.stat_buf[36] as i64) << 32)
-        | ((self.stat_buf[37] as i64) << 40)
-        | ((self.stat_buf[38] as i64) << 48)
-        | ((self.stat_buf[39] as i64) << 56);
-    let btime: i64 = (self.stat_buf[80] as i64)
-        | ((self.stat_buf[81] as i64) << 8)
-        | ((self.stat_buf[82] as i64) << 16)
-        | ((self.stat_buf[83] as i64) << 24)
-        | ((self.stat_buf[84] as i64) << 32)
-        | ((self.stat_buf[85] as i64) << 40)
-        | ((self.stat_buf[86] as i64) << 48)
-        | ((self.stat_buf[87] as i64) << 56);
+    let mtime: i64 = (self.stat_buf[FilesystemHost::ST_MTIME_OFF + 0] as i64)
+        | ((self.stat_buf[FilesystemHost::ST_MTIME_OFF + 1] as i64) << 8)
+        | ((self.stat_buf[FilesystemHost::ST_MTIME_OFF + 2] as i64) << 16)
+        | ((self.stat_buf[FilesystemHost::ST_MTIME_OFF + 3] as i64) << 24)
+        | ((self.stat_buf[FilesystemHost::ST_MTIME_OFF + 4] as i64) << 32)
+        | ((self.stat_buf[FilesystemHost::ST_MTIME_OFF + 5] as i64) << 40)
+        | ((self.stat_buf[FilesystemHost::ST_MTIME_OFF + 6] as i64) << 48)
+        | ((self.stat_buf[FilesystemHost::ST_MTIME_OFF + 7] as i64) << 56);
+    let atime: i64 = (self.stat_buf[FilesystemHost::ST_ATIME_OFF + 0] as i64)
+        | ((self.stat_buf[FilesystemHost::ST_ATIME_OFF + 1] as i64) << 8)
+        | ((self.stat_buf[FilesystemHost::ST_ATIME_OFF + 2] as i64) << 16)
+        | ((self.stat_buf[FilesystemHost::ST_ATIME_OFF + 3] as i64) << 24)
+        | ((self.stat_buf[FilesystemHost::ST_ATIME_OFF + 4] as i64) << 32)
+        | ((self.stat_buf[FilesystemHost::ST_ATIME_OFF + 5] as i64) << 40)
+        | ((self.stat_buf[FilesystemHost::ST_ATIME_OFF + 6] as i64) << 48)
+        | ((self.stat_buf[FilesystemHost::ST_ATIME_OFF + 7] as i64) << 56);
+    let btime: i64 = (self.stat_buf[FilesystemHost::ST_BTIME_OFF + 0] as i64)
+        | ((self.stat_buf[FilesystemHost::ST_BTIME_OFF + 1] as i64) << 8)
+        | ((self.stat_buf[FilesystemHost::ST_BTIME_OFF + 2] as i64) << 16)
+        | ((self.stat_buf[FilesystemHost::ST_BTIME_OFF + 3] as i64) << 24)
+        | ((self.stat_buf[FilesystemHost::ST_BTIME_OFF + 4] as i64) << 32)
+        | ((self.stat_buf[FilesystemHost::ST_BTIME_OFF + 5] as i64) << 40)
+        | ((self.stat_buf[FilesystemHost::ST_BTIME_OFF + 6] as i64) << 48)
+        | ((self.stat_buf[FilesystemHost::ST_BTIME_OFF + 7] as i64) << 56);
     Metadata { len: len, is_dir: is_dir, is_symlink: is_symlink, mode: mode as u32, nlink: nlink, ino: ino, dev: dev, uid: uid, gid: gid, rdev: rdev, blocks: blocks, blksize: blksize, modified_secs: mtime, accessed_secs: atime, created_secs: btime, changed_secs: ctime }
 }
 
