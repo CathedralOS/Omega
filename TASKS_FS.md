@@ -639,9 +639,14 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    print-logging — grant Console (stdout is captured by the interpreter
    anyway), or keep strict? Strict is the reversible choice, so that is
    what ships until decided.
-   (5) DOC DEBT: wiki/design_briefs/build_and_package_model.md §3 ("Pure
-   plan, effectful executor") still teaches the RETIRED framing — wants a
-   revision pass reflecting grants-as-audit-surface (happy to draft).
+   (5) DOC DEBT — DRAFTED (2026-07-10b): build_and_package_model.md now
+   carries a second addendum ("SETTLED 2026-07-07: granted filesystem;
+   'describe, never do' retired") — the grant model, what stays true
+   (Build-as-plan, no toolchain circularity, the version-invariance
+   nuance now conditioned on fs state), scoping enforcement, engineering
+   state, and questions 1–4 above restated as the brief's open items.
+   §1/§3 annotated with pointers. Review welcome — it is a draft of
+   YOUR decision, edit at will.
 4. [ ] Windows ops without msvcrt equivalents → Win32 calls (stat family first,
    after #2's design).
 5. [ ] Title-bar context-menu Close → outbound WndProc entry stubs (§12.4).

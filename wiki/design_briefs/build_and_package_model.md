@@ -2,7 +2,8 @@
 
 > **For:** Omega maintainer · **Status:** SETTLED — model (chat 2026-07-02);
 > `Build` v1 schema + the target-block retirement SETTLED (chat 2026-07-04,
-> Zach) — see the addendum at the end. · **Driver:** Cathedral is starting on boot and needs the
+> Zach); granted-filesystem revision SETTLED (chat 2026-07-07, Zach) — see the
+> two addenda at the end. · **Driver:** Cathedral is starting on boot and needs the
 > per-package boundary manifest that `separate_compilation.md` calls for — this
 > settles what that manifest is. · **Depends on:**
 > [`build_time_evaluation.md`](build_time_evaluation.md) (pure build-time eval),
@@ -28,10 +29,12 @@ second, worse escape hatch.
 
 Four consequences settle long-standing questions:
 
-1. **Pure plan, effectful executor.** `build.omg` computes *what* to build; the
-   package manager / toolchain performs the effects (fetch, compile, link). The
-   manifest stays pure; the driver runs the plan — the same split as everywhere
-   else in the system.
+1. **Pure plan, effectful executor.** *(REVISED 2026-07-07 — see the second
+   addendum: build.omg now runs with a granted, scoped Filesystem capability
+   and stages assets itself; the grant is the audit surface.)* `build.omg`
+   computes *what* to build; the package manager / toolchain performs the
+   remaining effects (fetch, compile, link). The driver still runs that plan —
+   the same split as everywhere else in the system.
 2. **No toolchain seed, no lockfile.** `build.omg` is *interpreted* by the tool
    in hand, so it can declare its own toolchain without circularity; and because
    dependencies are pinned in the manifest itself, there is nothing to lock.
@@ -89,6 +92,12 @@ machine over a typed settings value, never a parsed file format (see
 `constrain` = a ceiling machine).
 
 ## 3. Pure plan, effectful executor
+
+> **REVISED 2026-07-07 (chat, Zach) — see the second addendum.** The
+> "describe, never do" framing below is RETIRED: build.omg runs interpreted
+> with a granted, scoped `Filesystem` capability and copies assets itself.
+> The section is kept for the parts that remain true (the augmented `Build`
+> is still the plan the driver executes for fetch/compile/link).
 
 Building has effects — fetching a git dependency, invoking the backend, writing
 artifacts. `build.omg` has none of them, because it only *describes*:
@@ -241,3 +250,68 @@ compiler-known; the exported `boundary machine`'s declared parameter shape is
 checked to FIT it per built target — a loud per-target error, no target-side
 entry declaration (that was a third statement of information already present;
 see `calling_plans.md` §7).
+
+## Addendum — SETTLED 2026-07-07 (chat, Zach): granted filesystem; "describe, never do" retired
+
+**build.omg DOES the asset staging itself.** No declarative asset list, no
+copy-plan the driver replays: build.omg runs INTERPRETED with a granted,
+scoped `Filesystem` capability (read: the source tree; write: the build dir)
+and copies what it wants where it wants — "this is the whole point of making
+the build system code." §3's purity framing is retired for the filesystem;
+**capability grants are the audit surface** that purity used to be:
+
+```text
+tool-in-hand ── interprets ──▶ build.omg (fs-granted) ──▶ the augmented Build (data)
+                                     │                          │
+                     stages assets (its own effect,             │
+                     scoped to read:src write:out)              │
+                                                                ▼
+package manager / toolchain ── executes the remaining plan (fetch, compile, link)
+```
+
+What this does NOT change:
+
+- **Everything else stays fenced.** Only `Filesystem` is granted; a build.omg
+  touching any other host boundary (console, clock, gui, network-when-it-
+  exists) is rejected — statically by the effect gate, dynamically by the
+  interpreter's non-fs backstop. Additional grants would be their own,
+  equally explicit decisions.
+- **The augmented `Build` is still the plan.** Dependencies, targets, options
+  ride back as data; the driver still performs fetch/compile/link. The
+  retirement is narrow: asset staging moved from "described to the driver"
+  to "done by the manifest under grant."
+- **No toolchain circularity (§4).** build.omg is still interpreted by the
+  tool in hand, never compiled by the toolchain it names. One nuance
+  inherits a condition: §4's "interpreting a pure function is
+  version-invariant" now reads "version-invariant GIVEN the filesystem
+  state" — the pins/toolchain argument is unaffected (those fields are
+  plain data), and the differential oracle still pins the interpreter's fs
+  semantics (the hermetic virtual fs is unchanged and remains the default
+  everywhere except an actual granted build).
+- **Scoping is enforced, not advisory.** Grant checks canonicalize both the
+  roots and every op path (a not-yet-existing leaf rides its canonicalized
+  parent), so `..` traversal and symlinks that escape a granted tree resolve
+  to their real target and refuse with EACCES; both ends of a rename need
+  write authority; fd-based ops need no re-check because an fd only enters
+  the table through an authorized open.
+
+**Engineering state (2026-07-10):** the interpreter side is LANDED —
+`interpret_with_options` + `FilesystemAccess::{Virtual, RealUnscoped,
+RealScoped(FsGrants)}` (omega-interpreter), the real-fs provider
+(create/open/read/write/seek/positioned I/O/dirs/read_dir/metadata/rename;
+the rest -1/ENOTSUP loudly), and `evaluate_build_machine_with_filesystem`
+(the augmenting-machine runner with the fs-allowing backstop). The
+compiler-side entry (`pipeline/build_config.rs`) still enforces the retired
+empty-effect gate; relaxing it waits on the OPEN QUESTIONS below.
+
+**Open (design, not yet settled):**
+1. **Capability injection spelling** — how `machine build(b: &mut Build)`
+   receives its `Filesystem`: a field on `Build` (`b.fs`), a second
+   parameter, or machine-owned data. Every build.omg will spell this.
+2. **Grant derivation defaults** — read = the package dir (main.omg's
+   directory)? write = which output dir? May build.omg request extra roots,
+   and does that require a CLI acknowledgment (`--allow-read=...`)?
+3. **Gate shape** — relax the effect gate to "⊆ {filesystem}"
+   unconditionally, or behind an explicit opt-in?
+4. **Console for build logging** — currently rejected (the strict,
+   reversible choice); print-logging is the obvious want.
