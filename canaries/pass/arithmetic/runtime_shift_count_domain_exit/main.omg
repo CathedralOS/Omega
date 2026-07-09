@@ -1,0 +1,34 @@
+// RUN CANARY (exit 70) + interpreter differential. SHIFT-COUNT domain
+// exemption (owner ruling 2026-07-13: "shift overflow is defined by the
+// domain on which the operator is happening... lhs domain governs, rhs
+// doesn't matter"): a Wrapping lhs shifted by an EXACT count resolves with
+// the LHS's domain -- previously the mixed-domain check rejected
+// `wrapped << self.k` outright. Legs: << and >> with a runtime Exact count.
+// (At-width counts are slice B: the wrapping count-clamp on x86 + aarch64
+// 64-bit; not pinned here so this canary stays arch-independent.)
+// exits: 71 = << wrong; 72 = >> wrong.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; k: u32; }
+machine Main::main(&mut self) {
+    self.k = 3;
+    self.build();
+}
+machine Main::build(&mut self) {
+    let a: u32 in Wrapping = (1 as u32 in Wrapping);
+    let r: u32 in Wrapping = a << self.k;
+    transition r == 8 {
+        true -> leg2()
+        _ -> wrong_shl()
+    }
+    state leg2(&mut self) {
+        let b: u32 in Wrapping = (64 as u32 in Wrapping);
+        let s: u32 in Wrapping = b >> self.k;
+        transition s == 8 {
+            true -> good()
+            _ -> wrong_shr()
+        }
+    }
+    state good(&mut self)      { self.console.exit_process(70); }
+    state wrong_shl(&mut self) { self.console.exit_process(71); }
+    state wrong_shr(&mut self) { self.console.exit_process(72); }
+}

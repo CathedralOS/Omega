@@ -1285,8 +1285,20 @@ fn analyze(
                 )));
             }
 
+            // A SHIFT's count operand carries no domain weight: "shift
+            // overflow is defined by the domain on which the operator is
+            // happening... lhs domain governs, rhs doesn't matter" (owner
+            // ruling, 2026-07-13). `wrapped << self.k` takes the LHS domain
+            // and the count is just a number -- exempt from the mixed-domain
+            // check and from the domain merge below.
+            let shift_count_rhs = matches!(
+                operator,
+                BinaryOperator::ShiftLeft | BinaryOperator::ShiftRight
+            );
+
             // S2: a binary mixing two different explicit domains is illegal.
-            if let (Some(left_domain), Some(right_domain)) = (left.domain, right.domain)
+            if !shift_count_rhs
+                && let (Some(left_domain), Some(right_domain)) = (left.domain, right.domain)
                 && left_domain != right_domain
             {
                 diagnostics.push(Diagnostic::error(format!(
@@ -1298,16 +1310,20 @@ fn analyze(
                 )));
             }
 
-            let domain = match (left.domain, right.domain) {
-                (Some(left_domain), Some(right_domain)) => Some(if left_domain
-                    == ArithmeticDomain::Exact
-                {
-                    right_domain
-                } else {
-                    left_domain
-                }),
-                (Some(domain), None) | (None, Some(domain)) => Some(domain),
-                (None, None) => None,
+            let domain = if shift_count_rhs {
+                left.domain
+            } else {
+                match (left.domain, right.domain) {
+                    (Some(left_domain), Some(right_domain)) => Some(if left_domain
+                        == ArithmeticDomain::Exact
+                    {
+                        right_domain
+                    } else {
+                        left_domain
+                    }),
+                    (Some(domain), None) | (None, Some(domain)) => Some(domain),
+                    (None, None) => None,
+                }
             };
             let interval = match operator {
                 BinaryOperator::Add => left.interval.add(right.interval),
