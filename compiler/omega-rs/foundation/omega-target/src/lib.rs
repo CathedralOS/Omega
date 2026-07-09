@@ -37,9 +37,10 @@ impl NativeTarget {
             Some("linux_x64") => Ok(Self::linux_x64()),
             Some("macos_arm64") => Ok(Self::macos_arm64()),
             Some("windows_x64") => Ok(Self::windows_x64()),
+            Some("uefi_x64") => Ok(Self::uefi_x64()),
             Some("cross_platform_cli") | Some("local_unchecked") | None => Ok(Self::host()),
             Some(target_name) => Err(Diagnostic::error(format!(
-                "unknown native target `{target_name}`; expected linux_arm64, linux_x64, macos_arm64, windows_x64, cross_platform_cli, or local_unchecked"
+                "unknown native target `{target_name}`; expected linux_arm64, linux_x64, macos_arm64, windows_x64, uefi_x64, cross_platform_cli, or local_unchecked"
             ))),
         }
     }
@@ -72,6 +73,22 @@ impl NativeTarget {
     }
 
     pub fn windows_x64() -> Self {
+        Self {
+            architecture: Architecture::X86_64,
+            object_format: ObjectFormat::Coff,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        }
+    }
+
+    /// The UEFI application target: x86_64 PE32+ (the Coff/PE emitter),
+    /// matching the boot-verified milestone-1 image shape. The
+    /// subsystem-10/freestanding facts come from build.omg
+    /// (`efi_application`), exactly as they did on a Windows host; this
+    /// entry only pins architecture + format so the efi family
+    /// cross-compiles from ANY host. The name was already load-bearing in
+    /// source (`uefi_x64 provides ...` rows, D15).
+    pub fn uefi_x64() -> Self {
         Self {
             architecture: Architecture::X86_64,
             object_format: ObjectFormat::Coff,
