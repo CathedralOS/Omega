@@ -1,0 +1,46 @@
+// PENDING (2026-07-09l): SLICE-ELEMENT results from dispatched value calls.
+// TWO shapes, one refusal + one CRASH:
+//  (a) direct terminal `-> s[j]`: refused LOUDLY by the call-result blocker
+//      (correct). An attempt to serve it via
+//      CopyRuntimeFrameIndexedToRuntimeStorage CRASHED: that kind's
+//      encoder/relocation IGNORE `target_region` (built for machine-field
+//      mutation targets), so a frame result slot stored into machine memory
+//      -- reverted same-session; serving needs the kind made
+//      region-parametric (encoder-thread work).
+//  (b) ⚠️ the FIELD-CARRIER workaround (`self.picked = s[j]` in a dispatched
+//      arm, then a field-read terminal) CRASHES natively (signal, interp 70)
+//      -- the designed machine-target case of the same kind. mkall_put's u8
+//      twin (`self.mkall_byte = path[j]`) WORKS in dir_walk_wrappers_exit;
+//      the differences to bisect: element size (i32 vs u8), the descriptor
+//      being a nested-forwarded param, or the deeper dispatch context.
+//      A LIVE CRASH shape -- minimize + fix or fence next.
+// This file is shape (a); the field-carrier twin is in
+// scratchpad/rwmatrix/j2_field_carrier.omg (recreate from the header above
+// if lost). Expected when served: native+interp 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; nums: [i32; 4]; }
+machine Main::pick(&mut self, s: &[i32], i: usize, j: usize)
+terminates { decreases (j, i) -> Nat::BoundedDistance; }
+-> i32
+{
+    transition j < i {
+        true -> pick(s, i, j + 1)
+        false -> leaf(s, j)
+    }
+    state leaf(&mut self, s: &[i32], j: usize) -> i32 {
+        transition j < s.len { true -> leaf_go(s, j) _ -> leaf_zero() }
+    }
+    state leaf_go(&mut self, s: &[i32], j: usize) -> i32 { s[j] }
+    state leaf_zero(&mut self) -> i32 { 0 }
+}
+machine Main::main(&mut self) {
+    self.nums[0] = 5;
+    self.nums[1] = 6;
+    self.nums[2] = 7;
+    self.nums[3] = 8;
+    // Loop to j == 2, then return s[2] == 7.
+    let n: i32 = self.pick(self.nums, 2, 0);
+    transition n == 7 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
