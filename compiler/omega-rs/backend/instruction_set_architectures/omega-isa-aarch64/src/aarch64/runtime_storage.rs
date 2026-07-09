@@ -5,11 +5,13 @@ use omega_target_operations::{
 
 use super::primitives::{
     append_add_x_constant, append_unsigned_immediate, append_unsigned_immediate_padded,
+    encode_add_x_immediate,
     append_unsigned_immediate_w_padded, encode_add_page_offset_placeholder, encode_add_x_register,
     encode_adrp_placeholder, encode_and_x_register, encode_casal, encode_cbz_x, encode_eor_x_register,
     encode_float_add,
     encode_ldaddal_discard,
-    encode_float_compare, encode_load_byte_w_post_increment, encode_subs_x_immediate,
+    encode_float_compare, encode_load_byte_w_post_increment, encode_store_byte_w_post_increment,
+    encode_subs_x_immediate,
     encode_unconditional_branch,
     encode_float_convert_double_to_single, encode_float_convert_single_to_double,
     encode_float_divide, encode_float_move_from_gpr, encode_float_move_to_gpr,
@@ -39,9 +41,11 @@ use super::widths::{
     runtime_frame_indexed_address_to_runtime_frame_write_width,
     runtime_frame_indexed_binary_write_width, runtime_frame_indexed_integer_write_width,
     runtime_frame_indexed_string_write_width, runtime_frame_string_write_width,
-    runtime_machine_bounded_buffer_write_width,
+    runtime_machine_bounded_buffer_literal_append_width,
+    runtime_machine_bounded_buffer_source_append_width, runtime_machine_bounded_buffer_write_width,
     runtime_machine_indexed_integer_write_width, runtime_machine_indexed_string_write_width,
     runtime_machine_integer_write_width, runtime_machine_string_write_width,
+    runtime_pointee_bounded_buffer_write_width,
     runtime_pointee_address_to_runtime_frame_write_width, runtime_pointee_binary_write_width,
     runtime_pointee_integer_write_width, runtime_pointee_string_write_width,
     runtime_storage_address_to_runtime_frame_write_width, runtime_storage_binary_write_width,
@@ -1029,6 +1033,140 @@ pub fn encode_runtime_machine_bounded_buffer_write(
     debug_assert_eq!(
         bytes.len(),
         runtime_machine_bounded_buffer_write_width(literal)
+    );
+    Ok(bytes)
+}
+
+/// Write a string literal into an owned `[u8; N]` carrier reached THROUGH a
+/// stored pointer (`rooms[0].label = "Gate"`): load the pointer from
+/// `frame[pointer_byte_offset]` into x16, then store `{len, bytes}` inline at
+/// `*ptr + field`. Content is immediate, so the frame base (the leading
+/// `adrp`+`add`, relocated at instruction start) is the only relocation --
+/// mirroring the x86_64 pointee carrier write.
+pub fn encode_runtime_pointee_bounded_buffer_write(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_pointee_bounded_buffer_write_width(
+        pointer_byte_offset,
+        field_byte_offset,
+        literal,
+    ));
+    bytes.extend(encode_adrp_placeholder(16)); // x16 = frame base (reloc @ start)
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    append_runtime_storage_load(
+        &mut bytes,
+        16,
+        16,
+        pointer_byte_offset,
+        8,
+        "runtime pointee carrier",
+    )?; // x16 = stored pointer
+    if field_byte_offset > 0 {
+        append_add_constant_to_x_register(&mut bytes, 16, field_byte_offset)?;
+    }
+    append_unsigned_immediate(&mut bytes, 17, literal.len() as u64);
+    bytes.extend(encode_store_x_to_x(17, 16, 0)?); // [*ptr + field] = len word
+    for (index, byte) in literal.as_bytes().iter().enumerate() {
+        append_unsigned_immediate(&mut bytes, 17, u64::from(*byte));
+        bytes.extend(encode_store_byte_w_to_x(17, 16, 8 + index)?);
+    }
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_pointee_bounded_buffer_write_width(pointer_byte_offset, field_byte_offset, literal)
+    );
+    Ok(bytes)
+}
+
+/// Append a string LITERAL onto an owned `[u8; N]` carrier at its running
+/// length (a later concat segment, e.g. the trailing `" =="`). x16 = machine
+/// storage base (the only relocation, at instruction start); x15 = running
+/// length; x14 = byte cursor (`base + target + 8 + len`, advanced by
+/// post-increment stores); the literal bytes are immediates. The new length
+/// (`len + literal.len`) is stored last.
+pub fn encode_runtime_machine_bounded_buffer_literal_append(
+    target_byte_offset: usize,
+    literal: &str,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_machine_bounded_buffer_literal_append_width(
+        target_byte_offset,
+        literal,
+    ));
+    bytes.extend(encode_adrp_placeholder(16)); // x16 = machine storage base (reloc @ start)
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    bytes.extend(encode_load_x_from_x(15, 16, target_byte_offset)?); // x15 = running len
+    append_add_x_constant(&mut bytes, 14, 16, target_byte_offset + 8, 13)?; // x14 = bytes base
+    bytes.extend(encode_add_x_register(14, 14, 15)); // x14 = write cursor (bytes + len)
+    for byte in literal.as_bytes() {
+        append_unsigned_immediate(&mut bytes, 17, u64::from(*byte));
+        bytes.extend(encode_store_byte_w_post_increment(17, 14, 1)?);
+    }
+    bytes.extend(encode_add_x_immediate(15, 15, literal.len())?); // len += literal.len
+    bytes.extend(encode_store_x_to_x(15, 16, target_byte_offset)?);
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_machine_bounded_buffer_literal_append_width(target_byte_offset, literal)
+    );
+    Ok(bytes)
+}
+
+/// Append a source carrier's content onto a target carrier (concat builder
+/// source segment, after the first literal initialized the target). x16 = the
+/// machine storage base (target; relocated at instruction start); a frame-local
+/// source (`let`-local struct's carrier) adds a frame-base `adrp`+`add` pair for
+/// x14 right after (relocated at the arch-aware +8 -- see the relocation
+/// record). x15 = target running len, x13 = source len (consumed as the copy
+/// counter), x12/x11 = source/target byte cursors, w17 = byte scratch. The new
+/// length is stored BEFORE the copy loop, which decrements x13 to zero -- the
+/// same must-precede rule as the x86_64 `rep movsb` encoder.
+pub fn encode_runtime_machine_bounded_buffer_source_append(
+    target_byte_offset: usize,
+    source_byte_offset: usize,
+    source_in_frame: bool,
+) -> Result<Vec<u8>, Diagnostic> {
+    let mut bytes = Vec::with_capacity(runtime_machine_bounded_buffer_source_append_width(
+        target_byte_offset,
+        source_byte_offset,
+        source_in_frame,
+    ));
+    bytes.extend(encode_adrp_placeholder(16)); // x16 = machine storage base (reloc @ start)
+    bytes.extend(encode_add_page_offset_placeholder(16));
+    let source_base = if source_in_frame {
+        bytes.extend(encode_adrp_placeholder(14)); // x14 = frame base (reloc @ +8)
+        bytes.extend(encode_add_page_offset_placeholder(14));
+        14
+    } else {
+        16
+    };
+    bytes.extend(encode_load_x_from_x(15, 16, target_byte_offset)?); // x15 = target len
+    bytes.extend(encode_load_x_from_x(13, source_base, source_byte_offset)?); // x13 = source len
+    append_add_x_constant(&mut bytes, 12, source_base, source_byte_offset + 8, 10)?; // x12 = src bytes
+    append_add_x_constant(&mut bytes, 11, 16, target_byte_offset + 8, 10)?; // x11 = dst bytes base
+    bytes.extend(encode_add_x_register(11, 11, 15)); // x11 = dst cursor (bytes + len)
+    // new len = target_len + source_len -- MUST precede the loop, which
+    // consumes x13 as it copies; computing it after would always add 0.
+    bytes.extend(encode_add_x_register(15, 15, 13));
+    bytes.extend(encode_store_x_to_x(15, 16, target_byte_offset)?);
+    // Bounded byte copy:
+    //   loop: cbz  x13, done   (+20: skip ldrb/strb/subs/b)
+    //         ldrb w17, [x12], #1
+    //         strb w17, [x11], #1
+    //         subs x13, x13, #1
+    //         b    loop        (-16)
+    //   done:
+    bytes.extend(encode_cbz_x(13, 20)?);
+    bytes.extend(encode_load_byte_w_post_increment(17, 12, 1)?);
+    bytes.extend(encode_store_byte_w_post_increment(17, 11, 1)?);
+    bytes.extend(encode_subs_x_immediate(13, 13, 1)?);
+    bytes.extend(encode_unconditional_branch(-16)?);
+    debug_assert_eq!(
+        bytes.len(),
+        runtime_machine_bounded_buffer_source_append_width(
+            target_byte_offset,
+            source_byte_offset,
+            source_in_frame
+        )
     );
     Ok(bytes)
 }
@@ -2221,11 +2359,9 @@ fn append_runtime_value_operand(
             right_offset,
         )?;
         Ok(())
-    } else if let Some((place, literal, _place_is_bounded_buffer)) =
+    } else if let Some((place, literal, place_is_bounded_buffer)) =
         runtime_value_operands.text_equals_literal(operand)
     {
-        // The owned `[u8; N]` carrier read is x86_64-only for now (its write is
-        // too); aarch64 only ever sees String/slice descriptor places here.
         append_runtime_text_equals_literal_operand(
             runtime_value_operands,
             bytes,
@@ -2233,6 +2369,7 @@ fn append_runtime_value_operand(
             scratch_registers,
             place,
             &literal,
+            place_is_bounded_buffer,
         )?;
         Ok(())
     } else if let Some((left, operator, right)) = runtime_value_operands.binary(operand) {
@@ -2398,14 +2535,19 @@ fn append_runtime_text_equals_operand(
 }
 
 /// Guard-position text content equality against an inline literal:
-/// `destination = (place == literal)` as bool 0/1, where `place` names the
-/// String side's `{ptr @ +0, len @ +8}` text descriptor (a relocated storage
+/// `destination = (place == literal)` as bool 0/1, where `place` names either
+/// the String side's `{ptr @ +0, len @ +8}` text descriptor or -- when
+/// `place_is_bounded_buffer` -- an owned `[u8; N]` carrier whose layout is
+/// `{len @ +0, bytes inline @ +8}` (same address setups: a relocated storage
 /// base, a pointee field behind a frame pointer slot, or a frame-indexed /
-/// frame-base-indexed / frame-fixed-indexed element field) and the literal's
+/// frame-base-indexed / frame-fixed-indexed element field). The literal's
 /// expected bytes are compared as inline immediates -- no rodata descriptor
-/// exists for the literal side. Width is
+/// exists for the literal side. The carrier and descriptor reads are
+/// width-identical (an `add` computing the inline bytes address vs a pointer
+/// load, one `ldr` each for the length), so the shared width is
 /// `runtime_text_equals_literal_operand_width` (place-setup plus a fixed
-/// head plus 12 bytes per literal byte).
+/// head plus 12 bytes per literal byte), independent of the flag -- mirroring
+/// the x86_64 encoder's same-width carrier branch.
 ///
 /// Register use: the place address setup lands the descriptor address in x16
 /// (clobbering x17/x19/x20/x21/x26 on the indexed paths, exactly like the
@@ -2419,6 +2561,7 @@ fn append_runtime_text_equals_literal_operand(
     scratch_registers: &[u8],
     place: RuntimeValueOperandHandle,
     literal: &str,
+    place_is_bounded_buffer: bool,
 ) -> Result<(), Diagnostic> {
     let [ptr_register, len_register, byte_scratch, ..] = *scratch_registers else {
         return Err(Diagnostic::error(
@@ -2486,8 +2629,17 @@ fn append_runtime_text_equals_literal_operand(
         ));
     }
 
-    bytes.extend(encode_load_x_from_x(ptr_register, 16, 0)?);
-    bytes.extend(encode_load_x_from_x(len_register, 16, 8)?);
+    if place_is_bounded_buffer {
+        // Owned carrier `{len@0, bytes@8}`: the bytes ADDRESS is computed
+        // (x16 + 8, not a stored pointer) and the length is read at offset 0.
+        // Width-identical to the descriptor path (one `add` + one `ldr` vs two
+        // `ldr`s), so branch offsets and the operand width are unchanged.
+        bytes.extend(encode_add_x_immediate(ptr_register, 16, 8)?);
+        bytes.extend(encode_load_x_from_x(len_register, 16, 0)?);
+    } else {
+        bytes.extend(encode_load_x_from_x(ptr_register, 16, 0)?);
+        bytes.extend(encode_load_x_from_x(len_register, 16, 8)?);
+    }
 
     // result = 0; a length mismatch is unequal text. The b.ne also means an
     // all-zero (default) descriptor never has its null pointer dereferenced

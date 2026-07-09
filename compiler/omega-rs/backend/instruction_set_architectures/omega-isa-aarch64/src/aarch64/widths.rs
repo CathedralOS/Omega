@@ -591,11 +591,68 @@ pub fn runtime_machine_string_write_width(byte_length: usize) -> usize {
 pub fn runtime_machine_bounded_buffer_write_width(literal: &str) -> usize {
     8 + unsigned_immediate_width(literal.len() as u64)
         + 4
-        + literal
-            .as_bytes()
-            .iter()
-            .map(|byte| unsigned_immediate_width(u64::from(*byte)) + 4)
-            .sum::<usize>()
+        + bounded_buffer_literal_bytes_width(literal)
+}
+
+/// Per-content-byte cost shared by the carrier write/append encoders: a `movz`
+/// (or `movz`+`movk`s) materializing the byte plus one 4-byte store.
+fn bounded_buffer_literal_bytes_width(literal: &str) -> usize {
+    literal
+        .as_bytes()
+        .iter()
+        .map(|byte| unsigned_immediate_width(u64::from(*byte)) + 4)
+        .sum::<usize>()
+}
+
+/// Width of the owned-carrier write through a stored pointer (see
+/// `runtime_storage::encode_runtime_pointee_bounded_buffer_write`): frame-base
+/// `adrp`+`add` (8), the pointer load with its optional offset add, the optional
+/// field-offset add, the length immediate + its store, then the per-byte stores.
+pub fn runtime_pointee_bounded_buffer_write_width(
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
+    literal: &str,
+) -> usize {
+    8 + add_constant_width(pointer_byte_offset)
+        + 4
+        + add_constant_width(field_byte_offset)
+        + unsigned_immediate_width(literal.len() as u64)
+        + 4
+        + bounded_buffer_literal_bytes_width(literal)
+}
+
+/// Width of the owned-carrier literal append (see
+/// `runtime_storage::encode_runtime_machine_bounded_buffer_literal_append`):
+/// machine-base `adrp`+`add` (8), the running-length load (4), the cursor adds
+/// (`add x14, x16, #target+8` then `add x14, x14, x15`), the per-byte
+/// post-increment stores, and the new-length add + store (8).
+pub fn runtime_machine_bounded_buffer_literal_append_width(
+    target_byte_offset: usize,
+    literal: &str,
+) -> usize {
+    8 + 4
+        + add_constant_width(target_byte_offset + 8)
+        + 4
+        + bounded_buffer_literal_bytes_width(literal)
+        + 8
+}
+
+/// Width of the owned-carrier source append (see
+/// `runtime_storage::encode_runtime_machine_bounded_buffer_source_append`):
+/// machine-base `adrp`+`add` (8), an optional frame-base pair for a frame-local
+/// source (8), the two length loads (8), the two cursor adds, the dst-cursor
+/// register add + new-length add + store (12), and the fixed 20-byte copy loop.
+pub fn runtime_machine_bounded_buffer_source_append_width(
+    target_byte_offset: usize,
+    source_byte_offset: usize,
+    source_in_frame: bool,
+) -> usize {
+    8 + if source_in_frame { 8 } else { 0 }
+        + 8
+        + add_constant_width(source_byte_offset + 8)
+        + add_constant_width(target_byte_offset + 8)
+        + 12
+        + 20
 }
 
 pub fn runtime_frame_string_write_width(byte_length: usize) -> usize {

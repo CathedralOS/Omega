@@ -1,8 +1,20 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Aarch64CallOperand {
     DataAddress,
-    RuntimeStringPointer { byte_offset: usize },
-    RuntimeStringLength { byte_offset: usize },
+    /// The content pointer of a text argument. For a `{ptr, len}` descriptor
+    /// the pointer is LOADED at `byte_offset`; for an owned `[u8; N]` carrier
+    /// (`is_bounded_buffer`) it is the COMPUTED inline-bytes address
+    /// `base + byte_offset + 8` — same width either way (one add vs one load).
+    RuntimeStringPointer {
+        byte_offset: usize,
+        is_bounded_buffer: bool,
+    },
+    /// The length of a text argument: at `byte_offset + 8` for a descriptor,
+    /// at `byte_offset` (the carrier's leading len word) for an owned carrier.
+    RuntimeStringLength {
+        byte_offset: usize,
+        is_bounded_buffer: bool,
+    },
     RuntimePointeeStringPointer { byte_offset: usize },
     RuntimePointeeStringLength { byte_offset: usize },
     RuntimeScalarInteger { byte_offset: usize, byte_count: usize },

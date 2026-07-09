@@ -1,4 +1,5 @@
 use super::super::offsets::{
+    bounded_buffer_source_append_frame_address_offset,
     runtime_frame_indexed_string_data_address_offset,
     runtime_machine_indexed_string_data_address_offset,
     runtime_machine_indexed_string_runtime_frame_address_offset,
@@ -43,12 +44,15 @@ pub(super) fn collect_runtime_storage_string_relocations(
             ..
         } => {
             // The target carrier is machine-resident, addressed off the leading
-            // `mov r15, imm64` base. A frame-local source adds a `mov r14, imm64`
-            // (the runtime frame base) right after, whose imm64 is at +12.
+            // base materialization. A frame-local source adds a second base
+            // (the runtime frame) right after it -- `mov r14, imm64` on x86_64,
+            // an `adrp`+`add` pair on aarch64 -- at the arch-aware offset.
             context.insert_data_address_at_instruction_start(context.machine_storage_symbol_handle());
             if *source_in_frame {
                 context.insert_data_address_at_relative_offset(
-                    10,
+                    bounded_buffer_source_append_frame_address_offset(
+                        context.input.target.architecture,
+                    ),
                     context.runtime_frame_symbol_handle(),
                 );
             }
