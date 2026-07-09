@@ -781,8 +781,15 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    it now DESCENDS into transition TARGET-ARGUMENT / guard expressions.
    SHAPE CLOSED: `pending/host/dispatch_result_transition_arg` PROMOTED to
    `calls/runtime_dispatch_result_transition_arg_exit` (differential 70/70
-   + suite test); pending/host holds only dispatch_slice_element_terminal
-   (the interp_saturating_param_carry repro was RESOLVED + PROMOTED by the
+   + suite test); pending/host is now EMPTY — dispatch_slice_element_terminal
+   PROMOTED 2026-07-09k2 to `calls/runtime_dispatch_slice_element_terminal_exit`
+   (differential 70/70 + suite test): the serve picks the indexed-copy kind
+   BY TARGET REGION (frame slot → CopyRuntimeFrameIndexedToRuntimeFrame,
+   machine place → ...ToRuntimeStorage — the mutation path's exact pairing,
+   writes/storage_copy.rs), so NO region-parametric encoder was needed;
+   the 07-09l crash was the machine-region kind emitted against a frame
+   slot. Blocker served-kind list extended with both indexed kinds.
+   (The interp_saturating_param_carry repro was RESOLVED + PROMOTED by the
    arithmetic thread, cd42934d5). All three connected gaps are documented in the
    canary header (role-stamped CallResultReturn; return-target dispatch
    slot keying; transition-expression argument descent). Parked
@@ -794,8 +801,9 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    reads those paths yet).
    REMAINING SHAPES to matrix: transition-arg ordering (above), effectful
    entries (the parked acceptance canary -- likely the entry-op
-   splice/dispatch interaction, not the return-write), alias/slice-element
-   results, float terminals (bail today, documented). LESSON: an exemption from a
+   splice/dispatch interaction, not the return-write), alias results,
+   float terminals (bail today, documented). Slice-element results
+   SERVED 2026-07-09k2 (see above). LESSON: an exemption from a
    silent-wrong fence needs a RUNTIME differential proof per shape, not a
    routing-evidence proof -- compile-time evidence says the route was
    taken, not that the route is correct.

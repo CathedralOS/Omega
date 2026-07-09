@@ -1,9 +1,9 @@
 use crate::EmissionPlanningInput;
 use crate::blocker;
 use crate::semantic_scope::state_name;
-use omega_target_operations::SelectedInstructionKind;
 use omega_backend_report_types::EmissionBlocker;
 use omega_core::arena::Arena;
+use omega_target_operations::SelectedInstructionKind;
 
 /// Every dispatch-loop edge that carries a `CallResultReturn` must have a
 /// SELECTED return-write (integer/copy/binary) at its clone-terminal state --
@@ -38,6 +38,10 @@ pub(crate) fn collect_call_result_return_blockers(
                             SelectedInstructionKind::WriteRuntimeStorageInteger { .. }
                                 | SelectedInstructionKind::CopyRuntimeStorage { .. }
                                 | SelectedInstructionKind::WriteRuntimeStorageBinary { .. }
+                                // The slice-element terminal serve (`-> s[j]`,
+                                // 2026-07-09k2): region-paired indexed copies.
+                                | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame { .. }
+                                | SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage { .. }
                         )
                 },
             );

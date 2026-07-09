@@ -1,14 +1,13 @@
-// PENDING: the DIRECT slice-element terminal (`-> s[j]`) from a dispatched
-// value call is refused LOUDLY by the call-result blocker (correct).
-// Serving it needs CopyRuntimeFrameIndexedToRuntimeStorage made
-// region-parametric (its encoder/relocation ignore `target_region` --
-// machine-field mutation targets only; a probe emitting it for a frame
-// result slot stored into machine memory and crashed, reverted). The
-// FIELD-CARRIER idiom (`self.picked = s[j]`, field-read terminal) WORKS and
-// is pinned by calls/runtime_dispatch_machine_array_slice_arg_exit (whose
-// machine-array-as-slice descriptor bug -- raw array bytes as the pointer,
-// native SIGSEGV -- was fixed 2026-07-09m in slice_descriptors.rs).
-// PROMOTE when the direct terminal serves; expected native+interp 70.
+// RUN CANARY (exit 70) -- the DIRECT slice-element terminal (`-> s[j]`)
+// from a dispatched value call, PROMOTED 2026-07-09k2 when the serve
+// landed: the call-result return-write picks the indexed-copy kind BY
+// TARGET REGION (a frame result slot rides
+// CopyRuntimeFrameIndexedToRuntimeFrame; a machine place rides
+// ...ToRuntimeStorage), exactly as the mutation path pairs them. The
+// first probe emitted the machine-region kind against a frame slot and
+// crashed (2026-07-09l, reverted) -- the region split IS the fix; no
+// region-parametric encoder was needed. The FIELD-CARRIER idiom stays
+// pinned by calls/runtime_dispatch_machine_array_slice_arg_exit.
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; nums: [i32; 4]; }
 machine Main::pick(&mut self, s: &[i32], i: usize, j: usize)

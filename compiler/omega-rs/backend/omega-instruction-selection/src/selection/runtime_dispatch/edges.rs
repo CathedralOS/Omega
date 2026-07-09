@@ -9,19 +9,20 @@ use super::guards::{
 use crate::InstructionSelectionInput;
 use crate::selection::bindings::RuntimeAliasBinding;
 use crate::selection::storage_places::{
-    resolve_runtime_storage_is_signed_in_table, resolve_runtime_storage_place_in_table,
-    resolve_runtime_storage_primitive_type_in_table, static_integer_value,
+    resolve_runtime_frame_indexed_target_in_table, resolve_runtime_storage_is_signed_in_table,
+    resolve_runtime_storage_place_in_table, resolve_runtime_storage_primitive_type_in_table,
+    static_integer_value,
 };
-use omega_state_values::simplify_state_expression;
 use omega_checked_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, ExpressionTable,
 };
-use omega_checked_trees::types::PrimitiveType;
 use omega_checked_trees::statement::TransitionGuard;
+use omega_checked_trees::types::PrimitiveType;
 use omega_control_flow::StateKey;
 use omega_core::arena::Arena;
 use omega_runtime_dispatch_loop::{RuntimeDispatchLoopAction, RuntimeDispatchLoopEdge};
 use omega_state_guards::{StateGuardOperandStorage, lower_guard_conjunction};
+use omega_state_values::simplify_state_expression;
 
 use crate::selection::instruction_sink::SelectedInstructionSink;
 use omega_abstract_operations::{
@@ -55,17 +56,22 @@ fn guard_comparison_operands_unsigned(
     ) {
         return false;
     }
-    let signed =
-        resolve_runtime_storage_is_signed_in_table(input, dispatch_index, source_key, expressions, binary.left)
-            .or_else(|| {
-                resolve_runtime_storage_is_signed_in_table(
-                    input,
-                    dispatch_index,
-                    source_key,
-                    expressions,
-                    binary.right,
-                )
-            });
+    let signed = resolve_runtime_storage_is_signed_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        binary.left,
+    )
+    .or_else(|| {
+        resolve_runtime_storage_is_signed_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.right,
+        )
+    });
     signed == Some(false)
 }
 
@@ -358,7 +364,12 @@ fn select_runtime_dispatch_call_result_return(
             call_result.call_source_key.machine.arena_index(),
             call_result.call_source_key.state.arena_index(),
             call_result.statement_index,
-            found.map(|slot| (slot.dispatch_index, slot.byte_offset, slot.byte_size, format!("{:?}", slot.kind))),
+            found.map(|slot| (
+                slot.dispatch_index,
+                slot.byte_offset,
+                slot.byte_size,
+                format!("{:?}", slot.kind)
+            )),
         );
     }
     let (target_region, target_offset, byte_size) = if let Some(slot) = input
@@ -444,7 +455,11 @@ fn select_runtime_dispatch_call_result_return(
         if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some() {
             eprintln!(
                 "call-result COPY: src {:?}+{} -> {:?}+{} ({} bytes) dispatch {}",
-                place.region, place.byte_offset, target_region, target_offset, byte_size,
+                place.region,
+                place.byte_offset,
+                target_region,
+                target_offset,
+                byte_size,
                 source_dispatch_index,
             );
         }
@@ -485,16 +500,62 @@ fn select_runtime_dispatch_call_result_return(
         return;
     }
 
-    // SLICE-ELEMENT terminals (`-> s[j]`) are NOT served: an attempt to emit
-    // CopyRuntimeFrameIndexedToRuntimeStorage here CRASHED at runtime -- the
-    // kind's encoder/relocation ignore `target_region` (built for machine-
-    // field mutation targets), so a frame result slot stored into machine
-    // memory (probed 2026-07-09l, reverted same-session). Serving this shape
-    // needs the kind made region-parametric across encoders + relocation
-    // walkers + widths (encoder-thread work). The WORKAROUND is canonical:
-    // bind the element to a FIELD first (`self.picked = s[j]; -> self.picked`
-    // -- the field-read terminal path). The call-result blocker keeps the
-    // direct spelling loud.
+    // SLICE-ELEMENT terminal (`-> s[j]`): the callee's frame holds the slice
+    // DESCRIPTOR and the index; copy the indexed element into the caller's
+    // result place. The kind is picked BY TARGET REGION, exactly as the
+    // mutation path pairs them (writes/storage_copy.rs): a frame result slot
+    // rides CopyRuntimeFrameIndexedToRuntimeFrame -- the ToRuntimeStorage
+    // kind's encoder is machine-region only, and emitting IT against a frame
+    // slot is what CRASHED the first probe (2026-07-09l, reverted; served
+    // via this region split 2026-07-09k2).
+    if let Some(indexed) = resolve_runtime_frame_indexed_target_in_table(
+        input,
+        source_dispatch_index,
+        source_key,
+        &input.control_flow.expressions,
+        value_expr,
+    ) {
+        if indexed.byte_count == byte_size {
+            if std::env::var_os("OMEGA_DEBUG_CALL_RESULT").is_some() {
+                eprintln!(
+                    "call-result INDEXED COPY: desc+{} idx+{} elem {}B field+{} -> {:?}+{} ({} bytes)",
+                    indexed.descriptor_offset,
+                    indexed.index_offset,
+                    indexed.element_byte_size,
+                    indexed.field_byte_offset,
+                    target_region,
+                    target_offset,
+                    byte_size,
+                );
+            }
+            let kind = if target_region == RuntimeStorageRegion::RuntimeFrame {
+                SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeFrame {
+                    descriptor_offset: indexed.descriptor_offset,
+                    index_offset: indexed.index_offset,
+                    element_byte_size: indexed.element_byte_size,
+                    field_byte_offset: indexed.field_byte_offset,
+                    target_offset,
+                    byte_count: byte_size,
+                }
+            } else {
+                SelectedInstructionKind::CopyRuntimeFrameIndexedToRuntimeStorage {
+                    descriptor_offset: indexed.descriptor_offset,
+                    index_offset: indexed.index_offset,
+                    element_byte_size: indexed.element_byte_size,
+                    field_byte_offset: indexed.field_byte_offset,
+                    target_region,
+                    target_offset,
+                    byte_count: byte_size,
+                }
+            };
+            selected_instructions.push(SelectedInstruction {
+                kind,
+                source_key,
+                source_statement: edge.statement_index,
+            });
+            return;
+        }
+    }
 
     // CASE/STRUCT-LITERAL terminal (`-> IoResult::Ok { count: n }`,
     // `-> UnitResult::Ok`): zero the whole result slot (construction
@@ -565,13 +626,17 @@ fn resolve_literal_field_writes(
     source_dispatch_index: u32,
     source_key: StateKey,
     expressions: &ExpressionTable,
-    fields_span: omega_core::arena::HandleSpan<omega_checked_trees::expression::TableStructLiteralField>,
+    fields_span: omega_core::arena::HandleSpan<
+        omega_checked_trees::expression::TableStructLiteralField,
+    >,
     layout_fields: omega_core::arena::HandleSpan<omega_layout::FieldLayout>,
     base_offset: usize,
     writes: &mut Vec<FieldWrite>,
 ) -> bool {
     for offset in 0..fields_span.count() {
-        let field = expressions.struct_field_at_offset(fields_span, offset).clone();
+        let field = expressions
+            .struct_field_at_offset(fields_span, offset)
+            .clone();
         let Some(layout_field) = input
             .layouts
             .fields
@@ -849,10 +914,11 @@ fn select_dispatch_binary_terminal_return(
     };
     let resolve = |input: &InstructionSelectionInput<'_>,
                    handle: ExpressionHandle|
-     -> Option<(RuntimeValueOperand, Option<crate::selection::storage_places::RuntimeStoragePlace>)> {
-        if let Some(value) =
-            static_runtime_argument_value(expressions.expression(handle))
-        {
+     -> Option<(
+        RuntimeValueOperand,
+        Option<crate::selection::storage_places::RuntimeStoragePlace>,
+    )> {
+        if let Some(value) = static_runtime_argument_value(expressions.expression(handle)) {
             return Some((RuntimeValueOperand::Immediate(value), None));
         }
         let place = resolve_runtime_storage_place_in_table(
@@ -882,7 +948,11 @@ fn select_dispatch_binary_terminal_return(
     };
     // Type facts come from whichever side is a typed PLACE (an all-immediate
     // binary folds statically and never reaches here). Float terminals bail.
-    let typed_expr = if left_place.is_some() { binary.left } else { binary.right };
+    let typed_expr = if left_place.is_some() {
+        binary.left
+    } else {
+        binary.right
+    };
     let primitive = resolve_runtime_storage_primitive_type_in_table(
         input,
         source_dispatch_index,
@@ -897,8 +967,10 @@ fn select_dispatch_binary_terminal_return(
     // and write the constant. Only the sign-safe class reaches here (the
     // operator map), and both values are known.
     if left_place.is_none() && right_place.is_none() {
-        let (RuntimeValueOperand::Immediate(left_value), RuntimeValueOperand::Immediate(right_value)) =
-            (&left_operand, &right_operand)
+        let (
+            RuntimeValueOperand::Immediate(left_value),
+            RuntimeValueOperand::Immediate(right_value),
+        ) = (&left_operand, &right_operand)
         else {
             return false;
         };
@@ -931,13 +1003,14 @@ fn select_dispatch_binary_terminal_return(
         typed_expr,
     )
     .unwrap_or(true);
-    let domain = crate::selection::storage_places::resolve_runtime_storage_arithmetic_domain_in_table(
-        input,
-        source_dispatch_index,
-        source_key,
-        expressions,
-        typed_expr,
-    );
+    let domain =
+        crate::selection::storage_places::resolve_runtime_storage_arithmetic_domain_in_table(
+            input,
+            source_dispatch_index,
+            source_key,
+            expressions,
+            typed_expr,
+        );
     let left = runtime_value_operands.insert(left_operand);
     let right = runtime_value_operands.insert(right_operand);
     selected_instructions.push(SelectedInstruction {
@@ -977,9 +1050,7 @@ fn assignment_target_machine_place(
         .iter()
         .find(|operation| operation.statement_index == statement_index)
         .and_then(|operation| match operation.expressions {
-            omega_control_flow::OperationExpressionRefs::Assignment { target, .. } => {
-                Some(target)
-            }
+            omega_control_flow::OperationExpressionRefs::Assignment { target, .. } => Some(target),
             _ => None,
         })?;
     resolve_runtime_storage_place_in_table(
@@ -1084,12 +1155,8 @@ fn select_dispatch_guard_instructions(
                     return;
                 }
             }
-            let unsigned = guard_comparison_operands_unsigned(
-                input,
-                source_dispatch_index,
-                source_key,
-                edge,
-            );
+            let unsigned =
+                guard_comparison_operands_unsigned(input, source_dispatch_index, source_key, edge);
             for clause in clauses.iter().copied() {
                 let operator = if unsigned {
                     unsigned_comparison_operator(clause.operator)
