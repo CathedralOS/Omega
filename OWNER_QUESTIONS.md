@@ -46,6 +46,15 @@ from all of them.
    Pre-scoped in TASKS.md; teardown starts on the answer. We read your
    comment as YES-banned and are holding only for this confirmation.]
 > I dont get why you are so retarded on recursion. machine call cycles = banned. its that fucking simple. Everything that hinges on the contrary is invalid Omega. 'decreases' stuff is for states. States are not recursion. They are transitions, jumps, goto, whatever. Thus this is equal to a for loop, or a while loop. I dont understand why you cant grasp this? Am I missing nuance?
+   [No missing nuance -- your distinction IS the implementation: machine
+   CALLS are stack-based; `-> target(args)` arms are TRANSITIONS (jumps
+   with re-bound args, constant stack), including when the target is the
+   machine's own entry. So: bare loop-backs and states-scoped `decreases`
+   stay (they are for-loops under your ruling); the enforced bans become
+   the CALL-graph ones -- Q6 mutual value-call cycles and Q7 statement
+   tail self-calls, both now filed as engineering in TASKS.md. The earlier
+   countdown confusion was ours: we read your note as banning the
+   transition spelling too.]
 6. **Mutual value-call cycles** (their review item 2): `A calls B calls A`
    (the dungeon's find_item_at/find_item_after pair) still compiles — the
    cycle check does not see value calls. Kill (needs the value-call cycle
