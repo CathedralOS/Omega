@@ -666,7 +666,9 @@ no more special than Shift-JIS/Ascii/UTF-16; encodings are ordinary library doma
 >       DEPTH: 3-level nesting (self.o.mid.leaf.get()) also works
 >       native==interp==6 (probe nr3lvl.omg 2026-07-08) -- the walker +
 >       backend descent are arbitrary-depth. Covered by the mechanism; no
->       separate canary (2-level pins it).
+>       separate canary (2-level pins it). SAMPLE:
+>       samples/cli/basics/nested_diagnostics (Dashboard{engine,battery}, both
+>       leaves share a method name `reading` resolved per-type; exit 85).
 >     REMAINING -- D2: STATEMENT-position nested calls (`self.p.b.setto();`)
 >       are UNSUPPORTED but SOUND (loud-rejected: state-call planner emits
 >       "unresolved state call through `b`"). SHARPENED 2026-07-08 (STMTDBG

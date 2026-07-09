@@ -1,0 +1,79 @@
+// Nested method receivers through a plain-data intermediate. A `Dashboard` is a
+// plain record (no attached machine) holding two DISTINCT subsystem types, each
+// with its own machine; `main` reads them with `self.dash.engine.reading()` and
+// `self.dash.battery.reading()`. The receiver is a two-hop member chain whose
+// middle hop (`dash`) is a plain record -- the backend descends the record's
+// layout to bind each callee's `self` (receiver-place staircase: symbol
+// resolution walks the chain's field types, and the storage walk descends the
+// nested record). Distinct leaf types mean the by-type dispatch lands on exactly
+// the named instance -- no aliasing.
+//
+// Both leaves also expose a method of the SAME name (`reading`); the nested
+// receiver resolves each to its own type's machine (Engine::reading vs
+// Battery::reading), not by the bare method name.
+//
+//   dash.engine.rpm = 3000; dash.battery.percent = 85
+//   rpm  = dash.engine.reading()   -> 3000
+//   batt = dash.battery.reading()  -> 85
+//   both match -> report nominal, exit the battery level (85)
+//
+// A miscompile in the nested-receiver binding (wrong callee self, or a dropped
+// call binding 0) would fail one of the equality guards and exit 1.
+// Expected exit: 85.
+
+use omega::language::std::console;
+
+data Engine {
+    rpm: i32;
+}
+machine Engine::reading(&self) -> i32 {
+    transition { _ -> (self.rpm) }
+}
+
+data Battery {
+    percent: i32;
+}
+machine Battery::reading(&self) -> i32 {
+    transition { _ -> (self.percent) }
+}
+
+data Dashboard {
+    engine: Engine;
+    battery: Battery;
+}
+
+data Main {
+    console: Console;
+    dash: Dashboard;
+}
+
+machine Main::main(&mut self) {
+    self.console.write_line("nested_diagnostics: read engine + battery through nested receivers");
+    self.dash.engine.rpm = 3000;
+    self.dash.battery.percent = 85;
+
+    let rpm: i32 = self.dash.engine.reading();
+    let batt: i32 = self.dash.battery.reading();
+
+    transition rpm == 3000 {
+        true -> check_battery(batt)
+        false -> fault()
+    }
+
+    state check_battery(&mut self, batt: i32) {
+        transition batt == 85 {
+            true -> nominal()
+            false -> fault()
+        }
+    }
+
+    state nominal(&self) {
+        self.console.write_line("engine 3000rpm, battery 85% -> nominal (exit = battery level)");
+        self.console.exit_process(85);
+    }
+
+    state fault(&self) {
+        self.console.write_line("reading mismatch -> fault (exit 1)");
+        self.console.exit_process(1);
+    }
+}
