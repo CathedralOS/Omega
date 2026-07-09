@@ -28178,6 +28178,8 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "calls/machine_self_call_recursion_rejected",
     "calls/statement_tail_self_call_rejected",
     "calls/terminal_self_call_recursion_rejected",
+    "build/build_effects_undeclared",
+    "build/build_boundary_rowless",
     "calls/ambiguous_spliced_second_receiver_rejected",
     "calls/empty_body_return_machine_rejected",
     "parse/machine_clause_garbage_rejected",
