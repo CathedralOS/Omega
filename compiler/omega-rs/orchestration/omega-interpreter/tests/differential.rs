@@ -58,6 +58,8 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_shift_atwidth_indexed_targets_exit", 70),
     ("arithmetic/runtime_sat_nested_operand_domain_exit", 70),
     ("arithmetic/runtime_sat_unsigned_onedirection_exit", 70),
+    ("arithmetic/runtime_shl_saturating_exit", 70),
+    ("arithmetic/runtime_shl_saturating_atwidth_exit", 70),
     ("arithmetic/runtime_wrapping_operand_truncation_exit", 70),
     ("text/case_literal_texteq_field_store_exit", 70),
     ("text/case_literal_texteq_terminal_exit", 70),
@@ -1868,11 +1870,6 @@ const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     ("arithmetic/immutable_arg_for_mut_param_not_checked", -1, PendingInterpOutcome::Exit(1)),
     // 72/72: the two legs AGREE on this host (aarch64 LSLV masks the count
     // at 64 like the interp); the parked divergence is vs x86's 32-bit mask.
-    // Native aarch64 + interp now CLAMP (the slice-C shl sequences); the
-    // holds pin 70/70 on this arm64 host until the x86_64 sequences land,
-    // then both promote to pass/.
-    ("arithmetic/shl_saturating_domain_divergence", 70, PendingInterpOutcome::Exit(70)),
-    ("arithmetic/shl_saturating_atwidth_divergence", 70, PendingInterpOutcome::Exit(70)),
     ("arithmetic/unsigned_min_max_wrapping_local_divergence", 78, PendingInterpOutcome::Exit(77)),
     ("expressions/dead_trapping_let_not_elided", 7, PendingInterpOutcome::Traps),
     // Multi-arm texteq-valued locals: leaf route emits no text compare;

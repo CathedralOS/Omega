@@ -278,6 +278,37 @@ fn linux_x64_wrapping_shl_clamp_bytes_present() {
         "the operand-position clamp + node-width extension must be emitted"
     );
 
+    // Saturating `<<` (the promoted slice-C canary): the count cap
+    // (mov eax,#w + cmp r11,#w + cmovae r11,rax -- the COUNT register)
+    // followed by the 64-bit shl and the u8 cmova clamp tail.
+    let shl_sat = pass_canary("arithmetic/runtime_shl_saturating_exit");
+    fs::copy(shl_sat.join("main.omg"), src_dir.join("main.omg")).expect("copy shl-sat canary");
+    let out_sat = scratch.join("out-sat");
+    compile(CompileOptions {
+        root_path: src_dir.join("main.omg"),
+        build_dir: Some(out_sat.clone()),
+        target_name: Some("linux_x64".to_owned()),
+        write_output: true,
+    })
+    .expect("saturating shl canary should cross-compile for linux_x64");
+    let elf_sat = fs::read(out_sat.join("omega-program")).expect("linux_x64 ELF emitted");
+    let sat_cap_shl_clamp = [
+        0xb8, 8, 0, 0, 0, // mov eax, 8 (u8 width)
+        0x49, 0x83, 0xfb, 8, // cmp r11, 8
+        0x4c, 0x0f, 0x43, 0xd8, // cmovae r11, rax (cap the count)
+        0x4c, 0x89, 0xd9, // mov rcx, r11
+        0x49, 0xd3, 0xe2, // shl r10, cl (64-bit exact)
+        0x49, 0xbb, 255, 0, 0, 0, 0, 0, 0, 0, // mov r11, 255
+        0x4d, 0x39, 0xda, // cmp r10, r11
+        0x4d, 0x0f, 0x47, 0xd3, // cmova r10, r11
+    ];
+    assert!(
+        elf_sat
+            .windows(sat_cap_shl_clamp.len())
+            .any(|window| window == sat_cap_shl_clamp),
+        "the saturating shl cap + shift + clamp sequence must be emitted"
+    );
+
     // Arithmetic `>>` (the shr at-width canary): the count SATURATION
     // (mov eax,width-1 + cmp r11,#width + cmovae r11,rax -- the count
     // register, not the value) followed by the plain mov-ecx + sar, at both
@@ -16650,6 +16681,56 @@ fn runtime_sat_unsigned_onedirection_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_shl_saturating_exit_canary_runs() {
+    // Saturating << clamps on true-value overflow (u8 17 << 4 -> 255).
+    let canary = pass_canary("arithmetic/runtime_shl_saturating_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-shlsat-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating shl canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating shl canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "saturating shl canary should clamp (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_shl_saturating_atwidth_exit_canary_runs() {
+    // Saturating << at/above-width clamps nonzero x to the bound.
+    let canary = pass_canary("arithmetic/runtime_shl_saturating_atwidth_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-shlsataw-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("at-width saturating shl canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("at-width saturating shl canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "at-width saturating shl canary should clamp (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_wrapping_operand_truncation_exit_canary_runs() {
     // Nested Wrapping binaries in operand position hand the parent the
     // width-wrapped value (>> / % legs pin the sign/width-sensitive reads).
@@ -28048,6 +28129,8 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "arithmetic/runtime_shift_atwidth_indexed_targets_exit",
     "arithmetic/runtime_sat_nested_operand_domain_exit",
     "arithmetic/runtime_sat_unsigned_onedirection_exit",
+    "arithmetic/runtime_shl_saturating_exit",
+    "arithmetic/runtime_shl_saturating_atwidth_exit",
     "arithmetic/runtime_wrapping_operand_truncation_exit",
     "text/case_literal_texteq_field_store_exit",
     "text/case_literal_texteq_terminal_exit",
@@ -29064,14 +29147,6 @@ const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     // pass/arithmetic/runtime_shift_atwidth_signed_modular_exit: the
     // shift-domain ruling made Wrapping << modular and all three engines
     // now clamp at/above-width counts to zero.
-    PendingCanary {
-        path: "arithmetic/shl_saturating_domain_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
-    PendingCanary {
-        path: "arithmetic/shl_saturating_atwidth_divergence",
-        expectation: PendingCanaryExpectation::CurrentlyAccepts,
-    },
     PendingCanary {
         path: "arithmetic/unsigned_min_max_wrapping_local_divergence",
         expectation: PendingCanaryExpectation::CurrentlyAccepts,

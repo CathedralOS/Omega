@@ -83,21 +83,18 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   runtime_shift_atwidth_indexed_targets_exit pins the routing (6 legs:
   machine/frame indexed, pointee, exact-count, << and >>) -- if the planner
   ever fuses wrapping shifts into those kinds, it trips differential; thread
-  the domain through the kind encoders then. Slice C IN FLIGHT
-  (2026-07-14): shifts are domain-governed (post-ruling reading; the parked
-  canary's "design undecided" header predates it). DONE -- interp node arm:
-  Saturating `<<` clamps / Trapping traps when the true x * 2^n leaves the
-  range (at/above-width counts force overflow for nonzero x); `>>` floor
-  semantics extended to every non-Exact domain on the interp AND both ISAs
-  (>> cannot overflow, so the count fix is domain-independent). AARCH64 DONE
-  (2026-07-14): ShiftLeft arms in the register-parametric sat/trap helper --
-  narrow widths cap the count at w (keeps the 64-bit LSLV exact) + range
-  tail (single UNSIGNED upper bound for unsigned targets: the shared
-  add/sub/mul tail's SIGNED lower compare would misread wide values >=
-  2^63); 64-bit uses the recovery witness (y >> n == x) + explicit count>=64
-  / x==0 compares. Both positions; disassembly-verified. REMAINING -- the
-  x86_64 twin sequences (both parked shl_saturating canaries hold 70/70 on
-  arm64 and promote with x86).
+  the domain through the kind encoders then. The shift-domain arc (slices A/B/C) is
+  CLOSED (2026-07-15): shifts are domain-governed on all three engines --
+  Wrapping << / >> modular + floor semantics, Saturating/Trapping << clamps
+  or traps on true-value overflow (x86_64 landed last: count cap + shared
+  narrow range tail, recovery witness at 64-bit, byte-pinned via unit tests
+  + the linux_x64 ELF pin; the SaturatingTrappingShiftLeft operand-dispatch
+  variant covers operand position). Both parked shl_saturating canaries
+  PROMOTED to pass/ (runtime_shl_saturating_exit + _atwidth_exit). Residual
+  (unruled, low priority): shift-count domain witness when the LHS is Exact
+  and only the COUNT carries a domain -- the ruling says lhs-only, the
+  witness picks the non-Exact side; observable only for unproven Exact
+  shifts, which are proof obligations anyway. Note in a future domain audit.
 
 - (2026-07-14) The narrow-unsigned saturating/trapping mul suspect was REAL
   and is FIXED on aarch64 (one bound check per unsigned operator; the mul
