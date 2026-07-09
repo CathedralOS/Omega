@@ -26245,16 +26245,16 @@ const WINDOWS_HOST_PASS_CANARIES: &[&str] = &[
     // permanent macOS resolution red until it was windows-gated
     // (2026-07-11r; was a named suite-baseline member).
     "host/runtime_gui_memory_dc_blit_exit",
-    // The efi milestone canaries are HOST-FORMAT-dependent by
-    // construction (2026-07-11t): no target block, no registered
-    // uefi_x64 target -- the PE image came from the WINDOWS HOST format
-    // plus build.omg's subsystem-10/freestanding facts. On aarch64 the
-    // vtable/host-call encoder shapes have no lowering (hardcoded
-    // width 0), so these two fail compile. The long-term answer is a
-    // REGISTERED uefi_x64 target so they become cross-compile pins from
-    // any host (filed in TASKS_FS open work); un-gate then.
-    "targets/efi_vtable_call",
-    "targets/efi_ref_param_call_arg",
+];
+
+/// Canaries compiled with an EXPLICIT cross target on EVERY host (the
+/// registered `uefi_x64` target, 2026-07-11u): the efi family's image
+/// facts are target-shaped (PE32+/subsystem 10 from build.omg), so with
+/// the name registered they pin cross-host -- the stronger form of the
+/// former windows-gating.
+const CROSS_TARGET_PASS_CANARIES: &[(&str, &str)] = &[
+    ("targets/efi_vtable_call", "uefi_x64"),
+    ("targets/efi_ref_param_call_arg", "uefi_x64"),
 ];
 
 #[test]
@@ -26266,6 +26266,21 @@ fn pass_canaries_compile() {
     // efi members on a non-EFI-lowering host) must not exempt the rest of
     // the corpus from its compile check.
     let mut failures: Vec<String> = Vec::new();
+
+    for (canary_name, target) in CROSS_TARGET_PASS_CANARIES {
+        let canary = pass_canary(canary_name);
+        if let Err(diagnostics) = compile_canary_without_output_for_target(&canary, target) {
+            failures.push(format!(
+                "cross-target {target} {}:\n{}",
+                canary.display(),
+                diagnostics
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            ));
+        }
+    }
 
     #[cfg(windows)]
     for canary_name in WINDOWS_HOST_PASS_CANARIES {
@@ -26306,7 +26321,6 @@ fn pass_canaries_compile() {
     );
 }
 
-#[cfg(windows)]
 #[test]
 fn efi_freestanding_skeleton_emits_importless_subsystem_10_pe() {
     // The first-boot milestone-1 skeleton (BOOTED under QEMU/OVMF 2026-07-03:
@@ -26324,12 +26338,12 @@ fn efi_freestanding_skeleton_emits_importless_subsystem_10_pe() {
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: Some("uefi_x64".into()),
         write_output: true,
     })
     .expect("EFI freestanding skeleton should compile");
 
-    let image = fs::read(build_dir.join(executable_name())).expect("emitted image should exist");
+    let image = fs::read(build_dir.join("omega-program.exe")).expect("emitted image should exist");
     let e_lfanew = u32::from_le_bytes(image[0x3c..0x40].try_into().unwrap()) as usize;
     let optional_header = e_lfanew + 4 + 20;
     let magic = u16::from_le_bytes(image[optional_header..optional_header + 2].try_into().unwrap());
@@ -26355,7 +26369,6 @@ fn efi_freestanding_skeleton_emits_importless_subsystem_10_pe() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-#[cfg(windows)]
 #[test]
 fn efi_entry_arguments_prologue_unmarshals_rcx_rdx() {
     // The entry prologue's argument unmarshal (BOOT-VERIFIED under QEMU/OVMF:
@@ -26371,12 +26384,12 @@ fn efi_entry_arguments_prologue_unmarshals_rcx_rdx() {
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: Some("uefi_x64".into()),
         write_output: true,
     })
     .expect("EFI entry-arguments canary should compile");
 
-    let image = fs::read(build_dir.join(executable_name())).expect("emitted image should exist");
+    let image = fs::read(build_dir.join("omega-program.exe")).expect("emitted image should exist");
     // Locate .text's raw offset from the section table.
     let e_lfanew = u32::from_le_bytes(image[0x3c..0x40].try_into().unwrap()) as usize;
     let optional_size =
@@ -26680,7 +26693,6 @@ fn efi_ref_param_direct_faces_deref_not_flat() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
-#[cfg(windows)]
 #[test]
 fn efi_ref_param_call_arg_derefs_and_dispatches() {
     // The direct host-call arg `output_string(table.con_out, ..)` must deref
@@ -26693,7 +26705,7 @@ fn efi_ref_param_call_arg_derefs_and_dispatches() {
     compile(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
-        target_name: None,
+        target_name: Some("uefi_x64".into()),
         write_output: true,
     })
     .expect("ref-param call-arg canary should compile");
@@ -27665,6 +27677,21 @@ fn pending_canaries_reproduce_known_gaps() {
         drifted.len(),
         drifted.join("\n\n")
     );
+}
+
+fn compile_canary_without_output_for_target(
+    canary_dir: &Path,
+    target: &str,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    let build_dir = unique_no_output_build_dir();
+    let result = compile(CompileOptions {
+        root_path: canary_dir.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: Some(target.into()),
+        write_output: false,
+    });
+    let _ = fs::remove_dir_all(&build_dir);
+    result
 }
 
 fn compile_canary_without_output(canary_dir: &Path) -> Result<CompileReport, Vec<Diagnostic>> {

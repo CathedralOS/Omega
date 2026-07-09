@@ -78,9 +78,17 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    WINDOWS_HOST_PASS_CANARIES and the three byte-asserting test fns
    are cfg(windows) — same class and precedent as the gdi32 blit
    canary. **The suite is 0-FAILURE on macOS for the first time.**
-   OPEN (owner-surfaceable): register a `uefi_x64` TARGET (std targets
-   catalog: PE32+ format facts + the uefi calling surface) so the efi
-   family becomes cross-compile pins from any host — un-gate on land.
+   RESOLVED SAME DAY (2026-07-11u): `uefi_x64` is REGISTERED in the
+   compiler's name table (X86_64 + Coff/PE32+; the subsystem-10/
+   freestanding facts stay build.omg's, exactly as on a windows host —
+   the name was already load-bearing in landed source per D15). Every
+   efi canary's build.omg declares `target uefi_x64 {}` for frontier
+   validation; the three byte-asserting tests are UN-GATED and compile
+   with the explicit target (image reads pinned to the PE name); the
+   two former windows-host members moved to
+   CROSS_TARGET_PASS_CANARIES, compiled on EVERY host. Cross-compiled
+   from this Mac: magic 0x20b, subsystem 10 — the boot-verified image
+   shape. Suite: 769/0.
 
 1. ~~build.omg compiler-side gate~~ — **COMPLETE 2026-07-11j/k** (owner
    answers #2–#5 in commit 14e02026e; implementation bc086f0a3 +
