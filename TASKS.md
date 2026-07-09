@@ -253,6 +253,14 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     aarch64 width arm now returns 0 for an empty operand span, mirroring the
     x86 contract; both fail-canaries reject again (computed_host_arg +
     value_call_as_host_arg; suite 691/16, fs 86/86).
+    FRAME-SOURCE INDEXED WRITE + MACHINE-INDEX SUBSLICE landed 2026-07-09:
+    (a) `machine[idx] = <frame local>` was pure fence removal -- the encoder
+    shape was already source-region agnostic (the record resolves the source
+    pair's symbol); 3 canaries fixed. (b) the subslice START index in a
+    machine field: the frame-index address helper gained a region-aware
+    flavor (machine pair into x15 at the CONSTANT +32 -- NOT x21, the
+    fixed-width load's offset scratch, which cost one probe crash); record
+    inserts the machine reloc @32; width +8 for machine. Suite 696/12.
     Remaining after that: tick/time host lowering
     (runtime_local_string_comparison_value 79!=78), tick/time host lowering,
     the frame-source machine-indexed write, and the entry-args spill.

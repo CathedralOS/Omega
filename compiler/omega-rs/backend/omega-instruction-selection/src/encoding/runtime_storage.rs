@@ -748,12 +748,8 @@ pub fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
         Architecture::Aarch64 => {
-            if index_region != omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
-                return Err(Diagnostic::error(
-                    "aarch64 encoder does not yet support a machine-resident subslice                      START index",
-                ));
-            }
             aarch64::encode_runtime_frame_indexed_address_to_runtime_frame_write(
+                index_region,
                 descriptor_offset,
                 index_offset,
                 element_byte_size,

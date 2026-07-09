@@ -818,10 +818,18 @@ pub fn runtime_pointee_address_to_runtime_frame_write_width(
 }
 
 pub fn runtime_frame_indexed_address_to_runtime_frame_write_width(
+    index_region: omega_target_operations::RuntimeStorageRegion,
     element_byte_size: usize,
     field_byte_offset: usize,
     target_offset: usize,
 ) -> usize {
+    let machine_index_pair =
+        if index_region == omega_target_operations::RuntimeStorageRegion::Machine {
+            8
+        } else {
+            0
+        };
+    machine_index_pair +
     // Same `append_runtime_frame_index_target_address` prologue as the indexed
     // reads/writes (fixed-width descriptor + index loads), then a store of the
     // computed address. The old hand-summed `20 + …` predates the fixed-width
