@@ -1,0 +1,22 @@
+// PENDING (native-vs-interp divergence, found 2026-07-08). max/min on a
+// `u64 in Wrapping` LOCAL operand: the interpreter takes the unsigned witness
+// (eval_min_max, landed 2026-07-08) and returns u64::MAX -> exit 77; native
+// still compares SIGNED (the Wrapping/Constrained wrapper hides the u64
+// primitive from the backend's LOCAL-slot signedness resolver) and picks 5 ->
+// exit 78. A plain u64 FIELD works on both engines (see the passing canary
+// arithmetic/runtime_unsigned_min_max_exit). Promote when the backend peels
+// Constrained for a local slot's signedness (same `u64 in Wrapping local`
+// family as the folded-modulo signedness item in TASKS).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let z: u64 in Wrapping = 0;
+    let big: u64 in Wrapping = z - 1;
+    let m: u64 = max(big, 5);
+    transition m == big {
+        true -> good()
+        false -> bad()
+    }
+    state good(&self) { self.console.exit_process(77); }
+    state bad(&self) { self.console.exit_process(78); }
+}

@@ -222,11 +222,21 @@ decreases remaining
 }
 ^ Fix fucking failed, fuck you. this is a machine creating a cycle. No fucking cycles. Retard. Removing the `self` keyword doesn't change fuck-all, read what I wrote you sack of shit.
 
-- **[ ] Interpreter unsigned-u64 arithmetic remainder (2026-07-07).** Comparisons now
-  take an UNSIGNED witness from declared types (evaluator: Frame.unsigned64_locals +
-  cast/self-field classification; found via std::time's wrapped-compare idiom breaking
-  at u64::MAX interp-only). STILL SIGNED for msb-set u64: divide/modulo/shift-right and
-  min/max (`eval_int_binary`/`eval_min_max` — need the same witness threaded).
+- **[x] Interpreter unsigned-u64 arithmetic — div/mod/shr + MIN/MAX now unsigned
+  (min/max landed 2026-07-08).** Comparisons and div/mod/shr already threaded the
+  UNSIGNED witness (`eval_int_binary`, gated on `expression_is_unsigned64` at the
+  binary site). `eval_min_max` was the last signed hold-out: it now takes an
+  `unsigned` flag (computed at the `max`/`min` builtin call site the same way) and
+  compares as u64 when a u64-classed operand is present. Canary
+  arithmetic/runtime_unsigned_min_max_exit (max(u64::MAX,5)==u64::MAX &&
+  min==5 -> exit 88) runs native==interp==88; in the differential list.
+  ⚠️ ADJACENT NATIVE GAP FOUND: native `max`/`min` is unsigned for a plain u64
+  FIELD operand (canary proves it) but SIGNED for a `u64 in Wrapping` LOCAL
+  operand (probe maxu.omg: native=78, interp=77) -- the Wrapping/Constrained
+  wrapper hides the u64 primitive from the backend's LOCAL-slot signedness
+  resolver. Same `u64 in Wrapping local` signedness family as the folded-modulo
+  item above; a plain u64 field is the clean vehicle. Filed for the backend fix
+  (peel Constrained when resolving a local slot's signedness).
 
 - **[ ] Same-type receiver aliasing: VALUE-CALL flavor confirmed (2026-07-07, std::time
   authoring; repro canaries/pending/time/value_machine_receiver_field_postentry).** A

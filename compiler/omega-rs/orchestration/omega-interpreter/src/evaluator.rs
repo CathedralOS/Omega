@@ -3728,7 +3728,13 @@ impl<'program> Evaluator<'program> {
             if args.len() == 2 {
                 let left = self.eval_expression(args[0], frame)?;
                 let right = self.eval_expression(args[1], frame)?;
-                return self.eval_min_max(target, left, right);
+                // A u64-classed operand selects the UNSIGNED min/max witness (the
+                // same test the binary div/mod/shr path uses): `max(u64::MAX, 5)`
+                // must pick u64::MAX, not the signed -1. Native lowers these to
+                // MaxUnsigned/MinUnsigned for unsigned targets.
+                let unsigned = self.expression_is_unsigned64(args[0], frame)
+                    || self.expression_is_unsigned64(args[1], frame);
+                return self.eval_min_max(target, left, right, unsigned);
             }
         }
         // Builtin: sqrt over a single float operand (the reference for the
@@ -4944,7 +4950,13 @@ impl<'program> Evaluator<'program> {
         })
     }
 
-    fn eval_min_max(&self, name: &str, left: Value, right: Value) -> EvalResult<Value> {
+    fn eval_min_max(
+        &self,
+        name: &str,
+        left: Value,
+        right: Value,
+        unsigned: bool,
+    ) -> EvalResult<Value> {
         if matches!(left, Value::Float(_)) || matches!(right, Value::Float(_)) {
             let l = left
                 .as_float()
@@ -4972,7 +4984,19 @@ impl<'program> Evaluator<'program> {
         let r = right
             .as_int()
             .ok_or_else(|| Halt::Trap("min/max int".to_owned()))?;
-        Ok(Value::Int(if name == "max" { l.max(r) } else { l.min(r) }))
+        // Compare as u64 when a u64-classed operand is present (the larger/smaller
+        // u64 bit pattern IS one of {l, r}, reinterpreted back to i64); signed
+        // otherwise. Without this `max`/`min` on an msb-set u64 picks the wrong
+        // operand (u64::MAX reads as -1 under signed compare).
+        let picked = if unsigned {
+            let (lu, ru) = (l as u64, r as u64);
+            (if name == "max" { lu.max(ru) } else { lu.min(ru) }) as i64
+        } else if name == "max" {
+            l.max(r)
+        } else {
+            l.min(r)
+        };
+        Ok(Value::Int(picked))
     }
 
     fn values_equal(&self, left: &Value, right: &Value) -> EvalResult<bool> {
