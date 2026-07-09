@@ -1,0 +1,34 @@
+// Unsigned min/max over msb-set u64 values. `big` is u64::MAX (constructed as
+// `0 - 1` under Wrapping, since a u64 literal > i64::MAX is rejected); `five` is
+// 5. max(big, five) must pick big and min(big, five) must pick five -- the
+// UNSIGNED witness. Under a SIGNED compare big reads as -1, so max would wrongly
+// pick five and min would pick big. Native lowers to MaxUnsigned/MinUnsigned for
+// the u64 fields; the interpreter takes the same u64 witness (eval_min_max).
+// Expected exit: 88
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    big: u64;
+    five: u64;
+    mx: u64;
+    mn: u64;
+}
+machine Main::main(&mut self) {
+    let z: u64 in Wrapping = 0;
+    self.big = z - 1;
+    self.five = 5;
+    self.mx = max(self.big, self.five);
+    self.mn = min(self.big, self.five);
+    transition self.mx == self.big {
+        true -> check_min()
+        false -> bad()
+    }
+    state check_min(&mut self) {
+        transition self.mn == self.five {
+            true -> good()
+            false -> bad()
+        }
+    }
+    state good(&self) { self.console.exit_process(88); }
+    state bad(&self) { self.console.exit_process(89); }
+}
