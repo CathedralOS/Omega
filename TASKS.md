@@ -42,12 +42,16 @@ target, enum payloads) bias which vertical slices get picked next.
 
 ## Open bugs / gaps (ungated)
 
-- **Const-folder is TYPE-BLIND on sign-sensitive ops (miscompile class).**
-  `(0u32 - 2) >> 1` / `/ 3` / `% 3` fold through bare i64, losing the u32
-  width; native vs interp verified divergent on all three. Root:
-  `omega-state-values/src/simplify/folding.rs`. Non-sign-sensitive ops agree
-  mod 2^width and are unaffected. (Parked entries in the pending ledger;
-  fix = width-carrying folds, overlaps the type-carrying-constants design.)
+- **Const-folder width-blindness: latent, currently unreachable via the
+  live spelling.** The 2026-07-04 miscompile class (`(0u32 - 2) >> 1` folding
+  through bare i64) no longer reproduces as a FOLD: the mandatory cast-retag
+  spelling (`0 as u32 in Wrapping`) puts a Cast node in the tree, which the
+  folder's literal window refuses -- the expression reaches the RUNTIME
+  operand path instead (whose wrapping-truncation hole is now FIXED and
+  pinned by arithmetic/runtime_wrapping_operand_truncation_exit). The folder
+  (`omega-state-values/simplify/folding.rs`) is still i64-window/type-blind
+  by design (D14 comment); a width-carrying folder remains the deeper rung,
+  gated with the type-carrying-constants design.
 - **Terminal-position text equality.** `-> Msg::Pong { z: self.name == ".." }`
   through the branch cascade stays POISONED (loud): a naive `text_equals | 0`
   place-write there miscompiled (wrong offset/timing; reverted) — the terminal

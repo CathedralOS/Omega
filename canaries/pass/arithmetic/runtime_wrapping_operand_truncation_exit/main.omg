@@ -1,0 +1,46 @@
+// RUN CANARY (exit 70) + interpreter differential. A nested WRAPPING binary
+// in OPERAND position must hand its parent the WIDTH-WRAPPED value: the
+// plain 64-bit register op leaves (0u32 - 2) as 0xFFFF_FFFF_FFFF_FFFE, and a
+// sign/width-sensitive parent then reads it wrong -- `>> 1` gave 63-bit
+// garbage (native 4294967295 vs the u32-correct 2147483647), `/ 3` and `% 3`
+// likewise, while the interpreter wraps AT THE NODE (decision 17). The
+// store-truncation-is-the-wrap shortcut only holds at the WRITE. Both ISAs
+// now truncate nested Wrapping results to the node's width (zero/sign-extend
+// per the node's signedness) before the parent consumes them; x86_64
+// byte-verified (mov r10d,r10d after each wrapped subtraction in a
+// cross-compiled linux_x64 ELF). This supersedes the old "type-blind
+// const-folder" TASKS entry: the cast-retag spelling (`0 as u32 in
+// Wrapping`) blocks the folder's literal window entirely, so the same
+// source now exercises the RUNTIME operand path -- which had this hole.
+// exit 71 = >> wrong; 72 = / wrong; 73 = % wrong.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; out: u32; outd: u32; outm: u32; }
+machine Main::main(&mut self) {
+    let a: u32 in Wrapping = (0 as u32 in Wrapping) - 2;
+    let b: u32 = a >> 1;
+    let d: u32 = a / 3;
+    let m: u32 = a % 3;
+    self.out = b;
+    self.outd = d;
+    self.outm = m;
+    transition self.out == 2147483647 {
+        true -> chkd()
+        _ -> wrong_shift()
+    }
+    state chkd(&mut self) {
+        transition self.outd == 1431655764 {
+            true -> chkm()
+            _ -> wrong_div()
+        }
+    }
+    state chkm(&mut self) {
+        transition self.outm == 2 {
+            true -> good()
+            _ -> wrong_mod()
+        }
+    }
+    state good(&mut self)       { self.console.exit_process(70); }
+    state wrong_shift(&mut self){ self.console.exit_process(71); }
+    state wrong_div(&mut self)  { self.console.exit_process(72); }
+    state wrong_mod(&mut self)  { self.console.exit_process(73); }
+}
