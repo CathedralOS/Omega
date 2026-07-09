@@ -50,51 +50,36 @@ impl Default for BuildConfig {
     }
 }
 
-/// Whether a machine is the program's build machine: the FREE `build(b:
-/// &mut Build)` (the pure-config shape) or an ATTACHED `<Component>::build`
-/// (the dependency-injection shape, owner answer #2: the component's data
-/// holds the injected capability instance -- `fs: FilesystemHost` -- and
-/// the granted evaluator ZII-constructs and routes it). The attached form
-/// additionally requires the `b: &mut Build` parameter signature: ordinary
-/// builder-pattern machines (`MazeBuilder::build(&mut self, level: &mut
-/// Level)`) are everywhere in real source, and the NAME alone cannot
-/// discriminate. (The eventual rule is "declared in build.omg" -- typed
-/// machines carry no source file today; recorded in TASKS_FS.)
-pub(crate) fn is_build_machine(typed: &TypedTrees, machine: &omega_typed_trees::machine::Machine) -> bool {
+/// Whether a machine is the program's build machine: named `build` (the
+/// FREE pure-config shape) or `<Component>::build` (the dependency-
+/// injection shape, owner answer #2) AND declared at a build.omg root --
+/// the FILE is the identity (owner answer #3: build.omg is the home;
+/// `MazeBuilder::build` in ordinary source is just a machine). The caller
+/// threads the build-file machine names from the syntax stage, where
+/// per-file item attribution exists; typed machines carry no source file.
+/// A wrong-arity build machine still refuses at evaluation with the arity
+/// error (pinned by fail/build/build_machine_wrong_arity).
+pub(crate) fn is_build_machine(
+    machine: &omega_typed_trees::machine::Machine,
+    build_file_machines: &[String],
+) -> bool {
     let name = machine.name.as_str();
-    if name == BUILD_MACHINE {
-        return true;
-    }
-    if !name.ends_with("::build") {
+    if name != BUILD_MACHINE && !name.ends_with("::build") {
         return false;
     }
-    let Some(entry) = typed.machine_states(machine).first() else {
-        return false;
-    };
-    let mut value_parameters = typed
-        .state_parameters(entry)
-        .iter()
-        .filter(|parameter| !parameter.is_self);
-    let Some(parameter) = value_parameters.next() else {
-        return false;
-    };
-    if value_parameters.next().is_some() {
-        return false;
-    }
-    typed
-        .display_type_reference(parameter.type_reference)
-        .trim_start_matches("&mut ")
-        .trim()
-        == "Build"
+    build_file_machines.iter().any(|declared| declared == name)
 }
 
 /// Evaluate the program's `build` machine (if any) and extract the config.
 /// No `build` machine -> the default. Every failure names the machine.
-pub(crate) fn compute_build_config(typed: &TypedTrees) -> Result<BuildConfig, Vec<Diagnostic>> {
+pub(crate) fn compute_build_config(
+    typed: &TypedTrees,
+    build_file_machines: &[String],
+) -> Result<BuildConfig, Vec<Diagnostic>> {
     let mut build_machines = typed
         .machines()
         .iter()
-        .filter(|machine| is_build_machine(typed, machine));
+        .filter(|machine| is_build_machine(machine, build_file_machines));
     let Some(machine) = build_machines.next() else {
         return Ok(BuildConfig::default());
     };

@@ -143,6 +143,30 @@ impl Compiler {
             &mut syntax.syntax_trees,
             self.options.target_name.as_deref(),
         )?;
+        // The BUILD-MACHINE identity is FILE-based (owner answer #3:
+        // build.omg is the home; a `Builder::build` in ordinary source is
+        // just a machine): collect the machines declared at build.omg roots
+        // BEFORE the syntax storage moves into resolution. Typed machines
+        // carry no source file (TASKS_FS open item), so the name list is
+        // the thread.
+        let build_file_machine_names: Vec<String> = syntax
+            .files
+            .iter()
+            .filter(|file| {
+                file.path.file_name().and_then(|name| name.to_str()) == Some("build.omg")
+            })
+            .flat_map(|file| file.root_items.iter())
+            .filter_map(
+                |handle| match syntax.syntax_trees.root_item(*handle) {
+                    // The syntax machine's `name` is already the FULL spelled
+                    // path (`Stager::build` -- split_machine_path joins it).
+                    omega_syntax_trees::item::Item::Machine(machine) => {
+                        Some(machine.name.as_str().to_owned())
+                    }
+                    _ => None,
+                },
+            )
+            .collect();
         remove_stale_phase_diagrams(&self.options)?;
         write_pipeline_index(&self.options)?;
         write_syntax_snapshot(&self.options, &syntax)?;
@@ -169,9 +193,12 @@ impl Compiler {
         // build.omg's augmenting `build(b: &mut Build)` machine, evaluated at
         // build time. When present it is AUTHORITATIVE; the legacy in-source
         // `target { subsystem }` word is the fallback until its removal.
-        let build_config = crate::pipeline::build_config::compute_build_config(&typed)?;
+        let build_config = crate::pipeline::build_config::compute_build_config(
+            &typed,
+            &build_file_machine_names,
+        )?;
         let build_machine_present = typed.machines().iter().any(|machine| {
-            crate::pipeline::build_config::is_build_machine(&typed, machine)
+            crate::pipeline::build_config::is_build_machine(machine, &build_file_machine_names)
         });
         write_typed_snapshot(&self.options, &typed)?;
         crate::pipeline::wire_report::write_wire_protocol_report(&self.options, &typed)?;
