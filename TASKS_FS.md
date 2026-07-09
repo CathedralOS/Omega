@@ -1252,12 +1252,47 @@ macOS/arm64 host this lane runs on — are CLAIMED here:
   - GATED OMEGA_RECEIVER_DISPATCH=1 and doubly dormant: the fence still
     refuses every affected program at emission planning, so the override
     paths are unreachable in normal compiles. All gates green.
-  PHASE 3 (next): the state-guards sibling (its crate lacks the
-  state-calls dep — thread the COMPUTED base from the dispatch-loop
-  layer, sites 82/139 override, 113 sweep stays); gate the fence on the
-  same served-ness predicate; end-to-end probe under the gate; un-gate;
-  promote pending/time/value_machine_receiver_field_postentry + a
-  machine-flavor twin; sweep the a/b shuffle workarounds.
+  PHASE 3 PLUMBING LANDED (2026-07-10q, still gated): the CONSOLIDATED
+  table. BackendPlan.receiver_bases (Vec<Option<usize>>, indexed by
+  dispatch index) is computed ONCE in the pipeline builder
+  (compute_receiver_bases — the slice-1 predicate, env-gated) and
+  threaded to ALL consumers: the guards crate (build_state_guard_plan →
+  guard_operands → resolve_guard_operand_layout — the whole param chain),
+  selection (InstructionSelectionInput.receiver_bases;
+  receiver_base.rs is now a pure table lookup — the phase-2 local
+  computation is deleted), emission planning
+  (EmissionPlanningInput.receiver_bases), and the fence (served-ness
+  skip re-deriving the same predicate via the shared walk). One
+  prediction site, no copies.
+  ⚠️ END-TO-END PROBE FAILS (expected-class): with the gate on, the
+  repro COMPILES (fence relaxes) but exits native 3 vs interp 70 — the
+  override chain has a wrong-resolution hole somewhere (guards sites
+  82/139 still use the by-type walk internally? the machine_owned
+  override misses a path? clone dedup?). The GATE keeps it dormant;
+  default gates are green (suite known-7, fs 88/0, differential 13/13).
+  PHASE 4 LANDED (2026-07-10r) — THE DISPATCH ROUTE SERVES, UN-GATED.
+  The report autopsy reframed the bug as TWO ROUTES: the time repro's
+  pure value callees ride INLINE-BRANCHING (whose expansions resolve
+  callee self-reads by TYPE — that half remains, fenced), while
+  dispatch-routed calls (LOOPING value callees + statement-position
+  method calls, which dispatch via the Statement && Inline* condition)
+  now run on the RECEIVER's true storage. Guards' internal sites wired
+  to the table (per_instance_base — the phase-3 hole); the fence relaxes
+  EXACTLY for dispatch-routed calls (state_call_routed_to_dispatch — the
+  effect fences' own evidence helper) and still fences inline; the env
+  gate is REMOVED. PROMOTED: calls/runtime_dispatch_second_receiver_exit
+  (looping second-receiver probe: 21, not the first receiver's 300) and
+  — the milestone — the ORIGINAL aliasing repro flipped from fail fence
+  to pass: calls/runtime_same_type_second_receiver_mutation_exit
+  (`self.b.increment()` mutates b, was a; the
+  contained-machine-same-type-aliasing stopgap is retired for this
+  route). Statement calls dispatching means the common std-authoring
+  shape (mutating methods through any same-type field) just works.
+  REMAINING (the inline half): pending/time/value_machine_receiver_field
+  _postentry stays fenced+pending — inline expansions need call-identity
+  threading through prelude/leaf/straight-line resolution; the a/b
+  shuffle workarounds (time canaries, note_vault) are inline-route and
+  stay until then.
 
 ## Observations (not fs, flagged for Zach)
 
