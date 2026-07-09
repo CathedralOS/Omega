@@ -419,8 +419,10 @@ impl<'program> LayoutBuilder<'program> {
                 .data_payload_fields(variant)
                 .iter()
                 .map(|field| {
-                    let layout = self
-                        .layout_type_reference_handle_with_bindings(field.type_reference, bindings)?;
+                    let layout = self.layout_type_reference_handle_with_bindings(
+                        field.type_reference,
+                        bindings,
+                    )?;
                     Ok(PlannedField {
                         symbol: field.symbol,
                         name: field.name.clone(),
@@ -1000,8 +1002,7 @@ impl<'program> LayoutBuilder<'program> {
                 constraints,
             } => {
                 let base = self.type_descriptor_with_bindings(*base_type, bindings);
-                let constraint_list =
-                    self.program.type_reference_table.constraints(*constraints);
+                let constraint_list = self.program.type_reference_table.constraints(*constraints);
                 // An owned `[u8; N] in <named-domain>` field is the variable-fill
                 // bounded byte carrier (#66): a NAMED (text) domain over a fixed
                 // array. It becomes its own `BoundedByteBuffer` descriptor --
@@ -1055,9 +1056,7 @@ impl<'program> LayoutBuilder<'program> {
                 }
             },
             TypeReferenceNode::Slice { element_type } => TypeLayoutDescriptor::Slice {
-                element_type: Box::new(
-                    self.type_descriptor_with_bindings(*element_type, bindings),
-                ),
+                element_type: Box::new(self.type_descriptor_with_bindings(*element_type, bindings)),
             },
             TypeReferenceNode::DynamicTrait { symbol, name } => {
                 TypeLayoutDescriptor::DynamicTrait {

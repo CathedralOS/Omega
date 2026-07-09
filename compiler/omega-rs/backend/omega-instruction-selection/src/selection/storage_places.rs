@@ -154,7 +154,13 @@ pub(super) fn resolve_runtime_storage_place(
 ) -> Option<RuntimeStoragePlace> {
     let mut delegated_expressions = ExpressionTable::default();
     let delegated_expression = delegated_expressions.insert_tree(expression);
-    resolve_runtime_storage_place_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
+    resolve_runtime_storage_place_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
 }
 
 pub(super) fn resolve_runtime_assignment_value_call_result_place(
@@ -453,9 +459,7 @@ pub(super) fn resolve_runtime_storage_place_in_table(
         // descriptor, the length is its runtime len slot. Without this the `.len`
         // step has no data layout to resolve against, the whole place silently
         // fails to resolve, and the read yields uninitialized garbage.
-        if let Some(place) =
-            runtime_nested_slice_descriptor_len_place(input, &root_field, suffix)
-        {
+        if let Some(place) = runtime_nested_slice_descriptor_len_place(input, &root_field, suffix) {
             return Some(place);
         }
 
@@ -471,6 +475,7 @@ pub(super) fn resolve_runtime_storage_place_in_table(
 
     resolve_machine_owned_place_in_table(
         &input.layouts,
+        crate::selection::receiver_base::dispatch_receiver_base(input, dispatch_index),
         input.entry_key.machine,
         source_key.machine,
         expressions,
@@ -594,13 +599,18 @@ fn fixed_array_length_of_receiver_in_table(
                 )?)
                 .ok()?
             };
-            let end = if end_inclusive { end.checked_add(1)? } else { end };
+            let end = if end_inclusive {
+                end.checked_add(1)?
+            } else {
+                end
+            };
             return usize::try_from(end.checked_sub(start)?).ok();
         }
     }
 
     if let Some(target) = resolve_machine_owned_collection_in_table(
         &input.layouts,
+        crate::selection::receiver_base::dispatch_receiver_base(input, dispatch_index),
         input.entry_key.machine,
         source_key.machine,
         expressions,
@@ -1238,7 +1248,13 @@ pub(super) fn resolve_runtime_storage_primitive_type(
 ) -> Option<PrimitiveType> {
     let mut delegated_expressions = ExpressionTable::default();
     let delegated_expression = delegated_expressions.insert_tree(expression);
-    resolve_runtime_storage_primitive_type_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
+    resolve_runtime_storage_primitive_type_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
 }
 
 /// Whether a storage TARGET is an atomic-typed place (`AtomicU32`/`AtomicU64`/
@@ -1355,6 +1371,7 @@ fn resolve_runtime_storage_leaf_descriptor_in_table(
         // leaf type descriptor through that path instead.
         if let Some(collection) = resolve_machine_owned_collection_in_table(
             &input.layouts,
+            crate::selection::receiver_base::dispatch_receiver_base(input, dispatch_index),
             input.entry_key.machine,
             source_key.machine,
             expressions,
@@ -1435,7 +1452,9 @@ fn descriptor_primitive_is_signed(descriptor: &TypeLayoutDescriptor) -> Option<b
     Some(descriptor_primitive_type(descriptor)?.is_signed_integer())
 }
 
-pub(super) fn descriptor_primitive_type(descriptor: &TypeLayoutDescriptor) -> Option<PrimitiveType> {
+pub(super) fn descriptor_primitive_type(
+    descriptor: &TypeLayoutDescriptor,
+) -> Option<PrimitiveType> {
     match descriptor {
         TypeLayoutDescriptor::Named { name, .. } => PrimitiveType::from_name(name),
         TypeLayoutDescriptor::Constrained { base_type, .. } => descriptor_primitive_type(base_type),
@@ -1523,6 +1542,7 @@ pub(super) fn resolve_fixed_array_length_in_table(
 
     let collection = resolve_machine_owned_collection_in_table(
         &input.layouts,
+        crate::selection::receiver_base::dispatch_receiver_base(input, dispatch_index),
         input.entry_key.machine,
         source_key.machine,
         expressions,
@@ -1540,7 +1560,13 @@ pub(super) fn resolve_fixed_array_length(
 ) -> Option<usize> {
     let mut delegated_expressions = ExpressionTable::default();
     let delegated_expression = delegated_expressions.insert_tree(expression);
-    resolve_fixed_array_length_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
+    resolve_fixed_array_length_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
 }
 
 pub(super) fn resolve_runtime_frame_indexed_target(
@@ -1551,7 +1577,13 @@ pub(super) fn resolve_runtime_frame_indexed_target(
 ) -> Option<RuntimeFrameIndexedTarget> {
     let mut delegated_expressions = ExpressionTable::default();
     let delegated_expression = delegated_expressions.insert_tree(expression);
-    resolve_runtime_frame_indexed_target_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
+    resolve_runtime_frame_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
 }
 
 pub(super) fn resolve_runtime_frame_base_indexed_target(
@@ -1562,7 +1594,13 @@ pub(super) fn resolve_runtime_frame_base_indexed_target(
 ) -> Option<RuntimeFrameBaseIndexedTarget> {
     let mut delegated_expressions = ExpressionTable::default();
     let delegated_expression = delegated_expressions.insert_tree(expression);
-    resolve_runtime_frame_base_indexed_target_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
+    resolve_runtime_frame_base_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
 }
 
 pub(super) fn resolve_runtime_frame_indexed_target_in_table(
@@ -2321,7 +2359,13 @@ pub(super) fn resolve_runtime_machine_indexed_target(
 ) -> Option<RuntimeMachineIndexedTarget> {
     let mut delegated_expressions = ExpressionTable::default();
     let delegated_expression = delegated_expressions.insert_tree(expression);
-    resolve_runtime_machine_indexed_target_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
+    resolve_runtime_machine_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
 }
 
 /// Resolve a machine-owned COLLECTION place, peeling CONST-`Indexed` layers the
@@ -2340,6 +2384,7 @@ fn resolve_machine_owned_collection_with_const_prefix_in_table(
 ) -> Option<MachineOwnedCollectionTarget> {
     if let Some(collection) = resolve_machine_owned_collection_in_table(
         &input.layouts,
+        None, // receiver override: collection paths are phase 3 (no dispatch ctx here)
         input.entry_key.machine,
         source_key.machine,
         expressions,
@@ -2423,7 +2468,13 @@ pub(super) fn resolve_runtime_pointee_slot_offset(
 ) -> Option<RuntimePointeeTarget> {
     let mut delegated_expressions = ExpressionTable::default();
     let delegated_expression = delegated_expressions.insert_tree(expression);
-    resolve_runtime_pointee_slot_offset_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
+    resolve_runtime_pointee_slot_offset_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
 }
 
 pub(super) fn resolve_runtime_pointee_slot_offset_in_table(
@@ -2563,7 +2614,13 @@ pub(super) fn resolve_runtime_pointee_fixed_indexed_target(
 ) -> Option<RuntimePointeeTarget> {
     let mut delegated_expressions = ExpressionTable::default();
     let delegated_expression = delegated_expressions.insert_tree(expression);
-    resolve_runtime_pointee_fixed_indexed_target_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
+    resolve_runtime_pointee_fixed_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
 }
 
 fn pointee_pointer_offset(
@@ -2611,8 +2668,13 @@ pub(super) fn resolve_slice_element_byte_size_in_table(
     expressions: &ExpressionTable,
     expression: ExpressionHandle,
 ) -> Option<usize> {
-    let slot =
-        runtime_frame_slot_for_expression_in_table(input, dispatch_index, source_key, expressions, expression)?;
+    let slot = runtime_frame_slot_for_expression_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )?;
     let element_descriptor = slot.type_descriptor.element_type()?;
     Some(descriptor_layout(input, element_descriptor).size)
 }
@@ -2810,6 +2872,7 @@ fn resolve_runtime_fixed_indexed_place_in_table(
 
     let collection = match resolve_machine_owned_collection_in_table(
         &input.layouts,
+        crate::selection::receiver_base::dispatch_receiver_base(input, dispatch_index),
         input.entry_key.machine,
         source_key.machine,
         expressions,
@@ -3001,7 +3064,13 @@ pub(super) fn resolve_runtime_frame_fixed_indexed_target(
 ) -> Option<RuntimeFrameFixedIndexedTarget> {
     let mut delegated_expressions = ExpressionTable::default();
     let delegated_expression = delegated_expressions.insert_tree(expression);
-    resolve_runtime_frame_fixed_indexed_target_in_table(input, dispatch_index, source_key, &delegated_expressions, delegated_expression)
+    resolve_runtime_frame_fixed_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        &delegated_expressions,
+        delegated_expression,
+    )
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -3050,8 +3119,12 @@ fn const_fold_index_value_in_table(
             let right = const_fold_index_value_in_table(table, binary.right)?;
             match binary.operator {
                 omega_checked_trees::expression::BinaryOperator::Add => left.checked_add(right),
-                omega_checked_trees::expression::BinaryOperator::Subtract => left.checked_sub(right),
-                omega_checked_trees::expression::BinaryOperator::Multiply => left.checked_mul(right),
+                omega_checked_trees::expression::BinaryOperator::Subtract => {
+                    left.checked_sub(right)
+                }
+                omega_checked_trees::expression::BinaryOperator::Multiply => {
+                    left.checked_mul(right)
+                }
                 _ => None,
             }
         }
@@ -3139,6 +3212,7 @@ fn resolve_elided_local_slice_view_array(
     let underlying = see_through_as_slice_view(&input.program.expression_table, initializer);
     resolve_machine_owned_collection_in_table(
         &input.layouts,
+        None, // receiver override: collection paths are phase 3 (no dispatch ctx here)
         input.entry_key.machine,
         source_key.machine,
         &input.program.expression_table,
@@ -3244,15 +3318,13 @@ fn resolve_indexed_target_suffix_cursor_in_table<'layout>(
         return Some(cursor);
     }
     match expressions.expression(expression) {
-        ExpressionNode::Mutable(target) => {
-            resolve_indexed_target_suffix_cursor_in_table(
-                layouts,
-                cursor,
-                expressions,
-                *target,
-                boundary,
-            )
-        }
+        ExpressionNode::Mutable(target) => resolve_indexed_target_suffix_cursor_in_table(
+            layouts,
+            cursor,
+            expressions,
+            *target,
+            boundary,
+        ),
         ExpressionNode::Indexed(indexed) => {
             let Some(collection_cursor) = resolve_indexed_target_suffix_cursor_in_table(
                 layouts,
@@ -3267,7 +3339,10 @@ fn resolve_indexed_target_suffix_cursor_in_table<'layout>(
             let ExpressionNode::Integer(index) = expressions.expression(indexed.index) else {
                 return None;
             };
-            apply_fixed_array_index_to_cursor(collection_cursor, usize::try_from(index.value_i64()?).ok()?)
+            apply_fixed_array_index_to_cursor(
+                collection_cursor,
+                usize::try_from(index.value_i64()?).ok()?,
+            )
         }
         ExpressionNode::Member(member) => {
             let cursor = resolve_indexed_target_suffix_cursor_in_table(

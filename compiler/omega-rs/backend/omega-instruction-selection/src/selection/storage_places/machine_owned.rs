@@ -1,11 +1,11 @@
 use super::expressions::{
     StorageNamePath, normalized_storage_expression, normalized_storage_name_path_in_table,
 };
+use super::model::RuntimeStoragePlace;
 use super::nested_fields::{
     NestedFieldLayoutCursor, resolve_nested_field_layout_step,
     resolve_nested_field_layout_with_pairs, resolve_nested_field_layout_with_symbols,
 };
-use super::model::RuntimeStoragePlace;
 use omega_abstract_operations::RuntimeStorageRegion;
 use omega_checked_trees::expression::{Expression, ExpressionHandle, ExpressionTable, NamePath};
 use omega_checked_trees::name::Identifier;
@@ -22,6 +22,7 @@ pub(in crate::selection) struct MachineOwnedCollectionTarget {
 
 pub(in crate::selection) fn resolve_machine_owned_place(
     layouts: &LayoutPlan,
+    receiver_base: Option<usize>,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     expression: &Expression,
@@ -31,7 +32,13 @@ pub(in crate::selection) fn resolve_machine_owned_place(
         return None;
     };
     let (machine_base_offset, root_field, suffix, suffix_start_index) =
-        root_machine_field_layout_from_path(layouts, entry_machine, source_machine, path)?;
+        root_machine_field_layout_from_path(
+            layouts,
+            receiver_base,
+            entry_machine,
+            source_machine,
+            path,
+        )?;
     let (field_offset, field_layout) =
         resolve_nested_field_layout_with_symbols(layouts, root_field, suffix, |index| {
             path.member_symbol(suffix_start_index + index)
@@ -52,6 +59,7 @@ pub(in crate::selection) fn resolve_machine_owned_place(
 /// blocker in emission planning.
 pub(in crate::selection) fn resolve_machine_owned_self_case_tag_place_in_table(
     layouts: &LayoutPlan,
+    receiver_base: Option<usize>,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     expressions: &ExpressionTable,
@@ -70,7 +78,8 @@ pub(in crate::selection) fn resolve_machine_owned_self_case_tag_place_in_table(
     if !is_case_bearing {
         return None;
     }
-    let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
+    let machine_base_offset =
+        resolved_machine_base(receiver_base, layouts, entry_machine, source_machine)?;
     Some(RuntimeStoragePlace {
         region: RuntimeStorageRegion::Machine,
         byte_offset: machine_base_offset,
@@ -80,6 +89,7 @@ pub(in crate::selection) fn resolve_machine_owned_self_case_tag_place_in_table(
 
 pub(in crate::selection) fn resolve_machine_owned_place_in_table(
     layouts: &LayoutPlan,
+    receiver_base: Option<usize>,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     expressions: &ExpressionTable,
@@ -87,7 +97,13 @@ pub(in crate::selection) fn resolve_machine_owned_place_in_table(
 ) -> Option<(usize, usize)> {
     let path = normalized_storage_name_path_in_table(expressions, expression)?;
     let (machine_base_offset, root_field, suffix_start_index) =
-        root_machine_field_layout_from_table_path(layouts, entry_machine, source_machine, &path)?;
+        root_machine_field_layout_from_table_path(
+            layouts,
+            receiver_base,
+            entry_machine,
+            source_machine,
+            &path,
+        )?;
     let suffix = path.suffix(suffix_start_index);
     let (field_offset, field_layout) =
         resolve_nested_field_layout_with_pairs(layouts, root_field, suffix.iter())?;
@@ -97,6 +113,7 @@ pub(in crate::selection) fn resolve_machine_owned_place_in_table(
 
 pub(in crate::selection) fn resolve_machine_owned_collection_in_table(
     layouts: &LayoutPlan,
+    receiver_base: Option<usize>,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     expressions: &ExpressionTable,
@@ -104,7 +121,13 @@ pub(in crate::selection) fn resolve_machine_owned_collection_in_table(
 ) -> Option<MachineOwnedCollectionTarget> {
     let path = normalized_storage_name_path_in_table(expressions, expression)?;
     let (machine_base_offset, root_field, suffix_start_index) =
-        root_machine_field_layout_from_table_path(layouts, entry_machine, source_machine, &path)?;
+        root_machine_field_layout_from_table_path(
+            layouts,
+            receiver_base,
+            entry_machine,
+            source_machine,
+            &path,
+        )?;
     let mut cursor = NestedFieldLayoutCursor::from_root(root_field);
 
     // The root field position in the path (at `suffix_start_index - 1`) may carry an
@@ -156,6 +179,7 @@ pub(in crate::selection) fn resolve_machine_owned_collection_in_table(
 
 fn root_machine_field_layout_from_table_path<'path, 'layout>(
     layouts: &'layout LayoutPlan,
+    receiver_base: Option<usize>,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     path: &'path StorageNamePath<'_>,
@@ -164,7 +188,8 @@ fn root_machine_field_layout_from_table_path<'path, 'layout>(
 
     if table_path_targets_source_machine(path, source_machine) {
         let field_name = path.member(1)?;
-        let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
+        let machine_base_offset =
+            resolved_machine_base(receiver_base, layouts, entry_machine, source_machine)?;
         if let Some(machine_layout) = layouts
             .machine_layouts
             .iter()
@@ -192,6 +217,7 @@ fn root_machine_field_layout_from_table_path<'path, 'layout>(
     let root_name = path.member(0)?;
     let (machine_base_offset, root_field) = root_machine_field_layout(
         layouts,
+        receiver_base,
         entry_machine,
         source_machine,
         path.head_symbol(),
@@ -202,12 +228,14 @@ fn root_machine_field_layout_from_table_path<'path, 'layout>(
 
 fn root_machine_field_layout_from_path<'path, 'layout>(
     layouts: &'layout LayoutPlan,
+    receiver_base: Option<usize>,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     path: &'path NamePath,
 ) -> Option<(usize, &'layout FieldLayout, &'path [Identifier], usize)> {
     root_machine_field_layout_from_parts(
         layouts,
+        receiver_base,
         entry_machine,
         source_machine,
         path.members(),
@@ -218,6 +246,7 @@ fn root_machine_field_layout_from_path<'path, 'layout>(
 
 fn root_machine_field_layout_from_parts<'path, 'layout>(
     layouts: &'layout LayoutPlan,
+    receiver_base: Option<usize>,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     members: &'path [Identifier],
@@ -232,7 +261,8 @@ fn root_machine_field_layout_from_parts<'path, 'layout>(
         let [field_name, rest @ ..] = suffix else {
             return None;
         };
-        let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
+        let machine_base_offset =
+            resolved_machine_base(receiver_base, layouts, entry_machine, source_machine)?;
         if let Some(machine_layout) = layouts
             .machine_layouts
             .iter()
@@ -259,6 +289,7 @@ fn root_machine_field_layout_from_parts<'path, 'layout>(
 
     let (machine_base_offset, root_field) = root_machine_field_layout(
         layouts,
+        receiver_base,
         entry_machine,
         source_machine,
         root_symbol,
@@ -285,6 +316,7 @@ fn path_targets_source_machine(
 
 fn root_machine_field_layout<'plan>(
     layouts: &'plan LayoutPlan,
+    receiver_base: Option<usize>,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     root_symbol: SymbolHandle,
@@ -292,6 +324,7 @@ fn root_machine_field_layout<'plan>(
 ) -> Option<(usize, &'plan FieldLayout)> {
     root_machine_field_layout_for_machine(
         layouts,
+        receiver_base,
         entry_machine,
         source_machine,
         root_symbol,
@@ -301,6 +334,7 @@ fn root_machine_field_layout<'plan>(
 
 fn root_machine_field_layout_for_machine<'plan>(
     layouts: &'plan LayoutPlan,
+    receiver_base: Option<usize>,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     root_symbol: SymbolHandle,
@@ -308,6 +342,7 @@ fn root_machine_field_layout_for_machine<'plan>(
 ) -> Option<(usize, &'plan FieldLayout)> {
     root_machine_field_layout_in_machine(
         layouts,
+        receiver_base,
         entry_machine,
         source_machine,
         root_symbol,
@@ -320,6 +355,7 @@ fn root_machine_field_layout_for_machine<'plan>(
 
 fn root_machine_field_layout_in_machine<'plan>(
     layouts: &'plan LayoutPlan,
+    receiver_base: Option<usize>,
     entry_machine: SymbolHandle,
     source_machine: SymbolHandle,
     root_symbol: SymbolHandle,
@@ -332,7 +368,8 @@ fn root_machine_field_layout_in_machine<'plan>(
         .map(|(_, machine_layout)| machine_layout)?;
     let root_field =
         field_layout_by_symbol_or_name(layouts, machine_layout.fields, root_symbol, root_name)?;
-    let machine_base_offset = machine_storage_offset(layouts, entry_machine, source_machine)?;
+    let machine_base_offset =
+        resolved_machine_base(receiver_base, layouts, entry_machine, source_machine)?;
     Some((machine_base_offset, root_field))
 }
 
@@ -408,6 +445,24 @@ fn field_layout_by_symbol_or_name<'plan>(
         .iter()
         .find(|field| field_symbol.is_valid() && field.symbol == field_symbol)
         .or_else(|| fields.iter().find(|field| field.name == *field_name))
+}
+
+/// The callee's machine-storage base: the PER-INSTANCE receiver base when
+/// the dispatch context minted one (per-instance dispatch, TASKS_FS "Stolen
+/// work #2"), else the historical first-type-match walk. The entry machine
+/// itself never carries an override (its base is 0 either way).
+fn resolved_machine_base(
+    receiver_base: Option<usize>,
+    layouts: &LayoutPlan,
+    entry_machine: SymbolHandle,
+    source_machine: SymbolHandle,
+) -> Option<usize> {
+    if entry_machine != source_machine
+        && let Some(base) = receiver_base
+    {
+        return Some(base);
+    }
+    machine_storage_offset(layouts, entry_machine, source_machine)
 }
 
 fn machine_storage_offset(

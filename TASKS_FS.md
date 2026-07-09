@@ -1232,12 +1232,32 @@ macOS/arm64 host this lane runs on — are CLAIMED here:
   dispatch_index → RuntimeState { key, context } → context_call_sites →
   the minting StateCall → receiver_path → the true storage base. All
   gates green (the field is dormant until phase 2 consumes it).
-  PHASE 2 (next): a receiver-path→offset walk helper visible to selection
-  (share/move the blocker's walk); the machine_owned.rs resolver sites +
-  the guards sibling consult the context's receiver base when present;
-  fence relaxation; promote the pending repro + a machine-flavor twin;
-  sweep the a/b shuffle workarounds (time-interop canary, note_vault)
-  back to natural spelling.
+  PHASE 2 LANDED (2026-07-10p, dormant): the resolution half.
+  - omega_layout::field_path_offset + the two descent helpers are the
+    SHARED walk (new field_paths.rs) — the fence's private copy is
+    deleted and now calls it (the two "keep in lockstep" duplicates are
+    gone; fence and resolver agree by construction).
+  - selection/receiver_base.rs: dispatch_receiver_base(input,
+    dispatch_index) — dispatch_index == the runtime-flow state's arena
+    index (state-dispatch assigns exactly that) → context →
+    context_call_sites → minting StateCall → receiver_path → the walk.
+    SLICE-1 scope: caller must be the entry machine; named non-self
+    receivers only.
+  - receiver_base: Option<usize> threaded through machine_owned.rs's
+    four source-machine resolution sites (resolved_machine_base
+    overrides the by-type walk; the three cross-machine sweep sites
+    untouched) and all nine external callers (storage_places.rs,
+    branches/leaf.rs via expansion.dispatch_index, guards.rs). Two
+    collection paths without dispatch context pass None (phase 3).
+  - GATED OMEGA_RECEIVER_DISPATCH=1 and doubly dormant: the fence still
+    refuses every affected program at emission planning, so the override
+    paths are unreachable in normal compiles. All gates green.
+  PHASE 3 (next): the state-guards sibling (its crate lacks the
+  state-calls dep — thread the COMPUTED base from the dispatch-loop
+  layer, sites 82/139 override, 113 sweep stays); gate the fence on the
+  same served-ness predicate; end-to-end probe under the gate; un-gate;
+  promote pending/time/value_machine_receiver_field_postentry + a
+  machine-flavor twin; sweep the a/b shuffle workarounds.
 
 ## Observations (not fs, flagged for Zach)
 

@@ -232,8 +232,10 @@ fn select_runtime_leaf_branch_expansion(
     let mut summary_expressions =
         omega_checked_trees::expression::ExpressionTable::with_expression_capacity(8);
     let summary_guard = if expansion.resolved_guard.is_valid() {
-        let copied = summary_expressions
-            .copy_from(&input.runtime_branching_calls.expressions, expansion.resolved_guard);
+        let copied = summary_expressions.copy_from(
+            &input.runtime_branching_calls.expressions,
+            expansion.resolved_guard,
+        );
         crate::selection::bindings::resolve_leaf_binding_expression_handle(
             &input.runtime_branching_calls.expressions,
             &mut summary_expressions,
@@ -243,11 +245,8 @@ fn select_runtime_leaf_branch_expansion(
     } else {
         expansion.resolved_guard
     };
-    let static_summary = static_guard_conjunct_summary_in_table(
-        input,
-        &summary_expressions,
-        summary_guard,
-    );
+    let static_summary =
+        static_guard_conjunct_summary_in_table(input, &summary_expressions, summary_guard);
     if static_summary.has_false {
         return;
     }
@@ -1479,6 +1478,7 @@ fn runtime_leaf_machine_integer_write(
 ) -> Option<(usize, usize, i64)> {
     let (byte_offset, byte_size) = resolve_machine_owned_place(
         &input.layouts,
+        crate::selection::receiver_base::dispatch_receiver_base(input, expansion.dispatch_index),
         input.entry_key.machine,
         expansion.source_key.machine,
         target,
@@ -1500,6 +1500,7 @@ fn runtime_leaf_machine_integer_write_in_table(
 ) -> Option<(usize, usize, i64)> {
     let (byte_offset, byte_size) = resolve_machine_owned_place_in_table(
         &input.layouts,
+        crate::selection::receiver_base::dispatch_receiver_base(input, expansion.dispatch_index),
         input.entry_key.machine,
         expansion.source_key.machine,
         expressions,
