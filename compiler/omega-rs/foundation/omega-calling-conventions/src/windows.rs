@@ -45,11 +45,13 @@ pub const WINDOWS_IMPORT_ROWS: &[(&str, &str, &str, &str)] = &[
     // per-OS record layout the portable decode does not answer yet) keep the
     // clean "no native lowering" diagnostic.
     ("Filesystem", "open", "msvcrt.dll", "_open"),
-    // NO `open_create` row: its FLAG WORDS carry darwin values, and darwin
-    // O_CREAT (0x200) is msvcrt O_TRUNC -- `create_new`/`open_with` would
-    // silently TRUNCATE the file they must refuse to touch. Fenced to the
-    // clean "no native lowering" error until the portable-flags design
-    // (TASKS_FS #6) gives the wrapper per-OS flag values.
+    // `open_create` = `_open(path, flags, mode)` -- unfenced 2026-07-08 now that
+    // the wrapper composes msvcrt flag words from the per-target `FilesystemHost`
+    // provides values (create_new/open_with no longer emit darwin O_CREAT 0x200,
+    // which is msvcrt O_TRUNC). msvcrt `_open` takes the create `mode` as a
+    // trailing variadic int; on win64 it lands in a normal arg register, so the
+    // general import-call encoder marshals all three args like any Win64 call.
+    ("Filesystem", "open_create", "msvcrt.dll", "_open"),
     ("Filesystem", "creat", "msvcrt.dll", "_creat"),
     ("Filesystem", "read", "msvcrt.dll", "_read"),
     ("Filesystem", "write", "msvcrt.dll", "_write"),
@@ -312,9 +314,19 @@ pub(crate) fn populate(plan: &mut HostAbiPlan) {
             [host_operation("Filesystem", "open")],
             PlatformCallData::None,
         );
-        // NO `open_create` lowering: darwin-valued flag words mean O_TRUNC to
-        // msvcrt (silent data loss through create_new/open_with) -- fenced to
-        // the clean error until the portable-flags design (TASKS_FS #6).
+        // `open_create` unfenced 2026-07-08: the wrapper now composes msvcrt
+        // flag words from the per-target `FilesystemHost` provides values, so
+        // create_new/open_with no longer risk the darwin-O_CREAT-is-msvcrt-
+        // O_TRUNC silent truncation. `_open(path, flags, mode)` rides the same
+        // general import call as `open` (the trailing mode is a normal win64
+        // arg register, not stack-passed like darwin arm64's variadic).
+        insert_platform_lowering(
+            plan,
+            "FilesystemHost",
+            "open_create",
+            [host_operation("Filesystem", "open_create")],
+            PlatformCallData::None,
+        );
         insert_platform_lowering(
             plan,
             "FilesystemHost",

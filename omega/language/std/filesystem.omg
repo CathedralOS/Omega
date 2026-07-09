@@ -304,6 +304,12 @@ data Filesystem {
     create_mode: i32;
     dir_mode: i32;
     read_flags: i32;
+    // Composed open() / open_create() flag word: a host-call scalar arg must be
+    // a simple storage place, and a COMPUTED flag expression (or a `let` local
+    // in a value-called machine) is not one -- create_new/open_with compose the
+    // per-target flags into this field, then pass the field (the read_flags
+    // idiom).
+    open_flags: i32;
     // Scratch for a by-value File param's fd: a host-call arg must be a
     // simple storage place, and a param MEMBER (`file.fd`) is not one (a let
     // folds back to the member) -- the field capture is (try_exists' idiom).
@@ -400,7 +406,8 @@ machine Filesystem::create(&mut self, path: &[u8] in Path) -> OpenResult {
 // (438). An existing path yields `Error { kind: AlreadyExists }`.
 machine Filesystem::create_new(&mut self, path: &[u8] in Path) -> OpenResult {
     self.create_mode = 438;
-    let fd: i32 = self.host.open_create(path, 2562, self.create_mode);
+    self.open_flags = FilesystemHost::O_RDWR | FilesystemHost::O_CREATE | FilesystemHost::O_EXCL;
+    let fd: i32 = self.host.open_create(path, self.open_flags, self.create_mode);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
     state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
@@ -430,20 +437,27 @@ machine Filesystem::open(&mut self, path: &[u8] in Path) -> OpenResult {
 machine Filesystem::open_with(&mut self, path: &[u8] in Path, options: OpenOptions) -> OpenResult {
     let wbit: i32 = (options.write as i32) | (options.append as i32);
     let rbit: i32 = options.read as i32;
+    // Access mode (O_RDONLY 0 / O_WRONLY 1 / O_RDWR 2) is UNIVERSAL across
+    // targets, so it stays a literal 0/1/2 composition.
     let wronly: i32 = wbit & (rbit ^ 1);
     let rdwr: i32 = (wbit & rbit) << 1;
-    let append_flag: i32 = (options.append as i32) << 3;
-    let truncate_flag: i32 = (options.truncate as i32) << 10;
-    // Creating opens: O_CREAT (512 = 1<<9) when `create` OR `create_new`; O_EXCL
-    // (2048 = 1<<11) only for `create_new`. Routed through the `open_create`
-    // seam, which SUBSUMES `open` (with no O_CREAT it behaves exactly like it),
-    // so existing-file opens are unchanged. Default create mode 0o666 (438).
+    // The single-bit FLAGS (O_APPEND/O_TRUNC/O_CREAT/O_EXCL) differ per target,
+    // so each is the SELECTED TARGET's flag VALUE gated by a branch-free mask:
+    // a bool 0/1 becomes an all-ones/zero mask via `<<31 >>31` (arithmetic
+    // shift), then `& VALUE` selects the flag or 0. (D8: exact-arith rejects
+    // `*`/`+` on bool casts; `<<`/`>>`/`&` carry no overflow obligation.)
+    let append_flag: i32 = (((options.append as i32) << 31) >> 31) & FilesystemHost::O_APPEND;
+    let truncate_flag: i32 = (((options.truncate as i32) << 31) >> 31) & FilesystemHost::O_TRUNC;
+    // Creating opens: O_CREAT when `create` OR `create_new`; O_EXCL only for
+    // `create_new`. Routed through `open_create`, which SUBSUMES `open` (with no
+    // O_CREAT it behaves exactly like it), so existing-file opens are unchanged.
     let creating: i32 = (options.create as i32) | (options.create_new as i32);
-    let creat_flag: i32 = creating << 9;
-    let excl_flag: i32 = (options.create_new as i32) << 11;
-    let flags: i32 = wronly | rdwr | append_flag | truncate_flag | creat_flag | excl_flag;
+    let creat_flag: i32 = ((creating << 31) >> 31) & FilesystemHost::O_CREATE;
+    let excl_flag: i32 = (((options.create_new as i32) << 31) >> 31) & FilesystemHost::O_EXCL;
+    // The composed word lands in a FIELD (host-call scalar-arg idiom).
+    self.open_flags = wronly | rdwr | append_flag | truncate_flag | creat_flag | excl_flag;
     self.create_mode = 438;
-    let fd: i32 = self.host.open_create(path, flags, self.create_mode);
+    let fd: i32 = self.host.open_create(path, self.open_flags, self.create_mode);
     transition fd >= 0 { true -> ok(fd) _ -> err() }
     state ok(&mut self, fd: i32) -> OpenResult { OpenResult::Ok { file: File { fd: fd } } }
     state err(&mut self) -> OpenResult { let kind: ErrorKind = self.last_error(); OpenResult::Error { kind: kind } }
