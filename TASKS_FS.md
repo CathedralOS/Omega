@@ -1201,8 +1201,34 @@ macOS/arm64 host this lane runs on — are CLAIMED here:
   shuffle (my time-interop canary + note_vault carry it). The parallel
   thread is on recursion aftermath + holding on Q5; claim-first protocol
   followed (pointer left at their item). Repro:
-  pending/time/value_machine_receiver_field_postentry. Plan: scope this
-  iteration (repro + root map + written plan), implement next.
+  pending/time/value_machine_receiver_field_postentry. SCOPED 2026-07-10n:
+  ROOT = `machine_storage_offset(layouts, entry_machine, source_machine)`
+  (selection/storage_places/machine_owned.rs:413, ~7 call sites resolving
+  a dispatched callee's self-storage base) + a sibling in
+  omega-state-guards/operands/layout.rs:554 — both walk the ENTRY layout
+  for the FIRST nested field matching the callee's TYPE/attached-data; no
+  instance identity exists at that point. Repro fence-refuses today
+  (contained_receiver_blockers — the message even names the wrong-instance
+  offsets: receiver `sum` at 56, resolver picks 0).
+  FIX ARCHITECTURE: compute the receiver's TRUE base offset at
+  flow-build time (the blocker already walks receiver_path → field
+  offsets; StateCall carries the path), and thread it into the callee's
+  CallContext at next_callee_context. THE KEY INSIGHT: CallContext already
+  KEYS clone specialization — adding the receiver place to the context
+  means two calls on different same-type receivers mint DISTINCT clones
+  with correct storage bases for free (per-instance dispatch falls out of
+  per-context specialization). Consumers: machine_storage_offset's sites
+  consult the context's receiver offset when present (fall back to the
+  by-type walk for the entry/free-machine cases at offset 0); the fence
+  then RELAXES for served cases (fail canary flips). RISKS: context-key
+  cardinality (one clone per distinct receiver field — bounded by the
+  data shape, fine); the guards sibling site must not be missed (probe
+  with a guard-position receiver call); interp is already
+  instance-correct, so the differential is the oracle throughout.
+  IMPLEMENT next iteration: context field + flow-builder computation →
+  the two resolver sites → fence relaxation → promote the pending repro +
+  a machine-flavor twin → sweep the a/b shuffle workarounds
+  (time-interop canary, note_vault) back to natural spelling.
 
 ## Observations (not fs, flagged for Zach)
 
