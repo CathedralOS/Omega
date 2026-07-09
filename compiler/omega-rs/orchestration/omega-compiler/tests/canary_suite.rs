@@ -19912,6 +19912,108 @@ fn runtime_dispatch_result_field_binding_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A dispatched value call whose terminal is a BINARY expression (-> acc + 100): computed into the result place (was a silent fallthrough).
+#[test]
+fn runtime_dispatch_result_binary_terminal_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_dispatch_result_binary_terminal_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-dispatch-result-binary-terminal-exit-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime_dispatch_result_binary_terminal_exit should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime_dispatch_result_binary_terminal_exit should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the binary terminal to deliver (n == 105 -> exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// Multi-arm terminals (place arm + binary arm) at two call sites taking opposite arms, field-bound results.
+#[test]
+fn runtime_dispatch_result_multi_arm_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_dispatch_result_multi_arm_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-dispatch-result-multi-arm-exit-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime_dispatch_result_multi_arm_exit should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime_dispatch_result_multi_arm_exit should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected both arms' terminals to deliver (high == 8, low == -4 -> exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// A dispatched value call as a GUARD SUBJECT: the hoist temp's result slot is served by the return-write.
+#[test]
+fn runtime_dispatch_result_guard_subject_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_dispatch_result_guard_subject_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-dispatch-result-guard-subject-exit-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("runtime_dispatch_result_guard_subject_exit should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("runtime_dispatch_result_guard_subject_exit should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the guard-subject call result to deliver (== 9 -> exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A dispatched value call whose TERMINAL returns a FIELD read: the
 // return-write copy uses the resolved place's REGION (was hardcoded
 // RuntimeFrame, reading the frame at a machine offset -- garbage).

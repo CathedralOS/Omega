@@ -619,10 +619,23 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    Both pinned differential:
    `calls/runtime_dispatch_result_field_binding_exit` +
    `calls/runtime_dispatch_result_field_terminal_exit` (native+interp 70;
-   RUN_CANARIES + suite tests). REMAINING SHAPES to matrix: effectful
-   entries (the parked acceptance canary), binary-operand terminals,
-   alias/slice-element results, multi-arm terminals, transition-arg /
-   guard-position bindings. LESSON: an exemption from a
+   RUN_CANARIES + suite tests).
+   THREE MORE SHAPES CLOSED/PINNED (2026-07-09a): (D) BINARY terminals
+   (`-> acc + 100`) fell through SILENTLY (live unfenced, native 71) --
+   new dedicated path in edges.rs computes into the result place
+   (WriteRuntimeStorageBinary; arithmetic/bitwise subset via a local
+   operator map, typed-place signedness + resolved domain, floats bail);
+   (E) MULTI-ARM terminals (place arm + binary arm at two sites taking
+   opposite arms, field-bound) -- the binary arm was the same fallthrough
+   (native 72), now green; (F) GUARD-SUBJECT binding probed GREEN and
+   pinned. Canaries (differential + suite):
+   `calls/runtime_dispatch_result_{binary_terminal,multi_arm,guard_subject}_exit`.
+   REMAINING SHAPES to matrix: effectful entries (the parked acceptance
+   canary -- likely the entry-op splice/dispatch interaction, not the
+   return-write), alias/slice-element results, transition-arg bindings,
+   float terminals (bail today, documented), Saturating/Trapping terminal
+   arithmetic (the binary path uses the resolved domain; verify with a
+   trapping probe). LESSON: an exemption from a
    silent-wrong fence needs a RUNTIME differential proof per shape, not a
    routing-evidence proof -- compile-time evidence says the route was
    taken, not that the route is correct.
