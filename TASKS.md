@@ -77,12 +77,6 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   already rejected). Corpus: the dungeon's find_item_at/find_item_after
   pair must be rewritten as states. Fail canary pinning the diagnostic.
 
-- **Implement the Q7 ban: statement-position tail self-calls are
-  rejected.** A trailing `self.drip(n - 1);` statement still compiles via
-  the Nested-transition route -- "banned, if it reads as recursion...
-  go write this as states" (2026-07-13). Reject the spelling with a
-  write-it-as-states diagnostic; fail canary.
-
 - **Implement the shift-domain ruling.** "Shift overflow is defined by the
   domain on which the operator is happening... lhs domain governs, rhs
   doesn't matter; mixed domains = the operator does not resolve (compile
