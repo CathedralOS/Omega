@@ -66,6 +66,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_value_callee_post_entry_lets_exit", 24),
     ("calls/runtime_post_entry_chained_let_exit", 2),
     ("calls/runtime_post_entry_deep_chain_exit", 30),
+    ("backend/value_machine_self_array_local_index_exit", 99),
     ("arithmetic/runtime_payload_range_narrowing_exit", 70),
     ("arithmetic/runtime_provable_field_construction_exit", 70),
     ("arithmetic/runtime_signed_division_exit", 70),

@@ -21065,6 +21065,51 @@ fn runtime_value_callee_post_entry_lets_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A VALUE machine reading self.<array>[<local index>] as its terminal RETURN
+// (a bare trailing Expression statement) now hoists the runtime-indexed read, so
+// the index materializes and the receiver base is threaded -- fill()=99 (was
+// native 0, interp masked it).
+#[test]
+fn value_machine_self_array_local_index_exit_canary_runs() {
+    let canary = pass_canary("backend/value_machine_self_array_local_index_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("value-machine self-array index canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 99,
+        "interpreter oracle should exit 99 (self.buf[j] in a value machine), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-value-machine-index-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-machine self-array index canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-machine self-array index canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(99),
+        "expected a value machine's self.buf[j] terminal read to deliver 99, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Hardens the post-entry fold beyond 2 levels: a FOUR-deep chain with an
 // intermediate read more than once (`a` -> b,c; `b` -> c,d). proc(5)=30.
 #[test]
