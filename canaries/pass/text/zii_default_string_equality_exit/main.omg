@@ -1,0 +1,39 @@
+// RUN CANARY (exit 70) + interpreter differential. ZII DEFAULT STRINGS
+// through content equality: a never-written String field is an all-zero
+// {ptr, len} descriptor, and ZII semantics say that IS the empty string.
+// Three legs: (1) zii == "" must be TRUE (len 0 == len 0; the loop never
+// runs); (2) zii == "omega" must be FALSE WITHOUT dereferencing the null
+// pointer (the length mismatch exits before any byte read -- both encoders
+// document this guard); (3) zii == zii (place==place TextEquals) must be
+// TRUE. A regression on leg 2 is a SIGSEGV, not a wrong exit -- the canary
+// still catches it as a non-70 outcome. exits: 71/72/73 per leg.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; never: String; also_never: String; okf: bool; }
+machine Main::main(&mut self) {
+    self.build();
+}
+machine Main::build(&mut self) {
+    self.okf = self.never == "";
+    transition self.okf {
+        true -> leg2()
+        _ -> wrong_zii_empty()
+    }
+    state leg2(&mut self) {
+        let ne: bool = self.never == "omega";
+        transition ne {
+            true -> wrong_zii_nonempty()
+            _ -> leg3()
+        }
+    }
+    state leg3(&mut self) {
+        let both: bool = self.never == self.also_never;
+        transition both {
+            true -> good()
+            _ -> wrong_zii_pair()
+        }
+    }
+    state good(&mut self)              { self.console.exit_process(70); }
+    state wrong_zii_empty(&mut self)   { self.console.exit_process(71); }
+    state wrong_zii_nonempty(&mut self){ self.console.exit_process(72); }
+    state wrong_zii_pair(&mut self)    { self.console.exit_process(73); }
+}
