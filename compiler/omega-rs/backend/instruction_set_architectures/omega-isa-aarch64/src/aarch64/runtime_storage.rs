@@ -75,10 +75,11 @@ const RUNTIME_VALUE_RIGHT_SCRATCH_REGISTERS: &[u8] = &[15, 14, 13, 12, 11, 10, 9
 /// `target_offset`. Mirrors the x86_64 convert path (`cvttsd2si`/`cvtsi2sd`/
 /// `cvtsd2ss`/`cvtss2sd` + sized int moves).
 #[allow(clippy::too_many_arguments)]
-/// AArch64 atomic `fetch_add` is not implemented yet (x86-first). A native
-/// aarch64 build of an atomic RMW aborts cleanly here rather than emitting a
-/// non-atomic sequence; the LSE `LDADD` (or an `ldxr`/`stxr` retry loop) is the
-/// future path. Paired width returns 0 (gated).
+/// AArch64 atomic `fetch_add` via LSE `LDADDAL` (acquire+release, prior value
+/// discarded into the zero register). Single-instruction RMW -- no ldxr/stxr
+/// retry loop -- so the width pairing below is a constant per operand shape.
+/// (An earlier fence-era comment here claimed this was unimplemented; the
+/// LDADDAL path is live and pinned by canaries/pass/atomics on arm64 hosts.)
 pub fn encode_atomic_fetch_add(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,
