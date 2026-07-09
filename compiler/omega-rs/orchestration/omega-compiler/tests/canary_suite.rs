@@ -19875,6 +19875,80 @@ fn runtime_dispatch_binary_call_argument_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A dispatched value call whose result binds to a FIELD (no frame result
+// slot): the return-write resolves the caller's Assignment target to its
+// machine-region place. Was a live silent-wrong (field stayed ZII).
+#[test]
+fn runtime_dispatch_result_field_binding_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_dispatch_result_field_binding_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-dispatch-result-field-binding-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dispatch result field-binding canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dispatch result field-binding canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the dispatched call's terminal to write the caller's FIELD \
+         (self.total == 5 -> exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+// A dispatched value call whose TERMINAL returns a FIELD read: the
+// return-write copy uses the resolved place's REGION (was hardcoded
+// RuntimeFrame, reading the frame at a machine offset -- garbage).
+#[test]
+fn runtime_dispatch_result_field_terminal_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_dispatch_result_field_terminal_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-dispatch-result-field-terminal-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dispatch result field-terminal canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dispatch result field-terminal canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the dispatched call's field-read terminal to deliver \
+         (n == 42 -> exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 #[test]
 fn runtime_nested_called_machine_loop_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_nested_called_machine_loop_exit");

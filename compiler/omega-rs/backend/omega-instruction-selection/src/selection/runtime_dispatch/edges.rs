@@ -327,14 +327,34 @@ fn select_runtime_dispatch_call_result_return(
     let Some(call_result) = edge.call_result else {
         return;
     };
-    let Some(slot) = input.runtime_storage.assignment_value_result_slot_any_dispatch(
+    // The caller's result place: a frame RESULT SLOT for a `let`-bound call, or
+    // -- when no slot exists because the caller assigned the call to a FIELD
+    // (`self.total = self.count(..)`; fields live in the machine region, so no
+    // frame slot is ever allocated) -- the assignment TARGET's machine-region
+    // place, read from the caller statement's Assignment refs. Without the
+    // fallback the write was silently SKIPPED and the field stayed ZII
+    // (probed native 71 vs interp 70). Restricted to Machine-region targets:
+    // a frame-place target under the callee's dispatch context would resolve
+    // against the wrong frame, and the frame case is the slot path's job.
+    let (target_region, target_offset, byte_size) = if let Some(slot) =
+        input.runtime_storage.assignment_value_result_slot_any_dispatch(
+            call_result.call_source_key,
+            call_result.statement_index,
+        ) {
+        (
+            RuntimeStorageRegion::RuntimeFrame,
+            slot.byte_offset,
+            slot.byte_size,
+        )
+    } else if let Some(place) = assignment_target_machine_place(
+        input,
         call_result.call_source_key,
         call_result.statement_index,
-    ) else {
+    ) {
+        (place.region, place.byte_offset, place.byte_count)
+    } else {
         return;
     };
-    let target_offset = slot.byte_offset;
-    let byte_size = slot.byte_size;
     if byte_size == 0 {
         return;
     }
@@ -349,7 +369,7 @@ fn select_runtime_dispatch_call_result_return(
     {
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
-                target_region: RuntimeStorageRegion::RuntimeFrame,
+                target_region,
                 byte_offset: target_offset,
                 byte_size,
                 value,
@@ -360,8 +380,13 @@ fn select_runtime_dispatch_call_result_return(
         return;
     }
 
-    // Runtime place terminal (`-> acc`): resolve the value's slot in the CALLEE
-    // context and copy it into the caller's call-result slot.
+    // Runtime place terminal (`-> acc`, `-> self.base`): resolve the value's
+    // place in the CALLEE context and copy it into the caller's call-result
+    // slot. The source REGION comes from the resolved place -- a param/local
+    // terminal lives in the frame, but a FIELD-read terminal (`-> self.base`)
+    // lives in the MACHINE region; the old hardcoded RuntimeFrame read the
+    // frame at a machine offset and returned garbage (silent-wrong, probed
+    // native 71 vs interp 70).
     if let Some(place) = resolve_runtime_storage_place_in_table(
         input,
         source_dispatch_index,
@@ -371,9 +396,9 @@ fn select_runtime_dispatch_call_result_return(
     ) {
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::CopyRuntimeStorage {
-                source_region: RuntimeStorageRegion::RuntimeFrame,
+                source_region: place.region,
                 source_offset: place.byte_offset,
-                target_region: RuntimeStorageRegion::RuntimeFrame,
+                target_region,
                 target_offset,
                 byte_count: byte_size,
             },
@@ -381,6 +406,40 @@ fn select_runtime_dispatch_call_result_return(
             source_statement: edge.statement_index,
         });
     }
+}
+
+/// The caller's assignment TARGET resolved to a MACHINE-region place, for a
+/// field-bound value call (`self.total = self.count(..)`): the caller state's
+/// operation at `statement_index` carries `Assignment { target, .. }` in
+/// control flow; resolve it and accept only Machine-region places (frame
+/// targets belong to the result-slot path -- resolving a caller frame place
+/// under the callee's dispatch context would read the wrong frame).
+fn assignment_target_machine_place(
+    input: &InstructionSelectionInput<'_>,
+    call_source_key: StateKey,
+    statement_index: usize,
+) -> Option<crate::selection::storage_places::RuntimeStoragePlace> {
+    let state = input.control_flow.state_by_key(call_source_key)?;
+    let target = input
+        .control_flow
+        .operations
+        .span(state.operations)?
+        .iter()
+        .find(|operation| operation.statement_index == statement_index)
+        .and_then(|operation| match operation.expressions {
+            omega_control_flow::OperationExpressionRefs::Assignment { target, .. } => {
+                Some(target)
+            }
+            _ => None,
+        })?;
+    resolve_runtime_storage_place_in_table(
+        input,
+        0,
+        call_source_key,
+        &input.control_flow.expressions,
+        target,
+    )
+    .filter(|place| place.region == RuntimeStorageRegion::Machine)
 }
 
 /// The terminal target-value expression of the transition at `edge_order` in
