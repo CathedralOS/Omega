@@ -60,6 +60,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("traits/equatable_sum_stale_payload_exit", 70),
     ("text/zii_default_string_equality_exit", 70),
     ("core/zii_default_composite_exit", 70),
+    ("structs/aggregate_transition_args_exit", 70),
     ("structs/deep_nested_write_paths_exit", 70),
     ("text/runtime_text_equals_value_positions_exit", 70),
     ("slices/runtime_saturating_array_element_guard_exit", 70),

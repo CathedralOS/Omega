@@ -1,0 +1,49 @@
+// RUN CANARY (exit 70) + interpreter differential. WHOLE-AGGREGATE
+// transition arguments -- the marshal-side twin of the deep-nested WRITE
+// canary: (1) a struct-in-struct passed BY VALUE into a state param
+// (`-> take(self.nested)`), all four leaf fields exact INCLUDING the two
+// never-written ZII holes (a partial or mis-offset marshal corrupts those
+// first); (2) a SUM LITERAL constructed directly in transition-arg position
+// and destructured in the target state. Also swept, unpinned (existing
+// coverage): ranged-param ENDPOINTS (0 and 100 through `[0..=100]`) and
+// boundary guard compares (`n <= 99` at n == 100).
+// exits: 71 = struct arg field wrong/bled; 72 = sum arg dispatch wrong;
+// 73 = sum arg payload wrong.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Msg { case Ping(x: i32); case Pong(y: i32, z: i32); }
+data Inner { a: u32; b: u32; }
+data Outer { first: Inner; second: Inner; }
+data Main { console: Console; nested: Outer; }
+machine Main::main(&mut self) {
+    self.nested.first.a = 5;
+    self.nested.second.b = 9;
+    self.build();
+}
+machine Main::build(&mut self) {
+    transition true { true -> take(self.nested) }
+    state take(&mut self, o: Outer) {
+        transition o.first.a == 5 && o.second.b == 9 && o.first.b == 0 && o.second.a == 0 {
+            true -> sumleg()
+            _ -> wrong_struct_arg()
+        }
+    }
+    state sumleg(&mut self) {
+        transition true { true -> take_sum(Msg::Pong { y: 3, z: 4 }) }
+    }
+    state take_sum(&mut self, m: Msg) {
+        transition m {
+            Msg::Pong { y, z } -> chk(y, z)
+            _ -> wrong_sum_arg()
+        }
+    }
+    state chk(&mut self, y: i32, z: i32) {
+        transition y == 3 && z == 4 {
+            true -> good()
+            _ -> wrong_sum_payload()
+        }
+    }
+    state good(&mut self)            { self.console.exit_process(70); }
+    state wrong_struct_arg(&mut self){ self.console.exit_process(71); }
+    state wrong_sum_arg(&mut self)   { self.console.exit_process(72); }
+    state wrong_sum_payload(&mut self){ self.console.exit_process(73); }
+}
