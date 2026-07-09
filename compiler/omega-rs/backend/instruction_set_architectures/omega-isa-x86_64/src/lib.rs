@@ -5863,6 +5863,22 @@ fn saturating_trapping_multiply_width(
     target_signed: bool,
 ) -> usize {
     let imul = 4; // imul r10, r11
+    if byte_size == 8 {
+        // The 128-bit one-operand multiply sequences (see the emission's
+        // byte_size == 8 arms). MUST equal them exactly.
+        return match (domain, target_signed) {
+            // mov+mov+imul+mov (12) + sar (4) + xor (3) + movabs (10)
+            // + test (3) + mov (3) + not (3) + cmovns (4) + cmp (3) + cmovne (4)
+            (ArithmeticDomain::Saturating, true) => 49,
+            // mov+mul+mov (9) + movabs (10) + test (3) + cmovne (4)
+            (ArithmeticDomain::Saturating, false) => 26,
+            // mov+imul+mov (9) + sar (4) + cmp (3) + je (2) + ud2 (2)
+            (ArithmeticDomain::Trapping, true) => 20,
+            // mov+mul+mov (9) + test (3) + jz (2) + ud2 (2)
+            (ArithmeticDomain::Trapping, false) => 16,
+            _ => 0,
+        };
+    }
     if !matches!(byte_size, 1 | 2 | 4) {
         return imul; // emission errors; width is irrelevant then
     }
@@ -5900,11 +5916,63 @@ fn append_saturating_trapping_multiply(
     target_signed: bool,
 ) -> Result<(), Diagnostic> {
     if byte_size == 8 {
-        return Err(Diagnostic::error(
-            "saturating/trapping multiply on 64-bit integers is not implemented yet \
-             (the product can exceed 64 bits, which needs the 128-bit multiply form)"
-                .to_owned(),
-        ));
+        // 64-bit multiply overflow: the 128-bit one-operand forms make the
+        // HIGH half the witness (RDX:RAX = RAX * r11), mirroring the aarch64
+        // SMULH/UMULH arms. Signed overflow iff RDX != RAX>>63 (the low
+        // half's sign broadcast); unsigned iff RDX != 0. r11 (the untouched
+        // right operand), rax/rdx (clobbered by the multiply anyway), and
+        // r9/r15 (free after operand evaluation) are the scratch. Branchless
+        // (cmov), so the width is a constant per (domain, signedness).
+        match (domain, target_signed) {
+            (ArithmeticDomain::Saturating, true) => {
+                // Boundary = MIN if the TRUE product sign (left^right) is
+                // negative, else MAX = NOT(MIN); select it on overflow.
+                bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10
+                bytes.extend([0x4d, 0x89, 0xd1]); // mov r9, r10  (save left)
+                bytes.extend([0x49, 0xf7, 0xeb]); // imul r11    (rdx:rax)
+                bytes.extend([0x49, 0x89, 0xc2]); // mov r10, rax (low)
+                bytes.extend([0x48, 0xc1, 0xf8, 0x3f]); // sar rax, 63 (broadcast)
+                bytes.extend([0x4d, 0x31, 0xd9]); // xor r9, r11 (true-sign witness)
+                bytes.push(0x49);
+                bytes.push(0xbf);
+                bytes.extend((i64::MIN as u64).to_le_bytes()); // mov r15, MIN
+                bytes.extend([0x4d, 0x85, 0xc9]); // test r9, r9
+                bytes.extend([0x4d, 0x89, 0xf9]); // mov r9, r15 (MIN)
+                bytes.extend([0x49, 0xf7, 0xd7]); // not r15     (MAX)
+                bytes.extend([0x4d, 0x0f, 0x49, 0xcf]); // cmovns r9, r15 (positive -> MAX)
+                bytes.extend([0x48, 0x39, 0xc2]); // cmp rdx, rax (high vs broadcast)
+                bytes.extend([0x4d, 0x0f, 0x45, 0xd1]); // cmovne r10, r9
+            }
+            (ArithmeticDomain::Saturating, false) => {
+                bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10
+                bytes.extend([0x49, 0xf7, 0xe3]); // mul r11     (rdx:rax)
+                bytes.extend([0x49, 0x89, 0xc2]); // mov r10, rax
+                bytes.push(0x49);
+                bytes.push(0xbf);
+                bytes.extend(u64::MAX.to_le_bytes()); // mov r15, u64::MAX
+                bytes.extend([0x48, 0x85, 0xd2]); // test rdx, rdx
+                bytes.extend([0x4d, 0x0f, 0x45, 0xd7]); // cmovne r10, r15
+            }
+            (ArithmeticDomain::Trapping, true) => {
+                bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10
+                bytes.extend([0x49, 0xf7, 0xeb]); // imul r11
+                bytes.extend([0x49, 0x89, 0xc2]); // mov r10, rax
+                bytes.extend([0x48, 0xc1, 0xf8, 0x3f]); // sar rax, 63
+                bytes.extend([0x48, 0x39, 0xc2]); // cmp rdx, rax
+                bytes.extend([0x74, 0x02]); // je +2 (skip the trap)
+                bytes.extend([0x0f, 0x0b]); // ud2
+            }
+            (ArithmeticDomain::Trapping, false) => {
+                bytes.extend([0x4c, 0x89, 0xd0]); // mov rax, r10
+                bytes.extend([0x49, 0xf7, 0xe3]); // mul r11
+                bytes.extend([0x49, 0x89, 0xc2]); // mov r10, rax
+                bytes.extend([0x48, 0x85, 0xd2]); // test rdx, rdx
+                bytes.extend([0x74, 0x02]); // jz +2 (skip the trap)
+                bytes.extend([0x0f, 0x0b]); // ud2
+            }
+            _ => unreachable!("only Saturating/Trapping reach this helper"),
+        }
+        return Ok(());
     }
     if !matches!(byte_size, 1 | 2 | 4) {
         return Err(Diagnostic::error(format!(

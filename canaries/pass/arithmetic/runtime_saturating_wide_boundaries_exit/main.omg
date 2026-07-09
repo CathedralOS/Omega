@@ -7,6 +7,7 @@
 //   u64 5 - 10          -> clamps to 0
 //   i64 MAX * 2         -> clamps to MAX;  (-MAX) * 2 -> clamps to MIN
 //   u64 MAX * 3         -> clamps to u64::MAX (UMULH witness)
+//   MAX * 2, MAX * 3 fused in GUARD OPERANDS -> clamp with no store between
 // Values are built through runtime fields so the const folder cannot pre-clamp.
 // Exits 70.
 boundary trait Console { machine exit_process(return_code: i32); }
@@ -67,7 +68,19 @@ machine Main::main(&mut self) {
         self.u = self.u + self.u;
         self.u = self.u + self.u;      // saturated to u64::MAX
         self.v = self.u * 3;
-        transition self.v == self.u { true -> ok() _ -> bad7() }
+        transition self.v == self.u { true -> smul_guard() _ -> bad7() }
+    }
+    state smul_guard(&mut self) {
+        // The same 64-bit multiply clamps in OPERAND position (fused under
+        // the guard compare; SMULH witness on aarch64, 128-bit imul + RDX
+        // witness on x86_64): MAX * 2 -> MAX with no store in between.
+        self.a = 9223372036854775807;
+        self.b = 2;
+        transition (self.a * self.b == 9223372036854775807) { true -> umul_guard() _ -> bad8() }
+    }
+    state umul_guard(&mut self) {
+        // And the unsigned face: (saturated u64::MAX) * 3 -> u64::MAX fused.
+        transition (self.u * 3 == self.u) { true -> ok() _ -> bad9() }
     }
     state ok(&mut self)  { self.console.exit_process(70); }
     state bad1(&mut self) { self.console.exit_process(81); }
@@ -77,4 +90,6 @@ machine Main::main(&mut self) {
     state bad5(&mut self) { self.console.exit_process(85); }
     state bad6(&mut self) { self.console.exit_process(86); }
     state bad7(&mut self) { self.console.exit_process(87); }
+    state bad8(&mut self) { self.console.exit_process(88); }
+    state bad9(&mut self) { self.console.exit_process(89); }
 }
