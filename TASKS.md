@@ -67,11 +67,14 @@ target, enum payloads) bias which vertical slices get picked next.
   expansion threaded through planner + emitter
   (omega-emission-planning/state_call_blockers taxonomy). Workaround: inline
   the second dispatch or enter through a non-branching state.
-- **Float `is_float` is not wired on some NESTED operand-position paths**
-  (marked "known gap" in the two non-guard value-operand resolvers). Top-level
-  float arithmetic/comparisons serve on both ISAs; a nested float binary
-  inside a larger value may still integer-op the IEEE bits. Probe + wire when
-  a shape surfaces.
+- **Float `is_float` on nested operand paths: not silently reachable
+  (probed 2026-07-12).** Nested float binaries serve in write-value,
+  transition-arg, and spliced-mutation positions (pinned:
+  arithmetic/runtime_float_nested_operand_exit); guard-position nested
+  arithmetic fences on the conjunction rule; case-literal terminals are
+  poisoned. The `is_float: false` notes in the tree/branch resolvers stay as
+  latent markers -- if a route change makes one reachable, the canary legs go
+  loud. Wire on first real reproduction.
 
 ## Programmable-layouts remainder (ch19/20/21; chapters are the spec)
 
