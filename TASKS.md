@@ -180,7 +180,21 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
     family residue (integer_casts, cast_in_guard, cast_element_accumulator,
     f32_field_binary_to_local -- likely more faces of folded/guard-path
     signedness), narrow_signed guards (x2), transition_arg_saturating
-    (exits None = a CRASH, worth a look), string comparisons
+    SIGSEGV FIXED 2026-07-08: the indexed OPERAND arms (frame_indexed /
+    frame_base_indexed / frame_fixed_indexed in append_runtime_value_operand)
+    computed their element address in x16 -- clobbering the address the
+    CALLER holds in x16 across operand evaluation (a binary write's target
+    base, an indexed RMW's element address), so the caller's store went to a
+    wild address (`sum(s[1..], acc + s[0])` wrote the accumulator into
+    arr_data+48 -> SIGSEGV). The three shared address helpers now take an
+    address_register; write paths keep x16, operand arms use x15 -- zero
+    width/reloc impact (the operand's adrp reloc patches page bits only, the
+    register field is preserved). Also fixed recursive_subslice_element_
+    accumulator + cast_element_accumulator (same root). MINIMIZATION RECIPE:
+    strip transition-arg ingredients one at a time (saturating -> plain,
+    element read -> const, rebind -> pass-through); the crash needed
+    subslice-rebind + element-read in ONE transition. Suite 674/28.
+    Remaining: string comparisons
     (runtime_local_string_comparison_value 79!=78), tick/time host lowering,
     the frame-source machine-indexed write, and the entry-args spill.
   - **[ ] (original map)**

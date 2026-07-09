@@ -1245,6 +1245,7 @@ pub fn encode_runtime_frame_indexed_string_write(
     ));
     append_runtime_frame_index_target_address(
         &mut bytes,
+            16,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -1344,6 +1345,7 @@ pub fn encode_runtime_frame_indexed_address_to_runtime_frame_write(
     ));
     append_runtime_frame_index_target_address(
         &mut bytes,
+            16,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -1371,6 +1373,7 @@ pub fn encode_runtime_frame_fixed_indexed_address_to_runtime_frame_write(
     );
     append_runtime_frame_fixed_index_target_address(
         &mut bytes,
+            16,
         descriptor_offset,
         element_index,
         element_byte_size,
@@ -1398,6 +1401,7 @@ pub fn encode_runtime_frame_base_indexed_address_to_runtime_frame_write(
     );
     append_runtime_frame_base_index_target_address(
         &mut bytes,
+            16,
         base_byte_offset,
         index_offset,
         element_byte_size,
@@ -1448,6 +1452,7 @@ pub fn encode_runtime_frame_indexed_integer_write(
     ));
     append_runtime_frame_index_target_address(
         &mut bytes,
+            16,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -1489,6 +1494,7 @@ pub fn encode_runtime_frame_base_indexed_integer_write(
     ));
     append_runtime_frame_base_index_target_address(
         &mut bytes,
+            16,
         base_byte_offset,
         index_offset,
         element_byte_size,
@@ -1578,6 +1584,7 @@ pub fn encode_runtime_frame_indexed_binary_write(
     ));
     append_runtime_frame_index_target_address(
         &mut bytes,
+            16,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -1632,6 +1639,7 @@ pub fn encode_runtime_frame_base_indexed_binary_write(
     ));
     append_runtime_frame_base_index_target_address(
         &mut bytes,
+            16,
         base_byte_offset,
         index_offset,
         element_byte_size,
@@ -1744,6 +1752,7 @@ pub fn encode_runtime_storage_copy_to_runtime_frame_indexed(
     );
     append_runtime_frame_index_target_address(
         &mut bytes,
+            16,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -1778,6 +1787,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed(
     );
     append_runtime_frame_index_target_address(
         &mut bytes,
+            16,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -1812,6 +1822,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_storage
     );
     append_runtime_frame_index_target_address(
         &mut bytes,
+            16,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -1969,6 +1980,7 @@ pub fn encode_runtime_storage_copy_from_runtime_frame_indexed_to_runtime_pointee
     // source_field`); leaves x20 = frame base.
     append_runtime_frame_index_target_address(
         &mut bytes,
+            16,
         descriptor_offset,
         index_offset,
         element_byte_size,
@@ -2195,6 +2207,7 @@ fn for_each_runtime_copy_chunk(
 
 fn append_runtime_frame_index_target_address(
     bytes: &mut Vec<u8>,
+    address_register: u8,
     descriptor_offset: usize,
     index_offset: usize,
     element_byte_size: usize,
@@ -2202,18 +2215,19 @@ fn append_runtime_frame_index_target_address(
 ) -> Result<(), Diagnostic> {
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
-    append_fixed_width_load_x_from_x_offset(bytes, 16, 20, descriptor_offset, 19);
+    append_fixed_width_load_x_from_x_offset(bytes, address_register, 20, descriptor_offset, 19);
     // Index is a 32-bit value: load it zero-extended so high bytes of the
     // adjacent slot can't be spliced into the index (see helper doc comment).
     append_fixed_width_load_index_w_from_x_offset(bytes, 17, 20, index_offset, 21);
     append_scale_x_register_by_constant(bytes, 26, 17, element_byte_size)?;
-    bytes.extend(encode_add_x_register(16, 16, 26));
-    append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;
+    bytes.extend(encode_add_x_register(address_register, address_register, 26));
+    append_add_constant_to_x_register(bytes, address_register, field_byte_offset)?;
     Ok(())
 }
 
 fn append_runtime_frame_fixed_index_target_address(
     bytes: &mut Vec<u8>,
+    address_register: u8,
     descriptor_offset: usize,
     element_index: usize,
     element_byte_size: usize,
@@ -2231,8 +2245,8 @@ fn append_runtime_frame_fixed_index_target_address(
     })?;
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
-    append_load_data_from_x_offset(bytes, 16, 20, descriptor_offset, 8, 19)?;
-    append_add_constant_to_x_register(bytes, 16, byte_offset)?;
+    append_load_data_from_x_offset(bytes, address_register, 20, descriptor_offset, 8, 19)?;
+    append_add_constant_to_x_register(bytes, address_register, byte_offset)?;
     Ok(())
 }
 
@@ -2821,6 +2835,7 @@ fn append_runtime_machine_index_target_address(
 
 fn append_runtime_frame_base_index_target_address(
     bytes: &mut Vec<u8>,
+    address_register: u8,
     base_byte_offset: usize,
     index_offset: usize,
     element_byte_size: usize,
@@ -2828,14 +2843,14 @@ fn append_runtime_frame_base_index_target_address(
 ) -> Result<(), Diagnostic> {
     bytes.extend(encode_adrp_placeholder(20));
     bytes.extend(encode_add_page_offset_placeholder(20));
-    bytes.extend(encode_move_x_register(16, 20));
-    append_add_constant_to_x_register(bytes, 16, base_byte_offset)?;
+    bytes.extend(encode_move_x_register(address_register, 20));
+    append_add_constant_to_x_register(bytes, address_register, base_byte_offset)?;
     // Index is a 32-bit value: load it zero-extended so high bytes of the
     // adjacent slot can't be spliced into the index.
     append_load_data_from_x_offset(bytes, 17, 20, index_offset, 4, 19)?;
     append_scale_x_register_by_constant(bytes, 26, 17, element_byte_size)?;
-    bytes.extend(encode_add_x_register(16, 16, 26));
-    append_add_constant_to_x_register(bytes, 16, field_byte_offset)?;
+    bytes.extend(encode_add_x_register(address_register, address_register, 26));
+    append_add_constant_to_x_register(bytes, address_register, field_byte_offset)?;
     Ok(())
 }
 
@@ -2891,6 +2906,12 @@ fn append_runtime_value_operand(
     {
         append_runtime_frame_index_target_address(
             bytes,
+            // x15, NOT x16: the caller may hold its own address in x16 across
+            // operand evaluation (a binary write's target base, an indexed
+            // RMW's element address). Loading this operand's element through
+            // x16 clobbered that and sent the caller's store to a wild
+            // address (the transition-arg slice-sum SIGSEGV).
+            15,
             descriptor_offset,
             index_offset,
             element_byte_size,
@@ -2899,11 +2920,11 @@ fn append_runtime_value_operand(
         match byte_size {
             1 | 2 | 4 => bytes.extend(encode_load_w_from_x(
                 destination_register,
-                16,
+                15,
                 0,
                 byte_size,
             )?),
-            8 => bytes.extend(encode_load_x_from_x(destination_register, 16, 0)?),
+            8 => bytes.extend(encode_load_x_from_x(destination_register, 15, 0)?),
             _ => {
                 return Err(Diagnostic::error(format!(
                     "AArch64 MVP encoder cannot load runtime indexed operand width `{byte_size}` yet"
@@ -2921,6 +2942,12 @@ fn append_runtime_value_operand(
     {
         append_runtime_frame_base_index_target_address(
             bytes,
+            // x15, NOT x16: the caller may hold its own address in x16 across
+            // operand evaluation (a binary write's target base, an indexed
+            // RMW's element address). Loading this operand's element through
+            // x16 clobbered that and sent the caller's store to a wild
+            // address (the transition-arg slice-sum SIGSEGV).
+            15,
             base_byte_offset,
             index_offset,
             element_byte_size,
@@ -2929,11 +2956,11 @@ fn append_runtime_value_operand(
         match byte_size {
             1 | 2 | 4 => bytes.extend(encode_load_w_from_x(
                 destination_register,
-                16,
+                15,
                 0,
                 byte_size,
             )?),
-            8 => bytes.extend(encode_load_x_from_x(destination_register, 16, 0)?),
+            8 => bytes.extend(encode_load_x_from_x(destination_register, 15, 0)?),
             _ => {
                 return Err(Diagnostic::error(format!(
                     "AArch64 MVP encoder cannot load runtime frame-base-indexed operand width `{byte_size}` yet"
@@ -2951,6 +2978,12 @@ fn append_runtime_value_operand(
     {
         append_runtime_frame_fixed_index_target_address(
             bytes,
+            // x15, NOT x16: the caller may hold its own address in x16 across
+            // operand evaluation (a binary write's target base, an indexed
+            // RMW's element address). Loading this operand's element through
+            // x16 clobbered that and sent the caller's store to a wild
+            // address (the transition-arg slice-sum SIGSEGV).
+            15,
             descriptor_offset,
             element_index,
             element_byte_size,
@@ -2959,11 +2992,11 @@ fn append_runtime_value_operand(
         match byte_size {
             1 | 2 | 4 => bytes.extend(encode_load_w_from_x(
                 destination_register,
-                16,
+                15,
                 0,
                 byte_size,
             )?),
-            8 => bytes.extend(encode_load_x_from_x(destination_register, 16, 0)?),
+            8 => bytes.extend(encode_load_x_from_x(destination_register, 15, 0)?),
             _ => {
                 return Err(Diagnostic::error(format!(
                     "AArch64 MVP encoder cannot load runtime fixed indexed operand width `{byte_size}` yet"
@@ -3216,6 +3249,7 @@ fn append_runtime_text_equals_literal_operand(
     {
         append_runtime_frame_index_target_address(
             bytes,
+            16,
             descriptor_offset,
             index_offset,
             element_byte_size,
@@ -3226,6 +3260,7 @@ fn append_runtime_text_equals_literal_operand(
     {
         append_runtime_frame_base_index_target_address(
             bytes,
+            16,
             base_byte_offset,
             index_offset,
             element_byte_size,
@@ -3241,6 +3276,7 @@ fn append_runtime_text_equals_literal_operand(
     {
         append_runtime_frame_fixed_index_target_address(
             bytes,
+            16,
             descriptor_offset,
             element_index,
             element_byte_size,
