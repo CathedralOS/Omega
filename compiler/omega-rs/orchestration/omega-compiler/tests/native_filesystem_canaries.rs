@@ -78,6 +78,15 @@ fn wrapper_lock_metadata_exit_runs() {
     let (code, _) = compile_run("wrapper_lock_metadata_exit");
     assert_eq!(code, Some(70), "wrapper lock/metadata cycle should exit 70");
 }
+// Closes the wrapper zero-caller sweep: set_times (futimens, read back via
+// metadata(File)), the set_owner family (uid/gid -1 = unprivileged no-op),
+// and symlink_metadata (lstat on a regular file). chown/futimens/lstat have
+// no msvcrt rows, so macOS-gated here; interp leg probe-verified at 70.
+#[test]
+fn wrapper_times_owner_lstat_exit_runs() {
+    let (code, _) = compile_run("wrapper_times_owner_lstat_exit");
+    assert_eq!(code, Some(70), "wrapper times/owner/lstat should exit 70");
+}
 #[test]
 fn native_at_ops_passes() { assert_pass("native_at_ops"); }
 #[test]
