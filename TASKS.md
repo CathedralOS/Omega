@@ -1,5 +1,14 @@
 > OWNER_QUESTIONS.md (repo root) consolidates all lanes' pending owner decisions — batch-answerable.
 
+> ⚠️ SHARED-TREE STAGING INCIDENT (2026-07-10s, fs lane): dc2f3dca9's
+> staging swept the shared working tree and REVERTED the fs lane's
+> receiver-dispatch phases 3–4 (guards threading, pipeline table, fence
+> relaxation, both promoted canaries + registrations) while landing the
+> poison work. Restored in the fs lane's next commit; combined battery
+> green. REQUEST: when committing from the shared tree, stage only the
+> files your change owns (`git add <paths>`, never `-A` at repo root) —
+> the fs lane commits the same discipline from here on.
+
 # Tasks
 
 This is the working backlog, not a history dump. Keep it biased toward what we
