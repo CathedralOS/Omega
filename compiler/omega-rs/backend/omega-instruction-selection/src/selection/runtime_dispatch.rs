@@ -783,6 +783,17 @@ pub(super) fn select_runtime_dispatch_loop_instructions(
             }
         }
         if case_edges.map_or(true, <[_]>::is_empty) {
+            // An edgeless case terminates NATURALLY: exit 0, matching the
+            // interpreter oracle (see the terminate-edge zeroing in
+            // edges.rs -- same rule, this is the empty-case flavor).
+            selected_instructions.push(SelectedInstruction {
+                kind: SelectedInstructionKind::WriteReturnRegisterInteger {
+                    byte_size: 4,
+                    value: 0,
+                },
+                source_key: dispatch_case.key,
+                source_statement: 0,
+            });
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::TerminateDispatch,
                 source_key: dispatch_case.key,

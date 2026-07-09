@@ -188,13 +188,28 @@ pub(super) fn select_runtime_dispatch_edge(
             });
         }
         RuntimeDispatchLoopAction::Terminate => {
-            select_runtime_dispatch_return_value(
+            let wrote_return_value = select_runtime_dispatch_return_value(
                 input,
                 edge,
                 source_key,
                 source_dispatch_index,
                 selected_instructions,
             );
+            // NATURAL TERMINATION exits 0 (the interpreter -- the oracle --
+            // already does; native returned whatever the last computation
+            // left in the return register, probed 1-vs-0 2026-07-11y). A
+            // terminate edge with no terminal value zeroes it; value
+            // terminals and exit_process paths are untouched.
+            if !wrote_return_value {
+                selected_instructions.push(SelectedInstruction {
+                    kind: SelectedInstructionKind::WriteReturnRegisterInteger {
+                        byte_size: 4,
+                        value: 0,
+                    },
+                    source_key,
+                    source_statement: edge.statement_index,
+                });
+            }
             selected_instructions.push(SelectedInstruction {
                 kind: SelectedInstructionKind::TerminateDispatch,
                 source_key,
@@ -227,7 +242,7 @@ fn select_runtime_dispatch_return_value(
     source_key: StateKey,
     source_dispatch_index: u32,
     selected_instructions: &mut SelectedInstructionSink,
-) {
+) -> bool {
     if let Some(value) = static_terminal_target_value(input, source_key, edge.order) {
         selected_instructions.push(SelectedInstruction {
             kind: SelectedInstructionKind::WriteReturnRegisterInteger {
@@ -237,11 +252,11 @@ fn select_runtime_dispatch_return_value(
             source_key,
             source_statement: edge.statement_index,
         });
-        return;
+        return true;
     }
 
     let Some(value_expr) = terminal_target_value_expression(input, source_key, edge.order) else {
-        return;
+        return false;
     };
 
     if let Some(place) = resolve_runtime_storage_place_in_table(
@@ -261,7 +276,7 @@ fn select_runtime_dispatch_return_value(
             source_key,
             source_statement: edge.statement_index,
         });
-        return;
+        return true;
     }
 
     if let Some(value) =
@@ -275,7 +290,9 @@ fn select_runtime_dispatch_return_value(
             source_key,
             source_statement: edge.statement_index,
         });
+        return true;
     }
+    false
 }
 
 /// Constant-fold a terminal value through SIMPLE local initializers
