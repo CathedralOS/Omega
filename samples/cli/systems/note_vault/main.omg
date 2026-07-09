@@ -1,0 +1,145 @@
+// A note-vault workflow over the ERGONOMIC `Filesystem` wrapper -- the
+// result-enum / `File` layer (Rust std::fs parity), which is native-correct
+// end-to-end as of 2026-07-08: create_new (exclusive create), append
+// (OpenOptions append semantics), metadata_path (payload-carrying result),
+// read_all, open_with { write, truncate } (the per-call-site composed flag
+// word), copy (binary-safe), remove. The raw-seam counterpart of this sample
+// is file_journal; together they document both layers' idioms.
+//
+// Every step must succeed; the program tallies the nine verified steps and
+// exits with that count (a partial failure exits with fewer than 9).
+//
+// Expected exit: 9.
+
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    fs: Filesystem;
+    open_result: OpenResult;
+    io_result: IoResult;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+    file_fd: i32;
+    close_rc: i32;
+    // Step tally 0..=9 (`in Wrapping` discharges the exact-arith obligation on
+    // `+ 1`; the value never nears the i32 range).
+    passed: i32 in Wrapping;
+    back: [u8; 64];
+    scratch: [u8; 64];
+}
+
+machine Main::main(&mut self) {
+    // 1. Exclusive create: the vault must not already exist.
+    self.open_result = self.fs.create_new("omega_note_vault.txt");
+    transition self.open_result { OpenResult::Ok { file } -> header(file) _ -> done() }
+
+    state header(&mut self, file: File) {
+        self.passed = self.passed + 1;
+        self.file_fd = file.fd;
+        // 2. Header line.
+        self.io_result = self.fs.write(File { fd: self.file_fd }, "vault v1\n");
+        self.close_rc = self.fs.close(File { fd: self.file_fd });
+        transition self.io_result { IoResult::Ok { count } -> note1() _ -> done() }
+    }
+
+    state note1(&mut self) {
+        self.passed = self.passed + 1;
+        // 3. First note appends at EOF.
+        self.open_result = self.fs.append("omega_note_vault.txt");
+        transition self.open_result { OpenResult::Ok { file } -> note1_write(file) _ -> done() }
+    }
+    state note1_write(&mut self, file: File) {
+        self.file_fd = file.fd;
+        self.io_result = self.fs.write(File { fd: self.file_fd }, "note: alpha\n");
+        self.close_rc = self.fs.close(File { fd: self.file_fd });
+        transition self.io_result { IoResult::Ok { count } -> note2() _ -> done() }
+    }
+
+    state note2(&mut self) {
+        self.passed = self.passed + 1;
+        // 4. Second note.
+        self.open_result = self.fs.append("omega_note_vault.txt");
+        transition self.open_result { OpenResult::Ok { file } -> note2_write(file) _ -> done() }
+    }
+    state note2_write(&mut self, file: File) {
+        self.file_fd = file.fd;
+        self.io_result = self.fs.write(File { fd: self.file_fd }, "note: beta\n");
+        self.close_rc = self.fs.close(File { fd: self.file_fd });
+        transition self.io_result { IoResult::Ok { count } -> audit() _ -> done() }
+    }
+
+    state audit(&mut self) {
+        self.passed = self.passed + 1;
+        // 5. The vault's length is the three lines: 9 + 12 + 11 = 32.
+        self.meta_result = self.fs.metadata_path("omega_note_vault.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> audit_len(meta) _ -> done() }
+    }
+    state audit_len(&mut self, meta: Metadata) {
+        transition meta.len == 32 { true -> readback() _ -> done() }
+    }
+
+    state readback(&mut self) {
+        self.passed = self.passed + 1;
+        // 6. Read back and spot-check first ('v') and last ('\n' = 10) bytes.
+        self.io_result = self.fs.read_all("omega_note_vault.txt", &mut self.back, 64);
+        transition self.io_result { IoResult::Ok { count } -> readback_ck(count) _ -> done() }
+    }
+    state readback_ck(&mut self, count: usize) {
+        transition count == 32 { true -> readback_head() _ -> done() }
+    }
+    state readback_head(&mut self) {
+        transition self.back[0] == 118 { true -> compact() _ -> done() }
+    }
+
+    state compact(&mut self) {
+        self.passed = self.passed + 1;
+        // 7. Compact: truncate-rewrite keeps only the header (open_with's
+        // composed write+truncate word).
+        let opts: OpenOptions = OpenOptions { write: true, truncate: true };
+        self.open_result = self.fs.open_with("omega_note_vault.txt", opts);
+        transition self.open_result { OpenResult::Ok { file } -> compact_write(file) _ -> done() }
+    }
+    state compact_write(&mut self, file: File) {
+        self.file_fd = file.fd;
+        self.io_result = self.fs.write(File { fd: self.file_fd }, "vault v1\n");
+        self.close_rc = self.fs.close(File { fd: self.file_fd });
+        self.meta_result = self.fs.metadata_path("omega_note_vault.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> compact_ck(meta) _ -> done() }
+    }
+    state compact_ck(&mut self, meta: Metadata) {
+        transition meta.len == 9 { true -> backup() _ -> done() }
+    }
+
+    state backup(&mut self) {
+        self.passed = self.passed + 1;
+        // 8. Snapshot the compacted vault.
+        self.io_result = self.fs.copy("omega_note_vault.txt", "omega_note_vault.bak", &mut self.scratch, 64);
+        transition self.io_result { IoResult::Ok { count } -> backup_ck(count) _ -> done() }
+    }
+    state backup_ck(&mut self, count: usize) {
+        transition count == 9 { true -> cleanup() _ -> done() }
+    }
+
+    state cleanup(&mut self) {
+        self.passed = self.passed + 1;
+        // 9. Remove both files; both must report Ok.
+        self.unit_result = self.fs.remove("omega_note_vault.txt");
+        transition self.unit_result { UnitResult::Ok -> cleanup_bak() _ -> done() }
+    }
+    state cleanup_bak(&mut self) {
+        self.unit_result = self.fs.remove("omega_note_vault.bak");
+        transition self.unit_result { UnitResult::Ok -> finish() _ -> done() }
+    }
+    state finish(&mut self) {
+        self.passed = self.passed + 1;
+        transition true { true -> done() _ -> done() }
+    }
+
+    state done(&mut self) { self.console.exit_process(self.passed); }
+}

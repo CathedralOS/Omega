@@ -258,6 +258,31 @@ fn sample_file_journal_exits_7() {
     assert_eq!(out.status.code(), Some(7), "file_journal should verify all 7 steps and exit 7");
 }
 
+// The `note_vault` CLI SAMPLE (samples/cli/systems/note_vault) -- file_journal's
+// WRAPPER-layer counterpart: create_new -> write -> append x2 -> metadata_path
+// -> read_all -> open_with{write,truncate} compaction -> copy -> remove x2,
+// tallying its 9 verified steps. Runs from a temp cwd so the vault files land
+// there. Both engines probe-verified at 9 when this landed.
+#[test]
+fn sample_note_vault_exits_9() {
+    let main_path = repo_root().join("samples/cli/systems/note_vault/main.omg");
+    let build_dir = std::env::temp_dir().join(format!("omega-vault-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .unwrap_or_else(|d| panic!("note_vault sample should compile:\n{d:#?}"));
+    let out = Command::new(build_dir.join("omega-program"))
+        .current_dir(&build_dir)
+        .output()
+        .expect("run");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    assert_eq!(out.status.code(), Some(9), "note_vault should verify all 9 steps and exit 9");
+}
+
 // The arm64 FLOAT-ARGUMENT calling convention: Math::round_nearest(x: f64) -> i64
 // via libm lround. Proves an f64 arg is marshalled into v0 (RuntimeScalarFloat
 // operand). round_nearest(3.7) == 4 -> exit 4.
