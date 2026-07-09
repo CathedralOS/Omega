@@ -533,12 +533,22 @@ unchanged). Pinned by RUN canary
 both exit 70: create with a literal, then reopen the SAME literal THROUGH a
 self value call -> open must find the file). Wired into differential
 RUN_CANARIES + a windows-gated suite test.
-REMAINING (narrower, still pending/host/self_value_call_literal_arg): the
-DISCARDED-result form (`_ = self.doit("lit")`) additionally lowers to a
-LocalData whose unused local isn't in state_storage.locals, so the collector
-may never visit the call args (no data object collected at all -> bytes-only
-has nothing to find). That collection gap is orthogonal to the key mismatch
-just fixed; the used-result shape (which the std wrapper uses) is now covered.
+DISCARDED-result form -- ✅ RESOLVED + PROMOTED 2026-07-08b (the "collection
+gap" half of the old diagnosis was WRONG): `_ = self.doit("lit")` lowers
+through the STATEMENT-call path (real argument materialization), NOT the
+value-call splice, so the literal is delivered normally -- probed on darwin
+with the pre-fix operands.rs (A/B, rebuild-verified): masked, unmasked-write,
+and errno-discriminated shapes all pass BOTH engines even WITHOUT the
+bytes-only fallback. The historical windows "no encodable call sequence" on
+this shape was fixed by the intervening local-slot/dispatch work. The pending
+canary is DELETED (pending/host/ is empty); promoted as RUN canary
+`filesystem/discarded_self_call_literal_errno_exit` (differential; the
+discarded self-call opens an ABSENT path, then errno must be ENOENT 2 -- a
+dropped call reads ZII 0, a garbled path a different errno), wired into
+RUN_CANARIES + a windows-gated suite test next to its used-result twin.
+LESSON (canary craft): a discarded-call repro that "compiles OK" proves
+nothing about the VALUE-call path -- `_ =` and `let x =`-then-use take
+different lowering routes; pin both shapes separately.
 
 ## Portable-values / Metadata design questions — RESOLVED (chat 2026-07-08)
 

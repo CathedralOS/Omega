@@ -1,0 +1,42 @@
+// RUN CANARY (exit 70) -- a DISCARDED-result SELF value call forwarding a path
+// LITERAL into a raw host open. Promoted from
+// pending/host/self_value_call_literal_arg (2026-07-08): the discarded form
+// lowers through the STATEMENT-call path (real argument materialization), so
+// the callee's open executes with the delivered literal; the USED-result twin
+// (the value-call splice path) is pinned by
+// filesystem/self_value_call_literal_path_exit.
+//
+// Observable discriminator: the opened path is ABSENT, so the EXECUTED open
+// must set errno == ENOENT (2). A silently dropped call leaves errno 0; a
+// garbled path pointer would yield a different errno. The interpreter's
+// virtual fs is the differential oracle.
+//
+// exit 70 = discarded call executed with the right path (errno == ENOENT);
+//      71 = wrong errno; 72 = unreachable guard shape.
+use omega::language::std::filesystem_host;
+
+boundary trait Console { machine exit_process(return_code: i32); }
+
+data Main {
+    console: Console;
+    raw: FilesystemHost;
+    rc: i32;
+}
+
+machine Main::doit(&mut self, path: &[u8] in Path) -> i32 {
+    let fd: i32 = self.raw.open(path, 0);
+    transition true { _ -> fd }
+}
+
+machine Main::main(&mut self) {
+    _ = self.doit("omega_absent_discard_probe.txt");
+    transition true { true -> check_errno() _ -> bad(72) }
+
+    state check_errno(&mut self) {
+        self.rc = self.raw.errno();
+        transition self.rc == 2 { true -> good() _ -> bad(71) }
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

@@ -20748,6 +20748,57 @@ fn windows_fs_self_value_call_literal_path_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// The DISCARDED-result twin of the test above: `_ = self.doit("lit")` lowers
+// through the STATEMENT-call path (real argument materialization), so the
+// callee's open executes with the delivered literal. Discriminating: the path
+// is absent, so errno must be ENOENT (2) -- a dropped call leaves errno 0, a
+// garbled path yields a different errno. Promoted from
+// pending/host/self_value_call_literal_arg.
+#[cfg(windows)]
+#[test]
+fn windows_fs_discarded_self_call_literal_errno_exit_canary_runs() {
+    let canary = pass_canary("filesystem/discarded_self_call_literal_errno_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("discarded self-call literal canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (discarded open executed, errno ENOENT), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fs-discard-literal-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("discarded self-call literal canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("discarded self-call literal canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the discarded self-call's open to execute with the literal path \
+         (errno == ENOENT -> exit 70), got {:?} (71 = wrong errno -- dropped call \
+         or garbled path)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A host-call RESULT let in a callee reached via an ARM transition-target
 // value call (`true -> self.e1()`) resolves its frame slot in the inlining
 // dispatch case (branch_transition_target_key's self/sibling Nested arm).
