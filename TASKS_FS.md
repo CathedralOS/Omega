@@ -416,6 +416,36 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
   relative; `create_dir_all` intermediates best-effort; raw boundary in its own
   std module; `read_dir` single 512-byte fill per call.
 
+## Windows metadata / stat migration -- SCOPED, needs a decode refactor first (2026-07-08)
+
+Investigated deeply, then REVERTED (too big for one clean pass). Findings so
+the next attempt is mechanical:
+- msvcrt `_stat64` WIRES and works: an import row (`Filesystem stat ->
+  msvcrt.dll _stat64`) + `read_metadata` lowering unfences the raw stat op;
+  `exists`/`try_exists` (which use only the stat RC, not the decode) then pass
+  natively on windows (probe exit 70). BUT wiring stat also makes the DECODING
+  methods compile with wrong offsets -- can't ship the wiring alone.
+- The stat DECODE is per-target by OFFSET *and* WIDTH: windows `_stat64`
+  (size@24, mode@6, mtime@40, atime@32, ctime=creation@48, nlink@8, dev@0,
+  rdev@16, sizeof 56) has 2-byte ino/uid/gid where darwin has 8/4-byte, and
+  lacks blocks/blksize/change-time. Trick that works: per-target ST_*_OFF
+  provides values, with width-mismatched/absent windows fields pointed at the
+  buffer's ZERO REGION (offset 128; `_stat64` writes only 0..55, buffer is
+  zero_init) so the wrapper's wider read yields 0. Verified: computed-const
+  buffer index `stat_buf[FilesystemHost::ST_SIZE_OFF + k]` compiles+runs.
+- The interpreter's `write_fs_stat` must fill the HOST's layout too (a
+  cfg!(target_os) `host_stat_offsets` mirror, `None` for absent fields) so the
+  differential (compiles for host()) agrees. Prototyped and worked for
+  metadata_path.
+- BLOCKER that forced the revert: the decode is DUPLICATED across
+  metadata_path + metadata(file, via fstat) + symlink_metadata (+ copy reads
+  size) = ~157 literal `stat_buf[N]` sites. Migrating one breaks the others
+  once the interp writes per-host. PREREQ: refactor the stat->Metadata decode
+  into ONE shared machine (metadata_path/metadata/symlink_metadata call it),
+  THEN migrate that single decode to per-target offsets + wire windows
+  stat/fstat + the interp host layout + a native metadata canary. That
+  refactor-first is the clean multi-step; don't migrate 157 sites in place.
+
 ## Wrapper dark-method coverage + a parked backend gap (2026-07-08)
 
 Audited the 55 Filesystem wrapper methods for canary coverage; wrote
