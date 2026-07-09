@@ -2916,6 +2916,39 @@ struct TableIndexedTargetPath {
     boundary: ExpressionHandle,
 }
 
+/// Fold a COMPILE-TIME-CONSTANT index expression to its value: a bare integer
+/// literal, or a binary of constants. `stat_buf[FilesystemHost::ST_*_OFF + k]`
+/// becomes `stat_buf[24 + 0]` once the provides substitution turns `ST_*_OFF`
+/// into a literal -- a pure-const BINARY, which the bare-`Integer` match below
+/// used to reject, so the fixed-index resolver fell through and the read landed
+/// at offset 0. Runtime (non-const) indices still return None here: those are
+/// hoisted to a slotted temp at the frontend, so ONLY a pure-const binary newly
+/// resolves. The miscompile was NATIVE + value-machine only -- the interpreter
+/// evaluates the AST, and a plain machine masked it via const-propagation of an
+/// adjacent write -- so it needed a value-machine native run to surface. Uses
+/// checked arithmetic (an overflowing const index folds to None -> the clean
+/// cannot-resolve path, not a wrong offset).
+fn const_fold_index_value_in_table(
+    table: &ExpressionTable,
+    index: ExpressionHandle,
+) -> Option<i64> {
+    match table.expression(index) {
+        ExpressionNode::Mutable(inner) => const_fold_index_value_in_table(table, *inner),
+        ExpressionNode::Integer(value) => value.value_i64(),
+        ExpressionNode::Binary(binary) => {
+            let left = const_fold_index_value_in_table(table, binary.left)?;
+            let right = const_fold_index_value_in_table(table, binary.right)?;
+            match binary.operator {
+                omega_checked_trees::expression::BinaryOperator::Add => left.checked_add(right),
+                omega_checked_trees::expression::BinaryOperator::Subtract => left.checked_sub(right),
+                omega_checked_trees::expression::BinaryOperator::Multiply => left.checked_mul(right),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 fn fixed_indexed_target_path_in_table(
     table: &ExpressionTable,
     expression: ExpressionHandle,
@@ -2948,10 +2981,7 @@ fn fixed_indexed_target_path_in_table(
                     suffix_root: expression,
                 });
             }
-            let ExpressionNode::Integer(index) = table.expression(indexed.index) else {
-                return None;
-            };
-            let index = index.value_i64()?;
+            let index = const_fold_index_value_in_table(table, indexed.index)?;
             Some(TableFixedIndexedTargetPath {
                 collection,
                 index,
