@@ -1,0 +1,154 @@
+// PENDING (2026-07-08g): the FIRST caller of `Filesystem::open_with` (Rust
+// OpenOptions) -- which turned out to be NATIVELY UNCOMPILABLE in value-call
+// position, invisible until now because NOTHING ever called it (unreachable
+// machine bodies are never lowered; the raw-seam OpenOptions canaries
+// hand-compute flag ints). The refusal is LOUD and clean (good fence):
+// "state mutation: Filesystem::open_with... `self.open_flags` = `...` needs
+// runtime storage write lowering". PROBED SHAPES (all refuse identically):
+//   (a) the single compound expression over let-locals (the shipped source);
+//   (b) stepwise RMW `self.open_flags = self.open_flags | <local>`;
+//   (c) stepwise RMW over PARAM MEMBERS only
+//       (`self.open_flags = self.open_flags | ((options.append as i32) << 3)`).
+// So a MachineOwned write in a VALUE-CALLED machine plans only trivial values
+// today -- the write-value sibling of the "let-local dispatch face"
+// (TASKS_FS rung-1/rung-2 notes; copy's complex perm_mode write lowers
+// because its value reads only FIELDS: stat_buf bytes). The INTERPRETER runs
+// open_with faithfully (this program exits 70 interpreted).
+// PROMOTE to pass/filesystem + differential when the write lowering lands.
+//
+// RUN CANARY (exit 70) -- the FIRST runtime coverage of `Filesystem::open_with`
+// (Rust OpenOptions), previously untested anywhere: the raw-seam OpenOptions
+// canaries (native_open_rw/native_append/native_open_create) hand-compute flag
+// ints and never call the WRAPPER machine, whose per-target flag COMPOSITION
+// ((bool as i32) << O_XXX_BIT from provides values) and by-value STRUCT param
+// are exactly the bug-prone shape class. Exercises the matrix end-to-end:
+//   1. write+create on an ABSENT path -> creates, write lands;
+//   2. read-only open -> reads the bytes back;
+//   3. write+truncate -> metadata len 0 after close (truncate happened);
+//   4. write+append -> new bytes land at EOF (len grows, tail byte checks);
+//   5. create_new on an EXISTING path -> Error{AlreadyExists};
+//   6. read on an ABSENT path (no create) -> Error{NotFound}.
+// The interpreter's virtual fs is the differential oracle.
+// exits: 70 ok; 71 leg-1 create failed; 72 leg-1 write short; 73 leg-2 open
+// failed; 74 leg-2 bytes wrong; 75 leg-3 truncate len != 4; 76 leg-4 append
+// len != 8 or tail wrong; 77 leg-5 not AlreadyExists; 78 leg-6 not NotFound;
+// 79 cleanup failed.
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main {
+    console: Console;
+    fs: Filesystem;
+    open_result: OpenResult;
+    io_result: IoResult;
+    unit_result: UnitResult;
+    meta_result: MetadataResult;
+    file_fd: i32;
+    close_rc: i32;
+    back: [u8; 16];
+}
+machine Main::main(&mut self) {
+    // Leg 1: write+create on an absent path.
+    let opts_wc: OpenOptions = OpenOptions { write: true, create: true };
+    self.open_result = self.fs.open_with("omega_ow_probe.txt", opts_wc);
+    transition self.open_result { OpenResult::Ok { file } -> writeit(file) _ -> bad(71) }
+    state writeit(&mut self, file: File) {
+        self.file_fd = file.fd;
+        self.io_result = self.fs.write(File { fd: self.file_fd }, "abc");
+        self.close_rc = self.fs.close(File { fd: self.file_fd });
+        transition self.io_result { IoResult::Ok { count } -> wrote(count) _ -> bad(72) }
+    }
+    state wrote(&mut self, count: usize) {
+        transition count == 3 { true -> leg2() _ -> bad(72) }
+    }
+    // Leg 2: read-only open reads the bytes back.
+    state leg2(&mut self) {
+        let opts_r: OpenOptions = OpenOptions { read: true };
+        self.open_result = self.fs.open_with("omega_ow_probe.txt", opts_r);
+        transition self.open_result { OpenResult::Ok { file } -> readit(file) _ -> bad(73) }
+    }
+    state readit(&mut self, file: File) {
+        self.file_fd = file.fd;
+        self.io_result = self.fs.read(File { fd: self.file_fd }, &mut self.back, 16);
+        self.close_rc = self.fs.close(File { fd: self.file_fd });
+        transition self.back[0] == 97 { true -> read_tail() _ -> bad(74) }
+    }
+    state read_tail(&mut self) {
+        transition self.back[2] == 99 { true -> leg3() _ -> bad(74) }
+    }
+    // Leg 3: write+truncate empties, then write 4 -> len 4.
+    state leg3(&mut self) {
+        let opts_wt: OpenOptions = OpenOptions { write: true, truncate: true };
+        self.open_result = self.fs.open_with("omega_ow_probe.txt", opts_wt);
+        transition self.open_result { OpenResult::Ok { file } -> trunced(file) _ -> bad(75) }
+    }
+    state trunced(&mut self, file: File) {
+        self.file_fd = file.fd;
+        self.io_result = self.fs.write(File { fd: self.file_fd }, "wxyz");
+        self.close_rc = self.fs.close(File { fd: self.file_fd });
+        self.meta_result = self.fs.metadata_path("omega_ow_probe.txt");
+        transition self.meta_result { MetadataResult::Ok { meta } -> ck3(meta) _ -> bad(75) }
+    }
+    state ck3(&mut self, meta: Metadata) {
+        transition meta.len == 4 { true -> leg4() _ -> bad(75) }
+    }
+    // Leg 4: append -> len grows to 7, tail is the appended bytes.
+    state leg4(&mut self) {
+        let opts_a: OpenOptions = OpenOptions { write: true, append: true };
+        self.open_result = self.fs.open_with("omega_ow_probe.txt", opts_a);
+        transition self.open_result { OpenResult::Ok { file } -> appended(file) _ -> bad(76) }
+    }
+    state appended(&mut self, file: File) {
+        self.file_fd = file.fd;
+        self.io_result = self.fs.write(File { fd: self.file_fd }, "tail");
+        self.close_rc = self.fs.close(File { fd: self.file_fd });
+        self.io_result = self.fs.read_all("omega_ow_probe.txt", &mut self.back, 16);
+        transition self.io_result { IoResult::Ok { count } -> ck4(count) _ -> bad(76) }
+    }
+    state ck4(&mut self, count: usize) {
+        transition count == 8 { true -> ck4b() _ -> bad(76) }
+    }
+    state ck4b(&mut self) {
+        // "wxyz" + "tail": back[4] = 't' (116), back[7] = 'l' (108).
+        transition self.back[4] == 116 { true -> ck4c() _ -> bad(76) }
+    }
+    state ck4c(&mut self) {
+        transition self.back[7] == 108 { true -> leg5() _ -> bad(76) }
+    }
+    // Leg 5: create_new on the EXISTING path must be AlreadyExists.
+    state leg5(&mut self) {
+        let opts_cn: OpenOptions = OpenOptions { write: true, create_new: true };
+        self.open_result = self.fs.open_with("omega_ow_probe.txt", opts_cn);
+        transition self.open_result {
+            OpenResult::Error { kind } -> ck5(kind)
+            _ -> bad(77)
+        }
+    }
+    state ck5(&mut self, kind: ErrorKind) {
+        transition kind {
+            ErrorKind::AlreadyExists -> leg6()
+            _ -> bad(77)
+        }
+    }
+    // Leg 6: plain read of an ABSENT path (no create bits) must be NotFound.
+    state leg6(&mut self) {
+        let opts_r2: OpenOptions = OpenOptions { read: true };
+        self.open_result = self.fs.open_with("omega_ow_absent.txt", opts_r2);
+        transition self.open_result {
+            OpenResult::Error { kind } -> ck6(kind)
+            _ -> bad(78)
+        }
+    }
+    state ck6(&mut self, kind: ErrorKind) {
+        transition kind {
+            ErrorKind::NotFound -> cleanup()
+            _ -> bad(78)
+        }
+    }
+    state cleanup(&mut self) {
+        self.unit_result = self.fs.remove("omega_ow_probe.txt");
+        transition self.unit_result { UnitResult::Ok -> good() _ -> bad(79) }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
