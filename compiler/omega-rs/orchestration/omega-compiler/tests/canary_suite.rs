@@ -21110,6 +21110,54 @@ fn value_machine_self_array_local_index_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Sibling of the above for the PURE-CONST BINARY index sub-case: a value machine
+// returns `self.buf[4 + 1]` (a machine-owned read indexed by a both-literal
+// binary). The frontend leaves both-literal indices for the const fold, but the
+// fixed-index resolver only accepted a bare `Integer`, so it fell through and
+// read offset 0 natively (interp masked it). `fixed_indexed_target_path_in_table`
+// now const-folds the binary. This is the shape the fs stat decode hits
+// (`stat_buf[ST_*_OFF + k]` = `stat_buf[24 + 0]` after substitution).
+#[test]
+fn value_machine_const_index_self_array_exit_canary_runs() {
+    let canary = pass_canary("backend/value_machine_const_index_self_array_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("value-machine const-index canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 99,
+        "interpreter oracle should exit 99 (self.buf[4 + 1] in a value machine), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-value-machine-const-index-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("value-machine const-index canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("value-machine const-index canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(99),
+        "expected a value machine's self.buf[4 + 1] terminal read to deliver 99, got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // Hardens the post-entry fold beyond 2 levels: a FOUR-deep chain with an
 // intermediate read more than once (`a` -> b,c; `b` -> c,d). proc(5)=30.
 #[test]
