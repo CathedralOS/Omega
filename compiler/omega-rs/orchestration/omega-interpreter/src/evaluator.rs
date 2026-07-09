@@ -1801,7 +1801,17 @@ impl<'program> Evaluator<'program> {
                 // name) can detect it is a reference and keep aliasing -- otherwise a
                 // `&mut String` field passed down a call chain detaches after the first hop.
                 let cell = self.resolve_place(*inner, frame)?;
-                Ok(Value::Ref(cell).cell())
+                // A RE-BORROW (`&mut t` where `t` is itself a `&mut` param)
+                // aliases the SAME target: forward the inner Ref instead of
+                // nesting Ref-to-Ref, which downstream single-level derefs
+                // (receiver method resolution) cannot see through -- the
+                // param-forwarding chain declined with "unknown value-call
+                // target" while the native build served it (2026-07-11l).
+                let target = match &*cell.borrow() {
+                    Value::Ref(target) => Rc::clone(target),
+                    _ => Rc::clone(&cell),
+                };
+                Ok(Value::Ref(target).cell())
             }
             ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
                 // A bare place argument that is ALREADY a reference (a forwarded `&mut`
@@ -3908,7 +3918,12 @@ impl<'program> Evaluator<'program> {
             }
             ExpressionNode::Mutable(inner) => {
                 let cell = self.resolve_place(inner, frame)?;
-                Ok(Value::Ref(cell))
+                // Re-borrow collapse: see eval_argument's Mutable arm.
+                let target = match &*cell.borrow() {
+                    Value::Ref(target) => Rc::clone(target),
+                    _ => Rc::clone(&cell),
+                };
+                Ok(Value::Ref(target))
             }
             ExpressionNode::Unary(unary) => {
                 let operand = self.eval_expression(unary.operand, frame)?;
