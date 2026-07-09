@@ -21327,6 +21327,39 @@ fn runtime_param_receiver_second_instance_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// PARAM FORWARDING CHAIN through a re-borrow (`self.inner(&mut t)` where
+// t is itself `&mut Tally`): the walk's env forwards the binding; the
+// interp collapses re-borrow Ref nesting (was an "unknown value-call
+// target" decline).
+#[test]
+fn runtime_param_forward_chain_second_receiver_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_param_forward_chain_second_receiver_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-param-forward-chain-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("param forward-chain canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("param forward-chain canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the forwarded param to deliver second's 9 (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // PARAM RECEIVER through a SINGLE-instance family: the by-type pick is
 // provably the passed instance (multi-instance serves via param binding;
 // unresolvable-argument shapes stay fenced).

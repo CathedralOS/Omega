@@ -186,11 +186,13 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
    StateCallArgument.expression indexes state_calls.expressions, NOT
    control_flow's (cost one debug cycle). Residuals: param-ROOTED
    nested receiver paths (`t.inner.method()`) stay unrecoverable ->
-   fenced; re-borrowed param FORWARDING (`self.inner(&mut t)`) serves
-   natively but the INTERPRETER DECLINES the spelling ("unknown
-   value-call target") -- an interp frontend gap, repro
-   scratchpad/slice2/param_forward_chain, differential-unprovable
-   until fixed). Pin:
+   fenced; re-borrowed param FORWARDING interp gap CLOSED
+   2026-07-11l: the re-borrow (`&mut t` where t is already `&mut`)
+   nested Ref-to-Ref, which single-level derefs downstream (receiver
+   method resolution) could not see through -- both Mutable evaluation
+   arms now collapse re-borrows to the same target (aliasing
+   preserved). Pin: calls/runtime_param_forward_chain_second_receiver_exit
+   (differential-provable end to end). Pin:
    fail/calls/ambiguous_spliced_second_receiver_rejected (two
    same-family calls in one state: `second` blocked loudly; was
    silent-wrong 7-for-9 native). SAME-DAY REGRESSION FIX rolled in: the

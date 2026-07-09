@@ -1,0 +1,40 @@
+// RUN CANARY (exit 70) -- PARAM FORWARDING CHAIN through a RE-BORROW
+// (interp gap closed 2026-07-11l): probe takes `t: &mut Tally` (bound to
+// the SECOND instance) and forwards it as `self.inner(&mut t)` -- a
+// re-borrow of an already-`&mut` param. The receiver walk's param
+// environment forwards the binding natively (2026-07-11i); the
+// interpreter previously nested Ref-to-Ref at the re-borrow and its
+// single-level deref could not resolve `u.get()` ("unknown value-call
+// target" decline). Re-borrows now collapse to the same target on both
+// Mutable evaluation arms. u.get() = 9 -> exit 70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Tally { count: i32 in Wrapping; }
+machine Tally::get(&mut self) -> i32 in Wrapping {
+    transition true { true -> done(self.count) }
+    state done(&mut self, value: i32) -> i32 { value }
+}
+data Holder { first: Tally; second: Tally; }
+machine Holder::inner(&mut self, u: &mut Tally) -> i32 in Wrapping {
+    let v: i32 in Wrapping = u.get();
+    transition true { true -> done(v) }
+    state done(&mut self, v: i32) -> i32 { v }
+}
+machine Holder::probe(&mut self, t: &mut Tally) -> i32 in Wrapping {
+    let v: i32 in Wrapping = self.inner(&mut t);
+    transition true { true -> done(v) }
+    state done(&mut self, v: i32) -> i32 { v }
+}
+machine Holder::run(&mut self) -> i32 in Wrapping {
+    self.first.count = 7;
+    self.second.count = 9;
+    let v: i32 in Wrapping = self.probe(&mut self.second);
+    transition true { true -> done(v) }
+    state done(&mut self, v: i32) -> i32 { v }
+}
+data Main { console: Console; holder: Holder; flag: i32 in Wrapping; }
+machine Main::main(&mut self) {
+    self.flag = self.holder.run();
+    transition self.flag == 9 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
