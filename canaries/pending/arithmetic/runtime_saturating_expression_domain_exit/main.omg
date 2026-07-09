@@ -1,0 +1,63 @@
+// PENDING (2026-07-09c, waiting on OPERAND-POSITION domain lowering): each
+// direction below feeds Saturating arithmetic STRAIGHT INTO A COMPARISON, so
+// there is no landing-seam coercion -- the operation node itself must clamp
+// (decision 17: the domain rides the operand's declared type). The
+// INTERPRETER computes this correctly (exit 70) since the expression-domain
+// fix; NATIVE has no clamping lowering for arithmetic fused into an operand
+// tree, and used to compute the plain op silently (all four overflow
+// directions read the unclamped wide value -- exit 71). That silent
+// miscompile is now FENCED LOUDLY by emission planning's operand-domain
+// blocker (see fail/arithmetic/guard_saturating_operand_rejected), so this
+// program refuses to build natively today.
+// PROMOTE (pass/arithmetic + differential, expected 70/70) when the
+// operand-position Saturating/Trapping lowering lands in both ISAs.
+boundary trait Console {
+    machine exit_process(return_code: i32);
+}
+
+data Main {
+    console: Console;
+    a8: i8 in Saturating;
+    b8: i8 in Saturating;
+    big: i64 in Saturating;
+    inc: i64 in Saturating;
+}
+
+machine Main::main(&mut self) {
+    // i8 add overflow, compared directly: 100 + 50 = 150 -> clamp to 127.
+    self.a8 = 100;
+    self.b8 = 50;
+    transition (self.a8 + self.b8 == 127) { true -> sub_down() _ -> bad() }
+
+    state sub_down(&mut self) {
+        // i8 sub underflow: -100 - 70 = -170 -> clamp to -128.
+        self.a8 = 0 - 100;
+        self.b8 = 70;
+        transition (self.a8 - self.b8 == 0 - 128) { true -> mul_up() _ -> bad() }
+    }
+    state mul_up(&mut self) {
+        // i8 mul overflow: 64 * 4 = 256 -> clamp to 127.
+        self.a8 = 64;
+        self.b8 = 4;
+        transition (self.a8 * self.b8 == 127) { true -> wide_up() _ -> bad() }
+    }
+    state wide_up(&mut self) {
+        // i64 add overflow at the real boundary: (MAX-7) + 100 -> MAX.
+        self.big = 9223372036854775800;
+        self.inc = 100;
+        transition (self.big + self.inc == 9223372036854775807) { true -> in_range() _ -> bad() }
+    }
+    state in_range(&mut self) {
+        // An IN-RANGE saturating add stays exact: 40 + 2 = 42 (no clamp).
+        self.a8 = 40;
+        self.b8 = 2;
+        transition (self.a8 + self.b8 == 42) { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

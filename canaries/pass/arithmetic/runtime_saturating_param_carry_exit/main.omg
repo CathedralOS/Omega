@@ -1,14 +1,14 @@
-// PENDING (2026-07-09b, INTERPRETER divergence -- the native side is
-// CORRECT here): i8 `in Saturating` arithmetic carried through RECURSION
-// PARAMS (`count(i, j + 1, acc + 50)`) does not clamp in the interpreter:
-// 50, 100, 150 should clamp to 127 but the interp appears to compute wide
-// and truncate (native 70 = the saturated 127; interp 71). The existing
-// runtime_saturating_narrow_add_sub_exit canary passes, so the gap is
-// specific to the transition-ARGUMENT evaluation path (or dispatched-call
-// param carry). The native leg ALSO pins that the dispatch binary-terminal
-// return path rides the resolved Saturating domain correctly (127 + 50 ->
-// 127). Flagged for the interpreter/arithmetic thread in Observations.
-// PROMOTE (differential) when the interp clamps; expected 70/70.
+// Saturating i8 arithmetic carried through RECURSION PARAMS and a dispatch
+// binary terminal (decision 17): each hop's `acc + 50` must clamp AT THE
+// OPERATION (50, 100, 127-saturated), and the terminal `acc + 50` must stay
+// 127 even though its landing slot (`let n: i8`, the machine's plain `-> i8`
+// return) is Exact -- the domain rides the OPERAND's declared type, not the
+// landing slot's. Both legs pinned by the differential oracle at exit 70.
+// (History: promoted from pending/host/interp_saturating_param_carry -- the
+// interpreter used to compute transition-argument arithmetic wide and let the
+// Exact landing seam truncate 177 -> -79, exiting 71 while native correctly
+// saturated; fixed by resolving the expression's declared scalar type at
+// binary nodes.)
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::count(&mut self, i: usize, j: usize, acc: i8 in Saturating)

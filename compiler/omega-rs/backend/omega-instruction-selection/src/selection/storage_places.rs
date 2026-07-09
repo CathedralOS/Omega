@@ -964,6 +964,70 @@ fn bounded_byte_buffer_indexed_place(
     })
 }
 
+/// The decision-17 arithmetic domain a BINARY OPERAND TREE computes in: the
+/// first non-Exact witness among the expression's leaves (the domain rides the
+/// operands' declared types; mixed domain classes are a checker concern, so one
+/// witness types the tree -- the same convention the signedness classifiers
+/// use). Recorded on `ValueOperand::Binary` at construction so emission
+/// planning can refuse the domains the fused operand encoders cannot honor
+/// (Saturating/Trapping) instead of silently computing the plain op.
+pub(in crate::selection) fn resolve_binary_operand_arithmetic_domain_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    left: ExpressionHandle,
+    right: ExpressionHandle,
+) -> omega_core::arithmetic::ArithmeticDomain {
+    let left_witness = resolve_expression_arithmetic_domain_witness_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        left,
+    );
+    if left_witness != omega_core::arithmetic::ArithmeticDomain::Exact {
+        return left_witness;
+    }
+    resolve_expression_arithmetic_domain_witness_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        right,
+    )
+}
+
+/// The domain witness of ONE operand expression: a nested binary node recurses
+/// into its own operands (its leaf descriptor never resolves -- a binary node
+/// is not a place); everything else resolves through the place/cast rules of
+/// [`resolve_runtime_storage_arithmetic_domain_in_table`].
+fn resolve_expression_arithmetic_domain_witness_in_table(
+    input: &InstructionSelectionInput<'_>,
+    dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    expression: ExpressionHandle,
+) -> omega_core::arithmetic::ArithmeticDomain {
+    if let ExpressionNode::Binary(binary) = expressions.expression(expression) {
+        return resolve_binary_operand_arithmetic_domain_in_table(
+            input,
+            dispatch_index,
+            source_key,
+            expressions,
+            binary.left,
+            binary.right,
+        );
+    }
+    resolve_runtime_storage_arithmetic_domain_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    )
+}
+
 /// The arithmetic domain (`T in Wrapping/Saturating/Trapping`, decision 17) of a
 /// storage PLACE — read from the `Constrained` wrapper the layout builder records
 /// on the slot/field descriptor. Used at the binary-write site to decide whether

@@ -102,10 +102,16 @@ pub(super) fn runtime_value_operand_name(
             right,
             is_float,
             byte_width,
+            arithmetic_domain,
         } => format!(
-            "({} {operator:?}{}/{byte_width} {})",
+            "({} {operator:?}{}/{byte_width}{} {})",
             runtime_value_operand_name(backend_plan, *left),
             if *is_float { " f" } else { "" },
+            if *arithmetic_domain == omega_core::arithmetic::ArithmeticDomain::Exact {
+                String::new()
+            } else {
+                format!(" in {arithmetic_domain:?}")
+            },
             runtime_value_operand_name(backend_plan, *right),
         ),
         RuntimeValueOperand::TextEquals {

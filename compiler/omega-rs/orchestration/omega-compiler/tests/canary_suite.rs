@@ -16000,6 +16000,37 @@ fn runtime_saturating_wide_boundaries_exit_canary_runs() {
 }
 
 #[test]
+fn runtime_saturating_param_carry_exit_canary_runs() {
+    // Saturating i8 arithmetic carried through recursion PARAMS and a dispatch
+    // binary terminal: each hop's `acc + 50` clamps at the operation (50, 100,
+    // 127), and the terminal `acc + 50` stays 127 even though its landing slot
+    // (`let n: i8`, the plain `-> i8` return) is Exact -- the domain rides the
+    // OPERAND's declared type. The differential oracle pins the interpreter to
+    // the same 70 (it used to compute transition-arg arithmetic wide and exit
+    // 71).
+    let canary = pass_canary("arithmetic/runtime_saturating_param_carry_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-satcarry-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("saturating param-carry canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("saturating param-carry canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the saturated recursion params + binary terminal to exit 70, got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_trapping_overflow_traps_canary_runs() {
     // Trapping must TRAP: i32::MAX + 1 under `in Trapping` executes ud2, so the
     // process dies with a crash status and never reaches exit_process(70). If a
@@ -26687,6 +26718,7 @@ const ACTIVE_FAIL_CANARIES: &[&str] = &[
     "arithmetic/unconstrained_payload_arithmetic",
     "arithmetic/bounded_assignment_unproven",
     "arithmetic/wrapping_target_plain_operands_rejected",
+    "arithmetic/guard_saturating_operand_rejected",
     "calls/unresolved_value_call_rejected",
     "calls/unresolved_receiver_method_rejected",
     "calls/void_value_callee_rejected",

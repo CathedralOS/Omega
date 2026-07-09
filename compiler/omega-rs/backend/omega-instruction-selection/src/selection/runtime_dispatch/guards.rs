@@ -11,6 +11,7 @@ use omega_state_guards::{StateGuardKind, StateGuardOperator};
 
 use super::super::storage_places::{
     clamp_runtime_case_comparison_operands, clamp_runtime_case_comparison_operands_in_table,
+    resolve_binary_operand_arithmetic_domain_in_table,
     classify_scalar_value_type_in_table, enum_variant_value, enum_variant_value_in_table,
     resolve_runtime_frame_base_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table,
@@ -1777,6 +1778,18 @@ fn resolve_runtime_value_operand_in_table(
             is_float: false,
             // Integer arm derives its own width; default 8 matches prior behavior.
             byte_width: 8,
+            // Recorded so emission planning refuses the domains the fused
+            // operand encoding cannot honor (Saturating/Trapping would
+            // silently compute the plain op: `sat_a + sat_b == 127` read the
+            // unclamped 150).
+            arithmetic_domain: resolve_binary_operand_arithmetic_domain_in_table(
+                input,
+                dispatch_index,
+                source_key,
+                expressions,
+                binary.left,
+                binary.right,
+            ),
         }));
     }
 

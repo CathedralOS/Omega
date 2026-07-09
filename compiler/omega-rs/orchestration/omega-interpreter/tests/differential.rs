@@ -37,6 +37,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("arithmetic/runtime_guard_feature_composition_exit", 70),
     ("arithmetic/runtime_saturating_narrow_add_sub_exit", 70),
     ("arithmetic/runtime_saturating_wide_boundaries_exit", 70),
+    ("arithmetic/runtime_saturating_param_carry_exit", 70),
     ("arithmetic/runtime_unsigned_high_bit_u32_ops_exit", 70),
     ("arithmetic/runtime_unsigned_min_max_exit", 88),
     ("arithmetic/runtime_integer_casts_exit", 70),
@@ -1729,6 +1730,36 @@ fn cli_sample(path: &str) -> PathBuf {
 
 fn pass_canary(path: &str) -> PathBuf {
     repo_root().join("canaries/pass").join(path)
+}
+
+/// The INTERPRETER leg of the parked operand-position Trapping repro
+/// (pending/arithmetic/runtime_trapping_guard_overflow): `u8 in Trapping`
+/// 200 + 100 fused into a guard subject must TRAP in the oracle -- the
+/// expression's declared domain applies at the operation node. Native still
+/// compiles the plain fused add (silently missing the trap; deliberately
+/// unfenced, see emission planning's operand_domain_blockers), so the pending
+/// canary cannot be a differential member yet; this pins the oracle side
+/// alone until the operand-position trap sequence lands.
+#[test]
+fn interpreter_traps_on_pending_trapping_guard_overflow() {
+    let main_path = repo_root()
+        .join("canaries/pending/arithmetic/runtime_trapping_guard_overflow")
+        .join("main.omg");
+    let checked = compile_to_checked(&main_path, None).unwrap_or_else(|diagnostics| {
+        panic!(
+            "trapping guard overflow repro should reach the interpreter:\n{}",
+            join_diagnostics(&diagnostics)
+        )
+    });
+    let outcome = interpret(&checked, b"");
+    let error = outcome
+        .error
+        .as_deref()
+        .expect("the fused Trapping guard add must trap in the interpreter, not exit cleanly");
+    assert!(
+        error.contains("Trapping"),
+        "expected an arithmetic-overflow trap naming the Trapping domain, got: {error}"
+    );
 }
 
 #[cfg(windows)]

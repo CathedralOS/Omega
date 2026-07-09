@@ -583,6 +583,60 @@ decreases remaining
   silently resolving the first field -- graduates from silent-wrong repro to
   fence-pinned, retire when per-instance dispatch (rung 3) lands.
 
+- **EXPRESSION-DOMAIN SESSION 2026-07-09c: interp node-level domains + the
+  fused-operand fence.** Started from the fs agent's parked
+  interp_saturating_param_carry repro (interp computed transition-arg
+  arithmetic WIDE, exit 71 vs native 70). Two coupled findings + fixes:
+  1. **INTERPRETER (fixed):** the oracle's wide-compute + coerce-at-LANDING
+     model cannot represent an expression whose own domain differs from its
+     landing slot (`leaf(acc: i8 in Saturating) -> i8 { acc + 50 }` -- the
+     add must saturate even though `-> i8`/`let n: i8` land Exact). Fix in
+     evaluator.rs: Frame's `unsigned64_locals` name-set GENERALIZED to
+     `scalar_locals: BTreeMap<name, (PrimitiveType, ArithmeticDomain)>`
+     (seeded at bind_frame params + LocalData lets; expression_is_unsigned64
+     now derives from it -- one classification store instead of two), a new
+     `expression_scalar_type` witness resolver (Name/self.field/Cast(=Exact,
+     no domain clause)/Unary/Binary one-witness recursion), and eval_binary
+     applies Saturating/Trapping to Add/Sub/Mul AT THE NODE in i128 (also
+     fixes 64-bit signed saturation, which i64 landing seams cannot express).
+  2. **NATIVE (silent miscompile found, fenced loudly):** arithmetic FUSED
+     into a guard operand (`transition (sat_a + sat_b == 127)`) encoded as
+     the PLAIN op -- Saturating read the unclamped 150 (wrong arm, silent);
+     Trapping never trapped (200+100 u8 sailed past its check, silent).
+     Probes: all four saturating directions wrong natively; Wrapping fused is
+     CORRECT (byte-width compare truncation IS the wrap). Fix:
+     `ValueOperand::Binary` now carries `arithmetic_domain` (resolved at all
+     8 construction sites via a shared witness resolver in storage_places;
+     min/max builtin + synthesized bool-compare sites are Exact by
+     construction), and emission planning's new operand_domain_blockers
+     (arena sweep -- no instruction kind can smuggle one past it; guard
+     compares get state attribution) refuses SATURATING Add/Sub/Mul with a
+     store-first workaround message. Div/Mod stay fused (operand-width op
+     already matches domain semantics; MIN/-1 idiv-trap face documented in
+     the blocker). TRAPPING deliberately NOT fenced: value-identical for
+     non-overflowing inputs and the corpus uses `in Trapping` pervasively
+     (fencing broke binary_search/mandelbrot/enum_struct_payload/
+     guarded_computed_index) -- the missed-trap gap is parked as
+     pending/arithmetic/runtime_trapping_guard_overflow with the interp leg
+     pinned by interpreter_traps_on_pending_trapping_guard_overflow.
+  Canaries: PROMOTED pass/arithmetic/runtime_saturating_param_carry_exit
+  (differential 70/70 -- both legs now agree); NEW
+  fail/arithmetic/guard_saturating_operand_rejected (pins the blocker);
+  PARKED pending/arithmetic/runtime_saturating_expression_domain_exit
+  (interp-correct/native-fenced; promote with the operand-position lowering)
+  + runtime_trapping_guard_overflow (above);
+  runtime_narrow_signed_guard_ops_exit fields switched to plain i8 (its
+  Saturating declarations were incidental; subject is signedness).
+  OPEN follow-up (queued, both ISAs): real operand-position
+  Saturating/Trapping lowering -- compute the fused Add/Sub/Mul wide in the
+  binary-temp register, clamp/trap before the compare; then promote both
+  pending canaries and re-tighten the blocker to Trapping too. Note the
+  backend report now renders fused domains (`Add/8 in Trapping`).
+  Suite: failure set IDENTICAL to the known 7 (efi x3 Cathedral, tick x2
+  time, gui_memory_dc_blit render, pass umbrella); differential green
+  through its list until the pre-existing tick_count first-failure stop
+  (baseline-verified); zero warnings.
+
 - **[ ] Range constraint + non-Exact domain = the range is a LIE (found 2026-07-06).**
   `i: usize [0..=4] in Wrapping` accepts `self.i = 100` -- the range enforces only under the
   EXACT domain ("Wrapping stays permissive" was scoped to source-type narrowing, but it also

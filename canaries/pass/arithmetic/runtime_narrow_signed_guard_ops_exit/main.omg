@@ -5,6 +5,12 @@
 //
 // Covers: i8 `>` and `<` against negatives, i8 subtract to a negative, and i8 multiply
 // to a negative -- all in guards. Exits 70.
+//
+// The fields are PLAIN i8 (Exact) deliberately: guard-position arithmetic in a
+// Saturating/Trapping domain has no fused lowering and is refused loudly by the
+// operand-domain fence (fail/arithmetic/guard_saturating_operand_rejected); this
+// canary's subject is narrow SIGNEDNESS, not overflow domains, and every value
+// stays in range.
 
 boundary trait Console {
     machine exit_process(return_code: i32);
@@ -12,8 +18,8 @@ boundary trait Console {
 
 data Main {
     console: Console;
-    a8: i8 in Saturating;
-    b8: i8 in Saturating;
+    a8: i8;
+    b8: i8;
 }
 
 machine Main::main(&mut self) {
