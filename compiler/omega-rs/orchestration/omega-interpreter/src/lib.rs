@@ -238,3 +238,21 @@ pub fn evaluate_build_time_machine_arguments(
 ) -> Result<Vec<BuildTimeValue>, String> {
     evaluator::run_build_time_machine_arguments(program, machine_name, arguments)
 }
+
+/// The GRANTED build entry (open-work #3's settled design, rung 4): run the
+/// augmenting `build(b: &mut Build)` machine WITH a `Filesystem` capability
+/// and read back the augmented arguments. The capability grant IS the audit
+/// surface -- filesystem ops are allowed and served per `options` (hermetic
+/// virtual by default; real scoped/unscoped for actual builds), while every
+/// OTHER host boundary (console, clock, gui) still rejects dynamically.
+/// Unlike [`evaluate_build_time_machine_arguments`], the caller does NOT
+/// require an empty transitive effect surface for the filesystem effect --
+/// but should still gate the rest.
+pub fn evaluate_build_machine_with_filesystem(
+    program: &omega_typed_trees::TypedTrees,
+    machine_name: &str,
+    arguments: Vec<BuildTimeValue>,
+    options: InterpretOptions,
+) -> Result<Vec<BuildTimeValue>, String> {
+    evaluator::run_granted_build_machine_arguments(program, machine_name, arguments, options)
+}
