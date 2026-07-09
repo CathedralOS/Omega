@@ -41,11 +41,15 @@ pub(in crate::selection) fn dispatch_receiver_base(
 ///   the precomputed per-dispatch table answers (per-instance DISPATCH).
 /// - the state is a SPLICED CALLEE under a caller case (inline branching:
 ///   the prelude's `self.X` reads carry the callee machine while the case
-///   is the caller's) -- recover the receiver from the UNIQUE inline call
-///   in that state targeting the callee machine. Ambiguity (two calls to
-///   the same callee machine in one state) returns None: the by-type walk
-///   stays, and the fence keeps refusing that shape. Probed 2026-07-10t:
-///   the prelude read a.seconds@0 instead of sum.seconds@56.
+///   is the caller's) -- recover the receiver by WALKING the call chain
+///   from the case's state (multi-level splices stamp a callee's reads
+///   under the TOP case), composing hop offsets onto the case's own
+///   table base. The UNIQUE composed base reaching the callee's data
+///   wins; distinct candidates return None: the by-type walk stays, and
+///   the fence keeps refusing that shape. Probed 2026-07-10t (the
+///   prelude read a.seconds@0 instead of sum.seconds@56) and 2026-07-11d
+///   (a two-hop splice under a non-entry caller read first@0 instead of
+///   second@4).
 pub(in crate::selection) fn receiver_base_for(
     input: &InstructionSelectionInput<'_>,
     dispatch_index: u32,
@@ -70,44 +74,131 @@ pub(in crate::selection) fn receiver_base_for(
         return dispatch_receiver_base(input, dispatch_index);
     }
     // Spliced callee: the unique inline call from the case's state into
-    // `source_machine`, on the entry-machine caller (slice-1 scope).
-    if state.key.machine != input.entry_key.machine {
+    // `source_machine`. The recovered receiver offset is rooted in the
+    // CASE machine's layout, so it composes on the case's own base: the
+    // per-dispatch table entry (slice 2 -- a non-entry caller's case
+    // carries its composed base), or 0 for the entry machine (whose
+    // ROOT-context states are the identity base by definition). A case
+    // with no composed base cannot anchor a recovery -- refuse, the
+    // by-type fallback and the fence keep their old behavior.
+    let Some(case_base) = dispatch_receiver_base(input, dispatch_index)
+        .or_else(|| (state.key.machine == input.entry_key.machine).then_some(0))
+    else {
         return None;
-    }
+    };
     // Match callee machines by ATTACHED-DATA equivalence, not machine-symbol
     // equality: the resolution sweep may land in ANY machine layout attached
     // to the same data (`SystemTime::from_unix_seconds` vs the called
     // `SystemTime::duration_since`), and the receiver identity is a property
     // of the DATA instance, not the particular machine (2026-07-10y -- the
     // reversed-operand residual's final hop).
+    //
+    // MULTI-LEVEL SPLICE (slice 2): the case's statements may carry callees
+    // spliced through SEVERAL inline hops (`Main` -> `holder.run()` ->
+    // `second.get()` stamps get's reads under MAIN's case). Walk the call
+    // chain from the case's state, composing each hop's receiver offset
+    // (named receiver: its offset in the CURRENT machine's layout; self
+    // call on the same data: +0); the UNIQUE composed base reaching
+    // `source_machine`'s data wins. Two candidates with DIFFERENT bases are
+    // ambiguous -> None (same base twice is the same instance -- fine).
+    // The call graph is acyclic by language rule (no recursion); the fuel
+    // is a backstop, not a semantic bound.
     let source_attached = attached_data_of(input, source_machine);
-    let mut found: Option<&omega_state_calls::StateCall> = None;
-    for (_, call) in input.state_calls.calls.iter() {
-        if !call.reachable
-            || call.source_key.machine != state.key.machine
-            || call.source_key.state != state.key.state
-        {
-            continue;
+    let mut frontier: Vec<(omega_control_flow::StateKey, usize)> = vec![(
+        omega_control_flow::StateKey {
+            machine: state.key.machine,
+            state: state.key.state,
+            segment_index: 0,
+        },
+        case_base,
+    )];
+    let mut recovered: Option<usize> = None;
+    let mut fuel = 64usize;
+    while let Some((position, base)) = frontier.pop() {
+        if fuel == 0 {
+            return None;
         }
-        let target_matches = call.target_key.machine == source_machine
-            || (source_attached.is_some()
-                && attached_data_of(input, call.target_key.machine) == source_attached);
-        if !target_matches {
-            continue;
-        }
-        if found.is_some() {
-            if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
-                eprintln!("RB: -> AMBIGUOUS (dispatch {dispatch_index})");
+        fuel -= 1;
+        for (_, call) in input.state_calls.calls.iter() {
+            // NO reachability filter: a call spliced through inline hops keeps
+            // its ORIGINAL record marked unreachable (the original state is
+            // never scheduled -- its statements run inside the case), yet the
+            // spliced copy executes for real; the walk anchors at a reachable
+            // case, so every chain it follows corresponds to spliced code.
+            if call.source_key.machine != position.machine
+                || call.source_key.state != position.state
+            {
+                continue;
             }
-            return None; // ambiguous: two calls into the same data family
+            let hop_offset = call_receiver_offset(input, position.machine, call);
+            let target_matches = call.target_key.machine == source_machine
+                || (source_attached.is_some()
+                    && attached_data_of(input, call.target_key.machine) == source_attached);
+            if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
+                eprintln!(
+                    "RB:   hop m{} s{} -> m{} s{} recv {} offset {hop_offset:?} matches {target_matches}",
+                    position.machine.arena_index(),
+                    position.state.arena_index(),
+                    call.target_key.machine.arena_index(),
+                    call.target_key.state.arena_index(),
+                    call.receiver_name.as_str(),
+                );
+            }
+            if target_matches {
+                let Some(offset) = hop_offset else {
+                    continue; // unrecoverable receiver on the final hop
+                };
+                let candidate = base + offset;
+                if recovered.is_some_and(|existing| existing != candidate) {
+                    if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
+                        eprintln!("RB: -> AMBIGUOUS (dispatch {dispatch_index})");
+                    }
+                    return None; // two distinct instances answer -- ambiguous
+                }
+                recovered = Some(candidate);
+                continue;
+            }
+            if let Some(offset) = hop_offset {
+                frontier.push((call.target_key, base + offset));
+            }
         }
-        found = Some(call);
     }
-    let call = found?;
+    if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
+        eprintln!(
+            "RB: -> inline base {:?} (dispatch {}, case base {case_base})",
+            recovered, dispatch_index,
+        );
+    }
+    recovered
+}
+
+/// The receiver offset a call contributes within its SOURCE machine's
+/// storage: a named receiver path's offset in that machine's layout, `0`
+/// for a machine-to-machine self call on the SAME attached data (it runs
+/// on the caller's own region), `None` for anything unrecoverable
+/// (static/receiverless spellings, foreign-data self calls, paths that do
+/// not resolve).
+fn call_receiver_offset(
+    input: &InstructionSelectionInput<'_>,
+    source_machine: omega_core::symbols::SymbolHandle,
+    call: &omega_state_calls::StateCall,
+) -> Option<usize> {
     let receiver_name = call.receiver_name.as_str();
-    if receiver_name.is_empty() || receiver_name == "self" {
+    if receiver_name == "self" {
+        let same_data = attached_data_of(input, call.target_key.machine).is_some()
+            && attached_data_of(input, call.target_key.machine)
+                == attached_data_of(input, source_machine);
+        return same_data.then_some(0);
+    }
+    if receiver_name.is_empty() {
         return None;
     }
+    let caller_layout = input
+        .layouts
+        .machine_layouts
+        .iter()
+        .find(|(_, machine_layout)| machine_layout.symbol == source_machine)
+        .map(|(_, machine_layout)| machine_layout)?;
     let segments = input
         .state_calls
         .receiver_path_segments
@@ -117,12 +208,6 @@ pub(in crate::selection) fn receiver_base_for(
         Some(root) if root.as_str() == "self" => &segments[1..],
         _ => segments,
     };
-    let caller_layout = input
-        .layouts
-        .machine_layouts
-        .iter()
-        .find(|(_, machine_layout)| machine_layout.symbol == state.key.machine)
-        .map(|(_, machine_layout)| machine_layout)?;
     if field_segments.is_empty() {
         return omega_layout::field_path_offset(
             input.layouts,
@@ -130,17 +215,7 @@ pub(in crate::selection) fn receiver_base_for(
             std::slice::from_ref(&call.receiver_name),
         );
     }
-    let resolved =
-        omega_layout::field_path_offset(input.layouts, caller_layout.fields, field_segments);
-    if std::env::var_os("OMEGA_DEBUG_RECEIVER").is_some() {
-        eprintln!(
-            "RB: -> inline base {:?} (dispatch {}, receiver {})",
-            resolved,
-            dispatch_index,
-            call.receiver_name.as_str(),
-        );
-    }
-    resolved
+    omega_layout::field_path_offset(input.layouts, caller_layout.fields, field_segments)
 }
 
 fn attached_data_of<'plan>(
