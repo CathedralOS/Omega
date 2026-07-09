@@ -728,10 +728,45 @@ fn state_call_target_loops(
                 .into_iter()
                 .flatten()
             {
-                match transition.target {
+                match &transition.target {
                     omega_control_flow::PlannedTransitionTarget::SelfTarget => loops = true,
                     omega_control_flow::PlannedTransitionTarget::State { key: target, .. } => {
-                        loops = visit(control_flow, state_calls, target, on_path, finished);
+                        loops = visit(control_flow, state_calls, *target, on_path, finished);
+                    }
+                    // A NESTED target (`true -> mkall_copy(args)` -- a machine-
+                    // name re-entry or a sibling machine's entry) resolves by
+                    // STATE SYMBOL, overapproximated to every machine owning a
+                    // matching state (the reentrant fence's own discipline: a
+                    // false-positive loop only forces dispatch, which is always
+                    // safe; missing one leaves a looping callee spliced). This
+                    // was the original Nested-blindness: mkall_step's only loop
+                    // is via a Nested transition into the re-entrant mkall_copy.
+                    omega_control_flow::PlannedTransitionTarget::Nested {
+                        state_symbol, ..
+                    } => {
+                        if state_symbol.is_valid() {
+                            for (_, machine) in control_flow.machines.iter() {
+                                for state in
+                                    control_flow.states.span(machine.states).unwrap_or(&[])
+                                {
+                                    if state.key.state == *state_symbol
+                                        && visit(
+                                            control_flow,
+                                            state_calls,
+                                            state.key,
+                                            on_path,
+                                            finished,
+                                        )
+                                    {
+                                        loops = true;
+                                        break;
+                                    }
+                                }
+                                if loops {
+                                    break;
+                                }
+                            }
+                        }
                     }
                     _ => {}
                 }

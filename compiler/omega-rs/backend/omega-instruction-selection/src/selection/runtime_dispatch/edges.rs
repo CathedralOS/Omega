@@ -470,7 +470,7 @@ fn select_runtime_dispatch_call_result_return(
     // place; float terminals bail (no dispatch float-return story yet).
     // Before this path a binary terminal fell through SILENTLY and the
     // caller's slot kept its prior/ZII value (probed native 71 vs interp 70).
-    select_dispatch_binary_terminal_return(
+    if select_dispatch_binary_terminal_return(
         input,
         edge,
         source_key,
@@ -481,7 +481,320 @@ fn select_runtime_dispatch_call_result_return(
         value_expr,
         runtime_value_operands,
         selected_instructions,
+    ) {
+        return;
+    }
+
+    // CASE/STRUCT-LITERAL terminal (`-> IoResult::Ok { count: n }`,
+    // `-> UnitResult::Ok`): zero the whole result slot (construction
+    // zero-initializes unnamed fields -- ZII), write the case TAG (enums), and
+    // write each named payload field at its ABSOLUTE variant offset. Field
+    // values serve static integers and resolvable places; anything else
+    // leaves the terminal unserved and the call-result blocker refuses
+    // loudly. This is the shape every wrapper result enum returns through.
+    select_dispatch_case_literal_terminal_return(
+        input,
+        edge,
+        source_key,
+        source_dispatch_index,
+        target_region,
+        target_offset,
+        byte_size,
+        value_expr,
+        selected_instructions,
     );
+}
+
+enum FieldWrite {
+    Integer(usize, usize, i64),
+    Copy(usize, RuntimeStorageRegion, usize, usize),
+}
+
+/// Zero a result slot in 8-byte steps with a sized remainder (ZII: a case/
+/// struct construction zero-initializes everything it does not name).
+fn zero_slot(
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_size: usize,
+    source_key: StateKey,
+    statement_index: usize,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let mut zeroed = 0usize;
+    while zeroed < byte_size {
+        let step = match byte_size - zeroed {
+            remaining if remaining >= 8 => 8,
+            remaining if remaining >= 4 => 4,
+            remaining if remaining >= 2 => 2,
+            _ => 1,
+        };
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                target_region,
+                byte_offset: target_offset + zeroed,
+                byte_size: step,
+                value: 0,
+            },
+            source_key,
+            source_statement: statement_index,
+        });
+        zeroed += step;
+    }
+}
+
+/// Resolve a (possibly case-)literal's named fields into slot-relative writes,
+/// all-or-nothing: static integers and bools become Integer writes, resolvable
+/// places (scalars AND whole fixed arrays/records) become Copies, and NESTED
+/// struct literals recurse with the field's offset accumulated against the
+/// nested type's Record layout. Returns false when any field cannot be served
+/// (the caller then leaves the terminal unserved -> the blocker refuses).
+#[allow(clippy::too_many_arguments)]
+fn resolve_literal_field_writes(
+    input: &InstructionSelectionInput<'_>,
+    source_dispatch_index: u32,
+    source_key: StateKey,
+    expressions: &ExpressionTable,
+    fields_span: omega_core::arena::HandleSpan<omega_checked_trees::expression::TableStructLiteralField>,
+    layout_fields: omega_core::arena::HandleSpan<omega_layout::FieldLayout>,
+    base_offset: usize,
+    writes: &mut Vec<FieldWrite>,
+) -> bool {
+    for offset in 0..fields_span.count() {
+        let field = expressions.struct_field_at_offset(fields_span, offset).clone();
+        let Some(layout_field) = input
+            .layouts
+            .fields
+            .span_or_empty(layout_fields)
+            .iter()
+            .find(|layout_field| layout_field.name == field.name)
+        else {
+            return false;
+        };
+        let field_offset = base_offset + layout_field.offset;
+        match expressions.expression(field.value) {
+            ExpressionNode::Boolean(value) => {
+                writes.push(FieldWrite::Integer(
+                    field_offset,
+                    layout_field.layout.size,
+                    i64::from(*value),
+                ));
+                continue;
+            }
+            ExpressionNode::StructLiteral(nested) => {
+                // The nested type's own Record layout supplies child offsets.
+                let Some(nested_layout) = input
+                    .layouts
+                    .data_layouts
+                    .iter()
+                    .find(|(_, data_layout)| data_layout.name == nested.type_name)
+                    .map(|(_, data_layout)| data_layout)
+                else {
+                    return false;
+                };
+                let omega_layout::DataShape::Record { fields } = &nested_layout.shape else {
+                    return false;
+                };
+                if !resolve_literal_field_writes(
+                    input,
+                    source_dispatch_index,
+                    source_key,
+                    expressions,
+                    nested.fields,
+                    *fields,
+                    field_offset,
+                    writes,
+                ) {
+                    return false;
+                }
+                continue;
+            }
+            _ => {}
+        }
+        if let Some(value) = static_runtime_argument_value(expressions.expression(field.value)) {
+            writes.push(FieldWrite::Integer(
+                field_offset,
+                layout_field.layout.size,
+                value,
+            ));
+            continue;
+        }
+        let Some(place) = resolve_runtime_storage_place_in_table(
+            input,
+            source_dispatch_index,
+            source_key,
+            expressions,
+            field.value,
+        ) else {
+            return false;
+        };
+        if place.byte_count != layout_field.layout.size {
+            return false;
+        }
+        writes.push(FieldWrite::Copy(
+            field_offset,
+            place.region,
+            place.byte_offset,
+            place.byte_count,
+        ));
+    }
+    true
+}
+
+/// CASE/STRUCT-LITERAL terminal return: zero the caller's result slot, write
+/// the case TAG (enum literals), then each named payload field at its
+/// ABSOLUTE variant offset. Field values serve static integers and
+/// resolvable places (a param/local/field payload -- the wrapper's
+/// `IoResult::Ok {{ count: n }}` shape); an unresolvable field leaves the
+/// terminal unserved so the call-result blocker refuses loudly.
+#[allow(clippy::too_many_arguments)]
+fn select_dispatch_case_literal_terminal_return(
+    input: &InstructionSelectionInput<'_>,
+    edge: &RuntimeDispatchLoopEdge,
+    source_key: StateKey,
+    source_dispatch_index: u32,
+    target_region: RuntimeStorageRegion,
+    target_offset: usize,
+    byte_size: usize,
+    value_expr: ExpressionHandle,
+    selected_instructions: &mut SelectedInstructionSink,
+) {
+    let expressions = &input.control_flow.expressions;
+    // A BARE nullary case (`-> EmptyResult::Empty`): zero + tag, no fields.
+    if let Some(tag) = crate::selection::storage_places::enum_variant_value_in_table(
+        &input.layouts,
+        expressions,
+        value_expr,
+    ) {
+        zero_slot(
+            target_region,
+            target_offset,
+            byte_size,
+            source_key,
+            edge.statement_index,
+            selected_instructions,
+        );
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                target_region,
+                byte_offset: target_offset,
+                byte_size: omega_layout::ENUM_TAG_BYTES,
+                value: tag,
+            },
+            source_key,
+            source_statement: edge.statement_index,
+        });
+        return;
+    }
+    let ExpressionNode::StructLiteral(literal) = expressions.expression(value_expr) else {
+        return;
+    };
+    let type_name = literal.type_name.clone();
+    let case_name = literal.case_name.clone();
+    let fields_span = literal.fields;
+
+    // The variant's field layouts (absolute offsets within the enum value).
+    // A plain struct literal (no case) uses the data layout's own fields.
+    let data_layout = input
+        .layouts
+        .data_layouts
+        .iter()
+        .find(|(_, data_layout)| data_layout.name == type_name)
+        .map(|(_, data_layout)| data_layout);
+    let Some(data_layout) = data_layout else {
+        return;
+    };
+    let (tag, payload_fields) = match (&data_layout.shape, &case_name) {
+        (omega_layout::DataShape::Enum { variants, .. }, Some(case_name)) => {
+            let Some(variant) = input
+                .layouts
+                .variants
+                .span_or_empty(*variants)
+                .iter()
+                .find(|variant| variant.name == *case_name)
+            else {
+                return;
+            };
+            let Some(tag) = input
+                .layouts
+                .variants
+                .span_or_empty(*variants)
+                .iter()
+                .position(|variant| variant.name == *case_name)
+                .and_then(|index| i64::try_from(index).ok())
+            else {
+                return;
+            };
+            (Some(tag), variant.fields)
+        }
+        (omega_layout::DataShape::Record { fields }, None) => (None, *fields),
+        _ => return,
+    };
+
+    let mut writes: Vec<FieldWrite> = Vec::new();
+    if !resolve_literal_field_writes(
+        input,
+        source_dispatch_index,
+        source_key,
+        expressions,
+        fields_span,
+        payload_fields,
+        0,
+        &mut writes,
+    ) {
+        return;
+    }
+
+    // ZII: zero the whole slot (construction zero-initializes every field the
+    // literal does not name).
+    zero_slot(
+        target_region,
+        target_offset,
+        byte_size,
+        source_key,
+        edge.statement_index,
+        selected_instructions,
+    );
+    if let Some(tag) = tag {
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                target_region,
+                byte_offset: target_offset,
+                byte_size: omega_layout::ENUM_TAG_BYTES,
+                value: tag,
+            },
+            source_key,
+            source_statement: edge.statement_index,
+        });
+    }
+    for write in writes {
+        match write {
+            FieldWrite::Integer(offset, size, value) => {
+                selected_instructions.push(SelectedInstruction {
+                    kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                        target_region,
+                        byte_offset: target_offset + offset,
+                        byte_size: size,
+                        value,
+                    },
+                    source_key,
+                    source_statement: edge.statement_index,
+                });
+            }
+            FieldWrite::Copy(offset, region, source_offset, size) => {
+                selected_instructions.push(SelectedInstruction {
+                    kind: SelectedInstructionKind::CopyRuntimeStorage {
+                        source_region: region,
+                        source_offset,
+                        target_region,
+                        target_offset: target_offset + offset,
+                        byte_count: size,
+                    },
+                    source_key,
+                    source_statement: edge.statement_index,
+                });
+            }
+        }
+    }
 }
 
 /// The arithmetic/bitwise operator subset a binary TERMINAL may compute with
@@ -515,13 +828,13 @@ fn select_dispatch_binary_terminal_return(
     value_expr: ExpressionHandle,
     runtime_value_operands: &mut Arena<RuntimeValueOperand>,
     selected_instructions: &mut SelectedInstructionSink,
-) {
+) -> bool {
     let expressions = &input.control_flow.expressions;
     let ExpressionNode::Binary(binary) = expressions.expression(value_expr) else {
-        return;
+        return false;
     };
     let Some(operator) = dispatch_terminal_binary_operator(binary.operator) else {
-        return;
+        return false;
     };
     let resolve = |input: &InstructionSelectionInput<'_>,
                    handle: ExpressionHandle|
@@ -551,10 +864,10 @@ fn select_dispatch_binary_terminal_return(
         ))
     };
     let Some((left_operand, left_place)) = resolve(input, binary.left) else {
-        return;
+        return false;
     };
     let Some((right_operand, right_place)) = resolve(input, binary.right) else {
-        return;
+        return false;
     };
     // Type facts come from whichever side is a typed PLACE (an all-immediate
     // binary folds statically and never reaches here). Float terminals bail.
@@ -567,10 +880,37 @@ fn select_dispatch_binary_terminal_return(
         typed_expr,
     );
     if matches!(primitive, Some(PrimitiveType::F32 | PrimitiveType::F64)) {
-        return;
+        return false;
     }
+    // ALL-IMMEDIATE binary (`0 - 1` -- the idiomatic negative literal): fold
+    // and write the constant. Only the sign-safe class reaches here (the
+    // operator map), and both values are known.
     if left_place.is_none() && right_place.is_none() {
-        return;
+        let (RuntimeValueOperand::Immediate(left_value), RuntimeValueOperand::Immediate(right_value)) =
+            (&left_operand, &right_operand)
+        else {
+            return false;
+        };
+        let folded = match operator {
+            StateGuardOperator::Add => left_value.wrapping_add(*right_value),
+            StateGuardOperator::Subtract => left_value.wrapping_sub(*right_value),
+            StateGuardOperator::Multiply => left_value.wrapping_mul(*right_value),
+            StateGuardOperator::BitwiseAnd => left_value & right_value,
+            StateGuardOperator::BitwiseOr => left_value | right_value,
+            StateGuardOperator::BitwiseXor => left_value ^ right_value,
+            _ => return false,
+        };
+        selected_instructions.push(SelectedInstruction {
+            kind: SelectedInstructionKind::WriteRuntimeStorageInteger {
+                target_region,
+                byte_offset: target_offset,
+                byte_size,
+                value: folded,
+            },
+            source_key,
+            source_statement: edge.statement_index,
+        });
+        return true;
     }
     let is_signed = resolve_runtime_storage_is_signed_in_table(
         input,
@@ -604,6 +944,7 @@ fn select_dispatch_binary_terminal_return(
         source_key,
         source_statement: edge.statement_index,
     });
+    true
 }
 
 /// The caller's assignment TARGET resolved to a MACHINE-region place, for a
