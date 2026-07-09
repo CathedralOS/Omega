@@ -1,12 +1,13 @@
 // PENDING (native-vs-interp divergence, found 2026-07-08). max/min on a
 // `u64 in Wrapping` LOCAL operand: the interpreter takes the unsigned witness
 // (eval_min_max, landed 2026-07-08) and returns u64::MAX -> exit 77; native
-// still compares SIGNED (the Wrapping/Constrained wrapper hides the u64
-// primitive from the backend's LOCAL-slot signedness resolver) and picks 5 ->
-// exit 78. A plain u64 FIELD works on both engines (see the passing canary
-// arithmetic/runtime_unsigned_min_max_exit). Promote when the backend peels
-// Constrained for a local slot's signedness (same `u64 in Wrapping local`
-// family as the folded-modulo signedness item in TASKS).
+// compares SIGNED and picks 5 -> exit 78. ROOT (re-diagnosed 2026-07-08): the
+// CONST-FOLD DOMAIN HOLE, not a slot resolver -- `let big: u64 in Wrapping =
+// z - 1` folds to the signless literal `-1`, so the backend max operand carries
+// no u64 domain and stays signed `Max`. A plain u64 FIELD (not folded) works on
+// both engines (passing canary arithmetic/runtime_unsigned_min_max_exit).
+// Promote when folded constants carry their type/domain
+// (decision-17-const-fold-domain-hole, parked on a design call).
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::main(&mut self) {
