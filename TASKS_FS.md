@@ -203,7 +203,13 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
   (efi_entry_arguments / efi_freestanding_skeleton / efi_ref_param_call_arg),
   runtime_gui_memory_dc_blit, pass_canaries_compile (= the same four
   canaries, no hidden extras). samples_compile macOS baseline-4:
-  stdin ×3 (frontend WIP), uefi_hello.
+  stdin ×3 (frontend WIP), uefi_hello. (2026-07-11r: the gui blit canary
+  is windows-gated now — it IS the gdi32 pixel path; suite baseline
+  drops to 4: efi ×3 own-test failures + pass_canaries_compile, whose
+  TRUE inner compile-failure set is {targets/efi_ref_param_call_arg,
+  targets/efi_vtable_call, termination/default_order_nat_countdown_compile}
+  — precisely measured 2026-07-11r; the old "same members" note was
+  approximate.)
 - **Canonical idioms**: field discipline for host-call args/results;
   errno-capture-in-entry; field-carrier for indexed element moves. The a/b
   first-field receiver shuffle is FULLY RETIRED (per-instance receivers,

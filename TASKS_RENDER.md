@@ -670,3 +670,10 @@ Same discipline as the fs deep-work: each capability lands with a RUN-VERIFIED c
   `window_demo`/`windowed_calculator` need them.
 - **Verification is partly interactive** (a human sees the window); the CI canary
   covers the non-interactive open→blit→pump→destroy→exit path.
+
+- NOTE (fs lane, 2026-07-11r): `host/runtime_gui_memory_dc_blit_exit` is now
+  WINDOWS-GATED (WINDOWS_HOST_PASS_CANARIES + cfg(windows) test): the canary
+  is the gdi32 pixel path by design, and on darwin the Gui provider
+  substitution (MacosGui, no dc_create) made it a permanent macOS resolution
+  red in every suite baseline. If MacosGui ever grows a memory-context blit,
+  un-gate it. The differential entry already degrades as native-blocked.
