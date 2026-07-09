@@ -892,6 +892,40 @@ pub fn runtime_storage_copy_to_runtime_machine_double_indexed_from_runtime_stora
     8 + if any_frame { 8 } else { 0 } + 4 + 36 + 4
 }
 
+/// Width of the frame-base single-indexed copy: frame pair + the x24 stash +
+/// the same-region fixed-shape element address + one load/store pair per
+/// chunk. The chunk split mirrors `for_each_runtime_copy_chunk` with the
+/// TARGET offset as its base (chunk sizing accounts for target alignment).
+pub fn runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width(
+    target_offset: usize,
+    byte_count: usize,
+) -> usize {
+    let mut chunk_pairs = 0usize;
+    let mut remaining = byte_count;
+    let mut offset = 0usize;
+    while remaining > 0 {
+        let target_chunk = target_offset + offset;
+        let chunk = if remaining >= 8 && offset.is_multiple_of(8) && target_chunk.is_multiple_of(8)
+        {
+            8
+        } else if remaining >= 4 && offset.is_multiple_of(4) && target_chunk.is_multiple_of(4) {
+            4
+        } else if remaining >= 2 && offset.is_multiple_of(2) && target_chunk.is_multiple_of(2) {
+            2
+        } else {
+            1
+        };
+        chunk_pairs += 1;
+        offset += chunk;
+        remaining -= chunk;
+    }
+    8 + 4
+        + fixed_shape_index_element_address_width(
+            omega_target_operations::RuntimeStorageRegion::Machine,
+        )
+        + 8 * chunk_pairs
+}
+
 /// Width of the frame-resident 2D read: frame pair + 36-byte math + element
 /// load + target pair + store. All constant.
 pub fn runtime_storage_copy_from_runtime_frame_base_double_indexed_to_runtime_storage_width()

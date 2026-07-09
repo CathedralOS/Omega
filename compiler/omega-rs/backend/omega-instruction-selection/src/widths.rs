@@ -1696,12 +1696,18 @@ pub fn runtime_storage_copy_from_runtime_machine_indexed_to_runtime_storage_widt
 
 pub fn runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width(
     architecture: Architecture,
+    target_offset: usize,
+    byte_count: usize,
 ) -> usize {
     match architecture {
-        // aarch64 frame-base-indexed copy is unimplemented (errors at encode);
-        // reuse the x86_64 width as a placeholder so layout reservation does
-        // not panic.
-        Architecture::Aarch64 | Architecture::X86_64 => {
+        Architecture::Aarch64 => {
+            aarch64::runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width(
+                target_offset,
+                byte_count,
+            )
+        }
+        Architecture::X86_64 => {
+            let _ = (target_offset, byte_count);
             x86_64::runtime_storage_copy_from_runtime_frame_base_indexed_to_runtime_frame_width()
         }
     }
