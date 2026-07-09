@@ -1478,7 +1478,7 @@ fn runtime_leaf_machine_integer_write(
 ) -> Option<(usize, usize, i64)> {
     let (byte_offset, byte_size) = resolve_machine_owned_place(
         &input.layouts,
-        crate::selection::receiver_base::dispatch_receiver_base(input, expansion.dispatch_index),
+        crate::selection::receiver_base::receiver_base_for(input, expansion.dispatch_index, expansion.leaf_key.machine),
         input.entry_key.machine,
         expansion.source_key.machine,
         target,
@@ -1500,7 +1500,7 @@ fn runtime_leaf_machine_integer_write_in_table(
 ) -> Option<(usize, usize, i64)> {
     let (byte_offset, byte_size) = resolve_machine_owned_place_in_table(
         &input.layouts,
-        crate::selection::receiver_base::dispatch_receiver_base(input, expansion.dispatch_index),
+        crate::selection::receiver_base::receiver_base_for(input, expansion.dispatch_index, expansion.leaf_key.machine),
         input.entry_key.machine,
         expansion.source_key.machine,
         expressions,

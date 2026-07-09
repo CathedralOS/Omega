@@ -1435,7 +1435,7 @@ pub(super) fn runtime_storage_guard_in_table(
     let self_tag_place = |operand: omega_checked_trees::expression::ExpressionHandle| {
         crate::selection::storage_places::resolve_machine_owned_self_case_tag_place_in_table(
             &input.layouts,
-            crate::selection::receiver_base::dispatch_receiver_base(input, dispatch_index),
+            crate::selection::receiver_base::receiver_base_for(input, dispatch_index, source_key.machine),
             input.entry_key.machine,
             callee_key
                 .map(|key| key.machine)

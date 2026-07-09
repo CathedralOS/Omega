@@ -53,20 +53,35 @@ pub(crate) fn collect_contained_receiver_blockers(
             continue;
         };
 
-        // PER-INSTANCE DISPATCH (TASKS_FS "Stolen work #2"): a call that is
-        // DISPATCH-ROUTED (the same evidence helper the effect fences use)
-        // with a pipeline-resolvable receiver base (entry-machine caller,
-        // named receiver, path resolves via the shared
-        // omega_layout::field_path_offset walk -- the exact
-        // compute_receiver_bases predicate) is SERVED: the dispatch clone
-        // runs on the receiver's true storage (pinned by
-        // calls/runtime_dispatch_second_receiver_exit). INLINE-routed calls
-        // stay fenced: the inline expansions still resolve callee self-reads
-        // by TYPE (the time repro's route -- probed native 3 vs interp 70;
-        // the inline half is a later phase). The predicate is re-derived
-        // here because the fence iterates CALLS, not dispatch cases.
+        // PER-INSTANCE RECEIVERS (TASKS_FS "Stolen work #2"), BOTH routes:
+        // - DISPATCH-ROUTED calls (state_call_routed_to_dispatch) run their
+        //   clones on the receiver's true storage via the per-dispatch table
+        //   (pinned by calls/runtime_dispatch_second_receiver_exit).
+        // - INLINE calls serve when the receiver is recoverable at
+        //   resolution time: the state's UNIQUE call to that callee machine
+        //   (receiver_base_for's spliced-callee lookup; ambiguity -- two
+        //   same-callee-machine calls in one state -- stays fenced; pinned
+        //   by time/runtime_value_machine_receiver_field_postentry_exit).
+        // Both require the entry-machine caller + a resolvable named
+        // receiver path (the shared omega_layout walk -- the exact
+        // compute_receiver_bases predicate; re-derived here because the
+        // fence iterates CALLS, not dispatch cases).
+        let inline_served = state_call.source_key.machine == input.entry_key.machine
+            && input
+                .state_calls
+                .calls
+                .iter()
+                .filter(|(_, other)| {
+                    other.reachable
+                        && other.source_key.machine == state_call.source_key.machine
+                        && other.source_key.state == state_call.source_key.state
+                        && other.target_key.machine == state_call.target_key.machine
+                })
+                .count()
+                == 1;
         if state_call.source_key.machine == input.entry_key.machine
-            && crate::dispatch_route::state_call_routed_to_dispatch(input, state_call)
+            && (crate::dispatch_route::state_call_routed_to_dispatch(input, state_call)
+                || inline_served)
         {
             let segments = input
                 .state_calls
