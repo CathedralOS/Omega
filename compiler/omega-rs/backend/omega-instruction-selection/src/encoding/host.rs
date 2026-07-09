@@ -147,10 +147,9 @@ pub fn encode_entry_argument_register_write_bytes(
     byte_offset: usize,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "AArch64 MVP encoder cannot unmarshal entry arguments yet (the entry \
-             prologue register store is x86_64-only)",
-        )),
+        Architecture::Aarch64 => {
+            aarch64::encode_entry_argument_register_write_bytes(argument_index, byte_offset)
+        }
         Architecture::X86_64 => {
             x86_64::encode_entry_argument_register_write_bytes(argument_index, byte_offset)
         }
