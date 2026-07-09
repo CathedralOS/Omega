@@ -484,17 +484,13 @@ landed, for reference:
   behavior-preserving: interpreter runs the decode (coverage 68/0 + differential
   11/0), canary_suite 711/0, samples_compile the 4 documented pre-existing
   windows fails only. THE SINGLE DECODE SITE is now the migration target.
-- BLOCKED on [[value-machine-computed-index-miscompile]]: the migration needs
-  `stat_buf[ST_*_OFF + k]` (a computed index) inside the `decode_metadata` VALUE
-  machine. The parallel thread's commit c3bbe7bb0 fixed the BARE local/field
-  index case (hoist the value machine's Expression-return), but the PURE-CONST
-  binary sub-case still native-miscompiles (reads 0) -- and `ST_*_OFF + k`
-  substitutes to `24 + 0` (both-literal), so it IS that sub-case. Confirmed
-  natively 2026-07-08. Remaining fix (in the parallel thread's hoist area):
-  hoist pure-const binary indices too AND type the index temp as usize in
-  `infer_hoist_temp_type` (else it's a Unit layout error). Left to that thread to
-  avoid colliding on freshly-committed code; the corrected dependency is recorded
-  in the memory + `canaries/pending/backend/value_machine_computed_index_self_array`.
+- ~~BLOCKED on [[value-machine-computed-index-miscompile]]~~ **RESOLVED**
+  (verified 2026-07-08): the pure-const binary index fold landed (parallel
+  thread); the pending canary was PROMOTED to
+  `canaries/pass/backend/value_machine_const_index_self_array_exit` (+
+  `..._self_array_local_index_exit`), both exit 99 in the differential
+  RUN_CANARIES. `pending/backend/` no longer exists. The whole stat migration
+  is DONE (header above); this bullet is retained only as the resolved history.
 - THEN re-land (all prototyped+verified this session, reverted as commit
   72b1b112a's revert): (1) per-target ST_*_OFF provides + interp
   `host_stat_offsets` cfg mirror with DISTINCT synthetic tail offsets for
@@ -514,20 +510,35 @@ FOUND + FIXED: `set_permissions`/`set_file_permissions` passed `perms.mode`
 to resolve under some dispatch contexts -- exactly the hazard the wrapper's
 `file_fd` scratch field already documents for `file.fd`. They now capture
 into a new `perm_mode` field in the entry first (the established idiom).
-PARKED backend gap (pending/host/self_value_call_literal_arg) -- ROOT CAUSE
-re-diagnosed 2026-07-08 (two earlier guesses were wrong): a path LITERAL
-passed to a SELF value call (`self.doit("lit")` -> `self.raw.open(path)`)
-gets NO data object that the callee's host call can find. The value-call
-ALIAS BINDING resolution keys the param literal to the CALLEE's source_key
-for a SELF call but to the CALLER's for a CONTAINED call, while the
-static-string collectors key the literal to the caller -- so the SELF-call
-lookup by (callee_key, bytes) misses. Compounded by discarded/unused
-results (`_ = f("lit")`) lowering to a LocalData whose local isn't in
-state_storage.locals, so the collector never visits its call args. A
-data-planning-only fix (collect unrequired call-initializer literals) was
-attempted and REVERTED -- insufficient without fixing the key agreement.
-Real fix is backend value-call arg handling; the std wrapper (contained
-receivers, used results) is unaffected, so this is latent, not blocking.
+SELF-value-call literal arg -- ✅ FIXED 2026-07-08 (USED-result form). ROOT
+CAUSE (traced): a path LITERAL passed to a SELF value call
+(`self.probe("lit")` -> `self.raw.open(path)`) reaches the callee host call
+as its `path` param ALIASED to the caller's literal, but the value-call ALIAS
+BINDING resolution (`resolve_runtime_alias_binding_handle`) resolves a SELF
+call to the CALLEE's source_key while a CONTAINED call resolves to the
+CALLER's; the static-string collectors always key the literal's data object to
+the CALLER's statement, so `aliased_literal_data_object`'s (resolved_key,
+bytes) lookup MISSED for the SELF case (contained matched). Manifested as the
+`open` arm producing NO operands -> "no encodable call sequence" (x86_64) /
+"AArch64 value-returning host call has no result storage operand" (the latter
+was a downstream SYMPTOM of the missing path operand, not a separate aarch64
+bug). FIX: `aliased_literal_data_object`
+([operands.rs:1416](compiler/omega-rs/backend/omega-instruction-selection/src/selection/host_operations/operands.rs))
+now falls back to a BYTES-ONLY match when the state-keyed lookup misses --
+every data object with identical bytes is the same read-only C string, so any
+match is correctness-equivalent (worst case a missed dedup, never a wrong
+pointer). The state-keyed match is still TRIED FIRST (contained receivers
+unchanged). Pinned by RUN canary
+`filesystem/self_value_call_literal_path_exit` (differential, native + interp
+both exit 70: create with a literal, then reopen the SAME literal THROUGH a
+self value call -> open must find the file). Wired into differential
+RUN_CANARIES + a windows-gated suite test.
+REMAINING (narrower, still pending/host/self_value_call_literal_arg): the
+DISCARDED-result form (`_ = self.doit("lit")`) additionally lowers to a
+LocalData whose unused local isn't in state_storage.locals, so the collector
+may never visit the call args (no data object collected at all -> bytes-only
+has nothing to find). That collection gap is orthogonal to the key mismatch
+just fixed; the used-result shape (which the std wrapper uses) is now covered.
 
 ## Portable-values / Metadata design questions — RESOLVED (chat 2026-07-08)
 
@@ -588,6 +599,18 @@ wrongly rejects them. See Open-work #4.
 - macOS-host runs previously showed ~85 pre-existing differential-skip failures +
   a broad aarch64 `b.ne` alignment bug in samples_compile (task chip spawned) —
   NOT this thread's work.
+- ⚠️ NATIVE MISCOMPILE on main (observed 2026-07-08, present on clean HEAD
+  77d39fbfb with all fs changes stashed — the parallel sum-payload-range /
+  const-fold thread's territory, NOT this thread's): the differential test
+  `-p omega-interpreter --test differential` fails two with native≠interp:
+  `dual_accumulator` sample (interp 70 vs native 71) and
+  `arithmetic/runtime_cast_in_guard_exit` (native 71 vs suite-expected 70).
+  Since the suite pins native as correct-by-definition, native 71 is a real
+  regression. Flagged for the arithmetic thread — likely the folded-constant
+  domain work leaking a sign/width into a cast-in-guard. (6 GUI/input samples in
+  native_filesystem_canaries also fail, but those are the KNOWN effectful-arm
+  fence on `MacosInput::key_state`/`MacosGui::msg_peek` value calls, per the
+  fence doctrine above — expected, not a regression.)
 
 ## Coordination
 

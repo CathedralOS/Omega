@@ -1446,18 +1446,33 @@ fn aliased_literal_data_object(
     );
     let value = expressions.string_literal_value(resolved.expression)?;
     let bytes = value.as_bytes();
+    let object_bytes_match = |object: &AbstractDataObject| -> bool {
+        input
+            .data
+            .bytes
+            .span(object.bytes)
+            .is_some_and(|object_bytes| object_bytes == bytes)
+    };
+    // Prefer the object keyed to the resolved binding's state -- this is the
+    // CONTAINED-receiver value call, whose alias binding resolves the param to
+    // the CALLER's key, matching where the static-string collector keyed the
+    // literal's data object.
+    if let Some((handle, _)) = input.data.objects.iter().find(|(_, object)| {
+        object.source_key == resolved.source_key && object_bytes_match(object)
+    }) {
+        return Some((handle, bytes.len()));
+    }
+    // Fallback for a SELF value call (`self.doit("lit")` -> `self.raw.open(path)`):
+    // the alias binding resolves the param to the CALLEE's key, but the literal's
+    // data object is keyed to the CALLER's statement, so the state-keyed lookup
+    // above misses. Match by BYTES alone -- every data object with identical bytes
+    // is an identical read-only C string, so pointing the arg at any of them is
+    // correctness-equivalent (at worst a missed dedup, never a wrong pointer).
     input
         .data
         .objects
         .iter()
-        .find(|(_, object)| {
-            object.source_key == resolved.source_key
-                && input
-                    .data
-                    .bytes
-                    .span(object.bytes)
-                    .is_some_and(|object_bytes| object_bytes == bytes)
-        })
+        .find(|(_, object)| object_bytes_match(object))
         .map(|(handle, _)| (handle, bytes.len()))
 }
 

@@ -20695,6 +20695,59 @@ fn windows_fs_raw_roundtrip_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A SELF value-call that forwards a PATH LITERAL into a raw host call
+// (`self.probe("lit")` -> `self.raw.open(path, ..)`). Before the fix the
+// forwarded literal's data object -- keyed to the CALLER's statement -- was
+// missed by the callee-keyed lookup (the alias binding resolves a SELF call to
+// the CALLEE's key), so `open` got no path operand: "no encodable call
+// sequence" on x86_64, "no result storage operand" on aarch64. The lookup now
+// falls back to a bytes-only match (every data object with identical bytes is
+// the same read-only C string). Interpreter-first oracle; native run pinned.
+#[cfg(windows)]
+#[test]
+fn windows_fs_self_value_call_literal_path_exit_canary_runs() {
+    let canary = pass_canary("filesystem/self_value_call_literal_path_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("self-value-call literal path canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (self-call literal reached open), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fs-self-literal-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("self-value-call literal path canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("self-value-call literal path canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the self-call-forwarded literal to reach open (exit 70), got {:?} \
+         (71 = create failed; 72 = self-call open failed [the bug]; 73 = cleanup \
+         remove failed)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A host-call RESULT let in a callee reached via an ARM transition-target
 // value call (`true -> self.e1()`) resolves its frame slot in the inlining
 // dispatch case (branch_transition_target_key's self/sibling Nested arm).
