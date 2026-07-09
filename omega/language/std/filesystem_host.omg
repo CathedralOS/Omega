@@ -138,6 +138,28 @@ windows_x64 provides FilesystemHost {
     O_TRUNC_BIT  -> 9;
     O_EXCL_BIT   -> 10;
     O_BINARY     -> 32768;
+    // `struct _stat64` (msvcrt) byte offsets, consumed by `decode_metadata` /
+    // `copy` as `stat_buf[ST_*_OFF + k]`. `_stat64` is 56 bytes; the DEV/MODE/
+    // NLINK/RDEV/SIZE/ATIME/MTIME + creation-as-BTIME fields sit at their real
+    // offsets (0..55). The fields absent or width-mismatched in `_stat64`
+    // (ino/uid/gid, the status-CHANGE time, blocks, blksize) live in a SYNTHETIC
+    // TAIL (>=64) that the hermetic interpreter fills but a real native `_stat64`
+    // leaves zero -- so native windows reports 0 for those, which is honest
+    // (NTFS ino is unreliable; no blocks/blksize/ctime). See TASKS_FS metadata rung.
+    ST_DEV_OFF    -> 0;
+    ST_MODE_OFF   -> 6;
+    ST_NLINK_OFF  -> 8;
+    ST_RDEV_OFF   -> 16;
+    ST_SIZE_OFF   -> 24;
+    ST_ATIME_OFF  -> 32;
+    ST_MTIME_OFF  -> 40;
+    ST_BTIME_OFF  -> 48;
+    ST_INO_OFF    -> 64;
+    ST_UID_OFF    -> 72;
+    ST_GID_OFF    -> 76;
+    ST_CTIME_OFF  -> 80;
+    ST_BLOCKS_OFF -> 88;
+    ST_BLKSIZE_OFF -> 96;
 }
 macos_arm64 provides FilesystemHost {
     O_WRONLY     -> 1;
@@ -147,6 +169,23 @@ macos_arm64 provides FilesystemHost {
     O_TRUNC_BIT  -> 10;
     O_EXCL_BIT   -> 11;
     O_BINARY     -> 0;
+    // darwin `struct stat` (64-bit) byte offsets. Every Metadata field has a real
+    // home here (darwin's stat carries ino/uid/gid/ctime/blocks/blksize/birthtime),
+    // so no synthetic tail is needed.
+    ST_DEV_OFF    -> 0;
+    ST_MODE_OFF   -> 4;
+    ST_NLINK_OFF  -> 6;
+    ST_INO_OFF    -> 8;
+    ST_UID_OFF    -> 16;
+    ST_GID_OFF    -> 20;
+    ST_RDEV_OFF   -> 24;
+    ST_ATIME_OFF  -> 32;
+    ST_MTIME_OFF  -> 48;
+    ST_CTIME_OFF  -> 64;
+    ST_BTIME_OFF  -> 80;
+    ST_SIZE_OFF   -> 96;
+    ST_BLOCKS_OFF -> 104;
+    ST_BLKSIZE_OFF -> 112;
 }
 linux_x64 provides FilesystemHost {
     O_WRONLY     -> 1;
@@ -156,6 +195,25 @@ linux_x64 provides FilesystemHost {
     O_TRUNC_BIT  -> 9;
     O_EXCL_BIT   -> 7;
     O_BINARY     -> 0;
+    // PLACEHOLDER (darwin-shaped): native linux metadata is not yet wired, so
+    // linux reuses the darwin `struct stat` offsets. The interpreter models the
+    // same POSIX hermetic shape on every non-windows host (evaluator.rs
+    // `host_stat_offsets`), so this stays self-consistent. Replace with linux's
+    // real `struct stat` offsets when wiring native linux stat.
+    ST_DEV_OFF    -> 0;
+    ST_MODE_OFF   -> 4;
+    ST_NLINK_OFF  -> 6;
+    ST_INO_OFF    -> 8;
+    ST_UID_OFF    -> 16;
+    ST_GID_OFF    -> 20;
+    ST_RDEV_OFF   -> 24;
+    ST_ATIME_OFF  -> 32;
+    ST_MTIME_OFF  -> 48;
+    ST_CTIME_OFF  -> 64;
+    ST_BTIME_OFF  -> 80;
+    ST_SIZE_OFF   -> 96;
+    ST_BLOCKS_OFF -> 104;
+    ST_BLKSIZE_OFF -> 112;
 }
 linux_arm64 provides FilesystemHost {
     O_WRONLY     -> 1;
@@ -165,4 +223,19 @@ linux_arm64 provides FilesystemHost {
     O_TRUNC_BIT  -> 9;
     O_EXCL_BIT   -> 7;
     O_BINARY     -> 0;
+    // PLACEHOLDER (darwin-shaped): see linux_x64 above.
+    ST_DEV_OFF    -> 0;
+    ST_MODE_OFF   -> 4;
+    ST_NLINK_OFF  -> 6;
+    ST_INO_OFF    -> 8;
+    ST_UID_OFF    -> 16;
+    ST_GID_OFF    -> 20;
+    ST_RDEV_OFF   -> 24;
+    ST_ATIME_OFF  -> 32;
+    ST_MTIME_OFF  -> 48;
+    ST_CTIME_OFF  -> 64;
+    ST_BTIME_OFF  -> 80;
+    ST_SIZE_OFF   -> 96;
+    ST_BLOCKS_OFF -> 104;
+    ST_BLKSIZE_OFF -> 112;
 }
