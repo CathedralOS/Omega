@@ -20199,6 +20199,41 @@ fn runtime_dispatch_result_enum_case_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A MACHINE ARRAY as a slice argument to a dispatched call: the descriptor
+// arm writes {ptr = base+offset, len} (raw-bytes-as-pointer was a SIGSEGV).
+#[test]
+fn runtime_dispatch_machine_array_slice_arg_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_dispatch_machine_array_slice_arg_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-dispatch-machine-array-slice-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("machine-array slice-arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("machine-array slice-arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected nums[2] == 7 through the dispatched slice (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A dispatched value call whose TERMINAL returns a FIELD read: the
 // return-write copy uses the resolved place's REGION (was hardcoded
 // RuntimeFrame, reading the frame at a machine offset -- garbage).

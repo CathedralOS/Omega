@@ -166,6 +166,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_called_machine_loop_search_exit", 70),
     ("calls/runtime_dispatch_binary_call_argument_exit", 70),
     ("calls/runtime_dispatch_result_binary_terminal_exit", 70),
+    ("calls/runtime_dispatch_machine_array_slice_arg_exit", 70),
     ("calls/runtime_dispatch_result_enum_case_exit", 70),
     ("calls/runtime_dispatch_result_field_binding_exit", 70),
     ("calls/runtime_dispatch_result_field_terminal_exit", 70),
