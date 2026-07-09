@@ -151,6 +151,17 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   must produce the build-time arity error ("takes 2 argument(s); the
   build-time position supplied 1"). With it, canary_suite is FULLY GREEN
   (694/0) for the first time.
+- **[x] Trapping-LOCAL const-fold overflow now TRAPS (verified landed 2026-07-08).**
+  `let b: i32 in Trapping = a + a` (a+a overflows i32) traps natively (ud2) like
+  the field path -- trapping_frame_slot_constant_overflow_write (frame_slots.rs)
+  wired at the static-integer write arm; canary
+  expressions/arithmetic_domain_trapping_const_fold_overflow traps both engines.
+  The memory [[decision-17-const-fold-domain-hole]] "STILL BROKEN" note was STALE
+  (corrected). ONE narrow edge remains, DESIGN-gated: a DEAD trapping let (`b`
+  unused) is DCE-elided so native runs past while interp still traps -- that is
+  ABORT-AS-EFFECT (#65) territory (does DCE preserve a trapping side-effect?).
+  Pinned canaries/pending/expressions/dead_trapping_let_not_elided; promote when
+  #65 settles.
 - **[ ] Folded-binary left operand loses the UNSIGNED marker: `(a / b) % c`
   runs SIGNED idiv/modulo natively (2026-07-07, seen in Time::now lowering; the
   inner divide selected DivideUnsigned but the outer modulo stayed signed

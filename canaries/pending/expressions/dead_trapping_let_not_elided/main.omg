@@ -1,0 +1,21 @@
+// PENDING (native-vs-interp divergence, found 2026-07-08). A DEAD trapping let
+// -- `let b: i32 in Trapping = a + a;` whose overflow would trap, but `b` is
+// never used -- is eliminated by DCE natively (write AND the overflow trap both
+// removed), so native runs past to exit 7; the interpreter still evaluates the
+// computation and TRAPS ("arithmetic overflow in Trapping domain: 4000000000 is
+// out of range for I32"). The USED-let case already traps on both engines
+// (passing canary expressions/arithmetic_domain_trapping_const_fold_overflow).
+//
+// Whether a DEAD trapping computation must still fire its trap is decision-17
+// ABORT-AS-EFFECT (#65) territory -- a trap is an effect, so DCE arguably must
+// preserve it, but the abort-as-effect model is a design SKETCH, not settled.
+// Promote (native must trap too) once #65 lands and DCE is taught to keep a
+// trapping side-effect; leave pending until the design call.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::main(&mut self) {
+    let a: i32 in Trapping = 2000000000;
+    let b: i32 in Trapping = a + a;
+    self.console.exit_process(7);
+}
+machine Main::run(&mut self) { self.main(); }
