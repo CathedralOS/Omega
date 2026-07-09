@@ -1,0 +1,31 @@
+// PENDING (2026-07-09b, INTERPRETER divergence -- the native side is
+// CORRECT here): i8 `in Saturating` arithmetic carried through RECURSION
+// PARAMS (`count(i, j + 1, acc + 50)`) does not clamp in the interpreter:
+// 50, 100, 150 should clamp to 127 but the interp appears to compute wide
+// and truncate (native 70 = the saturated 127; interp 71). The existing
+// runtime_saturating_narrow_add_sub_exit canary passes, so the gap is
+// specific to the transition-ARGUMENT evaluation path (or dispatched-call
+// param carry). The native leg ALSO pins that the dispatch binary-terminal
+// return path rides the resolved Saturating domain correctly (127 + 50 ->
+// 127). Flagged for the interpreter/arithmetic thread in Observations.
+// PROMOTE (differential) when the interp clamps; expected 70/70.
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; }
+machine Main::count(&mut self, i: usize, j: usize, acc: i8 in Saturating)
+terminates { decreases (j, i) -> Nat::BoundedDistance; }
+-> i8
+{
+    transition j < i {
+        true -> count(i, j + 1, acc + 50)
+        false -> leaf(acc)
+    }
+    // Saturating BINARY terminal: acc(127 saturated) + 50 must stay 127.
+    state leaf(&mut self, acc: i8 in Saturating) -> i8 { acc + 50 }
+}
+machine Main::main(&mut self) {
+    // 3 iterations: 0+50=50, +50=100, +50=127(sat). Terminal: 127+50 = 127(sat).
+    let n: i8 = self.count(3, 0, 0);
+    transition n == 127 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

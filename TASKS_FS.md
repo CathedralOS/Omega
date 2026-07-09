@@ -630,12 +630,26 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    (native 72), now green; (F) GUARD-SUBJECT binding probed GREEN and
    pinned. Canaries (differential + suite):
    `calls/runtime_dispatch_result_{binary_terminal,multi_arm,guard_subject}_exit`.
-   REMAINING SHAPES to matrix: effectful entries (the parked acceptance
-   canary -- likely the entry-op splice/dispatch interaction, not the
-   return-write), alias/slice-element results, transition-arg bindings,
-   float terminals (bail today, documented), Saturating/Trapping terminal
-   arithmetic (the binary path uses the resolved domain; verify with a
-   trapping probe). LESSON: an exemption from a
+   ROUND 3 (2026-07-09b): (G) SATURATING terminal arithmetic -- the NATIVE
+   side is CORRECT (the binary path rides the resolved domain: i8 127+50
+   saturates to 127) but the INTERPRETER diverges (computes wide, no
+   clamp through recursion-param carry; parked
+   `pending/host/interp_saturating_param_carry`, flagged for the
+   interp/arithmetic thread in Observations). (H) TRANSITION-ARG binding
+   (`true -> check(self.count(..))`) is another LIVE silent-wrong (native
+   71): widening the return-write slot lookup to any role
+   (`state_call_result_slot_any_role`, kept -- documented and needed) was
+   insufficient alone; prime suspect is ORDERING -- the continuation
+   target's argument materializes at the CALLER's call edge, before the
+   callee runs; the builder's `continuation_arguments` machinery exists
+   but the TransitionArgument wiring is the gap. Parked
+   `pending/host/dispatch_result_transition_arg` with the diagnosis; also
+   recorded: `CallResultReturn` carries no call ORDINAL (two dispatched
+   calls in one statement cannot be disambiguated -- plan-shape gap).
+   REMAINING SHAPES to matrix: transition-arg ordering (above), effectful
+   entries (the parked acceptance canary -- likely the entry-op
+   splice/dispatch interaction, not the return-write), alias/slice-element
+   results, float terminals (bail today, documented). LESSON: an exemption from a
    silent-wrong fence needs a RUNTIME differential proof per shape, not a
    routing-evidence proof -- compile-time evidence says the route was
    taken, not that the route is correct.
@@ -894,6 +908,14 @@ wrongly rejects them. See Open-work #4.
 - macOS-host runs previously showed ~85 pre-existing differential-skip failures +
   a broad aarch64 `b.ne` alignment bug in samples_compile (task chip spawned) —
   NOT this thread's work.
+- ⚠️ INTERPRETER Saturating gap (found 2026-07-09 by the dispatch return-write
+  matrix, parked `pending/host/interp_saturating_param_carry`): i8
+  `in Saturating` arithmetic carried through RECURSION PARAMS
+  (`count(i, j+1, acc + 50)`) does not clamp in the interpreter — it computes
+  wide and truncates (native, which clamps correctly, exits 70; interp 71).
+  runtime_saturating_narrow_add_sub_exit passes, so the gap is specific to the
+  transition-argument evaluation path or dispatched-param carry. Interp
+  arithmetic is the arithmetic thread's area — flagged.
 - ⚠️ NATIVE MISCOMPILE on main (observed 2026-07-08, present on clean HEAD
   77d39fbfb with all fs changes stashed — the parallel sum-payload-range /
   const-fold thread's territory, NOT this thread's): the differential test
