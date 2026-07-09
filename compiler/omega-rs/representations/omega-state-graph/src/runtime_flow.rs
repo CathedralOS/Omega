@@ -110,6 +110,11 @@ pub struct RuntimeStateCallEdge {
     /// statement), so their clone terminals carried no CallResultReturn and the
     /// caller read a never-written slot.
     pub is_value: bool,
+    /// Whether the call's spelled receiver is `self` (the plan's
+    /// receiver_name; `self.other.f()` on a contained field is NOT). The
+    /// tail-call-to-loop rewrite is only sound on the SAME instance -- a
+    /// contained same-machine receiver must keep the recursion rejection.
+    pub is_self_receiver: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

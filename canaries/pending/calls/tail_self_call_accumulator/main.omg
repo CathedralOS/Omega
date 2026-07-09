@@ -25,9 +25,24 @@
 // already model re-entering the clone's own entry (the no-guard-matched
 // fall-through uses exactly that); (3) keep the cycle error for every
 // other shape. OMEGA_DEBUG_TAILCALL at the rejection site prints the edge.
-// PROMOTE (pass/calls + differential, expected 70/70) when the transform
-// lands. Interp already computes this correctly (fresh-frame call
-// semantics; observably identical for self-receiver tail calls).
+// STEP 2 (2026-07-10e): the flow-level rewrite is IMPLEMENTED and gated
+// behind OMEGA_TAILCALL_LOOP=1 -- correct but NOT SUFFICIENT alone. With
+// the gate on, the compile OVERFLOWS in selection's
+// resolve_leaf_binding_expression_handle: the INLINE-BRANCHING expansion
+// (which runs alongside dispatch routing -- the known duplication wart)
+// consumes the now-cyclic flow, and the loop-carried rebind (n := n - 1)
+// self-references in a leaf-binding slice the substitution walker follows
+// without a cycle guard (crash stack: bindings.rs substitution recursing
+// through ExpressionTable::copy_from). THE FULL FIX (step 3): a plan-level
+// StateCallLowering::DispatchLoop variant stamped on qualified tail
+// self-calls so EVERY inline path (branching expansion, leaf bindings,
+// statement re-emission) skips them; the flow rewrite then lowers the
+// loop, which the dispatch machinery already runs (RuntimeStateCallEdge
+// now carries is_self_receiver for the soundness check -- contained
+// same-machine receivers keep rejecting).
+// PROMOTE (pass/calls + differential, expected 70/70) when step 3 lands.
+// Interp already computes this correctly (fresh-frame call semantics;
+// observably identical for self-receiver tail calls).
 boundary trait Console { machine exit_process(return_code: i32); }
 data Main { console: Console; }
 machine Main::sum(&mut self, n: i32, acc: i32)

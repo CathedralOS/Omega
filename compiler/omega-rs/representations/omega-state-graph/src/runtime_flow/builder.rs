@@ -292,19 +292,68 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
         // Reject genuine call recursion (a state whose calls transitively call
         // back into it) up front, so the cloning DFS cannot overflow. STATIC check
         // over call + transition edges; it does not follow continuations.
+        //
+        // EXCEPTION -- the TAIL-CALL-TO-LOOP transform (2026-07-10e): a
+        // SELF-RECEIVER tail call back into this machine's own entry
+        // (`state step(..) -> i32 { self.sum(n - 1, acc + n) }`) is
+        // semantically the entry-transition loop the dispatch machinery
+        // already runs end to end (same instance, rebound args; the loop's
+        // eventual leaf terminal delivers to this clone's call-result /
+        // continuation). Lower it AS that loop: a transition edge to the
+        // entry within the SAME context, carrying the call's arguments. The
+        // state's own terminal (which would have re-returned the call
+        // result) is deliberately not emitted -- the loop's terminal
+        // delivers directly. Everything else (contained same-machine
+        // receivers -- a DIFFERENT instance; non-tail calls; transitive
+        // cycles) keeps the loud rejection.
         if self.call_target_recurses_into(call_edge.target_key, control_key) {
+            // DEVELOPMENT GATE (OMEGA_TAILCALL_LOOP=1): the flow-level rewrite
+            // below is CORRECT but NOT SUFFICIENT alone -- the inline-branching
+            // expansion (which runs alongside dispatch routing; the known
+            // duplication wart) still consumes the recursive structure and
+            // OVERFLOWS in selection's leaf-binding substitution
+            // (resolve_leaf_binding_expression_handle has no cycle guard; the
+            // loop-carried rebind `n := n - 1` self-references). The full fix
+            // adds a plan-level StateCallLowering::DispatchLoop so every
+            // inline path skips qualified tail self-calls; until that lands,
+            // the default stays the loud rejection.
+            if std::env::var_os("OMEGA_TAILCALL_LOOP").is_some()
+                && self.tail_self_call_qualifies(call_edge, control_key, segment, call_edges.len())
+            {
+                if std::env::var_os("OMEGA_DEBUG_TAILCALL").is_some() {
+                    eprintln!(
+                        "TAILCALL: rewriting m{} s{} stmt {} as entry-transition loop",
+                        control_key.machine.arena_index(),
+                        control_key.state.arena_index(),
+                        call_edge.statement_index,
+                    );
+                }
+                let target_arguments =
+                    self.statement_call_arguments(control_key, call_edge.statement_index);
+                let loop_target = crate::RuntimeTransitionTarget::State {
+                    key: call_edge.target_key,
+                    context,
+                };
+                self.visit_transition(
+                    state_key,
+                    context,
+                    call_edge.statement_index,
+                    loop_target,
+                    crate::RuntimeTransitionTarget::None,
+                    TransitionExpressionRefs {
+                        target_arguments,
+                        ..TransitionExpressionRefs::default()
+                    },
+                    None,
+                )?;
+                return Ok(true);
+            }
             if std::env::var_os("OMEGA_DEBUG_TAILCALL").is_some() {
                 eprintln!(
-                    "TAILCALL PROBE: edge {:?} segment {} of {} | control m{} s{} | target m{} s{} | is_value {} stmt {}",
+                    "TAILCALL: NOT qualified, rejecting: edge {:?} segment {} of {}",
                     call_edge,
                     segment,
                     call_edges.len(),
-                    control_key.machine.arena_index(),
-                    control_key.state.arena_index(),
-                    call_edge.target_key.machine.arena_index(),
-                    call_edge.target_key.state.arena_index(),
-                    call_edge.is_value,
-                    call_edge.statement_index,
                 );
             }
             return Err(Diagnostic::error(format!(
@@ -372,6 +421,71 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
     /// continuation it returns to when it terminates. Errors if the context
     /// budget is exhausted, which indicates a recursive call graph specialization
     /// cannot lower.
+    /// Whether a RECURSIVE call edge qualifies for the tail-call-to-loop
+    /// rewrite. All four legs are load-bearing:
+    /// 1. SELF receiver -- `self.other.f()` on a contained same-machine field
+    ///    is a DIFFERENT instance; a self-transition would run on the wrong
+    ///    one.
+    /// 2. DIRECT same-machine target -- transitive cycles through other
+    ///    machines have no loop equivalent.
+    /// 3. The state's ONLY call -- multi-call states have live continuations
+    ///    the rewrite would orphan.
+    /// 4. TAIL position -- exactly one transition, unguarded, Terminal, whose
+    ///    value is the BARE call (value spelling: the loop's leaf terminal
+    ///    delivers the result; anything else -- `self.f(..) + 1`, trailing
+    ///    ops, guards -- has post-call work the rewrite would skip). A
+    ///    statement-position tail call (unit machine, no target_value)
+    ///    qualifies the same way.
+    fn tail_self_call_qualifies(
+        &self,
+        call_edge: crate::RuntimeStateCallEdge,
+        control_key: StateKey,
+        segment: usize,
+        call_count: usize,
+    ) -> bool {
+        use omega_checked_trees::expression::ExpressionNode;
+        if !call_edge.is_self_receiver {
+            return false;
+        }
+        if call_edge.target_key.machine != control_key.machine {
+            return false;
+        }
+        if call_count != 1 || segment != 0 {
+            return false;
+        }
+        let Ok(state) = self.state_flow_by_key(control_key) else {
+            return false;
+        };
+        let Some(transitions) = self.control_flow.transitions.span(state.transitions) else {
+            return false;
+        };
+        let [transition] = transitions else {
+            return false;
+        };
+        if !matches!(
+            transition.target,
+            omega_control_flow::PlannedTransitionTarget::Terminal
+        ) {
+            return false;
+        }
+        if transition.expressions.guard.is_valid() {
+            return false;
+        }
+        if transition.expressions.target_value.is_valid() {
+            // Value spelling: the terminal must BE the bare recursive call.
+            call_edge.is_value
+                && matches!(
+                    self.control_flow
+                        .expressions
+                        .expression(transition.expressions.target_value),
+                    ExpressionNode::Call(_)
+                )
+        } else {
+            // Statement spelling: unit terminal, nothing to deliver.
+            !call_edge.is_value
+        }
+    }
+
     /// Whether the callee `target` can transitively reach the calling state
     /// `origin` again by following CALL and intra-machine TRANSITION edges. If so
     /// the call graph is recursive (`origin` calls `target` ... calls `origin`),

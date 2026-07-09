@@ -29,9 +29,8 @@ use omega_runtime_dispatch_loop::{
     RuntimeDispatchLoopContext, build_runtime_dispatch_loop_plan_with_workers,
 };
 use omega_runtime_storage::{
-    RuntimeStorageContext, build_runtime_storage_plan_with_workers,
-    reserve_entry_argument_spill, reserve_wire_nested_scratch, runtime_frame_storage_alignment,
-    runtime_frame_storage_size,
+    RuntimeStorageContext, build_runtime_storage_plan_with_workers, reserve_entry_argument_spill,
+    reserve_wire_nested_scratch, runtime_frame_storage_alignment, runtime_frame_storage_size,
 };
 use omega_runtime_text::build_runtime_text_plan;
 use omega_state_calls::{
@@ -684,6 +683,7 @@ fn dispatch_state_call_edges(
                 statement_index: state_call.statement_index,
                 target_key: state_call.target_key,
                 is_value: state_call.role != StateCallRole::Statement,
+                is_self_receiver: state_call.receiver_name.as_str() == "self",
             })
         })
         .collect()
@@ -746,8 +746,7 @@ fn state_call_target_loops(
                     } => {
                         if state_symbol.is_valid() {
                             for (_, machine) in control_flow.machines.iter() {
-                                for state in
-                                    control_flow.states.span(machine.states).unwrap_or(&[])
+                                for state in control_flow.states.span(machine.states).unwrap_or(&[])
                                 {
                                     if state.key.state == *state_symbol
                                         && visit(
@@ -809,4 +808,3 @@ fn state_call_target_loops(
         &mut Vec::new(),
     )
 }
-
