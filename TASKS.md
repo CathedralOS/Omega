@@ -740,28 +740,34 @@ decreases remaining
   70/70; suite run tests; drift entries retired). Suite failure set
   identical to the known 7 throughout.
 
-- **[ ] Bind-first pairing after the recursive serve: missing result->local
-  COPY, composition-dependent (found 2026-07-11e sweeping the serve's role
-  surface; parked at pending/calls/recursive_result_bind_first_arg, both
-  drift lists).** GUARD-subject and TRANSITION-ARG recursive results
-  deliver (pinned: pass/termination/runtime_recursive_result_roles_exit,
-  differential 70/70). But the nested-call fence's own prescribed spelling
-  (`let r = self.countdown(..); self.plus1(r);`) natively misdelivers in a
-  MULTI-CALL composition (exit 73; interp 70): the earlier calls' swept
-  slots satisfy the call-result fence, while `r`'s result-slot -> local
-  copy is never emitted and the inline arg reads garbage. The SAME shape
-  isolated fences LOUDLY -- the silent face needs the composition.
-  ATTEMPT LOG 2026-07-11f (reverted): a return-edge slot->local copy
-  wrapper (after every successful call-result write, pair the slot with a
-  same-statement LocalStorage slot) EMITS but does not fix: one pairing is
-  DEGENERATE (`copy @0 -> @0` -- the result slot IS the local in the
-  no-storage naming case, cross-namespace aliasing at equal offsets), and
-  the real copy (`@16 -> @24`) lands yet plus1's ARG still reads garbage --
-  so the arg materialization reads NEITHER the result slot NOR that local
-  slot. NEXT: trace what offset the inline arg materialization actually
-  resolves for `r` (likely a third location: an alias/prelude-substituted
-  read or a different dispatch namespace's local), THEN place the copy or
-  fix the arg resolution; reconcile the composition-dependent fencing.
+- **[x] Bind-first pairing after the recursive serve -- FIXED 2026-07-12
+  (canary PROMOTED to pass/calls/recursive_result_bind_first_arg, 70/70).**
+  The "missing copy" framing was wrong; the backend report's slot table
+  told the real story: `r` (a recursive-call-bound local whose ONLY use is
+  an inline call's argument) had NO STORAGE AT ALL. Two heuristics collide
+  on exactly that shape: the state-storage liveness scan ELIDES r's
+  LocalStorage slot (later-`let` values are "covered by the alias fold"),
+  while the alias binding REFUSES to fold call-initialized locals (they
+  "resolve to their call-result slot") -- and for a DISPATCHED callee there
+  is no body op, so the aggregate sweep was the only slot source, and its
+  filter (3) tested let-bound-ness by scanning `state_storage.locals`...
+  where the liveness scan had just elided r. Fix: filter (3) now asks the
+  AST question directly (`call_result_slot_symbol_and_name`: is the
+  statement a bare-call `let`?) -- fields (multi_arm) still return None,
+  preserving the machine-place-fallback protection. The slot the sweep now
+  allocates is NAMED r, so the inline arg's by-name resolution just works;
+  no copy needed anywhere.
+  The silent faces this killed (both pinned by the promoted canary):
+  slotless `r` made the inline `v + 1` fall back to bare-name resolution,
+  CAPTURING a colliding caller-scope `v` (fwd's param -- exit 73, silent);
+  with distinct names the add was DROPPED outright (also silent). The
+  composition-dependence was an artifact of which fence tripped first; the
+  isolated shape and the UNUSED-let shape now serve too (unused: slot
+  written, nothing reads it -- the 2026-07-11d "unused still fences" note
+  is superseded; termination canary headers updated).
+  Residual (not pursued): the healthy inline-leaf double-slot shape
+  (result slot + local, call-site copy bridging them) is redundant when
+  the guard reads by name; harmless, but a future slot-dedup could fold it.
 
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE

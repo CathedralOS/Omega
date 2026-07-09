@@ -1070,7 +1070,7 @@ fn shared_transition_guard_slot_offset(
     })
 }
 
-fn call_result_slot_symbol_and_name(
+pub(super) fn call_result_slot_symbol_and_name(
     context: &RuntimeStorageContext,
     source_key: StateKey,
     statement_index: usize,

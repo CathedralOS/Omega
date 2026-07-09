@@ -4,10 +4,11 @@
 // terminal (a param-struct-field read) must land in the caller's let.
 // (History: parked 2026-07-10 when the return-write fence unmasked them via
 // the collect-all umbrella; served 2026-07-11 by the aggregate unserved-
-// recursive-call-result sweep. The result is now USED -- the serve requires
-// a live let-bound local (an unused result's culled local still fences,
-// soundly and loudly) -- which upgrades these from compile pins to full
-// delivery canaries: weaken counts down to 0, so value == 0 -> exit 70.)
+// recursive-call-result sweep. The result is USED, upgrading these from
+// compile pins to full delivery canaries: weaken counts down to 0, so
+// value == 0 -> exit 70. Since the sweep's let-bound gate became the AST
+// test (bind-first-arg fix), an UNUSED let-bound result is served too --
+// slot written, nothing reads it -- rather than fencing.)
 boundary trait Console { machine exit_process(return_code: i32); }
 data Card {
     power: usize;
