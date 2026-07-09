@@ -11,14 +11,17 @@
 // 0..=50") -- so a read of `self.p.v` inside the `P::One` arm is provably in
 // [0..=50]. This is NOT a miscompile; it just refuses valid proof-carrying code.
 //
-// FIX AREA (partial trace 2026-07-08): the transition-argument proof lives in
-// omega-proof/src/checker.rs (BoundedTransitionArgumentObligation), NOT in the
-// ranges checks' expression_enforced_declared_range (which only feeds INDEX
-// bounds -- data_field_in_definition there was extended to search variant
-// payloads but that path is not consulted for arg proofs). The fix must record
-// the payload field's declared range on the destructured binding's
-// type/constraints (checked-trees) so the proof checker's constraint resolution
-// sees it -- mirror how a plain ranged field read carries its range.
+// ⚠️ THE OBVIOUS FIX IS UNSOUND (proved 2026-07-08). The arg proof resolves
+// `self.p.v`'s range via omega-proof/obligations.rs data_field_in_definition.
+// Extending it to search variant payloads makes THIS repro pass -- but DIRECT
+// payload access outside a case-arm is ALLOWED (reads the active case's
+// overlapping bytes), so an unconditional payload range is a LIE when the case
+// differs (`case Two(w:[0..=1000])`; `p=Two{w:900}; got:[0..=50]=self.p.v`
+// COMPILES falsely with the change, is correctly REJECTED without it). The SOUND
+// fix needs CASE-CONTEXT: make the payload range a GUARDED fact keyed on the
+// case-narrowing (reuse the guard-narrowing machinery), OR reject direct payload
+// access outside a case-arm first (design call). See memory
+// value... sum-payload-range-not-propagated for the full trace.
 //
 // Exits 20 when the fix lands (P::One { v: 20 } -> use_v(20) -> exit 20).
 boundary trait Console { machine exit_process(return_code: i32); }
