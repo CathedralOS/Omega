@@ -857,6 +857,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("expressions/runtime_widened_bitwise_exit", 70),
     ("expressions/runtime_widened_comparison_exit", 70),
     ("filesystem/runtime_local_host_result_dispatch_exit", 70),
+    ("filesystem/self_value_call_literal_path_exit", 70),
     ("filesystem/windows_raw_breadth_exit", 70),
     ("filesystem/windows_raw_roundtrip_exit", 70),
     ("filesystem/windows_wrapper_breadth_exit", 70),
