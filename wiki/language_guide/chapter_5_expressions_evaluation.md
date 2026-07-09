@@ -305,6 +305,30 @@ Two rules keep it honest:
 Weaker behavior is therefore always visible at the value, and overflow is a
 proof obligation like any other in the language.
 
+### Where the wrap applies: at each node, at the declared width
+
+In a compound expression, a domain-bearing operation produces its
+declared-width result **before** the enclosing operation consumes it. With
+`a: u32 in Wrapping` holding `0 - 2` (that is, `0xFFFF_FFFE`):
+
+```omega
+let b: u32 = a >> 1;    // 0x7FFF_FFFF -- shifts the WRAPPED 32-bit value
+let d: u32 = a / 3;     // 1431655764  -- divides the wrapped value
+```
+
+The shift and division see the 32-bit wrapped value, never a wider
+intermediate (a 64-bit register image of `0 - 2` would shift to garbage).
+This holds identically in the interpreter and native emission on both ISAs,
+in every operand position, and is pinned by
+`arithmetic/runtime_wrapping_operand_truncation_exit`. Exact values need no
+such rule (they are proven in-range), and `Saturating`/`Trapping` clamp or
+trap at the node before the parent consumes the result.
+
+Two node-level corollaries for constants: a constant stored into a
+`Saturating` target clamps to the target's range, and a constant that
+provably overflows a `Trapping` target still compiles and traps at runtime
+-- Trapping overflow is a runtime event, not a compile error.
+
 ## Float Facts
 
 Float constraints describe correctness facts, not optimization permissions.
