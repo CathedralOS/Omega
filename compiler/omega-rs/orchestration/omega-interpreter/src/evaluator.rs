@@ -338,6 +338,27 @@ enum Halt {
 
 type EvalResult<T> = Result<T, Halt>;
 
+/// Pack `(name, d_type)` entries as darwin `dirent` records, the layout native
+/// `___getdirentries64` returns (reclen u16 @16, namlen u16 @18, d_type u8
+/// @20, name @21, records 8-byte aligned) -- so a parser is identical on both
+/// engines. Shared by the virtual fs (`build_dirent_records`) and the real-fs
+/// provider (`try_real_filesystem_call`'s `read_dir`), which differ only in
+/// where the names come from.
+fn pack_dirent_records(entries: &[(Vec<u8>, u8)]) -> Vec<u8> {
+    let mut buffer = Vec::new();
+    for (name, d_type) in entries {
+        let namlen = name.len();
+        let reclen = (25 + namlen).div_ceil(8) * 8;
+        let start = buffer.len();
+        buffer.resize(start + reclen, 0);
+        buffer[start + 16..start + 18].copy_from_slice(&(reclen as u16).to_le_bytes());
+        buffer[start + 18..start + 20].copy_from_slice(&(namlen as u16).to_le_bytes());
+        buffer[start + 20] = *d_type;
+        buffer[start + 21..start + 21 + namlen].copy_from_slice(name);
+    }
+    buffer
+}
+
 fn unsupported<T>(message: impl Into<String>) -> EvalResult<T> {
     Err(Halt::Unsupported(message.into()))
 }
@@ -3324,18 +3345,7 @@ impl<'program> Evaluator<'program> {
                 entries.push((name, 4)); // DT_DIR
             }
         }
-        let mut buffer = Vec::new();
-        for (name, d_type) in entries {
-            let namlen = name.len();
-            let reclen = (25 + namlen).div_ceil(8) * 8;
-            let start = buffer.len();
-            buffer.resize(start + reclen, 0);
-            buffer[start + 16..start + 18].copy_from_slice(&(reclen as u16).to_le_bytes());
-            buffer[start + 18..start + 20].copy_from_slice(&(namlen as u16).to_le_bytes());
-            buffer[start + 20] = d_type;
-            buffer[start + 21..start + 21 + namlen].copy_from_slice(&name);
-        }
-        buffer
+        pack_dirent_records(&entries)
     }
 
     /// Fill a caller stat buffer (`&mut [u8]` of at least 144 bytes) the way the

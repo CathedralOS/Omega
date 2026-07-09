@@ -38,6 +38,7 @@ const ENOTSUP: i32 = 45;
 const EBADF: i32 = 9;
 const EACCES: i32 = 13;
 const ENOENT: i32 = 2;
+const ENOTDIR: i32 = 20;
 
 /// Canonicalized [`crate::FsGrants`]: the roots a scoped run may read/write
 /// under, resolved once at construction so prefix checks compare real paths.
@@ -73,10 +74,19 @@ impl Grants {
     }
 }
 
+/// One real open descriptor: the file handle plus the RESOLVED path it was
+/// opened at (kept for the ops std serves path-wise, e.g. `read_dir` -- a
+/// directory listing needs the path back, since std has no fd-based dirent
+/// read).
+struct RealFd {
+    file: std::fs::File,
+    path: PathBuf,
+}
+
 pub(super) struct RealFs {
     /// Synthetic fd -> real open file. Same table shape as `virtual_fds`;
     /// descriptors start at 3 (0/1/2 are the standard streams).
-    files: BTreeMap<i32, std::fs::File>,
+    files: BTreeMap<i32, RealFd>,
     next_fd: i32,
     /// Thread-local errno model, mirroring `virtual_errno`: set from the host
     /// `io::Error` on a failing op, read back by `errno`.
@@ -106,16 +116,79 @@ impl RealFs {
         }
     }
 
-    fn insert(&mut self, file: std::fs::File) -> i64 {
+    fn insert(&mut self, file: std::fs::File, path: PathBuf) -> i64 {
         let fd = self.next_fd;
         self.next_fd += 1;
-        self.files.insert(fd, file);
+        self.files.insert(fd, RealFd { file, path });
         i64::from(fd)
     }
 }
 
 fn real_path(bytes: &[u8]) -> PathBuf {
     PathBuf::from(String::from_utf8_lossy(bytes).into_owned())
+}
+
+/// List a real directory as `(name, d_type)` entries for dirent packing:
+/// `.`/`..` first (native getdirentries reports them; the wrapper's decode
+/// skips them by name), then the immediate children SORTED for determinism --
+/// native order is filesystem-defined, so no program may rely on it. Errors
+/// map to the errno the caller reports: ENOTDIR for a non-directory fd,
+/// else the host's own code.
+fn real_dirent_entries(path: &Path) -> Result<Vec<(Vec<u8>, u8)>, i32> {
+    match std::fs::metadata(path) {
+        Ok(metadata) if !metadata.is_dir() => return Err(ENOTDIR),
+        Ok(_) => {}
+        Err(error) => return Err(io_errno(&error)),
+    }
+    let mut children: Vec<(Vec<u8>, u8)> = Vec::new();
+    let listing = std::fs::read_dir(path).map_err(|error| io_errno(&error))?;
+    for dir_entry in listing {
+        let dir_entry = dir_entry.map_err(|error| io_errno(&error))?;
+        let d_type = match dir_entry.file_type() {
+            Ok(kind) if kind.is_dir() => 4,      // DT_DIR
+            Ok(kind) if kind.is_symlink() => 10, // DT_LNK
+            Ok(_) => 8,                          // DT_REG
+            Err(_) => 0,                         // DT_UNKNOWN
+        };
+        children.push((
+            dir_entry
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+                .into_bytes(),
+            d_type,
+        ));
+    }
+    children.sort();
+    let mut entries: Vec<(Vec<u8>, u8)> = vec![(b".".to_vec(), 4), (b"..".to_vec(), 4)];
+    entries.extend(children);
+    Ok(entries)
+}
+
+/// `pread` emulation portable across hosts (std has no cross-platform
+/// positioned read): seek to the offset, read, restore the cursor.
+fn positioned_read(
+    file: &mut std::fs::File,
+    offset: i64,
+    count: usize,
+) -> std::io::Result<Vec<u8>> {
+    let saved = file.stream_position()?;
+    file.seek(SeekFrom::Start(offset.max(0) as u64))?;
+    let mut buffer = vec![0u8; count];
+    let outcome = file.read(&mut buffer);
+    file.seek(SeekFrom::Start(saved))?;
+    let n = outcome?;
+    buffer.truncate(n);
+    Ok(buffer)
+}
+
+/// `pwrite` emulation, mirroring [`positioned_read`].
+fn positioned_write(file: &mut std::fs::File, offset: i64, bytes: &[u8]) -> std::io::Result<usize> {
+    let saved = file.stream_position()?;
+    file.seek(SeekFrom::Start(offset.max(0) as u64))?;
+    let outcome = file.write(bytes);
+    file.seek(SeekFrom::Start(saved))?;
+    outcome
 }
 
 /// Resolve a path to its REAL location for the grant check: canonicalize the
@@ -160,8 +233,8 @@ impl<'program> super::Evaluator<'program> {
                             .write(true)
                             .create(true)
                             .truncate(true)
-                            .open(path);
-                        self.real_result_fd(opened)
+                            .open(&path);
+                        self.real_result_fd(opened, path)
                     }
                     None => -1,
                 }
@@ -201,7 +274,7 @@ impl<'program> super::Evaluator<'program> {
                         }
                         #[cfg(not(unix))]
                         let _ = mode; // windows: creation mode has no direct analogue
-                        self.real_result_fd(options.open(path))
+                        self.real_result_fd(options.open(&path), path)
                     }
                     None => -1,
                 }
@@ -212,9 +285,9 @@ impl<'program> super::Evaluator<'program> {
                 let outcome = {
                     let real = self.real_fs_mut();
                     match real.files.get_mut(&fd) {
-                        Some(file) => {
+                        Some(entry) => {
                             let mut buffer = vec![0u8; count];
-                            match file.read(&mut buffer) {
+                            match entry.file.read(&mut buffer) {
                                 Ok(n) => {
                                     buffer.truncate(n);
                                     Ok(buffer)
@@ -242,7 +315,7 @@ impl<'program> super::Evaluator<'program> {
                 let bytes = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
                 let real = self.real_fs_mut();
                 match real.files.get_mut(&fd) {
-                    Some(file) => match file.write(&bytes) {
+                    Some(entry) => match entry.file.write(&bytes) {
                         Ok(n) => n as i64,
                         Err(error) => {
                             real.errno = io_errno(&error);
@@ -266,7 +339,7 @@ impl<'program> super::Evaluator<'program> {
                 };
                 let real = self.real_fs_mut();
                 match real.files.get_mut(&fd) {
-                    Some(file) => match file.seek(position) {
+                    Some(entry) => match entry.file.seek(position) {
                         Ok(new_position) => new_position as i64,
                         Err(error) => {
                             real.errno = io_errno(&error);
@@ -293,11 +366,15 @@ impl<'program> super::Evaluator<'program> {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let real = self.real_fs_mut();
                 let cloned = match real.files.get(&fd) {
-                    Some(file) => file.try_clone().map_err(|error| io_errno(&error)),
+                    Some(entry) => entry
+                        .file
+                        .try_clone()
+                        .map(|file| (file, entry.path.clone()))
+                        .map_err(|error| io_errno(&error)),
                     None => Err(EBADF),
                 };
                 match cloned {
-                    Ok(file) => real.insert(file),
+                    Ok((file, path)) => real.insert(file, path),
                     Err(errno) => {
                         real.errno = errno;
                         -1
@@ -309,7 +386,7 @@ impl<'program> super::Evaluator<'program> {
                 let length = self.eval_fs_scalar(arguments.get(1).copied(), frame)?;
                 let real = self.real_fs_mut();
                 match real.files.get_mut(&fd) {
-                    Some(file) => match file.set_len(length.max(0) as u64) {
+                    Some(entry) => match entry.file.set_len(length.max(0) as u64) {
                         Ok(()) => 0,
                         Err(error) => {
                             real.errno = io_errno(&error);
@@ -326,7 +403,7 @@ impl<'program> super::Evaluator<'program> {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let real = self.real_fs_mut();
                 match real.files.get_mut(&fd) {
-                    Some(file) => match file.sync_all() {
+                    Some(entry) => match entry.file.sync_all() {
                         Ok(()) => 0,
                         Err(error) => {
                             real.errno = io_errno(&error);
@@ -373,6 +450,96 @@ impl<'program> super::Evaluator<'program> {
                     _ => -1,
                 }
             }
+            "read_at" => {
+                // `pread(fd, buf, count, offset)`: read at an absolute offset
+                // WITHOUT moving the cursor. Emulated portably (std has no
+                // cross-platform pread): seek, read, restore.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let offset = self.eval_fs_scalar(arguments.get(3).copied(), frame)?;
+                let outcome = {
+                    let real = self.real_fs_mut();
+                    match real.files.get_mut(&fd) {
+                        Some(entry) => positioned_read(&mut entry.file, offset, count)
+                            .map_err(|error| io_errno(&error)),
+                        None => Err(EBADF),
+                    }
+                };
+                match outcome {
+                    Ok(bytes) => {
+                        let n = bytes.len() as i64;
+                        self.write_fs_buffer(arguments.get(1).copied(), frame, &bytes);
+                        n
+                    }
+                    Err(errno) => {
+                        self.real_fs_mut().errno = errno;
+                        -1
+                    }
+                }
+            }
+            "write_at" => {
+                // `pwrite(fd, buf, offset)`: write at an absolute offset
+                // WITHOUT moving the cursor (same emulation).
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let bytes = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
+                let offset = self.eval_fs_scalar(arguments.get(2).copied(), frame)?;
+                let real = self.real_fs_mut();
+                match real.files.get_mut(&fd) {
+                    Some(entry) => match positioned_write(&mut entry.file, offset, &bytes) {
+                        Ok(n) => n as i64,
+                        Err(error) => {
+                            real.errno = io_errno(&error);
+                            -1
+                        }
+                    },
+                    None => {
+                        real.errno = EBADF;
+                        -1
+                    }
+                }
+            }
+            "read_dir" => {
+                // `read_dir(fd, buf, count, &position)` -- the virtual
+                // dispatcher's contract, mirrored: the first call (position
+                // == 0) packs `.`/`..` + the immediate children as darwin
+                // dirent records and sets `position`; later calls return 0
+                // (end). Names come from a real `std::fs::read_dir` of the
+                // fd's opened path (std has no fd-based dirent read), sorted
+                // for determinism -- native getdirentries order is
+                // filesystem-defined anyway, so no program may rely on it.
+                let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
+                let count = self.eval_fs_scalar(arguments.get(2).copied(), frame)? as usize;
+                let position = self.read_fs_position(arguments.get(3).copied(), frame);
+                if position != 0 {
+                    0
+                } else {
+                    let listed = {
+                        let real = self.real_fs_mut();
+                        match real.files.get(&fd) {
+                            Some(entry) => real_dirent_entries(&entry.path),
+                            None => Err(EBADF),
+                        }
+                    };
+                    match listed {
+                        Ok(entries) => {
+                            let records = super::pack_dirent_records(&entries);
+                            let n = records.len().min(count);
+                            self.write_fs_buffer(arguments.get(1).copied(), frame, &records[..n]);
+                            // Any non-zero marker so the next call reports end.
+                            self.write_fs_position(
+                                arguments.get(3).copied(),
+                                frame,
+                                n.max(1) as i64,
+                            );
+                            n as i64
+                        }
+                        Err(errno) => {
+                            self.real_fs_mut().errno = errno;
+                            -1
+                        }
+                    }
+                }
+            }
             "read_metadata" | "read_symlink_metadata" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let looked_up = match self.authorized_path(&path, false) {
@@ -401,7 +568,7 @@ impl<'program> super::Evaluator<'program> {
             "read_file_metadata" => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
                 let looked_up = match self.real_fs_mut().files.get(&fd) {
-                    Some(file) => file.metadata().map_err(|error| io_errno(&error)),
+                    Some(entry) => entry.file.metadata().map_err(|error| io_errno(&error)),
                     None => Err(EBADF),
                 };
                 match looked_up {
@@ -416,13 +583,11 @@ impl<'program> super::Evaluator<'program> {
                 }
             }
             "errno" => i64::from(self.real_fs_mut().errno),
-            // NEXT-SLICE ops (the *at family, positioned I/O, locks,
-            // ownership, permissions, times, links, dir enumeration,
-            // canonicalize): loud not-supported, never silently wrong. Listed
-            // by name so the fall-through `_` stays "not a filesystem op".
-            "read_at"
-            | "write_at"
-            | "open_at"
+            // NEXT-SLICE ops (the *at family, locks, ownership, permissions,
+            // times, links, canonicalize): loud not-supported, never silently
+            // wrong. Listed by name so the fall-through `_` stays "not a
+            // filesystem op".
+            "open_at"
             | "unlink_at"
             | "lock_file"
             | "set_file_permissions"
@@ -434,8 +599,7 @@ impl<'program> super::Evaluator<'program> {
             | "hard_link"
             | "symlink"
             | "read_link"
-            | "canonicalize"
-            | "read_dir" => {
+            | "canonicalize" => {
                 self.real_fs_mut().errno = ENOTSUP;
                 -1
             }
@@ -473,9 +637,9 @@ impl<'program> super::Evaluator<'program> {
         }
     }
 
-    fn real_result_fd(&mut self, opened: std::io::Result<std::fs::File>) -> i64 {
+    fn real_result_fd(&mut self, opened: std::io::Result<std::fs::File>, path: PathBuf) -> i64 {
         match opened {
-            Ok(file) => self.real_fs_mut().insert(file),
+            Ok(file) => self.real_fs_mut().insert(file, path),
             Err(error) => {
                 self.real_fs_mut().errno = io_errno(&error);
                 -1

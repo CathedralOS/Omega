@@ -578,13 +578,26 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    four-quadrant probe in tests/real_fs.rs (read-root read, write-root
    stage+read-back, EACCES create under read-only root, EACCES read
    outside all roots) + on-disk world assertions (artifact real, denied
-   files absent). REMAINING RUNGS: (a) the next-slice ops as build
-   programs need them (at-family, positioned I/O, locks, perms, times,
-   links, read_dir, canonicalize — all -1/ENOTSUP today); (b) the
-   compiler-side build.omg entry that actually invokes
-   `interpret_with_options` with source-tree/build-dir grants (target
-   selection + constant bindings ride this — likely the design-touching
-   rung: build.omg discovery/location + when it runs).
+   files absent).
+   **RUNG 3 DONE (2026-07-09i): read_dir + positioned I/O in real mode.**
+   `read_dir` mirrors the virtual dispatcher's contract exactly (first
+   call packs `.`/`..` + immediate children as darwin dirent records via
+   the now-SHARED `pack_dirent_records` packer, position out-param marks
+   end) with names from a real `std::fs::read_dir` of the fd's opened
+   path — the fd table now carries the RESOLVED path per descriptor
+   (RealFd { file, path }; std has no fd-based dirent read) — children
+   sorted for determinism (native getdirentries order is fs-defined, no
+   program may rely on it), ENOTDIR/EBADF mapped. `read_at`/`write_at`
+   ride portable pread/pwrite emulation (seek, op, restore cursor).
+   Acceptance: the WRAPPER's `read_dir_count` (open dirfd → read_dir →
+   dirent decode → skip dot entries) counts a seeded real directory
+   under a read-only grant — the full stack, wrapper decode over real
+   records. REMAINING RUNGS: (a) further next-slice ops as build programs
+   need them (at-family, locks, perms, times, links, canonicalize — all
+   -1/ENOTSUP today); (b) the compiler-side build.omg entry that actually
+   invokes `interpret_with_options` with source-tree/build-dir grants
+   (target selection + constant bindings ride this — likely the
+   design-touching rung: build.omg discovery/location + when it runs).
 4. [ ] Windows ops without msvcrt equivalents → Win32 calls (stat family first,
    after #2's design).
 5. [ ] Title-bar context-menu Close → outbound WndProc entry stubs (§12.4).
