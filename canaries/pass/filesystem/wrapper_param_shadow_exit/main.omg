@@ -1,0 +1,41 @@
+// RUN CANARY (exit 70) -- caller fields that SHADOW the wrapper's param names
+// must not capture its host-call operands. Promoted from
+// pending/host/wrapper_read_buffer_decoy (2026-07-08f, root-caused + fixed):
+// the direct callee-scope operand resolution fell through to MACHINE-OWNED
+// NAME matching, so a caller field named like a forwarded param won over the
+// alias chain -- `buffer: [u8; 64]` swallowed the read (the spelled buffer
+// stayed ZII, native 73) and `count: usize` (ZII 0) made the read request 0
+// bytes (native 72), both silent wrong-storage miscompiles vs interp 70. The
+// fix orders the ALIAS REWRITE (the forwarded param's semantic truth) before
+// direct resolution in address/scalar operand lookup (operands.rs). This
+// canary declares BOTH decoy fields (never written -- pure shadows) and
+// verifies a binary write_all -> read_all roundtrip lands in the SPELLED
+// buffer with the SPELLED count, byte-exactly.
+// exits: 70 exact; 71 write failed; 72 read failed/short (count shadow);
+// 73..75 byte mismatch at 0/1/4 (73 = buffer shadow: bin_back stayed ZII).
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; fs: Filesystem; unit_result: UnitResult; io_result: IoResult; buffer: [u8; 64]; count: usize; bin_src: [u8; 5]; bin_back: [u8; 8]; }
+machine Main::main(&mut self) {
+    self.bin_src[0] = 65;
+    self.bin_src[1] = 13;
+    self.bin_src[2] = 10;
+    self.bin_src[3] = 26;
+    self.bin_src[4] = 66;
+    self.unit_result = self.fs.write_all("omega_shadow_probe.bin", self.bin_src);
+    transition self.unit_result { UnitResult::Ok -> readback() _ -> bad(71) }
+    state readback(&mut self) {
+        self.io_result = self.fs.read_all("omega_shadow_probe.bin", &mut self.bin_back, 8);
+        transition self.io_result { IoResult::Ok { count } -> ckcount(count) _ -> bad(72) }
+    }
+    state ckcount(&mut self, count: usize) {
+        self.unit_result = self.fs.remove("omega_shadow_probe.bin");
+        transition count == 5 { true -> ck0() _ -> bad(72) }
+    }
+    state ck0(&mut self) { transition self.bin_back[0] == 65 { true -> ck1() _ -> bad(73) } }
+    state ck1(&mut self) { transition self.bin_back[1] == 13 { true -> ck4() _ -> bad(74) } }
+    state ck4(&mut self) { transition self.bin_back[4] == 66 { true -> good() _ -> bad(75) } }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}

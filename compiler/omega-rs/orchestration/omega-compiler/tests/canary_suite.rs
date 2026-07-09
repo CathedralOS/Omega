@@ -20799,6 +20799,56 @@ fn windows_fs_discarded_self_call_literal_errno_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// Caller fields SHADOWING the wrapper's param names (`buffer`/`count`) must
+// not capture its host-call operands -- pins the alias-rewrite-first operand
+// ordering (a shadowed buffer swallowed the read; a shadowed ZII count
+// requested 0 bytes). Discriminating: binary write/read roundtrip lands in
+// the SPELLED buffer with the SPELLED count, byte-exactly.
+#[cfg(windows)]
+#[test]
+fn windows_fs_wrapper_param_shadow_exit_canary_runs() {
+    let canary = pass_canary("filesystem/wrapper_param_shadow_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("wrapper param-shadow canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (shadowed params never capture operands), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir =
+        std::env::temp_dir().join(format!("omega-fs-param-shadow-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("wrapper param-shadow canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("wrapper param-shadow canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the roundtrip to land in the spelled buffer/count (exit 70), got {:?} \
+         (71 = write failed; 72 = short read [count shadow]; 73 = buffer shadow \
+         [bin_back stayed ZII]; 74/75 = byte mismatch)\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A value-machine METHOD call through a FIELD receiver (`self.meta_f.is_file()`)
 // -- the idiom the param-receiver fence points to. Discriminating: is_file()
 // must be true AND agree with the inline mode-bits twin.
