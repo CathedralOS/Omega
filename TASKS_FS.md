@@ -68,6 +68,15 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
 
 ## Open work
 
+0. **[CLAIMED 2026-07-11t]** The efi red family is a REGRESSION of the
+   boot-verified 2026-07-04 milestone, not original bootstrap debt:
+   efi_vtable_call now fails width-0 at the vtable encoder ("no
+   encodable call sequence" — the operand marshal rejects a shape it
+   used to accept; `&self.msg` address-of-field host arg suspected).
+   Nobody is on it (TASKS_BOOTSTRAP has no open items; render is on
+   #61). Diagnose the operand kinds reaching
+   vtable_call_sequence_width, bisect if needed.
+
 1. ~~build.omg compiler-side gate~~ — **COMPLETE 2026-07-11j/k** (owner
    answers #2–#5 in commit 14e02026e; implementation bc086f0a3 +
    0bc474e81). Current shape: std FilesystemHost declares
