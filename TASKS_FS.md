@@ -860,6 +860,19 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    prints the edge at the site. NEW DEV TOOL: `omega-run` bin
    (omega-compiler) -- compile+run a .omg natively, `--both` adds interp
    agreement; the probe workflow's missing one-shot harness.
+   STEP 2 (2026-07-10e): the flow-level rewrite is IMPLEMENTED
+   (runtime_flow/builder.rs, gated OMEGA_TAILCALL_LOOP=1; is_self_receiver
+   now rides RuntimeStateCallEdge; tail_self_call_qualifies pins the four
+   load-bearing legs: self receiver / same machine / only call / bare-call
+   unguarded terminal). Gated because NOT SUFFICIENT alone: the
+   INLINE-BRANCHING expansion still consumes the cyclic flow and selection's
+   resolve_leaf_binding_expression_handle overflows on the self-referential
+   loop-carried rebind (no cycle guard; crash-stack-verified via the .ips
+   report). STEP 3 (the completing move): plan-level
+   StateCallLowering::DispatchLoop stamped on qualified tail self-calls so
+   every inline path (branching expansion, leaf bindings, statement
+   re-emission) skips them -- then un-gate, promote the pending canary,
+   and probe the STATEMENT spelling (mkall_copy's class) as the follow-on.
    INVESTIGATION ITEM 2: enumerate the dispatch return-write's missing
    shapes against the ~13-canary regression list (binary operands,
    slice-element results, aliases, multi-arm) -- each is its own bounded
