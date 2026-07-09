@@ -648,25 +648,22 @@ decreases remaining
   designed). Also deduped an accidental nqueens double-entry in
   RUN_CANARIES from the previous tick.
 
-- **[ ] Machine-array element in a FUSED value-call arg: computation silently
-  DROPPED natively (found 2026-07-10j; parked at
-  pending/slices/machine_array_element_fused_call_arg, both drift lists).**
-  `self.pick(self.k + self.arr[i])` emits NO arithmetic at all -- the case
-  holds only the result copy + compare (native 71, interp 70). Facet (a):
-  ValueOperand has no MachineIndexed variant, so machine-region indexed
-  reads are unresolvable in operand position and the write selection bails.
-  Facet (b) -- THE DANGEROUS ONE: the bail was SILENT. TRACED 2026-07-10k:
-  the call-result fence's served-check is STATE-granular, and the result-
-  CONSUMPTION copy in the same case satisfies it while the production
-  write was dropped. A slot-granular probe (target == result-slot offset)
-  still missed this shape AND falsely blocked the transition-arg serve --
-  the correct predicate needs the return-write matrix's serve-shape
-  knowledge, so the fence fix is HANDED to the fs lane (their fence, their
-  matrix; flagged in TASKS_FS Observations with the full analysis). Facet
-  (a) -- the MachineIndexed operand variant or an arg hoist -- remains
-  this thread's follow-up once the fence lands. The register-clobber sweep that
-  found this: local-array/frame twin passes post-fix; this is the machine-
-  region sibling falling off a different cliff.
+- **[x] Machine-array element in a FUSED value-call arg -- FACET (a) SERVED
+  2026-07-10l.** The canonical ValueOperand enum gained `MachineIndexed`
+  (base_byte_offset vs the MACHINE symbol, index_region/index_offset,
+  element/field/byte sizes -- mirroring the write kind): both ISA operand
+  arms + width twins (machine base relocated at the operand start; a
+  frame-resident index materializes the frame base at the pinned second
+  offset -- machine_indexed_operand_frame_index_base_offset, 8/13), the
+  reloc walker arm, scratch-register home mapping, and machine-arms in all
+  three operand resolvers. Verified: the parked canary runs 70/70 (aarch64
+  native + interp) and cross-compiles for windows_x64 through the width
+  asserts; PROMOTED to
+  pass/slices/runtime_machine_array_element_fused_call_arg_exit
+  (differential member; drift entries retired on graduation). FACET (b) --
+  the state-granular call-result fence that let the drop through silently
+  -- remains with the fs lane (TASKS_FS Observations, 2026-07-10k): this
+  serve removes the LIVE escape, the fence fix removes the CLASS.
 
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE

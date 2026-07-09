@@ -92,7 +92,10 @@ fn assign_value_home(
         TargetValueOperand::Binary { .. }
         | TargetValueOperand::Convert { .. }
         | TargetValueOperand::TextEquals { .. }
-        | TargetValueOperand::TextEqualsLiteral { .. } => {
+        | TargetValueOperand::TextEqualsLiteral { .. }
+        // A machine-indexed element read evaluates into a register like the
+        // computed operands above (its address math needs no dedicated home).
+        | TargetValueOperand::MachineIndexed { .. } => {
             let name = registers::scratch_register_name(
                 target_operations.target.architecture,
                 *next_scratch_slot,

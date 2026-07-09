@@ -7,6 +7,7 @@ use crate::selection::storage_places::{
     clamp_runtime_case_comparison_operands_in_table, enum_variant_value_in_table,
     resolve_runtime_assignment_value_call_result_place_by_ordinal,
     resolve_runtime_frame_base_indexed_target, resolve_runtime_frame_base_indexed_target_in_table,
+    resolve_runtime_machine_indexed_target_in_table,
     resolve_runtime_frame_fixed_indexed_target_in_table, resolve_runtime_frame_indexed_target,
     resolve_runtime_frame_indexed_target_in_table, resolve_runtime_pointee_slot_offset,
     classify_scalar_value_type_in_table, combine_binary_operand_scalar_types,
@@ -381,6 +382,26 @@ pub(super) fn resolve_runtime_value_operand_in_table(
             }),
         );
     }
+
+    if let Some(indexed_target) = resolve_runtime_machine_indexed_target_in_table(
+        input,
+        dispatch_index,
+        source_key,
+        expressions,
+        expression,
+    ) {
+        return Some(
+            runtime_value_operands.insert(RuntimeValueOperand::MachineIndexed {
+                base_byte_offset: indexed_target.base_byte_offset,
+                index_region: indexed_target.index_region,
+                index_offset: indexed_target.index_offset,
+                element_byte_size: indexed_target.element_byte_size,
+                field_byte_offset: indexed_target.field_byte_offset,
+                byte_size: indexed_target.byte_count,
+            }),
+        );
+    }
+
 
     if let Some(indexed_target) = resolve_runtime_frame_fixed_indexed_target_in_table(
         input,

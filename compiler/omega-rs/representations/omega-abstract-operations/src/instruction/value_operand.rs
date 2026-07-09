@@ -48,6 +48,25 @@ pub enum ValueOperand {
         field_byte_offset: usize,
         byte_size: usize,
     },
+    /// A MACHINE-owned array's runtime-indexed element read in OPERAND
+    /// position (`self.k + self.arr[i]` fused into a call arg / guard /
+    /// write value). The machine-region sibling of `FrameBaseIndexed`:
+    /// `base_byte_offset` is relative to the MACHINE storage symbol (the
+    /// operand's first relocation), and the index lives in `index_region`
+    /// at `index_offset` (a frame-resident index materializes the frame
+    /// base as a SECOND relocation at the architecture's pinned offset).
+    /// Before this variant existed, the write selection for such fused
+    /// expressions BAILED -- and the state-granular call-result fence let
+    /// the dropped computation through silently (the machine-array
+    /// fused-call-arg ZII).
+    MachineIndexed {
+        base_byte_offset: usize,
+        index_region: RuntimeStorageRegion,
+        index_offset: usize,
+        element_byte_size: usize,
+        field_byte_offset: usize,
+        byte_size: usize,
+    },
     Binary {
         left: ValueOperandHandle,
         operator: StateGuardOperator,

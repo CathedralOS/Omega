@@ -28,6 +28,26 @@ pub(super) fn collect_runtime_value_operand_relocations(
             let symbol = context.runtime_frame_symbol_handle();
             context.insert_data_address(operand_text_offset, symbol);
         }
+        RuntimeValueOperand::MachineIndexed { index_region, .. } => {
+            // MACHINE base at the operand start; a FRAME-resident index
+            // materializes the frame base as a SECOND pair at the
+            // architecture's pinned offset (both encoders emit the pairs
+            // unconditionally in that order so these offsets are constant).
+            let machine_symbol = context.storage_region_symbol_handle(
+                omega_target_operations::RuntimeStorageRegion::Machine,
+            );
+            context.insert_data_address(operand_text_offset, machine_symbol);
+            if *index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame {
+                let frame_symbol = context.runtime_frame_symbol_handle();
+                context.insert_data_address(
+                    operand_text_offset
+                        + omega_instruction_selection::machine_indexed_operand_frame_index_base_offset(
+                            context.input.target.architecture,
+                        ),
+                    frame_symbol,
+                );
+            }
+        }
         RuntimeValueOperand::Binary { left, right, .. } => {
             collect_runtime_value_operand_relocations(context, operand_text_offset, *left);
             let left_width = omega_instruction_selection::runtime_value_operand_width(

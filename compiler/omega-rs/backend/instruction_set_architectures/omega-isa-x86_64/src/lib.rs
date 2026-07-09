@@ -7288,6 +7288,20 @@ pub fn runtime_value_operand_width(
         // matches the pointee case: mov r15,imm64 (10) + mov rax,[r15+desc] (7)
         // + load dest,[rax+const] (7).
         24
+    } else if let Some((_, index_region, _, _, _, byte_size)) =
+        runtime_value_operands.machine_indexed(operand)
+    {
+        // MUST mirror the machine-indexed emission arm: mov r15,imm64 (10)
+        // + mov rax,r15 (3) + [frame index: mov r15,imm64 (10)] + index
+        // load (7) + imul (7) + add rax,r11 (3) + element load.
+        let frame_base = if index_region
+            == omega_target_operations::RuntimeStorageRegion::RuntimeFrame
+        {
+            10
+        } else {
+            0
+        };
+        10 + 3 + frame_base + 7 + 7 + 3 + load_width(byte_size)
     } else if runtime_value_operands.text_equals(operand).is_some() {
         runtime_text_equals_operand_width()
     } else if let Some((place, literal, _is_bounded_buffer)) =
@@ -7427,6 +7441,43 @@ fn append_runtime_value_operand(
                 Diagnostic::error("X86_64 fixed indexed value operand offset overflow")
             })?;
         append_load_reg_from_rax(bytes, destination, displacement, byte_size)
+    } else if let Some((
+        base_byte_offset,
+        index_region,
+        index_offset,
+        element_byte_size,
+        field_byte_offset,
+        byte_size,
+    )) = runtime_value_operands.machine_indexed(operand)
+    {
+        // MACHINE-owned array element in operand position: machine base
+        // (relocated at the operand start) copied into rax as the address
+        // accumulator; a FRAME-resident index re-materializes r15 with the
+        // frame base at the PINNED offset 13 (mov imm64 10 + mov rax,r15 3;
+        // see machine_indexed_operand_frame_index_base_offset). r11 is the
+        // index/scale scratch (safe: the binary evaluator stashes the left
+        // result on the stack across right-operand evaluation).
+        append_mov_r15_imm64(bytes, 0);
+        append_mov_rax_r15(bytes);
+        let index_from_frame =
+            index_region == omega_target_operations::RuntimeStorageRegion::RuntimeFrame;
+        if index_from_frame {
+            append_mov_r15_imm64(bytes, 0);
+            append_load_reg_from_r15(bytes, Reg64::R11, index_offset, 4)?;
+        } else {
+            append_load_reg_from_rax(bytes, Reg64::R11, index_offset, 4)?;
+        }
+        append_imul_r11_imm32(bytes, element_scale(element_byte_size)?);
+        append_add_rax_r11(bytes);
+        append_load_reg_from_rax(
+            bytes,
+            destination,
+            base_byte_offset
+                .checked_add(field_byte_offset)
+                .ok_or_else(|| Diagnostic::error("machine-indexed operand offset overflow"))?,
+            byte_size,
+        )?;
+        Ok(())
     } else if let Some((_, left_offset, _, right_offset)) =
         runtime_value_operands.text_equals(operand)
     {
