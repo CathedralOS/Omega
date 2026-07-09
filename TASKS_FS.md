@@ -198,13 +198,12 @@ results in Omega. Interpreter = full-parity reference oracle for everything.
   fails to compile — never silently ZII. Exemptions from silent-wrong fences
   need a RUNTIME differential proof per shape, not routing evidence.
 - **Judge regressions by failure-SET diff** against named baselines, never
-  counts. Suite baseline-7 (all other lanes', fully explained): efi ×3
+  counts. Suite baseline-5 (2026-07-11q; was 7 — the tick ×2 closed when
+  the inline-Clock tick_count darwin row landed): efi ×3
   (efi_entry_arguments / efi_freestanding_skeleton / efi_ref_param_call_arg),
-  tick ×2 (runtime_tick_count_monotonic / tick_paced_marquee — aarch64
-  Clock lowering, time lane), runtime_gui_memory_dc_blit,
-  pass_canaries_compile (= the same five canaries, no hidden extras).
-  samples_compile macOS baseline-5: tick_marquee, stdin ×3 (frontend WIP),
-  uefi_hello.
+  runtime_gui_memory_dc_blit, pass_canaries_compile (= the same four
+  canaries, no hidden extras). samples_compile macOS baseline-4:
+  stdin ×3 (frontend WIP), uefi_hello.
 - **Canonical idioms**: field discipline for host-call args/results;
   errno-capture-in-entry; field-carrier for indexed element moves. The a/b
   first-field receiver shuffle is FULLY RETIRED (per-instance receivers,
