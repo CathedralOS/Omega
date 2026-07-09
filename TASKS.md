@@ -130,15 +130,33 @@ IR + a linear-scan allocator + a few passes + SIMD selection). Today's bar is
   ⚠️ The obvious state-storage fix (keep the slot for a computed local read by a
   later `let`) is FRAGILE and was REVERTED: keeping ANY extra slot SHIFTS frame
   offsets and regressed 6 canaries + the dungeon differential (exit 71!=70).
-  So the fix belongs on the FOLDING side, NOT slot-keeping: make the post-entry
-  splice apply the SAME alias substitution straight-line states get (the
-  resolve_runtime_alias_binding / bindings.rs fold that inlines an elided
-  local's initializer into its use), so q/scaled fold into scaled/rem inside the
-  spliced `work` body. Area: omega-runtime-branching expansions + the
-  instruction-selection alias binding. The simple post-entry case (lets reading
-  only params) already works (passing canary
+  DEEPER MECHANISM PINNED 2026-07-08 (traced to the exact gate): the value
+  callee's leaf terminal `(rem)` is lowered by
+  `select_runtime_leaf_branch_terminal_value_write` ->
+  `resolve_leaf_caller_local_initializer_names` (leaf.rs). That resolver ALREADY
+  folds slot-LESS prior locals into the terminal (recursively) -- so q/scaled
+  WOULD fold. The blocker is `rem` itself: it has a LocalStorage slot (the
+  TERMINAL transition `(rem)` references it, so state-storage's
+  statement_references_local marks it required), and the resolver's `has_slot`
+  gate (leaf.rs ~L1051-1066) KEEPS a slotted local as its Name instead of
+  folding -- correctly, to avoid the stale-fold family. But the leaf lowers the
+  terminal by FOLDING, not by WRITING rem's slot, so rem's slot stays ZII and,
+  being slotted, rem also blocks the fold chain into scaled/q. The mismatch:
+  state-storage slots `rem` (transition references it) but the leaf path never
+  emits rem's WRITE (it expects to fold the terminal).
+  TWO fix directions, each with a landmine:
+   (a) leaf side -- when the terminal-returned local has a slot but NO write in
+       this leaf AND its initializer is pure (no call, no field capture, not
+       reassigned), fold it anyway. Safe from stale-fold ONLY under those
+       guards; getting them right is the work.
+   (b) state-storage side -- do NOT slot a local referenced ONLY by the leaf's
+       terminal transition of a value callee (let it fold). But removing a slot
+       SHIFTS offsets (the same fragility that regressed the keep-slot attempt).
+  Both deep; NOT a quick fix. The simple post-entry case (lets reading only
+  params) works (passing canary
   calls/runtime_value_callee_post_entry_lets_exit, swap_digits=24); this pending
-  repro is the prior-LET-dependency face.
+  repro is the prior-LET-dependency face. Low urgency: std authoring dodges it
+  with entry-only lets.
 - **[x] NESTED-value-call transition guard read the nested result's PRE-STORE ZII
   TAG natively — FIXED 2026-07-08.** NOT a splice-ordering bug: a bare-call binding
   (`let since = self.checked_subtract(..)`) whose local ALSO has a LocalStorage
