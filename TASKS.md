@@ -604,6 +604,24 @@ decreases remaining
   at/above width (cross-arch), range-under-non-Exact, type-carrying
   constants, abort-as-effect #65.
 
+- **[ ] Write-side nested modulo under a Cast retag prints SIGNED yet runs
+  correct (found 2026-07-10e while extending the nested-unsigned canary).**
+  In runtime_nested_unsigned_witness_exit's write_go, the backend report
+  shows `(... DivideUnsigned/4 ...) Modulo/4 100` -- the nested div got the
+  unsigned swap, the nested MODULO did not (the value_operands swap should
+  recurse through my Binary-signedness fix; the Cast retag wrapper may be
+  interposing) -- yet the program exits 70 on both legs, likely because the
+  64-bit zero-extended temp makes the signed rem coincidentally correct at
+  this width. TWO questions: (1) why the write-side swap misses the nested
+  modulo (guards.rs's swap catches the same shape -- prints
+  ModuloUnsigned); (2) whether ANY width/value makes the signed encoding
+  observable (if yes: silent-wrong candidate; if provably no: document the
+  invariant). The canary pins current cross-leg behavior either way.
+  RELATED: const-prop'd IMMEDIATE operands defeat the signedness witness
+  entirely (a same-state probe emitted signed Modulo over immediates,
+  masked by its folded guard) -- that face belongs to the type-carrying-
+  constants design family (immediates carry no type).
+
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE
   arithmetic (overflow -> inf), so nothing diverges -- but the DECLARATION is
