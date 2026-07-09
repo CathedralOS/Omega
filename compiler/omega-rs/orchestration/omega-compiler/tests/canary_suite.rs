@@ -20014,6 +20014,44 @@ fn runtime_dispatch_result_guard_subject_exit_canary_runs() {
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// A dispatched call result consumed DIRECTLY as a transition argument
+// (true -> check(self.count(..))): argument materialization descends into
+// transition expressions, the clone terminal stamps CallResultReturn from
+// the plan role, and the return-write keys on the return-target dispatch.
+#[test]
+fn runtime_dispatch_result_transition_arg_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_dispatch_result_transition_arg_exit");
+    let main_path = canary.join("main.omg");
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-dispatch-result-transition-arg-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("dispatch result transition-arg canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("dispatch result transition-arg canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected the direct transition-arg call result to deliver \
+         (n == 12 -> exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // A dispatched value call whose TERMINAL returns a FIELD read: the
 // return-write copy uses the resolved place's REGION (was hardcoded
 // RuntimeFrame, reading the frame at a machine offset -- garbage).

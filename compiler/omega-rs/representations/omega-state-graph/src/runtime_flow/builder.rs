@@ -469,6 +469,39 @@ impl<'plan> RuntimeFlowBuilder<'plan> {
                 return arguments;
             }
         }
+        // A TRANSITION-EMBEDDED call (`true -> check(self.count(3, 0, 0))`)
+        // has NO operation at its statement -- the call lives in the
+        // transition's TARGET-ARGUMENT (or guard) expressions. Without this
+        // descent the dispatched callee materialized NO arguments and ran on
+        // ZII (the direct spelling returned 0 while the let-bound twin
+        // worked; probed via backend_report diff 2026-07-09).
+        for transition in self
+            .control_flow
+            .transitions
+            .span(state.transitions)
+            .into_iter()
+            .flatten()
+        {
+            for argument_span in [
+                transition.expressions.target_arguments,
+                transition.expressions.continuation_arguments,
+            ] {
+                for offset in 0..argument_span.count() {
+                    let argument = self
+                        .control_flow
+                        .expressions
+                        .expression_handle_at_offset(argument_span, offset);
+                    if let Some(arguments) = self.first_call_arguments(argument) {
+                        return arguments;
+                    }
+                }
+            }
+            if transition.expressions.guard.is_valid()
+                && let Some(arguments) = self.first_call_arguments(transition.expressions.guard)
+            {
+                return arguments;
+            }
+        }
         omega_core::arena::HandleSpan::empty()
     }
 

@@ -653,18 +653,20 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    still ZII. `state_call_result_slot_for_dispatch` (new, dispatch-keyed)
    keys on `edge.TARGET_dispatch_index` (2026-07-09d -- the clone-terminal
    RETURN edge ENTERS the caller's next segment; continuation is None
-   there), and the full selection chain now TRACES CORRECT end to end:
-   leaf `acc` (frame+36, clone case) -> shared slot (frame+4, case 4) ->
-   reader copy under case 4 -> check's param. Writer and reader agree on
-   the slot -- yet the program still exits 71, and a KEYSTONE-shaped
-   direct terminal (`false -> acc`, no leaf state) fails identically as a
-   transition arg. The residual is RUNTIME-side or reader-materialization
-   ordering, invisible to selection traces -- next diagnostic is emitted-
-   code inspection (backend_report) or a runtime memory probe. WORKING
-   IDIOM (user-facing, both pinned green): bind the call to a LET first
-   (`let n = self.count(..); ... -> check(n)`) or use guard-subject
-   position (the F canary) -- the direct call-in-transition-arg spelling
-   is the only broken reader. Parked
+   there), and the full selection chain traced correct --
+   and the backend_report DIFF against the let-bound twin found the real
+   residual (2026-07-09e): the direct spelling materialized NO ARGUMENTS
+   for the dispatched callee (the let-bound build writes 3/0/0 into the
+   clone's params in case #1; the direct build writes nothing -- the clone
+   looped on ZII and returned 0). `statement_call_arguments` (runtime-flow
+   builder) sniffed OPERATIONS like statement_call_is_value before it;
+   it now DESCENDS into transition TARGET-ARGUMENT / guard expressions.
+   SHAPE CLOSED: `pending/host/dispatch_result_transition_arg` PROMOTED to
+   `calls/runtime_dispatch_result_transition_arg_exit` (differential 70/70
+   + suite test); pending/host holds only interp_saturating_param_carry
+   (the interp thread's). All three connected gaps are documented in the
+   canary header (role-stamped CallResultReturn; return-target dispatch
+   slot keying; transition-expression argument descent). Parked
    `pending/host/dispatch_result_transition_arg` (native 71/interp 70);
    also recorded: `CallResultReturn` carries no call ORDINAL (two
    dispatched calls in one statement cannot be disambiguated -- plan-shape
