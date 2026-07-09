@@ -135,24 +135,43 @@ pub fn interpret(checked: &CheckedTrees, stdin: &[u8]) -> InterpretOutcome {
 }
 
 /// How the interpreter serves a program's `Filesystem` capability.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum FilesystemAccess {
     /// The deterministic in-memory filesystem (the default; the differential
     /// oracle). Hermetic: no real disk is ever touched.
     #[default]
     Virtual,
-    /// The REAL host filesystem, UNSCOPED (build.omg rung 1, TASKS_FS
-    /// open-work #3): fs ops act on real paths with the invoking process's
-    /// authority. For build-time programs the compiler runs on the developer's
-    /// own tree -- the same trust as `build.rs`. Grant/scope enforcement
-    /// (read: source tree, write: build dir) is the next rung; the variant
-    /// name telegraphs the current absence of scoping.
+    /// The REAL host filesystem, UNSCOPED: fs ops act on real paths with the
+    /// invoking process's full authority. The trust level of `build.rs`; for
+    /// build.omg proper, prefer [`FilesystemAccess::RealScoped`] -- the grants
+    /// ARE the audit surface (open-work #3's settled design).
     RealUnscoped,
+    /// The REAL host filesystem behind PATH GRANTS (build.omg rung 2): reads
+    /// must land under a read or write root, writes/creates/removes under a
+    /// write root; anything else is refused with EACCES before the OS is
+    /// touched. build.omg's shape: read = source tree, write = build dir.
+    RealScoped(FsGrants),
+}
+
+/// Path grants for [`FilesystemAccess::RealScoped`]. Roots are canonicalized
+/// when the run starts (so symlinked spellings of a root work), and every
+/// op's path is canonicalized before the prefix check (so `..` traversal and
+/// symlinks INSIDE a granted tree that point OUTSIDE it are resolved and
+/// refused, not string-matched).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FsGrants {
+    /// Trees the program may READ from (open read-only, stat). A write root
+    /// implicitly grants read-back -- staging then verifying is the normal
+    /// build shape -- so these are the read-ONLY trees.
+    pub read_roots: Vec<std::path::PathBuf>,
+    /// Trees the program may WRITE under: create/truncate/append opens,
+    /// remove, create_dir/remove_dir, and BOTH ends of a rename.
+    pub write_roots: Vec<std::path::PathBuf>,
 }
 
 /// Options for [`interpret_with_options`]. `Default` reproduces [`interpret`]
 /// exactly (hermetic virtual filesystem).
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct InterpretOptions {
     pub filesystem: FilesystemAccess,
 }

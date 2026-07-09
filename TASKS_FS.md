@@ -561,12 +561,30 @@ invisible to a pump; real fix = outbound WndProc entry stubs (extern brief §12.
    build-shaped staging program both ways — real mode must materialize the
    asset on disk byte-exact, hermetic default must exit identically with
    NOTHING on disk. Every existing gate untouched (default is `Virtual`;
-   `interpret()` delegates unchanged). REMAINING RUNGS: (a) grant plumbing +
-   path scoping (read: source tree, write: build dir) — the variant is
-   named `RealUnscoped` to telegraph its absence; (b) the next-slice ops as
-   build programs need them; (c) the compiler-side build.omg entry that
-   actually invokes `interpret_with_options` (target selection + constant
-   bindings ride this).
+   `interpret()` delegates unchanged).
+   **RUNG 2 DONE (2026-07-09h): path grants.**
+   `FilesystemAccess::RealScoped(FsGrants { read_roots, write_roots })`:
+   every path-taking op authorizes BEFORE touching the OS — reads must
+   land under a read or write root (write grant implies read-back;
+   stage-then-verify is the normal build shape), writes/creates/removes/
+   BOTH rename ends under a write root; refusal is -1/EACCES (same shape
+   as an OS permission denial, so the wrapper error surface gains no new
+   cases). Roots canonicalize at construction; op paths canonicalize for
+   the check (a not-yet-existing leaf rides its canonicalized parent), so
+   `..` traversal and root-escaping symlinks resolve to their real target
+   and refuse — and the op then RUNS on the resolved path (authorized
+   location == operated-on location). Fd ops need no re-check (fds only
+   enter the table through an authorized open). Acceptance: the
+   four-quadrant probe in tests/real_fs.rs (read-root read, write-root
+   stage+read-back, EACCES create under read-only root, EACCES read
+   outside all roots) + on-disk world assertions (artifact real, denied
+   files absent). REMAINING RUNGS: (a) the next-slice ops as build
+   programs need them (at-family, positioned I/O, locks, perms, times,
+   links, read_dir, canonicalize — all -1/ENOTSUP today); (b) the
+   compiler-side build.omg entry that actually invokes
+   `interpret_with_options` with source-tree/build-dir grants (target
+   selection + constant bindings ride this — likely the design-touching
+   rung: build.omg discovery/location + when it runs).
 4. [ ] Windows ops without msvcrt equivalents → Win32 calls (stat family first,
    after #2's design).
 5. [ ] Title-bar context-menu Close → outbound WndProc entry stubs (§12.4).

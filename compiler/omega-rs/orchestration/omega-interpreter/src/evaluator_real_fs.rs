@@ -1,20 +1,30 @@
-//! REAL-filesystem provider for the interpreter (build.omg rung 1, TASKS_FS
-//! open-work #3): `build.omg` runs INTERPRETED with a real `Filesystem`
-//! capability so it can copy assets itself. Strictly OPT-IN
-//! (`FilesystemAccess::RealUnscoped`); the default hermetic virtual fs -- the
-//! differential oracle -- is untouched. Grant/scope plumbing (read: source
-//! tree; write: build dir) is the NEXT rung; the type name telegraphs that
-//! this mode is unscoped.
+//! REAL-filesystem provider for the interpreter (build.omg rungs 1+2,
+//! TASKS_FS open-work #3): `build.omg` runs INTERPRETED with a real
+//! `Filesystem` capability so it can copy assets itself. Strictly OPT-IN
+//! (`FilesystemAccess::RealUnscoped` / `RealScoped`); the default hermetic
+//! virtual fs -- the differential oracle -- is untouched.
+//!
+//! SCOPING (rung 2): under `RealScoped`, every path-taking op is authorized
+//! against [`crate::FsGrants`] BEFORE the OS is touched -- reads must land
+//! under a read or write root, writes/creates/removes under a write root;
+//! refusal is -1/EACCES, the same shape as an OS permission denial, so the
+//! wrapper's error surface needs no new cases. Paths and roots are
+//! CANONICALIZED for the check (a not-yet-existing leaf rides its
+//! canonicalized parent), so `..` traversal and symlinks that escape a
+//! granted tree resolve to their real target and are refused, not
+//! string-matched. Fd-based ops need no re-check: an fd only enters the
+//! table through an authorized open.
 //!
 //! Portable by construction: real files ride `std::fs::File` behind the same
 //! synthetic-fd table shape the virtual fs uses (no libc, no raw handles), so
 //! the provider works wherever the compiler runs. The op-name set mirrors the
-//! virtual dispatcher one-for-one; ops outside rung 1's core subset report
+//! virtual dispatcher one-for-one; ops outside the core subset report
 //! ENOTSUP and -1 (loud, never silently wrong) until a later slice.
 
 use super::{EvalResult, ExpressionHandle, Frame, Value, host_open_flags};
 use std::collections::BTreeMap;
 use std::io::{Read, Seek, SeekFrom, Write};
+use std::path::{Path, PathBuf};
 
 /// Errno for real-mode failures, from the host `io::Error` when available.
 fn io_errno(error: &std::io::Error) -> i32 {
@@ -26,6 +36,42 @@ fn io_errno(error: &std::io::Error) -> i32 {
 /// fine as the single modeled "this provider slice does not do that" code.
 const ENOTSUP: i32 = 45;
 const EBADF: i32 = 9;
+const EACCES: i32 = 13;
+const ENOENT: i32 = 2;
+
+/// Canonicalized [`crate::FsGrants`]: the roots a scoped run may read/write
+/// under, resolved once at construction so prefix checks compare real paths.
+struct Grants {
+    read_roots: Vec<PathBuf>,
+    write_roots: Vec<PathBuf>,
+}
+
+/// Canonicalize a root at grant-construction time. A root that does not
+/// resolve (e.g. a build dir created later in the run) keeps its spelled
+/// path -- ops under it then authorize via their own canonicalized parents,
+/// which fail ENOENT until the root exists, exactly like the real OS.
+fn canonical_root(root: &Path) -> PathBuf {
+    root.canonicalize().unwrap_or_else(|_| root.to_path_buf())
+}
+
+impl Grants {
+    fn allows(&self, resolved: &Path, write: bool) -> bool {
+        let in_write = self
+            .write_roots
+            .iter()
+            .any(|root| resolved.starts_with(root));
+        if write {
+            return in_write;
+        }
+        // A write root implicitly grants read-back (stage-then-verify is the
+        // normal build shape); read_roots are the read-ONLY trees.
+        in_write
+            || self
+                .read_roots
+                .iter()
+                .any(|root| resolved.starts_with(root))
+    }
+}
 
 pub(super) struct RealFs {
     /// Synthetic fd -> real open file. Same table shape as `virtual_fds`;
@@ -35,14 +81,28 @@ pub(super) struct RealFs {
     /// Thread-local errno model, mirroring `virtual_errno`: set from the host
     /// `io::Error` on a failing op, read back by `errno`.
     pub(super) errno: i32,
+    /// `Some` under `FilesystemAccess::RealScoped`; `None` is unscoped.
+    grants: Option<Grants>,
 }
 
 impl RealFs {
-    pub(super) fn new() -> Self {
+    pub(super) fn new(grants: Option<crate::FsGrants>) -> Self {
         Self {
             files: BTreeMap::new(),
             next_fd: 3,
             errno: 0,
+            grants: grants.map(|grants| Grants {
+                read_roots: grants
+                    .read_roots
+                    .iter()
+                    .map(|r| canonical_root(r))
+                    .collect(),
+                write_roots: grants
+                    .write_roots
+                    .iter()
+                    .map(|r| canonical_root(r))
+                    .collect(),
+            }),
         }
     }
 
@@ -54,8 +114,26 @@ impl RealFs {
     }
 }
 
-fn real_path(bytes: &[u8]) -> std::path::PathBuf {
-    std::path::PathBuf::from(String::from_utf8_lossy(bytes).into_owned())
+fn real_path(bytes: &[u8]) -> PathBuf {
+    PathBuf::from(String::from_utf8_lossy(bytes).into_owned())
+}
+
+/// Resolve a path to its REAL location for the grant check: canonicalize the
+/// path itself when it exists, else canonicalize its parent and re-attach the
+/// leaf (the create/new-file case). `None` when even the parent does not
+/// resolve -- the caller reports ENOENT, exactly what the OS would say.
+fn resolve_for_check(path: &Path) -> Option<PathBuf> {
+    if let Ok(canonical) = path.canonicalize() {
+        return Some(canonical);
+    }
+    let parent = path.parent()?;
+    let name = path.file_name()?;
+    let parent = if parent.as_os_str().is_empty() {
+        Path::new(".").canonicalize().ok()?
+    } else {
+        parent.canonicalize().ok()?
+    };
+    Some(parent.join(name))
 }
 
 impl<'program> super::Evaluator<'program> {
@@ -76,12 +154,17 @@ impl<'program> super::Evaluator<'program> {
             "create" => {
                 // O_WRONLY|O_CREAT|O_TRUNC: create/truncate, writable.
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let opened = std::fs::OpenOptions::new()
-                    .write(true)
-                    .create(true)
-                    .truncate(true)
-                    .open(real_path(&path));
-                self.real_result_fd(opened)
+                match self.authorized_path(&path, true) {
+                    Some(path) => {
+                        let opened = std::fs::OpenOptions::new()
+                            .write(true)
+                            .create(true)
+                            .truncate(true)
+                            .open(path);
+                        self.real_result_fd(opened)
+                    }
+                    None => -1,
+                }
             }
             "open" | "open_create" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
@@ -94,24 +177,34 @@ impl<'program> super::Evaluator<'program> {
                 // fs uses (host_open_flags -- the program was compiled for
                 // `host()`, so the numerology matches).
                 let access = flags & 0x3;
-                let mut options = std::fs::OpenOptions::new();
-                options
-                    .read(access == 0 || access == 2)
-                    .write(access == 1 || access == 2)
-                    .append(host_open_flags::o_append(flags))
-                    .truncate(host_open_flags::o_trunc(flags))
-                    .create(host_open_flags::o_creat(flags));
-                if host_open_flags::o_creat(flags) && host_open_flags::o_excl(flags) {
-                    options.create_new(true);
+                let wants_write = access == 1
+                    || access == 2
+                    || host_open_flags::o_creat(flags)
+                    || host_open_flags::o_trunc(flags)
+                    || host_open_flags::o_append(flags);
+                match self.authorized_path(&path, wants_write) {
+                    Some(path) => {
+                        let mut options = std::fs::OpenOptions::new();
+                        options
+                            .read(access == 0 || access == 2)
+                            .write(access == 1 || access == 2)
+                            .append(host_open_flags::o_append(flags))
+                            .truncate(host_open_flags::o_trunc(flags))
+                            .create(host_open_flags::o_creat(flags));
+                        if host_open_flags::o_creat(flags) && host_open_flags::o_excl(flags) {
+                            options.create_new(true);
+                        }
+                        #[cfg(unix)]
+                        if host_open_flags::o_creat(flags) && method == "open_create" {
+                            use std::os::unix::fs::OpenOptionsExt;
+                            options.mode(mode & 0o7777);
+                        }
+                        #[cfg(not(unix))]
+                        let _ = mode; // windows: creation mode has no direct analogue
+                        self.real_result_fd(options.open(path))
+                    }
+                    None => -1,
                 }
-                #[cfg(unix)]
-                if host_open_flags::o_creat(flags) && method == "open_create" {
-                    use std::os::unix::fs::OpenOptionsExt;
-                    options.mode(mode & 0o7777);
-                }
-                #[cfg(not(unix))]
-                let _ = mode; // windows: creation mode has no direct analogue
-                self.real_result_fd(options.open(real_path(&path)))
             }
             "read" => {
                 let fd = self.eval_fs_fd(arguments.first().copied(), frame)?;
@@ -248,27 +341,51 @@ impl<'program> super::Evaluator<'program> {
             }
             "remove" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                self.real_result_unit(std::fs::remove_file(real_path(&path)))
+                match self.authorized_path(&path, true) {
+                    Some(path) => self.real_result_unit(std::fs::remove_file(path)),
+                    None => -1,
+                }
             }
             "create_dir" | "create_dir_name" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                self.real_result_unit(std::fs::create_dir(real_path(&path)))
+                match self.authorized_path(&path, true) {
+                    Some(path) => self.real_result_unit(std::fs::create_dir(path)),
+                    None => -1,
+                }
             }
             "remove_dir" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                self.real_result_unit(std::fs::remove_dir(real_path(&path)))
+                match self.authorized_path(&path, true) {
+                    Some(path) => self.real_result_unit(std::fs::remove_dir(path)),
+                    None => -1,
+                }
             }
             "rename" => {
                 let from = self.eval_fs_bytes(arguments.first().copied(), frame)?;
                 let to = self.eval_fs_bytes(arguments.get(1).copied(), frame)?;
-                self.real_result_unit(std::fs::rename(real_path(&from), real_path(&to)))
+                // BOTH ends need write authority: a rename removes `from` and
+                // creates `to`.
+                match (
+                    self.authorized_path(&from, true),
+                    self.authorized_path(&to, true),
+                ) {
+                    (Some(from), Some(to)) => self.real_result_unit(std::fs::rename(from, to)),
+                    _ => -1,
+                }
             }
             "read_metadata" | "read_symlink_metadata" => {
                 let path = self.eval_fs_bytes(arguments.first().copied(), frame)?;
-                let looked_up = if method == "read_metadata" {
-                    std::fs::metadata(real_path(&path))
-                } else {
-                    std::fs::symlink_metadata(real_path(&path))
+                let looked_up = match self.authorized_path(&path, false) {
+                    Some(path) => {
+                        if method == "read_metadata" {
+                            std::fs::metadata(path)
+                        } else {
+                            std::fs::symlink_metadata(path)
+                        }
+                    }
+                    None => {
+                        return Ok(Some(Value::Int(-1)));
+                    }
                 };
                 match looked_up {
                     Ok(metadata) => {
@@ -331,6 +448,29 @@ impl<'program> super::Evaluator<'program> {
         self.real_fs
             .as_mut()
             .expect("try_real_filesystem_call only runs in real mode")
+    }
+
+    /// Authorize a path-taking op against the grants (no-op when unscoped).
+    /// `None` means REFUSED with errno already set: EACCES outside the
+    /// granted roots, ENOENT when the path's parent does not even resolve.
+    fn authorized_path(&mut self, path_bytes: &[u8], write: bool) -> Option<PathBuf> {
+        let path = real_path(path_bytes);
+        let real = self.real_fs_mut();
+        let Some(grants) = &real.grants else {
+            return Some(path); // unscoped: full process authority
+        };
+        let Some(resolved) = resolve_for_check(&path) else {
+            real.errno = ENOENT;
+            return None;
+        };
+        if grants.allows(&resolved, write) {
+            // Operate on the RESOLVED path: the authorized location and the
+            // operated-on location must be the same real file.
+            Some(resolved)
+        } else {
+            real.errno = EACCES;
+            None
+        }
     }
 
     fn real_result_fd(&mut self, opened: std::io::Result<std::fs::File>) -> i64 {

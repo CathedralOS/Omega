@@ -306,8 +306,14 @@ fn run_on_current_thread(
     options: InterpretOptions,
 ) -> InterpretOutcome {
     let mut evaluator = Evaluator::new(checked, stdin);
-    if matches!(options.filesystem, FilesystemAccess::RealUnscoped) {
-        evaluator.real_fs = Some(real_fs::RealFs::new());
+    match options.filesystem {
+        FilesystemAccess::Virtual => {}
+        FilesystemAccess::RealUnscoped => {
+            evaluator.real_fs = Some(real_fs::RealFs::new(None));
+        }
+        FilesystemAccess::RealScoped(grants) => {
+            evaluator.real_fs = Some(real_fs::RealFs::new(Some(grants)));
+        }
     }
     match evaluator.run_entry() {
         Ok(()) => {
