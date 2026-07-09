@@ -852,6 +852,20 @@ decreases remaining
   samples_compile + the documented-exit runner. The "samples as we go"
   artifact for the whole 2026-07-09 domain arc.
 
+- **PASS-UMBRELLA COLLECT-ALL 2026-07-10b: fourth umbrella, two unmasked
+  regressions.** pass_canaries_compile converted from first-panic to
+  collect-all (the same masking pattern as the differential/fail/serial
+  umbrellas before it). It immediately surfaced two canaries the efi-first
+  panic had hidden: termination/custom_ranking_{field_countdown_compile,
+  struct_view} -- authored 2026-05-27, GREEN six weeks, loudly regressed by
+  the fs lane's 2026-07-09 return-write fence (correctly: their value-call
+  terminal is a PARAM-STRUCT-FIELD read, `false -> card.power`, an unserved
+  matrix row whose execution would ZII the caller's result). Both PARKED at
+  pending/termination/* with PROMOTE notes; the matrix-row ask is filed in
+  TASKS_FS Observations. The umbrella now reports exactly the 5 host-blocked
+  members (efi x2, tick x2, gui blit); suite failure set unchanged at the
+  known 7. Every serial umbrella in the repo is now collect-all.
+
 - **[ ] Float types accept a domain clause that means nothing (found
   2026-07-10).** `f: f32 in Saturating` compiles; both legs run plain IEEE
   arithmetic (overflow -> inf), so nothing diverges -- but the DECLARATION is

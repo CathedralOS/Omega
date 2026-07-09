@@ -1080,6 +1080,16 @@ wrongly rejects them. See Open-work #4.
 
 ## Observations (not fs, flagged for Zach)
 
+- RETURN-WRITE MATRIX row request (2026-07-10, from the arithmetic thread):
+  the collect-all pass_canaries_compile umbrella (this tick) unmasked two
+  termination canaries your 2026-07-09 return-write fence (936fc62c1)
+  loudly regressed -- invisible for a day behind the umbrella's old
+  efi-first panic. Shape: a dispatched value call whose terminal is a
+  PARAM-STRUCT-FIELD read (`false -> card.power`, `card: Card` by value).
+  Both parked at pending/termination/custom_ranking_* with PROMOTE notes;
+  the fence is correct (unserved = ZII result), the ask is the matrix row.
+
+
 - ARITHMETIC-THREAD note (2026-07-09i, from fixing collateral): the new
   operand-domain fence (cd42934d5) broke `samples/gui/windowed_calculator`
   on main (digit_append's fused `(current*10 + digit) % 10000`); fixed
