@@ -79,9 +79,39 @@ iteration only ran `--test differential`; run the FULL `-p omega-interpreter`
 the stat migration), `set_len` (msvcrt `_chsize_s`), and `copy` (set_len wired +
 its chmod mode arg moved to the `perm_mode` field so it stops eliding into a
 computed host-call arg). Canaries: `windows_wrapper_{exists,set_len,copy}_exit`.
-⚠️ `copy` still opens src/dst in msvcrt TEXT mode (no `O_BINARY`) -- newline-free
-content is exact, but a binary-safe copy on windows (O_BINARY both ends) is a
-follow-up. Still fenced on windows: `read_dir` + everything that walks it
+O_BINARY SWEEP DONE (2026-07-08e): EVERY wrapper content open/create now
+carries `FilesystemHost::O_BINARY` (32768 on windows, 0 on posix -- Rust I/O
+is byte-exact; msvcrt TEXT mode was CRLF-translating and ^Z-truncating):
+`open`/`read_all` read flags, `create`/`write_all`/`copy`-dst migrated from
+raw `create` (`_creat` = always TEXT) to `open_create` with composed
+O_WRONLY|O_CREATE|O_TRUNC|O_BINARY, `create_new`/`open_with` OR it in, and
+`append` now COMPOSES `O_WRONLY | (1 << O_APPEND_BIT) | O_BINARY` (the old
+literal `9` was a latent LINUX bug -- O_APPEND is bit 10 there, not 3).
+Directory opens (read_dir family) stay flag-0 (windows-fenced; no content).
+Creation mode unified to Rust's 438/0o666 (umask trims; nothing asserted the
+old 420). TWO deeper findings shipped with it:
+(1) ⚠️ wrapper `open_create` NEVER COMPILED on darwin/arm64 (windows-verified
+only; masked in the differential by the arithmetic-regression early-panic --
+see Observations): the arm64 variadic encoder demands a compile-time-IMMEDIATE
+mode and the `create_mode` FIELD resolves to a runtime place. Fix: mode is a
+LITERAL `438` at every open_create call site (win64 takes either; the field
+idiom is only for COMPOSED words like open_flags). This UNBLOCKED
+create_new/open_with/copy/create/write_all on darwin native -- verified
+native+interp 70 here.
+(2) backend: the write arm resolves a fixed-array FIELD forwarded through a
+value-call param (`fs.write_all(path, self.bin_src)`) via a new LAST-RESORT
+alias-resolved fixed-array probe (`alias_resolved_fixed_array_length_at`,
+operands.rs) -- kept last so the descriptor route (copy's `&mut buffer`)
+always wins with its proven address.
+`windows_wrapper_copy_exit` gained a BINARY leg (CR/LF/^Z bytes copied
+byte-exactly; read-back via the RAW seam) and its text-era caveat is gone.
+⚠️ NEW PENDING (found by that leg's first draft):
+`pending/host/wrapper_read_buffer_decoy` -- a `&mut self.X` array-field
+buffer forwarded through the WRAPPER's `&mut [u8]` read param natively fills
+the WRONG buffer when another array field precedes it (decoy-discriminated:
+native 73 vs interp 70; without the decoy it is byte-exact). Same
+resolution-by-KIND disease family as the receiver walk. The raw seam is
+unaffected (direct buffer arg). Still fenced on windows: `read_dir` + everything that walks it
 (`remove_dir_all`), and create_dir_all's DEEP walk (runtime SUBSLICE paths need a
 NUL-terminated scratch copy). ATTEMPTED 2026-07-07 (reverted clean, findings recorded): the
 plan is an Omega-side rework, no encoder work -- copy the prefix into a
@@ -653,7 +683,13 @@ wrongly rejects them. See Open-work #4.
   `arithmetic/runtime_cast_in_guard_exit` (native 71 vs suite-expected 70).
   Since the suite pins native as correct-by-definition, native 71 is a real
   regression. Flagged for the arithmetic thread — likely the folded-constant
-  domain work leaking a sign/width into a cast-in-guard. (6 GUI/input samples in
+  domain work leaking a sign/width into a cast-in-guard.
+  ⚠️⚠️ SECOND-ORDER COST (found 2026-07-08e): the supported-canaries test
+  PANICS AT THE FIRST MISMATCH, so everything alphabetically after
+  `arithmetic/runtime_cast_in_guard_exit` in RUN_CANARIES is UNVERIFIED while
+  the regression stands — it masked "wrapper open_create never compiled on
+  darwin arm64" for days. Fix the regression (or make the differential
+  collect-all-failures instead of panic-at-first) with priority. (6 GUI/input samples in
   native_filesystem_canaries also fail, but those are the KNOWN effectful-arm
   fence on `MacosInput::key_state`/`MacosGui::msg_peek` value calls, per the
   fence doctrine above — expected, not a regression.)

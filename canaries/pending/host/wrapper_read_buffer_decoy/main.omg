@@ -1,0 +1,43 @@
+// PENDING repro (2026-07-08, native-vs-interp divergence): a `&mut self.X`
+// ARRAY-FIELD buffer forwarded through the WRAPPER's `&mut [u8]` param
+// (`fs.read_all(path, &mut self.bin_back, 8)`) natively fills the WRONG
+// buffer when another array field precedes it: with `buffer: [u8; 64]`
+// declared before `bin_back: [u8; 8]`, the read lands in `buffer` and
+// `bin_back` stays ZII -> native exit 73 (bin_back[0] == 0), interp 70.
+// WITHOUT the decoy `buffer` field the same program is byte-exact natively
+// (both engines 70) -- the forwarded-buffer address resolution picks another
+// array field, not the one spelled at the call site. Same disease family as
+// the by-type receiver walk (contained_receiver_blockers) and the by-bytes
+// literal keying: backend resolution by KIND-match instead of identity.
+// Discovered via the windows_wrapper_copy_exit binary leg (its read-back now
+// uses the RAW seam, which takes the buffer arg directly and is correct).
+// NOTE: only observable since the fixed-array write_all payload landed (the
+// probe could not compile before); the underlying read-path resolution is
+// older. exit codes: 70 exact; 71 write failed; 72 read failed/short;
+// 73..75 = byte mismatch at 0/1/4 (73 = the bug: bin_back stayed ZII).
+use omega::language::std::filesystem;
+use omega::language::std::filesystem_host;
+boundary trait Console { machine exit_process(return_code: i32); }
+data Main { console: Console; fs: Filesystem; unit_result: UnitResult; io_result: IoResult; buffer: [u8; 64]; bin_src: [u8; 5]; bin_back: [u8; 8]; }
+machine Main::main(&mut self) {
+    self.bin_src[0] = 65;
+    self.bin_src[1] = 13;
+    self.bin_src[2] = 10;
+    self.bin_src[3] = 26;
+    self.bin_src[4] = 66;
+    self.unit_result = self.fs.write_all("omega_wa_probe.bin", self.bin_src);
+    transition self.unit_result { UnitResult::Ok -> readback() _ -> bad(71) }
+    state readback(&mut self) {
+        self.io_result = self.fs.read_all("omega_wa_probe.bin", &mut self.bin_back, 8);
+        transition self.io_result { IoResult::Ok { count } -> ckcount(count) _ -> bad(72) }
+    }
+    state ckcount(&mut self, count: usize) {
+        self.unit_result = self.fs.remove("omega_wa_probe.bin");
+        transition count == 5 { true -> ck0() _ -> bad(72) }
+    }
+    state ck0(&mut self) { transition self.bin_back[0] == 65 { true -> ck1() _ -> bad(73) } }
+    state ck1(&mut self) { transition self.bin_back[1] == 13 { true -> ck4() _ -> bad(74) } }
+    state ck4(&mut self) { transition self.bin_back[4] == 66 { true -> good() _ -> bad(75) } }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self, code: i32) { self.console.exit_process(code); }
+}
