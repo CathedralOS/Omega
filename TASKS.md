@@ -58,6 +58,17 @@ should target NEW feature surfaces as they land, not re-walk these axes.
 
 ## Open bugs / gaps (ungated)
 
+- **Multi-arm TEXTEQ-valued locals drop silently on the leaf route (found
+  2026-07-13 probing the fresh scoped-leaf-key surface; parked at
+  pending/calls/multiarm_texteq_local_divergence, both drift lists).** The
+  scalar flavor works (the account_ledger fix's canary); a texteq
+  initializer emits NO text-compare and NO local write in the leaf
+  expansion -- arms deliver ZII 0 (native 71 / interp 70). Fix in
+  branches/leaf.rs: reach the frame-slot text-comparison writer from the
+  leaf route, or poison unserved arm-local initializers loudly. NOTE: the
+  fs lane owns the just-landed scoped-key machinery -- coordinate before
+  fixing (work-stealing protocol).
+
 - **Const-folder width-blindness: latent, currently unreachable via the
   live spelling.** The 2026-07-04 miscompile class (`(0u32 - 2) >> 1` folding
   through bare i64) no longer reproduces as a FOLD: the mandatory cast-retag
