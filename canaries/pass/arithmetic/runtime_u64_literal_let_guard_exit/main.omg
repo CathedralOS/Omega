@@ -1,0 +1,31 @@
+// RUN CANARY (exit 70) -- D14 FIRES E+F (2026-07-11n): u64::MAX literals
+// in a LET initializer (fire E, u64-classed local) and an EQUALITY guard
+// against a u64-classed place (fire F; found at any depth of the
+// multi-arm desugar's `(subject) == true` nesting). The exact round-trip
+// runs through a value machine's guarded arms and back: both engines
+// deliver the full bit pattern (18446744073709551615) and the floor 7.
+// This unblocks the saturating_* Instant/SystemTime twins (TASKS_TIME).
+boundary trait Console { machine exit_process(return_code: i32); }
+data Calc { }
+machine Calc::pick(&mut self, saturate: bool) -> u64 in Wrapping {
+    transition saturate {
+        true -> big()
+        _ -> small()
+    }
+    state big(&mut self) -> u64 in Wrapping {
+        let ceiling: u64 in Wrapping = 18446744073709551615;
+        transition { _ -> (ceiling) }
+    }
+    state small(&mut self) -> u64 in Wrapping {
+        let floor: u64 in Wrapping = 7;
+        transition { _ -> (floor) }
+    }
+}
+data Main { console: Console; calc: Calc; }
+machine Main::main(&mut self) {
+    let ceiling: u64 in Wrapping = self.calc.pick(true);
+    let floor: u64 in Wrapping = self.calc.pick(false);
+    transition ceiling == 18446744073709551615 && floor == 7 { true -> good() _ -> bad() }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

@@ -211,6 +211,7 @@ const RUN_CANARIES: &[(&str, i32)] = &[
     ("calls/runtime_param_receiver_second_instance_exit", 70),
     ("calls/runtime_param_forward_chain_second_receiver_exit", 70),
     ("build/runtime_main_source_builder_is_ordinary_exit", 70),
+    ("arithmetic/runtime_u64_literal_let_guard_exit", 70),
     ("calls/runtime_dispatch_float_terminal_exit", 70),
     ("time/runtime_value_machine_receiver_field_postentry_exit", 70),
     ("references/runtime_nested_receiver_same_type_exit", 70),
