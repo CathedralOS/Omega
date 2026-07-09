@@ -16402,6 +16402,32 @@ fn runtime_float_compare_bool_exit_canary_runs() {
 }
 
 #[test]
+fn aggregate_transition_args_exit_canary_runs() {
+    // Whole-aggregate transition args: struct-by-value with ZII holes exact,
+    // sum literal constructed in arg position and destructured.
+    let canary = pass_canary("structs/aggregate_transition_args_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-aggarg-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("aggregate transition-arg canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("aggregate transition-arg canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "aggregate transition-arg canary should pass all legs (exit 70), got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn deep_nested_write_paths_exit_canary_runs() {
     // Deep-nesting writes land without bleeding into ZII neighbors:
     // struct-in-struct, sum-in-struct, array-of-struct element field.
@@ -27639,6 +27665,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "calls/runtime_value_position_branching_call_exit",
     "calls/runtime_value_call_let_combine_exit",
     "structs/runtime_nested_field_accumulate_loop_exit",
+    "structs/aggregate_transition_args_exit",
     "structs/deep_nested_write_paths_exit",
     "structs/runtime_enum_classify_dispatch_exit",
     "calls/runtime_value_transition_unsigned_guard_exit",
