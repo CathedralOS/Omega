@@ -83,8 +83,17 @@ should target NEW feature surfaces as they land, not re-walk these axes.
   runtime_shift_atwidth_indexed_targets_exit pins the routing (6 legs:
   machine/frame indexed, pointee, exact-count, << and >>) -- if the planner
   ever fuses wrapping shifts into those kinds, it trips differential; thread
-  the domain through the kind encoders then. Slice C: Saturating/Trapping shl (clamp/trap on shifted-out bits;
-  the shl_saturating parked canary).
+  the domain through the kind encoders then. Slice C IN FLIGHT
+  (2026-07-14): shifts are domain-governed (post-ruling reading; the parked
+  canary's "design undecided" header predates it). DONE -- interp node arm:
+  Saturating `<<` clamps / Trapping traps when the true x * 2^n leaves the
+  range (at/above-width counts force overflow for nonzero x); `>>` floor
+  semantics extended to every non-Exact domain on the interp AND both ISAs
+  (>> cannot overflow, so the count fix is domain-independent). REMAINING --
+  native Saturating/Trapping `<<` sequences on both ISAs (write + operand
+  positions; crib the saturating-multiply skeleton: exact 64-bit shift +
+  range-check tail for widths <= 32, recovery-compare for 64-bit); the two
+  parked shl_saturating canaries (in-range + at-width) promote with them.
 - **FLOAT-TO-INT half still open (no ruling).** `1e300 as i32`: aarch64
   FCVTZS + interp saturate to i32::MAX; x86 CVTTSD2SI gives the 0x80000000
   "integer indefinite". Parked cast divergence stays in the drift ledger.

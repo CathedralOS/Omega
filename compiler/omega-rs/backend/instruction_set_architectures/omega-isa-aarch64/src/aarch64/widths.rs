@@ -473,14 +473,15 @@ pub(in crate::aarch64) fn runtime_binary_operation_width_with_domain(
     byte_size: usize,
     domain: omega_core::arithmetic::ArithmeticDomain,
 ) -> usize {
+    let wrapping = domain == omega_core::arithmetic::ArithmeticDomain::Wrapping;
+    let non_exact = domain != omega_core::arithmetic::ArithmeticDomain::Exact;
     runtime_binary_operation_width(operator, byte_size)
-        + if domain == omega_core::arithmetic::ArithmeticDomain::Wrapping
-            && matches!(
-                operator,
-                StateGuardOperator::ShiftLeft
-                    | StateGuardOperator::ShiftRight
-                    | StateGuardOperator::ShiftRightLogical
-            )
+        + if (wrapping && operator == StateGuardOperator::ShiftLeft)
+            || (non_exact
+                && matches!(
+                    operator,
+                    StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical
+                ))
         {
             8
         } else {

@@ -5627,16 +5627,17 @@ pub fn runtime_storage_binary_write_width(
         // (see append_wrapping_signed_divide_modulo). Unsigned uses the *Unsigned
         // operators and cannot overflow, so it falls through.
         wrapping_signed_divide_modulo_width(byte_size, operator == StateGuardOperator::Modulo)
-    } else if domain == ArithmeticDomain::Wrapping
-        && matches!(
-            operator,
-            StateGuardOperator::ShiftLeft
-                | StateGuardOperator::ShiftRight
-                | StateGuardOperator::ShiftRightLogical
-        )
+    } else if (domain == ArithmeticDomain::Wrapping && operator == StateGuardOperator::ShiftLeft)
+        || (domain != ArithmeticDomain::Exact
+            && matches!(
+                operator,
+                StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical
+            ))
     {
-        // Wrapping shifts: the plain shift + the at-width count fix. Same
-        // operand-derived byte size as the emission arm.
+        // Domain-governed shifts: the plain shift + the at-width count fix
+        // (`>>` under every non-Exact domain; `<<` under Wrapping -- its
+        // Saturating/Trapping clamp/trap sequences are not emitted yet).
+        // Same operand-derived byte size as the emission arm.
         let fix = if operator == StateGuardOperator::ShiftRight {
             WRAPPING_SHIFT_RIGHT_COUNT_SATURATE_WIDTH
         } else {
@@ -5773,11 +5774,15 @@ fn operand_position_domain_operation(
         ) if operands_signed => Some(OperandDomainOperation::WrappingSignedDivMod {
             want_remainder: operator == StateGuardOperator::Modulo,
         }),
+        (StateGuardOperator::ShiftLeft, ArithmeticDomain::Wrapping) => {
+            Some(OperandDomainOperation::WrappingShift { operands_signed })
+        }
+        // `>>` cannot overflow: the floor-semantics count fix applies under
+        // every non-Exact domain. (Saturating/Trapping `<<` need clamp/trap
+        // sequences instead -- not emitted yet; parked shl_saturating canary.)
         (
-            StateGuardOperator::ShiftLeft
-            | StateGuardOperator::ShiftRight
-            | StateGuardOperator::ShiftRightLogical,
-            ArithmeticDomain::Wrapping,
+            StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical,
+            ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating | ArithmeticDomain::Trapping,
         ) => Some(OperandDomainOperation::WrappingShift { operands_signed }),
         _ => None,
     }
@@ -5893,15 +5898,14 @@ pub fn encode_runtime_storage_binary_write(
             byte_size,
             operator == StateGuardOperator::Modulo,
         )?;
-    } else if domain == ArithmeticDomain::Wrapping
-        && matches!(
-            operator,
-            StateGuardOperator::ShiftLeft
-                | StateGuardOperator::ShiftRight
-                | StateGuardOperator::ShiftRightLogical
-        )
+    } else if (domain == ArithmeticDomain::Wrapping && operator == StateGuardOperator::ShiftLeft)
+        || (domain != ArithmeticDomain::Exact
+            && matches!(
+                operator,
+                StateGuardOperator::ShiftRight | StateGuardOperator::ShiftRightLogical
+            ))
     {
-        // Wrapping shifts (shift-domain ruling): the hardware masks the count
+        // Domain-governed shifts (shift-domain ruling): the hardware masks the count
         // to the op width, so fix at/above-TYPE-width counts -- << and logical
         // >> clamp the result to 0, arithmetic >> saturates the count to
         // width-1 (sign-fill) BEFORE the sar (matches interp + aarch64). The
