@@ -1307,9 +1307,26 @@ macOS/arm64 host this lane runs on — are CLAIMED here:
   resurrected the other thread's already-promoted poison fail canary —
   un-resurrected (their 333e8bef1 text-equality lowering flipped it
   legitimately).
-  REMAINING: the a/b shuffle workaround SWEEP (time canaries, note_vault
-  — now unnecessary; cosmetic, next iteration); non-entry callers
-  (slice-2: recursive caller-base resolution); ambiguous multi-call
+  SWEEP 2/3 DONE (2026-07-10u): the interop canary and note_vault now
+  call duration_since DIRECTLY on non-first SystemTime fields (70/70 and
+  14/14 — the natural spelling is the pinned idiom).
+  ⚠️ RESIDUAL HOLE found by the third sweep (runtime_system_time_after_
+  2026_exit, sweep REVERTED — the a/b spelling stays there as a live
+  repro): with two duration_since calls from different states, the
+  BACKWARD splice's statement 3 (`back_nanoseconds_fit =
+  earlier.subsecond >= self.subsecond` — the REVERSED-OPERAND spelling)
+  emitted `@8 >= @8`: the RHS self-operand resolved BY-TYPE (@8 =
+  first-SystemTime + 8) while statements 0–2 of the same splice resolved
+  the receiver correctly (@16/@24). Suspect: an operand-position
+  substitution gap for callee-self reads on the RHS of reversed binaries
+  (the same class as the parallel thread's cast-operand payload holes) —
+  the correct statements may be served by prelude SUBSTITUTION (receiver
+  spliced into the member chain) rather than my receiver_base_for, with
+  stmt 3's RHS falling through both. Evidence: omega-run --keep report
+  lines 1133–1136 (this build: /var/folders/.../omega-run-65230). NEXT:
+  dump the substituted prelude expressions for the backward splice,
+  find which resolution path stmt 3's RHS takes, close it, re-sweep.
+  Also remaining: non-entry callers (slice 2); ambiguous multi-call
   states stay fenced by design.
 
 ## Observations (not fs, flagged for Zach)
