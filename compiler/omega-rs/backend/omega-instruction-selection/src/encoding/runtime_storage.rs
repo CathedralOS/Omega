@@ -554,10 +554,11 @@ pub fn encode_runtime_machine_bounded_buffer_source_append(
     source_in_frame: bool,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "aarch64 encoder does not yet support the owned `[u8; N]` bounded byte carrier append"
-                .to_string(),
-        )),
+        Architecture::Aarch64 => aarch64::encode_runtime_machine_bounded_buffer_source_append(
+            target_byte_offset,
+            source_byte_offset,
+            source_in_frame,
+        ),
         Architecture::X86_64 => x86_64::encode_runtime_machine_bounded_buffer_source_append(
             target_byte_offset,
             source_byte_offset,
@@ -572,10 +573,10 @@ pub fn encode_runtime_machine_bounded_buffer_literal_append(
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "aarch64 encoder does not yet support the owned `[u8; N]` bounded byte carrier append"
-                .to_string(),
-        )),
+        Architecture::Aarch64 => aarch64::encode_runtime_machine_bounded_buffer_literal_append(
+            target_byte_offset,
+            literal,
+        ),
         Architecture::X86_64 => {
             x86_64::encode_runtime_machine_bounded_buffer_literal_append(target_byte_offset, literal)
         }
@@ -622,10 +623,11 @@ pub fn encode_runtime_pointee_bounded_buffer_write(
     literal: &str,
 ) -> Result<Vec<u8>, Diagnostic> {
     match architecture {
-        Architecture::Aarch64 => Err(Diagnostic::error(
-            "aarch64 encoder does not yet support the owned `[u8; N]` bounded byte carrier pointee write"
-                .to_string(),
-        )),
+        Architecture::Aarch64 => aarch64::encode_runtime_pointee_bounded_buffer_write(
+            pointer_byte_offset,
+            field_byte_offset,
+            literal,
+        ),
         Architecture::X86_64 => x86_64::encode_runtime_pointee_bounded_buffer_write(
             pointer_byte_offset,
             field_byte_offset,

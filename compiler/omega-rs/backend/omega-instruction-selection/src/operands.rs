@@ -13,9 +13,15 @@ pub(crate) fn aarch64_call_operand(operand: &impl InstructionOperandLike) -> Aar
     if operand.data_address().is_some() {
         Aarch64CallOperand::DataAddress
     } else if let Some((_, byte_offset)) = operand.runtime_string_pointer() {
-        Aarch64CallOperand::RuntimeStringPointer { byte_offset }
+        Aarch64CallOperand::RuntimeStringPointer {
+            byte_offset,
+            is_bounded_buffer: operand.runtime_string_is_bounded_buffer(),
+        }
     } else if let Some((_, byte_offset)) = operand.runtime_string_length() {
-        Aarch64CallOperand::RuntimeStringLength { byte_offset }
+        Aarch64CallOperand::RuntimeStringLength {
+            byte_offset,
+            is_bounded_buffer: operand.runtime_string_is_bounded_buffer(),
+        }
     } else if let Some((_, byte_offset)) = operand.runtime_pointee_string_pointer() {
         Aarch64CallOperand::RuntimePointeeStringPointer { byte_offset }
     } else if let Some((_, byte_offset)) = operand.runtime_pointee_string_length() {

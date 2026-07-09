@@ -701,15 +701,23 @@ fn machine_instruction_width(
             runtime_machine_bounded_buffer_write_width(input.target.architecture, literal)
         }
         SelectedInstructionKind::AppendRuntimeMachineBoundedBufferSource {
+            target_byte_offset,
+            source_byte_offset,
             source_in_frame,
-            ..
         } => runtime_machine_bounded_buffer_source_append_width(
             input.target.architecture,
+            *target_byte_offset,
+            *source_byte_offset,
             *source_in_frame,
         ),
-        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral { literal, .. } => {
-            runtime_machine_bounded_buffer_literal_append_width(input.target.architecture, literal)
-        }
+        SelectedInstructionKind::AppendRuntimeMachineBoundedBufferLiteral {
+            target_byte_offset,
+            literal,
+        } => runtime_machine_bounded_buffer_literal_append_width(
+            input.target.architecture,
+            *target_byte_offset,
+            literal,
+        ),
         SelectedInstructionKind::WriteRuntimeFrameString { byte_length, .. } => {
             runtime_frame_string_write_width(input.target.architecture, *byte_length)
         }
@@ -724,9 +732,16 @@ fn machine_instruction_width(
             *field_byte_offset,
             *byte_length,
         ),
-        SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer { literal, .. } => {
-            runtime_pointee_bounded_buffer_write_width(input.target.architecture, literal)
-        }
+        SelectedInstructionKind::WriteRuntimePointeeBoundedBuffer {
+            pointer_byte_offset,
+            field_byte_offset,
+            literal,
+        } => runtime_pointee_bounded_buffer_write_width(
+            input.target.architecture,
+            *pointer_byte_offset,
+            *field_byte_offset,
+            literal,
+        ),
         SelectedInstructionKind::WriteRuntimeFrameIndexedString {
             element_byte_size,
             field_byte_offset,

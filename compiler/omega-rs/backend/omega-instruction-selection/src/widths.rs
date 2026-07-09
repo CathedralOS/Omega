@@ -995,10 +995,18 @@ pub fn runtime_machine_bounded_buffer_write_width(
 
 pub fn runtime_machine_bounded_buffer_source_append_width(
     architecture: Architecture,
+    target_byte_offset: usize,
+    source_byte_offset: usize,
     source_in_frame: bool,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 | Architecture::X86_64 => {
+        Architecture::Aarch64 => aarch64::runtime_machine_bounded_buffer_source_append_width(
+            target_byte_offset,
+            source_byte_offset,
+            source_in_frame,
+        ),
+        Architecture::X86_64 => {
+            let _ = (target_byte_offset, source_byte_offset);
             x86_64::runtime_machine_bounded_buffer_source_append_width(source_in_frame)
         }
     }
@@ -1006,10 +1014,16 @@ pub fn runtime_machine_bounded_buffer_source_append_width(
 
 pub fn runtime_machine_bounded_buffer_literal_append_width(
     architecture: Architecture,
+    target_byte_offset: usize,
     literal: &str,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 | Architecture::X86_64 => {
+        Architecture::Aarch64 => aarch64::runtime_machine_bounded_buffer_literal_append_width(
+            target_byte_offset,
+            literal,
+        ),
+        Architecture::X86_64 => {
+            let _ = target_byte_offset;
             x86_64::runtime_machine_bounded_buffer_literal_append_width(literal)
         }
     }
@@ -1043,10 +1057,18 @@ pub fn runtime_pointee_string_write_width(
 
 pub fn runtime_pointee_bounded_buffer_write_width(
     architecture: Architecture,
+    pointer_byte_offset: usize,
+    field_byte_offset: usize,
     literal: &str,
 ) -> usize {
     match architecture {
-        Architecture::Aarch64 | Architecture::X86_64 => {
+        Architecture::Aarch64 => aarch64::runtime_pointee_bounded_buffer_write_width(
+            pointer_byte_offset,
+            field_byte_offset,
+            literal,
+        ),
+        Architecture::X86_64 => {
+            let _ = (pointer_byte_offset, field_byte_offset);
             x86_64::runtime_pointee_bounded_buffer_write_width(literal)
         }
     }

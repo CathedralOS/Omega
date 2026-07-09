@@ -350,23 +350,46 @@ fn append_call_operands(
                 bytes.extend(encode_add_page_offset_placeholder(next_register));
                 next_register += 1;
             }
-            RuntimeStringPointer { byte_offset } => {
+            RuntimeStringPointer {
+                byte_offset,
+                is_bounded_buffer,
+            } => {
                 bytes.extend(encode_adrp_placeholder(next_register));
                 bytes.extend(encode_add_page_offset_placeholder(next_register));
-                bytes.extend(encode_load_x_from_x(
-                    next_register,
-                    next_register,
-                    *byte_offset,
-                )?);
+                if *is_bounded_buffer {
+                    // Owned carrier: the content pointer is the COMPUTED
+                    // inline-bytes address `base + offset + 8`, not a stored
+                    // descriptor pointer. Same width as the load (12 total).
+                    bytes.extend(encode_add_x_immediate(
+                        next_register,
+                        next_register,
+                        byte_offset + 8,
+                    )?);
+                } else {
+                    bytes.extend(encode_load_x_from_x(
+                        next_register,
+                        next_register,
+                        *byte_offset,
+                    )?);
+                }
                 next_register += 1;
             }
-            RuntimeStringLength { byte_offset } => {
+            RuntimeStringLength {
+                byte_offset,
+                is_bounded_buffer,
+            } => {
                 bytes.extend(encode_adrp_placeholder(next_register));
                 bytes.extend(encode_add_page_offset_placeholder(next_register));
+                // Carrier length lives at offset 0 (the leading len word);
+                // a descriptor's len word sits at +8 behind the pointer.
                 bytes.extend(encode_load_x_from_x(
                     next_register,
                     next_register,
-                    byte_offset + 8,
+                    if *is_bounded_buffer {
+                        *byte_offset
+                    } else {
+                        byte_offset + 8
+                    },
                 )?);
                 next_register += 1;
             }
