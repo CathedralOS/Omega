@@ -13,6 +13,18 @@ Tier 1 items there (ZII guarantee, wire data semantics, versioned data,
 separate-compilation awareness, concurrency/atomics decisions, freestanding
 target, enum payloads) bias which vertical slices get picked next.
 
+## Probe rotation (current state)
+
+Swept clean and pinned where novel (2026-07-12..13): operand positions
+(left/right asymmetries), comparison complement flavors (equal-operand `!=`
+legs), staleness (sum reassignment vs equality; slice-capture is borrow-
+fenced), ZII boundaries (strings, sums-as-first-case, arrays, nesting, host
+marshal), deep-nesting writes + aggregate arg marshaling, range endpoints,
+u64 high-bit wrapped ops. Found + fixed en route: wrapping operand
+truncation, text `!=` inversion (both ISAs), TextEqualsLiteral x16 clobber
++ the x15 pool collision. Marginal probe value is now LOW -- next sweeps
+should target NEW feature surfaces as they land, not re-walk these axes.
+
 ## Owner-gated holds (see OWNER_QUESTIONS.md)
 
 - **NO-RECURSION scope (Q5, with Q6/Q7).** Zach's countdown note reads as

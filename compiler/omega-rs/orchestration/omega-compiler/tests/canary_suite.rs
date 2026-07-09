@@ -16480,6 +16480,32 @@ fn zii_default_composite_exit_canary_runs() {
 }
 
 #[test]
+fn zii_string_host_write_exit_canary_runs() {
+    // ZII string through host argument marshaling: len 0, null ptr never
+    // dereferenced on the way to Stdout.write.
+    let canary = pass_canary("text/zii_string_host_write_exit");
+    let build_dir = std::env::temp_dir().join(format!("omega-ziihost-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+    compile(CompileOptions {
+        root_path: canary.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("zii host-write canary should compile");
+    let output = Command::new(build_dir.join(executable_name()))
+        .output()
+        .expect("zii host-write canary should run");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "zii host-write canary should print and exit 70, got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn zii_default_string_equality_exit_canary_runs() {
     // ZII default strings ARE the empty string through content equality;
     // the non-empty-literal leg must not dereference the null pointer.
@@ -27325,6 +27351,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "text/runtime_text_equals_boolean_operand_exit",
     "text/runtime_text_not_equals_exit",
     "text/zii_default_string_equality_exit",
+    "text/zii_string_host_write_exit",
     "text/runtime_text_equals_value_positions_exit",
     "control_flow/runtime_case_member_dispatch_exit",
     "control_flow/runtime_local_boolean_or_value_exit",
