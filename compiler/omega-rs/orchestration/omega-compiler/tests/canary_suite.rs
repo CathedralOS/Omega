@@ -20906,6 +20906,53 @@ stderr:
     let _ = fs::remove_dir_all(&build_dir);
 }
 
+// `exists`/`try_exists` UNFENCED on windows as a side effect of the stat
+// migration: both consult only `read_metadata`'s return code (not the decoded
+// record), so wiring msvcrt `_stat64` made them lower natively with no extra
+// seam work. Discriminating: absent -> false/No, after write -> true/Yes.
+// NATIVE + interp differential.
+#[cfg(windows)]
+#[test]
+fn windows_wrapper_exists_exit_canary_runs() {
+    let canary = pass_canary("filesystem/windows_wrapper_exists_exit");
+    let main_path = canary.join("main.omg");
+
+    let checked = omega_compiler::compile_to_checked(&main_path, None)
+        .expect("windows exists canary should compile to checked trees");
+    let outcome = omega_interpreter::interpret(&checked, &[]);
+    assert_eq!(
+        outcome.exit_code, 70,
+        "interpreter oracle should exit 70 (exists/try_exists absent->present), got {}",
+        outcome.exit_code
+    );
+
+    let build_dir = std::env::temp_dir().join(format!("omega-fs-exists-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&build_dir);
+
+    compile(CompileOptions {
+        root_path: main_path,
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect("windows exists canary should compile");
+
+    let output = Command::new(build_dir.join(executable_name()))
+        .current_dir(&build_dir)
+        .output()
+        .expect("windows exists canary should run");
+
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "expected native stat-based exists/try_exists (exit 70), got {:?}\nstderr:\n{}",
+        output.status.code(),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
 // An AUTHORED provides import end to end (hosted-consumption rung 2): the
 // program's own `windows_x64 provides Beeper { beep -> DllImport("msvcrt.dll",
 // "abs") }` row binds, the import table names msvcrt.dll (the binding, not
@@ -25134,6 +25181,7 @@ const ACTIVE_PASS_CANARIES: &[&str] = &[
     "capabilities/windows_provides_import_exit",
     "filesystem/windows_wrapper_create_new_exit",
     "filesystem/windows_wrapper_metadata_exit",
+    "filesystem/windows_wrapper_exists_exit",
     "targets/efi_freestanding_skeleton",
     "targets/efi_entry_arguments",
     "targets/entry_run_args_bytes",
